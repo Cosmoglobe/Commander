@@ -64,7 +64,6 @@ program commander
   stop
   call initialize_data_mod(cpar)
   
-  
 
   ! **************************************************************
   ! *                   Carry out computations                   *
