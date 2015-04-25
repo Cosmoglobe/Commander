@@ -1,0 +1,103 @@
+# Config file for linking against packages in
+# HPCPorts.  Should work on all NERSC machines
+# after loading the cmb module from HPCPorts.
+
+# =============== Installation ===================
+
+# Final install location.  This defaults to a
+# subdirectory of the top-level directory called
+# install_$COMMANDER.
+#export INSTALL := /usr/local
+
+
+# =============== System Tools ===================
+
+# The defaults should be fine for any normal
+# GNU/Linux operating system...
+
+# Here you can override the make version to use
+#export MAKE := gmake
+
+# How to make a tar.gz file
+#export CTAR := tar czvf
+
+# The archive command
+#export AR := ar
+
+# Archive options to create a library
+#export ARFLAGS := crv
+
+# The ranlib command
+#export RANLIB := ranlib
+
+
+# ================= Compilers ====================
+
+# Serial Fortran 90 compiler.  Default is "f90".
+export F90 := $(HPCP_FC)
+
+# MPI Fortran 90 compiler.  Default is "mpif90".
+export MPF90 := $(HPCP_MPIFC)
+
+# MPI Fortran 77 compiler.  Default is "mpif77".
+export MPF77 := $(HPCP_MPIF77)
+
+# MPI C compiler.  Default is "mpicc".
+export MPCC := $(HPCP_MPICC)
+
+# MPI C++ compiler.  Default is "mpicxx".
+export MPCXX := $(HPCP_MPICXX)
+
+
+# ============== Language Mixing =================
+
+export MPFCLIBS := $(HPCP_MPIFCLIBS) $(HPCP_FCLIBS)
+
+
+# =========== Compiler Optimizations =============
+
+# FIXME! the line length option is gfortran specific, but I 
+# gave up hacking the code to make it conform to the standard
+# line length limit.
+
+# Fortran 90 compiler flags
+export F90FLAGS := $(HPCP_FCFLAGS) $(HPCP_OMPFLAGS) -ffree-line-length-none
+#export F90FLAGS := -g -march=native -fPIC $(HPCP_OMPFLAGS) -ffree-line-length-none -fbounds-check -Wall -fbacktrace -finit-real=nan
+
+# Fortran 77 compiler flags
+export FFLAGS := $(HPCP_FFLAGS) $(HPCP_OMPFLAGS) -ffree-line-length-none
+
+# C compiler flags.
+export CFLAGS := $(HPCP_CFLAGS) $(HPCP_OMPFLAGS)
+
+# C++ compiler flags.
+export CXXFLAGS := $(HPCP_CXXFLAGS) $(HPCP_OMPFLAGS)
+
+# Extra flags used for linking
+export LDFLAGS := $(HPCP_OMPFLAGS) $(HPCP_LDFLAGS) $(HPCP_LIBS) -lstdc++
+
+
+# ============== Fortran Features ================
+
+# Set this variable to 1 if the fortran compiler
+# produces module files with capitalization (*.MOD)
+# instead of lowercase (*.mod).
+#export FORTRAN_UPPER := 1
+
+
+# =============== CFITSIO Linking ================
+
+# The include and linking commands for cfitsio.
+export CFITSIO_LINK := $(cfitsio_LIBS_FC)
+
+
+# =============== LAPACK Linking =================
+
+export LAPACK_LINK := $(lapack_LIBS_FC) $(blas_LIBS_FC)
+
+
+# ================ Healpix linking ================
+
+export HEALPIX_INCLUDE := -I$(healpix_PREFIX)/include
+export HEALPIX_LINK := $(healpix_LIBS_FC)
+
