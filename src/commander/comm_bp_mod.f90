@@ -81,7 +81,7 @@ contains
     case ('HFI_submm') 
        constructor%threshold = 1.d-5
     case default
-       call report_error(cpar%myid, 'Error -- unsupported bandpass type = '//trim(constructor%type))
+       call report_error('Error -- unsupported bandpass type = '//trim(constructor%type))
     end select
 
     ! Initialize raw bandpass
@@ -90,7 +90,7 @@ contains
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
     else
-       call read_bandpass(cpar%ds_bpfile(id), constructor%threshold, &
+       call read_bandpass(trim(dir)//cpar%ds_bpfile(id), constructor%threshold, &
             & constructor%n, constructor%nu0, constructor%tau0)
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     end if
@@ -106,8 +106,7 @@ contains
        allocate(constructor%delta(constructor%npar))
        constructor%delta = 1.d0
     else
-       call report_error(cpar%myid, 'Error -- unsupported bandpass model = ' // &
-            & trim(constructor%model))
+       call report_error('Error -- unsupported bandpass model = ' // trim(constructor%model))
     end if
 
     ! Initialize active bandpass 

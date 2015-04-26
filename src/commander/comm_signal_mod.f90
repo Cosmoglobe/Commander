@@ -24,7 +24,7 @@ contains
        case ("power_law")
           c => comm_powlaw_comp(cpar, i)
        case default
-          call report_error(cpar%myid, "Unknown component type: "//trim(cpar%cs_type(i)))
+          call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
        end select
 
        ! Add object to list

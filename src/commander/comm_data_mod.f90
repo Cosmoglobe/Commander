@@ -78,7 +78,7 @@ contains
        if (trim(noise_format) == 'rms') then
           data(i)%N => comm_N_rms(cpar, i, data(i)%mask)
        else
-          call report_error(cpar%myid, "Unknown file format: " // trim(noise_format))
+          call report_error("Unknown file format: " // trim(noise_format))
        end if
 
        ! Initialize bandpass

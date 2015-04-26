@@ -59,10 +59,11 @@ program commander
 
   call initialize_bp_mod(cpar)
   call initialize_signal_mod(cpar)
-  call dump_components('test.dat')
+  !call dump_components('test.dat')
+  call initialize_data_mod(cpar)
   call mpi_finalize(ierr)
   stop
-  call initialize_data_mod(cpar)
+
   
 
   ! **************************************************************

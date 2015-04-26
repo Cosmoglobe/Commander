@@ -159,7 +159,7 @@ contains
     integer(i4b),                                intent(out) :: n
     real(dp),         allocatable, dimension(:), intent(out) :: nu, tau
 
-    integer(i4b)        :: unit, first, last, m
+    integer(i4b)        :: unit, first, last, m, ierr
     logical(lgt)        :: exist
     character(len=128)  :: string
     real(dp), allocatable, dimension(:) :: x, y
@@ -167,10 +167,7 @@ contains
     unit = getlun()
     
     inquire(file=trim(filename), exist=exist)
-    if (.not. exist) then
-       write(*,*) 'Bandpass file does not exist = ', trim(filename)
-       stop
-    end if
+    if (.not. exist) call report_error('Bandpass file does not exist = ' // trim(filename))
 
     ! Find the number of entries
     m = 0
@@ -182,10 +179,7 @@ contains
     end do
 1   close(unit)
 
-    if (m == 0) then
-       write(*,*) 'No valid data entries in spectrum file ', trim(filename)
-       stop
-    end if
+    if (m == 0) call report_error('No valid data entries in bandpass file ' // trim(filename))
 
     allocate(x(m), y(m))
     m = 0

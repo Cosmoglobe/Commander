@@ -144,7 +144,7 @@ contains
     case ('uK_RJ') 
        self%RJ2unit_ = 1.d0
     case default
-       call report_error(cpar%myid, 'Unsupported unit: ' // trim(self%unit))
+       call report_error('Unsupported unit: ' // trim(self%unit))
     end select
 
   end subroutine initComp

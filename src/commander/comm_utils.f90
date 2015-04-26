@@ -549,13 +549,14 @@ contains
   end function tsum
 
   
-  subroutine report_error(myid, message)
+  subroutine report_error(message)
     implicit none
 
-    integer(i4b),     intent(in) :: myid
     character(len=*), intent(in) :: message
 
-    integer(i4b) :: ierr
+    integer(i4b) :: ierr, myid
+
+    call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
     
     if (myid == 0) write(*,*) trim(message)
     call mpi_finalize(ierr)
