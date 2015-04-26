@@ -2,12 +2,13 @@ module comm_data_mod
   use comm_param_mod
   use comm_bp_mod
   use comm_noise_mod
+  use comm_beam_mod
   use comm_map_mod
   implicit none
 
   type comm_data_set
-     logical(lgt)                 :: active, pol
-     character(len=512)           :: label, unit, beamtype
+     logical(lgt)                 :: active
+     character(len=512)           :: label, unit
      integer(i4b)                 :: period
 
      class(comm_mapinfo), pointer :: info
@@ -15,9 +16,9 @@ module comm_data_mod
      class(comm_map),     pointer :: mask
      class(comm_N),       pointer :: N
      class(comm_bp),      pointer :: bp
+     class(comm_B),       pointer :: B
 
      real(dp),     allocatable, dimension(:,:)   :: f
-     real(dp),     allocatable, dimension(:,:)   :: b_l
    contains
      procedure :: RJ2data
   end type comm_data_set
@@ -69,7 +70,7 @@ contains
        case ('rms') 
           data(i)%N => comm_N_rms(cpar, data(i)%info, i, data(i)%mask)
        case default
-          call report_error("Unknown file format: " // trim(cpar%ds_noise_format(i)))
+          call report_error("Unknown noise format: " // trim(cpar%ds_noise_format(i)))
        end select
        call update_status(status, "data_N")
 
@@ -78,11 +79,13 @@ contains
        call update_status(status, "data_bp")
        
        ! Initialize beam structures
-!       data(i)%beamtype = cpar%ds_beamtype(i)
-!       call read_beam(data(i)%lmax, data(i)%nmaps, &
-!            & data(i)%b_l, beamfile=trim(dir)//trim(cpar%ds_blfile(i)), &
-!            & pixwin=trim(dir)//trim(cpar%ds_pixwin(i)))
-!       call update_status(status, "data_beam")
+       select case (trim(cpar%ds_beamtype(i)))
+       case ('b_l')
+          data(i)%B => comm_B_bl(cpar, data(i)%info, i)
+       case default
+          call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
+       end select
+       call update_status(status, "data_beam")
 
     end do
     

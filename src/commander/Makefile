@@ -5,6 +5,7 @@ COBJS  := sharp.o sort_utils.o comm_system_backend.o comm_system_mod.o comm_map_
 	  comm_bp_utils.o comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o \
 	  comm_ptsrc_comp_mod.o comm_cmb_comp_mod.o comm_powlaw_comp_mod.o \
 	  comm_signal_mod.o comm_N_mod.o comm_N_rms_mod.o \
+          comm_B_mod.o comm_B_bl_mod.o comm_beam_mod.o \
           comm_data_mod.o comm_bp_mod.o
 
 all : commander
@@ -28,7 +29,7 @@ comm_N_rms_mod.o :         comm_N_mod.o
 comm_noise_mod.o :         comm_N_rms_mod.o
 comm_bp_mod.o :            comm_bp_utils.o comm_param_mod.o
 comm_fg_component_mod.o :  comm_bp_mod.o
-comm_data_mod.o :          comm_map_mod.o comm_noise_mod.o comm_bp_mod.o 
+comm_data_mod.o :          comm_map_mod.o comm_noise_mod.o comm_bp_mod.o comm_beam_mod.o
 commander.o :              comm_signal_mod.o comm_data_mod.o
 
 
