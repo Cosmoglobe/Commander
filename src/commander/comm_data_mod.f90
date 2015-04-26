@@ -94,9 +94,6 @@ contains
     end do
     call QuickSort(ind_ds, nu)
     deallocate(nu)
-    write(*,*) ind_ds
-    call mpi_finalize(i)
-    stop
 
   end subroutine initialize_data_mod
 
