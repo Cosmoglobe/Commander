@@ -1,3 +1,6 @@
+!
+! Imported from QUIET repository; written by Sigurd Næss
+!
 module comm_system_mod
   use healpix_types
   use iso_c_binding

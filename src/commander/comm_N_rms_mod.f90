@@ -1,13 +1,14 @@
 module comm_N_rms_mod
   use comm_N_mod
   use comm_param_mod
+  use comm_map_mod
   implicit none
 
   private
   public comm_N_rms
   
   type, extends (comm_N) :: comm_N_rms
-     real(dp), allocatable, dimension(:,:) :: siN
+     class(comm_map), pointer :: siN
    contains
      ! Data procedures
      procedure :: invN     => matmulInvN
@@ -24,11 +25,12 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, mask)
+  function constructor(cpar, info, id, mask)
     implicit none
     type(comm_params),                  intent(in) :: cpar
+    type(comm_mapinfo), target,         intent(in) :: info
     integer(i4b),                       intent(in) :: id
-    real(dp),           dimension(:,:), intent(in) :: mask
+    class(comm_map),                    intent(in) :: mask
     class(comm_N_rms),                  pointer    :: constructor
 
     character(len=512) :: dir
@@ -39,42 +41,45 @@ contains
 
     ! Component specific parameters
     constructor%type  = cpar%ds_noise_format(id)
-    constructor%nside = cpar%ds_nside(id)
-    constructor%pol   = cpar%ds_polarization(id)
-    constructor%nmaps = 1; if (constructor%pol) constructor%nmaps = 3
+    constructor%nside = info%nside
+    constructor%nmaps = info%nmaps
+    constructor%np    = info%np
+    constructor%pol   = info%nmaps == 3
+    constructor%siN   => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id)))
 
-    call allocate_map(cpar%comm_chain, constructor%nside, constructor%nmaps, 0, &
-         & constructor%siN, filename=trim(dir)//cpar%ds_noise_rms(id), np=constructor%np)
+    ! Apply mask
+    constructor%siN%map = constructor%siN%map * mask%map
+    
   end function constructor
 
   ! Return map_out = invN * map
-  function matmulInvN(self, map)
+  subroutine matmulInvN(self, map, res)
     implicit none
-    class(comm_N_rms),                                intent(in) :: self
-    real(dp),          dimension(self%np,self%nmaps), intent(in) :: map
-    real(dp),          dimension(self%np,self%nmaps)             :: matmulInvN
-    matmulInvN = (self%siN)**2 * map
-  end function matmulInvN
+    class(comm_N_rms), intent(in)     :: self
+    class(comm_map),   intent(in)     :: map
+    class(comm_map),   intent(inout)  :: res
+    res%map = (self%siN%map)**2 * map%map
+  end subroutine matmulInvN
   
   ! Return map_out = sqrtInvN * map
-  function matmulSqrtInvN(self, map)
+  subroutine matmulSqrtInvN(self, map, res)
     implicit none
-    class(comm_N_rms),                                intent(in) :: self
-    real(dp),          dimension(self%np,self%nmaps), intent(in) :: map
-    real(dp),          dimension(self%np,self%nmaps)             :: matmulSqrtInvN
-    matmulSqrtInvN = self%siN * map
-  end function matmulSqrtInvN
+    class(comm_N_rms), intent(in)    :: self
+    class(comm_map),   intent(in)    :: map
+    class(comm_map),   intent(inout) :: res
+    res%map = self%siN%map * map%map
+  end subroutine matmulSqrtInvN
 
   ! Return RMS map
-  function returnRMS(self)
+  subroutine returnRMS(self, res)
     implicit none
-    class(comm_N_rms),                           intent(in) :: self
-    real(dp),      dimension(self%np,self%nmaps)            :: returnRMS
-    where (self%siN > 0.d0)
-       returnRMS = 1.d0/self%siN
+    class(comm_N_rms), intent(in)    :: self
+    class(comm_map),   intent(inout) :: res
+    where (self%siN%map > 0.d0)
+       res%map = 1.d0/self%siN%map
     elsewhere
-       returnRMS = infinity
+       res%map = infinity
     end where
-  end function returnRMS
+  end subroutine returnRMS
 
 end module comm_N_rms_mod

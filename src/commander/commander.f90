@@ -63,6 +63,9 @@ program commander
   call initialize_signal_mod(cpar);      call update_status(status, "init_signal")
   !call dump_components('test.dat')
   call initialize_data_mod(cpar);        call update_status(status, "init_data")
+
+  call data(3)%map%writeFITS('test.fits')
+  
   call mpi_finalize(ierr)
   stop
 

@@ -2,24 +2,22 @@ module comm_data_mod
   use comm_param_mod
   use comm_bp_mod
   use comm_noise_mod
+  use comm_map_mod
   implicit none
 
   type comm_data_set
-     class(comm_N),  pointer :: N
-     class(comm_bp), pointer :: bp
+     logical(lgt)                 :: active, pol
+     character(len=512)           :: label, unit, beamtype
+     integer(i4b)                 :: period
 
-     logical(lgt)           :: active, pol
-     character(len=512)     :: label, unit, beamtype
-     integer(i4b)           :: nside, nmaps, npix, np, lmax, ntemp, period
-     real(dp),     allocatable, dimension(:,:)   :: map
-     real(dp),     allocatable, dimension(:,:)   :: mask
-     !real(dp),     allocatable, dimension(:,:)   :: mask_calib
+     class(comm_mapinfo), pointer :: info
+     class(comm_map),     pointer :: map
+     class(comm_map),     pointer :: mask
+     class(comm_N),       pointer :: N
+     class(comm_bp),      pointer :: bp
+
      real(dp),     allocatable, dimension(:,:)   :: f
      real(dp),     allocatable, dimension(:,:)   :: b_l
-     integer(i4b), allocatable, dimension(:)     :: rings
-     integer(i4b), allocatable, dimension(:)     :: pix
-     logical(lgt), allocatable, dimension(:)     :: samptemp
-     real(dp),     allocatable, dimension(:,:,:) :: T
    contains
      procedure :: RJ2data
   end type comm_data_set
@@ -36,7 +34,7 @@ contains
     type(comm_params), intent(in) :: cpar
 
     integer(i4b)       :: i, j, n, m
-    character(len=512) :: dir, noise_format
+    character(len=512) :: dir
     real(dp), allocatable, dimension(:,:) :: map
 
     ! Read all data sets
@@ -48,83 +46,41 @@ contains
        data(i)%label        = cpar%ds_label(i)
        data(i)%period       = cpar%ds_period(i)
        data(i)%unit         = cpar%ds_unit(i)
-       data(i)%nside        = cpar%ds_nside(i)
-       data(i)%lmax         = cpar%ds_lmax(i)
-       data(i)%pol          = cpar%ds_polarization(i)
-       data(i)%nmaps        = 1; if (data(i)%pol) data(i)%nmaps = 3
-       noise_format         = cpar%ds_noise_format(i)
 
        ! Initialize map structures
-       call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
-            & data(i)%map, data(i)%np, data(i)%rings, data(i)%pix, trim(dir)//cpar%ds_mapfile(i))
+       data(i)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
+            & cpar%ds_polarization(i))
+       data(i)%map  => comm_map(data(i)%info, trim(dir)//trim(cpar%ds_mapfile(i)))
        call update_status(status, "data_map")
 
+       ! Initialize mask structures
        if (trim(cpar%ds_maskfile(i)) == 'fullsky') then
-          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
-               & data(i)%mask)
-          data(i)%mask = 1.d0
+          data(i)%mask     => comm_map(data(i)%info)
+          data(i)%mask%map =  1.d0
        else
-          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
-               & data(i)%mask, filename=trim(dir)//cpar%ds_maskfile(i))
+          data(i)%mask  => comm_map(data(i)%info, trim(dir)//trim(cpar%ds_maskfile(i)))
        end if
        call update_status(status, "data_mask")
 
-!!$       if (trim(cpar%ds_maskfile_calib(i)) == 'fullsky') then
-!!$          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
-!!$               & data(i)%mask_calib)
-!!$          data(i)%mask_calib = 1.d0
-!!$       else
-!!$          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
-!!$               & data(i)%mask_calib, filename=trim(dir)//cpar%ds_maskfile_calib(i))
-!!$       end if
-!!$       call update_status(status, "data_mask_calib")
-
-       ! Initialize noise object
-       if (trim(noise_format) == 'rms') then
-          data(i)%N => comm_N_rms(cpar, i, data(i)%mask)
-       else
-          call report_error("Unknown file format: " // trim(noise_format))
-       end if
+       ! Initialize noise structures
+       select case (trim(cpar%ds_noise_format(i)))
+       case ('rms') 
+          data(i)%N => comm_N_rms(cpar, data(i)%info, i, data(i)%mask)
+       case default
+          call report_error("Unknown file format: " // trim(cpar%ds_noise_format(i)))
+       end select
        call update_status(status, "data_N")
 
-       ! Initialize bandpass
+       ! Initialize bandpass structures
        data(i)%bp => comm_bp(cpar, i)
        call update_status(status, "data_bp")
        
        ! Initialize beam structures
-       data(i)%beamtype = cpar%ds_beamtype(i)
-       call read_beam(data(i)%lmax, data(i)%nmaps, &
-            & data(i)%b_l, beamfile=trim(dir)//trim(cpar%ds_blfile(i)), &
-            & pixwin=trim(dir)//trim(cpar%ds_pixwin(i)))
-       call update_status(status, "data_beam")
-
-       ! Initialize template structures
-       data(i)%ntemp = 0
-       if (cpar%ds_samp_monopole(i)) data(i)%ntemp = data(i)%ntemp+1
-       if (cpar%ds_samp_dipole(i))   data(i)%ntemp = data(i)%ntemp+3
-                                     data(i)%ntemp = data(i)%ntemp+cpar%ds_numtemp(i)
-       allocate(data(i)%T(data(i)%np,data(i)%nmaps,data(i)%ntemp), data(i)%samptemp(data(i)%ntemp))
-       data(i)%T = 0.d0
-       m         = 1
-       if (cpar%ds_samp_monopole(i)) then
-          call initialize_mono_dipole(data(i)%nside, data(i)%pix, monopole=data(i)%T(:,1,m))
-          data(i)%samptemp(m) = cpar%ds_samp_monopole(i)
-          m = m+1
-       end if
-       if (cpar%ds_samp_dipole(i)) then
-          call initialize_mono_dipole(data(i)%nside, data(i)%pix, dipole=data(i)%T(:,1,m:m+2))
-          data(i)%samptemp(m:m+2) = cpar%ds_samp_dipole(i)
-          m = m+3
-       end if
-       do j = 1, cpar%ds_numtemp(i)
-          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
-               & map, filename=trim(dir)//cpar%ds_tempname(i,j))
-          data(i)%T(:,:,m)    = map
-          data(i)%samptemp(m) = cpar%ds_samptemp(i,j)
-          m                   = m+1
-          deallocate(map)
-       end do
-       call update_status(status, "data_template")
+!       data(i)%beamtype = cpar%ds_beamtype(i)
+!       call read_beam(data(i)%lmax, data(i)%nmaps, &
+!            & data(i)%b_l, beamfile=trim(dir)//trim(cpar%ds_blfile(i)), &
+!            & pixwin=trim(dir)//trim(cpar%ds_pixwin(i)))
+!       call update_status(status, "data_beam")
 
     end do
     

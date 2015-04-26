@@ -1,5 +1,6 @@
 module comm_N_mod
   use comm_param_mod
+  use comm_map_mod
   implicit none
 
   private
@@ -19,30 +20,30 @@ module comm_N_mod
 
   abstract interface
      ! Return map_out = invN * map
-     function matmulInvN(self, map)
-       import comm_N, dp, i4b
+     subroutine matmulInvN(self, map, res)
+       import comm_map, comm_N, dp, i4b
        implicit none
-       class(comm_N),                                intent(in) :: self
-       real(dp),      dimension(self%np,self%nmaps), intent(in) :: map
-       real(dp),      dimension(self%np,self%nmaps)             :: matmulInvN
-     end function matmulInvN
+       class(comm_N),   intent(in)    :: self
+       class(comm_map), intent(in)    :: map
+       class(comm_map), intent(inout) :: res
+     end subroutine matmulInvN
 
      ! Return map_out = sqrtInvN * map
-     function matmulSqrtInvN(self, map)
-       import comm_N, dp, i4b
+     subroutine matmulSqrtInvN(self, map, res)
+       import comm_map, comm_N, dp, i4b
        implicit none
-       class(comm_N),                                intent(in) :: self
-       real(dp),      dimension(self%np,self%nmaps), intent(in) :: map
-       real(dp),      dimension(self%np,self%nmaps)             :: matmulSqrtInvN
-     end function matmulSqrtInvN
+       class(comm_N),   intent(in)    :: self
+       class(comm_map), intent(in)    :: map
+       class(comm_map), intent(inout) :: res
+     end subroutine matmulSqrtInvN
 
      ! Return rms map
-     function returnRMS(self)
-       import comm_N, dp
+     subroutine returnRMS(self, res)
+       import comm_map, comm_N, dp
        implicit none
-       class(comm_N),                               intent(in) :: self
-       real(dp),      dimension(self%np,self%nmaps)            :: returnRMS
-     end function returnRMS
+       class(comm_N),   intent(in)    :: self
+       class(comm_map), intent(inout) :: res
+     end subroutine returnRMS
   end interface
 
 end module comm_N_mod

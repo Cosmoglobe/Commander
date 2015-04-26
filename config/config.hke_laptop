@@ -91,6 +91,13 @@ export CFITSIO_INCLUDE :=
 export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio
 
 
+# =============== SHARP Linking ================
+
+# The include and linking commands for cfitsio.
+export SHARP_INCLUDE := 
+export SHARP_LINK := -L$(LOCAL)/lib #-lsharp
+
+
 # =============== LAPACK Linking =================
 
 # The include and linking commands for LAPACK.
