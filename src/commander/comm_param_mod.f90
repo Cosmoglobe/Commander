@@ -1,5 +1,6 @@
 module comm_param_mod
   use comm_utils
+  use comm_status_mod
   implicit none
 
   ! Note: This module reads in the Commander parameter file as the first operation
@@ -9,6 +10,7 @@ module comm_param_mod
   !       at a later stage. 
 
   integer(i4b), parameter, private :: MAXPAR = 10
+  type(status_file)                :: status
   
   type comm_params
 

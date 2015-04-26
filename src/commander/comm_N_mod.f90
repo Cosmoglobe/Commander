@@ -10,18 +10,18 @@ module comm_N_mod
      character(len=512) :: type
      integer(i4b)       :: nside, nmaps, np
      logical(lgt)       :: pol
-     real(dp), allocatable, dimension(:,:) :: rms
    contains
      ! Data procedures
      procedure(matmulInvN),     deferred :: invN
      procedure(matmulSqrtInvN), deferred :: sqrtInvN
-     procedure                           :: getRMS
+     procedure(returnRMS),      deferred :: rms
   end type comm_N
 
   abstract interface
      ! Return map_out = invN * map
      function matmulInvN(self, map)
        import comm_N, dp, i4b
+       implicit none
        class(comm_N),                                intent(in) :: self
        real(dp),      dimension(self%np,self%nmaps), intent(in) :: map
        real(dp),      dimension(self%np,self%nmaps)             :: matmulInvN
@@ -30,19 +30,19 @@ module comm_N_mod
      ! Return map_out = sqrtInvN * map
      function matmulSqrtInvN(self, map)
        import comm_N, dp, i4b
+       implicit none
        class(comm_N),                                intent(in) :: self
        real(dp),      dimension(self%np,self%nmaps), intent(in) :: map
        real(dp),      dimension(self%np,self%nmaps)             :: matmulSqrtInvN
      end function matmulSqrtInvN
+
+     ! Return rms map
+     function returnRMS(self)
+       import comm_N, dp
+       implicit none
+       class(comm_N),                               intent(in) :: self
+       real(dp),      dimension(self%np,self%nmaps)            :: returnRMS
+     end function returnRMS
   end interface
 
-contains
-
-  ! Return rms map
-  function getRMS(self)
-    class(comm_N),                               intent(in) :: self
-    real(dp),      dimension(self%np,self%nmaps)            :: getRMS
-    getRMS = self%rms
-  end function getRMS
-  
 end module comm_N_mod

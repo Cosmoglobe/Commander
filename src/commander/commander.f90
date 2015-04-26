@@ -36,6 +36,7 @@ program commander
   ! **************************************************************
   call read_comm_params(cpar)
   call initialize_mpi_struct(cpar)
+  call init_status(status, 'comm_status.txt')
 
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -57,10 +58,11 @@ program commander
   ! *               Initialize modules             *
   ! ************************************************
 
-  call initialize_bp_mod(cpar)
-  call initialize_signal_mod(cpar)
+  call update_status(status, "init")
+  call initialize_bp_mod(cpar);          call update_status(status, "init_bp")
+  call initialize_signal_mod(cpar);      call update_status(status, "init_signal")
   !call dump_components('test.dat')
-  call initialize_data_mod(cpar)
+  call initialize_data_mod(cpar);        call update_status(status, "init_data")
   call mpi_finalize(ierr)
   stop
 
@@ -85,6 +87,7 @@ program commander
   if (cpar%myid == cpar%root .and. cpar%verbosity > 1) write(*,*) '     Cleaning up and finalizing'
 
   ! And exit
+  call free_status(status)
   call mpi_finalize(ierr)
 
 end program commander

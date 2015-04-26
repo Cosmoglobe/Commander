@@ -7,11 +7,12 @@ module comm_N_rms_mod
   public comm_N_rms
   
   type, extends (comm_N) :: comm_N_rms
-     real(dp), allocatable, dimension(:,:) :: iN, siN
+     real(dp), allocatable, dimension(:,:) :: siN
    contains
      ! Data procedures
      procedure :: invN     => matmulInvN
      procedure :: sqrtInvN => matmulSqrtInvN
+     procedure :: rms      => returnRMS
   end type comm_N_rms
 
   interface comm_N_rms
@@ -43,26 +44,37 @@ contains
     constructor%nmaps = 1; if (constructor%pol) constructor%nmaps = 3
 
     call allocate_map(cpar%comm_chain, constructor%nside, constructor%nmaps, 0, &
-         & constructor%rms, filename=trim(dir)//cpar%ds_noise_rms(id), np=constructor%np)
-    allocate(constructor%iN(constructor%np,constructor%nmaps))
-    constructor%iN = 1.d0 / constructor%rms**2 * mask
-    constructor%iN = 1.d0 / constructor%rms    * mask
+         & constructor%siN, filename=trim(dir)//cpar%ds_noise_rms(id), np=constructor%np)
   end function constructor
 
   ! Return map_out = invN * map
   function matmulInvN(self, map)
+    implicit none
     class(comm_N_rms),                                intent(in) :: self
     real(dp),          dimension(self%np,self%nmaps), intent(in) :: map
     real(dp),          dimension(self%np,self%nmaps)             :: matmulInvN
-    matmulInvN = self%iN * map
+    matmulInvN = (self%siN)**2 * map
   end function matmulInvN
   
   ! Return map_out = sqrtInvN * map
   function matmulSqrtInvN(self, map)
+    implicit none
     class(comm_N_rms),                                intent(in) :: self
     real(dp),          dimension(self%np,self%nmaps), intent(in) :: map
     real(dp),          dimension(self%np,self%nmaps)             :: matmulSqrtInvN
     matmulSqrtInvN = self%siN * map
   end function matmulSqrtInvN
+
+  ! Return RMS map
+  function returnRMS(self)
+    implicit none
+    class(comm_N_rms),                           intent(in) :: self
+    real(dp),      dimension(self%np,self%nmaps)            :: returnRMS
+    where (self%siN > 0.d0)
+       returnRMS = 1.d0/self%siN
+    elsewhere
+       returnRMS = infinity
+    end where
+  end function returnRMS
 
 end module comm_N_rms_mod

@@ -13,7 +13,7 @@ module comm_data_mod
      integer(i4b)           :: nside, nmaps, npix, np, lmax, ntemp, period
      real(dp),     allocatable, dimension(:,:)   :: map
      real(dp),     allocatable, dimension(:,:)   :: mask
-     real(dp),     allocatable, dimension(:,:)   :: mask_calib
+     !real(dp),     allocatable, dimension(:,:)   :: mask_calib
      real(dp),     allocatable, dimension(:,:)   :: f
      real(dp),     allocatable, dimension(:,:)   :: b_l
      integer(i4b), allocatable, dimension(:)     :: rings
@@ -57,6 +57,8 @@ contains
        ! Initialize map structures
        call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
             & data(i)%map, data(i)%np, data(i)%rings, data(i)%pix, trim(dir)//cpar%ds_mapfile(i))
+       call update_status(status, "data_map")
+
        if (trim(cpar%ds_maskfile(i)) == 'fullsky') then
           call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
                & data(i)%mask)
@@ -65,14 +67,17 @@ contains
           call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
                & data(i)%mask, filename=trim(dir)//cpar%ds_maskfile(i))
        end if
-       if (trim(cpar%ds_maskfile_calib(i)) == 'fullsky') then
-          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
-               & data(i)%mask_calib)
-          data(i)%mask_calib = 1.d0
-       else
-          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
-               & data(i)%mask_calib, filename=trim(dir)//cpar%ds_maskfile_calib(i))
-       end if
+       call update_status(status, "data_mask")
+
+!!$       if (trim(cpar%ds_maskfile_calib(i)) == 'fullsky') then
+!!$          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
+!!$               & data(i)%mask_calib)
+!!$          data(i)%mask_calib = 1.d0
+!!$       else
+!!$          call allocate_map(cpar%comm_chain, data(i)%nside, data(i)%nmaps, 0, &
+!!$               & data(i)%mask_calib, filename=trim(dir)//cpar%ds_maskfile_calib(i))
+!!$       end if
+!!$       call update_status(status, "data_mask_calib")
 
        ! Initialize noise object
        if (trim(noise_format) == 'rms') then
@@ -80,15 +85,18 @@ contains
        else
           call report_error("Unknown file format: " // trim(noise_format))
        end if
+       call update_status(status, "data_N")
 
        ! Initialize bandpass
        data(i)%bp => comm_bp(cpar, i)
+       call update_status(status, "data_bp")
        
        ! Initialize beam structures
        data(i)%beamtype = cpar%ds_beamtype(i)
        call read_beam(data(i)%lmax, data(i)%nmaps, &
             & data(i)%b_l, beamfile=trim(dir)//trim(cpar%ds_blfile(i)), &
             & pixwin=trim(dir)//trim(cpar%ds_pixwin(i)))
+       call update_status(status, "data_beam")
 
        ! Initialize template structures
        data(i)%ntemp = 0
@@ -116,6 +124,7 @@ contains
           m                   = m+1
           deallocate(map)
        end do
+       call update_status(status, "data_template")
 
     end do
     
