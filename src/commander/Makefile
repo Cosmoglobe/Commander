@@ -13,7 +13,7 @@ comm_map_mod.o :           sharp.o
 comm_system_mod.o :        comm_system_backend.o
 comm_shared_output_mod.o : comm_system_mod.o
 comm_status_mod.o :        comm_shared_output_mod.o
-comm_utils.o :             comm_system_mod.o sharp.o
+comm_utils.o :             sort_utils.o comm_system_mod.o sharp.o
 comm_bp_utils.o :          comm_utils.o
 comm_param_mod.o :         comm_utils.o
 comm_comp_mod.o :          comm_bp_mod.o comm_param_mod.o

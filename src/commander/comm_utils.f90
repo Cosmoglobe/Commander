@@ -8,6 +8,7 @@ module comm_utils
   use iso_c_binding
   use comm_system_mod
   use comm_defs
+  use sort_utils
   implicit none
 
   include "mpif.h"

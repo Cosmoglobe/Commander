@@ -22,8 +22,9 @@ module comm_data_mod
      procedure :: RJ2data
   end type comm_data_set
 
+  integer(i4b) :: numband
   type(comm_data_set), allocatable, dimension(:) :: data
-  integer(i4b),        allocatable, dimension(:) :: i2f
+  integer(i4b),        allocatable, dimension(:) :: ind_ds
 
   
 contains
@@ -33,15 +34,16 @@ contains
 
     type(comm_params), intent(in) :: cpar
 
-    integer(i4b)       :: i, j, n, m
+    integer(i4b)       :: i, j, m
     character(len=512) :: dir
+    real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: map
 
     ! Read all data sets
-    n = cpar%numband
+    numband = cpar%numband
     dir = trim(cpar%datadir) // '/'
-    allocate(data(n))
-    do i = 1, cpar%numband
+    allocate(data(numband))
+    do i = 1, numband
        data(i)%active       = cpar%ds_active(i)
        data(i)%label        = cpar%ds_label(i)
        data(i)%period       = cpar%ds_period(i)
@@ -84,14 +86,17 @@ contains
 
     end do
     
-!!$    ! Sort bands according to nominal frequency
-!!$    allocate(i2f(numband), freq(numband))
-!!$    do i = 1, numband
-!!$       i2f(i)  = i
-!!$       freq(i) = bp(i)%nu_c
-!!$    end do
-!!$    call QuickSort(i2f,freq)
-!!$    deallocate(freq)
+    ! Sort bands according to nominal frequency
+    allocate(ind_ds(numband), nu(numband))
+    do i = 1, numband
+       ind_ds(i)  = i
+       nu(i)        = data(i)%bp%nu_c
+    end do
+    call QuickSort(ind_ds, nu)
+    deallocate(nu)
+    write(*,*) ind_ds
+    call mpi_finalize(i)
+    stop
 
   end subroutine initialize_data_mod
 
