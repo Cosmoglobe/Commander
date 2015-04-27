@@ -209,7 +209,7 @@ contains
 
     class(comm_comp), pointer :: c
     
-    c => compList
+    c => self%nextLink
     do while (associated(c%nextLink))
        c => c%nextLink
     end do
