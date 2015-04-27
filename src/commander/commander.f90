@@ -64,8 +64,10 @@ program commander
   !call dump_components('test.dat')
   call initialize_data_mod(cpar);        call update_status(status, "init_data")
 
-  call data(3)%map%writeFITS('test.fits')
-  
+  !call data(3)%map%writeFITS('test.fits')
+  call data(1)%map%YtW
+  call update_status(status, "YtW")
+
   call mpi_finalize(ierr)
   stop
 

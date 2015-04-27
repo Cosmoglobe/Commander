@@ -30,7 +30,7 @@ module comm_map_mod
    contains
      procedure     :: Y    => exec_sharp_Y
      procedure     :: Yt   => exec_sharp_Yt
-     procedure     :: WYt  => exec_sharp_WYt
+     procedure     :: YtW  => exec_sharp_YtW
      procedure     :: writeFITS
      procedure     :: readFITS
   end type comm_map
@@ -106,10 +106,10 @@ contains
     constructor_mapinfo%W = 1.d0
 
     ! Create SHARP info structures
-!!$    call sharp_make_mmajor_real_packed_alm_info(lmax, ms=constructor_mapinfo%ms, &
-!!$         & alm_info=constructor_mapinfo%alm_info)
-!!$    call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
-!!$         & geom_info=constructor_mapinfo%geom_info)
+    call sharp_make_mmajor_real_packed_alm_info(lmax, ms=constructor_mapinfo%ms, &
+         & alm_info=constructor_mapinfo%alm_info)
+    call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
+         & geom_info=constructor_mapinfo%geom_info)
     
   end function constructor_mapinfo
 
@@ -121,7 +121,7 @@ contains
 
     allocate(constructor_map)
     constructor_map%info => info
-    allocate(constructor_map%map(info%np,info%nmaps))
+    allocate(constructor_map%map(0:info%np-1,info%nmaps))
 
     if (present(filename)) then
        call constructor_map%readFITS(filename)
@@ -140,7 +140,14 @@ contains
 
     class(comm_map), intent(inout) :: self
 
-    
+    allocate(self%map(0:self%info%np-1,self%info%nmaps))
+    call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+         & self%map, self%info%geom_info, comm=self%info%comm)
+    if (self%info%nalm == 3) then
+       call sharp_execute(SHARP_Y, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+            & self%map, self%info%geom_info, comm=self%info%comm)
+    end if
+    deallocate(self%alm)    
     
   end subroutine exec_sharp_Y
 
@@ -149,14 +156,35 @@ contains
 
     class(comm_map), intent(inout) :: self
 
+    allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
+    call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+         & self%map, self%info%geom_info, comm=self%info%comm)
+    if (self%info%nalm == 3) then
+       call sharp_execute(SHARP_Yt, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+            & self%map, self%info%geom_info, comm=self%info%comm)
+    end if
+    deallocate(self%map)
+    
   end subroutine exec_sharp_Yt
 
-  subroutine exec_sharp_WYt(self)
+  subroutine exec_sharp_YtW(self)
     implicit none
 
     class(comm_map), intent(inout) :: self
 
-  end subroutine exec_sharp_WYt
+    integer(i4b) :: i, ierr
+    real(dp)     :: t1, t2
+   
+    allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
+    call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+         & self%map, self%info%geom_info, comm=self%info%comm)
+    if (self%info%nalm == 3) then
+       call sharp_execute(SHARP_YtW, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+            & self%map, self%info%geom_info, comm=self%info%comm)
+    end if
+    deallocate(self%map)
+    
+  end subroutine exec_sharp_YtW
   
   !**************************************************
   !                   IO routines

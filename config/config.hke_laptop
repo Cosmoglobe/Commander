@@ -54,7 +54,7 @@ export MPCXX := mpicxx
 
 # Fortran 90 compiler flags
 #export F90FLAGS := -O3 -w -fopenmp -lpthread
-export F90FLAGS := -g -Og -fcheck=all -fbounds-check -fbacktrace -finit-real=nan
+export F90FLAGS := -g -Og -fcheck=all -fbounds-check -fbacktrace -finit-real=nan -fopenmp
 #export F90FLAGS := -g -C -traceback -w -openmp -heap-arrays 16384 -assume byterecl
 
 # Fortran 77 compiler flags
@@ -95,7 +95,7 @@ export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio
 
 # The include and linking commands for cfitsio.
 export SHARP_INCLUDE := 
-export SHARP_LINK := -L$(LOCAL)/lib #-lsharp
+export SHARP_LINK := -L$(LOCAL)/lib -lsharp
 
 
 # =============== LAPACK Linking =================

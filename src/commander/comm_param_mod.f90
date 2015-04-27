@@ -283,7 +283,7 @@ contains
        call get_parameter(paramfile, 'COMP_LABEL'//itext,           par_string=cpar%cs_label(i))
        call get_parameter(paramfile, 'COMP_TYPE'//itext,            par_string=cpar%cs_type(i))
        call get_parameter(paramfile, 'COMP_CLASS'//itext,           par_string=cpar%cs_class(i))
-       call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%ds_polarization(i))
+       call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
        call get_parameter(paramfile, 'COMP_NSIDE'//itext,           par_int=cpar%cs_nside(i))
        call get_parameter(paramfile, 'COMP_LMAX_AMP'//itext,        par_int=cpar%cs_lmax_amp(i))
        call get_parameter(paramfile, 'COMP_LMAX_IND'//itext,        par_int=cpar%cs_lmax_ind(i))
