@@ -20,11 +20,12 @@ module comm_comp_mod
      integer(i4b)       :: nside, npar, nx, x0
      logical(lgt)       :: active, pol
      real(dp)           :: nu_ref, RJ2unit_
-     real(dp), allocatable, dimension(:)   :: theta_def
-     real(dp), allocatable, dimension(:,:) :: p_gauss
-     real(dp), allocatable, dimension(:,:) :: p_uni
+     real(dp), allocatable, dimension(:)     :: theta_def
+     real(dp), allocatable, dimension(:,:)   :: p_gauss
+     real(dp), allocatable, dimension(:,:)   :: p_uni
 
-     real(dp), allocatable, dimension(:)   :: x
+     real(dp), allocatable, dimension(:)   :: x      ! Spatial parameters
+     real(dp), allocatable, dimension(:,:) :: theta  ! Spectral parameters; alms per param
    contains
      ! Linked list procedures
      procedure :: next    ! get the link after this link

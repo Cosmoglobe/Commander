@@ -35,7 +35,7 @@ contains
 
     type(comm_params), intent(in) :: cpar
 
-    integer(i4b)       :: i, j, m
+    integer(i4b)       :: i, j, m, nmaps
     character(len=512) :: dir
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: map
@@ -51,8 +51,9 @@ contains
        data(i)%unit         = cpar%ds_unit(i)
 
        ! Initialize map structures
+       nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
        data(i)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
-            & cpar%ds_polarization(i))
+            & nmaps, cpar%ds_polarization(i))
        data(i)%map  => comm_map(data(i)%info, trim(dir)//trim(cpar%ds_mapfile(i)))
        call update_status(status, "data_map")
 

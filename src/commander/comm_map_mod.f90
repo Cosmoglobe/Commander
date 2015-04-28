@@ -15,6 +15,7 @@ module comm_map_mod
   type :: comm_mapinfo
      type(sharp_alm_info)  :: alm_info
      type(sharp_geom_info) :: geom_info
+     logical(lgt) :: pol
      integer(i4b) :: comm, myid, nprocs
      integer(i4b) :: nside, npix, nmaps, nring, np, lmax, nm, nalm
      integer(c_int), allocatable, dimension(:)   :: rings
@@ -48,9 +49,9 @@ contains
   !**************************************************
   !             Constructors
   !**************************************************
-  function constructor_mapinfo(comm, nside, lmax, pol)
+  function constructor_mapinfo(comm, nside, lmax, nmaps, pol)
     implicit none
-    integer(i4b),                 intent(in) :: comm, nside, lmax
+    integer(i4b),                 intent(in) :: comm, nside, lmax, nmaps
     logical(lgt),                 intent(in) :: pol
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
@@ -66,8 +67,9 @@ contains
     constructor_mapinfo%myid   = myid
     constructor_mapinfo%nprocs = nprocs
     constructor_mapinfo%nside  = nside
-    constructor_mapinfo%nmaps  = 1; if (pol) constructor_mapinfo%nmaps = 3
+    constructor_mapinfo%nmaps  = nmaps
     constructor_mapinfo%lmax   = lmax
+    constructor_mapinfo%pol    = pol
     constructor_mapinfo%npix   = 12*nside**2
 
     ! Select rings and pixels
@@ -135,54 +137,78 @@ contains
   !             Spherical harmonic transforms
   !**************************************************
 
-  subroutine exec_sharp_Y(self)
+  subroutine exec_sharp_Y(self, cleanup)
     implicit none
 
-    class(comm_map), intent(inout) :: self
+    class(comm_map), intent(inout)          :: self
+    logical(lgt),    intent(in),   optional :: cleanup
 
-    allocate(self%map(0:self%info%np-1,self%info%nmaps))
-    call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-         & self%map, self%info%geom_info, comm=self%info%comm)
-    if (self%info%nalm == 3) then
-       call sharp_execute(SHARP_Y, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)
+    logical(lgt) :: cleanup_ 
+
+    cleanup_ = .true.; if (present(cleanup)) cleanup_ = cleanup
+    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
+    if (self%info%pol) then
+       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+       if (self%info%nmaps == 3) then
+          call sharp_execute(SHARP_Y, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+       end if
+    else
+       call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
+            & self%map, self%info%geom_info, comm=self%info%comm)       
     end if
-    deallocate(self%alm)    
+    if (cleanup_) deallocate(self%alm)    
     
   end subroutine exec_sharp_Y
 
-  subroutine exec_sharp_Yt(self)
+  subroutine exec_sharp_Yt(self, cleanup)
     implicit none
 
     class(comm_map), intent(inout) :: self
+    logical(lgt),    intent(in),   optional :: cleanup
 
-    allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
-    call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-         & self%map, self%info%geom_info, comm=self%info%comm)
-    if (self%info%nalm == 3) then
-       call sharp_execute(SHARP_Yt, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)
+    logical(lgt) :: cleanup_ 
+
+    cleanup_ = .true.; if (present(cleanup)) cleanup_ = cleanup
+    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
+    if (self%info%pol) then
+       call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+       if (self%info%nmaps == 3) then
+          call sharp_execute(SHARP_Yt, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+       end if
+    else
+       call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
+            & self%map, self%info%geom_info, comm=self%info%comm)       
     end if
-    deallocate(self%map)
+    if (cleanup_) deallocate(self%map)
     
   end subroutine exec_sharp_Yt
 
-  subroutine exec_sharp_YtW(self)
+  subroutine exec_sharp_YtW(self, cleanup)
     implicit none
 
     class(comm_map), intent(inout) :: self
+    logical(lgt),    intent(in),   optional :: cleanup
 
-    integer(i4b) :: i, ierr
-    real(dp)     :: t1, t2
-   
-    allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
-    call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-         & self%map, self%info%geom_info, comm=self%info%comm)
-    if (self%info%nalm == 3) then
-       call sharp_execute(SHARP_YtW, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)
+    logical(lgt) :: cleanup_ 
+
+    cleanup_ = .true.; if (present(cleanup)) cleanup_ = cleanup
+    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
+    if (self%info%pol) then
+       call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+       if (self%info%nmaps == 3) then
+          call sharp_execute(SHARP_YtW, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+       end if
+    else
+       call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
+            & self%map, self%info%geom_info, comm=self%info%comm)       
     end if
-    deallocate(self%map)
+    if (cleanup_) deallocate(self%map)
     
   end subroutine exec_sharp_YtW
   
