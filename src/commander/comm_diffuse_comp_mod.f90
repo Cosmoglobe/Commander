@@ -12,6 +12,8 @@ module comm_diffuse_comp_mod
   !**************************************************
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
+     integer(i4b)       :: nside, nx, x0
+     logical(lgt)       :: pol
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv
      real(dp), allocatable, dimension(:,:) :: cls
 
@@ -38,8 +40,10 @@ contains
     call self%initComp(cpar, id)
 
     ! Initialize variables specific to diffuse source type
+    self%pol      = cpar%cs_polarization(id)
+    self%nside    = cpar%cs_nside(id)
     self%lmax_amp = cpar%cs_lmax_amp(id)
-    self%lmax_ind = cpar%cs_lmax_amp(id)
+    self%lmax_ind = cpar%cs_lmax_ind(id)
     
     !if (trim(cpar%cs_input_amp(i)) == 'zero' .or. trim(cpar%cs_input_amp(i)) == 'none') then
        

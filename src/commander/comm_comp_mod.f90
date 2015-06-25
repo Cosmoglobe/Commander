@@ -16,9 +16,9 @@ module comm_comp_mod
      class(comm_comp), pointer :: prevLink => null()
 
      ! Data variables
+     logical(lgt)       :: active
+     integer(i4b)       :: npar
      character(len=512) :: label, class, type, unit
-     integer(i4b)       :: nside, npar, nx, x0
-     logical(lgt)       :: active, pol
      real(dp)           :: nu_ref, RJ2unit_
      real(dp), allocatable, dimension(:)     :: theta_def
      real(dp), allocatable, dimension(:,:)   :: p_gauss
@@ -124,8 +124,6 @@ contains
     self%label  = cpar%cs_label(id)
     self%type   = cpar%cs_type(id)
     self%class  = cpar%cs_class(id)
-    self%pol    = cpar%cs_polarization(id)
-    self%nside  = cpar%cs_nside(id)
     self%unit   = cpar%cs_unit(id)
     self%nu_ref = cpar%cs_nu_ref(id)
 
