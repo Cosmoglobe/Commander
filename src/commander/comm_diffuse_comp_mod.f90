@@ -12,7 +12,7 @@ module comm_diffuse_comp_mod
   !**************************************************
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
-     integer(i4b)       :: nside, nx, x0
+     integer(i4b)       :: nside, nmaps, nx, x0
      logical(lgt)       :: pol
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv
      real(dp), allocatable, dimension(:,:) :: cls
@@ -37,6 +37,8 @@ contains
     type(comm_params),       intent(in) :: cpar
     integer(i4b),            intent(in) :: id
 
+    type(comm_mapinfo), pointer :: info
+    
     call self%initComp(cpar, id)
 
     ! Initialize variables specific to diffuse source type
@@ -44,8 +46,18 @@ contains
     self%nside    = cpar%cs_nside(id)
     self%lmax_amp = cpar%cs_lmax_amp(id)
     self%lmax_ind = cpar%cs_lmax_ind(id)
-    
-    !if (trim(cpar%cs_input_amp(i)) == 'zero' .or. trim(cpar%cs_input_amp(i)) == 'none') then
+    self%nmaps    = 1; if (self%pol) self%nmaps = 3
+    info          => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
+
+    ! Initialize amplitude map
+    if (trim(cpar%cs_input_amp(id)) == 'zero' .or. trim(cpar%cs_input_amp(id)) == 'none') then
+       self%x => comm_map(info)
+    else
+       ! Read map from FITS file, and convert to alms
+       self%x => comm_map(info, cpar%cs_input_amp(id))
+       call self%x%YtW(cleanup=.true.)
+    end if
+    self%ncr = size(self%x%alm)
        
 
   end subroutine initDiffuse

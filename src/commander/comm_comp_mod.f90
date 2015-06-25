@@ -17,7 +17,7 @@ module comm_comp_mod
 
      ! Data variables
      logical(lgt)       :: active
-     integer(i4b)       :: npar
+     integer(i4b)       :: npar, ncr
      character(len=512) :: label, class, type, unit
      real(dp)           :: nu_ref, RJ2unit_
      real(dp), allocatable, dimension(:)     :: theta_def

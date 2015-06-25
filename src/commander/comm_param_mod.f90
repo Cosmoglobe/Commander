@@ -50,8 +50,6 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_beamtype
      character(len=512), allocatable, dimension(:)   :: ds_blfile
      character(len=512), allocatable, dimension(:)   :: ds_pixwin
-     logical(lgt),       allocatable, dimension(:)   :: ds_samp_monopole
-     logical(lgt),       allocatable, dimension(:)   :: ds_samp_dipole
      logical(lgt),       allocatable, dimension(:)   :: ds_samp_noiseamp
      character(len=512), allocatable, dimension(:)   :: ds_bptype
      character(len=512), allocatable, dimension(:)   :: ds_bpfile
@@ -64,11 +62,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmax
      character(len=512), allocatable, dimension(:)   :: ds_gain_apodmask
      character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
-     integer(i4b),       allocatable, dimension(:)   :: ds_numtemp
-     character(len=512), allocatable, dimension(:,:) :: ds_tempname
-     logical(lgt),       allocatable, dimension(:,:) :: ds_samptemp
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
-     real(dp),           allocatable, dimension(:,:) :: ds_temp_defaults
 
      ! Component parameters
      integer(i4b) :: cs_ncomp
@@ -199,14 +193,13 @@ contains
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
     allocate(cpar%ds_noise_rms(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
-    allocate(cpar%ds_samp_monopole(n), cpar%ds_samp_dipole(n), cpar%ds_samp_noiseamp(n))
+    allocate(cpar%ds_samp_noiseamp(n))
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
     allocate(cpar%ds_co2t(n), cpar%ds_period(n), cpar%ds_beamtype(n), cpar%ds_blfile(n))
     allocate(cpar%ds_pixwin(n))
     allocate(cpar%ds_sample_gain(n), cpar%ds_gain_calib_comp(n), cpar%ds_gain_lmax(n))
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
-    allocate(cpar%ds_numtemp(n), cpar%ds_tempname(n,10), cpar%ds_samptemp(n,10))
-    allocate(cpar%ds_defaults(n,6), cpar%ds_temp_defaults(n,10))
+    allocate(cpar%ds_defaults(n,2))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'BAND_ACTIVE'//itext,          par_lgt=cpar%ds_active(i))
@@ -224,8 +217,6 @@ contains
        call get_parameter(paramfile, 'BAND_BEAMTYPE'//itext,        par_string=cpar%ds_beamtype(i))
        call get_parameter(paramfile, 'BAND_BEAM_B_L_FILE'//itext,   par_string=cpar%ds_blfile(i))
        call get_parameter(paramfile, 'BAND_PIXEL_WINDOW'//itext,    par_string=cpar%ds_pixwin(i))
-       call get_parameter(paramfile, 'BAND_SAMP_MONOPOLE'//itext,   par_lgt=cpar%ds_samp_monopole(i))
-       call get_parameter(paramfile, 'BAND_SAMP_DIPOLE'//itext,     par_lgt=cpar%ds_samp_dipole(i))
        call get_parameter(paramfile, 'BAND_SAMP_NOISE_AMP'//itext,  par_lgt=cpar%ds_samp_noiseamp(i))
        call get_parameter(paramfile, 'BAND_BANDPASS_TYPE'//itext,   par_string=cpar%ds_bptype(i))
        call get_parameter(paramfile, 'BAND_NOMINAL_FREQ'//itext,    par_dp=cpar%ds_nu_c(i))
@@ -238,19 +229,8 @@ contains
        call get_parameter(paramfile, 'BAND_GAIN_LMIN'//itext,       par_int=cpar%ds_gain_lmin(i))
        call get_parameter(paramfile, 'BAND_GAIN_APOD_MASK'//itext,  par_string=cpar%ds_gain_apodmask(i))
        call get_parameter(paramfile, 'BAND_GAIN_APOD_FWHM'//itext,  par_string=cpar%ds_gain_fwhm(i))
-       call get_parameter(paramfile, 'BAND_NUM_TEMPLATES'//itext,   par_int=cpar%ds_numtemp(i))
        call get_parameter(paramfile, 'BAND_DEFAULT_GAIN'//itext,    par_dp=cpar%ds_defaults(i,GAIN))
        call get_parameter(paramfile, 'BAND_DEFAULT_NOISEAMP'//itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
-       call get_parameter(paramfile, 'BAND_DEFAULT_MONOPOLE'//itext,par_dp=cpar%ds_defaults(i,MONOPOLE))
-       call get_parameter(paramfile, 'BAND_DEFAULT_X_DIPOLE'//itext,par_dp=cpar%ds_defaults(i,DIPOLE_X))
-       call get_parameter(paramfile, 'BAND_DEFAULT_Y_DIPOLE'//itext,par_dp=cpar%ds_defaults(i,DIPOLE_Y))
-       call get_parameter(paramfile, 'BAND_DEFAULT_Z_DIPOLE'//itext,par_dp=cpar%ds_defaults(i,DIPOLE_Z))
-       do j = 1, cpar%ds_numtemp(i)
-          call int2string(j, jtext)
-          call get_parameter(paramfile, 'BAND_TEMPLATE'//itext//'_'//jtext,    par_string=cpar%ds_tempname(i,j))
-          call get_parameter(paramfile, 'BAND_SAMP_TEMP'//itext//'_'//jtext,   par_lgt=cpar%ds_samptemp(i,j))
-          call get_parameter(paramfile, 'BAND_DEFAULT_TEMP'//itext//'_'//jtext,par_dp=cpar%ds_temp_defaults(i,j))
-       end do
     end do
 
     ! Convert to proper internal units where necessary

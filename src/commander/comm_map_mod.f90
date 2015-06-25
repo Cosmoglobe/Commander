@@ -296,7 +296,7 @@ contains
 
     ! Check file consistency 
     npix = getsize_fits(trim(filename), ordering=ordering, nside=nside, nmaps=nmaps)
-    if (nmaps /= self%info%nmaps) then
+    if (nmaps < self%info%nmaps) then
        if (self%info%myid == 0) write(*,*) 'Incorrect nmaps in ' // trim(filename)
        call mpi_finalize(ierr)
        stop
@@ -311,21 +311,21 @@ contains
     if (self%info%myid == 0) then
 
        ! Read map and convert to RING format if necessary
-       allocate(map(0:npix-1,nmaps))
-       call input_map(filename, map, npix, nmaps)
+       allocate(map(0:self%info%npix-1,self%info%nmaps))
+       call input_map(filename, map, self%info%npix, self%info%nmaps)
        if (ordering == 2) then
-          do i = 1, nmaps
-             call convert_nest2ring(nside, map(:,i))
+          do i = 1, self%info%nmaps
+             call convert_nest2ring(self%info%nside, map(:,i))
           end do
        end if
 
        ! Distribute to other nodes
-       allocate(p(npix))
+       allocate(p(self%info%npix))
        self%map = map(self%info%pix,:)
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
-          call mpi_send(map(p(1:np),:), np*nmaps, MPI_DOUBLE_PRECISION, i, 98, &
+          call mpi_send(map(p(1:np),:), np*self%info%nmaps, MPI_DOUBLE_PRECISION, i, 98, &
                & self%info%comm, ierr)
        end do
        deallocate(p, map)

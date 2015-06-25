@@ -15,11 +15,5 @@ module comm_defs
   !**************************************************
   integer(i4b), parameter :: GAIN     = 1
   integer(i4b), parameter :: NOISEAMP = 2
-  integer(i4b), parameter :: MONOPOLE = 3
-  integer(i4b), parameter :: DIPOLE_X = 4
-  integer(i4b), parameter :: DIPOLE_Y = 5
-  integer(i4b), parameter :: DIPOLE_Z = 6
-  
-
   
 end module comm_defs

@@ -2,6 +2,7 @@ program commander
   use comm_param_mod
   use comm_data_mod
   use comm_signal_mod
+  use comm_cr_mod
   implicit none
 
 
@@ -28,9 +29,12 @@ program commander
   ! *********************************************************************
 
 
-  integer(i4b)        :: iargc, ierr, iter
+  integer(i4b)        :: iargc, ierr, iter, stat
   type(comm_params)   :: cpar
   type(comm_map), pointer      :: map
+
+  real(dp), allocatable, dimension(:) :: q
+
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
@@ -38,7 +42,7 @@ program commander
   call read_comm_params(cpar)
   call initialize_mpi_struct(cpar)
   call init_status(status, 'comm_status.txt')
-
+  
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
      call mpi_finalize(ierr)
@@ -65,6 +69,9 @@ program commander
   !call dump_components('test.dat')
   call initialize_data_mod(cpar);        call update_status(status, "init_data")
 
+  q = cr_amp2x()
+  write(*,*) 'a'
+  
 !!$  map => comm_map(data(1)%info)
 !!$  call data(1)%map%writeFITS('in.fits')
 !!$  call data(1)%map%YtW
@@ -114,4 +121,27 @@ program commander
   call free_status(status)
   call mpi_finalize(ierr)
 
+contains
+
+  recursive function A(x, Nscale)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:),       intent(in)           :: x
+    real(dp), dimension(size(x))                       :: A
+    real(dp),                     intent(in), optional :: Nscale
+
+    A(1) =  0.5*x(1) - 0.2*x(2)
+    A(2) = -0.2*x(1) + 0.8*x(2)
+  end function A
+  
+  recursive function invM(x, Nscale)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:),      intent(in)           :: x
+    real(dp), dimension(size(x))                      :: invM
+    real(dp),                    intent(in), optional :: Nscale
+
+    invM = x
+  end function invM
+  
 end program commander
