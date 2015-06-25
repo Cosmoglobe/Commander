@@ -24,8 +24,6 @@ module comm_comp_mod
      real(dp), allocatable, dimension(:,:)   :: p_gauss
      real(dp), allocatable, dimension(:,:)   :: p_uni
 
-     real(dp), allocatable, dimension(:)   :: x      ! Spatial parameters
-     real(dp), allocatable, dimension(:,:) :: theta  ! Spectral parameters; alms per param
    contains
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -36,12 +34,12 @@ module comm_comp_mod
      ! Data procedures
      procedure                       :: initComp
      procedure(evalSED),    deferred :: S
-     procedure(evalMixmat), deferred :: F
-     procedure(evalAmp),    deferred :: a
-     procedure(simComp),    deferred :: sim
+!     procedure(evalMixmat), deferred :: F
+!     procedure(evalAmp),    deferred :: a
+!     procedure(simComp),    deferred :: sim
      procedure                       :: dumpSED
-     procedure(dumpHDF),    deferred :: dumpHDF
-     procedure(dumpFITS),   deferred :: dumpFITS
+!     procedure(dumpHDF),    deferred :: dumpHDF
+!     procedure(dumpFITS),   deferred :: dumpFITS
      procedure                       :: RJ2unit
   end type comm_comp
 
@@ -56,49 +54,49 @@ module comm_comp_mod
        real(dp)                                      :: evalSED
      end function evalSED
 
-     ! Evaluate amplitude map in brightness temperature at reference frequency
-     function evalAmp(self, nside, nmaps, pix, x_1D, x_2D)
-       import comm_comp, dp, i4b
-       class(comm_comp),                          intent(in)           :: self
-       integer(i4b),                              intent(in)           :: nside, nmaps
-       integer(i4b),              dimension(:),   intent(in), optional :: pix
-       real(dp),                  dimension(:),   intent(in), optional :: x_1D
-       real(dp),                  dimension(:,:), intent(in), optional :: x_2D
-       real(dp),     allocatable, dimension(:,:)                       :: evalAmp
-     end function evalAmp
-
-     ! Evaluate mixing matrix in brightness temperature at reference frequency
-     function evalMixmat(self, nside, nmaps, pix)
-       import comm_comp, dp, i4b
-       class(comm_comp),                        intent(in)           :: self
-       integer(i4b),                            intent(in)           :: nside, nmaps
-       integer(i4b),              dimension(:), intent(in), optional :: pix
-       real(dp),     allocatable, dimension(:,:)                     :: evalMixmat
-     end function evalMixmat
-
-     ! Generate simulated component
-     function simComp(self, handle, nside, nmaps, pix)
-       import planck_rng, comm_comp, dp, i4b
-       class(comm_comp),                        intent(in)           :: self
-       type(planck_rng),                        intent(inout)        :: handle
-       integer(i4b),                            intent(in)           :: nside, nmaps
-       integer(i4b),              dimension(:), intent(in), optional :: pix
-       real(dp),     allocatable, dimension(:,:)                     :: simComp
-     end function simComp
-
-     ! Dump current sample to HDF chain files
-     subroutine dumpHDF(self, filename)
-       import comm_comp
-       class(comm_comp),                        intent(in)           :: self
-       character(len=*),                        intent(in)           :: filename
-     end subroutine dumpHDF
-
-     ! Dump current sample to HEALPix FITS file
-     subroutine dumpFITS(self, dir)
-       import comm_comp
-       class(comm_comp),                        intent(in)           :: self
-       character(len=*),                        intent(in)           :: dir
-     end subroutine dumpFITS
+!!$     ! Evaluate amplitude map in brightness temperature at reference frequency
+!!$     function evalAmp(self, nside, nmaps, pix, x_1D, x_2D)
+!!$       import comm_comp, dp, i4b
+!!$       class(comm_comp),                          intent(in)           :: self
+!!$       integer(i4b),                              intent(in)           :: nside, nmaps
+!!$       integer(i4b),              dimension(:),   intent(in), optional :: pix
+!!$       real(dp),                  dimension(:),   intent(in), optional :: x_1D
+!!$       real(dp),                  dimension(:,:), intent(in), optional :: x_2D
+!!$       real(dp),     allocatable, dimension(:,:)                       :: evalAmp
+!!$     end function evalAmp
+!!$
+!!$     ! Evaluate mixing matrix in brightness temperature at reference frequency
+!!$     function evalMixmat(self, nside, nmaps, pix)
+!!$       import comm_comp, dp, i4b
+!!$       class(comm_comp),                        intent(in)           :: self
+!!$       integer(i4b),                            intent(in)           :: nside, nmaps
+!!$       integer(i4b),              dimension(:), intent(in), optional :: pix
+!!$       real(dp),     allocatable, dimension(:,:)                     :: evalMixmat
+!!$     end function evalMixmat
+!!$
+!!$     ! Generate simulated component
+!!$     function simComp(self, handle, nside, nmaps, pix)
+!!$       import planck_rng, comm_comp, dp, i4b
+!!$       class(comm_comp),                        intent(in)           :: self
+!!$       type(planck_rng),                        intent(inout)        :: handle
+!!$       integer(i4b),                            intent(in)           :: nside, nmaps
+!!$       integer(i4b),              dimension(:), intent(in), optional :: pix
+!!$       real(dp),     allocatable, dimension(:,:)                     :: simComp
+!!$     end function simComp
+!!$
+!!$     ! Dump current sample to HDF chain files
+!!$     subroutine dumpHDF(self, filename)
+!!$       import comm_comp
+!!$       class(comm_comp),                        intent(in)           :: self
+!!$       character(len=*),                        intent(in)           :: filename
+!!$     end subroutine dumpHDF
+!!$
+!!$     ! Dump current sample to HEALPix FITS file
+!!$     subroutine dumpFITS(self, dir)
+!!$       import comm_comp
+!!$       class(comm_comp),                        intent(in)           :: self
+!!$       character(len=*),                        intent(in)           :: dir
+!!$     end subroutine dumpFITS
   end interface
 
   !**************************************************

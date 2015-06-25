@@ -12,6 +12,8 @@ module comm_ptsrc_comp_mod
   type, abstract, extends (comm_comp) :: comm_ptsrc_comp
      integer(i4b) :: nsrc
      real(dp), allocatable, dimension(:,:,:) :: T
+     real(dp), allocatable, dimension(:)     :: x
+     real(dp), allocatable, dimension(:)     :: theta
    contains
      procedure :: initPtsrc
   end type comm_ptsrc_comp

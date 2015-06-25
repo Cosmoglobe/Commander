@@ -55,7 +55,6 @@ contains
 
     evalSED = (nu/self%nu_ref)**theta(1)
 
-    write(*,*) nu, self%nu_ref, theta(1), evalSED
   end function evalSED
   
 end module comm_powlaw_comp_mod

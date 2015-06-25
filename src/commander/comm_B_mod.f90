@@ -13,27 +13,18 @@ module comm_B_mod
      real(dp), allocatable, dimension(:,:) :: b_l
    contains
      ! Data procedures
-     procedure(matmulB),  deferred :: B
-     procedure(matmulBt), deferred :: B_t
+     procedure(matmulB),  deferred :: conv
   end type comm_B
 
   abstract interface
-
-     subroutine matmulB(self, map, res)
-       import comm_map, comm_B, dp, i4b
+     subroutine matmulB(self, trans, map, res)
+       import comm_map, comm_B, dp, i4b, lgt
        implicit none
        class(comm_B),   intent(in)    :: self
-       class(comm_map), intent(in)    :: map
+       logical(lgt),    intent(in)    :: trans
+       class(comm_map), intent(inout) :: map
        class(comm_map), intent(inout) :: res
      end subroutine matmulB
-
-     subroutine matmulBt(self, map, res)
-       import comm_map, comm_B, dp, i4b
-       implicit none
-       class(comm_B),   intent(in)    :: self
-       class(comm_map), intent(in)    :: map
-       class(comm_map), intent(inout) :: res
-     end subroutine matmulBt
   end interface
 
 end module comm_B_mod

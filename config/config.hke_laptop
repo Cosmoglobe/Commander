@@ -107,10 +107,10 @@ export LAPACK_LINK := -llapack -lblas
 
 
 # ================ Healpix linking ================
-HEALDIR := /home/hke/local/src/Healpix_3.11
+HEALDIR := /home/hke/git/dagsshealpix
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/sigurdkn/local/include
 #export HEALPIX_LINK := -L/usit/titan/u1/sigurdkn/local/lib -lhealpix
 export HEALPIX_INCLUDE := -I$(HEALDIR)/include
-export HEALPIX_LINK := -L$(HEALDIR)/lib -lhealpix
+export HEALPIX_LINK := $(HEALDIR)/lib/libhealpix.a
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod
 #export HEALPIX_LINK := -L/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod -lhealpix

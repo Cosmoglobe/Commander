@@ -28,8 +28,9 @@ program commander
   ! *********************************************************************
 
 
-  integer(i4b)        :: iargc, ierr
+  integer(i4b)        :: iargc, ierr, iter
   type(comm_params)   :: cpar
+  type(comm_map), pointer      :: map
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
@@ -64,14 +65,12 @@ program commander
   !call dump_components('test.dat')
   call initialize_data_mod(cpar);        call update_status(status, "init_data")
 
-  !call data(3)%map%writeFITS('test.fits')
-  call data(1)%map%YtW
-  call update_status(status, "YtW")
-
-  call mpi_finalize(ierr)
-  stop
-
-  
+!!$  map => comm_map(data(1)%info)
+!!$  call data(1)%map%writeFITS('in.fits')
+!!$  call data(1)%map%YtW
+!!$  call data(1)%B%conv(.false., data(1)%map, map)
+!!$  call map%Y
+!!$  call map%writeFITS('out.fits')
 
   ! **************************************************************
   ! *                   Carry out computations                   *
@@ -79,8 +78,28 @@ program commander
 
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) write(*,*) '     Starting Gibbs sampling'
 
+  ! Initialize output structures
 
+  ! Run Gibbs loop
+  do iter = 1, cpar%num_gibbs_iter
 
+     ! Sample linear parameters with CG search
+
+     ! Sample amplitude parameters with positivity prior
+
+     ! Sample spectral indices
+
+     ! Sample instrumental parameters
+
+     ! Sample power spectra
+
+     ! Compute goodness-of-fit statistics
+     
+     ! Output sample to disk
+     
+  end do
+
+  
   ! **************************************************************
   ! *                   Exit cleanly                             *
   ! **************************************************************

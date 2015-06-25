@@ -3,6 +3,7 @@ module comm_signal_mod
   use comm_comp_mod
   use comm_cmb_comp_mod
   use comm_powlaw_comp_mod
+  use comm_template_comp_mod
   implicit none
 
 contains

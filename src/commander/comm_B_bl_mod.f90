@@ -11,8 +11,7 @@ module comm_B_bl_mod
   type, extends (comm_B) :: comm_B_bl
    contains
      ! Data procedures
-     procedure :: B   => matmulB
-     procedure :: B_t => matmulBt
+     procedure :: conv => matmulB
   end type comm_B_bl
 
   interface comm_B_bl
@@ -45,18 +44,20 @@ contains
 
   end function constructor
   
-  subroutine matmulB(self, map, res)
+  subroutine matmulB(self, trans, map, res)
     implicit none
     class(comm_B_bl), intent(in)    :: self
-    class(comm_map),  intent(in)    :: map
+    logical(lgt),     intent(in)    :: trans
+    class(comm_map),  intent(inout) :: map
     class(comm_map),  intent(inout) :: res
+
+    integer(i4b) :: i
+
+    if (.not. allocated(res%alm)) allocate(res%alm(0:map%info%nalm-1,map%info%nmaps))
+    do i = 0, map%info%nalm-1
+       res%alm(i,:) = map%alm(i,:) * self%b_l(map%info%lm(1,i),:)
+    end do
+
   end subroutine matmulB
   
-  subroutine matmulBt(self, map, res)
-    implicit none
-    class(comm_B_bl), intent(in)    :: self
-    class(comm_map),  intent(in)    :: map
-    class(comm_map),  intent(inout) :: res
-  end subroutine matmulBt
-
 end module comm_B_bl_mod

@@ -90,6 +90,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_mask
      real(dp),           allocatable, dimension(:)     :: cs_amp_def
      character(len=512), allocatable, dimension(:)     :: cs_filedef
+     character(len=512), allocatable, dimension(:)     :: cs_input_amp
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
@@ -275,7 +276,7 @@ contains
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n))
     allocate(cpar%cs_samp_cls(n), cpar%cs_clfile(n), cpar%cs_binfile(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_amp_def(n))
-    allocate(cpar%cs_filedef(n))
+    allocate(cpar%cs_filedef(n), cpar%cs_input_amp(n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(MAXPAR,2,n), cpar%cs_p_gauss(MAXPAR,2,n))
     do i = 1, n
        call int2string(i, itext)
@@ -291,6 +292,7 @@ contains
        call get_parameter(paramfile, 'COMP_NU_REF'//itext,          par_dp=cpar%cs_nu_ref(i))
        call get_parameter(paramfile, 'COMP_CL_TYPE'//itext,         par_string=cpar%cs_cltype(i))
        call get_parameter(paramfile, 'COMP_SAMP_CLS'//itext,        par_lgt=cpar%cs_samp_cls(i))
+       call get_parameter(paramfile, 'COMP_INPUT_AMP_MAP'//itext,   par_string=cpar%cs_input_amp(i))
        if (trim(cpar%cs_cltype(i)) == 'binned') then
           call get_parameter(paramfile, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
        end if

@@ -20,6 +20,7 @@ module comm_map_mod
      integer(i4b) :: nside, npix, nmaps, nring, np, lmax, nm, nalm
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
+     integer(c_int), allocatable, dimension(:,:) :: lm
      integer(c_int), allocatable, dimension(:)   :: pix
      real(c_double), allocatable, dimension(:)   :: W
   end type comm_mapinfo
@@ -56,7 +57,7 @@ contains
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
     integer(i4b) :: myid, nprocs, ierr
-    integer(i4b) :: m, i, j, iring, np
+    integer(i4b) :: l, m, i, j, iring, np, ind
     integer(i4b), allocatable, dimension(:) :: pixlist
 
     call mpi_comm_rank(comm, myid, ierr)
@@ -96,13 +97,33 @@ contains
     constructor_mapinfo%nm = 0
     do m = myid, lmax, nprocs
        constructor_mapinfo%nm   = constructor_mapinfo%nm   + 1
-       constructor_mapinfo%nalm = constructor_mapinfo%nalm + 2*m+1
+       if (m == 0) then
+          constructor_mapinfo%nalm = constructor_mapinfo%nalm + lmax+1
+       else
+          constructor_mapinfo%nalm = constructor_mapinfo%nalm + 2*(lmax-m+1)
+       end if
     end do
     allocate(constructor_mapinfo%ms(constructor_mapinfo%nm))
-    do m = 1, constructor_mapinfo%nm
-       constructor_mapinfo%ms(m) = myid + (m-1)*nprocs
+    allocate(constructor_mapinfo%lm(2,0:constructor_mapinfo%nalm-1))
+    ind = 0
+    do i = 1, constructor_mapinfo%nm
+       m                         = myid + (i-1)*nprocs
+       constructor_mapinfo%ms(i) = m
+       if (m == 0) then
+          do l = m, lmax
+             constructor_mapinfo%lm(:,ind) = [l,m]
+             ind                           = ind+1
+          end do
+       else
+          do l = m, lmax
+             constructor_mapinfo%lm(:,ind) = [l,-m]
+             ind                           = ind+1
+             constructor_mapinfo%lm(:,ind) = [l,+m]
+             ind                           = ind+1
+          end do
+       end if
     end do
-
+    
     ! Read ring weights
     allocate(constructor_mapinfo%W(constructor_mapinfo%nring))
     constructor_mapinfo%W = 1.d0
@@ -151,8 +172,9 @@ contains
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-          call sharp_execute(SHARP_Y, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+!          call sharp_execute(SHARP_Y, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+!               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+          self%map(:,2:3) = 0.d0
        end if
     else
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
@@ -176,9 +198,11 @@ contains
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-          call sharp_execute(SHARP_Yt, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+          !call sharp_execute(SHARP_Yt, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+          !     & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+          self%alm(:,2:3) = 0.d0
        end if
+       
     else
        call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info, comm=self%info%comm)       
@@ -201,12 +225,13 @@ contains
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-          call sharp_execute(SHARP_YtW, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+!          call sharp_execute(SHARP_YtW, 2, 1, self%alm(:,2:3), self%info%alm_info, &
+!               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+          self%alm(:,2:3) = 0.d0
        end if
     else
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)       
+            & self%map, self%info%geom_info, comm=self%info%comm)
     end if
     if (cleanup_) deallocate(self%map)
     
@@ -404,5 +429,6 @@ contains
   !**************************************************
   !                   Utility routines
   !**************************************************
+
   
 end module comm_map_mod

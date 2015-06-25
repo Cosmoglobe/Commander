@@ -18,7 +18,7 @@ module comm_data_mod
      class(comm_N),       pointer :: N
      class(comm_bp),      pointer :: bp
      class(comm_B),       pointer :: B
-     class(comm_F),       pointer :: F     ! Linked mixmat list
+     class(comm_F),       pointer :: F     ! Mixmat linked list
    contains
      procedure :: RJ2data
   end type comm_data_set
