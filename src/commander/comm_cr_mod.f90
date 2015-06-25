@@ -2,6 +2,8 @@ module comm_cr_mod
   use comm_comp_mod
   use comm_data_mod
   use comm_param_mod
+  use comm_diffuse_comp_mod
+  use comm_template_comp_mod
   implicit none
 
 contains
@@ -108,7 +110,7 @@ contains
 
     real(dp), allocatable, dimension(:) :: cr_amp2x
 
-    integer(i4b) :: n
+    integer(i4b) :: i, ind, n
     class(comm_comp), pointer :: c
 
     ! Find number of free CR parameters for current processor
@@ -119,9 +121,20 @@ contains
        c => c%next()
     end do
 
-    write(*,*) 'n = ', n
+    ! Stack parameters linearly
     allocate(cr_amp2x(n))
-    cr_amp2x = 1.d0
+    ind = 1
+    c   => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          do i = 1, c%x%info%nmaps
+             cr_amp2x(ind:ind+c%x%info%nalm-1) = c%x%alm(:,i)
+             ind = ind + c%x%info%nalm
+          end do
+       end select
+       c => c%next()
+    end do
 
   end function cr_amp2x
   

@@ -42,7 +42,8 @@ comm_F_int_1D_mod.o :      comm_F_int_mod.o spline_1D_mod.o
 comm_F_mod.o :             comm_comp_mod.o comm_comp_mod.o comm_map_mod.o comm_bp_mod.o
 comm_data_mod.o :          comm_map_mod.o comm_noise_mod.o comm_bp_mod.o comm_beam_mod.o \
                            comm_F_mod.o
-comm_cr_mod.o :            comm_data_mod.o comm_comp_mod.o
+comm_cr_mod.o :            comm_data_mod.o comm_comp_mod.o \
+                           comm_template_comp_mod.o comm_diffuse_comp_mod.o
 commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o
 
 

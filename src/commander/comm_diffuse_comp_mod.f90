@@ -58,7 +58,7 @@ contains
        call self%x%YtW(cleanup=.true.)
     end if
     self%ncr = size(self%x%alm)
-       
+    write(*,*) size(self%x%alm), self%x%info%nalm
 
   end subroutine initDiffuse
 
