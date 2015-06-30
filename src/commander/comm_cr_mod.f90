@@ -137,5 +137,28 @@ contains
     end do
 
   end function cr_amp2x
+
+  subroutine cr_x2amp(x)
+    implicit none
+
+    real(dp), dimension(:), intent(in) :: x
+
+    integer(i4b) :: i, ind, n
+    class(comm_comp), pointer :: c
+
+    ind = 1
+    c   => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          do i = 1, c%x%info%nmaps
+             c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
+             ind = ind + c%x%info%nalm
+          end do
+       end select
+       c => c%next()
+    end do
+    
+  end subroutine cr_x2amp
   
 end module comm_cr_mod

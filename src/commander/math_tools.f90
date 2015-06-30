@@ -365,7 +365,7 @@ contains
 
     integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
     character(len=1) :: job, uplo
-    real(dp)         :: cutoff_int
+    real(dp)         :: cutoff_int, t1, t2
     real(dp),     allocatable, dimension(:,:) :: A_int
     real(dp),     allocatable, dimension(:)   :: W, work
     integer(i4b), allocatable, dimension(:)   :: iwork    

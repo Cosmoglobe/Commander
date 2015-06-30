@@ -25,11 +25,11 @@ comm_utils.o :             sort_utils.o comm_system_mod.o sharp.o
 comm_bp_utils.o :          comm_utils.o
 comm_param_mod.o :         comm_utils.o
 comm_comp_mod.o :          comm_bp_mod.o comm_param_mod.o
-comm_diffuse_comp_mod.o :  comm_comp_mod.o
+comm_diffuse_comp_mod.o :  comm_comp_mod.o comm_data_mod.o comm_F_int_mod.o
 comm_template_comp_mod.o : comm_comp_mod.o
 comm_ptsrc_comp_mod.o :    comm_template_comp_mod.o
 comm_cmb_comp_mod.o :      comm_diffuse_comp_mod.o
-comm_powlaw_comp_mod.o :   comm_diffuse_comp_mod.o	
+comm_powlaw_comp_mod.o :   comm_diffuse_comp_mod.o comm_F_int_1D_mod.o
 comm_signal_mod.o :        comm_powlaw_comp_mod.o comm_cmb_comp_mod.o \
                            comm_template_comp_mod.o 
 comm_N_mod.o :             comm_param_mod.o
@@ -39,7 +39,11 @@ comm_bp_mod.o :            comm_bp_utils.o comm_param_mod.o
 comm_fg_component_mod.o :  comm_bp_mod.o
 comm_F_int_mod.o :         comm_utils.o
 comm_F_int_1D_mod.o :      comm_F_int_mod.o spline_1D_mod.o
-comm_F_mod.o :             comm_comp_mod.o comm_comp_mod.o comm_map_mod.o comm_bp_mod.o
+comm_F_mod.o :             comm_comp_mod.o comm_comp_mod.o comm_map_mod.o comm_bp_mod.o \
+                           comm_F_mod.o comm_F_int_mod.o comm_F_int_1D_mod.o
+comm_B_mod.o :             comm_map_mod.o
+comm_B_bl_mod.o :          comm_B_mod.o 
+comm_beam_mod.o :          comm_B_bl_mod.o
 comm_data_mod.o :          comm_map_mod.o comm_noise_mod.o comm_bp_mod.o comm_beam_mod.o \
                            comm_F_mod.o
 comm_cr_mod.o :            comm_data_mod.o comm_comp_mod.o \

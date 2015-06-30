@@ -72,6 +72,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_class
      logical(lgt),       allocatable, dimension(:)     :: cs_polarization
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
+     integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
      character(len=512), allocatable, dimension(:)     :: cs_unit
@@ -85,6 +86,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_amp_def
      character(len=512), allocatable, dimension(:)     :: cs_filedef
      character(len=512), allocatable, dimension(:)     :: cs_input_amp
+     character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
@@ -253,10 +255,10 @@ contains
     n = cpar%cs_ncomp
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
-    allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n))
+    allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_samp_cls(n), cpar%cs_clfile(n), cpar%cs_binfile(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_amp_def(n))
-    allocate(cpar%cs_filedef(n), cpar%cs_input_amp(n))
+    allocate(cpar%cs_filedef(n), cpar%cs_input_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(MAXPAR,2,n), cpar%cs_p_gauss(MAXPAR,2,n))
     do i = 1, n
        call int2string(i, itext)
@@ -285,13 +287,22 @@ contains
        end if
        call get_parameter(paramfile, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
 
-       if (trim(cpar%cs_type(i)) == 'power_law') then
-          call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,  par_dp=cpar%cs_theta_def(i,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,  par_dp=cpar%cs_p_uni(i,1,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,  par_dp=cpar%cs_p_uni(i,2,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext,  par_dp=cpar%cs_p_gauss(i,1,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  par_dp=cpar%cs_p_gauss(i,2,1))
-       end if
+       select case (trim(cpar%cs_type(i)))
+       case ('power_law')
+          call get_parameter(paramfile, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+          call get_parameter(paramfile, 'COMP_INPUT_BETA_MAP'//itext,        &
+               & par_string=cpar%cs_input_ind(1,i))
+          call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
+               & par_dp=cpar%cs_theta_def(i,1))
+          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+               & par_dp=cpar%cs_p_uni(i,1,1))
+          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+               & par_dp=cpar%cs_p_uni(i,2,1))
+          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+               & par_dp=cpar%cs_p_gauss(i,1,1))
+          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+               & par_dp=cpar%cs_p_gauss(i,2,1))
+       end select
        
     end do
 

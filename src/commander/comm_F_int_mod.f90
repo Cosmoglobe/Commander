@@ -3,7 +3,7 @@ module comm_F_int_mod
   implicit none
 
   private
-  public comm_F_int
+  public comm_F_int, F_int_ptr
   
   type, abstract :: comm_F_int
    contains
@@ -21,4 +21,8 @@ module comm_F_int_mod
      end function evalIntF
   end interface
 
+  type F_int_ptr
+     class(comm_F_int), pointer :: p
+  end type F_int_ptr
+  
 end module comm_F_int_mod

@@ -10,7 +10,7 @@ module comm_map_mod
   include "mpif.h"
       
   private
-  public comm_map, comm_mapinfo
+  public comm_map, comm_mapinfo, map_ptr
 
   type :: comm_mapinfo
      type(sharp_alm_info)  :: alm_info
@@ -35,8 +35,14 @@ module comm_map_mod
      procedure     :: YtW  => exec_sharp_YtW
      procedure     :: writeFITS
      procedure     :: readFITS
+     procedure     :: dealloc => deallocate_comm_map
   end type comm_map
 
+  type map_ptr
+     class(comm_map), pointer :: p
+  end type map_ptr
+  
+  
   interface comm_mapinfo
      procedure constructor_mapinfo
   end interface comm_mapinfo
@@ -145,28 +151,37 @@ contains
     allocate(constructor_map)
     constructor_map%info => info
     allocate(constructor_map%map(0:info%np-1,info%nmaps))
+    allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
 
     if (present(filename)) then
        call constructor_map%readFITS(filename)
     else
        constructor_map%map = 0.d0
     end if
+    constructor_map%alm = 0.d0
     
   end function constructor_map
+
+  subroutine deallocate_comm_map(self)
+    implicit none
+
+    class(comm_map), intent(inout) :: self
+
+    if (allocated(self%map)) deallocate(self%map)
+    if (allocated(self%alm)) deallocate(self%alm)
+    nullify(self%info)
+
+  end subroutine deallocate_comm_map
 
   !**************************************************
   !             Spherical harmonic transforms
   !**************************************************
 
-  subroutine exec_sharp_Y(self, cleanup)
+  subroutine exec_sharp_Y(self)
     implicit none
 
     class(comm_map), intent(inout)          :: self
-    logical(lgt),    intent(in),   optional :: cleanup
 
-    logical(lgt) :: cleanup_ 
-
-    cleanup_ = .true.; if (present(cleanup)) cleanup_ = cleanup
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -180,19 +195,14 @@ contains
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info, comm=self%info%comm)       
     end if
-    if (cleanup_) deallocate(self%alm)    
     
   end subroutine exec_sharp_Y
 
-  subroutine exec_sharp_Yt(self, cleanup)
+  subroutine exec_sharp_Yt(self)
     implicit none
 
     class(comm_map), intent(inout) :: self
-    logical(lgt),    intent(in),   optional :: cleanup
 
-    logical(lgt) :: cleanup_ 
-
-    cleanup_ = .true.; if (present(cleanup)) cleanup_ = cleanup
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -207,19 +217,14 @@ contains
        call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info, comm=self%info%comm)       
     end if
-    if (cleanup_) deallocate(self%map)
     
   end subroutine exec_sharp_Yt
 
-  subroutine exec_sharp_YtW(self, cleanup)
+  subroutine exec_sharp_YtW(self)
     implicit none
 
     class(comm_map), intent(inout) :: self
-    logical(lgt),    intent(in),   optional :: cleanup
 
-    logical(lgt) :: cleanup_ 
-
-    cleanup_ = .true.; if (present(cleanup)) cleanup_ = cleanup
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -233,7 +238,6 @@ contains
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info, comm=self%info%comm)
     end if
-    if (cleanup_) deallocate(self%map)
     
   end subroutine exec_sharp_YtW
   

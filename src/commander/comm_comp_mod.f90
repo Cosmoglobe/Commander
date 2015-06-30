@@ -5,7 +5,7 @@ module comm_comp_mod
   implicit none
 
   private
-  public  :: comm_comp, ncomp, compList
+  public  :: comm_comp, ncomp, compList, dumpCompMaps
   
   !**************************************************
   !        Generic component class definition
@@ -20,9 +20,11 @@ module comm_comp_mod
      integer(i4b)       :: npar, ncr
      character(len=512) :: label, class, type, unit
      real(dp)           :: nu_ref, RJ2unit_
-     real(dp), allocatable, dimension(:)     :: theta_def
-     real(dp), allocatable, dimension(:,:)   :: p_gauss
-     real(dp), allocatable, dimension(:,:)   :: p_uni
+     character(len=512), allocatable, dimension(:)   :: indlabel
+     integer(i4b),       allocatable, dimension(:)   :: poltype
+     real(dp),           allocatable, dimension(:)   :: theta_def
+     real(dp),           allocatable, dimension(:,:) :: p_gauss
+     real(dp),           allocatable, dimension(:,:) :: p_uni
 
    contains
      ! Linked list procedures
@@ -39,7 +41,7 @@ module comm_comp_mod
 !     procedure(simComp),    deferred :: sim
      procedure                       :: dumpSED
 !     procedure(dumpHDF),    deferred :: dumpHDF
-!     procedure(dumpFITS),   deferred :: dumpFITS
+     procedure(dumpFITS),   deferred :: dumpFITS
      procedure                       :: RJ2unit
   end type comm_comp
 
@@ -91,12 +93,13 @@ module comm_comp_mod
 !!$       character(len=*),                        intent(in)           :: filename
 !!$     end subroutine dumpHDF
 !!$
-!!$     ! Dump current sample to HEALPix FITS file
-!!$     subroutine dumpFITS(self, dir)
-!!$       import comm_comp
-!!$       class(comm_comp),                        intent(in)           :: self
-!!$       character(len=*),                        intent(in)           :: dir
-!!$     end subroutine dumpFITS
+     ! Dump current sample to HEALPix FITS file
+     subroutine dumpFITS(self, postfix, dir)
+       import comm_comp
+       class(comm_comp),                        intent(in)           :: self
+       character(len=*),                        intent(in)           :: postfix
+       character(len=*),                        intent(in)           :: dir
+     end subroutine dumpFITS
   end interface
 
   !**************************************************
@@ -120,12 +123,12 @@ contains
     type(comm_params),  intent(in) :: cpar
     integer(i4b),       intent(in) :: id
 
-    self%active = cpar%cs_include(id)
-    self%label  = cpar%cs_label(id)
-    self%type   = cpar%cs_type(id)
-    self%class  = cpar%cs_class(id)
-    self%unit   = cpar%cs_unit(id)
-    self%nu_ref = cpar%cs_nu_ref(id)
+    self%active  = cpar%cs_include(id)
+    self%label   = cpar%cs_label(id)
+    self%type    = cpar%cs_type(id)
+    self%class   = cpar%cs_class(id)
+    self%unit    = cpar%cs_unit(id)
+    self%nu_ref  = cpar%cs_nu_ref(id)
 
     ! Set up conversion factor between RJ and native component unit
     select case (trim(self%unit))
@@ -162,6 +165,21 @@ contains
     end do
     
   end subroutine dumpSED
+
+  subroutine dumpCompMaps(postfix, dir)
+    implicit none
+    character(len=*), intent(in) :: postfix, dir
+
+    class(comm_comp), pointer :: c
+
+    c => compList
+    do while (associated(c))
+       write(*,*) trim(c%label)
+       call c%dumpFITS(postfix, dir)
+       c => c%next()
+    end do
+    
+  end subroutine dumpCompMaps
 
   function RJ2unit(self, bp)
     implicit none
