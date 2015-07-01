@@ -60,9 +60,8 @@ contains
        self%x => comm_map(info)
     else
        ! Read map from FITS file, and convert to alms
-       write(*,*) 'hei'
        self%x => comm_map(info, cpar%cs_input_amp(id))
-       !call self%x%YtW
+       call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
 
@@ -83,9 +82,9 @@ contains
     class(comm_map),           dimension(:),   intent(in),    optional :: theta
 
     integer(i4b) :: i, j, k, n
-    real(dp),       allocatable, dimension(:) :: theta_p
-    real(dp),       allocatable, dimension(:) :: nu, s
-    class(map_ptr), allocatable, dimension(:) :: t
+    real(dp),        allocatable, dimension(:,:) :: theta_p
+    real(dp),        allocatable, dimension(:)   :: nu, s
+    class(comm_map),              pointer        :: t, t0
     
     ! Copy over alms from input structure, and compute pixel-space parameter maps
     if (present(theta)) then
@@ -95,67 +94,65 @@ contains
     end if
 
     ! Compute mixing matrix
-    allocate(t(self%npar), theta_p(self%npar))
+    allocate(theta_p(self%nmaps,self%npar))
     do i = 1, numband
 
-       write(*,*) trim(self%label), self%npar
-       
        ! Compute spectral parameters at the correct resolution for this channel
-       do j = 1, self%npar
-          t(j)%p     => comm_map(self%F(j)%p%info)
-          t(j)%p%alm =  self%theta(j)%p%alm
-          !call t(j)%p%Y
-       end do
-
-       write(*,*) shape(t(1)%p%map), lbound(t(1)%p%map), ubound(t(1)%p%map)
-       write(*,*) t(1)%p%map(700000,1)
-       call mpi_finalize(j)
-       stop
-
+       if (self%npar > 0) then
+          t => comm_map(self%F(i)%p%info)
+          t%alm = self%theta(1)%p%alm
+          call t%Y
+          do j = 2, self%npar
+             t0 => comm_map(self%F(i)%p%info)
+             t0%alm = self%theta(j)%p%alm
+             call t0%Y
+             call t%add(t0)
+          end do
+       end if
+       
        ! Loop over all pixels, computing mixing matrix for each
        do j = 0, self%F(i)%p%info%np-1
+          if (self%npar > 0) then
+             ! Collect all parameters
+             t0 => t
+             theta_p(1,:) = t0%map(j,:)
+             do k = 2, self%npar
+                t0 => t0%next()
+                theta_p(k,:) = t0%map(j,:)
+             end do
+
+             ! Check polarization type
+             if (self%nmaps == 3) then
+                do k = 1, self%npar
+                   if (self%poltype(k) < 2) theta_p(k,2) = theta_p(k,1)
+                   if (self%poltype(k) < 3) theta_p(k,3) = theta_p(k,2)
+                end do
+             end if
+          end if
+
           ! Temperature
-          do k = 1, self%npar
-             write(*,*) j, shape(t(k)%p%map)
-             theta_p(k) = t(k)%p%map(j,1)
-          end do
-          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p)
+          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) * data(i)%RJ2data()
 
           ! Polarization
           if (self%nmaps == 3) then
              ! Stokes Q
-             if (all(self%poltype > 1)) then
-                do k = 1, self%npar
-                   if (self%poltype(k) > 1) then
-                      theta_p(k) = t(k)%p%map(j,2)
-                   else
-                      theta_p(k) = t(k)%p%map(j,1)
-                   end if
-                end do
-                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p)
-             else
+             if (all(self%poltype < 2)) then
                 self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1)
+             else
+                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) * self%RJ2unit()
              end if
        
              ! Stokes U
-             if (all(self%poltype > 2)) then
-                do k = 1, self%npar
-                   if (self%poltype(k) > 2) then
-                      theta_p(k) = t(k)%p%map(j,3)
-                   else
-                      theta_p(k) = t(k)%p%map(j,2)
-                   end if
-                end do
-                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p)
-             else
+             if (all(self%poltype < 3)) then
                 self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2)
+             else
+                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) * self%RJ2unit()
              end if
           end if
           
        end do
-
     end do
-    deallocate(t)
+    nullify(t, t0)
 
   end subroutine updateMixmat
 
@@ -216,33 +213,25 @@ contains
     integer(i4b)       :: i
     character(len=512) :: filename
 
-    write(*,*) 'q1'
     ! Write amplitude
     filename = trim(self%label) // '_' // trim(postfix) // '.fits'
     call self%x%Y
-    write(*,*) 'q2'
     call self%x%writeFITS(trim(dir)//'/'//trim(filename))
-    write(*,*) 'q3'
 
     ! Write spectral index maps
-    write(*,*) 'q4'
     do i = 1, self%npar
        filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
             & trim(postfix) // '.fits'
        call self%theta(i)%p%Y
        call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
     end do
-    write(*,*) 'q4'
 
     ! Write mixing matrices
-    write(*,*) numband
     do i = 1, numband
        filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
             & trim(postfix) // '.fits'
-       write(*,*) i, trim(filename)
        call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
     end do
-    write(*,*) 'q5'
         
     
   end subroutine dumpDiffuseToFITS

@@ -64,15 +64,11 @@ program commander
   ! ************************************************
 
   call update_status(status, "init")
-  write(*,*) 'a', numband
   call initialize_bp_mod(cpar);          call update_status(status, "init_bp")
-  write(*,*) 'b', numband
   call initialize_data_mod(cpar);        call update_status(status, "init_data")
-  write(*,*) 'c', numband
   call initialize_signal_mod(cpar);      call update_status(status, "init_signal")
   !call dump_components('test.dat')
   call dumpCompMaps('test', 'chains')
-  write(*,*) 'd', numband
 
 !!$  map => comm_map(data(1)%info)
 !!$  call data(1)%map%writeFITS('in.fits')

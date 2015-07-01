@@ -2,6 +2,9 @@ module comm_cmb_comp_mod
   use comm_param_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
+  use comm_F_int_0D_mod
+  use comm_data_mod
+  use comm_bp_utils
   implicit none
 
   private
@@ -30,12 +33,25 @@ contains
     integer(i4b),        intent(in) :: id
     class(comm_cmb_comp), pointer   :: constructor
 
+    integer(i4b) :: i
+    real(dp)     :: f
+    
     ! General parameters
     allocate(constructor)
     call constructor%initDiffuse(cpar, id)
 
     ! Component specific parameters
     constructor%npar = 0
+
+    ! Precompute mixmat integrator for each band
+    allocate(constructor%F_int(numband))
+    do i = 1, numband
+       f = comp_a2t(constructor%nu_ref) / data(i)%bp%a2t
+       constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp, f)
+    end do
+    
+    ! Initialize mixing matrix
+    call constructor%updateMixmat
     
   end function constructor
 
@@ -51,7 +67,7 @@ contains
     real(dp) :: x
     x       = h*nu / (k_B*T_CMB)
     evalSED = (x**2 * exp(x)) / (exp(x)-1.d0)**2
-    
+
   end function evalSED
   
 end module comm_cmb_comp_mod

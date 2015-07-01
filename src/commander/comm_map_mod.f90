@@ -26,16 +26,28 @@ module comm_map_mod
   end type comm_mapinfo
 
   type :: comm_map
+     ! Linked list variables
+     class(comm_map), pointer :: nextLink => null()
+     class(comm_map), pointer :: prevLink => null()
+
+     ! Data variables
      class(comm_mapinfo), pointer :: info
      real(c_double), allocatable, dimension(:,:) :: map
      real(c_double), allocatable, dimension(:,:) :: alm
    contains
+     ! Data routines
      procedure     :: Y    => exec_sharp_Y
      procedure     :: Yt   => exec_sharp_Yt
      procedure     :: YtW  => exec_sharp_YtW
      procedure     :: writeFITS
      procedure     :: readFITS
      procedure     :: dealloc => deallocate_comm_map
+
+     ! Linked list procedures
+     procedure :: next    ! get the link after this link
+     procedure :: prev    ! get the link before this link
+     procedure :: setNext ! set the link after this link
+     procedure :: add     ! add new link at the end
   end type comm_map
 
   type map_ptr
@@ -434,5 +446,36 @@ contains
   !                   Utility routines
   !**************************************************
 
+  function next(self)
+    class(comm_map) :: self
+    class(comm_map), pointer :: next
+    next => self%nextLink
+  end function next
+
+  function prev(self)
+    class(comm_map) :: self
+    class(comm_map), pointer :: prev
+    prev => self%prevLink
+  end function prev
+  
+  subroutine setNext(self,next)
+    class(comm_map) :: self
+    class(comm_map), pointer :: next
+    self%nextLink => next
+  end subroutine setNext
+
+  subroutine add(self,link)
+    class(comm_map)         :: self
+    class(comm_map), target :: link
+
+    class(comm_map), pointer :: c
+    
+    c => self%nextLink
+    do while (associated(c%nextLink))
+       c => c%nextLink
+    end do
+    link%prevLink => c
+    c%nextLink    => link
+  end subroutine add
   
 end module comm_map_mod

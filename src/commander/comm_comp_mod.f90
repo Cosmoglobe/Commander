@@ -174,7 +174,6 @@ contains
 
     c => compList
     do while (associated(c))
-       write(*,*) trim(c%label)
        call c%dumpFITS(postfix, dir)
        c => c%next()
     end do
