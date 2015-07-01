@@ -4,7 +4,6 @@ module comm_data_mod
   use comm_noise_mod
   use comm_beam_mod
   use comm_map_mod
-  use comm_F_mod
   implicit none
 
   type comm_data_set
@@ -18,7 +17,6 @@ module comm_data_mod
      class(comm_N),       pointer :: N
      class(comm_bp),      pointer :: bp
      class(comm_B),       pointer :: B
-     class(comm_F),       pointer :: F     ! Mixmat linked list
    contains
      procedure :: RJ2data
   end type comm_data_set

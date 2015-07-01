@@ -2,6 +2,7 @@ module comm_comp_mod
   use comm_param_mod
   use comm_bp_utils
   use comm_bp_mod
+  use comm_map_mod
   implicit none
 
   private
@@ -39,6 +40,7 @@ module comm_comp_mod
 !     procedure(evalMixmat), deferred :: F
 !     procedure(evalAmp),    deferred :: a
 !     procedure(simComp),    deferred :: sim
+     procedure(evalBand),   deferred :: getBand
      procedure                       :: dumpSED
 !     procedure(dumpHDF),    deferred :: dumpHDF
      procedure(dumpFITS),   deferred :: dumpFITS
@@ -55,6 +57,15 @@ module comm_comp_mod
        real(dp), dimension(1:), intent(in), optional :: theta
        real(dp)                                      :: evalSED
      end function evalSED
+
+     ! Return effective signal at given frequency band
+     function evalBand(self, band, pix)
+       import i4b, dp, comm_comp
+       class(comm_comp),                             intent(in)            :: self
+       integer(i4b),                                 intent(in)            :: band
+       integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
+       real(dp),        dimension(:,:), allocatable                        :: evalBand
+     end function evalBand
 
 !!$     ! Evaluate amplitude map in brightness temperature at reference frequency
 !!$     function evalAmp(self, nside, nmaps, pix, x_1D, x_2D)

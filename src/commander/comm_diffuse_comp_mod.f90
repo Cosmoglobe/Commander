@@ -31,6 +31,7 @@ module comm_diffuse_comp_mod
 !!$     procedure :: F        => evalDiffuseMixmat
 !!$     procedure :: sim      => simDiffuseComp
 !!$     procedure :: dumpHDF  => dumpDiffuseToHDF
+     procedure :: getBand  => evalDiffuseBand
      procedure :: dumpFITS => dumpDiffuseToFITS
   end type comm_diffuse_comp
 
@@ -155,6 +156,46 @@ contains
     nullify(t, t0)
 
   end subroutine updateMixmat
+
+  function evalDiffuseBand(self, band, pix)
+    implicit none
+    class(comm_diffuse_comp),                     intent(in)            :: self
+    integer(i4b),                                 intent(in)            :: band
+    integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
+    real(dp),        dimension(:,:), allocatable                        :: evalDiffuseBand
+
+    integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp
+    class(comm_mapinfo), pointer :: info
+    class(comm_map),     pointer :: m, Bm
+
+    ! Initialize amplitude map
+    nmaps =  min(data(band)%info%nmaps, self%nmaps)
+    info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, self%lmax_amp, &
+         & data(band)%info%nmaps, data(band)%info%pol)
+    m     => comm_map(info)
+    m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
+    if (self%lmax_amp > data(band)%map%info%lmax) then
+       ! Nullify elements above band-specific lmax to avoid aliasing during projection
+       do i = 1, m%info%nalm
+          if (m%info%lm(i,1) > data(band)%info%lmax) m%alm(i,:) = 0.d0
+       end do
+    end if
+    call m%Y
+
+    ! Scale to correct frequency through multiplication with mixing matrix
+    m%map = m%map * self%F(band)%p%map
+
+    ! Convolve with band-specific beam
+    Bm => data(band)%B%conv(alm_in=.false., alm_out=.false., trans=.false., map=m)
+
+    ! Return pixelized map
+    allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
+    evalDiffuseBand = Bm%map
+
+    ! Clean up
+    nullify(m, Bm)
+    
+  end function evalDiffuseBand
 
   
 !!$  ! Evaluate amplitude map in brightness temperature at reference frequency

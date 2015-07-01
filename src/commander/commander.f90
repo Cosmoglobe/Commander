@@ -3,6 +3,7 @@ program commander
   use comm_data_mod
   use comm_signal_mod
   use comm_cr_mod
+  use comm_chisq_mod
   implicit none
 
 
@@ -68,7 +69,8 @@ program commander
   call initialize_data_mod(cpar);        call update_status(status, "init_data")
   call initialize_signal_mod(cpar);      call update_status(status, "init_signal")
   !call dump_components('test.dat')
-  call dumpCompMaps('test', 'chains')
+  !call dumpCompMaps('test', 'chains')
+  map => compute_residual(1)
 
 !!$  map => comm_map(data(1)%info)
 !!$  call data(1)%map%writeFITS('in.fits')

@@ -60,7 +60,7 @@ module comm_map_mod
   end interface comm_mapinfo
 
   interface comm_map
-     procedure constructor_map
+     procedure constructor_map, constructor_clone
   end interface comm_map
 
 contains
@@ -173,6 +173,20 @@ contains
     constructor_map%alm = 0.d0
     
   end function constructor_map
+  
+  function constructor_clone(map)
+    implicit none
+    class(comm_map),         intent(in)  :: map
+    class(comm_map), pointer             :: constructor_clone
+
+    allocate(constructor_clone)
+    constructor_clone%info => map%info
+    allocate(constructor_clone%map(0:map%info%np-1,map%info%nmaps))
+    allocate(constructor_clone%alm(0:map%info%nalm-1,map%info%nmaps))
+    constructor_clone%map = map%map
+    constructor_clone%alm = map%alm
+    
+  end function constructor_clone
 
   subroutine deallocate_comm_map(self)
     implicit none

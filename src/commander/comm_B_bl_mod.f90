@@ -41,23 +41,37 @@ contains
     constructor%info  => info
     call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
          & trim(dir)//trim(cpar%ds_blfile(id)), trim(dir)//trim(cpar%ds_pixwin(id)))
+    constructor%lmax   = size(constructor%b_l,1)-1
 
   end function constructor
   
-  subroutine matmulB(self, trans, map, res)
+  function matmulB(self, alm_in, alm_out, trans, map)
     implicit none
-    class(comm_B_bl), intent(in)    :: self
-    logical(lgt),     intent(in)    :: trans
-    class(comm_map),  intent(inout) :: map
-    class(comm_map),  intent(inout) :: res
+    class(comm_B_bl), intent(in) :: self
+    logical(lgt),     intent(in) :: alm_in, alm_out
+    logical(lgt),     intent(in) :: trans
+    class(comm_map),  intent(in) :: map
+    class(comm_map),  pointer    :: matmulB
 
-    integer(i4b) :: i
+    integer(i4b) :: i, l
 
-    if (.not. allocated(res%alm)) allocate(res%alm(0:map%info%nalm-1,map%info%nmaps))
+    matmulB => comm_map(map%info)
+    if (.not. alm_in) then
+       matmulB%map = map%map
+       call matmulB%YtW
+    else
+       matmulB%alm = map%alm
+    end if
+    
     do i = 0, map%info%nalm-1
-       res%alm(i,:) = map%alm(i,:) * self%b_l(map%info%lm(1,i),:)
+       l = map%info%lm(1,i)
+       if (l <= self%lmax) then
+          matmulB%alm(i,:) = matmulB%alm(i,:) * self%b_l(map%info%lm(1,i),:)
+       end if
     end do
 
-  end subroutine matmulB
+    if (.not. alm_out) call matmulB%Y
+
+  end function matmulB
   
 end module comm_B_bl_mod
