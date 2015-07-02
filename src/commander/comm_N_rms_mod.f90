@@ -11,8 +11,8 @@ module comm_N_rms_mod
      class(comm_map), pointer :: siN
    contains
      ! Data procedures
-     procedure :: invN     => matmulInvN
-     procedure :: sqrtInvN => matmulSqrtInvN
+     procedure :: invN     => matmulInvN_1map
+     procedure :: sqrtInvN => matmulSqrtInvN_1map
      procedure :: rms      => returnRMS
   end type comm_N_rms
 
@@ -20,6 +20,14 @@ module comm_N_rms_mod
      procedure constructor
   end interface comm_N_rms
 
+!!$  interface matmulInvN
+!!$     module procedure matmulInvN_1map, matmulInvN_2map
+!!$  end interface matmulInvN
+!!$  
+!!$  interface matmulSqrtInvN
+!!$     module procedure matmulSqrtInvN_1map, matmulSqrtInvN_2map
+!!$  end interface matmulSqrtInvN
+  
 contains
 
   !**************************************************
@@ -53,22 +61,38 @@ contains
   end function constructor
 
   ! Return map_out = invN * map
-  subroutine matmulInvN(self, map, res)
+  subroutine matmulInvN_1map(self, map)
+    implicit none
+    class(comm_N_rms), intent(in)     :: self
+    class(comm_map),   intent(inout)  :: map
+    map%map = (self%siN%map)**2 * map%map
+  end subroutine matmulInvN_1map
+  
+  ! Return map_out = sqrtInvN * map
+  subroutine matmulSqrtInvN_1map(self, map)
+    implicit none
+    class(comm_N_rms), intent(in)    :: self
+    class(comm_map),   intent(inout) :: map
+    map%map = self%siN%map * map%map
+  end subroutine matmulSqrtInvN_1map
+
+    ! Return map_out = invN * map
+  subroutine matmulInvN_2map(self, map, res)
     implicit none
     class(comm_N_rms), intent(in)     :: self
     class(comm_map),   intent(in)     :: map
     class(comm_map),   intent(inout)  :: res
     res%map = (self%siN%map)**2 * map%map
-  end subroutine matmulInvN
+  end subroutine matmulInvN_2map
   
   ! Return map_out = sqrtInvN * map
-  subroutine matmulSqrtInvN(self, map, res)
+  subroutine matmulSqrtInvN_2map(self, map, res)
     implicit none
     class(comm_N_rms), intent(in)    :: self
     class(comm_map),   intent(in)    :: map
     class(comm_map),   intent(inout) :: res
     res%map = self%siN%map * map%map
-  end subroutine matmulSqrtInvN
+  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
   subroutine returnRMS(self, res)

@@ -82,9 +82,10 @@ contains
     class(comm_diffuse_comp),                  intent(inout)           :: self
     class(comm_map),           dimension(:),   intent(in),    optional :: theta
 
-    integer(i4b) :: i, j, k, n
+    integer(i4b) :: i, j, k, n, nmaps
     real(dp),        allocatable, dimension(:,:) :: theta_p
     real(dp),        allocatable, dimension(:)   :: nu, s
+    class(comm_mapinfo),          pointer        :: info
     class(comm_map),              pointer        :: t, t0
     
     ! Copy over alms from input structure, and compute pixel-space parameter maps
@@ -100,14 +101,22 @@ contains
 
        ! Compute spectral parameters at the correct resolution for this channel
        if (self%npar > 0) then
-          t => comm_map(self%F(i)%p%info)
-          t%alm = self%theta(1)%p%alm
+          info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(1)%p%info%lmax, &
+               & data(i)%info%nmaps, data(i)%info%pol)
+          t    => comm_map(info)
+          nmaps            = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
+          t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
           call t%Y
+          nullify(info)
           do j = 2, self%npar
-             t0 => comm_map(self%F(i)%p%info)
-             t0%alm = self%theta(j)%p%alm
+             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
+                  & self%theta(j)%p%info%lmax, data(i)%info%nmaps, data(i)%info%pol)
+             t0    => comm_map(info)
+             nmaps            = min(data(i)%info%nmaps, self%theta(j)%p%info%nmaps)
+             t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
              call t0%Y
              call t%add(t0)
+             nullify(info)
           end do
        end if
        

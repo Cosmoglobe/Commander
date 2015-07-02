@@ -10,18 +10,29 @@ contains
   subroutine compute_chisq(chisq_fullsky)
     implicit none
 
-    real(dp), intent(out) :: chisq_fullsky
+    real(dp),                              intent(out), optional :: chisq_fullsky
 
-    
+    integer(i4b) :: i
+    real(dp)     :: t1, t2
+    class(comm_map), pointer :: res
 
+    if (present(chisq_fullsky)) then
+       chisq_fullsky = 0.d0
+       do i = 1, numband
+          res => compute_residual(i)
+          call data(i)%N%sqrtInvN(res)
+          chisq_fullsky = chisq_fullsky + sum(res%map**2)
+       end do
+    end if
 
   end subroutine compute_chisq
 
-  function compute_residual(band) result (res)
+  function compute_residual(band, exclude_comps) result (res)
     implicit none
 
-    integer(i4b),             intent(in) :: band
-    class(comm_map), pointer             :: res
+    integer(i4b),                     intent(in)           :: band
+    character(len=512), dimension(:), intent(in), optional :: exclude_comps
+    class(comm_map),    pointer                            :: res
 
     class(comm_comp),    pointer :: c
     real(dp),     allocatable, dimension(:,:) :: map
@@ -42,10 +53,7 @@ contains
        c => c%next()
     end do
 
-    call data(band)%map%writeFITS('map.fits')
-    call res%writeFITS('res.fits')
-    call mpi_finalize(ierr)
-    stop
+    nullify(c)
 
   end function compute_residual
     

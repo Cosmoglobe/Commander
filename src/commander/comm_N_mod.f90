@@ -20,21 +20,19 @@ module comm_N_mod
 
   abstract interface
      ! Return map_out = invN * map
-     subroutine matmulInvN(self, map, res)
+     subroutine matmulInvN(self, map)
        import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)    :: self
-       class(comm_map), intent(in)    :: map
-       class(comm_map), intent(inout) :: res
+       class(comm_map), intent(inout) :: map
      end subroutine matmulInvN
 
      ! Return map_out = sqrtInvN * map
-     subroutine matmulSqrtInvN(self, map, res)
+     subroutine matmulSqrtInvN(self, map)
        import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)    :: self
-       class(comm_map), intent(in)    :: map
-       class(comm_map), intent(inout) :: res
+       class(comm_map), intent(inout) :: map
      end subroutine matmulSqrtInvN
 
      ! Return rms map

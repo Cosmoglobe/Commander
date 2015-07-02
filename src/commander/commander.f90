@@ -34,6 +34,7 @@ program commander
   type(comm_params)   :: cpar
   type(comm_map), pointer      :: map
 
+  real(dp) :: chisq
   real(dp), allocatable, dimension(:) :: q
 
 
@@ -71,6 +72,10 @@ program commander
   !call dump_components('test.dat')
   !call dumpCompMaps('test', 'chains')
   map => compute_residual(1)
+  call map%writeFITS('res.fits')
+  call compute_chisq(chisq)
+  write(*,*) 'chisq = ', chisq
+  
 
 !!$  map => comm_map(data(1)%info)
 !!$  call data(1)%map%writeFITS('in.fits')
