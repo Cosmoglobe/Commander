@@ -6,7 +6,7 @@ module comm_comp_mod
   implicit none
 
   private
-  public  :: comm_comp, ncomp, compList, dumpCompMaps
+  public  :: comm_comp, ncomp, ind_comp, ncr, compList, dumpCompMaps
   
   !**************************************************
   !        Generic component class definition
@@ -18,7 +18,7 @@ module comm_comp_mod
 
      ! Data variables
      logical(lgt)       :: active
-     integer(i4b)       :: npar, ncr
+     integer(i4b)       :: npar, ncr, id, nmaps
      character(len=512) :: label, class, type, unit
      real(dp)           :: nu_ref, RJ2unit_
      character(len=512), allocatable, dimension(:)   :: indlabel
@@ -35,16 +35,14 @@ module comm_comp_mod
      procedure :: add     ! add new link at the end
 
      ! Data procedures
-     procedure                       :: initComp
-     procedure(evalSED),    deferred :: S
-!     procedure(evalMixmat), deferred :: F
-!     procedure(evalAmp),    deferred :: a
-!     procedure(simComp),    deferred :: sim
-     procedure(evalBand),   deferred :: getBand
+     procedure                        :: initComp
+     procedure(evalSED),     deferred :: S
+     procedure(evalBand),    deferred :: getBand
+     procedure(projectBand), deferred :: projectBand
      procedure                       :: dumpSED
 !     procedure(dumpHDF),    deferred :: dumpHDF
-     procedure(dumpFITS),   deferred :: dumpFITS
-     procedure                       :: RJ2unit
+     procedure(dumpFITS),    deferred :: dumpFITS
+     procedure                        :: RJ2unit
   end type comm_comp
 
   abstract interface
@@ -59,13 +57,23 @@ module comm_comp_mod
      end function evalSED
 
      ! Return effective signal at given frequency band
-     function evalBand(self, band, pix)
+     function evalBand(self, band, amp_in, pix)
        import i4b, dp, comm_comp
        class(comm_comp),                             intent(in)            :: self
        integer(i4b),                                 intent(in)            :: band
        integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
+       real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
        real(dp),        dimension(:,:), allocatable                        :: evalBand
      end function evalBand
+
+     ! Return component projected from map
+     function projectBand(self, band, map)
+       import i4b, dp, comm_comp, comm_map
+       class(comm_comp),                             intent(in)            :: self
+       integer(i4b),                                 intent(in)            :: band
+       class(comm_map),                              intent(in)            :: map
+       real(dp),        dimension(:,:), allocatable                        :: projectBand
+     end function projectBand
 
 !!$     ! Evaluate amplitude map in brightness temperature at reference frequency
 !!$     function evalAmp(self, nside, nmaps, pix, x_1D, x_2D)
@@ -123,8 +131,11 @@ module comm_comp_mod
   !**************************************************
   !             Internal module variables
   !**************************************************
-  integer(i4b)              :: ncomp
+  integer(i4b)              :: ncomp, ncr
   class(comm_comp), pointer :: compList, currComp => null()
+  integer(i4b), allocatable, dimension(:,:) :: ind_comp    ! (start, length, nmaps)
+  
+  
   
 contains
 
@@ -134,6 +145,7 @@ contains
     type(comm_params),  intent(in) :: cpar
     integer(i4b),       intent(in) :: id
 
+    self%id      = id
     self%active  = cpar%cs_include(id)
     self%label   = cpar%cs_label(id)
     self%type    = cpar%cs_type(id)

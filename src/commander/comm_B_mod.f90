@@ -18,15 +18,14 @@ module comm_B_mod
   end type comm_B
 
   abstract interface
-     function matmulB(self, alm_in, alm_out, trans, map)
+     subroutine matmulB(self, alm_in, alm_out, trans, map)
        import comm_map, comm_B, dp, i4b, lgt
        implicit none
        class(comm_B),   intent(in)    :: self
        logical(lgt),    intent(in)    :: alm_in, alm_out
        logical(lgt),    intent(in)    :: trans
-       class(comm_map), intent(in)    :: map
-       class(comm_map), pointer       :: matmulB
-     end function matmulB
+       class(comm_map), intent(inout) :: map
+     end subroutine matmulB
   end interface
 
 end module comm_B_mod

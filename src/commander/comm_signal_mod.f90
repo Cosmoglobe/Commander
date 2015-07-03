@@ -35,6 +35,20 @@ contains
           call compList%setNext(c)
        end if
     end do
+
+    ! Compute position and length of each component in parameter array
+    allocate(ind_comp(ncomp,3))
+    ncr = 0
+    ind_comp(i,:) = [1,0]
+    c => compList
+    do while (associated(c))
+       ind_comp(i,1) = ncr+1
+       ind_comp(i,2) = c%ncr
+       ind_comp(i,3) = c%nmaps
+       ncr           = ncr + c%ncr
+       i             = i+1
+       c             => c%next()
+    end do
     
   end subroutine initialize_signal_mod
 

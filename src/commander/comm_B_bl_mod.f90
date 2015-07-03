@@ -45,33 +45,26 @@ contains
 
   end function constructor
   
-  function matmulB(self, alm_in, alm_out, trans, map)
+  subroutine matmulB(self, alm_in, alm_out, trans, map)
     implicit none
-    class(comm_B_bl), intent(in) :: self
-    logical(lgt),     intent(in) :: alm_in, alm_out
-    logical(lgt),     intent(in) :: trans
-    class(comm_map),  intent(in) :: map
-    class(comm_map),  pointer    :: matmulB
+    class(comm_B_bl), intent(in)    :: self
+    logical(lgt),     intent(in)    :: alm_in, alm_out
+    logical(lgt),     intent(in)    :: trans
+    class(comm_map),  intent(inout) :: map
 
     integer(i4b) :: i, l
 
-    matmulB => comm_map(map%info)
-    if (.not. alm_in) then
-       matmulB%map = map%map
-       call matmulB%YtW
-    else
-       matmulB%alm = map%alm
-    end if
+    if (.not. alm_in) call map%YtW
     
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
        if (l <= self%lmax) then
-          matmulB%alm(i,:) = matmulB%alm(i,:) * self%b_l(map%info%lm(1,i),:)
+          map%alm(i,:) = map%alm(i,:) * self%b_l(map%info%lm(1,i),:)
        end if
     end do
 
-    if (.not. alm_out) call matmulB%Y
+    if (.not. alm_out) call map%Y
 
-  end function matmulB
+  end subroutine matmulB
   
 end module comm_B_bl_mod

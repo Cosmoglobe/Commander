@@ -14,7 +14,7 @@ module comm_diffuse_comp_mod
   !**************************************************
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
-     integer(i4b)       :: nside, nmaps, nx, x0
+     integer(i4b)       :: nside, nx, x0
      logical(lgt)       :: pol
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv
      real(dp), allocatable, dimension(:,:) :: cls
@@ -31,8 +31,9 @@ module comm_diffuse_comp_mod
 !!$     procedure :: F        => evalDiffuseMixmat
 !!$     procedure :: sim      => simDiffuseComp
 !!$     procedure :: dumpHDF  => dumpDiffuseToHDF
-     procedure :: getBand  => evalDiffuseBand
-     procedure :: dumpFITS => dumpDiffuseToFITS
+     procedure :: getBand     => evalDiffuseBand
+     procedure :: projectBand => projectDiffuseBand
+     procedure :: dumpFITS    => dumpDiffuseToFITS
   end type comm_diffuse_comp
 
 contains
@@ -166,23 +167,28 @@ contains
 
   end subroutine updateMixmat
 
-  function evalDiffuseBand(self, band, pix)
+  function evalDiffuseBand(self, band, amp_in, pix)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
+    real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     real(dp),        dimension(:,:), allocatable                        :: evalDiffuseBand
 
     integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp
     class(comm_mapinfo), pointer :: info
-    class(comm_map),     pointer :: m, Bm
+    class(comm_map),     pointer :: m
 
     ! Initialize amplitude map
     nmaps =  min(data(band)%info%nmaps, self%nmaps)
     info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, self%lmax_amp, &
          & data(band)%info%nmaps, data(band)%info%pol)
     m     => comm_map(info)
-    m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
+    if (present(amp_in)) then
+       m%alm(:,1:nmaps) = amp_in
+    else
+       m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
+    end if
     if (self%lmax_amp > data(band)%map%info%lmax) then
        ! Nullify elements above band-specific lmax to avoid aliasing during projection
        do i = 1, m%info%nalm
@@ -195,17 +201,41 @@ contains
     m%map = m%map * self%F(band)%p%map
 
     ! Convolve with band-specific beam
-    Bm => data(band)%B%conv(alm_in=.false., alm_out=.false., trans=.false., map=m)
+    call data(band)%B%conv(alm_in=.false., alm_out=.false., trans=.false., map=m)
 
     ! Return pixelized map
     allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
-    evalDiffuseBand = Bm%map
+    evalDiffuseBand = m%map
 
     ! Clean up
-    nullify(m, Bm)
+    nullify(m)
     
   end function evalDiffuseBand
 
+  ! Return component projected from map
+  function projectDiffuseBand(self, band, map)
+    implicit none
+    class(comm_diffuse_comp),                     intent(in)            :: self
+    integer(i4b),                                 intent(in)            :: band
+    class(comm_map),                              intent(in)            :: map
+    real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
+
+    class(comm_map), pointer :: m
+
+    m => comm_map(map)
+    
+    ! Convolve with band-specific beam
+    call data(band)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=m)
+
+    ! Scale to correct frequency through multiplication with mixing matrix
+    m%map = m%map * self%F(band)%p%map
+
+    ! Extract spherical harmonics coefficients
+    allocate(projectDiffuseBand(self%x%info%nalm,self%x%info%nmaps))
+    call m%Yt
+    projectDiffuseBand = m%alm
+    
+  end function projectDiffuseBand
   
 !!$  ! Evaluate amplitude map in brightness temperature at reference frequency
 !!$  function evalDiffuseAmp(self, nside, nmaps, pix, x_1D, x_2D)
