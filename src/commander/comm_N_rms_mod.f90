@@ -82,7 +82,7 @@ contains
     map%map = self%siN%map * map%map
   end subroutine matmulSqrtInvN_1map
 
-    ! Return map_out = invN * map
+  ! Return map_out = invN * map
   subroutine matmulInvN_2map(self, map, res)
     implicit none
     class(comm_N_rms), intent(in)     :: self

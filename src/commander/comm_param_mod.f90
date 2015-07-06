@@ -87,7 +87,10 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_binfile
      integer(i4b),       allocatable, dimension(:)     :: cs_lpivot
      character(len=512), allocatable, dimension(:)     :: cs_mask
-     real(dp),           allocatable, dimension(:)     :: cs_amp_def
+     real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
+     real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
+     real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
+     integer(i4b),       allocatable, dimension(:)     :: cs_cl_poltype
      character(len=512), allocatable, dimension(:)     :: cs_filedef
      character(len=512), allocatable, dimension(:)     :: cs_input_amp
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
@@ -274,9 +277,10 @@ contains
     n = cpar%cs_ncomp
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
-    allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_poltype(MAXPAR,n))
+    allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_samp_cls(n), cpar%cs_clfile(n), cpar%cs_binfile(n))
-    allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_amp_def(n), cpar%cs_fwhm(n))
+    allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
+    allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_filedef(n), cpar%cs_input_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(MAXPAR,2,n), cpar%cs_p_gauss(MAXPAR,2,n))
     do i = 1, n
@@ -297,10 +301,20 @@ contains
        call get_parameter(paramfile, 'COMP_OUTPUT_FWHM'//itext,     par_dp=cpar%cs_fwhm(i))
        if (trim(cpar%cs_cltype(i)) == 'binned') then
           call get_parameter(paramfile, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
-       end if
-       if (trim(cpar%cs_cltype(i)) == 'power_law') then
+          call get_parameter(paramfile, 'COMP_CL_DEFAULT_FILE'//itext,     par_string=cpar%cs_clfile(i))
+       else if (trim(cpar%cs_cltype(i)) == 'power_law') then
+          call get_parameter(paramfile, 'COMP_CL_POLTYPE'//itext,      par_int=cpar%cs_cl_poltype(i))
           call get_parameter(paramfile, 'COMP_CL_L_PIVOT'//itext,      par_int=cpar%cs_lpivot(i))
-          call get_parameter(paramfile, 'COMP_DEFAULT_CL_AMP'//itext,  par_dp=cpar%cs_amp_def(i))
+          call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_MEAN'//itext, par_dp=cpar%cs_cl_prior(i,1))
+          call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_RMS'//itext, par_dp=cpar%cs_cl_prior(i,2))
+          call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_T'//itext,  par_dp=cpar%cs_cl_amp_def(i,1))
+          call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_T'//itext,  par_dp=cpar%cs_cl_beta_def(i,1))
+          if (cpar%cs_polarization(i)) then
+             call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_E'//itext,  par_dp=cpar%cs_cl_amp_def(i,2))
+             call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_E'//itext,  par_dp=cpar%cs_cl_beta_def(i,2))
+             call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_B'//itext,  par_dp=cpar%cs_cl_amp_def(i,3))
+             call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_B'//itext,  par_dp=cpar%cs_cl_beta_def(i,3))
+          end if
        end if
        if (trim(cpar%cs_cltype(i)) == 'single_l' .or. trim(cpar%cs_cltype(i)) == 'binned') then
           call get_parameter(paramfile, 'COMP_DEFAULT_CL_FILE'//itext, par_string=cpar%cs_filedef(i))
