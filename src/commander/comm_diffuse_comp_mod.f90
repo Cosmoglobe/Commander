@@ -18,15 +18,19 @@ module comm_diffuse_comp_mod
      logical(lgt)       :: pol
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv
      real(dp), allocatable, dimension(:,:) :: cls
+     real(dp), allocatable, dimension(:,:) :: F_mean
 
      class(comm_map),               pointer     :: mask
      class(comm_map),               pointer     :: x      ! Spatial parameters
+     class(comm_map),               pointer     :: inv_M  ! Preconditioner
+     class(comm_B),                 pointer     :: B_out  ! Output beam
      class(map_ptr),  dimension(:), allocatable :: theta  ! Spectral parameters
      type(map_ptr),   dimension(:), allocatable :: F      ! Mixing matrix
      type(F_int_ptr), dimension(:), allocatable :: F_int  ! SED integrator
    contains
      procedure :: initDiffuse
      procedure :: updateMixmat
+     procedure :: invM        => applyInvM
 !!$     procedure :: a        => evalDiffuseAmp
 !!$     procedure :: F        => evalDiffuseMixmat
 !!$     procedure :: sim      => simDiffuseComp
@@ -34,6 +38,7 @@ module comm_diffuse_comp_mod
      procedure :: getBand     => evalDiffuseBand
      procedure :: projectBand => projectDiffuseBand
      procedure :: dumpFITS    => dumpDiffuseToFITS
+     procedure :: initPrecond 
   end type comm_diffuse_comp
 
 contains
@@ -54,6 +59,7 @@ contains
     self%nside    = cpar%cs_nside(id)
     self%lmax_amp = cpar%cs_lmax_amp(id)
     self%lmax_ind = cpar%cs_lmax_ind(id)
+    self%cltype   = cpar%cs_cltype(id)
     self%nmaps    = 1; if (self%pol) self%nmaps = 3
     info          => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
 
@@ -67,14 +73,20 @@ contains
     end if
     self%ncr = size(self%x%alm)
 
+    ! Initialize preconditioner structure
+    self%inv_M => comm_map(info)
+
     ! Allocate mixing matrix
-    allocate(self%F(numband))
+    allocate(self%F(numband), self%F_mean(numband,self%nmaps))
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
        self%F(i)%p => comm_map(info)
     end do
 
+    ! Initialize output beam
+    self%B_out => comm_B_bl(cpar, self%x%info, i, fwhm=cpar%cs_fwhm(id))
+    
   end subroutine initDiffuse
 
   ! Evaluate amplitude map in brightness temperature at reference frequency
@@ -83,7 +95,7 @@ contains
     class(comm_diffuse_comp),                  intent(inout)           :: self
     class(comm_map),           dimension(:),   intent(in),    optional :: theta
 
-    integer(i4b) :: i, j, k, n, nmaps
+    integer(i4b) :: i, j, k, n, nmaps, ierr
     real(dp),        allocatable, dimension(:,:) :: theta_p
     real(dp),        allocatable, dimension(:)   :: nu, s
     class(comm_mapinfo),          pointer        :: info
@@ -162,6 +174,15 @@ contains
           end if
           
        end do
+
+       ! Compute mixing matrix average; for preconditioning only
+       do j = 1, self%nmaps
+          self%F_mean(i,j) = sum(self%F(i)%p%map(:,j))
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, self%F_mean(i,:), nmaps, &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       self%F_mean(i,:) = self%F_mean(i,:) / self%F(i)%p%info%npix
+
     end do
     nullify(t, t0)
 
@@ -191,8 +212,8 @@ contains
     end if
     if (self%lmax_amp > data(band)%map%info%lmax) then
        ! Nullify elements above band-specific lmax to avoid aliasing during projection
-       do i = 1, m%info%nalm
-          if (m%info%lm(i,1) > data(band)%info%lmax) m%alm(i,:) = 0.d0
+       do i = 0, m%info%nalm-1
+          if (m%info%lm(1,i) > data(band)%info%lmax) m%alm(i,:) = 0.d0
        end do
     end if
     call m%Y
@@ -208,8 +229,8 @@ contains
     evalDiffuseBand = m%map
 
     ! Clean up
-    nullify(m)
-    
+    deallocate(m, info)
+
   end function evalDiffuseBand
 
   ! Return component projected from map
@@ -223,7 +244,7 @@ contains
     class(comm_map), pointer :: m
 
     m => comm_map(map)
-    
+
     ! Convolve with band-specific beam
     call data(band)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=m)
 
@@ -236,6 +257,50 @@ contains
     projectDiffuseBand = m%alm
     
   end function projectDiffuseBand
+
+  ! Return component projected from map
+  subroutine initPrecond(self)
+    implicit none
+    class(comm_diffuse_comp), intent(inout) :: self
+
+    integer(i4b) :: i, j, k, l, m, ind
+    real(dp)     :: alm(self%inv_M%info%nmaps)
+
+    self%inv_M%map = 0.d0
+    do j = 0, self%x%info%nalm-1
+       call self%x%info%i2lm(j,l,m)
+       ! Compute inv_M = sum_nu F^t * B^t * invN * B * F
+       do i = 1, numband
+          call data(i)%N%invN_diag%info%lm2i(l,m,k)
+          if (k > -1) then
+             alm = data(i)%N%invN_diag%alm(k,:) * data(i)%B%b_l(l,:)**2 * self%F_mean(i,:)**2
+             if (trim(self%cltype) /= 'none') then
+                ! inv_M = C^(1/2) * F^t * B^t * invN * B * F * C^(1/2)
+             end if
+             self%inv_M%alm(j,:) = self%inv_M%alm(j,:) + alm
+          end if
+       end do
+    end do
+
+  end subroutine initPrecond
+
+  subroutine applyInvM(self, Nscale, alm)
+    implicit none
+
+    class(comm_diffuse_comp),                   intent(in)    :: self
+    real(dp),                                   intent(in)    :: Nscale
+    real(dp),                 dimension(0:,1:), intent(inout) :: alm
+
+    integer(i4b) :: i
+    
+    ! Add prior term
+    if (trim(self%cltype) /= 'none') then
+       !alm = alm / (Nscale * self%inv_M%alm)
+    else
+       alm = alm / (Nscale * self%inv_M%alm)
+    end if
+
+  end subroutine applyInvM
   
 !!$  ! Evaluate amplitude map in brightness temperature at reference frequency
 !!$  function evalDiffuseAmp(self, nside, nmaps, pix, x_1D, x_2D)
@@ -292,11 +357,16 @@ contains
 
     integer(i4b)       :: i
     character(len=512) :: filename
+    class(comm_map), pointer :: map
 
     ! Write amplitude
+    map => comm_map(self%x)
+    call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
+   
     filename = trim(self%label) // '_' // trim(postfix) // '.fits'
-    call self%x%Y
-    call self%x%writeFITS(trim(dir)//'/'//trim(filename))
+    call map%Y
+    call map%writeFITS(trim(dir)//'/'//trim(filename))
+    deallocate(map)
 
     ! Write spectral index maps
     do i = 1, self%npar

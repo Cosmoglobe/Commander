@@ -1,16 +1,16 @@
 
-COBJS  := sharp.o sort_utils.o math_tools.o locate_mod.o spline_1D_mod.o \
+COBJS  := d1mach.o drc3jj.o sharp.o sort_utils.o math_tools.o locate_mod.o spline_1D_mod.o \
           comm_system_backend.o comm_system_mod.o comm_map_mod.o \
           comm_defs.o comm_utils.o \
           comm_shared_output_mod.o comm_status_mod.o \
 	  comm_bp_utils.o comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o \
 	  comm_cmb_comp_mod.o comm_powlaw_comp_mod.o \
           comm_template_comp_mod.o comm_ptsrc_comp_mod.o \
-	  comm_signal_mod.o comm_N_mod.o comm_N_rms_mod.o \
+	  comm_N_mod.o comm_N_rms_mod.o \
           comm_B_mod.o comm_B_bl_mod.o comm_beam_mod.o \
           comm_F_int_mod.o comm_F_int_1D_mod.o comm_F_int_0D_mod.o \
           comm_data_mod.o comm_bp_mod.o \
-          comm_chisq_mod.o comm_cr_mod.o 
+          comm_chisq_mod.o comm_cr_mod.o comm_signal_mod.o comm_output_mod.o
 
 all : commander
 
@@ -31,7 +31,7 @@ comm_ptsrc_comp_mod.o :    comm_template_comp_mod.o
 comm_cmb_comp_mod.o :      comm_diffuse_comp_mod.o comm_F_int_0D_mod.o
 comm_powlaw_comp_mod.o :   comm_diffuse_comp_mod.o comm_F_int_1D_mod.o
 comm_signal_mod.o :        comm_powlaw_comp_mod.o comm_cmb_comp_mod.o \
-                           comm_template_comp_mod.o 
+                           comm_template_comp_mod.o comm_cr_mod.o
 comm_N_mod.o :             comm_param_mod.o
 comm_N_rms_mod.o :         comm_N_mod.o
 comm_noise_mod.o :         comm_N_rms_mod.o
@@ -47,7 +47,9 @@ comm_data_mod.o :          comm_map_mod.o comm_noise_mod.o comm_bp_mod.o comm_be
 comm_cr_mod.o :            comm_data_mod.o comm_comp_mod.o \
                            comm_template_comp_mod.o comm_diffuse_comp_mod.o
 comm_chisq_mod.o :         comm_data_mod.o comm_comp_mod.o
-commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_chisq_mod.o
+comm_output_mod.o :        comm_comp_mod.o
+commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_chisq_mod.o \
+                           comm_output_mod.o
 
 
 commander : libcommander.a commander.o

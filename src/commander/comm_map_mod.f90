@@ -20,9 +20,14 @@ module comm_map_mod
      integer(i4b) :: nside, npix, nmaps, nring, np, lmax, nm, nalm
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
+     integer(c_int), allocatable, dimension(:)   :: mind
      integer(c_int), allocatable, dimension(:,:) :: lm
      integer(c_int), allocatable, dimension(:)   :: pix
      real(c_double), allocatable, dimension(:)   :: W
+   contains
+     procedure     :: lm2i
+     procedure     :: i2lm
+     final :: comm_mapinfo_finalize
   end type comm_mapinfo
 
   type :: comm_map
@@ -122,11 +127,14 @@ contains
        end if
     end do
     allocate(constructor_mapinfo%ms(constructor_mapinfo%nm))
+    allocate(constructor_mapinfo%mind(0:constructor_mapinfo%lmax))
     allocate(constructor_mapinfo%lm(2,0:constructor_mapinfo%nalm-1))
     ind = 0
+    constructor_mapinfo%mind = -1
     do i = 1, constructor_mapinfo%nm
-       m                         = myid + (i-1)*nprocs
-       constructor_mapinfo%ms(i) = m
+       m                           = myid + (i-1)*nprocs
+       constructor_mapinfo%ms(i)   = m
+       constructor_mapinfo%mind(m) = ind
        if (m == 0) then
           do l = m, lmax
              constructor_mapinfo%lm(:,ind) = [l,m]
@@ -199,6 +207,16 @@ contains
 
   end subroutine deallocate_comm_map
 
+  subroutine comm_mapinfo_finalize(self)
+    implicit none
+
+    type(comm_mapinfo) :: self
+
+    call sharp_destroy_alm_info(self%alm_info)
+    call sharp_destroy_geom_info(self%geom_info)
+    
+  end subroutine comm_mapinfo_finalize
+  
   !**************************************************
   !             Spherical harmonic transforms
   !**************************************************
@@ -460,6 +478,43 @@ contains
   !                   Utility routines
   !**************************************************
 
+  subroutine lm2i(self, l, m, i)
+    implicit none
+    class(comm_mapinfo)             :: self
+    integer(i4b),       intent(in)  :: l, m
+    integer(i4b),       intent(out) :: i
+
+    if (l > self%lmax) then
+       i = -1
+       return
+    end if
+    
+    if (m == 0) then
+       i = self%mind(m) + l
+    else
+       i = self%mind(abs(m)) + 2*(l-abs(m))
+       if (m > 0) i = i+1
+    end if
+    
+  end subroutine lm2i
+
+  subroutine i2lm(self, i, l, m)
+    implicit none
+    class(comm_mapinfo)             :: self
+    integer(i4b),       intent(in)  :: i
+    integer(i4b),       intent(out) :: l, m
+
+    if (i > self%nalm) then
+       l = -1
+       m = -1
+       return
+    end if
+    
+    l = self%lm(1,i)
+    m = self%lm(2,i)    
+    
+  end subroutine i2lm
+  
   function next(self)
     class(comm_map) :: self
     class(comm_map), pointer :: next

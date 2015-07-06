@@ -8,7 +8,7 @@ module comm_cr_mod
   implicit none
 
   private
-  public solve_cr_eqn_by_CG, cr_amp2x, cr_x2amp, cr_computeRHS, cr_matmulA
+  public solve_cr_eqn_by_CG, cr_amp2x, cr_x2amp, cr_computeRHS, cr_matmulA, cr_invM
 
   interface cr_amp2x
      module procedure cr_amp2x_full
@@ -31,11 +31,11 @@ contains
   recursive subroutine solve_cr_eqn_by_CG(cpar, A, invM, x, b, stat, Nscale)
     implicit none
 
-    type(comm_params),                intent(in)             :: cpar
-    real(dp),          dimension(1:), intent(out)            :: x
-    real(dp),          dimension(1:), intent(in)             :: b
-    integer(i4b),                     intent(out)            :: stat
-    real(dp),                         intent(in),   optional :: Nscale
+    type(comm_params),                intent(in)  :: cpar
+    real(dp),          dimension(1:), intent(out) :: x
+    real(dp),          dimension(1:), intent(in)  :: b
+    integer(i4b),                     intent(out) :: stat
+    real(dp),                         intent(in)  :: Nscale
 
     interface
        recursive function A(x, Nscale)
@@ -49,13 +49,13 @@ contains
        recursive function invM(x, Nscale)
          use healpix_types
          implicit none
-         real(dp), dimension(:),      intent(in)           :: x
-         real(dp), dimension(size(x))                      :: invM
-         real(dp),                    intent(in), optional :: Nscale
+         real(dp),              dimension(:), intent(in) :: x
+         real(dp),                            intent(in) :: Nscale
+         real(dp), allocatable, dimension(:)             :: invM
        end function invM
     end interface
 
-    integer(i4b) :: i, j, k, l, m, n, maxiter, root
+    integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2
     real(dp), allocatable, dimension(:) :: Ax, r, d, q, invM_r, temp_vec, s
 
@@ -70,7 +70,7 @@ contains
     ! Initialize the CG search
     x  = 0.d0
     r  = b-A(x)
-    d  = invM(r)
+    d  = invM(r, Nscale)
 
     delta_new = dot_product(r,d)
     delta0    = delta_new
@@ -90,7 +90,7 @@ contains
           r = r - alpha*q
        end if
 
-       s         = invM(r)
+       s         = invM(r, Nscale)
        delta_old = delta_new 
        delta_new = dot_product(r, s)
        beta      = delta_new / delta_old
@@ -98,7 +98,7 @@ contains
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
-          write(*,fmt='(a,i5,a,e8.3,a,e8.3,a,f8.3)') 'CG iter. ', i, ' -- res = ', &
+          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f6.2)') 'CG iter. ', i, ' -- res = ', &
                & real(delta_new,sp), ', tol = ', real(eps**2 * delta0,sp), &
                & ', wall time = ', real(t2-t1,sp)
        end if
@@ -111,7 +111,7 @@ contains
        stat = stat + 1
     else
        if (cpar%myid == root .and. cpar%verbosity > 1) then
-          write(*,fmt='(a,i5,a,e8.3,a,e8.3,a,f8.3)') 'Final CG iter ', i-1, ' -- res = ', &
+          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') 'Final CG iter ', i-1, ' -- res = ', &
                & real(delta_new,sp), ', tol = ', real(eps**2 * delta0,sp)
        end if
     end if
@@ -254,19 +254,19 @@ contains
   subroutine cr_computeRHS(handle, rhs)
     implicit none
 
-    type(planck_rng),                intent(inout) :: handle
-    real(dp),         dimension(1:), intent(out)   :: rhs
+    type(planck_rng),                            intent(inout) :: handle
+    real(dp),         allocatable, dimension(:), intent(out)   :: rhs
 
-    integer(i4b) :: i, j, k, l, m, n, ierr
-    real(dp)     :: omega
-    class(comm_map),  pointer                  :: map, alms, Tm
-    class(comm_comp), pointer                  :: c     
-    real(dp),        allocatable, dimension(:) :: eta
+    integer(i4b) :: i, j, k, n, ierr
+    class(comm_map),  pointer                    :: map, Tm
+    class(comm_comp), pointer                    :: c     
+    real(dp),        allocatable, dimension(:,:) :: eta
 
-    n = size(rhs)
+    ! Initialize output vector
+    allocate(rhs(ncr))
+    rhs = 0.d0
 
     ! Add channel dependent terms
-    rhs = 0.d0
     do i = 1, numband
 
        ! Set up Wiener filter term
@@ -298,13 +298,13 @@ contains
              if (trim(c%cltype) /= 'none') then
                 ! Multiply with inv(sqrt(C_l))
              end if
-             call cr_insert_comp(c%id, .false., Tm%alm, rhs)
-             nullify(Tm)
+             call cr_insert_comp(c%id, .true., Tm%alm, rhs)
+             deallocate(Tm)
           end select
           c => c%next()
        end do
 
-       nullify(map)
+       deallocate(map)
     end do
 
     ! Add prior dependent terms
@@ -312,27 +312,32 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%cltype) == 'none') cycle
+          if (trim(c%cltype) == 'none') exit
           n = ind_comp(c%id,2)
-          allocate(eta(n))
-          do i = 1, n
-             eta(i) = rand_gauss(handle)
+          allocate(eta(c%x%info%nalm,c%x%info%nmaps))
+          do j = 1, c%x%info%nmaps
+             do i = 1, c%x%info%nalm
+                eta(i,j) = rand_gauss(handle)
+             end do
           end do
-          call cr_insert_comp(c%id, .true., Tm%alm, rhs)
+          call cr_insert_comp(c%id, .true., eta, rhs)
           deallocate(eta)
        end select
        c => c%next()
     end do
-    
+    nullify(c)
+
   end subroutine cr_computeRHS
 
-  subroutine cr_matmulA(x)
+  recursive function cr_matmulA(x, Nscale)
     implicit none
 
-    real(dp), dimension(1:), intent(inout) :: x
+    real(dp), dimension(1:),     intent(in)             :: x
+    real(dp),                    intent(in),   optional :: Nscale
+    real(dp), dimension(size(x))                        :: cr_matmulA
 
     real(dp)                  :: t1, t2
-    integer(i4b)              :: i
+    integer(i4b)              :: i, j
     class(comm_map),  pointer :: map
     class(comm_comp), pointer :: c
     real(dp),        allocatable, dimension(:)   :: y
@@ -351,7 +356,7 @@ contains
        do while (associated(c))
           select type (c)
           class is (comm_diffuse_comp)
-             call cr_extract_comp(c%id, y, alm)
+             call cr_extract_comp(c%id, x, alm)
              m = c%getBand(i, amp_in=alm)
              map%map = map%map + m
              deallocate(alm, m)
@@ -373,6 +378,8 @@ contains
           end select
           c => c%next()
        end do
+
+       deallocate(map)
        
     end do
 
@@ -381,7 +388,8 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%cltype) == 'none') cycle
+          if (trim(c%cltype) == 'none') exit
+          write(*,*) 'skal ikke vaere her', trim(c%cltype)
           allocate(alm(c%x%info%nalm,c%x%info%nmaps))
           call cr_extract_comp(c%id, x, alm)
           call cr_insert_comp(c%id, .true., alm, y)
@@ -389,12 +397,40 @@ contains
        end select
        c => c%next()
     end do
+    nullify(c)
 
     ! Return result and clean up
-    x = y
-
+    cr_matmulA = y
     deallocate(y)
 
-  end subroutine cr_matmulA
+  end function cr_matmulA
+
+  recursive function cr_invM(x, Nscale)
+    implicit none
+    real(dp),              dimension(:), intent(in) :: x
+    real(dp),                            intent(in) :: Nscale
+    real(dp), allocatable, dimension(:)             :: cr_invM
+
+    real(dp), allocatable, dimension(:,:) :: alm
+    class(comm_comp), pointer :: c
+
+    if (.not. allocated(cr_invM)) allocate(cr_invM(size(x)))
+    cr_invM = x
+    
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          allocate(alm(c%x%info%nalm,c%x%info%nmaps))
+          call cr_extract_comp(c%id, x, alm)
+          call c%invM(Nscale, alm)
+          call cr_insert_comp(c%id, .false., alm, cr_invM)
+          deallocate(alm)
+       end select
+       c => c%next()
+    end do
+    
+  end function cr_invM
+
   
 end module comm_cr_mod

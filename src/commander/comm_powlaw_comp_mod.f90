@@ -72,6 +72,9 @@ contains
     ! Initialize mixing matrix
     call constructor%updateMixmat
 
+    ! Initialize preconditioner
+    call constructor%initPrecond
+    
   end function constructor
 
   ! Definition:

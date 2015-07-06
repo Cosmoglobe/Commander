@@ -4,8 +4,8 @@ program commander
   use comm_signal_mod
   use comm_cr_mod
   use comm_chisq_mod
+  use comm_output_mod
   implicit none
-
 
   ! *********************************************************************
   ! *      Commander -- An MCMC code for global, exact CMB analysis     *
@@ -29,20 +29,15 @@ program commander
   ! *                                                                   *
   ! *********************************************************************
 
-
   integer(i4b)        :: iargc, ierr, iter, stat
   type(comm_params)   :: cpar
-  type(comm_map), pointer      :: map
-
-  real(dp) :: chisq
-  real(dp), allocatable, dimension(:) :: q
-
+  type(planck_rng)    :: handle
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
   call read_comm_params(cpar)
-  call initialize_mpi_struct(cpar)
+  call initialize_mpi_struct(cpar, handle)
   call init_status(status, 'comm_status.txt')
   
   if (iargc() == 0) then
@@ -69,21 +64,7 @@ program commander
   call initialize_bp_mod(cpar);          call update_status(status, "init_bp")
   call initialize_data_mod(cpar);        call update_status(status, "init_data")
   call initialize_signal_mod(cpar);      call update_status(status, "init_signal")
-  !call dump_components('test.dat')
-  !call dumpCompMaps('test', 'chains')
-  map => compute_residual(1)
-  call map%writeFITS('res.fits')
-  call compute_chisq(chisq)
-  write(*,*) 'chisq = ', chisq
   
-
-!!$  map => comm_map(data(1)%info)
-!!$  call data(1)%map%writeFITS('in.fits')
-!!$  call data(1)%map%YtW
-!!$  call data(1)%B%conv(.false., data(1)%map, map)
-!!$  call map%Y
-!!$  call map%writeFITS('out.fits')
-
   ! **************************************************************
   ! *                   Carry out computations                   *
   ! **************************************************************
@@ -96,6 +77,7 @@ program commander
   do iter = 1, cpar%num_gibbs_iter
 
      ! Sample linear parameters with CG search
+     call sample_amps_by_CG(cpar, handle)
 
      ! Sample amplitude parameters with positivity prior
 
@@ -108,6 +90,7 @@ program commander
      ! Compute goodness-of-fit statistics
      
      ! Output sample to disk
+     call output_FITS_sample(cpar, iter)
      
   end do
 
@@ -126,27 +109,4 @@ program commander
   call free_status(status)
   call mpi_finalize(ierr)
 
-contains
-
-  recursive function A(x, Nscale)
-    use healpix_types
-    implicit none
-    real(dp), dimension(:),       intent(in)           :: x
-    real(dp), dimension(size(x))                       :: A
-    real(dp),                     intent(in), optional :: Nscale
-
-    A(1) =  0.5*x(1) - 0.2*x(2)
-    A(2) = -0.2*x(1) + 0.8*x(2)
-  end function A
-  
-  recursive function invM(x, Nscale)
-    use healpix_types
-    implicit none
-    real(dp), dimension(:),      intent(in)           :: x
-    real(dp), dimension(size(x))                      :: invM
-    real(dp),                    intent(in), optional :: Nscale
-
-    invM = x
-  end function invM
-  
 end program commander

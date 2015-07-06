@@ -4,6 +4,7 @@ module comm_signal_mod
   use comm_cmb_comp_mod
   use comm_powlaw_comp_mod
   use comm_template_comp_mod
+  use comm_cr_mod
   implicit none
 
 contains
@@ -39,6 +40,7 @@ contains
     ! Compute position and length of each component in parameter array
     allocate(ind_comp(ncomp,3))
     ncr = 0
+    i   = 1
     ind_comp(i,:) = [1,0]
     c => compList
     do while (associated(c))
@@ -74,4 +76,23 @@ contains
     
   end subroutine dump_components
 
+  subroutine sample_amps_by_CG(cpar, handle)
+    implicit none
+
+    type(comm_params), intent(in)    :: cpar
+    type(planck_rng),  intent(inout) :: handle
+
+    integer(i4b) :: stat, i
+    real(dp)     :: Nscale = 1.d0
+    real(dp), allocatable, dimension(:) :: rhs, x
+
+    allocate(x(ncr))
+    call cr_computeRHS(handle, rhs)
+    call solve_cr_eqn_by_CG(cpar, cr_matmulA, cr_invM, x, rhs, stat, Nscale)
+    call cr_x2amp(x)
+    deallocate(rhs,x)
+
+  end subroutine sample_amps_by_CG
+
+  
 end module comm_signal_mod

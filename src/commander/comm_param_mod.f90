@@ -28,6 +28,9 @@ module comm_param_mod
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
 
+     ! Output parameters
+     character(len=512) :: outdir
+     
      ! Numerical parameters
      integer(i4b)      :: cg_lmax_precond, cg_maxiter
      real(dp)          :: cg_tol
@@ -77,6 +80,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
      character(len=512), allocatable, dimension(:)     :: cs_unit
      real(dp),           allocatable, dimension(:)     :: cs_nu_ref
+     real(dp),           allocatable, dimension(:)     :: cs_fwhm
      character(len=512), allocatable, dimension(:)     :: cs_cltype
      logical(lgt),       allocatable, dimension(:)     :: cs_samp_cls
      character(len=512), allocatable, dimension(:)     :: cs_clfile
@@ -112,10 +116,11 @@ contains
     
   end subroutine read_comm_params
 
-  subroutine initialize_mpi_struct(cpar)
+  subroutine initialize_mpi_struct(cpar, handle)
     implicit none
 
     type(comm_params), intent(inout) :: cpar
+    type(planck_rng),  intent(out)   :: handle
 
     integer(i4b) :: i, j, m, n, ierr
     integer(i4b), allocatable, dimension(:,:) :: ind
@@ -143,6 +148,18 @@ contains
 
     call mpi_comm_split(MPI_COMM_WORLD, cpar%mychain, cpar%myid_chain, cpar%comm_chain,  ierr) 
     call mpi_comm_size(cpar%comm_chain, cpar%numprocs_chain, ierr)
+
+    ! Initialize random number generator
+    if (cpar%myid == cpar%root) then
+       call rand_init(handle, cpar%base_seed)
+       do i = 1, cpar%numprocs-1
+          j = nint(rand_uni(handle)*1000000.d0)
+          call mpi_send(j, 1, MPI_INTEGER, i, 98, MPI_COMM_WORLD, ierr)
+       end do
+    else 
+       call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, status, ierr)
+       call rand_init(handle, j)
+    end if
     
     deallocate(ind)
 
@@ -173,8 +190,10 @@ contains
     call get_parameter(paramfile, 'CG_TOLERANCE',             par_dp=cpar%cg_tol)
 
     call get_parameter(paramfile, 'T_CMB',                    par_dp=cpar%T_cmb)
-    call get_parameter(paramfile, 'MJysr_convention',         par_string=cpar%MJysr_convention)
+    call get_parameter(paramfile, 'MJYSR_CONVENTION',         par_string=cpar%MJysr_convention)
 
+    call get_parameter(paramfile, 'OUTPUT_DIRECTORY',         par_string=cpar%outdir)
+    
   end subroutine read_global_params
 
 
@@ -257,7 +276,7 @@ contains
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_samp_cls(n), cpar%cs_clfile(n), cpar%cs_binfile(n))
-    allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_amp_def(n))
+    allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_amp_def(n), cpar%cs_fwhm(n))
     allocate(cpar%cs_filedef(n), cpar%cs_input_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(MAXPAR,2,n), cpar%cs_p_gauss(MAXPAR,2,n))
     do i = 1, n
@@ -275,6 +294,7 @@ contains
        call get_parameter(paramfile, 'COMP_CL_TYPE'//itext,         par_string=cpar%cs_cltype(i))
        call get_parameter(paramfile, 'COMP_SAMP_CLS'//itext,        par_lgt=cpar%cs_samp_cls(i))
        call get_parameter(paramfile, 'COMP_INPUT_AMP_MAP'//itext,   par_string=cpar%cs_input_amp(i))
+       call get_parameter(paramfile, 'COMP_OUTPUT_FWHM'//itext,     par_dp=cpar%cs_fwhm(i))
        if (trim(cpar%cs_cltype(i)) == 'binned') then
           call get_parameter(paramfile, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
        end if

@@ -23,12 +23,13 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id)
+  function constructor(cpar, info, id, fwhm)
     implicit none
-    type(comm_params),                  intent(in) :: cpar
-    type(comm_mapinfo), target,         intent(in) :: info
-    integer(i4b),                       intent(in) :: id
-    class(comm_B_bl),                  pointer    :: constructor
+    type(comm_params),                  intent(in)           :: cpar
+    type(comm_mapinfo), target,         intent(in)           :: info
+    integer(i4b),                       intent(in)           :: id
+    real(dp),                           intent(in), optional :: fwhm
+    class(comm_B_bl),   pointer                              :: constructor
 
     character(len=512) :: dir
     
@@ -37,10 +38,15 @@ contains
     dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
-    constructor%type  =  cpar%ds_beamtype(id)
+    constructor%type  =  'b_l'    
     constructor%info  => info
-    call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
-         & trim(dir)//trim(cpar%ds_blfile(id)), trim(dir)//trim(cpar%ds_pixwin(id)))
+    if (present(fwhm)) then
+       call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm)
+    else
+       call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
+            & beamfile=trim(dir)//trim(cpar%ds_blfile(id)), &
+            & pixwin=trim(dir)//trim(cpar%ds_pixwin(id)))
+    end if
     constructor%lmax   = size(constructor%b_l,1)-1
 
   end function constructor

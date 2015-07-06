@@ -39,11 +39,12 @@ contains
     end do
   end function getlun
 
-  subroutine read_beam(lmax, nmaps, beam, beamfile, pixwin)
+  subroutine read_beam(lmax, nmaps, beam, beamfile, fwhm, pixwin)
     implicit none
 
     integer(i4b),                                    intent(in)            :: lmax, nmaps
     real(dp),           allocatable, dimension(:,:), intent(out)           :: beam
+    real(dp),                                        intent(in), optional  :: fwhm
     character(len=*),                                intent(in), optional  :: beamfile, pixwin
 
     real(dp),          allocatable, dimension(:,:)   :: beam_in, pw
@@ -61,6 +62,8 @@ contains
     
     if (present(beamfile)) then
        call fits2cl(beamfile, beam_in, lmax, 4, header)
+    else if (present(fwhm)) then
+       call gaussbeam(fwhm, lmax, beam_in(0:lmax,1:nmaps))
     else
        beam_in = 1.d0
     end if
