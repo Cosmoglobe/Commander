@@ -48,12 +48,13 @@ contains
     dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
-    constructor%type  = cpar%ds_noise_format(id)
-    constructor%nside = info%nside
-    constructor%nmaps = info%nmaps
-    constructor%np    = info%np
-    constructor%pol   = info%nmaps == 3
-    constructor%siN   => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id)))
+    constructor%type    = cpar%ds_noise_format(id)
+    constructor%nside   = info%nside
+    constructor%nmaps   = info%nmaps
+    constructor%np      = info%np
+    constructor%pol     = info%nmaps == 3
+    constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id)))
+    constructor%siN%map = 1.d0 / constructor%siN%map
 
     ! Apply mask
     constructor%siN%map = constructor%siN%map * mask%map

@@ -97,7 +97,7 @@ contains
 
     integer(i4b) :: i, j, k, n, nmaps, ierr
     real(dp),        allocatable, dimension(:,:) :: theta_p
-    real(dp),        allocatable, dimension(:)   :: nu, s
+    real(dp),        allocatable, dimension(:)   :: nu, s, buffer
     class(comm_mapinfo),          pointer        :: info
     class(comm_map),              pointer        :: t, t0
     
@@ -179,10 +179,10 @@ contains
        do j = 1, self%nmaps
           self%F_mean(i,j) = sum(self%F(i)%p%map(:,j))
        end do
-       call mpi_allreduce(MPI_IN_PLACE, self%F_mean(i,:), nmaps, &
+       call mpi_allreduce(MPI_IN_PLACE, self%F_mean(i,:), self%nmaps, &
             & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        self%F_mean(i,:) = self%F_mean(i,:) / self%F(i)%p%info%npix
-
+       
     end do
     nullify(t, t0)
 
@@ -290,8 +290,6 @@ contains
     class(comm_diffuse_comp),                   intent(in)    :: self
     real(dp),                                   intent(in)    :: Nscale
     real(dp),                 dimension(0:,1:), intent(inout) :: alm
-
-    integer(i4b) :: i
     
     ! Add prior term
     if (trim(self%cltype) /= 'none') then

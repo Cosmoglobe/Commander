@@ -568,5 +568,21 @@ contains
     
   end subroutine report_error
 
+  function mpi_dot_product(comm, x, y)
+    implicit none
+
+    integer(i4b),               intent(in) :: comm
+    real(dp),     dimension(:), intent(in) :: x, y
+    real(dp)                               :: mpi_dot_product
+
+    integer(i4b) :: ierr
+    real(dp)     :: prod
+
+    prod = dot_product(x,y)
+    call mpi_allreduce(MPI_IN_PLACE, prod, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+    mpi_dot_product = prod
+
+  end function mpi_dot_product
+
   
 end module comm_utils

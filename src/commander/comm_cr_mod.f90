@@ -72,7 +72,7 @@ contains
     r  = b-A(x)
     d  = invM(r, Nscale)
 
-    delta_new = dot_product(r,d)
+    delta_new = mpi_dot_product(cpar%comm_chain,r,d)
     delta0    = delta_new
     do i = 1, maxiter
        call wall_time(t1)
@@ -80,7 +80,7 @@ contains
        if (delta_new < eps**2 * delta0) exit
 
        q     = A(d)
-       alpha = delta_new / dot_product(d, q)
+       alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
        x     = x + alpha * d
 
        ! Restart every 50th iteration to suppress numerical errors
@@ -92,7 +92,7 @@ contains
 
        s         = invM(r, Nscale)
        delta_old = delta_new 
-       delta_new = dot_product(r, s)
+       delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
 
@@ -272,11 +272,11 @@ contains
        ! Set up Wiener filter term
        map => comm_map(data(i)%map)
        call data(i)%N%sqrtInvN(map)
-       
+
        ! Add channel-dependent white noise fluctuation
        do k = 1, map%info%nmaps
           do j = 0, map%info%np-1
-             map%map(j,k) = map%map(j,k) + rand_gauss(handle)
+!             map%map(j,k) = map%map(j,k) + rand_gauss(handle)
           end do
        end do
 
@@ -411,6 +411,7 @@ contains
     real(dp),                            intent(in) :: Nscale
     real(dp), allocatable, dimension(:)             :: cr_invM
 
+    integer(i4b) :: ierr
     real(dp), allocatable, dimension(:,:) :: alm
     class(comm_comp), pointer :: c
 
@@ -422,7 +423,7 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           allocate(alm(c%x%info%nalm,c%x%info%nmaps))
-          call cr_extract_comp(c%id, x, alm)
+          call cr_extract_comp(c%id, x, alm)          
           call c%invM(Nscale, alm)
           call cr_insert_comp(c%id, .false., alm, cr_invM)
           deallocate(alm)

@@ -56,7 +56,7 @@ contains
     integer(i4b) :: i, j, k, l, m, lp, l2, ier, twolmaxp2, pos, lmax
     complex(dpc) :: val(invN_diag%info%nmaps)
     real(dp), allocatable, dimension(:)   :: threej_symbols, threej_symbols_m0
-    real(dp), allocatable, dimension(:,:) :: N_lm
+    real(dp), allocatable, dimension(:,:) :: N_lm, a_l0
 
     lmax      = invN_diag%info%lmax
     twolmaxp2 = 2*lmax+2
@@ -65,8 +65,11 @@ contains
     allocate(threej_symbols(twolmaxp2))
     allocate(threej_symbols_m0(twolmaxp2))
     allocate(N_lm(0:invN_diag%info%nalm-1,invN_diag%info%nmaps))
+    allocate(a_l0(0:lmax,invN_diag%info%nmaps))
     call invN_diag%YtW
-
+    if (invN_diag%info%myid == 0) a_l0 = invN_diag%alm(0:lmax,:)
+    call mpi_bcast(a_l0, size(a_l0), MPI_DOUBLE_PRECISION, 0, invN_diag%info%comm, ier)
+    
     pos = 0
     do j = 1, invN_diag%info%nm
        m = invN_diag%info%ms(j)
@@ -82,8 +85,7 @@ contains
              lp = nint(l1min) + l2 - 1
              if (lp > lmax) exit
              ! Only m3 = 0 contributes, because m2 = -m1 => m3 = 0
-             call invN_diag%info%lm2i(lp,0,k)
-             val = val + invN_diag%alm(k,:) * sqrt(2.d0*lp+1.d0) * &
+             val = val + a_l0(lp,:) * sqrt(2.d0*lp+1.d0) * &
                   & threej_symbols(l2) * threej_symbols_m0(lp-nint(l0min)+1)
           end do
           val = val * (2*l+1) / sqrt(4.d0*pi) * npix / (4.d0*pi)
@@ -102,7 +104,7 @@ contains
 
     invN_diag%alm = N_lm
 
-    deallocate(N_lm, threej_symbols, threej_symbols_m0)
+    deallocate(N_lm, threej_symbols, threej_symbols_m0, a_l0)
     
   end subroutine compute_invN_lm
   
