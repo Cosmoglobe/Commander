@@ -91,8 +91,6 @@ contains
 
     ! Initialize power spectrum
     self%Cl => comm_Cl(cpar, self%x%info, id)
-
-    call self%Cl%writeFITS(1,1)
     
   end subroutine initDiffuse
 

@@ -90,7 +90,6 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
      integer(i4b),       allocatable, dimension(:)     :: cs_cl_poltype
-     character(len=512), allocatable, dimension(:)     :: cs_filedef
      character(len=512), allocatable, dimension(:)     :: cs_input_amp
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
@@ -280,7 +279,7 @@ contains
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
-    allocate(cpar%cs_filedef(n), cpar%cs_input_amp(n), cpar%cs_input_ind(MAXPAR,n))
+    allocate(cpar%cs_input_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(MAXPAR,2,n), cpar%cs_p_gauss(MAXPAR,2,n))
     do i = 1, n
        call int2string(i, itext)
@@ -313,9 +312,6 @@ contains
              call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_B'//itext,  par_dp=cpar%cs_cl_amp_def(i,3))
              call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_B'//itext,  par_dp=cpar%cs_cl_beta_def(i,3))
           end if
-       end if
-       if (trim(cpar%cs_cltype(i)) == 'single_l' .or. trim(cpar%cs_cltype(i)) == 'binned') then
-          call get_parameter(paramfile, 'COMP_DEFAULT_CL_FILE'//itext, par_string=cpar%cs_filedef(i))
        end if
        call get_parameter(paramfile, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
 

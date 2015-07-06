@@ -52,10 +52,6 @@ contains
        c             => c%next()
     end do
 
-    call mpi_finalize(i)
-    stop
-
-    
   end subroutine initialize_signal_mod
 
   subroutine dump_components(filename)

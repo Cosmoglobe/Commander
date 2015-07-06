@@ -291,7 +291,7 @@ contains
           if (self%stat(k,j) == '0' .or. self%stat(k,j) == 'C') cycle
           val = 0.d0
           n   = 0.d0
-          do l = self%bins(l,1), self%bins(l,2)
+          do l = self%bins(k,1), self%bins(k,2)
              val = val + (2*l+1) * self%Dl(l,j)
              n   = n   + 2*l+1
           end do
