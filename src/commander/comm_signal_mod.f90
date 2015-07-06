@@ -51,6 +51,10 @@ contains
        i             = i+1
        c             => c%next()
     end do
+
+    call mpi_finalize(i)
+    stop
+
     
   end subroutine initialize_signal_mod
 

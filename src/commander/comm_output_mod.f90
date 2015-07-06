@@ -14,8 +14,8 @@ contains
 
     integer(i4b)              :: i
     real(dp)                  :: chisq
-    character(len=2)          :: ctext
-    character(len=5)          :: itext
+    character(len=4)          :: ctext
+    character(len=6)          :: itext
     character(len=512)        :: postfix
     class(comm_map),  pointer :: map
     class(comm_comp), pointer :: c

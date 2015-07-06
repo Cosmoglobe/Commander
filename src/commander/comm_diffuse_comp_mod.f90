@@ -4,6 +4,7 @@ module comm_diffuse_comp_mod
   use comm_map_mod
   use comm_data_mod
   use comm_F_int_mod
+  use comm_Cl_mod
   implicit none
 
   private
@@ -24,6 +25,7 @@ module comm_diffuse_comp_mod
      class(comm_map),               pointer     :: x      ! Spatial parameters
      class(comm_map),               pointer     :: inv_M  ! Preconditioner
      class(comm_B),                 pointer     :: B_out  ! Output beam
+     class(comm_Cl),                pointer     :: Cl     ! Power spectrum
      class(map_ptr),  dimension(:), allocatable :: theta  ! Spectral parameters
      type(map_ptr),   dimension(:), allocatable :: F      ! Mixing matrix
      type(F_int_ptr), dimension(:), allocatable :: F_int  ! SED integrator
@@ -85,7 +87,12 @@ contains
     end do
 
     ! Initialize output beam
-    self%B_out => comm_B_bl(cpar, self%x%info, i, fwhm=cpar%cs_fwhm(id))
+    self%B_out => comm_B_bl(cpar, self%x%info, 0, fwhm=cpar%cs_fwhm(id))
+
+    ! Initialize power spectrum
+    self%Cl => comm_Cl(cpar, self%x%info, id)
+
+    call self%Cl%writeFITS(1,1)
     
   end subroutine initDiffuse
 

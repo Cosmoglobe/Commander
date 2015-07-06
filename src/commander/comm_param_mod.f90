@@ -82,7 +82,6 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_nu_ref
      real(dp),           allocatable, dimension(:)     :: cs_fwhm
      character(len=512), allocatable, dimension(:)     :: cs_cltype
-     logical(lgt),       allocatable, dimension(:)     :: cs_samp_cls
      character(len=512), allocatable, dimension(:)     :: cs_clfile
      character(len=512), allocatable, dimension(:)     :: cs_binfile
      integer(i4b),       allocatable, dimension(:)     :: cs_lpivot
@@ -278,7 +277,7 @@ contains
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
-    allocate(cpar%cs_samp_cls(n), cpar%cs_clfile(n), cpar%cs_binfile(n))
+    allocate(cpar%cs_clfile(n), cpar%cs_binfile(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_filedef(n), cpar%cs_input_amp(n), cpar%cs_input_ind(MAXPAR,n))
@@ -296,7 +295,6 @@ contains
        call get_parameter(paramfile, 'COMP_UNIT'//itext,            par_string=cpar%cs_unit(i))
        call get_parameter(paramfile, 'COMP_NU_REF'//itext,          par_dp=cpar%cs_nu_ref(i))
        call get_parameter(paramfile, 'COMP_CL_TYPE'//itext,         par_string=cpar%cs_cltype(i))
-       call get_parameter(paramfile, 'COMP_SAMP_CLS'//itext,        par_lgt=cpar%cs_samp_cls(i))
        call get_parameter(paramfile, 'COMP_INPUT_AMP_MAP'//itext,   par_string=cpar%cs_input_amp(i))
        call get_parameter(paramfile, 'COMP_OUTPUT_FWHM'//itext,     par_dp=cpar%cs_fwhm(i))
        if (trim(cpar%cs_cltype(i)) == 'binned') then

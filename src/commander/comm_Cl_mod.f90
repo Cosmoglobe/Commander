@@ -1,6 +1,7 @@
 module comm_Cl_mod
   use comm_param_mod
   use comm_map_mod
+  use math_tools
   implicit none
 
   private
@@ -15,10 +16,12 @@ module comm_Cl_mod
   
   type :: comm_Cl
      ! General parameters
-     character(len=512) :: type  ! {none, binned, power_law}
-     character(len=512) :: outdir
-     integer(i4b)       :: lmax, nmaps, nspec
-     integer(i4b)       :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+     class(comm_mapinfo), pointer :: info
+     character(len=512)           :: type  ! {none, binned, power_law}
+     character(len=512)           :: label ! {none, binned, power_law}
+     character(len=512)           :: outdir
+     integer(i4b)                 :: lmax, nmaps, nspec
+     integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
      real(dp),         allocatable, dimension(:,:)   :: Dl
      real(dp),         allocatable, dimension(:,:,:) :: sqrtInvS, invS
 
@@ -28,7 +31,9 @@ module comm_Cl_mod
      integer(i4b), allocatable, dimension(:,:)     :: bins
      
      ! Power law parameters
-     real(dp) :: prior(2), lpiv
+     character(len=512) :: plfile
+     integer(i4b)       :: iter = 0
+     real(dp)           :: prior(2), lpiv
      real(dp), allocatable, dimension(:) :: amp, beta
    contains
      ! Data procedures
@@ -62,9 +67,15 @@ contains
     integer(i4b)       :: l, nmaps
     character(len=512) :: datadir, binfile
     logical(lgt)       :: pol
+
+    allocate(constructor)
     
     ! General parameters
     constructor%type   = cpar%cs_cltype(id)
+    if (trim(constructor%type) == 'none') return
+    
+    constructor%info   => info
+    constructor%label  = cpar%cs_label(id)
     constructor%lmax   = cpar%cs_lmax_amp(id)
     constructor%nmaps  = 1; if (cpar%cs_polarization(id)) constructor%nmaps = 3
     constructor%nspec  = 1; if (cpar%cs_polarization(id)) constructor%nspec = 6
@@ -89,7 +100,7 @@ contains
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
 
-    call constructor%updateS
+    !call constructor%updateS
     
   end function constructor
 
@@ -109,6 +120,7 @@ contains
        do l = 1, self%lmax
           self%Dl(l,j) = amp(i) * (l/self%lpiv)**beta(i)
        end do
+       self%Dl(0,j) = self%Dl(1,j)
     end do
 
   end subroutine updatePowlaw
@@ -193,6 +205,7 @@ contains
     class(comm_Cl),                    intent(in)    :: self
     class(comm_map),                   intent(inout) :: map
     integer(i4b) :: i, l
+    if (trim(self%type) == 'none') return
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
        map%alm(i,:) = matmul(self%invS(:,:,l), map%alm(i,:))
@@ -204,6 +217,7 @@ contains
     class(comm_Cl),                    intent(in)    :: self
     class(comm_map),                   intent(inout) :: map
     integer(i4b) :: i, l
+    if (trim(self%type) == 'none') return
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
        map%alm(i,:) = matmul(self%sqrtInvS(:,:,l), map%alm(i,:))
@@ -319,13 +333,90 @@ contains
     
   end subroutine sample_Cls_powlaw
 
-  subroutine writeFITS(self, filename)
+  subroutine writeFITS(self, chain, iter)
     implicit none
-    class(comm_Cl),   intent(in) :: self
-    character(len=*), intent(in) :: filename
+    class(comm_Cl),   intent(inout) :: self
+    integer(i4b),     intent(in)    :: chain, iter
 
+    character(len=4) :: ctext
+    character(len=6) :: itext
+
+    if (trim(self%type) == 'none') return
+    if (self%info%myid /= 0) return
+
+    call int2string(chain, ctext)
+    call int2string(iter,  itext)
+    
+    select case (trim(self%type))
+    case ('none')
+       return
+    case ('binned')
+       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
+    case ('power_law')
+       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
+       call write_powlaw_to_FITS(self, 'c'//ctext)
+    end select
 
   end subroutine writeFITS
+
+  subroutine write_Dl_to_FITS(self, postfix)
+    implicit none
+    class(comm_Cl),   intent(in) :: self
+    character(len=*), intent(in) :: postfix
+
+    integer(i4b) :: i, l, unit
+    character(len=512) :: filename
+
+    unit = getlun()
+    filename = trim(self%outdir) // '/cls_' // trim(self%label) // '_' // trim(postfix) // '.dat'
+    open(unit,file=trim(filename), recl=1024)
+    if (self%nspec == 1) then
+       write(unit,*) '# Columns are {l, Dl_TT}'
+    else
+       write(unit,*) '# Columns are {l, Dl_TT, Dl_EE, Dl_BB, Dl_TE, Dl_TB, Dl_EB}'
+    end if
+    do l = 0, self%lmax
+       if (self%nspec == 1) then
+          write(unit,fmt='(i6,f16.3)') l, self%Dl(l,:)
+       else
+          write(unit,fmt='(i6,6f16.3)') l, self%Dl(l,:)
+       end if
+    end do
+    close(unit)
+
+  end subroutine write_Dl_to_FITS
+
+  subroutine write_powlaw_to_FITS(self, postfix)
+    implicit none
+    class(comm_Cl),   intent(inout) :: self
+    character(len=*), intent(in)    :: postfix
+
+    integer(i4b) :: unit
+    character(len=512) :: filename
+
+    filename = trim(self%outdir) // '/cls_' // trim(self%label) // '_powlaw_' // &
+         & trim(postfix) // '.dat' 
+
+    if (self%iter == 0) then
+       open(unit,file=trim(filename), recl=1024)
+       if (self%nspec == 1) then
+          write(unit,*) '# Columns are {iteration, A_TT, beta_TT}'
+       else
+          write(unit,*) '# Columns are {iteration, A_TT, A_EE, A_BB, beta_TT, beta_EE, beta_BB}'
+       end if
+       close(unit)
+    end if
+
+    self%iter = self%iter + 1
+    open(unit,file=trim(filename), recl=1024, position='append')
+    if (self%nspec == 1) then
+       write(unit,fmt='(i8,2f16.3)') self%iter, self%amp, self%beta
+    else
+       write(unit,fmt='(i8,6f16.3)') self%iter, self%amp, self%beta
+    end if
+    close(unit)
+    
+  end subroutine write_powlaw_to_FITS
   
   
 end module comm_Cl_mod
