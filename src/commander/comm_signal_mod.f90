@@ -87,7 +87,7 @@ contains
     real(dp), allocatable, dimension(:) :: rhs, x
 
     allocate(x(ncr))
-    call cr_computeRHS(handle, rhs)
+    call cr_computeRHS(handle, rhs, Nscale)
     call solve_cr_eqn_by_CG(cpar, cr_matmulA, cr_invM, x, rhs, stat, Nscale)
     call cr_x2amp(x)
     deallocate(rhs,x)

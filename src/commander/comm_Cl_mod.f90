@@ -23,7 +23,7 @@ module comm_Cl_mod
      integer(i4b)                 :: lmax, nmaps, nspec
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
      real(dp),         allocatable, dimension(:,:)   :: Dl
-     real(dp),         allocatable, dimension(:,:,:) :: sqrtInvS, invS
+     real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat
 
      ! Bin parameters
      integer(i4b) :: nbin
@@ -37,8 +37,8 @@ module comm_Cl_mod
      real(dp), allocatable, dimension(:) :: amp, beta
    contains
      ! Data procedures
-     procedure :: iS        => matmulInvS
-     procedure :: siS       => matmulSqrtInvS
+     procedure :: S        => matmulS
+     procedure :: sqrtS    => matmulSqrtS
      procedure :: sampleCls
      procedure :: read_binfile
      procedure :: read_Cl_file
@@ -84,7 +84,8 @@ contains
     nmaps              = constructor%nmaps
 
     allocate(constructor%Dl(0:constructor%lmax,constructor%nspec))
-    allocate(constructor%sqrtInvS(nmaps,nmaps,0:constructor%lmax))
+    allocate(constructor%sqrtS_mat(nmaps,nmaps,0:constructor%lmax))
+    allocate(constructor%S_mat(nmaps,nmaps,0:constructor%lmax))
 
     if (trim(constructor%type) == 'binned') then
        call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id)))
@@ -100,7 +101,7 @@ contains
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
 
-    !call constructor%updateS
+    call constructor%updateS
     
   end function constructor
 
@@ -132,27 +133,26 @@ contains
     integer(i4b) :: i, j, k, l
     logical(lgt) :: ok(self%nmaps)
 
-    self%sqrtInvS = 0.d0
-    self%invS     = 0.d0
+    self%sqrtS_mat = 0.d0
+    self%S_mat     = 0.d0
     do l = 1, self%lmax
        do i = 1, self%nmaps
           do j = i, self%nmaps
              k = i*(1-i)/2 + (i-1)*self%nmaps + j
-             self%sqrtInvS(i,j,l) = self%Dl(l,k) / (l*(l+1)/(2.d0*pi))
-             if (i == j)      ok(i) = self%Dl(l,k) > 0.d0
-             if (.not. ok(i)) self%sqrtInvS(i,j,l) = 1.d0
+             self%sqrtS_mat(i,j,l) = self%Dl(l,k) / (l*(l+1)/(2.d0*pi))
+             if (i == j) ok(i) = self%Dl(l,k) > 0.d0
+             if (.not. ok(i)) self%sqrtS_mat(i,j,l) = 1.d0
           end do
        end do
-       call compute_hermitian_root(self%sqrtInvS(:,:,l), -0.5d0)
-       call compute_hermitian_root(self%sqrtInvS(:,:,l), -1.0d0)
+       call compute_hermitian_root(self%sqrtS_mat(:,:,l), 0.5d0)
        do i = 1, self%nmaps
           if (.not. ok(i)) then
-             self%sqrtInvS(i,:,l) = 0.d0
-             self%sqrtInvS(:,i,l) = 0.d0
-             self%invS(i,:,l)     = 0.d0
-             self%invS(:,i,l)     = 0.d0
+             self%sqrtS_mat(i,:,l) = 0.d0
+             self%sqrtS_mat(:,i,l) = 0.d0
           end if
        end do
+       self%S_mat(:,:,l) = matmul(self%sqrtS_mat(:,:,l), self%sqrtS_mat(:,:,l))
+       
     end do
 
   end subroutine updateS
@@ -200,29 +200,46 @@ contains
 
   end subroutine read_binfile
 
-  subroutine matmulInvS(self, map)
+  subroutine matmulS(self, map, alm)
     implicit none
-    class(comm_Cl),                    intent(in)    :: self
-    class(comm_map),                   intent(inout) :: map
+    class(comm_Cl),                    intent(in)              :: self
+    class(comm_map),                   intent(inout), optional :: map
+    real(dp),        dimension(0:,1:), intent(inout), optional :: alm
     integer(i4b) :: i, l
     if (trim(self%type) == 'none') return
-    do i = 0, map%info%nalm-1
-       l = map%info%lm(1,i)
-       map%alm(i,:) = matmul(self%invS(:,:,l), map%alm(i,:))
-    end do
-  end subroutine matmulInvS
 
-  subroutine matmulSqrtInvS(self, map)
+    if (present(map)) then
+       do i = 0, self%info%nalm-1
+          l = self%info%lm(1,i)
+          map%alm(i,:) = matmul(self%S_mat(:,:,l), map%alm(i,:))
+       end do
+    else if (present(alm)) then
+       do i = 0, self%info%nalm-1
+          l = self%info%lm(1,i)
+          alm(i,:) = matmul(self%S_mat(:,:,l), alm(i,:))
+       end do
+    end if
+  end subroutine matmulS
+
+  subroutine matmulSqrtS(self, map, alm)
     implicit none
-    class(comm_Cl),                    intent(in)    :: self
-    class(comm_map),                   intent(inout) :: map
+    class(comm_Cl),                    intent(in)              :: self
+    class(comm_map),                   intent(inout), optional :: map
+    real(dp),        dimension(0:,1:), intent(inout), optional :: alm
     integer(i4b) :: i, l
     if (trim(self%type) == 'none') return
-    do i = 0, map%info%nalm-1
-       l = map%info%lm(1,i)
-       map%alm(i,:) = matmul(self%sqrtInvS(:,:,l), map%alm(i,:))
-    end do
-  end subroutine matmulSqrtInvS
+    if (present(map)) then
+       do i = 0, self%info%nalm-1
+          l = self%info%lm(1,i)
+          map%alm(i,:) = matmul(self%sqrtS_mat(:,:,l), map%alm(i,:))
+       end do
+    else if (present(alm)) then
+       do i = 0, self%info%nalm-1
+          l = self%info%lm(1,i)
+          alm(i,:) = matmul(self%sqrtS_mat(:,:,l), alm(i,:))
+       end do
+    end if
+  end subroutine matmulSqrtS
 
   subroutine read_Cl_file(self, clfile)
     implicit none

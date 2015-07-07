@@ -5,6 +5,7 @@ module comm_diffuse_comp_mod
   use comm_data_mod
   use comm_F_int_mod
   use comm_Cl_mod
+  use math_tools
   implicit none
 
   private
@@ -33,9 +34,6 @@ module comm_diffuse_comp_mod
      procedure :: initDiffuse
      procedure :: updateMixmat
      procedure :: invM        => applyInvM
-!!$     procedure :: a        => evalDiffuseAmp
-!!$     procedure :: F        => evalDiffuseMixmat
-!!$     procedure :: sim      => simDiffuseComp
 !!$     procedure :: dumpHDF  => dumpDiffuseToHDF
      procedure :: getBand     => evalDiffuseBand
      procedure :: projectBand => projectDiffuseBand
@@ -260,6 +258,8 @@ contains
     allocate(projectDiffuseBand(self%x%info%nalm,self%x%info%nmaps))
     call m%Yt
     projectDiffuseBand = m%alm
+
+    deallocate(m)
     
   end function projectDiffuseBand
 
@@ -295,62 +295,28 @@ contains
     class(comm_diffuse_comp),                   intent(in)    :: self
     real(dp),                                   intent(in)    :: Nscale
     real(dp),                 dimension(0:,1:), intent(inout) :: alm
+
+    integer(i4b) :: i, l, j, ierr
+    real(dp)     :: M(self%nmaps,self%nmaps), a(self%nmaps,1)
     
-    ! Add prior term
     if (trim(self%cltype) /= 'none') then
-       !alm = alm / (Nscale * self%inv_M%alm)
+       do i = 0, self%x%info%nalm-1
+          l      = self%x%info%lm(1,i)
+          a(:,1) = matmul(self%Cl%sqrtS_mat(:,:,l), self%inv_M%alm(i,:))
+          M      = Nscale * matmul(a,transpose(a))
+          do j = 1, self%nmaps
+             M(j,j) = M(j,j) + 1.d0
+          end do
+          call cholesky_decompose_single(M)
+          call cholesky_solve(M, alm(i,:), a(:,1))
+          alm(i,:) = a(:,1)
+       end do
     else
        alm = alm / (Nscale * self%inv_M%alm)
     end if
 
   end subroutine applyInvM
   
-!!$  ! Evaluate amplitude map in brightness temperature at reference frequency
-!!$  function evalDiffuseAmp(self, nside, nmaps, pix, x_1D, x_2D)
-!!$    class(comm_diffuse_comp),                  intent(in)           :: self
-!!$    integer(i4b),                              intent(in)           :: nside, nmaps
-!!$    integer(i4b),              dimension(:),   intent(in), optional :: pix
-!!$    real(dp),                  dimension(:),   intent(in), optional :: x_1D
-!!$    real(dp),                  dimension(:,:), intent(in), optional :: x_2D
-!!$    real(dp),     allocatable, dimension(:,:)                       :: evalDiffuseAmp
-!!$
-!!$    if (present(x_1D)) then
-!!$       ! Input array is complete packed data vector
-!!$       
-!!$    else if (present(x_2D)) then
-!!$       ! Input array is alms(:,:)
-!!$       
-!!$    else
-!!$       ! Use internal array
-!!$       
-!!$    end if
-!!$    
-!!$  end function evalDiffuseAmp
-!!$
-!!$  ! Evaluate amplitude map in brightness temperature at reference frequency
-!!$  function evalDiffuseMixmat(self, nside, nmaps, pix)
-!!$    class(comm_diffuse_comp),                intent(in)           :: self
-!!$    integer(i4b),                            intent(in)           :: nside, nmaps
-!!$    integer(i4b),              dimension(:), intent(in), optional :: pix
-!!$    real(dp),     allocatable, dimension(:,:)                     :: evalDiffuseMixmat
-!!$  end function evalDiffuseMixmat
-!!$
-!!$  ! Generate simulated component
-!!$  function simDiffuseComp(self, handle, nside, nmaps, pix)
-!!$    class(comm_diffuse_comp),                intent(in)           :: self
-!!$    type(planck_rng),                        intent(inout)        :: handle
-!!$    integer(i4b),                            intent(in)           :: nside, nmaps
-!!$    integer(i4b),              dimension(:), intent(in), optional :: pix
-!!$    real(dp),     allocatable, dimension(:,:)                     :: simDiffuseComp
-!!$  end function simDiffuseComp
-!!$  
-!!$  ! Dump current sample to HDF chain files
-!!$  subroutine dumpDiffuseToHDF(self, filename)
-!!$    class(comm_diffuse_comp),                intent(in)           :: self
-!!$    character(len=*),                        intent(in)           :: filename
-!!$  end subroutine dumpDiffuseToHDF
-!!$  
-
   ! Dump current sample to HEALPix FITS file
   subroutine dumpDiffuseToFITS(self, postfix, dir)
     implicit none
@@ -386,7 +352,6 @@ contains
        call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
     end do
         
-    
   end subroutine dumpDiffuseToFITS
   
 end module comm_diffuse_comp_mod

@@ -57,7 +57,9 @@ contains
 
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2
-    real(dp), allocatable, dimension(:) :: Ax, r, d, q, invM_r, temp_vec, s
+    real(dp), allocatable, dimension(:)   :: Ax, r, d, q, invM_r, temp_vec, s
+    real(dp), allocatable, dimension(:,:) :: alm
+    class(comm_comp), pointer :: c
 
     root    = 0
     maxiter = cpar%cg_maxiter
@@ -69,7 +71,7 @@ contains
 
     ! Initialize the CG search
     x  = 0.d0
-    r  = b-A(x)
+    r  = b-A(x, Nscale)
     d  = invM(r, Nscale)
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
@@ -79,13 +81,13 @@ contains
        
        if (delta_new < eps**2 * delta0) exit
 
-       q     = A(d)
+       q     = A(d, Nscale)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
        x     = x + alpha * d
 
        ! Restart every 50th iteration to suppress numerical errors
        if (mod(i,50) == 0) then
-          r = b - A(x)
+          r = b - A(x, Nscale)
        else
           r = r - alpha*q
        end if
@@ -105,6 +107,21 @@ contains
 
     end do
 
+    ! Multiply with sqrt(S)
+    c       => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%cltype) == 'none') exit
+          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+          call cr_extract_comp(c%id, x, alm)
+          call c%Cl%sqrtS(alm=alm) ! Multiply with sqrt(Cl)
+          call cr_insert_comp(c%id, .false., alm, x)
+          deallocate(alm)
+       end select
+       c => c%next()
+    end do
+    
     if (i >= maxiter) then
        write(*,*) 'ERROR: Convergence in CG search not reached within maximum'
        write(*,*) '       number of iterations = ', maxiter
@@ -251,17 +268,21 @@ contains
   ! Definition of linear system
   ! ---------------------------
 
-  subroutine cr_computeRHS(handle, rhs)
+  subroutine cr_computeRHS(handle, rhs, Nscale)
     implicit none
 
-    type(planck_rng),                            intent(inout) :: handle
-    real(dp),         allocatable, dimension(:), intent(out)   :: rhs
+    type(planck_rng),                            intent(inout)          :: handle
+    real(dp),         allocatable, dimension(:), intent(out)            :: rhs
+    real(dp),                                    intent(in),   optional :: Nscale
 
     integer(i4b) :: i, j, k, n, ierr
+    real(dp)     :: Nscale_
     class(comm_map),  pointer                    :: map, Tm
     class(comm_comp), pointer                    :: c     
     real(dp),        allocatable, dimension(:,:) :: eta
 
+    Nscale_ = 1.d0; if (present(Nscale)) Nscale_ = Nscale
+    
     ! Initialize output vector
     allocate(rhs(ncr))
     rhs = 0.d0
@@ -271,17 +292,17 @@ contains
 
        ! Set up Wiener filter term
        map => comm_map(data(i)%map)
-       call data(i)%N%sqrtInvN(map)
+       call data(i)%N%sqrtInvN(map, Nscale_)
 
        ! Add channel-dependent white noise fluctuation
        do k = 1, map%info%nmaps
           do j = 0, map%info%np-1
-!             map%map(j,k) = map%map(j,k) + rand_gauss(handle)
+             map%map(j,k) = map%map(j,k) + rand_gauss(handle)
           end do
        end do
 
        ! Multiply with sqrt(invN)
-       call data(i)%N%sqrtInvN(map)
+       call data(i)%N%sqrtInvN(map, Nscale_)
 
        ! Convolve with transpose beam
        call data(i)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=map)
@@ -295,9 +316,7 @@ contains
              Tm     => comm_map(map)
              Tm%map = c%F(i)%p%map * Tm%map
              call Tm%Yt
-             if (trim(c%cltype) /= 'none') then
-                ! Multiply with inv(sqrt(C_l))
-             end if
+             call c%Cl%sqrtS(map=Tm) ! Multiply with sqrt(Cl)
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
              deallocate(Tm)
           end select
@@ -340,13 +359,30 @@ contains
     integer(i4b)              :: i, j
     class(comm_map),  pointer :: map
     class(comm_comp), pointer :: c
-    real(dp),        allocatable, dimension(:)   :: y
+    real(dp),        allocatable, dimension(:)   :: y, sqrtS_x
     real(dp),        allocatable, dimension(:,:) :: alm, m
 
     ! Initialize output array
-    allocate(y(ncr))
+    allocate(y(ncr), sqrtS_x(ncr))
     y = 0.d0
 
+    ! Multiply with sqrt(S)
+    sqrtS_x = x
+    c       => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%cltype) == 'none') exit
+          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+          call cr_extract_comp(c%id, sqrtS_x, alm)
+          call c%Cl%sqrtS(alm=alm) ! Multiply with sqrt(Cl)
+          call cr_insert_comp(c%id, .false., alm, sqrtS_x)
+          deallocate(alm)
+       end select
+       c => c%next()
+    end do
+
+    
     ! Add frequency dependent terms
     do i = 1, numband
 
@@ -356,7 +392,7 @@ contains
        do while (associated(c))
           select type (c)
           class is (comm_diffuse_comp)
-             call cr_extract_comp(c%id, x, alm)
+             call cr_extract_comp(c%id, sqrtS_x, alm)
              m = c%getBand(i, amp_in=alm)
              map%map = map%map + m
              deallocate(alm, m)
@@ -365,7 +401,7 @@ contains
        end do
 
        ! Multiply with invN
-       call data(i)%N%InvN(map)
+       call data(i)%N%InvN(map, Nscale)
 
        ! Project summed map into components, ie., row-wise matrix elements
        c   => compList
@@ -383,14 +419,18 @@ contains
        
     end do
 
-    ! Add prior terms
+    ! Add prior term and multiply with sqrt(S) for relevant components
     c   => compList
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
           if (trim(c%cltype) == 'none') exit
-          write(*,*) 'skal ikke vaere her', trim(c%cltype)
-          allocate(alm(c%x%info%nalm,c%x%info%nmaps))
+          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+          ! Multiply with sqrt(Cl)
+          call cr_extract_comp(c%id, y, alm)
+          call c%Cl%sqrtS(alm=alm) 
+          call cr_insert_comp(c%id, .false., alm, y)
+          ! Add (unity) prior term
           call cr_extract_comp(c%id, x, alm)
           call cr_insert_comp(c%id, .true., alm, y)
           deallocate(alm)
@@ -401,7 +441,7 @@ contains
 
     ! Return result and clean up
     cr_matmulA = y
-    deallocate(y)
+    deallocate(y, sqrtS_x)
 
   end function cr_matmulA
 
