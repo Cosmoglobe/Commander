@@ -433,11 +433,10 @@ contains
     do i = 1, npre
        nmaps = diffComps(i)%p%x%info%nmaps
        call cr_extract_comp(diffComps(i)%p%id, x, alm)
-       do j = 0, info_pre%nalm-1
-          call info_pre%i2lm(j, l, m)
+       do j = 0, diffComps(i)%p%x%info%nalm-1
+          call diffComps(i)%p%x%info%i2lm(j, l, m)
           call info_pre%lm2i(l, m, k)
-          if (k == -1) exit
-          y(i,j,1:nmaps) = alm(k,1:nmaps)
+          y(i,k,1:nmaps) = alm(j,1:nmaps)
        end do
        deallocate(alm)
     end do
@@ -454,11 +453,10 @@ contains
        nmaps = diffComps(i)%p%x%info%nmaps
        allocate(alm(0:diffComps(i)%p%x%info%nalm-1,nmaps))
        alm = 0.d0
-       do j = 0, info_pre%nalm-1
-          call info_pre%i2lm(j, l, m)
+       do j = 0, diffComps(i)%p%x%info%nalm-1
+          call diffComps(i)%p%x%info%i2lm(j, l, m)
           call info_pre%lm2i(l, m, k)
-          if (k == -1) exit
-          alm(k,1:nmaps) = y(i,j,1:nmaps)
+          alm(j,1:nmaps) = y(i,k,1:nmaps)
        end do
        call cr_insert_comp(diffComps(i)%p%id, .false., alm, x)
        deallocate(alm)
