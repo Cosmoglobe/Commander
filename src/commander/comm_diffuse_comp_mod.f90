@@ -6,10 +6,11 @@ module comm_diffuse_comp_mod
   use comm_F_int_mod
   use comm_Cl_mod
   use math_tools
+  use comm_cr_utils
   implicit none
 
   private
-  public comm_diffuse_comp
+  public comm_diffuse_comp, precondDiff, precond_diff_comps
   
   !**************************************************
   !            Diffuse component class
@@ -33,7 +34,6 @@ module comm_diffuse_comp_mod
    contains
      procedure :: initDiffuse
      procedure :: updateMixmat
-     procedure :: invM        => applyInvM
 !!$     procedure :: dumpHDF  => dumpDiffuseToHDF
      procedure :: getBand     => evalDiffuseBand
      procedure :: projectBand => projectDiffuseBand
@@ -41,6 +41,30 @@ module comm_diffuse_comp_mod
      procedure :: initPrecond 
   end type comm_diffuse_comp
 
+  type diff_ptr
+     class(comm_diffuse_comp), pointer :: p
+  end type diff_ptr
+  
+  type precondDiff
+     integer(i4b) :: lmax, nside, nmaps
+     real(dp)     :: Nscale
+     real(dp), allocatable, dimension(:,:,:,:) :: invM0 ! (npre,npre,0:nalm-1,nmaps)
+     real(dp), allocatable, dimension(:,:,:,:) :: invM  ! (npre,npre,0:nalm-1,nmaps)
+   contains
+     procedure :: update  => updateDiffPrecond
+  end type precondDiff
+
+  interface precondDiff
+     procedure constPreDiff
+  end interface precondDiff
+  
+  integer(i4b) :: npre      =  0
+  integer(i4b) :: lmax_pre  = -1
+  integer(i4b) :: nside_pre = 1000000
+  integer(i4b) :: nmaps_pre = -1
+  class(comm_mapinfo), pointer                   :: info_pre
+  class(diff_ptr),     allocatable, dimension(:) :: diffComps
+  
 contains
 
   subroutine initDiffuse(self, cpar, id)
@@ -62,6 +86,12 @@ contains
     self%cltype   = cpar%cs_cltype(id)
     self%nmaps    = 1; if (self%pol) self%nmaps = 3
     info          => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
+
+    ! Diffuse preconditioner variables
+    npre      = npre+1
+    lmax_pre  = max(lmax_pre,  self%lmax_amp)
+    nside_pre = min(nside_pre, self%nside)
+    nmaps_pre = max(nmaps_pre, self%nmaps)
 
     ! Initialize amplitude map
     if (trim(cpar%cs_input_amp(id)) == 'zero' .or. trim(cpar%cs_input_amp(id)) == 'none') then
@@ -92,6 +122,100 @@ contains
     
   end subroutine initDiffuse
 
+  function constPreDiff(comm, Nscale)
+    implicit none
+    integer(i4b),                intent(in) :: comm
+    real(dp),                    intent(in) :: Nscale
+    class(precondDiff), pointer             :: constPreDiff
+
+    integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m
+    class(comm_comp),         pointer :: c
+    class(comm_diffuse_comp), pointer :: p1, p2
+
+    allocate(constPreDiff)
+
+    if (.not. allocated(diffComps)) then
+       ! Set up an array of all the diffuse components
+       allocate(diffComps(npre))
+       c => compList
+       i =  1
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             diffComps(i)%p => c
+             i              =  i+1
+          end select
+          c => c%next()
+       end do
+       info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
+    end if
+
+    ! Build frequency-dependent part of preconditioner
+    allocate(constPreDiff%invM0(npre,npre,0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(constPreDiff%invM(npre,npre,0:info_pre%nalm-1,info_pre%nmaps))
+    constPreDiff%invM0 = 0.d0
+    do j = 1, info_pre%nmaps
+       do i1 = 0, info_pre%nalm-1
+          call info_pre%i2lm(i1, l, m)
+          do q = 1, numband
+             call data(q)%info%lm2i(l,m,i2)
+             if (i2 == -1) cycle
+             do k1 = 1, npre
+                p1 => diffComps(k1)%p
+                do k2 = 1, npre
+                   p2 => diffComps(k2)%p
+                   constPreDiff%invM0(k1,k2,i1,j) = constPreDiff%invM0(k1,k2,i1,j) + &
+                        & data(q)%N%invN_diag%alm(i2,j) * &                         ! invN_{lm,lm}
+                        & data(q)%B%b_l(l,j)**2 * &                                 ! b_l^2
+                        & p1%F_mean(q,j) * p2%F_mean(q,j) ! F(c1)*F(c2)
+                end do
+             end do
+          end do
+       end do
+    end do
+
+  end function constPreDiff
+
+  subroutine updateDiffPrecond(self)
+    implicit none
+    class(precondDiff), intent(inout) :: self
+
+    integer(i4b) :: i, j, k1, k2
+    
+    self%invM = self%invM0
+    
+    ! Right-multiply with sqrt(Cl)
+    do k1 = 1, npre
+       if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       do k2 = 1, npre
+          call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k2,k1,:,:))
+       end do
+    end do
+
+    ! Left-multiply with sqrt(Cl)
+    do k1 = 1, npre
+       if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       do k2 = 1, npre
+          call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k1,k2,:,:))
+       end do
+    end do
+
+    ! Add unity 
+    do k1 = 1, npre
+       if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       self%invM(k1,k1,:,:) = self%invM(k1,k1,:,:) + 1.d0
+    end do
+
+    ! Invert
+    do j = 1, nmaps_pre
+       do i = 0, info_pre%nalm-1
+          call invert_matrix_with_mask(self%invM(:,:,i,j))
+       end do
+    end do    
+
+  end subroutine updateDiffPrecond
+    
+  
   ! Evaluate amplitude map in brightness temperature at reference frequency
   subroutine updateMixmat(self, theta)
     implicit none
@@ -110,7 +234,7 @@ contains
           self%theta(i)%p%alm = theta(i)%alm
        end do
     end if
-
+    
     ! Compute mixing matrix
     allocate(theta_p(self%nmaps,self%npar))
     do i = 1, numband
@@ -185,7 +309,7 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, self%F_mean(i,:), self%nmaps, &
             & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        self%F_mean(i,:) = self%F_mean(i,:) / self%F(i)%p%info%npix
-       
+
     end do
     nullify(t, t0)
 
@@ -244,7 +368,9 @@ contains
     class(comm_map),                              intent(in)            :: map
     real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
 
-    class(comm_map), pointer :: m
+    integer(i4b) :: nmaps
+    class(comm_mapinfo), pointer :: info
+    class(comm_map),     pointer :: m, m_out
 
     m => comm_map(map)
 
@@ -255,11 +381,14 @@ contains
     m%map = m%map * self%F(band)%p%map
 
     ! Extract spherical harmonics coefficients
-    allocate(projectDiffuseBand(self%x%info%nalm,self%x%info%nmaps))
-    call m%Yt
-    projectDiffuseBand = m%alm
+    nmaps     =  min(self%x%info%nmaps, map%info%nmaps)
+    info      => comm_mapinfo(self%x%info%comm, map%info%nside, self%lmax_amp, nmaps, nmaps==3)
+    m_out     => comm_map(info)
+    m_out%map =  m%map
+    call m_out%Yt
+    projectDiffuseBand = m_out%alm
 
-    deallocate(m)
+    deallocate(m, m_out, info)
     
   end function projectDiffuseBand
 
@@ -289,33 +418,55 @@ contains
 
   end subroutine initPrecond
 
-  subroutine applyInvM(self, Nscale, alm)
+  subroutine precond_diff_comps(P, x)
     implicit none
+    class(precondDiff),               intent(in)    :: P
+    real(dp),           dimension(:), intent(inout) :: x
 
-    class(comm_diffuse_comp),                   intent(in)    :: self
-    real(dp),                                   intent(in)    :: Nscale
-    real(dp),                 dimension(0:,1:), intent(inout) :: alm
+    integer(i4b)              :: i, j, k, l, m, nmaps
+    real(dp), allocatable, dimension(:,:)   :: alm
+    real(dp), allocatable, dimension(:,:,:) :: y
 
-    integer(i4b) :: i, l, j, ierr
-    real(dp)     :: M(self%nmaps,self%nmaps), a(self%nmaps,1)
-    
-    if (trim(self%cltype) /= 'none') then
-       do i = 0, self%x%info%nalm-1
-          l      = self%x%info%lm(1,i)
-          a(:,1) = matmul(self%Cl%sqrtS_mat(:,:,l), self%inv_M%alm(i,:))
-          M      = Nscale * matmul(a,transpose(a))
-          do j = 1, self%nmaps
-             M(j,j) = M(j,j) + 1.d0
-          end do
-          call cholesky_decompose_single(M)
-          call cholesky_solve(M, alm(i,:), a(:,1))
-          alm(i,:) = a(:,1)
+    ! Reformat linear array into y(npre,nalm,nmaps) structure
+    allocate(y(npre,0:info_pre%nalm-1,info_pre%nmaps))
+    y = 0.d0
+    do i = 1, npre
+       nmaps = diffComps(i)%p%x%info%nmaps
+       call cr_extract_comp(diffComps(i)%p%id, x, alm)
+       do j = 0, info_pre%nalm-1
+          call info_pre%i2lm(j, l, m)
+          call info_pre%lm2i(l, m, k)
+          if (k == -1) exit
+          y(i,j,1:nmaps) = alm(k,1:nmaps)
        end do
-    else
-       alm = alm / (Nscale * self%inv_M%alm)
-    end if
+       deallocate(alm)
+    end do
+    
+    ! Multiply with preconditioner
+    do j = 1, nmaps_pre
+       do i = 0, info_pre%nalm-1
+          y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
+       end do
+    end do
 
-  end subroutine applyInvM
+    ! Reformat y(npre,nalm,nmaps) structure into linear array
+    do i = 1, npre
+       nmaps = diffComps(i)%p%x%info%nmaps
+       allocate(alm(0:diffComps(i)%p%x%info%nalm-1,nmaps))
+       alm = 0.d0
+       do j = 0, info_pre%nalm-1
+          call info_pre%i2lm(j, l, m)
+          call info_pre%lm2i(l, m, k)
+          if (k == -1) exit
+          alm(k,1:nmaps) = y(i,j,1:nmaps)
+       end do
+       call cr_insert_comp(diffComps(i)%p%id, .false., alm, x)
+       deallocate(alm)
+    end do
+    
+    deallocate(y)
+    
+  end subroutine precond_diff_comps
   
   ! Dump current sample to HEALPix FITS file
   subroutine dumpDiffuseToFITS(self, postfix, dir)

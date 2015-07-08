@@ -3,10 +3,11 @@ module comm_comp_mod
   use comm_bp_utils
   use comm_bp_mod
   use comm_map_mod
+  use comm_cr_utils
   implicit none
 
   private
-  public  :: comm_comp, ncomp, ind_comp, ncr, compList, dumpCompMaps
+  public  :: comm_comp, ncomp, compList, dumpCompMaps
   
   !**************************************************
   !        Generic component class definition
@@ -131,11 +132,8 @@ module comm_comp_mod
   !**************************************************
   !             Internal module variables
   !**************************************************
-  integer(i4b)              :: ncomp, ncr
+  integer(i4b)              :: ncomp
   class(comm_comp), pointer :: compList, currComp => null()
-  integer(i4b), allocatable, dimension(:,:) :: ind_comp    ! (start, length, nmaps)
-  
-  
   
 contains
 

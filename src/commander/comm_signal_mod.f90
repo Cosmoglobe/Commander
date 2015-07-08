@@ -1,10 +1,12 @@
 module comm_signal_mod
   use comm_param_mod
   use comm_comp_mod
+  use comm_diffuse_comp_mod
   use comm_cmb_comp_mod
   use comm_powlaw_comp_mod
   use comm_template_comp_mod
   use comm_cr_mod
+  use comm_cr_utils
   implicit none
 
 contains
@@ -84,13 +86,15 @@ contains
 
     integer(i4b) :: stat, i
     real(dp)     :: Nscale = 1.d0
-    real(dp), allocatable, dimension(:) :: rhs, x
+    real(dp),           allocatable, dimension(:) :: rhs, x
+    class(precondDiff), pointer                   :: P
 
     allocate(x(ncr))
-    call cr_computeRHS(handle, rhs, Nscale)
-    call solve_cr_eqn_by_CG(cpar, cr_matmulA, cr_invM, x, rhs, stat, Nscale)
+    call cr_computeRHS(handle, rhs)
+    P => precondDiff(cpar%comm_chain, Nscale)
+    call solve_cr_eqn_by_CG(cpar, cr_matmulA, cr_invM, x, rhs, stat, P)
     call cr_x2amp(x)
-    deallocate(rhs,x)
+    deallocate(rhs,x,P)
 
   end subroutine sample_amps_by_CG
 

@@ -5,6 +5,7 @@ module comm_cr_mod
   use comm_diffuse_comp_mod
   use comm_template_comp_mod
   use rngmod
+  use comm_cr_utils
   implicit none
 
   private
@@ -18,48 +19,40 @@ module comm_cr_mod
      module procedure cr_x2amp_full
   end interface cr_x2amp
 
-  interface cr_insert_comp
-     module procedure cr_insert_comp_1d, cr_insert_comp_2d
-  end interface cr_insert_comp
-
-  interface cr_extract_comp
-     module procedure cr_extract_comp_1d, cr_extract_comp_2d
-  end interface cr_extract_comp
-
 contains
 
-  recursive subroutine solve_cr_eqn_by_CG(cpar, A, invM, x, b, stat, Nscale)
+  recursive subroutine solve_cr_eqn_by_CG(cpar, A, invM, x, b, stat, P)
     implicit none
 
-    type(comm_params),                intent(in)  :: cpar
-    real(dp),          dimension(1:), intent(out) :: x
-    real(dp),          dimension(1:), intent(in)  :: b
-    integer(i4b),                     intent(out) :: stat
-    real(dp),                         intent(in)  :: Nscale
+    type(comm_params),                intent(in)    :: cpar
+    real(dp),          dimension(1:), intent(out)   :: x
+    real(dp),          dimension(1:), intent(in)    :: b
+    integer(i4b),                     intent(out)   :: stat
+    class(precondDiff),               intent(inout) :: P
 
     interface
        recursive function A(x, Nscale)
-         use healpix_types
+         import dp
          implicit none
          real(dp), dimension(:),       intent(in)           :: x
          real(dp), dimension(size(x))                       :: A
          real(dp),                     intent(in), optional :: Nscale
        end function A
 
-       recursive function invM(x, Nscale)
-         use healpix_types
+       recursive function invM(x, P)
+         import precondDiff, dp
          implicit none
          real(dp),              dimension(:), intent(in) :: x
-         real(dp),                            intent(in) :: Nscale
+         class(precondDiff),                  intent(in) :: P
          real(dp), allocatable, dimension(:)             :: invM
        end function invM
     end interface
 
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2
-    real(dp), allocatable, dimension(:)   :: Ax, r, d, q, invM_r, temp_vec, s
+    real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s
     real(dp), allocatable, dimension(:,:) :: alm
-    class(comm_comp), pointer :: c
+    class(comm_comp),   pointer :: c
 
     root    = 0
     maxiter = cpar%cg_maxiter
@@ -67,13 +60,18 @@ contains
     n       = size(x)
 
     ! Allocate temporary data vectors
-    allocate(Ax(n), r(n), d(n), q(n), invM_r(n), s(n))
-
+    allocate(Ax(n), r(n), d(n), q(n), s(n))
+    
+    ! Update preconditioner
+    call P%update
+    
     ! Initialize the CG search
     x  = 0.d0
-    r  = b-A(x, Nscale)
-    d  = invM(r, Nscale)
+    r  = b-A(x)
+    d  = invM(r, P)
 
+    
+    
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
     delta0    = delta_new
     do i = 1, maxiter
@@ -81,18 +79,18 @@ contains
        
        if (delta_new < eps**2 * delta0) exit
 
-       q     = A(d, Nscale)
+       q     = A(d)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
        x     = x + alpha * d
 
        ! Restart every 50th iteration to suppress numerical errors
        if (mod(i,50) == 0) then
-          r = b - A(x, Nscale)
+          r = b - A(x)
        else
           r = r - alpha*q
        end if
 
-       s         = invM(r, Nscale)
+       s         = invM(r, P)
        delta_old = delta_new 
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
@@ -133,7 +131,7 @@ contains
        end if
     end if
 
-    deallocate(Ax, r, d, q, invM_r, s)
+    deallocate(Ax, r, d, q, s)
     
   end subroutine solve_cr_eqn_by_CG
 
@@ -185,104 +183,22 @@ contains
     
   end subroutine cr_x2amp_full
 
-  subroutine cr_insert_comp_1d(id, add, x_in, x_out)
-    implicit none
-
-    integer(i4b),                 intent(in)    :: id
-    logical(lgt),                 intent(in)    :: add
-    real(dp),     dimension(:),   intent(in)    :: x_in
-    real(dp),     dimension(:),   intent(inout) :: x_out
-
-    integer(i4b) :: i, n, pos
-
-    n   = size(x_in,1)
-    if (add) then
-       x_out(pos:pos+n-1) = x_out(pos:pos+n-1) + x_in
-    else
-       x_out(pos:pos+n-1) = x_in
-    end if
-    
-  end subroutine cr_insert_comp_1d
-
-  subroutine cr_insert_comp_2d(id, add, x_in, x_out)
-    implicit none
-
-    integer(i4b),                 intent(in)    :: id
-    logical(lgt),                 intent(in)    :: add
-    real(dp),     dimension(:,:), intent(in)    :: x_in
-    real(dp),     dimension(:),   intent(inout) :: x_out
-
-    integer(i4b) :: i, n, pos
-
-    n   = size(x_in,1)
-    pos = ind_comp(id,1)
-    do i = 1, size(x_in,2)
-       if (add) then
-          x_out(pos:pos+n-1) = x_out(pos:pos+n-1) + x_in(:,i)
-       else
-          x_out(pos:pos+n-1) = x_in(:,i)
-       end if
-       pos                = pos+n
-    end do
-    
-  end subroutine cr_insert_comp_2d
-
-
-  subroutine cr_extract_comp_1d(id, x_in, x_out)
-    implicit none
-
-    integer(i4b),                            intent(in)  :: id
-    real(dp),     dimension(:),              intent(in)  :: x_in
-    real(dp),     dimension(:), allocatable, intent(out) :: x_out
-
-    integer(i4b) :: i, n, pos, nmaps
-
-    pos   = ind_comp(id,1)
-    n     = ind_comp(id,2)
-    allocate(x_out(n))
-    x_out = x_in(pos:pos+n-1)
-    
-  end subroutine cr_extract_comp_1d
-
-  subroutine cr_extract_comp_2d(id, x_in, x_out)
-    implicit none
-
-    integer(i4b),                              intent(in)  :: id
-    real(dp),     dimension(:),                intent(in)  :: x_in
-    real(dp),     dimension(:,:), allocatable, intent(out) :: x_out
-
-    integer(i4b) :: i, n, pos, nmaps
-
-    pos   = ind_comp(id,1)
-    nmaps = ind_comp(id,3)
-    n     = ind_comp(id,2)/nmaps
-    allocate(x_out(n,nmaps))
-    do i = 1, nmaps
-       x_out(:,i) = x_in(pos:pos+n-1)
-       pos        = pos + n
-    end do
-    
-  end subroutine cr_extract_comp_2d
-
   ! ---------------------------
   ! Definition of linear system
   ! ---------------------------
 
-  subroutine cr_computeRHS(handle, rhs, Nscale)
+  subroutine cr_computeRHS(handle, rhs)
     implicit none
 
     type(planck_rng),                            intent(inout)          :: handle
     real(dp),         allocatable, dimension(:), intent(out)            :: rhs
-    real(dp),                                    intent(in),   optional :: Nscale
 
     integer(i4b) :: i, j, k, n, ierr
-    real(dp)     :: Nscale_
-    class(comm_map),  pointer                    :: map, Tm
-    class(comm_comp), pointer                    :: c     
+    class(comm_map),     pointer                 :: map, Tm
+    class(comm_comp),    pointer                 :: c
+    class(comm_mapinfo), pointer                 :: info
     real(dp),        allocatable, dimension(:,:) :: eta
 
-    Nscale_ = 1.d0; if (present(Nscale)) Nscale_ = Nscale
-    
     ! Initialize output vector
     allocate(rhs(ncr))
     rhs = 0.d0
@@ -292,7 +208,7 @@ contains
 
        ! Set up Wiener filter term
        map => comm_map(data(i)%map)
-       call data(i)%N%sqrtInvN(map, Nscale_)
+       call data(i)%N%sqrtInvN(map)
 
        ! Add channel-dependent white noise fluctuation
        do k = 1, map%info%nmaps
@@ -302,7 +218,7 @@ contains
        end do
 
        ! Multiply with sqrt(invN)
-       call data(i)%N%sqrtInvN(map, Nscale_)
+       call data(i)%N%sqrtInvN(map)
 
        ! Convolve with transpose beam
        call data(i)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=map)
@@ -313,8 +229,10 @@ contains
        do while (associated(c))
           select type (c)
           class is (comm_diffuse_comp)
-             Tm     => comm_map(map)
-             Tm%map = c%F(i)%p%map * Tm%map
+             info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, c%lmax_amp, &
+                  & c%nmaps, data(i)%info%pol)
+             Tm     => comm_map(info)
+             Tm%map = c%F(i)%p%map * map%map
              call Tm%Yt
              call c%Cl%sqrtS(map=Tm) ! Multiply with sqrt(Cl)
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
@@ -428,7 +346,7 @@ contains
           allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
           ! Multiply with sqrt(Cl)
           call cr_extract_comp(c%id, y, alm)
-          call c%Cl%sqrtS(alm=alm) 
+          call c%Cl%sqrtS(alm=alm)
           call cr_insert_comp(c%id, .false., alm, y)
           ! Add (unity) prior term
           call cr_extract_comp(c%id, x, alm)
@@ -445,10 +363,10 @@ contains
 
   end function cr_matmulA
 
-  recursive function cr_invM(x, Nscale)
+  recursive function cr_invM(x, P)
     implicit none
     real(dp),              dimension(:), intent(in) :: x
-    real(dp),                            intent(in) :: Nscale
+    class(precondDiff),                  intent(in) :: P
     real(dp), allocatable, dimension(:)             :: cr_invM
 
     integer(i4b) :: ierr
@@ -458,18 +376,21 @@ contains
     if (.not. allocated(cr_invM)) allocate(cr_invM(size(x)))
     cr_invM = x
     
-    c => compList
-    do while (associated(c))
-       select type (c)
-       class is (comm_diffuse_comp)
-          allocate(alm(c%x%info%nalm,c%x%info%nmaps))
-          call cr_extract_comp(c%id, x, alm)          
-          call c%invM(Nscale, alm)
-          call cr_insert_comp(c%id, .false., alm, cr_invM)
-          deallocate(alm)
-       end select
-       c => c%next()
-    end do
+!!$    c => compList
+!!$    do while (associated(c))
+!!$       select type (c)
+!!$       class is (comm_diffuse_comp)
+!!$          allocate(alm(c%x%info%nalm,c%x%info%nmaps))
+!!$          call cr_extract_comp(c%id, x, alm)          
+!!$          call c%invM(Nscale, alm)
+!!$          call cr_insert_comp(c%id, .false., alm, cr_invM)
+!!$          deallocate(alm)
+!!$       end select
+!!$       c => c%next()
+!!$    end do
+
+    ! Jointly precondition diffuse components
+    call precond_diff_comps(P, cr_invM)
     
   end function cr_invM
 
