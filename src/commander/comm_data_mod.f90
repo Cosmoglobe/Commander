@@ -61,6 +61,11 @@ contains
           data(i)%mask%map =  1.d0
        else
           data(i)%mask  => comm_map(data(i)%info, trim(dir)//trim(cpar%ds_maskfile(i)))
+          where (data(i)%mask%map > 0.5d0)
+             data(i)%mask%map = 1.d0
+          elsewhere
+             data(i)%mask%map = 0.d0
+          end where
        end if
        call update_status(status, "data_mask")
 

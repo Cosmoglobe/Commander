@@ -440,7 +440,7 @@ contains
        end do
        deallocate(alm)
     end do
-    
+
     ! Multiply with preconditioner
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
@@ -463,7 +463,7 @@ contains
     end do
     
     deallocate(y)
-    
+
   end subroutine precond_diff_comps
   
   ! Dump current sample to HEALPix FITS file

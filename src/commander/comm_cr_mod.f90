@@ -61,7 +61,7 @@ contains
 
     ! Allocate temporary data vectors
     allocate(Ax(n), r(n), d(n), q(n), s(n))
-    
+
     ! Update preconditioner
     call P%update
     
@@ -70,14 +70,12 @@ contains
     r  = b-A(x)
     d  = invM(r, P)
 
-    
-    
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
     delta0    = delta_new
     do i = 1, maxiter
        call wall_time(t1)
        
-       if (delta_new < eps**2 * delta0) exit
+       if (delta_new < eps * delta0 .and. i > 1000) exit
 
        q     = A(d)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
@@ -99,7 +97,7 @@ contains
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
           write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f6.2)') 'CG iter. ', i, ' -- res = ', &
-               & real(delta_new,sp), ', tol = ', real(eps**2 * delta0,sp), &
+               & real(delta_new,sp), ', tol = ', real(eps * delta0,sp), &
                & ', wall time = ', real(t2-t1,sp)
        end if
 
@@ -193,12 +191,14 @@ contains
     type(planck_rng),                            intent(inout)          :: handle
     real(dp),         allocatable, dimension(:), intent(out)            :: rhs
 
-    integer(i4b) :: i, j, k, n, ierr
+    integer(i4b) :: i, j, l, m, k, n, ierr
     class(comm_map),     pointer                 :: map, Tm
     class(comm_comp),    pointer                 :: c
     class(comm_mapinfo), pointer                 :: info
     real(dp),        allocatable, dimension(:,:) :: eta
 
+    call rand_init(handle, 10)
+    
     ! Initialize output vector
     allocate(rhs(ncr))
     rhs = 0.d0
@@ -222,7 +222,7 @@ contains
 
        ! Convolve with transpose beam
        call data(i)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=map)
-
+       
        ! Multiply with (transpose and component specific) mixing matrix, and
        ! insert into correct segment
        c => compList
@@ -232,6 +232,7 @@ contains
              info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, c%lmax_amp, &
                   & c%nmaps, data(i)%info%pol)
              Tm     => comm_map(info)
+             Tm%map = map%map
              Tm%map = c%F(i)%p%map * map%map
              call Tm%Yt
              call c%Cl%sqrtS(map=Tm) ! Multiply with sqrt(Cl)

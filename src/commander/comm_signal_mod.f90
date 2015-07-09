@@ -85,7 +85,7 @@ contains
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: stat, i
-    real(dp)     :: Nscale = 1.d0
+    real(dp)     :: Nscale = 1.d-4
     real(dp),           allocatable, dimension(:) :: rhs, x
     class(precondDiff), pointer                   :: P
 

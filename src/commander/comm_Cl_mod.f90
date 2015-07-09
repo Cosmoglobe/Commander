@@ -119,7 +119,7 @@ contains
     do i = 1, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
-          self%Dl(l,j) = amp(i) * (l/self%lpiv)**beta(i)
+          self%Dl(l,j) = amp(i) * (l/self%lpiv)**beta(i) 
        end do
        self%Dl(0,j) = self%Dl(1,j)
     end do
@@ -135,15 +135,20 @@ contains
 
     self%sqrtS_mat = 0.d0
     self%S_mat     = 0.d0
-    do l = 1, self%lmax
+    do l = 0, self%lmax
        do i = 1, self%nmaps
           do j = i, self%nmaps
              k = i*(1-i)/2 + (i-1)*self%nmaps + j
-             self%sqrtS_mat(i,j,l) = self%Dl(l,k) / (l*(l+1)/(2.d0*pi))
+             if (l == 0) then
+                self%sqrtS_mat(i,j,l) = self%Dl(l,k)
+             else
+                self%sqrtS_mat(i,j,l) = self%Dl(l,k) / (l*(l+1)/(2.d0*pi))
+             end if
              if (i == j) ok(i) = self%Dl(l,k) > 0.d0
              if (.not. ok(i)) self%sqrtS_mat(i,j,l) = 1.d0
           end do
        end do
+       
        call compute_hermitian_root(self%sqrtS_mat(:,:,l), 0.5d0)
        do i = 1, self%nmaps
           if (.not. ok(i)) then
@@ -294,6 +299,10 @@ contains
 3      close(unit)
     end if
 
+    if (self%Dl(0,TT) == 0.d0) then
+       write(*,*) 'Warning: Input spectrum file ' // trim(clfile) // ' has vanishing monopole'
+    end if
+    
   end subroutine read_Cl_file
 
   subroutine binCls(self)
@@ -394,9 +403,9 @@ contains
     end if
     do l = 0, self%lmax
        if (self%nspec == 1) then
-          write(unit,fmt='(i6,f16.3)') l, self%Dl(l,:)
+          write(unit,fmt='(i6,e16.8)') l, self%Dl(l,:)
        else
-          write(unit,fmt='(i6,6f16.3)') l, self%Dl(l,:)
+          write(unit,fmt='(i6,6e16.8)') l, self%Dl(l,:)
        end if
     end do
     close(unit)
@@ -427,9 +436,9 @@ contains
     self%iter = self%iter + 1
     open(unit,file=trim(filename), recl=1024, position='append')
     if (self%nspec == 1) then
-       write(unit,fmt='(i8,2f16.3)') self%iter, self%amp, self%beta
+       write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
     else
-       write(unit,fmt='(i8,6f16.3)') self%iter, self%amp, self%beta
+       write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
     end if
     close(unit)
     

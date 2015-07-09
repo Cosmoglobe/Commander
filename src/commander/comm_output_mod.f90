@@ -28,13 +28,17 @@ contains
     c => compList
     do while (associated(c))
        call c%dumpFITS(postfix, cpar%outdir)
+       select type (c)
+       class is (comm_diffuse_comp)
+          call c%Cl%writeFITS(cpar%mychain, iter)
+       end select
        c => c%next()
     end do
 
     ! Output channel-specific residual maps
     do i = 1, numband
        map => compute_residual(i)
-       call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'//&
+       call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'// &
             & trim(postfix)//'.fits')
     end do
     

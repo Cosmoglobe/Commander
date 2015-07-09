@@ -142,9 +142,9 @@ contains
           end do
        else
           do l = m, lmax
-             constructor_mapinfo%lm(:,ind) = [l,-m]
-             ind                           = ind+1
              constructor_mapinfo%lm(:,ind) = [l,+m]
+             ind                           = ind+1
+             constructor_mapinfo%lm(:,ind) = [l,-m]
              ind                           = ind+1
           end do
        end if
@@ -493,7 +493,7 @@ contains
        i = self%mind(m) + l
     else
        i = self%mind(abs(m)) + 2*(l-abs(m))
-       if (m > 0) i = i+1
+       if (m < 0) i = i+1
     end if
     
   end subroutine lm2i
