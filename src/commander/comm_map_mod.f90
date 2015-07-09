@@ -47,6 +47,7 @@ module comm_map_mod
      procedure     :: writeFITS
      procedure     :: readFITS
      procedure     :: dealloc => deallocate_comm_map
+     procedure     :: alm_equal
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -478,6 +479,25 @@ contains
   !                   Utility routines
   !**************************************************
 
+  subroutine alm_equal(self, map)
+    implicit none
+    class(comm_map), intent(in)    :: self
+    class(comm_map), intent(inout) :: map
+
+    integer(i4b) :: i, j, l, m, q
+
+    map%alm = 0.d0
+    do i = 0, map%info%nalm-1
+       call map%info%i2lm(i,l,m)
+       call self%info%lm2i(l,m,j)
+       if (j == -1) cycle
+       do q = 1, min(self%info%nmaps, map%info%nmaps)
+          map%alm(i,q) = self%alm(j,q)
+       end do
+    end do
+
+  end subroutine alm_equal
+  
   subroutine lm2i(self, l, m, i)
     implicit none
     class(comm_mapinfo)             :: self

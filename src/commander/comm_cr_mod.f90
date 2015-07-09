@@ -67,7 +67,7 @@ contains
     
     ! Initialize the CG search
     x  = 0.d0
-    r  = b-A(x)
+    r  = b ! - A(x)   ! x is zero
     d  = invM(r, P)
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
@@ -75,7 +75,7 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
        
-       if (delta_new < eps * delta0 .and. i > 1000) exit
+       if (delta_new < eps * delta0) exit
 
        q     = A(d)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
@@ -125,7 +125,7 @@ contains
     else
        if (cpar%myid == root .and. cpar%verbosity > 1) then
           write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') 'Final CG iter ', i-1, ' -- res = ', &
-               & real(delta_new,sp), ', tol = ', real(eps**2 * delta0,sp)
+               & real(delta_new,sp), ', tol = ', real(eps * delta0,sp)
        end if
     end if
 
@@ -286,6 +286,7 @@ contains
     y = 0.d0
 
     ! Multiply with sqrt(S)
+    call wall_time(t1)
     sqrtS_x = x
     c       => compList
     do while (associated(c))
@@ -300,12 +301,15 @@ contains
        end select
        c => c%next()
     end do
+    call wall_time(t2)
+!    write(*,*) 'a', t2-t1
 
     
     ! Add frequency dependent terms
     do i = 1, numband
 
        ! Compute component-summed map, ie., column-wise matrix elements
+       call wall_time(t1)
        map => comm_map(data(i)%info)
        c   => compList
        do while (associated(c))
@@ -318,11 +322,17 @@ contains
           end select
           c => c%next()
        end do
+       call wall_time(t2)
+!       write(*,*) 'b', t2-t1
 
        ! Multiply with invN
+       call wall_time(t1)
        call data(i)%N%InvN(map, Nscale)
+       call wall_time(t2)
+!       write(*,*) 'c', t2-t1
 
        ! Project summed map into components, ie., row-wise matrix elements
+       call wall_time(t1)
        c   => compList
        do while (associated(c))
           select type (c)
@@ -333,12 +343,15 @@ contains
           end select
           c => c%next()
        end do
+       call wall_time(t2)
+!       write(*,*) 'd', t2-t1
 
        deallocate(map)
        
     end do
 
     ! Add prior term and multiply with sqrt(S) for relevant components
+    call wall_time(t1)
     c   => compList
     do while (associated(c))
        select type (c)
@@ -357,11 +370,16 @@ contains
        c => c%next()
     end do
     nullify(c)
+    call wall_time(t2)
+!    write(*,*) 'e', t2-t1
 
     ! Return result and clean up
+    call wall_time(t1)
     cr_matmulA = y
     deallocate(y, sqrtS_x)
-
+    call wall_time(t2)
+!    write(*,*) 'f', t2-t1
+    
   end function cr_matmulA
 
   recursive function cr_invM(x, P)

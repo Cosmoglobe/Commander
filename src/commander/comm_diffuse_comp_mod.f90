@@ -343,13 +343,19 @@ contains
           if (m%info%lm(1,i) > data(band)%info%lmax) m%alm(i,:) = 0.d0
        end do
     end if
-    call m%Y
 
     ! Scale to correct frequency through multiplication with mixing matrix
-    m%map = m%map * self%F(band)%p%map
+    if (self%lmax_ind == 0) then
+       do i = 1, m%info%nmaps
+          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+       end do
+    else
+       call m%Y
+       m%map = m%map * self%F(band)%p%map
+    end if
 
     ! Convolve with band-specific beam
-    call data(band)%B%conv(alm_in=.false., alm_out=.false., trans=.false., map=m)
+    call data(band)%B%conv(alm_in=(self%lmax_ind==0), alm_out=.false., trans=.false., map=m)
 
     ! Return pixelized map
     allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
@@ -368,24 +374,32 @@ contains
     class(comm_map),                              intent(in)            :: map
     real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
 
-    integer(i4b) :: nmaps
+    integer(i4b) :: i, nmaps
     class(comm_mapinfo), pointer :: info
     class(comm_map),     pointer :: m, m_out
 
-    m => comm_map(map)
+    nmaps     =  min(self%x%info%nmaps, map%info%nmaps)
+    info      => comm_mapinfo(self%x%info%comm, map%info%nside, self%lmax_amp, &
+         & self%x%info%nmaps, self%x%info%nmaps==3)
+    m_out     => comm_map(info)
+    m         => comm_map(map)
 
     ! Convolve with band-specific beam
-    call data(band)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=m)
+    call data(band)%B%conv(alm_in=.false., alm_out=(self%lmax_ind==0), trans=.true., map=m)
 
     ! Scale to correct frequency through multiplication with mixing matrix
-    m%map = m%map * self%F(band)%p%map
+    if (self%lmax_ind == 0) then
+       call m%alm_equal(m_out)
+       do i = 1, nmaps
+          m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
+       end do
+       m_out%alm = m_out%alm * self%x%info%npix/(4.d0*pi) ! From beam convolution
+    else
+       m_out%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
+       call m_out%Yt
+    end if
 
-    ! Extract spherical harmonics coefficients
-    nmaps     =  min(self%x%info%nmaps, map%info%nmaps)
-    info      => comm_mapinfo(self%x%info%comm, map%info%nside, self%lmax_amp, nmaps, nmaps==3)
-    m_out     => comm_map(info)
-    m_out%map =  m%map
-    call m_out%Yt
+    allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
     projectDiffuseBand = m_out%alm
 
     deallocate(m, m_out, info)
