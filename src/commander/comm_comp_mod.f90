@@ -239,12 +239,12 @@ contains
   end subroutine setNext
 
   subroutine add(self,link)
-    class(comm_comp)         :: self
-    class(comm_comp), target :: link
+    class(comm_comp), target  :: self
+    class(comm_comp), pointer :: link
 
     class(comm_comp), pointer :: c
     
-    c => self%nextLink
+    c => self
     do while (associated(c%nextLink))
        c => c%nextLink
     end do

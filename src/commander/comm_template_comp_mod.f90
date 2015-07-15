@@ -8,55 +8,28 @@ module comm_template_comp_mod
   public comm_template_comp
 
   type Tnu
-     real(dp), allocatable, dimension(:,:) :: map
+     logical(lgt) :: fullsky
+     integer(i4b) :: nside, np, nmaps, band
+     integer(i4b), allocatable, dimension(:,:) :: pix   ! Pixel list, both in map and absolute order
+     real(dp),     allocatable, dimension(:,:) :: map   ! (0:np-1,nmaps)
+     real(dp),     allocatable, dimension(:)   :: f     ! Frequency scaling (nmaps)
   end type Tnu
   
   !**************************************************
   !            Template class
   !**************************************************
-  type, extends (comm_comp) :: comm_template_comp
-     real(dp)                                :: x     ! Amplitude
-     real(dp),     allocatable, dimension(:) :: theta ! Spectral parameters
-     integer(i4b), allocatable, dimension(:) :: ind   ! Frequency index per channel
-     type(Tnu),    allocatable, dimension(:) :: T     ! Spatial template, one per channel
-     real(dp),     allocatable, dimension(:) :: f     ! Frequency scaling, one per channel
+  type, abstract, extends (comm_comp) :: comm_template_comp
+     character(len=512) :: outprefix
+     real(dp),     allocatable, dimension(:)   :: x     ! Amplitude (nmaps)
+     real(dp),     allocatable, dimension(:,:) :: theta ! Spectral parameters (npar,nmaps)
+     type(Tnu),    allocatable, dimension(:)   :: T     ! Spatial template (nband)
    contains
-     procedure :: initTemplate
-     procedure :: S => evalSED
      procedure :: dumpFITS => dumpTemplateToFITS
      procedure :: getBand  => evalTemplateBand
      procedure :: projectBand  => projectTemplateBand
   end type comm_template_comp
 
 contains
-
-  subroutine initTemplate(self, cpar, id)
-    implicit none
-    class(comm_template_comp)             :: self
-    type(comm_params),         intent(in) :: cpar
-    integer(i4b),              intent(in) :: id
-
-    call self%initComp(cpar, id)
-
-    ! Initialize variables specific to template source type
-    
-  end subroutine initTemplate
-
-  ! Currently returning SED in data units, not brightness temperature
-  function evalSED(self, nu, band, theta)
-    class(comm_template_comp), intent(in)           :: self
-    real(dp),                  intent(in), optional :: nu
-    integer(i4b),              intent(in), optional :: band
-    real(dp), dimension(1:),   intent(in), optional :: theta
-    real(dp)                                        :: evalSED
-
-    if (self%ind(band) > 0) then
-       evalSED = self%f(self%ind(band))
-    else
-       evalSED = 0.d0
-    end if
-    
-  end function evalSED
 
   function evalTemplateBand(self, band, amp_in, pix)
     implicit none

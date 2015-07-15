@@ -5,6 +5,7 @@ module comm_signal_mod
   use comm_cmb_comp_mod
   use comm_powlaw_comp_mod
   use comm_template_comp_mod
+  use comm_ptsrc_comp_mod
   use comm_cr_mod
   use comm_cr_utils
   implicit none
@@ -22,21 +23,38 @@ contains
     ncomp = cpar%cs_ncomp
     do i = 1, ncomp
        ! Initialize object
-       select case (trim(cpar%cs_type(i)))
-       case ("cmb")
-          c => comm_cmb_comp(cpar, i)
-       case ("power_law")
-          c => comm_powlaw_comp(cpar, i)
+       select case (trim(cpar%cs_class(i)))
+       case ("diffuse")
+          ! Diffuse components
+          select case (trim(cpar%cs_type(i)))
+          case ("cmb")
+             c => comm_cmb_comp(cpar, i)
+          case ("power_law")
+             c => comm_powlaw_comp(cpar, i)
+          case default
+             call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
+          end select
+          call add_to_complist(c)
+       case ("ptsrc")
+          call initialize_ptsrc_comp(cpar, i)
+       case ("template")
+          ! Point source components
+          select case (trim(cpar%cs_type(i)))
+          case ("monopole")
+!             c => comm_cmb_comp(cpar, i)
+          case ("dipole")
+!             c => comm_powlaw_comp(cpar, i)
+          case ("rel_quadrupole")
+!             c => comm_powlaw_comp(cpar, i)
+          case ("file")
+!             c => comm_powlaw_comp(cpar, i)
+          case default
+             call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
+          end select
        case default
-          call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
+          call report_error("Unknown component class: "//trim(cpar%cs_class(i)))
        end select
 
-       ! Add object to list
-       if (i == 1) then
-          compList => c
-       else
-          call compList%setNext(c)
-       end if
     end do
 
     ! Compute position and length of each component in parameter array
@@ -98,5 +116,66 @@ contains
 
   end subroutine sample_amps_by_CG
 
+  subroutine add_to_complist(c)
+    implicit none
+    class(comm_comp), pointer :: c
+    
+    if (.not. associated(compList)) then
+       compList => c
+    else
+       call compList%add(c)
+    end if
+  end subroutine add_to_complist
+
+  subroutine initialize_ptsrc_comp(cpar, id)
+    implicit none
+    class(comm_params), intent(in) :: cpar
+    integer(i4b),       intent(in) :: id
+
+    integer(i4b)        :: unit, i, npar, nmaps
+    real(dp)            :: glon, glat, nu_ref
+    logical(lgt)        :: pol
+    character(len=1024) :: line
+    character(len=128)  :: id_ptsrc
+    class(comm_comp),       pointer :: c
+    class(comm_ptsrc_comp), pointer :: P_ref
+    real(dp), allocatable, dimension(:)   :: amp
+    real(dp), allocatable, dimension(:,:) :: beta
+
+    unit = getlun()
+
+    nmaps = 1; if (cpar%cs_polarization(id)) nmaps = 3
+    select case (trim(cpar%cs_type(id)))
+    case ("radio")
+       npar = 2
+    case ("fir")
+       npar = 2
+    case ("sz")
+       npar = 0
+    end select
+    allocate(amp(nmaps), beta(npar,nmaps))
+    
+    ! Initialize point sources based on catalog information
+    nullify(P_ref)
+    open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id)),recl=1024)
+    do while (.true.)
+       read(unit,'(a)',end=1) line
+       line = trim(line)
+       if (line(1:1) == '#' .or. trim(line) == '') cycle
+       write(*,*) trim(line)
+       read(line,*) glon, glat, amp, beta, id_ptsrc
+       c => comm_ptsrc_comp(cpar, id, glon, glat, amp, beta, id_ptsrc, P_ref)
+       call add_to_complist(c)
+       select type (c)
+       class is (comm_ptsrc_comp)
+          P_ref => c
+       end select
+    end do 
+1   close(unit)
+
+    call mpi_finalize(i)
+    stop
+
+  end subroutine initialize_ptsrc_comp
   
 end module comm_signal_mod

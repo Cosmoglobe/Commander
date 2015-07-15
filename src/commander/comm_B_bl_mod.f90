@@ -3,6 +3,7 @@ module comm_B_bl_mod
   use comm_map_mod
   use comm_B_mod
   use comm_utils
+  use spline_1D_mod
   implicit none
 
   private
@@ -31,6 +32,7 @@ contains
     real(dp),                           intent(in), optional :: fwhm
     class(comm_B_bl),   pointer                              :: constructor
 
+    integer(i4b)       :: i
     character(len=512) :: dir
     
     ! General parameters
@@ -47,8 +49,11 @@ contains
             & beamfile=trim(dir)//trim(cpar%ds_blfile(id)), &
             & pixwin=trim(dir)//trim(cpar%ds_pixwin(id)))
     end if
-    constructor%lmax   = size(constructor%b_l,1)-1
 
+    ! Initialize real-space profile
+    call constructor%initBTheta(filename=trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(id)))
+    constructor%r_max = maxval(constructor%b_theta(1)%x)
+    
   end function constructor
   
   subroutine matmulB(self, alm_in, alm_out, trans, map)
@@ -64,7 +69,7 @@ contains
     
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
-       if (l <= self%lmax) then
+       if (l <= self%info%lmax) then
           map%alm(i,:) = map%alm(i,:) * self%b_l(map%info%lm(1,i),:)
        end if
     end do

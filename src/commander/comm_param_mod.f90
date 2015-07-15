@@ -52,6 +52,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_maskfile_calib
      character(len=512), allocatable, dimension(:)   :: ds_beamtype
      character(len=512), allocatable, dimension(:)   :: ds_blfile
+     character(len=512), allocatable, dimension(:)   :: ds_btheta_file
      character(len=512), allocatable, dimension(:)   :: ds_pixwin
      logical(lgt),       allocatable, dimension(:)   :: ds_samp_noiseamp
      character(len=512), allocatable, dimension(:)   :: ds_bptype
@@ -95,6 +96,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
+     character(len=512), allocatable, dimension(:)     :: cs_catalog
      
   end type comm_params
 
@@ -218,7 +220,7 @@ contains
     allocate(cpar%ds_samp_noiseamp(n))
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
     allocate(cpar%ds_co2t(n), cpar%ds_period(n), cpar%ds_beamtype(n), cpar%ds_blfile(n))
-    allocate(cpar%ds_pixwin(n))
+    allocate(cpar%ds_pixwin(n), cpar%ds_btheta_file(n))
     allocate(cpar%ds_sample_gain(n), cpar%ds_gain_calib_comp(n), cpar%ds_gain_lmax(n))
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
@@ -238,6 +240,7 @@ contains
        call get_parameter(paramfile, 'BAND_MASKFILE_CALIB'//itext,  par_string=cpar%ds_maskfile_calib(i))
        call get_parameter(paramfile, 'BAND_BEAMTYPE'//itext,        par_string=cpar%ds_beamtype(i))
        call get_parameter(paramfile, 'BAND_BEAM_B_L_FILE'//itext,   par_string=cpar%ds_blfile(i))
+       call get_parameter(paramfile, 'BAND_BEAM_B_THETA_FILE'//itext, par_string=cpar%ds_btheta_file(i))
        call get_parameter(paramfile, 'BAND_PIXEL_WINDOW'//itext,    par_string=cpar%ds_pixwin(i))
        call get_parameter(paramfile, 'BAND_SAMP_NOISE_AMP'//itext,  par_lgt=cpar%ds_samp_noiseamp(i))
        call get_parameter(paramfile, 'BAND_BANDPASS_TYPE'//itext,   par_string=cpar%ds_bptype(i))
@@ -256,7 +259,7 @@ contains
     end do
 
     ! Convert to proper internal units where necessary
-    cpar%ds_nu_c = cpar%ds_nu_c * 1d9  ! Input is GHz; internal is Hz
+    cpar%ds_nu_c = cpar%ds_nu_c * 1d9                           ! From GHz to Hz
     
   end subroutine read_data_params
 
@@ -280,7 +283,8 @@ contains
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_input_ind(MAXPAR,n))
-    allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(MAXPAR,2,n), cpar%cs_p_gauss(MAXPAR,2,n))
+    allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
+    allocate(cpar%cs_catalog(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
@@ -288,49 +292,71 @@ contains
        call get_parameter(paramfile, 'COMP_TYPE'//itext,            par_string=cpar%cs_type(i))
        call get_parameter(paramfile, 'COMP_CLASS'//itext,           par_string=cpar%cs_class(i))
        call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
-       call get_parameter(paramfile, 'COMP_NSIDE'//itext,           par_int=cpar%cs_nside(i))
-       call get_parameter(paramfile, 'COMP_LMAX_AMP'//itext,        par_int=cpar%cs_lmax_amp(i))
-       call get_parameter(paramfile, 'COMP_LMAX_IND'//itext,        par_int=cpar%cs_lmax_ind(i))
-       call get_parameter(paramfile, 'COMP_UNIT'//itext,            par_string=cpar%cs_unit(i))
-       call get_parameter(paramfile, 'COMP_NU_REF'//itext,          par_dp=cpar%cs_nu_ref(i))
-       call get_parameter(paramfile, 'COMP_CL_TYPE'//itext,         par_string=cpar%cs_cltype(i))
-       call get_parameter(paramfile, 'COMP_INPUT_AMP_MAP'//itext,   par_string=cpar%cs_input_amp(i))
-       call get_parameter(paramfile, 'COMP_OUTPUT_FWHM'//itext,     par_dp=cpar%cs_fwhm(i))
-       if (trim(cpar%cs_cltype(i)) == 'binned') then
-          call get_parameter(paramfile, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
-          call get_parameter(paramfile, 'COMP_CL_DEFAULT_FILE'//itext,     par_string=cpar%cs_clfile(i))
-       else if (trim(cpar%cs_cltype(i)) == 'power_law') then
-          call get_parameter(paramfile, 'COMP_CL_POLTYPE'//itext,      par_int=cpar%cs_cl_poltype(i))
-          call get_parameter(paramfile, 'COMP_CL_L_PIVOT'//itext,      par_int=cpar%cs_lpivot(i))
-          call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_MEAN'//itext, par_dp=cpar%cs_cl_prior(i,1))
-          call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_RMS'//itext, par_dp=cpar%cs_cl_prior(i,2))
-          call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_T'//itext,  par_dp=cpar%cs_cl_amp_def(i,1))
-          call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_T'//itext,  par_dp=cpar%cs_cl_beta_def(i,1))
-          if (cpar%cs_polarization(i)) then
-             call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_E'//itext,  par_dp=cpar%cs_cl_amp_def(i,2))
-             call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_E'//itext,  par_dp=cpar%cs_cl_beta_def(i,2))
-             call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_B'//itext,  par_dp=cpar%cs_cl_amp_def(i,3))
-             call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_B'//itext,  par_dp=cpar%cs_cl_beta_def(i,3))
+       if (trim(cpar%cs_class(i)) == 'diffuse') then
+          call get_parameter(paramfile, 'COMP_NSIDE'//itext,           par_int=cpar%cs_nside(i))
+          call get_parameter(paramfile, 'COMP_LMAX_AMP'//itext,        par_int=cpar%cs_lmax_amp(i))
+          call get_parameter(paramfile, 'COMP_LMAX_IND'//itext,        par_int=cpar%cs_lmax_ind(i))
+          call get_parameter(paramfile, 'COMP_UNIT'//itext,            par_string=cpar%cs_unit(i))
+          call get_parameter(paramfile, 'COMP_NU_REF'//itext,          par_dp=cpar%cs_nu_ref(i))
+          call get_parameter(paramfile, 'COMP_CL_TYPE'//itext,         par_string=cpar%cs_cltype(i))
+          call get_parameter(paramfile, 'COMP_INPUT_AMP_MAP'//itext,   par_string=cpar%cs_input_amp(i))
+          call get_parameter(paramfile, 'COMP_OUTPUT_FWHM'//itext,     par_dp=cpar%cs_fwhm(i))
+          if (trim(cpar%cs_cltype(i)) == 'binned') then
+             call get_parameter(paramfile, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
+             call get_parameter(paramfile, 'COMP_CL_DEFAULT_FILE'//itext,     par_string=cpar%cs_clfile(i))
+          else if (trim(cpar%cs_cltype(i)) == 'power_law') then
+             call get_parameter(paramfile, 'COMP_CL_POLTYPE'//itext,      par_int=cpar%cs_cl_poltype(i))
+             call get_parameter(paramfile, 'COMP_CL_L_PIVOT'//itext,      par_int=cpar%cs_lpivot(i))
+             call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_MEAN'//itext, par_dp=cpar%cs_cl_prior(i,1))
+             call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_RMS'//itext, par_dp=cpar%cs_cl_prior(i,2))
+             call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_T'//itext,  par_dp=cpar%cs_cl_amp_def(i,1))
+             call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_T'//itext,  par_dp=cpar%cs_cl_beta_def(i,1))
+             if (cpar%cs_polarization(i)) then
+                call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_E'//itext,  par_dp=cpar%cs_cl_amp_def(i,2))
+                call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_E'//itext,  par_dp=cpar%cs_cl_beta_def(i,2))
+                call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_B'//itext,  par_dp=cpar%cs_cl_amp_def(i,3))
+                call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_B'//itext,  par_dp=cpar%cs_cl_beta_def(i,3))
+             end if
           end if
-       end if
-       call get_parameter(paramfile, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
+          call get_parameter(paramfile, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
+          
+          select case (trim(cpar%cs_type(i)))
+          case ('power_law')
+             call get_parameter(paramfile, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+             call get_parameter(paramfile, 'COMP_INPUT_BETA_MAP'//itext,        &
+                  & par_string=cpar%cs_input_ind(1,i))
+             call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
+                  & par_dp=cpar%cs_theta_def(i,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,1))
+          end select
 
-       select case (trim(cpar%cs_type(i)))
-       case ('power_law')
-          call get_parameter(paramfile, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
-          call get_parameter(paramfile, 'COMP_INPUT_BETA_MAP'//itext,        &
-               & par_string=cpar%cs_input_ind(1,i))
-          call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
-               & par_dp=cpar%cs_theta_def(i,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+       else if (trim(cpar%cs_class(i)) == 'ptsrc') then
+          call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
+          call get_parameter(paramfile, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+          call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext,    &
                & par_dp=cpar%cs_p_uni(i,1,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+          call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_HIGH'//itext,   &
                & par_dp=cpar%cs_p_uni(i,2,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_MEAN'//itext, &
                & par_dp=cpar%cs_p_gauss(i,1,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_RMS'//itext,  &
                & par_dp=cpar%cs_p_gauss(i,2,1))
-       end select
+          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+               & par_dp=cpar%cs_p_uni(i,1,2))
+          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+               & par_dp=cpar%cs_p_uni(i,2,2))
+          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+               & par_dp=cpar%cs_p_gauss(i,1,2))
+          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+               & par_dp=cpar%cs_p_gauss(i,2,2))
+       end if
        
     end do
 
