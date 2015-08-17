@@ -1,0 +1,109 @@
+# Config file for a generic GCC based compile,
+# Using the reference LAPACK/Blas and assuming
+# both LAPACK and CFITSIO are in /usr/local.
+
+
+# =============== Installation ===================
+
+# Final install location.  This defaults to a
+# subdirectory of the top-level directory called
+# install_$COMMANDER.
+#export INSTALL := /usr/local
+
+
+# =============== System Tools ===================
+
+# The defaults should be fine for any normal
+# GNU/Linux operating system...
+
+# Here you can override the make version to use
+#export MAKE := gmake
+
+# How to make a tar.gz file
+#export CTAR := tar czvf
+
+# The archive command
+#export AR := ar
+
+# Archive options to create a library
+#export ARFLAGS := crv
+
+# The ranlib command
+#export RANLIB := ranlib
+
+
+# ================= Compilers ====================
+
+# Serial Fortran 90 compiler.  Default is "f90".
+export F90 := gfortran
+
+# MPI Fortran 90 compiler.  Default is "mpif90".
+export MPF90 := mpif90
+
+# MPI Fortran 77 compiler.  Default is "mpif77".
+export MPF77 := mpif90
+
+# MPI C compiler.  Default is "mpicc".
+export MPCC := mpicc
+
+# MPI C++ compiler.  Default is "mpicxx".
+export MPCXX := mpicxx
+
+
+# =========== Compiler Optimizations =============
+
+# Fortran 90 compiler flags
+#export F90FLAGS := -O3 -w -fopenmp -lpthread
+export F90FLAGS := -g -Og -fcheck=all -fbounds-check -fbacktrace -finit-real=nan
+#export F90FLAGS := -g -C -traceback -w -openmp -heap-arrays 16384 -assume byterecl
+
+# Fortran 77 compiler flags
+export FFLAGS := -O2
+
+# C compiler flags.
+export CFLAGS := -O3 
+
+# C++ compiler flags.
+export CXXFLAGS := -O3 
+
+# Extra flags used for linking
+export LDFLAGS := -lm -fopenmp -lgomp -lstdc++
+
+
+# ============== Language Mixing =================
+
+export MPFCLIBS := 
+
+
+# ============== Fortran Features ================
+
+# Set this variable to 1 if the fortran compiler
+# produces module files with capitalization (*.MOD)
+# instead of lowercase (*.mod).
+#export FORTRAN_UPPER := 1
+
+export LOCAL=/home/hke/local
+
+# =============== CFITSIO Linking ================
+
+# The include and linking commands for cfitsio.
+export CFITSIO_INCLUDE := 
+export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio
+
+
+# =============== LAPACK Linking =================
+
+# The include and linking commands for LAPACK.
+MKLPATH := /opt/intel/mkl/lib/intel64
+export LAPACK_INCLUDE := 
+export LAPACK_LINK := -llapack -lblas
+
+
+# ================ Healpix linking ================
+HEALDIR := /home/hke/local/src/Healpix_3.11
+#export HEALPIX_INCLUDE := -I/usit/titan/u1/sigurdkn/local/include
+#export HEALPIX_LINK := -L/usit/titan/u1/sigurdkn/local/lib -lhealpix
+export HEALPIX_INCLUDE := -I$(HEALDIR)/include
+export HEALPIX_LINK := -L$(HEALDIR)/lib -lhealpix
+#export HEALPIX_INCLUDE := -I/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod
+#export HEALPIX_LINK := -L/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod -lhealpix

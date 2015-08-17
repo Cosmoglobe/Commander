@@ -1,0 +1,35 @@
+Installation Instructions
+==========================
+
+First determine the locations of your MPI compilers (mpif90, mpif77, mpicc, etc),
+and ensure that they function correctly.  Next determine the locations of the
+CFITSIO and LAPACK libraries, and how to link to these libraries.
+
+Next look in the config/ directory and see if a configuration already exists
+which is similar to your machine.  Copy this config (or the config.example) to a
+new file in the same directory.  Call this new file config.<machine> where 
+"<machine>" is the name of the system you will be building the software on.
+
+Edit this config file and specify all the options for your system.
+
+Now "cd" into the top level commander directory and set the COMMANDER
+environment variable to the string you used above as the "<machine>".  For
+example, if your config is named "config.mylaptop", then you would set the 
+environment variable like this:
+
+(For Bourne-like shells)
+$> export COMMANDER=mylaptop
+
+(For csh-like shells)
+%> setenv COMMANDER mylaptop
+
+To view some additional help about the available make targets:
+
+$> make help
+
+To build and install the software:
+
+$> make
+$> make install
+
+
