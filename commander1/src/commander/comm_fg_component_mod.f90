@@ -1001,6 +1001,9 @@ contains
                 index = max(min(index, fg_components(k)%priors(m,2)), fg_components(k)%priors(m,1))
              else if (trim(fg_components(k)%init_mode) == 'default') then
                 index = fg_components(k)%priors(m,3)
+                if (trim(fg_components(k)%type) == 'freefree_EM' .and. m ==1) then
+                   index = log(index)
+                end if
              else
                 write(*,*) 'Unknown initialization mode: ', trim(fg_components(k)%init_mode)
                 stop
