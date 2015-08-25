@@ -1977,7 +1977,7 @@ contains
           allocate(R%regions(2*R%nreg))
           counter = 0
           do t = 1, ntype
-             do p = 1, R%nreg
+             do p = 1, R%nreg/ntype
                 !Find number of unmasked pixels in current region
                 n = 0
                 do i = 0, q-1
