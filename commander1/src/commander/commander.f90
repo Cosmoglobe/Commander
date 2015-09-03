@@ -204,6 +204,8 @@ program commander
 !!$        write(*,*) trim(bp(i)%label), get_bp_line_ant(i, 345.80d9) *  compute_ant2thermo_single(345.80d9)
 !!$     end do
 !!$  end if
+!!$  call mpi_finalize(ierr)
+!!$  stop
 
   call initialize_fg_mod(mychain, comm_chain, comm_alms, rng_handle, paramfile)
 
@@ -532,8 +534,12 @@ contains
     first_iteration = 1
     call initialize_chain_files(chain_dir, chain, num_gibbs_iter)
 
-!    call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
-!    stop
+    !call sample_gains(s_i, chain, iter)
+    !call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
+    !call output_component_maps(map_id, s_i, chain, iter, chain_dir)
+    !call free_slaves
+    !call mpi_finalize(ierr)
+    !stop
 
     if (output_ml_map_and_covmat) then
        call compute_residuals(s_i, .false.)
@@ -623,6 +629,10 @@ contains
 !!$       call output_sample(paramfile, 2, 3, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
        if (allocated(cmb_md_mask) .and. sample_T_modes) call enforce_zero_cmb_md(s_i, cmb_md_mask(:,1))
 
+       ! Do spatially uniform components
+       call compute_lowres_residual(s_i)
+       call sample_spatially_uniform_comps(chain_dir, residuals_lowres, inv_N_scaled, &
+            & s_i%fg_amp, fg_param_map, iter==1) 
 
 !!$       write(*,*) 'd'
 !!$       call output_sample(paramfile, 2, 4, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
@@ -764,7 +774,6 @@ contains
           end do
        end do
 
-
        if (stat == 0) then
 
           ! Store sample to disk
@@ -850,7 +859,7 @@ contains
     close(unit)
 
     filename = trim(chain_dir) // '/gain_no' // chain_text // '.dat'
-    open(unit,file=trim(filename), status='replace', recl=2048)
+    open(unit,file=trim(filename), status='replace', recl=200000)
     write(unit,fmt='(a)',advance='no') '#    Sample    '
     do i = 1, numband
        write(unit,fmt='(a)',advance='no') bp(i)%label 
@@ -859,7 +868,7 @@ contains
     close(unit)
 
     filename = trim(chain_dir) // '/bp_no' // chain_text // '.dat'
-    open(unit,file=trim(filename), status='replace', recl=2048)
+    open(unit,file=trim(filename), status='replace', recl=200000)
     write(unit,fmt='(a)',advance='no') '#    Sample    '
     do i = 1, numband
        write(unit,fmt='(a)',advance='no') bp(i)%label 
@@ -868,7 +877,7 @@ contains
     close(unit)
 
     filename = trim(chain_dir) // '/noiseamp_no' // chain_text // '.dat'
-    open(unit,file=trim(filename), status='replace', recl=2048)
+    open(unit,file=trim(filename), status='replace', recl=200000)
     write(unit,fmt='(a)',advance='no') '#    Sample    '
     do i = 1, numband
        write(unit,fmt='(a)',advance='no') bp(i)%label 
@@ -888,7 +897,7 @@ contains
        close(unit)
 
        filename = trim(chain_dir) // '/fg_ind_mean_no' // chain_text // '.dat'
-       open(unit,file=trim(filename), status='replace', recl=2048)
+       open(unit,file=trim(filename), status='replace', recl=200000)
        write(unit,fmt='(a)',advance='no') '#    Sample    '
        do i = 1, num_fg_comp
           do j = 1, fg_components(i)%npar
@@ -900,7 +909,7 @@ contains
        close(unit)
 
        filename = trim(chain_dir) // '/par_rms_no' // chain_text // '.dat'
-       open(unit,file=trim(filename), status='replace', recl=2048)
+       open(unit,file=trim(filename), status='replace', recl=200000)
        write(unit,fmt='(a)',advance='no') '#              '
        do i = 1, num_fg_comp
           do j = 1, fg_components(i)%npar
@@ -1007,7 +1016,7 @@ contains
     close(unit)
 
     filename = trim(chain_dir) // '/noiseamp_no' // chain_text // '.dat'
-    open(unit,file=trim(filename), position='append', recl=2048)
+    open(unit,file=trim(filename), position='append', recl=200000)
     write(unit,fmt='(i8)',advance='no') iter
     do i = 1, numband
        write(unit,fmt='(f14.6)',advance='no') noiseamps(i)
@@ -1016,7 +1025,7 @@ contains
     close(unit)
 
     filename = trim(chain_dir) // '/gain_no' // chain_text // '.dat'
-    open(unit,file=trim(filename), position='append', recl=2048)
+    open(unit,file=trim(filename), position='append', recl=200000)
     write(unit,fmt='(i8)',advance='no') iter
     do i = 1, numband
        write(unit,fmt='(f14.6)',advance='no') gain(i)
@@ -1025,7 +1034,7 @@ contains
     close(unit)
 
     filename = trim(chain_dir) // '/bp_no' // chain_text // '.dat'
-    open(unit,file=trim(filename), position='append', recl=2048)
+    open(unit,file=trim(filename), position='append', recl=200000)
     write(unit,fmt='(i8)',advance='no') iter
     do i = 1, numband
        write(unit,fmt='(f14.6)',advance='no') delta(i)
@@ -1052,7 +1061,7 @@ contains
 
     if (sample_fg_pix) then
        filename = trim(chain_dir) // '/fg_ind_mean_no' // chain_text // '.dat'
-       open(unit,file=trim(filename), position='append', recl=2048)
+       open(unit,file=trim(filename), position='append', recl=200000)
        k = 1
        write(unit,fmt='(i11)',advance='no') iter
        do i = 1, num_fg_comp
@@ -1069,7 +1078,7 @@ contains
        close(unit)
 
        filename = trim(chain_dir) // '/par_rms_no' // chain_text // '.dat'
-       open(unit,file=trim(filename), position='append', recl=2048)
+       open(unit,file=trim(filename), position='append', recl=200000)
        k = 1
        write(unit,fmt='(i11)',advance='no') iter
        do i = 1, num_fg_comp
@@ -1201,7 +1210,7 @@ contains
     call output_component_maps(map_id, s_i, chain, iter, chain_dir)
     call output_mixing_matrices(map_id, chain, iter, chain_dir)
     if (skip_freq > 0) then
-       !if(mod(iter,skip_freq) == 0) call output_fg_overview(paramfile, chain, iter, chain_dir, s_i, par_smooth)
+!       if(mod(iter,skip_freq) == 0) call output_fg_overview(paramfile, chain, iter, chain_dir, s_i, par_smooth)
     end if
 
     if (output_cross_corr .and. num_fg_comp > 0) call output_signal_correlations(s_i, chisq_map, &
@@ -1680,7 +1689,7 @@ contains
 
     real(dp)           :: dnu, mu, sigma, nu0, t1, t2
     integer(i4b)       :: c, i, k, j, l, p, numband, unit, n, nspline, k_min, k_max
-    character(len=4)   :: chain_text
+    character(len=4)   :: chain_text, comp_text
     character(len=5)   :: i_text
     character(len=128) :: filename
 
@@ -1737,6 +1746,7 @@ contains
        
        j = 1
        do i = 1, num_fg_comp
+       !do i = 1, 1
           if (trim(fg_components(i)%type) == 'CO_multiline') then
              j = j + fg_components(i)%npar
              cycle
@@ -1747,12 +1757,24 @@ contains
                 if (any(mask(p,1,:)==1.d0)) then
                    map(p,1) = s_i%fg_amp(p,1,i) * get_ideal_fg_spectrum(fg_components(i), &
                         & par_smooth(p,1,j:j+fg_components(i)%npar-1), nu(k))
+                   !map(p,1) = s_i%fg_amp(p,1,i) * get_ideal_fg_spectrum(fg_components(i), &
+                   !     & par_smooth(p,1,j:j+fg_components(i)%npar-1), 30d9)
+!!$                   map(p,1) = map(p,1) + s_i%fg_amp(p,1,9) * get_ideal_fg_spectrum(fg_components(9), &
+!!$                        & par_smooth(p,1,11), nu(k))
                 end if
              end do
              mu     = sum(map(:,1)*mask(:,1,1)) / sum(mask(:,1,1))
              f(k,1) = log(max(sqrt(sum((map(:,1)*mask(:,1,1)-mu)**2) / (sum(mask(:,1,1))-1.d0)),1.d-30))
              mu     = sum(map(:,1)*mask(:,1,2)) / sum(mask(:,1,2))
              f(k,2) = log(max(sqrt(sum((map(:,1)*mask(:,1,2)-mu)**2) / (sum(mask(:,1,2))-1.d0)),1.d-30))
+!!$             write(*,*) k, mu, f(k,2)
+!!$             write(*,*)
+!!$
+             call int2string(k, chain_text)             
+             call int2string(i, comp_text)
+             filename = 'comp' // comp_text // '_' // chain_text // '.fits'
+             call write_map(filename, map)
+             
           end do
           
           k_min = 1
@@ -1819,6 +1841,14 @@ contains
              f(k,1) = log(max(sqrt(sum((map(:,1)*mask(:,2,1)-mu)**2) / (sum(mask(:,2,1))-1.d0)),1.d-30))
              mu     = sum(map(:,1)*mask(:,2,2)) / sum(mask(:,2,2))
              f(k,2) = log(max(sqrt(sum((map(:,1)*mask(:,2,2)-mu)**2) / (sum(mask(:,2,2))-1.d0)),1.d-30))
+
+             write(*,*) k, mu, f(k,2)
+             write(*,*)
+
+             call int2string(k, chain_text)
+             filename = 'comp' // chain_text // '.fits'
+             call write_map(filename, map)
+
           end do
           
           k_min = 1

@@ -196,6 +196,10 @@ contains
        ! Gain sampler
        call sample_bandpass(handle, map_id)
 
+    else if (operation == 41) then
+
+       call sample_spatially_uniform_comp
+
     else if (operation == 50) then
 
        call output_ml_map_engine(myid_chain)
@@ -516,6 +520,21 @@ contains
     call enforce_pos_amp(chaindir, residuals, inv_N_noise, fg_amp, index_map, burnin)
 
   end subroutine enforce_pos_amps
+
+  subroutine sample_spatially_uniform_comps(chaindir, residuals, inv_N_noise, fg_amp, index_map, burnin) 
+    implicit none
+    
+    character(len=*),                 intent(in)    :: chaindir
+    real(dp), dimension(0:,1:,1:),    intent(in)    :: residuals
+    real(dp), dimension(0:,1:,1:),    intent(inout) :: fg_amp
+    real(dp), dimension(0:,1:,1:),    intent(in)    :: inv_N_noise
+    real(dp), dimension(0:,1:,1:),    intent(in)    :: index_map
+    logical(lgt),                     intent(in)    :: burnin
+
+    call mpi_bcast(41,    1, MPI_INTEGER,          root, comm_chain, ierr)
+    call sample_spatially_uniform_comp(chaindir, residuals, inv_N_noise, fg_amp, index_map, burnin)
+
+  end subroutine sample_spatially_uniform_comps
 
   subroutine set_exclude_fg_amp(exclude_amp)
     implicit none

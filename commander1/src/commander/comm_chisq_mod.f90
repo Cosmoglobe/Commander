@@ -34,7 +34,7 @@ contains
 
     integer(i4b) :: i
     logical(lgt)       :: exist, apply_gain_corr
-    character(len=2)   :: i_text
+    character(len=3)   :: i_text
     character(len=256) :: paramtext, procmaskfile
     real(dp), allocatable, dimension(:,:) :: mask_in
 
@@ -529,23 +529,23 @@ contains
        end if
 
 
-!!$       call int2string(map_id, band)
-!!$       open(58,file='cl'//band//'.dat', recl=1024)
-!!$       do l = lmin, lmax
-!!$          write(58,*) l, cl1(l), cl2(l)
-!!$       end do
-!!$       close(58)
-!!$
-!!$       call int2string(map_id, band)
-!!$       open(58,file='alms'//band//'.dat', recl=1024)
-!!$       i = lmin**2+1
-!!$       do l = lmin, lmax
-!!$          do m = -l, l
-!!$             write(58,*) i, alms1(i,1), alms2(i,1)
-!!$             i = i+1
-!!$          end do
-!!$       end do
-!!$       close(58)
+       call int2string(map_id, band)
+       open(58,file='cl'//band//'.dat', recl=1024)
+       do l = lmin, lmax
+          write(58,*) l, cl1(l), cl2(l)
+       end do
+       close(58)
+
+       call int2string(map_id, band)
+       open(58,file='alms'//band//'.dat', recl=1024)
+       i = lmin**2+1
+       do l = lmin, lmax
+          do m = -l, l
+             write(58,*) i, alms1(i,1), alms2(i,1)
+             i = i+1
+          end do
+       end do
+       close(58)
 
        deallocate(cl1, cl2, alms, weights, alms1, alms2)
 
@@ -667,11 +667,11 @@ contains
        call int2string(map_id, band)
        call int2string(mychain, chain_text)
        call int2string(myiter,    iter_text)
-       call write_map(trim(chain_dir)//'/gainres_c'//chain_text//'_b'//band//'_k'//&
-            & iter_text // '.fits', residual, comptype='Residual', unit=bp(map_id)%unit, nu_ref=bp(map_id)%nu_c)
-       call write_map(trim(chain_dir)//'/gainsig_c'//chain_text//'_b'//band//'_k'//&
-            & iter_text // '.fits', my_signal, comptype='Signal model', &
-            & unit=bp(map_id)%unit, nu_ref=bp(map_id)%nu_c)
+!!$       call write_map(trim(chain_dir)//'/gainres_c'//chain_text//'_b'//band//'_k'//&
+!!$            & iter_text // '.fits', residual, comptype='Residual', unit=bp(map_id)%unit, nu_ref=bp(map_id)%nu_c)
+!!$       call write_map(trim(chain_dir)//'/gainsig_c'//chain_text//'_b'//band//'_k'//&
+!!$            & iter_text // '.fits', my_signal, comptype='Signal model', &
+!!$            & unit=bp(map_id)%unit, nu_ref=bp(map_id)%nu_c)
     end if
 
     deallocate(residual, invN_signal, my_signal, my_gain)
@@ -774,6 +774,7 @@ contains
 
        if (myid_chain == root) then
           call compute_bandpass_chisq(bp%delta + delta_prop, chisq_prop, s, index_map)
+          write(*,*) 'a', real(chisq_prop(4),sp), real(chisq_prop(5),sp), real(chisq_prop(33),sp), real(chisq_prop(34),sp), real(chisq_prop(35),sp)
        else
           call compute_bandpass_chisq(bp%delta + delta_prop, chisq_prop)
        end if
@@ -783,6 +784,7 @@ contains
 
        if (myid_chain == root) then
           call compute_bandpass_chisq(bp%delta + delta_prop, chisq_prop, s, index_map)
+          write(*,*) 'b', real(chisq_prop(4),sp), real(chisq_prop(5),sp), real(chisq_prop(33),sp), real(chisq_prop(34),sp), real(chisq_prop(35),sp)
        else
           call compute_bandpass_chisq(bp%delta + delta_prop, chisq_prop)
        end if
@@ -792,7 +794,7 @@ contains
           done       = .true.
        end where
 
-       do i = 1, 13
+       do i = 1, 16
           if (all(done)) exit
 
           gain_old   = bp%gain
@@ -804,10 +806,11 @@ contains
           end do
           if (myid_chain == root) then
              call compute_bandpass_chisq(bp%delta + delta_prop, chisq_prop, s, index_map)
-             call sample_gain(handle, map_id, s, 0, 0)
+          write(*,*) 'c', real(chisq_prop(4),sp), real(chisq_prop(5),sp), real(chisq_prop(33),sp), real(chisq_prop(34),sp), real(chisq_prop(35),sp)
+            !call sample_gain(handle, map_id, s, 0, 0)
           else
              call compute_bandpass_chisq(bp%delta + delta_prop, chisq_prop)
-             call sample_gain(handle, map_id)
+             !call sample_gain(handle, map_id)
           end if
           where (done)
              chisq_prop = chisq_curr
@@ -817,6 +820,7 @@ contains
           if (myid_chain == root) then
              call update_fg_pix_response_map(map_id, pixels, fg_pix_spec_response, index_map)
              call compute_total_chisq(map_id, s, chisq_band_fullsky=chisq_prop)
+          write(*,*) 'd', real(chisq_prop(4),sp), real(chisq_prop(5),sp), real(chisq_prop(33),sp), real(chisq_prop(34),sp), real(chisq_prop(35),sp)
           else
              call update_fg_pix_response_map(map_id, pixels, fg_pix_spec_response)
              call compute_total_chisq(map_id)

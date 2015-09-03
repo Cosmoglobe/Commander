@@ -22,7 +22,7 @@ contains
 
     integer(i4b)       :: unit
     logical(lgt)       :: polarization
-    character(len=2)   :: map_text
+    character(len=3)   :: map_text
     character(len=128) :: beamfile, paramtext, pixwinfile
 
     real(dp) :: fwhm_lowres

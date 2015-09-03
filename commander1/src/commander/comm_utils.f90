@@ -742,6 +742,8 @@ contains
 
     logical(lgt)               :: found
     integer(i4b)               :: unit
+    character(len=512), save                            :: parfile_cache = ''
+    character(len=512), save, allocatable, dimension(:) :: cache
 
     unit = getlun()
     found = .false.
@@ -749,7 +751,12 @@ contains
     if(found) then
        if(present(par_present)) par_present = .true.
     else
-       call get_parameter_parfile(unit, parfile, parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
+       if (parfile_cache == '') call initialize_parfile_cache(parfile, parfile_cache, cache)
+       if (trim(parfile) == trim(parfile_cache)) then
+          call get_parameter_cache(unit, cache, parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
+       else
+          call get_parameter_parfile(unit, parfile, parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
+       end if
     end if
   end subroutine
 
@@ -847,6 +854,69 @@ contains
     call mpi_finalize(i)
     stop
   end subroutine
+
+  subroutine get_parameter_cache(unit, cache, parname, par_int, par_char, &
+       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
+    implicit none
+    integer(i4b)                   :: unit
+    character(len=*), dimension(:) :: cache
+    character(len=*)               :: parname
+    integer(i4b),     optional     :: par_int
+    character(len=*), optional     :: par_char
+    character(len=*), optional     :: par_string
+    real(sp),         optional     :: par_sp
+    real(dp),         optional     :: par_dp
+    logical(lgt),     optional     :: par_lgt
+    logical(lgt),     optional     :: par_present
+    character(len=*), optional     :: desc
+
+    logical(lgt)               :: found
+    integer(i4b), parameter    :: maxdepth = 256
+    integer(i4b)               :: depth, units(maxdepth), i
+    character(len=512)         :: key, value, filenames(maxdepth), line
+    character(len=1)           :: equals
+
+    do i = 1, size(cache)
+       line = cache(i)
+       call parse_parameter(line, parname, found, par_int, par_char, par_string, par_sp, par_dp, par_lgt)
+       if(found) then
+          if(present(par_present)) par_present = .true.
+          return
+       end if
+    end do
+  end subroutine
+
+  subroutine initialize_parfile_cache(parfile, parfile_cache, cache)
+    implicit none
+    character(len=*),                              intent(in)  :: parfile
+    character(len=*),                              intent(out) :: parfile_cache
+    character(len=512), allocatable, dimension(:), intent(out) :: cache
+    
+    integer(i4b)       :: unit, n
+    character(len=512) :: line
+
+    unit          = getlun()
+    parfile_cache = parfile
+
+    ! Find number of lines in file
+    n = 0
+    open(unit,file=trim(parfile))
+    do while (.true.)
+       read(unit,'(a)',end=32) line
+       n = n+1
+    end do
+32  close(unit)
+
+    allocate(cache(n))
+    open(unit,file=trim(parfile))
+    n = 0
+    do while (.true.)
+       n = n+1
+       read(unit,'(a)',end=33) cache(n)
+    end do
+33  close(unit)
+
+  end subroutine initialize_parfile_cache
 
   subroutine get_parameter_arg(parname, par_int, par_char, &
        & par_string, par_sp, par_dp, par_lgt, par_present, desc)

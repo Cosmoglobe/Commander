@@ -25,7 +25,8 @@ contains
     
     integer(i4b) :: i, j, nside
     logical(lgt) :: polarization, sample_template, sample_T_modes, ok, enforce_zero_cl
-    character(len=2)   :: i_text, j_text
+    character(len=3)   :: i_text
+    character(len=2)   :: j_text
     character(len=128) :: param_text, comp_type
 
     call get_parameter(paramfile, 'LMAX',         par_int=lmax)    
@@ -87,11 +88,11 @@ contains
 
     reduce_pix = .false.
     do i = 1, num_signal
-       call int2string(i, i_text)
-       param_text= 'ENFORCE_POSITIVE_AMPLITUDE' // i_text
+       call int2string(i, j_text)
+       param_text= 'ENFORCE_POSITIVE_AMPLITUDE' // j_text
        call get_parameter(paramfile, param_text, par_lgt=ok)
        if (ok) cycle
-       param_text= 'COMP_TYPE' // i_text
+       param_text= 'COMP_TYPE' // j_text
        call get_parameter(paramfile, param_text, par_string=comp_type)
        if (trim(comp_type)=='cmb' .and. .not. enforce_zero_cl) cycle
        reduce_pix = .true.

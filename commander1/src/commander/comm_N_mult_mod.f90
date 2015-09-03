@@ -53,7 +53,7 @@ contains
     integer(i4b)       :: i, j, k, l, m, n, ind, ierr, map, pix, unit
     logical(lgt)       :: polarization, sample_inside_mask
     real(dp)           :: reg_noise, reg_scale
-    character(len=2)   :: map_text, i_text
+    character(len=3)   :: map_text
     character(len=128) :: noisefile, maskfile, paramtext
     real(dp),     allocatable, dimension(:,:) :: noisemap, map_in
     real(dp),     allocatable, dimension(:,:) :: mask

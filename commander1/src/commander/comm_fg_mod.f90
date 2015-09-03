@@ -44,6 +44,7 @@ module comm_fg_mod
   real(dp),        allocatable, dimension(:),   private :: p_default
 
   integer(i4b), private :: pix_init, s_init
+  real(dp),     allocatable, dimension(:), private :: CIB_amp
 
 contains
 
@@ -825,8 +826,10 @@ contains
     call mpi_bcast(ind_map,     size(ind_map),     MPI_DOUBLE_PRECISION, root, comm_chain, ierr)
 
     namp = 0
+    allocate(CIB_amp(num_fg_comp))
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM') namp = namp+1
+       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB') namp = namp+1
+       if (trim(fg_components(i)%type) == 'CIB') CIB_amp(i) = my_fg_amp(0,1,i)
     end do
     npar = namp
     do i = 1, num_fg_comp
@@ -843,7 +846,7 @@ contains
     chisq_tot = 0.d0
     do p = 0, npix-1
 
-       !if (p /= 1000) cycle
+!       if (p /= 24000) cycle
 
 !       if (mod(p+myid_chain,numprocs_chain) /= 0 .or. all(all_inv_N(p,:) == 0.d0) .or. p < 335000 .or. p > 336000) then
        if (mod(p+myid_chain,numprocs_chain) /= 0 .or. all(all_inv_N(p,:) == 0.d0)) then
@@ -984,6 +987,8 @@ contains
        x_prop = x
 
     end do
+!    call mpi_finalize(ierr)
+!    stop
 
     allocate(buffer(0:npix-1,nmaps,nind))
     call mpi_reduce(ind_map, buffer, size(buffer), MPI_DOUBLE_PRECISION, MPI_SUM, root, comm_chain, ierr)
@@ -1053,7 +1058,7 @@ contains
 !!$    end if
 
     deallocate(A, x, x_prop, b, M, all_inv_N, all_residuals, my_residual, my_inv_N, scale_reg)
-    deallocate(my_fg_amp, ind_map, p_default)
+    deallocate(my_fg_amp, ind_map, p_default, CIB_amp)
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
@@ -1093,7 +1098,7 @@ contains
 
     k = 1
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM') then
+       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB') then
           res(k) = p(i)
           k      = k+1
        end if
@@ -1137,11 +1142,13 @@ contains
 
     k = 1
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM') then
+       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB') then
           res(i) = x(k)
           k      = k+1
-       else
+       else if (trim(fg_components(i)%type) == 'freefree_EM') then
           res(i) = 1.d0
+       else if (trim(fg_components(i)%type) == 'CIB') then
+          res(i) = CIB_amp(i)
        end if
     end do
 
@@ -1357,7 +1364,7 @@ contains
              if (corrlen(i,1) == 0) then
                 corrlen(i,:) = 1
                 do f = 1, num_fg_comp
-                   if (trim(fg_components(f)%type) == 'freefree_EM') corrlen(i,f) = -1
+                   if (trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB') corrlen(i,f) = -1
                    if (.not. enforce_zero_cl .and. trim(fg_components(f)%type) == 'cmb' &
                         & .and. mask_lowres(i,1) > 0.5d0) corrlen(i,f) = -1
                    if (all(M(:,f) == 0.d0)) corrlen(i,f) = -1
@@ -1374,7 +1381,7 @@ contains
                    do c = 1, nstep
                       do f = 1, num_fg_comp
                          !if (.not. fg_components(f)%enforce_positive_amplitude) cycle
-                         if (trim(fg_components(f)%type) == 'freefree_EM') cycle
+                         if (trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB') cycle
                          if (.not. enforce_zero_cl .and. trim(fg_components(f)%type) == 'cmb' &
                               & .and. mask_lowres(i,1) > 0.5d0) cycle
                          if (all(M(:,f) == 0.d0)) then
@@ -1420,7 +1427,7 @@ contains
                    do f = 1, num_fg_comp
                       if ((.not. enforce_zero_cl .and. trim(fg_components(f)%type) == 'cmb' .and. &
                            & mask_lowres(i,1) > 0.5d0) .or. all(M(:,f) == 0.d0) .or. &
-                           & trim(fg_components(f)%type) == 'freefree_EM') then
+                           & trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB') then
                          !if (.not. fg_components(f)%enforce_positive_amplitude .or. all(M(:,f) == 0.d0)) then
                          !if (all(M(:,f) == 0.d0)) then
                          corrlen(i,f) = -1
@@ -1634,5 +1641,49 @@ contains
     end do
 
   end function rand_trunc_gauss
+
+  subroutine sample_spatially_uniform_comp(chaindir, residuals, inv_N, fg_amp, fg_param_map, doburnin)
+    implicit none
+    
+    character(len=*),                 intent(in),    optional :: chaindir
+    real(dp), dimension(0:,1:,1:),    intent(in),    optional :: residuals
+    real(dp), dimension(0:,1:,1:),    intent(inout), optional :: fg_amp
+    real(dp), dimension(0:,1:,1:),    intent(in),    optional :: inv_N
+    real(dp), dimension(0:,1:,1:),    intent(in),    optional :: fg_param_map
+    logical(lgt),                     intent(in),    optional :: doburnin
+
+    integer(i4b) :: i, j, k, l, c, n
+    real(dp) :: A, x, b, r, f
+    type(fg_params)                           :: fg_par
+
+    if (myid_chain == root) then
+       ! Compute residual map
+       do c = 1, num_fg_comp
+          if (trim(fg_components(c)%type) /= 'CIB') cycle
+          A = 0.d0
+          b = 0.d0
+          do i = 1, numband
+             call reorder_fg_params(fg_param_map(0,:,:), fg_par)
+             f = get_effective_fg_spectrum(fg_components(c), i, fg_par%comp(c)%p(1,:), pixel=0, pol=1)
+             call deallocate_fg_params(fg_par)
+             do j = 0, npix-1
+                ! Compute residual
+                r = residuals(j,1,i)
+                call reorder_fg_params(fg_param_map(j,:,:), fg_par)
+                do k = 1, num_fg_comp
+                   if (k == c) cycle
+                   r = r - fg_amp(j,1,k)*get_effective_fg_spectrum(fg_components(k), i, fg_par%comp(k)%p(1,:), pixel=j, pol=1)
+                end do
+                call deallocate_fg_params(fg_par)
+                A = A + f * inv_N(j,1,i) * f
+                b = b + f * inv_N(j,1,i) * r
+             end do
+          end do
+          fg_amp(:,1,c) = b/A
+          if (fg_components(c)%enforce_positive_amplitude) fg_amp(:,1,c) = max(fg_amp(:,1,c), 0.d0)
+       end do
+    end if
+
+  end subroutine sample_spatially_uniform_comp
 
 end module comm_fg_mod

@@ -218,7 +218,7 @@ contains
        fg_components(i)%S_tabulated  = 1.d0   ! Set default to 1, so one can always multiply with it
 
 
-       if (trim(fg_components(i)%type) == 'one-component_dust') then
+       if (trim(fg_components(i)%type) == 'one-component_dust' .or. trim(fg_components(i)%type) == 'CIB' ) then
 
           paramname = 'APPLY_JEFFREYS_PRIOR' // i_text
           call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%apply_jeffreys_prior)       
@@ -1134,7 +1134,7 @@ contains
     else if (trim(fg_comp%type) == 'magnetic_dust') then                         
        get_ideal_fg_spectrum = compute_magnetic_dust_spectrum(nu, fg_comp%nu_ref, &
             & p(1),fg_comp%S_nu_ref, fg_comp%p_rms)
-    else if (trim(fg_comp%type) == 'one-component_dust') then
+    else if (trim(fg_comp%type) == 'one-component_dust' .or. trim(fg_comp%type) == 'CIB') then
        get_ideal_fg_spectrum = compute_one_comp_dust_spectrum(nu, fg_comp%nu_ref, &
             & p(1), p(2), fg_comp%nu_flat, fg_comp%frac_flat, fg_comp%p_rms)
     else if (trim(fg_comp%type) == 'power_law') then
@@ -1658,7 +1658,7 @@ contains
                 do l = 1, numgrid
                    do j = 1, n
                       nu = bp(m)%nu(j)
-                      if (trim(fg_components(i)%type) == 'one-component_dust') then
+                      if (trim(fg_components(i)%type) == 'one-component_dust' .or. trim(fg_components(i)%type) == 'CIB') then
                          s(j) = compute_one_comp_dust_spectrum(nu, fg_components(i)%nu_ref, &
                               & fg_components(i)%par(k,1), fg_components(i)%par(l,2), &
                               & fg_components(i)%nu_flat, fg_components(i)%frac_flat, &

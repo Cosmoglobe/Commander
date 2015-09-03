@@ -2,6 +2,7 @@ module comm_bp_mod
   use healpix_types
   use comm_utils
   use sort_utils
+  use powell_mod
   implicit none 
 
   real(dp), parameter :: k_B      = 1.3806503d-23
@@ -18,7 +19,7 @@ module comm_bp_mod
      character(len=14) :: label, id, unit
      integer(i4b)      :: n
      integer(i4b)      :: comp_calib
-     real(dp)          :: nu_c, gain, gain_rms, delta, delta_rms
+     real(dp)          :: nu_c, nu_center, gain, gain_rms, delta, delta_rms
      real(dp)          :: a2t, f2t, co2t, a2sz
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau
   end type bandinfo
@@ -29,6 +30,9 @@ module comm_bp_mod
   integer(i4b),       allocatable, dimension(:) :: i2f
 
   character(len=256), private  :: MJySr_convention
+
+  integer(i4b), private :: band_shift
+  real(dp),     private :: nu_c_shift
 
 contains
 
@@ -43,7 +47,7 @@ contains
     integer(i4b)        :: i, j, q, unit, myid_chain
     logical(lgt)        :: exist, apply_bp_corr, apply_gain_corr
     real(dp)            :: threshold, gain_init_rms, bp_init_rms, ierr
-    character(len=2)    :: i_text
+    character(len=3)    :: i_text
     character(len=256)  :: filename, chaindir, gain_init_file, bp_init_file, MJySr_convention
     character(len=5000) :: line
     real(dp), allocatable, dimension(:) :: freq
@@ -107,21 +111,27 @@ contains
        else if (trim(bp(i)%id) == 'DIRBE') then
           call get_parameter(paramfile, 'BANDPASS'           // i_text, par_string=filename)
           threshold = 0.d0
+       else if (trim(bp(i)%id) == 'FIRAS') then
+          call get_parameter(paramfile, 'BANDPASS'           // i_text, par_string=filename)
+          threshold = -1.d10
        else 
           write(*,*) 'Error -- bandpass type not supported: ', trim(bp(i)%id)
-          write(*,*) '         Supported types are {delta, LFI, HFI, WMAP, DIRBE}'
+          write(*,*) '         Supported types are {delta, LFI, HFI, WMAP, DIRBE, FIRAS}'
           stop
        end if
 
        if (trim(filename) /= '') then
           call read_bandpass(filename, threshold, bp(i)%n, bp(i)%nu0, bp(i)%tau0)
           allocate(bp(i)%nu(bp(i)%n), bp(i)%tau(bp(i)%n))
+          bp(i)%nu_center = tsum(bp(i)%nu0, bp(i)%tau0*bp(i)%nu0) / tsum(bp(i)%nu0, bp(i)%tau0)
        else
           allocate(bp(i)%nu0(1),bp(i)%tau0(1), bp(i)%nu(1), bp(i)%tau(1))
           bp(i)%n       = 1
           bp(i)%nu0(1)  = bp(i)%nu_c
           bp(i)%tau0(1) = 1.d0
+          bp(i)%nu_center = bp(i)%nu_c
        end if
+
 
     end do
 
@@ -169,25 +179,30 @@ contains
     
     if (myid_chain == 0) then
        do i = 1, numband
-          if (bp(i)%gain_rms > 0.d0) &
-               & bp(i)%gain  = bp(i)%gain  + gain_init_rms  * rand_gauss(handle)
-          if (bp(i)%delta_rms > 0.d0) &
-               & bp(i)%delta = bp(i)%delta + bp_init_rms    * rand_gauss(handle)
+!          if (bp(i)%gain_rms > 0.d0) &
+!               & bp(i)%gain  = bp(i)%gain  + gain_init_rms  * rand_gauss(handle)
+!          if (bp(i)%delta_rms > 0.d0) &
+!               & bp(i)%delta = bp(i)%delta + bp_init_rms    * rand_gauss(handle)
+
+!          write(*,*) 'CONVERTING FROM LINEAR SHIFT TO POWER TILT MODEL'
+!          call convert_bp_model_shift_to_tilt(i)
        end do
     end if
+
     call mpi_bcast(bp%gain,  numband, MPI_DOUBLE_PRECISION, 0, comm_chain, ierr)
     call mpi_bcast(bp%delta, numband, MPI_DOUBLE_PRECISION, 0, comm_chain, ierr)
     call update_tau(bp%delta)
 
     if (myid == 0) then
        open(unit,file=trim(chaindir)//'/unit_conversions.dat',recl=1024)
-       write(unit,*) '# Band        Convention           Nu_c (GHz)      a2t [K_cmb/K_RJ]' // &
+       write(unit,*) '# Band        Convention           Nu_nom (GHz)      Nu_center (GHz)   a2t [K_cmb/K_RJ]' // &
             & '      t2f [MJy/K_cmb]   co2t [uK_cmb / (K km/s)]   a2sz [y_sz/K_RJ]'
        do i = 1, numband
           q = i2f(i)
-          write(unit,fmt='(a,a,a,a,f16.3,4e20.8)') bp(q)%label, ' ', bp(q)%id, ' ', &
-               & bp(q)%nu_c/1.d9, bp(q)%a2t, 1.d0/bp(q)%f2t*1e6, bp(q)%co2t, bp(q)%a2sz * 1.d6
-       end do
+          write(unit,fmt='(a,a,a,a,2f16.5,4e20.5)') bp(q)%label, ' ', bp(q)%id, ' ', &
+               & bp(q)%nu_c/1.d9, bp(q)%nu_center/1.d9, bp(q)%a2t, 1.d0/bp(q)%f2t*1e6, &
+               & bp(q)%co2t, bp(q)%a2sz * 1.d6
+      end do
        close(unit)
     end if
 
@@ -237,6 +252,14 @@ contains
           bp(j)%tau = bp(j)%tau0
           do i = 1, n
              bp(j)%nu(i) = bp(j)%nu0(i) * (1.d0 + 1d9*delta(j))
+          end do
+
+       else if (trim(bp_model) == 'power_tilt') then
+          
+          ! Linear tilt model
+          bp(j)%nu = bp(j)%nu0
+          do i = 1, n
+             bp(j)%tau(i) = bp(j)%tau0(i) * max(min((bp(j)%nu(i)/bp(j)%nu_center)**delta(j), 2.d0),0.5d0)
           end do
           
        else
@@ -305,7 +328,7 @@ contains
           bp(j)%tau = bp(j)%tau / tsum(bp(j)%nu, bp(j)%tau*bnu_prime)
           deallocate(bnu_prime, bnu_prime_RJ, a2t, sz)
 
-       else if (trim(bp(j)%id) == 'HFI_submm') then
+       else if (trim(bp(j)%id) == 'HFI_submm' .or. trim(bp(j)%id) == 'FIRAS') then
 
           allocate(bnu_prime(bp(j)%n), bnu_prime_RJ(bp(j)%n), a2t(bp(j)%n), sz(bp(j)%n))
           call compute_ant2thermo(bp(j)%nu, a2t)          
@@ -363,7 +386,7 @@ contains
        get_bp_avg_spectrum = tsum(bp(band)%nu, bp(band)%tau * f)
     else if (trim(bp(band)%id) == 'HFI_cmb' .or. trim(bp(band)%id) == 'PSM_LFI') then
        get_bp_avg_spectrum = tsum(bp(band)%nu, bp(band)%tau * 2.d0*k_B*bp(band)%nu**2/c**2 * f)
-    else if (trim(bp(band)%id) == 'HFI_submm') then
+    else if (trim(bp(band)%id) == 'HFI_submm' .or. trim(bp(band)%id) == 'FIRAS') then
        get_bp_avg_spectrum = tsum(bp(band)%nu, bp(band)%tau * 2.d0*k_B*bp(band)%nu**2/c**2 * f)
     else if (trim(bp(band)%id) == 'DIRBE') then
        ! Assume same as HFI_submm 
@@ -431,7 +454,7 @@ contains
             & tsum(bp(band)%nu, bp(band)%tau*bnu_prime_RJ)
        deallocate(bnu_prime_RJ)
 
-    else if (trim(bp(band)%id) == 'HFI_submm') then
+    else if (trim(bp(band)%id) == 'HFI_submm' .or. trim(bp(band)%id) == 'FIRAS') then
        
        get_bp_line_ant = tau * nu/c * compute_bnu_prime_RJ_single(nu) / &
             & (tsum(bp(band)%nu, bp(band)%tau * (bp(band)%nu_c/bp(band)%nu)**ind_iras) * 1.d-14)
@@ -705,6 +728,49 @@ contains
 
   end subroutine read_bandpass
 
+  subroutine convert_bp_model_shift_to_tilt(band)
+    implicit none
 
+    integer(i4b), intent(in) :: band
+
+    integer(i4b) :: i, ierr
+    real(dp)     :: delta(1)
+
+    ! Compute effective center frequency for additive shift model
+    bp(band)%tau = bp(band)%tau0
+    do i = 1, bp(band)%n
+       bp(band)%nu(i) = bp(band)%nu0(i) + 1d9*bp(band)%delta
+       if (bp(band)%nu(i) <= 0.d0) bp(band)%tau(i) = 0.d0
+    end do
+    nu_c_shift = tsum(bp(band)%nu, bp(band)%tau*bp(band)%nu) / tsum(bp(band)%nu, bp(i)%tau)
+    band_shift = band
+
+    ! Search for new tilt that gives the same effective nu_c
+    delta = 0.d0
+    call powell(delta, func_shift_to_tilt, ierr)
+    bp(band)%delta = delta(1)
+
+  end subroutine convert_bp_model_shift_to_tilt
+
+  function func_shift_to_tilt(p)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:), intent(in), optional :: p
+    real(dp)                                     :: func_shift_to_tilt
+
+    integer(i4b) :: i
+    real(dp)     :: nu_c
+
+    bp(band_shift)%nu = bp(band_shift)%nu0
+    do i = 1, bp(band_shift)%n
+       bp(band_shift)%tau(i) = bp(band_shift)%tau0(i) * (bp(band_shift)%nu(i)/bp(band_shift)%nu_center)**p(1)
+    end do
+    nu_c = tsum(bp(band_shift)%nu, bp(band_shift)%tau*bp(band_shift)%nu) / &
+         & tsum(bp(band_shift)%nu, bp(band_shift)%tau)
+    func_shift_to_tilt = 1d-18*(nu_c-nu_c_shift)**2
+    !write(*,*) 1d-9*sum(bp(band_shift)%tau * bp(band_shift)%nu) / sum(bp(band_shift)%tau), &
+    ! & d-9*nu_c_shift, func_shift_to_tilt
+
+  end function func_shift_to_tilt
 
 end module comm_bp_mod

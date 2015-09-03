@@ -16,7 +16,7 @@ contains
     character(len=*), intent(in) :: paramfile
 
     integer(i4b)       :: i, j
-    character(len=2)   :: i_text
+    character(len=3)   :: i_text
     character(len=256) :: paramtext
 
     ! Read noise amplitude priors

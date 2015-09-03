@@ -64,7 +64,8 @@ contains
     character(len=1)   :: i1
     character(len=2)   :: i2
     character(len=3)   :: i3
-    character(len=2)   :: map_text, temp_text
+    character(len=3)   :: map_text
+    character(len=2)   :: temp_text
     character(len=4)   :: nside_text, real_text
     character(len=128) :: maskfile, maskfile_calib, cmbfile, rmsfile, filename
     character(len=128) :: paramtext, maskfile_corr
@@ -382,7 +383,7 @@ contains
     integer(i4b),     intent(in) :: realization_id
 
     integer(i4b)       :: ierr, i, j, k
-    character(len=2)   :: map_text
+    character(len=3)   :: map_text
     character(len=4)   :: realization_text
     character(len=128) :: cmbfile, paramtext
     real(dp)           :: my_reg_scale, my_reg_noise
@@ -748,6 +749,7 @@ contains
           end if
           deallocate(outmap, outmap2)
        end if
+       call mpi_barrier(mpi_comm_world, ierr)
        
     end do
 
