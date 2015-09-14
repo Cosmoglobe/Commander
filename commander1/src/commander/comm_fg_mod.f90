@@ -655,6 +655,7 @@ contains
     real(dp)     :: lnL, f, lnL_jeffreys, lnL_gauss, par(10)
     logical(lgt) :: jeffreys
     real(dp), allocatable, dimension(:,:) :: df
+    real(dp), allocatable, dimension(:,:) :: f_precomp, df_precomp
 
     if (x < fg_components(comp_reg)%priors(p_local_reg,1) .or. &
          & x > fg_components(comp_reg)%priors(p_local_reg,2)) then
@@ -665,36 +666,57 @@ contains
     jeffreys = fg_components(comp_reg)%apply_jeffreys_prior
     n        = fg_components(comp_reg)%npar
 
-    ! Compute chi-square term
-    allocate(df(npix_reg,numband))
-    lnL      = 0.d0
-    do i = 1, npix_reg
-       par(1:n) = fg_par_reg(i)%comp(comp_reg)%p(s_reg(i),1:n)
-       par(p_local_reg) = max(min(par(p_local_reg) + w_reg(i) * (x-par_old), P_uni_reg(2)), &
-            & P_uni_reg(1))
-!       par(p_local_reg) = max(min(x, P_uni_reg(2)), P_uni_reg(1))
+    if (fg_components(comp_reg)%fwhm_p(p_local_reg) == 0.d0 .and. npix_reg > 1) then
+       allocate(f_precomp(numband,nmaps), df_precomp(numband,nmaps))
+       par(1:n) = fg_par_reg(1)%comp(comp_reg)%p(s_reg(1),1:n)
+       par(p_local_reg) = max(min(par(p_local_reg) + w_reg(1) * (x-par_old), P_uni_reg(2)), P_uni_reg(1))
        do j = 1, numband
-          if (.not. inc_band(j)) cycle
-          f = d_reg(i,j) - amp_reg(i) * get_effective_fg_spectrum(fg_components(comp_reg), &
-               & j, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2))
-          lnL = lnL - 0.5d0 * f * invN_reg(i,j) * f
-          if (jeffreys) then
-             df(i,j) = -amp_reg(i) * get_effective_deriv_fg_spectrum(fg_components(comp_reg), &
-                  & j, p_local_reg, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)) * w_reg(i)
-          end if
-          !write(*,*) 'a', real(f,sp), real(amp_reg(i),sp), real(par(1:n),sp)
-!!$          if (pix_reg(i,1) == 22946) then
-!!$             write(*,fmt='(i6,7e16.8)') j, x, par(p_local_reg), d_reg(i,j), amp_reg(i), &
-!!$                  & get_effective_fg_spectrum(fg_components(comp_reg), &
-!!$                  & j, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)), w_reg(i), lnL
-!!$          end if
+          do i = 1, nmaps
+             f_precomp(j,i) = get_effective_fg_spectrum(fg_components(comp_reg), &
+                  & j, par(1:n), pixel=pix_reg(1,1), pol=i)
+             if (jeffreys) then
+                df_precomp(j,i) = get_effective_deriv_fg_spectrum(fg_components(comp_reg), &
+                     & j, p_local_reg, par(1:n), pixel=pix_reg(1,1), pol=i)
+             end if
+          end do
        end do
-    end do
-!!$    if (x == 0.683d0) then
-!!$       write(*,*) 'lnL(0.683) = ', lnL
-!!$    end if
 
+       ! Compute chi-square term
+       allocate(df(npix_reg,numband))
+       lnL      = 0.d0
+       do i = 1, npix_reg
+          do j = 1, numband
+             if (.not. inc_band(j)) cycle
+             f = d_reg(i,j) - amp_reg(i) * f_precomp(j,pix_reg(i,2))
+             lnL = lnL - 0.5d0 * f * invN_reg(i,j) * f
+             if (jeffreys) then
+                df(i,j) = -amp_reg(i) * df_precomp(j,pix_reg(i,2)) * w_reg(i)
+             end if
+          end do
+       end do
+       deallocate(f_precomp, df_precomp)
 
+    else
+       ! Compute chi-square term
+       allocate(df(npix_reg,numband))
+       lnL      = 0.d0
+       do i = 1, npix_reg
+          par(1:n) = fg_par_reg(i)%comp(comp_reg)%p(s_reg(i),1:n)
+          par(p_local_reg) = max(min(par(p_local_reg) + w_reg(i) * (x-par_old), P_uni_reg(2)), &
+               & P_uni_reg(1))
+          do j = 1, numband
+             if (.not. inc_band(j)) cycle
+             f = d_reg(i,j) - amp_reg(i) * get_effective_fg_spectrum(fg_components(comp_reg), &
+                  & j, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2))
+             lnL = lnL - 0.5d0 * f * invN_reg(i,j) * f
+             if (jeffreys) then
+                df(i,j) = -amp_reg(i) * get_effective_deriv_fg_spectrum(fg_components(comp_reg), &
+                     & j, p_local_reg, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)) * w_reg(i)
+             end if
+          end do
+       end do
+    end if
+ 
     ! Compute Jeffreys prior
     if (.false. .and. jeffreys) then
        lnL_jeffreys = log(sqrt(sum(df * invN_reg * df)))
