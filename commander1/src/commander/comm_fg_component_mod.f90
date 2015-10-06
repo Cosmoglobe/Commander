@@ -40,7 +40,7 @@ module comm_fg_component_mod
   
   type fg_meta_data
      character(len=24)                             :: type, init_mode, label, amp_unit
-     character(len=12), dimension(10)              :: indlabel, ind_unit, ttype
+     character(len=12), dimension(100)             :: indlabel, ind_unit, ttype
      integer(i4b)                                  :: npar, ref_band, fg_id
      logical(lgt)                                  :: apply_jeffreys_prior
      logical(lgt)                                  :: output_freq_comp_maps
@@ -391,7 +391,7 @@ contains
           paramname = 'CURVATURE_PRIOR_GAUSSIAN_STDDEV' // i_text
           call get_parameter(paramfile, paramname, par_dp=fg_components(i)%gauss_prior(2,2))
 
-       else if (trim(fg_components(i)%type) == 'power_law_break') then
+       else if (trim(fg_components(i)%type) == 'power_law_break' .or. trim(fg_components(i)%type) == 'zodi') then
 
           paramname = 'APPLY_JEFFREYS_PRIOR' // i_text
           call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%apply_jeffreys_prior)       
@@ -1140,7 +1140,7 @@ contains
     else if (trim(fg_comp%type) == 'power_law') then
        get_ideal_fg_spectrum = compute_power_law_spectrum(nu, fg_comp%nu_ref, &
             & p(1), p(2), fg_comp%p_rms)
-    else if (trim(fg_comp%type) == 'power_law_break') then
+    else if (trim(fg_comp%type) == 'power_law_break' .or. trim(fg_comp%type) == 'zodi') then
        get_ideal_fg_spectrum = compute_power_law_break_spectrum(nu, fg_comp%nu_ref, &
             & p(2), p(1), fg_comp%nu_break, fg_comp%p_rms) 
     else if (trim(fg_comp%type) == 'freefree_EM') then
@@ -1204,20 +1204,36 @@ contains
    
     real(dp) :: S, nu_b
 
-    nu_b = 1.d9 * nu_break
-
-    if (nu > nu_b) then
-       S = (nu/nu_b)**beta
+    if (nu_break > 0.d0) then
+       nu_b = 1.d9 * nu_break
+       
+       if (nu > nu_b) then
+          S = (nu/nu_b)**beta
+       else
+          S = (nu/nu_b)**(beta+dbeta)
+       end if
+       
+       if (nu_ref > nu_b) then
+          S = S * (nu_b/nu_ref)**beta
+       else
+          S = S * (nu_b/nu_ref)**(beta+dbeta)
+       end if
     else
-       S = (nu/nu_b)**(beta+dbeta)
+       nu_b = -1.d9 * nu_break
+       
+       if (nu < nu_b) then
+          S = (nu/nu_b)**beta
+       else
+          S = (nu/nu_b)**(beta+dbeta)
+       end if
+       
+       if (nu_ref < nu_b) then
+          S = S * (nu_b/nu_ref)**beta
+       else
+          S = S * (nu_b/nu_ref)**(beta+dbeta)
+       end if
     end if
-
-    if (nu_ref > nu_b) then
-       S = S * (nu_b/nu_ref)**beta
-    else
-       S = S * (nu_b/nu_ref)**(beta+dbeta)
-    end if
-
+       
     compute_power_law_break_spectrum = S
 
   end function compute_power_law_break_spectrum
@@ -1291,6 +1307,22 @@ contains
     logical(lgt),               intent(in), optional :: deriv
 
     integer(i4b) :: i
+
+    compute_CO_multiline_spectrum = 0.d0
+    if (band == co_band(1)) then
+       compute_CO_multiline_spectrum = 1.d0
+    else
+       do i = 1, size(ratios)
+          if (band == co_band(i+1)) then
+             compute_CO_multiline_spectrum = ratios(i) 
+             if (present(deriv)) then
+                compute_CO_multiline_spectrum = 1.d0 
+             end if
+          end if
+       end do
+    end if
+
+    return
 
     compute_CO_multiline_spectrum = 0.d0
     if (band == co_band(1)) then
@@ -1430,16 +1462,16 @@ contains
 
 !!$    alpha = alpha_flat
 !!$    gamma  = gamma_flat
-!!$    x      = h / (k_B*T_d)
+    x      = h / (k_B*T_d)
 !!$    if (nu >= nu_flat) then
-!!$       compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)
+       compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)
 !!$    else
 !!$       compute_one_comp_dust_spectrum = &
 !!$            & ((exp(x*nu_ref)-1.d0) / (exp(x*nu_flat)-1.d0) * (nu_flat/nu_ref)**(beta+1.d0)) * &
 !!$            & ((exp(x*nu_flat)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_flat)**(beta+1.d0+alpha*T_d+gamma*T_d**2))
 !!$    end if
 !!$
-!!$    return
+    return
 
     n_beta = 1; beta_min = beta; beta_max = beta; dbeta = 0.d0; beta_rms = 1.d0
     n_T    = 1; T_min    = T_d;  T_max    = T_d;  dT    = 0.d0; T_rms    = 1.d0 
@@ -1667,7 +1699,7 @@ contains
                          s(j) = compute_power_law_spectrum(nu, fg_components(i)%nu_ref, &
                               & fg_components(i)%par(k,1), fg_components(i)%par(l,2), &
                               & fg_components(i)%p_rms)
-                      else if (trim(fg_components(i)%type) == 'power_law_break') then
+                      else if (trim(fg_components(i)%type) == 'power_law_break' .or. trim(fg_components(i)%type) == 'zodi') then
                          s(j) = compute_power_law_break_spectrum(nu, fg_components(i)%nu_ref, &
                               & fg_components(i)%par(l,2), fg_components(i)%par(k,1), &
                               & fg_components(i)%nu_break, fg_components(i)%p_rms) 

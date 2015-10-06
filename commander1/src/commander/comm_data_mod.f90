@@ -404,7 +404,7 @@ contains
        call rand_init(noise_handle, map_id)
        do j = 1, nmaps
           do i = 0, npix-1
-             map_in(i,j) = map_in(i,j) + reg_noise * rand_gauss(noise_handle)
+             !map_in(i,j) = map_in(i,j) + reg_noise * rand_gauss(noise_handle)
           end do
        end do
     end if
@@ -430,7 +430,7 @@ contains
              if (my_reg_noise /= 0.d0) then
                 do k = 1, nmaps
                    do j = 0, npix-1
-                      map_in(j,k) = map_in(j,k) + my_reg_noise * rand_gauss(noise_handle)
+                      !map_in(j,k) = map_in(j,k) + my_reg_noise * rand_gauss(noise_handle)
                    end do
                 end do
              end if
@@ -601,7 +601,10 @@ contains
     if (exclude_pos_fg_amp) then
        allocate(a(0:npix-1,nmaps))
        do i = 1, num_fg_comp
-          if (fg_components(i)%enforce_positive_amplitude) then
+          if (fg_components(i)%enforce_positive_amplitude .or. &
+               & trim(fg_components(i)%type) == 'freefree_EM' .or. &
+               & trim(fg_components(i)%type) == 'CIB' .or. &
+               & trim(fg_components(i)%type) == 'zodi') then
              if (present(s)) a = s%fg_amp(:,:,i)
              call mpi_bcast(a, size(a), MPI_DOUBLE_PRECISION, root, comm_chain, ierr)
              residual = residual - fg_pix_spec_response(:,:,i) * a(pixels,:)

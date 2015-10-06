@@ -44,7 +44,7 @@ module comm_fg_mod
   real(dp),        allocatable, dimension(:),   private :: p_default
 
   integer(i4b), private :: pix_init, s_init
-  real(dp),     allocatable, dimension(:), private :: CIB_amp
+  real(dp),     allocatable, dimension(:), private :: CIB_amp, zodi_amp, zodi_map
 
 contains
 
@@ -469,7 +469,9 @@ contains
              else
                 ! Draw an actual sample
                 par = sample_InvSamp(handle, x_init, lnL_specind_ARS, fg_components(comp)%priors(p_local,1:2), &
-                     & status=status)
+                     & status=status, K_overrelax=20, x_old=par_old)
+                !par = sample_InvSamp(handle, x_init, lnL_specind_ARS, fg_components(comp)%priors(p_local,1:2), &
+                !     & status=status)
              end if
                 
              if (status /= 0) then
@@ -652,7 +654,7 @@ contains
     real(dp)             :: lnL_specind_ARS
 
     integer(i4b) :: i, j, n
-    real(dp)     :: lnL, f, lnL_jeffreys, lnL_gauss, par(10)
+    real(dp)     :: lnL, f, lnL_jeffreys, lnL_gauss, par(100)
     logical(lgt) :: jeffreys
     real(dp), allocatable, dimension(:,:) :: df
     real(dp), allocatable, dimension(:,:) :: f_precomp, df_precomp
@@ -751,16 +753,17 @@ contains
     integer(i4b), intent(in) :: id, band
     real(dp)                 :: sample_CO_line
 
-    integer(i4b) :: i, ref_band
-    real(dp)     :: A, b, mu, sigma, par, scale, sigma_p
+    integer(i4b) :: i, ref_band, n
+    real(dp)     :: A, b, mu, sigma, par, scale, sigma_p, t1, t2
 
     ref_band = fg_components(id)%co_band(1)
 
     ! Compute likelihood term
     A     = 0.d0
     B     = 0.d0
-    scale = (bp(band)%co2t/bp(band)%a2t) / (bp(ref_band)%co2t/bp(ref_band)%a2t) * &
-         &  bp(band)%gain * ant2data(band)
+    !scale = (bp(band)%co2t/bp(band)%a2t) / (bp(ref_band)%co2t/bp(ref_band)%a2t) * &
+    !     &  bp(band)%gain * ant2data(band)
+    scale = bp(band)%gain * ant2data(band)
     do i = 1, npix_reg
        A = A + scale*amp_reg(i) * invN_reg(i,band) * scale*amp_reg(i)
        b = b + scale*amp_reg(i) * invN_reg(i,band) * d_reg(i,band)
@@ -794,7 +797,10 @@ contains
           par = mu
        end if
     else
+       n = 0
+       call wall_time(t1)
        do while (par < P_uni_reg(1) .or. par > P_uni_reg(2))
+          n = n+1
           if (mu < P_uni_reg(1)) then
              par = rand_trunc_gauss(handle, mu, P_uni_reg(1), sigma)
           else if (mu > P_uni_reg(2)) then
@@ -803,6 +809,8 @@ contains
              par = mu + sigma * rand_gauss(handle)
           end if
        end do
+       call wall_time(t2)
+       write(*,*) 'n_attempt = ', n, ', wall time = ', t2-t1
     end if
     sample_CO_line = par
 
@@ -815,7 +823,7 @@ contains
     real(dp), dimension(0:,1:,1:),    intent(in),    optional :: inv_N_in
     real(dp), dimension(0:,1:,1:),    intent(inout), optional :: index_map, fg_amp
 
-    integer(i4b) :: i, j, k, l, p, q, fac, n, ierr, CO_ind, npar, nsamp, accept, counter
+    integer(i4b) :: i, j, k, l, p, q, fac, n, ierr, CO_ind, npar, nsamp, accept, counter, zodi_comp
     real(dp)     :: x_min, x_max, y_min, y_max, chisq, s, lnL, lnL_prop, chisq_prop, chisq0, chisq1
     logical(lgt) :: converged 
     character(len=4) :: chain_text
@@ -848,10 +856,16 @@ contains
     call mpi_bcast(ind_map,     size(ind_map),     MPI_DOUBLE_PRECISION, root, comm_chain, ierr)
 
     namp = 0
-    allocate(CIB_amp(num_fg_comp))
+    allocate(CIB_amp(num_fg_comp), zodi_amp(num_fg_comp), zodi_map(0:npix-1))
+    zodi_comp = -1
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB') namp = namp+1
+       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB' .and. &
+            & trim(fg_components(i)%type) /= 'zodi') namp = namp+1
        if (trim(fg_components(i)%type) == 'CIB') CIB_amp(i) = my_fg_amp(0,1,i)
+       if (trim(fg_components(i)%type) == 'zodi') then
+          zodi_map  = my_fg_amp(:,1,i)
+          zodi_comp = i
+       end if
     end do
     npar = namp
     do i = 1, num_fg_comp
@@ -867,6 +881,8 @@ contains
 
     chisq_tot = 0.d0
     do p = 0, npix-1
+
+       if (zodi_comp > -1) zodi_amp(zodi_comp) = zodi_map(p)
 
 !       if (p /= 24000) cycle
 
@@ -1080,7 +1096,7 @@ contains
 !!$    end if
 
     deallocate(A, x, x_prop, b, M, all_inv_N, all_residuals, my_residual, my_inv_N, scale_reg)
-    deallocate(my_fg_amp, ind_map, p_default, CIB_amp)
+    deallocate(my_fg_amp, ind_map, p_default, CIB_amp, zodi_amp, zodi_map)
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
@@ -1120,7 +1136,8 @@ contains
 
     k = 1
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB') then
+       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB' .and. &
+            & trim(fg_components(i)%type) /= 'zodi') then
           res(k) = p(i)
           k      = k+1
        end if
@@ -1164,13 +1181,16 @@ contains
 
     k = 1
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB') then
+       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. trim(fg_components(i)%type) /= 'CIB' .and. &
+            & trim(fg_components(i)%type) /= 'zodi') then
           res(i) = x(k)
           k      = k+1
        else if (trim(fg_components(i)%type) == 'freefree_EM') then
           res(i) = 1.d0
        else if (trim(fg_components(i)%type) == 'CIB') then
           res(i) = CIB_amp(i)
+       else if (trim(fg_components(i)%type) == 'zodi') then
+          res(i) = zodi_amp(i)
        end if
     end do
 
@@ -1275,6 +1295,7 @@ contains
     integer(i4b) :: counter
     real(dp)     :: lnL, lnL0, prior, accept, mu0(1,1), sigma0(1,1), xi, corr, chisq, chisq0
     logical(lgt) :: ok, output, firstcall, burnin_
+    integer(i4b), parameter :: K_overrelax=20
     character(len=2) :: i_text
     character(len=4) :: chain_text
     character(len=256) :: cdir
@@ -1284,6 +1305,7 @@ contains
     real(dp), allocatable, dimension(:,:,:)   :: fg_param_map
     real(dp), allocatable, dimension(:,:,:)   :: residuals, my_fg_amp, buffer, fg_amp0
     real(dp), allocatable, dimension(:,:,:)   :: inv_N
+    real(dp),              dimension(0:K_overrelax) :: x_overrelax
     integer(i4b), allocatable, dimension(:)   :: comp, ind
     type(fg_params)                           :: fg_par
     real(dp), allocatable, dimension(:,:,:), save   :: prop
@@ -1386,7 +1408,8 @@ contains
              if (corrlen(i,1) == 0) then
                 corrlen(i,:) = 1
                 do f = 1, num_fg_comp
-                   if (trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB') corrlen(i,f) = -1
+                   if (trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB' .or. &
+                        & trim(fg_components(f)%type) == 'zodi') corrlen(i,f) = -1
                    if (.not. enforce_zero_cl .and. trim(fg_components(f)%type) == 'cmb' &
                         & .and. mask_lowres(i,1) > 0.5d0) corrlen(i,f) = -1
                    if (all(M(:,f) == 0.d0)) corrlen(i,f) = -1
@@ -1403,7 +1426,8 @@ contains
                    do c = 1, nstep
                       do f = 1, num_fg_comp
                          !if (.not. fg_components(f)%enforce_positive_amplitude) cycle
-                         if (trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB') cycle
+                         if (trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB' .or. &
+                              & trim(fg_components(f)%type) == 'zodi') cycle
                          if (.not. enforce_zero_cl .and. trim(fg_components(f)%type) == 'cmb' &
                               & .and. mask_lowres(i,1) > 0.5d0) cycle
                          if (all(M(:,f) == 0.d0)) then
@@ -1449,7 +1473,8 @@ contains
                    do f = 1, num_fg_comp
                       if ((.not. enforce_zero_cl .and. trim(fg_components(f)%type) == 'cmb' .and. &
                            & mask_lowres(i,1) > 0.5d0) .or. all(M(:,f) == 0.d0) .or. &
-                           & trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB') then
+                           & trim(fg_components(f)%type) == 'freefree_EM' .or. trim(fg_components(f)%type) == 'CIB' .or. &
+                           & trim(fg_components(f)%type) == 'zodi') then
                          !if (.not. fg_components(f)%enforce_positive_amplitude .or. all(M(:,f) == 0.d0)) then
                          !if (all(M(:,f) == 0.d0)) then
                          corrlen(i,f) = -1
@@ -1548,22 +1573,32 @@ contains
                       xi = mu0(1,1)
                    end if
                 else
-                   if (fg_components(j)%enforce_positive_amplitude) then
-                      if (mu0(1,1) < 0.d0) then
-                         xi = rand_trunc_gauss(handle, mu0(1,1), 0.d0, sigma0(1,1))
+                   x_overrelax(0) = p(j,1) 
+                   do k = 1, K_overrelax
+                      if (fg_components(j)%enforce_positive_amplitude) then
+                         if (mu0(1,1) < 0.d0) then
+                            xi = rand_trunc_gauss(handle, mu0(1,1), 0.d0, sigma0(1,1))
+                         else
+                            xi = -1d30
+                            nattempt = 0
+                            do while (xi < 0.d0)
+                               xi = mu0(1,1) + sigma0(1,1) * rand_gauss(handle)
+                               nattempt = nattempt + 1
+                               if (mod(nattempt,100) == 0) write(*,*) 'loop', real(mu0(1,1),sp), &
+                                    & real(sigma0(1,1),sp), real(xi,sp)
+                            end do
+                         end if
                       else
-                         xi = -1d30
-                         nattempt = 0
-                         do while (xi < 0.d0)
-                            xi = mu0(1,1) + sigma0(1,1) * rand_gauss(handle)
-                            nattempt = nattempt + 1
-                            if (mod(nattempt,100) == 0) write(*,*) 'loop', real(mu0(1,1),sp), &
-                                 & real(sigma0(1,1),sp), real(xi,sp)
-                         end do
+                         xi = mu0(1,1) + sigma0(1,1) * rand_gauss(handle)
                       end if
-                   else
-                      xi = mu0(1,1) + sigma0(1,1) * rand_gauss(handle)
-                   end if
+                      x_overrelax(k) = xi
+                   end do
+                   call QuickSort_real(x_overrelax)
+                   k = 0
+                   do while (x_overrelax(k) /= p(j,1))
+                      k = k+1
+                   end do
+                   xi = x_overrelax(K_overrelax-k)
                 end if
                 p(j,1) = xi
              end do
@@ -1571,10 +1606,10 @@ contains
 
           my_fg_amp(i,1,:) = p(:,1)
 
-          chisq = 0.d0
-          do j = 1, numband
-             chisq = chisq + (residuals(i,1,j)-sum(M(j,:)*p(:,1)))**2 * inv_N(i,1,j)
-          end do
+!!$          chisq = 0.d0
+!!$          do j = 1, numband
+!!$             chisq = chisq + (residuals(i,1,j)-sum(M(j,:)*p(:,1)))**2 * inv_N(i,1,j)
+!!$          end do
 
 !          if (myid_chain == root) write(*,*) i, real(chisq0,sp), real(chisq,sp), ' AA'
 !!$          if (chisq-chisq0 > 0.d0 .and. myid_chain == root) then
@@ -1681,7 +1716,7 @@ contains
     if (myid_chain == root) then
        ! Compute residual map
        do c = 1, num_fg_comp
-          if (trim(fg_components(c)%type) /= 'CIB') cycle
+          if (trim(fg_components(c)%type) /= 'CIB' .and. trim(fg_components(c)%type) /= 'zodi') cycle
           A = 0.d0
           b = 0.d0
           do i = 1, numband
@@ -1697,12 +1732,17 @@ contains
                    r = r - fg_amp(j,1,k)*get_effective_fg_spectrum(fg_components(k), i, fg_par%comp(k)%p(1,:), pixel=j, pol=1)
                 end do
                 call deallocate_fg_params(fg_par)
-                A = A + f * inv_N(j,1,i) * f
-                b = b + f * inv_N(j,1,i) * r
+                A = A + fg_amp(j,1,c) * f * inv_N(j,1,i) * f * fg_amp(j,1,c)
+                b = b + fg_amp(j,1,c) * f * inv_N(j,1,i) * r
              end do
           end do
-          fg_amp(:,1,c) = b/A
+          if (trim(operation) == 'sample') then
+             fg_amp(:,1,c) = (b/A + rand_gauss(handle)/sqrt(A)) * fg_amp(:,1,c)
+          else
+             fg_amp(:,1,c) = b/A * fg_amp(:,1,c)
+          end if
           if (fg_components(c)%enforce_positive_amplitude) fg_amp(:,1,c) = max(fg_amp(:,1,c), 0.d0)
+
        end do
     end if
 

@@ -2,6 +2,7 @@ module InvSamp_mod
   use healpix_types
   use rngmod
   use spline_1D_mod
+  use sort_utils
   implicit none
 
   integer(i4b), parameter          :: INVSAMP_MAX_NUM_EVALS = 1000
@@ -13,7 +14,7 @@ module InvSamp_mod
 contains
 
   function sample_InvSamp(handle, x_in, lnL, prior, status, n_eval, lnL_in, optimize, use_precomputed_grid, &
-       & tolerance_)
+       & tolerance_, K_overrelax, x_old)
     implicit none
 
     type(planck_rng)                               :: handle
@@ -24,6 +25,8 @@ contains
     logical(lgt),            intent(in),  optional :: optimize, use_precomputed_grid
     real(dp), dimension(1:), intent(in),  optional :: lnL_in
     real(dp),                intent(in),  optional :: tolerance_
+    integer(i4b),            intent(in),  optional :: K_overrelax
+    real(dp),                intent(in),  optional :: x_old
     interface
        function lnL(x)
          use healpix_types
@@ -33,17 +36,19 @@ contains
        end function lnL
     end interface
 
-    integer(i4b) :: i, j, k, n, m, iter, stat, ierr, x_peak(1), a, b
+    integer(i4b) :: i, j, k, n, m, iter, stat, ierr, x_peak(1), a, b, K_overrelax_
     logical(lgt) :: ok, optimize_, use_precomputed_grid_
     real(dp)     :: prior_(2), x_new, y_new, y_new_spline, lnL_peak, epsilon
     real(dp)     :: dx, x_min, x_max, eta, tol
     real(dp), dimension(INVSAMP_MAX_NUM_EVALS) :: x_n, x_spline
     real(dp), dimension(INVSAMP_MAX_NUM_EVALS) :: S_n, S_n2, S_spline
     real(dp), dimension(N_SPLINE)      :: x, P, F
+    real(dp), allocatable, dimension(:) :: x_overrelax
 
     use_precomputed_grid_ = .false.
     if (present(use_precomputed_grid)) use_precomputed_grid_ = use_precomputed_grid
     tol = TOLERANCE; if (present(tolerance_)) tol = tolerance_
+    K_overrelax_ = 1; if (present(K_overrelax)) K_overrelax_ = K_overrelax
     if (use_precomputed_grid_) then
        n   = size(x_in)
        x_n = x_in
@@ -201,23 +206,39 @@ contains
              close(61) 
              !stop
           end if
-          
-          ! Draw a uniform variate between 0 and 1
-          eta = rand_uni(handle)
-          do while (eta < F(1) .or. eta > F(N_SPLINE))
+
+          allocate(x_overrelax(0:K_overrelax_))
+          do j = 1, K_overrelax_
+             ! Draw a uniform variate between 0 and 1
              eta = rand_uni(handle)
+             do while (eta < F(1) .or. eta > F(N_SPLINE))
+                eta = rand_uni(handle)
+             end do
+             
+             ! Solve F(x) ~ F(x_1) + (x-x_1) * (F(x_2)-F(x_1))/(x_2 - x_1) = eta
+             i = 2
+             do while (eta > F(i) .and. i < N_SPLINE)
+                i = i+1
+             end do
+             if (i == N_SPLINE) then
+                x_overrelax(j) = x(N_SPLINE)
+             else
+                x_overrelax(j) = x(i-1) + (eta-F(i-1)) * (x(i)-x(i-1))/(F(i)-F(i-1))
+             end if
           end do
-          
-          ! Solve F(x) ~ F(x_1) + (x-x_1) * (F(x_2)-F(x_1))/(x_2 - x_1) = eta
-          i = 2
-          do while (eta > F(i) .and. i < N_SPLINE)
-             i = i+1
-          end do
-          if (i == N_SPLINE) then
-             sample_InvSamp = x(N_SPLINE)
+
+          if (K_overrelax_ == 1) then
+             sample_InvSamp = x_overrelax(1)
           else
-             sample_InvSamp = x(i-1) + (eta-F(i-1)) * (x(i)-x(i-1))/(F(i)-F(i-1))
+             x_overrelax(0) = x_old
+             call QuickSort_real(x_overrelax)
+             j = 0
+             do while (x_overrelax(j) /= x_old)
+                j = j+1
+             end do
+             sample_invSamp = x_overrelax(K_overrelax_-j)
           end if
+          deallocate(x_overrelax)
           
        end if
 

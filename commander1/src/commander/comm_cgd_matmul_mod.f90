@@ -109,7 +109,7 @@ contains
        map_sum = 0.d0
     end if
 
-    if (.not. trim(operation) == 'optimize' .and. add_N_omega) then
+    if (.false. .and. .not. trim(operation) == 'optimize' .and. add_N_omega) then
        ! Draw the random field in pixel space
        do i = 1, nmaps
           do j = 0, map_size-1
@@ -142,7 +142,10 @@ contains
 
     ! The pixel foreground part
     do i = 1, num_fg_signal
-       if (fg_components(i)%enforce_positive_amplitude) cycle
+       if (fg_components(i)%enforce_positive_amplitude)  cycle
+       if (trim(fg_components(i)%type) == 'freefree_EM') cycle
+       if (trim(fg_components(i)%type) == 'CIB')         cycle
+       if (trim(fg_components(i)%type) == 'zodi')        cycle
        if (.not. enforce_zero_cl .and. trim(fg_components(i)%type) == 'cmb') cycle
        v1%fg_amp(pixels,:,i) = fg_pix_spec_response(:,:,i) * map_sum
     end do
@@ -254,7 +257,10 @@ contains
 
     ! Add pixel foreground term
     do l = 1, num_fg_signal
-       if (fg_components(l)%enforce_positive_amplitude) cycle
+       if (fg_components(l)%enforce_positive_amplitude)  cycle
+       if (trim(fg_components(l)%type) == 'freefree_EM') cycle
+       if (trim(fg_components(l)%type) == 'CIB')         cycle
+       if (trim(fg_components(l)%type) == 'zodi')        cycle
        if (.not. enforce_zero_cl .and. trim(fg_components(l)%type) == 'cmb') cycle
        map_sum = map_sum + fg_pix_spec_response(:,:,l) * v1%fg_amp(pixels,:,l)
     end do
@@ -299,7 +305,10 @@ contains
 
     ! The pixel foreground part
     do i = 1, num_fg_signal
-       if (fg_components(i)%enforce_positive_amplitude) cycle
+       if (fg_components(i)%enforce_positive_amplitude)  cycle
+       if (trim(fg_components(i)%type) == 'freefree_EM') cycle
+       if (trim(fg_components(i)%type) == 'CIB')         cycle
+       if (trim(fg_components(i)%type) == 'zodi')        cycle
        if (.not. enforce_zero_cl .and. trim(fg_components(i)%type) == 'cmb') cycle
        v2%fg_amp(pixels,:,i) = v2%fg_amp(pixels,:,i) + fg_pix_spec_response(:,:,i) * map_sum
     end do

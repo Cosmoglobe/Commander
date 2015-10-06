@@ -45,13 +45,14 @@ export MPF77 := mpif90
 
 # MPI C++ compiler.  Default is "mpicxx".
 export MPCC := mpicxx
+export MPCXX := mpicxx
 
 
 # =========== Compiler Optimizations =============
 
 # Fortran 90 compiler flags
-export F90FLAGS := -O3 -vec_report0 -assume byterecl -heap-arrays 16384 -traceback -openmp 
-#export F90FLAGS := -g -C -traceback -vec_report0 -assume byterecl -heap-arrays 16384 -traceback
+export F90FLAGS := -O3 -assume byterecl -heap-arrays 16384 -traceback -openmp 
+#export F90FLAGS := -g -C -traceback -assume byterecl -heap-arrays 16384 -traceback
 #export F90FLAGS := -vec_report0 -check bounds -check format -check pointers -check uninit -check output_conversion
 
 # Fortran 77 compiler flags
@@ -66,7 +67,7 @@ export LDFLAGS := -lm -openmp -cxxlib
 
 # ============== Language Mixing =================
 
-export MPFCLIBS := -lmpi_f90 -lmpi_f77 -openmp
+export MPFCLIBS := -openmp
 
 
 # ============== Fortran Features ================
@@ -93,7 +94,7 @@ export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH) -L$(MKLPATH)  -lmkl_in
 # ================ Healpix linking ================
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/sigurdkn/local/include
 #export HEALPIX_LINK := -L/usit/titan/u1/sigurdkn/local/lib -lhealpix
-export HEALPIX_INCLUDE := -I/usit/abel/u1/hke/local/src/Healpix_2.20a/include
-export HEALPIX_LINK := -L/usit/abel/u1/hke/local/src/Healpix_2.20a/lib -lhealpix
+export HEALPIX_INCLUDE := -I/usit/abel/u1/hke/local/src/Healpix_3.20/include
+export HEALPIX_LINK := -L/usit/abel/u1/hke/local/src/Healpix_3.20/lib -lhealpix
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod
 #export HEALPIX_LINK := -L/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod -lhealpix

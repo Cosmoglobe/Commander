@@ -570,7 +570,7 @@ contains
 
 !!$       write(*,*) 'a'
 !!$       call output_sample(paramfile, 2, 0, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
-!!$       stop
+       !stop
 
        ! ********************************************
        !             Sample amplitudes
@@ -600,7 +600,10 @@ contains
           call sample_signal_component(iter, precond_type, s_i, stat)
           do j = 1, num_fg_comp
              where (mask_lowres < 0.5d0) s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
-             if (fg_components(j)%enforce_positive_amplitude) s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
+             if (fg_components(j)%enforce_positive_amplitude)  s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
+             if (trim(fg_components(j)%type) == 'CIB')         s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
+             if (trim(fg_components(j)%type) == 'zodi')        s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
+             if (trim(fg_components(j)%type) == 'freefree_EM') s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
           end do
           where (fix_temp)
              s_i%temp_amp = s_prev%temp_amp
@@ -757,7 +760,7 @@ contains
        end if
 
 !!$       write(*,*) 'i'
-!!$       call output_sample(paramfile, 2, 7, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
+!!$       call output_sample(paramfile, 2, 8, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
 
        ! Various sanity checks
        do k = 1, num_fg_par
@@ -901,7 +904,9 @@ contains
        write(unit,fmt='(a)',advance='no') '#    Sample    '
        do i = 1, num_fg_comp
           do j = 1, fg_components(i)%npar
-             write(unit,fmt='(a,a)',advance='no') '   ', fg_components(i)%indlabel(j)
+             if (fg_components(i)%gauss_prior(j,2) /= 0.d0) then
+                write(unit,fmt='(a,a)',advance='no') '   ', fg_components(i)%indlabel(j)
+             end if
           end do
        end do
        write(unit,fmt='(a)',advance='no') 'Chi_full   Chi_hilat   nu_mask'
@@ -1066,8 +1071,10 @@ contains
        write(unit,fmt='(i11)',advance='no') iter
        do i = 1, num_fg_comp
           do j = 1, fg_components(i)%npar
-             write(unit,fmt='(e15.3)',advance='no') sum(par_smooth(:,:,k)*fg_components(i)%mask) / &
-                  & sum(fg_components(i)%mask)
+             if (fg_components(i)%gauss_prior(j,2) /= 0.d0) then
+                write(unit,fmt='(e15.3)',advance='no') sum(par_smooth(:,:,k)*fg_components(i)%mask) / &
+                     & sum(fg_components(i)%mask)
+             end if
              k = k+1
           end do
        end do

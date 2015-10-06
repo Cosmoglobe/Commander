@@ -892,7 +892,7 @@ contains
     character(len=*),                              intent(out) :: parfile_cache
     character(len=512), allocatable, dimension(:), intent(out) :: cache
     
-    integer(i4b)       :: unit, n
+    integer(i4b)       :: unit, i, n
     character(len=512) :: line
 
     unit          = getlun()
@@ -909,12 +909,10 @@ contains
 
     allocate(cache(n))
     open(unit,file=trim(parfile))
-    n = 0
-    do while (.true.)
-       n = n+1
-       read(unit,'(a)',end=33) cache(n)
+    do i = 1, n
+       read(unit,'(a)') cache(i)
     end do
-33  close(unit)
+    close(unit)
 
   end subroutine initialize_parfile_cache
 
