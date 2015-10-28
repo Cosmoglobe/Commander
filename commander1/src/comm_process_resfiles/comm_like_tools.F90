@@ -211,7 +211,6 @@ contains
     elsewhere
        mask = 1.d0
     end where
-    mask(:,2:3) = 0.d0
 
     do i = 1, nmaps
        mask_1d((i-1)*npix+1:i*npix) = mask(:,i)
@@ -723,12 +722,12 @@ contains
     implicit none
 
     character(len=256) :: infile, maxlnLfile, temp, clfile,filename, filelist, outfile
-    real(dp)           :: lnL_max, lnL_fid, lnL0, val, vals(1000), lnLs(1000), lnL2(1000)
-    real(dp)           :: peak, upper, lower
+    real(dp)           :: lnL_max, lnL_fid, lnL0, val, vals(1000), lnLs(1000), lnL2(1000), delta_lnL
+    real(dp)           :: peak, upper, lower, limit
     integer(i4b)       :: nspec, lmin_eval, lmax_eval, l, i, n
     integer(i4b)       :: ierr, ndof
     integer(i4b)       :: unit, unit_out, nspline
-    logical(lgt)       :: exist, flag(6)
+    logical(lgt)       :: exist, flag(6), output_detrate
     real(dp),     allocatable, dimension(:,:)    :: cls_maxlnL, cls_in, cls0
     real(dp),     allocatable, dimension(:)      :: cl_cond, p_cond, eta
     real(dp),     allocatable, dimension(:)      :: P_spline, x_spline
@@ -740,25 +739,29 @@ contains
     character(len=2), dimension(6) :: stext = ['TT','TE','TB','EE','EB','BB']
     type(planck_rng) :: handle
 
-    if (iargc() /= 12) then
+    if (iargc() /= 14) then
        write(*,*) '    Estimate parameters given tabulated spectra'
-       write(*,*) '      Usage: comm_like_tools fast_par_estimation [infofile] '
-       write(*,*) '                 [spectrum list] [lmin] [lmax] [6 spectrum flags] [outfile]'
+       write(*,*) '      Usage: comm_like_tools fast_par_estimation [infofile] [maxLn clfile]'
+       write(*,*) '                 [spectrum list] [lmin] [lmax] [6 spectrum flags] '
+       write(*,*) '                 [output detection level] [outfile]'
 
        stop
     end if
 
     call getarg(2, infile)
-    call getarg(3, filelist)
-    call getarg(4, temp)
+    call getarg(3, maxlnlfile)
+    call getarg(4, filelist)
+    call getarg(5, temp)
     read(temp,*) lmin_eval
     call getarg(5, temp)
     read(temp,*) lmax_eval
     do i = 1, 6
-       call getarg(5+i, temp)
+       call getarg(6+i, temp)
        read(temp,*) flag(i)
     end do
-    call getarg(12, outfile)
+    call getarg(13, temp)
+    read(temp,*) output_detrate
+    call getarg(14, outfile)
     ierr     = 0
     nspec    = 6
     unit     = comm_getlun()
@@ -772,15 +775,14 @@ contains
     ! Initialize low-l module
     call comm_lowl_initialize_object(infile)
 
+    ! Read fiducial spectrum
+    call read_fiducial_spectrum(maxlnlfile, cls0)             
+    call read_fiducial_spectrum(maxlnlfile, cls_fid)             
+
     open(unit,file=trim(filelist))
     n = 0
     do while (.true.)
        read(unit,*,end=91) val, filename
-       !write(*,*) trim(filename)
-       if (.not. allocated(cls0)) then
-          call read_fiducial_spectrum(filename, cls0)             
-          call read_fiducial_spectrum(filename, cls_fid)             
-       end if
        n       = n+1
        vals(n) = val
        call read_fiducial_spectrum(filename, cls_maxlnL)
@@ -792,11 +794,11 @@ contains
           end do
        end do
        lnLs(n) = comm_lowl_compute_lnL(cls=cls_fid, ierr=ierr, enforce_pos_def=.false.)
-       write(*,*) n, trim(filename), lnLs(n)
+       !write(*,*) n, trim(filename), lnLs(n)
     end do
 91  close(unit)
     
-    nspline = 1000
+    nspline = 1000000
     allocate(x_spline(nspline), P_spline(nspline))
     call spline(vals(1:n), lnLs(1:n), 1.d30, 1.d30, lnL2(1:n))
     do i = 1, nspline
@@ -805,7 +807,7 @@ contains
     end do
     
     P_spline = exp(P_spline-maxval(P_spline))
-    P_spline = P_spline / sum(P_spline) / (vals(n)/(nspline-1))
+    P_spline = P_spline / sum(P_spline) / ((vals(n)-vals(1))/(nspline-1))
     open(unit,file=trim(outfile))
     do i = 1, nspline
        write(unit,*) x_spline(i), P_spline(i)
@@ -813,7 +815,36 @@ contains
     close(unit)
 
     call compute_asymmetric_errors(x_spline, P_spline, peak, upper, lower)
-    write(*,fmt='(a,3f10.4)') 'Estimate = ', peak, upper, lower
+    write(*,fmt='(a,3f12.6)') 'Estimate = ', peak, upper, lower
+
+    ! Output upper 2 and 3 sigma limits
+    limit = 0.d0
+    i     = 0
+    do while (limit < 0.954d0)
+        i = i+1
+        limit = limit + P_spline(i) * ((vals(n)-vals(1))/(nspline-1))
+    end do
+    write(*,fmt='(a,f12.6)') 'Upper (one-sided) 2-sigma limit = ', x_spline(i)
+
+    do while (limit < 0.997d0)
+        i = i+1
+        limit = limit + P_spline(i) * ((vals(n)-vals(1))/(nspline-1))
+    end do
+    write(*,fmt='(a,f12.6)') 'Upper (one-sided) 3-sigma limit = ', x_spline(i)
+
+    if (output_detrate) then
+       cls_fid = cls0
+       do i = 1, 6
+          if (.not. flag(i)) cycle
+          do l = lmin_eval, lmax_eval
+             cls_fid(l,i) = 0.d0
+          end do
+       end do
+       delta_lnL = comm_lowl_compute_lnL(cls=cls_fid, ierr=ierr, enforce_pos_def=.false.) - maxval(lnLs(1:n))
+       write(*,fmt='(a,f8.2,a)') 'Detection level = ', sqrt(-0.5d0*delta_lnL), ' sigma (Gaussianized)'
+       write(*,fmt='(a,f8.2)') 'lnL(max) = ', maxval(lnLs(1:n))
+       write(*,fmt='(a,f8.2)') 'lnL(0)   = ', maxval(lnLs(1:n)) - delta_lnL
+    end if
 
   end subroutine fast_par_estimation
   
@@ -950,7 +981,8 @@ contains
     implicit none
 
     character(len=256) :: infile, maxlnLfile, temp, clfile,filename
-    real(dp)           :: lnL_max, lnL_fid, lnL0, val, vals(1000), lnLs(1000), lnL2(1000), lnL, chisq, red_chisq
+    real(dp)           :: lnL_max, lnL_fid, lnL0, val, vals(1000), lnLs(1000), lnL2(1000), lnL
+    real(dp)           :: chisq, red_chisq
     integer(i4b)       :: nspec, lmin_eval, lmax_eval, l, i, n
     integer(i4b)       :: ierr, ndof
     integer(i4b)       :: unit, unit_out, nspline
@@ -990,8 +1022,7 @@ contains
     write(*,*) 'filename  = ', trim(clfile)
     write(*,*) 'lnL       = ', lnL
     write(*,*) 'chisq     = ', chisq
-    write(*,*) 'red_chisq = ', red_chisq
-    write(*,*) 'n         = ', comm_lowl(1)%n
+    write(*,*) 'chisq_red = ', red_chisq
     write(*,*) 'ierr      = ', ierr
 
   end subroutine print_lnL
@@ -1062,7 +1093,6 @@ contains
        write(*,*) 'delta_l   = ', dl
     end if
     write(*,*) 'lnL       = ', lnL
-    write(*,*) 'chisq, nu = ', -2*lnL, lmax-lmin+1
     write(*,*) 'ierr      = ', ierr
 
   end subroutine print_lnL_BR

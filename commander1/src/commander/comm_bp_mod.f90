@@ -185,7 +185,7 @@ contains
             & '      t2f [MJy/K_cmb]   co2t [uK_cmb / (K km/s)]   a2sz [y_sz/K_RJ]'
        do i = 1, numband
           q = i2f(i)
-          write(unit,fmt='(a,a,a,a,f16.5,4e20.5)') bp(q)%label, ' ', bp(q)%id, ' ', &
+          write(unit,fmt='(a,a,a,a,f16.3,4e20.8)') bp(q)%label, ' ', bp(q)%id, ' ', &
                & bp(q)%nu_c/1.d9, bp(q)%a2t, 1.d0/bp(q)%f2t*1e6, bp(q)%co2t, bp(q)%a2sz * 1.d6
        end do
        close(unit)
@@ -249,11 +249,13 @@ contains
        if (trim(bp(j)%id) == 'delta') then
 
           bp(j)%nu      = bp(j)%nu0
-          bp(j)%tau     = bp(j)%tau0
           if (bp(j)%a2t  <= 0.d0) bp(j)%a2t  = compute_ant2thermo_single(bp(j)%nu_c)
           if (bp(j)%a2sz <= 0.d0) bp(j)%a2sz = 2.d0*bp(j)%nu_c**2*k_b/c**2 / &
                & (compute_bnu_prime_single(bp(j)%nu_c) * sz_thermo(bp(j)%nu_c)) * 1.d-6
           if (bp(j)%f2t  <= 0.d0) bp(j)%f2t  = 1.d0 / compute_bnu_prime_single(bp(j)%nu_c) * 1.d-14
+          bp(j)%tau     = bp(j)%tau0 * bp(j)%a2t
+          !write(*,*) 'nu', bp(j)%nu, bp(j)%nu0, bp(j)%nu_c
+          !write(*,*) 'tau', bp(j)%tau, bp(j)%tau0, bp(j)%a2t
 
        else if (trim(bp(j)%id) == 'WMAP') then
           
@@ -351,10 +353,12 @@ contains
     integer(i4b),               intent(in) :: band
     real(dp),     dimension(:), intent(in) :: f
     real(dp)                               :: get_bp_avg_spectrum
+    real(dp),     dimension(:)             :: hm(1)
 
     if (trim(bp(band)%id) == 'delta') then
        ! Return single value
-       get_bp_avg_spectrum = f(1)
+       hm = f * bp(band)%tau 
+       get_bp_avg_spectrum = hm(1) 
     else if (trim(bp(band)%id) == 'LFI') then
        get_bp_avg_spectrum = tsum(bp(band)%nu, bp(band)%tau * f)
     else if (trim(bp(band)%id) == 'HFI_cmb' .or. trim(bp(band)%id) == 'PSM_LFI') then

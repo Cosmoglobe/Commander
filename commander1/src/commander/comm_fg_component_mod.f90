@@ -1001,6 +1001,9 @@ contains
                 index = max(min(index, fg_components(k)%priors(m,2)), fg_components(k)%priors(m,1))
              else if (trim(fg_components(k)%init_mode) == 'default') then
                 index = fg_components(k)%priors(m,3)
+                if (trim(fg_components(k)%type) == 'freefree_EM' .and. m ==1) then
+                   index = log(index)
+                end if
              else
                 write(*,*) 'Unknown initialization mode: ', trim(fg_components(k)%init_mode)
                 stop
@@ -1857,7 +1860,7 @@ contains
     real(dp),         dimension(2),     intent(in)    :: prior
 
     integer(i4b) :: i, j, k, l, p, q, npix, m, n, nside_lowres, npix_lowres, p_nest, counter, unit, ierr, level
-    integer(i4b) :: nlevel, pix
+    integer(i4b) :: nlevel, pix, ntype, t
     real(dp)     :: threshold
     character(len=256) :: name, type_text, n_text, precompfile, fname
     character(len=2)   :: comp_text, par_text
@@ -1961,71 +1964,176 @@ contains
           
           if (trim(type_text) == 'TQU') then
              R%nreg = npix_lowres
+             ntype  = 1
           else if (trim(type_text) == 'T+QU') then
-             write(*,*) 'Spectral type T+QU not yet supported'
-             stop
              R%nreg = 2*npix_lowres
+             ntype  = 2
           else if (trim(type_text) == 'T+Q+U') then
-             write(*,*) 'Spectral type T+Q+U not yet supported'
-             stop
              R%nreg = 3*npix_lowres
+             ntype  = 3
           end if
+          
           
           allocate(R%regions(2*R%nreg))
           counter = 0
-          do p = 1, R%nreg
-             !Find number of unmasked pixels in current region
-             n = 0
-             do i = 0, q-1
-                do j = 1, nmaps
-                   call nest2ring(nside, (p-1)*q+i, k)
-                   if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
-                end do
-             end do
-             if (n > 0) then
-                counter = counter+1
-                R%regions(counter)%n = n
-                allocate(R%regions(counter)%pix(n,2))
-                n = 1
-                do i = 0, q-1
-                   do j = 1, nmaps
-                      call nest2ring(nside, (p-1)*q+i, k)
-                      if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
-                         R%regions(counter)%pix(n,1) = k
-                         R%regions(counter)%pix(n,2) = j
-                         n = n+1
-                      end if
-                   end do
-                end do
-             end if
-             
-             if (sample_inside_mask) then
-                !Find number of masked pixels in current region
+          do t = 1, ntype
+             do p = 1, R%nreg/ntype
+                !Find number of unmasked pixels in current region
                 n = 0
-                do j = 1, nmaps
-                   do i = 0, q-1
-                      call nest2ring(nside, (p-1)*q+i, k)
-                      if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
-                   end do
+                do i = 0, q-1
+                   if (trim(type_text) == 'TQU') then
+                      do j = 1, nmaps
+                         call nest2ring(nside, (p-1)*q+i, k)
+                         if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
+                      end do
+                   else if (trim(type_text) == 'T+QU') then
+                      if (t == 1) then
+                         do j = 1, 1
+                            call nest2ring(nside, (p-1)*q+i, k)
+                            if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
+                         end do
+                      else
+                         do j = 2, nmaps
+                            call nest2ring(nside, (p-1)*q+i, k)
+                            if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
+                         end do
+                      end if
+                   else if (trim(type_text) == 'T+Q+U') then
+                      do j = t, t
+                         call nest2ring(nside, (p-1)*q+i, k)
+                         if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
+                      end do
+                   end if
                 end do
                 if (n > 0) then
                    counter = counter+1
                    R%regions(counter)%n = n
-                   allocate(R%regions(counter)%pix(R%regions(counter)%n,2))
+                   allocate(R%regions(counter)%pix(n,2))
                    n = 1
                    do i = 0, q-1
-                      do j = 1, nmaps
-                         call nest2ring(nside, (p-1)*q+i, k)
-                         if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
-                            R%regions(counter)%pix(n,1) = k
-                            R%regions(counter)%pix(n,2) = j
-                            n = n+1
+                      if (trim(type_text) == 'TQU') then
+                         do j = 1, nmaps
+                            call nest2ring(nside, (p-1)*q+i, k)
+                            if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
+                               R%regions(counter)%pix(n,1) = k
+                               R%regions(counter)%pix(n,2) = j
+                               n = n+1
+                            end if
+                         end do
+                      else if (trim(type_text) == 'T+QU') then
+                         if (t == 1) then
+                            do j = 1, 1
+                               call nest2ring(nside, (p-1)*q+i, k)
+                               if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
+                                  R%regions(counter)%pix(n,1) = k
+                                  R%regions(counter)%pix(n,2) = j
+                                  n = n+1
+                               end if
+                            end do
+                         else
+                            do j = 2, nmaps
+                               call nest2ring(nside, (p-1)*q+i, k)
+                               if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
+                                  R%regions(counter)%pix(n,1) = k
+                                  R%regions(counter)%pix(n,2) = j
+                                  n = n+1
+                               end if
+                            end do
                          end if
-                      end do
+                      else if (trim(type_text) == 'T+Q+U') then
+                         do j = t, t
+                            call nest2ring(nside, (p-1)*q+i, k)
+                            if (mask(k,j) > 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
+                               R%regions(counter)%pix(n,1) = k
+                               R%regions(counter)%pix(n,2) = j
+                               n = n+1
+                            end if
+                         end do
+                      end if
                    end do
                 end if
-             end if
+                
+                if (sample_inside_mask) then
+                   !Find number of masked pixels in current region
+                   n = 0
+                   do i = 0, q-1
+                      if (trim(type_text) == 'TQU') then
+                         do j = 1, nmaps
+                            call nest2ring(nside, (p-1)*q+i, k)
+                            if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
+                         end do
+                      else if (trim(type_text) == 'T+QU') then
+                         if (t == 1) then
+                            do j = 1, 1
+                               call nest2ring(nside, (p-1)*q+i, k)
+                               if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
+                            end do
+                         else
+                            do j = 2, nmaps
+                               call nest2ring(nside, (p-1)*q+i, k)
+                               if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
+                            end do
+                         end if
+                      else if (trim(type_text) == 'T+Q+U') then
+                         do j = t, t
+                            call nest2ring(nside, (p-1)*q+i, k)
+                            if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) n = n+1
+                         end do
+                      end if
+                   end do
+                   if (n > 0) then
+                      counter = counter+1
+                      R%regions(counter)%n = n
+                      allocate(R%regions(counter)%pix(n,2))
+                      n = 1
+                      do i = 0, q-1
+                         if (trim(type_text) == 'TQU') then
+                            do j = 1, nmaps
+                               call nest2ring(nside, (p-1)*q+i, k)
+                               if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
+                                  R%regions(counter)%pix(n,1) = k
+                                  R%regions(counter)%pix(n,2) = j
+                                  n = n+1
+                               end if
+                            end do
+                         else if (trim(type_text) == 'T+QU') then
+                            if (t == 1) then
+                               do j = 1, 1
+                                  call nest2ring(nside, (p-1)*q+i, k)
+                                  if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
+                                     R%regions(counter)%pix(n,1) = k
+                                     R%regions(counter)%pix(n,2) = j
+                                     n = n+1
+                                  end if
+                               end do
+                            else
+                               do j = 2, nmaps
+                                  call nest2ring(nside, (p-1)*q+i, k)
+                                  if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
+                                     R%regions(counter)%pix(n,1) = k
+                                     R%regions(counter)%pix(n,2) = j
+                                     n = n+1
+                                  end if
+                               end do
+                            end if
+                         else if (trim(type_text) == 'T+Q+U') then
+                            do j = t, t
+                               call nest2ring(nside, (p-1)*q+i, k)
+                               if (mask(k,j) <= 0.5d0 .and. mask_comp(k,j) > 0.5d0) then
+                                  R%regions(counter)%pix(n,1) = k
+                                  R%regions(counter)%pix(n,2) = j
+                                  n = n+1
+                               end if
+                            end do
+                         end if
+                      end do
+                   end if
+
+                end if
+             end do
           end do
+
+
           R%nreg = counter ! Allow for masked/unmasked region in each case
           allocate(fwhms(R%nreg))
           fwhms = fwhm
