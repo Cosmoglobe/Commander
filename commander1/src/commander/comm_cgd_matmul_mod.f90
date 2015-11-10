@@ -86,8 +86,6 @@ contains
     logical(lgt) :: add_wf, add_S_omega, add_N_omega
     type(genvec) :: v1, v2
 
-    call rand_init(rng_handle, 10)
-    
     call allocate_genvec(v1)
     call allocate_genvec(v2)
     call nullify_genvec(v1)
