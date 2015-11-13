@@ -88,7 +88,10 @@ export LINK := -L. -lcommander $(SHARP_LINK) $(HEALPIX_LINK) $(CFITSIO_LINK) $(L
 all : commander 
 
 commander : 
-	@cd src/commander; $(MAKE) 
+	@cd src/commander; $(MAKE)
+
+messcomm : 
+	@cd src/messcomm; $(MAKE) 
 
 clean :
 	@cd src/commander; $(MAKE) clean

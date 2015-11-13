@@ -342,18 +342,19 @@ contains
 
     character(len=*), intent(in) :: filetype
 
-    character(len=256) :: outfile, temp, infile, prefix, beamfile
+    character(len=256) :: outfile, temp, infile, prefix, beamfile, maskfile
     character(len=4)   :: chain_text
     character(len=5)   :: pix_text
     character(len=1)   :: s_text(3) = ['T', 'Q', 'U']
-    integer(i4b)       :: i, j, k, l, m, n, p, unit, nreal, ordering, chain, lmax, counter
+    integer(i4b)       :: i, j, k, l, m, n, p, unit, nreal, ordering, chain, lmax, counter, nval
     integer(i4b)       :: nside, npix, nmaps, comp, ncomp, burnin, numiter, numchain, seed, numcomp
     real(dp)           :: sigma_reg(3)
     logical(lgt)       :: compute_covar
     type(planck_rng)   :: handle
     integer(i4b), allocatable, dimension(:)        :: ind, n_per_chain
+    integer(i4b), allocatable, dimension(:,:)      :: mask2map
     real(dp),     allocatable, dimension(:)        :: map_1D, mean_1D, W
-    real(dp),     allocatable, dimension(:,:)      :: mean, cov, map, beam, alms_mean, map_1d_
+    real(dp),     allocatable, dimension(:,:)      :: mean, cov, map, beam, alms_mean, map_1d_, mask
     real(dp),     pointer,     dimension(:,:)      :: pixwin
     real(sp),     allocatable, dimension(:,:)      :: alms
     complex(dpc), allocatable, dimension(:,:,:)    :: alms_cmplx
@@ -363,7 +364,7 @@ contains
        if (trim(filetype) == 'pix') then
           write(*,*) '    Compute mean and covariance from pixel amplitude chain files'
           write(*,*) '    Options:  [outprefix] [nside] [nmaps] [ordering] [thiscomp] [ncomp] [burnin]'
-          write(*,*) '                 [T regnoise] [QU regnoise] [seed] [compute_covar] [chain1] [chain2] ...'
+          write(*,*) '                 [T regnoise] [QU regnoise] [seed] [compute_covar] [maskfile] [chain1] [chain2] ...'
        else if (trim(filetype) == 'alm') then
           write(*,*) '    Compute mean and covariance from CMB alms chain files'
           write(*,*) '    Options:  [outprefix] [nside] [nmaps] [ordering] [lmax] [beamfile] [burnin]'
@@ -404,9 +405,9 @@ contains
     read(temp,*) seed
     call getarg(12,temp)
     read(temp,*) compute_covar
-    numchain = iargc()-12
+    call getarg(13,maskfile)
+    numchain = iargc()-13
     npix     = 12*nside**2
-    n        = npix*nmaps
     unit     = 58
 
     if (trim(filetype) == 'pix') then
@@ -426,6 +427,26 @@ contains
        alms_mean = 0.d0
     end if
 
+    ! Read maskfile
+    allocate(mask(0:12*nside**2-1,nmaps))
+    if (trim(maskfile) /= 'none') then
+       call read_map(maskfile, mask)
+    else
+       mask = 1.d0
+    end if
+    n = count(mask > 0.5d0)
+    allocate(mask2map(n,2))
+    k = 1
+    do j = 1, nmaps
+       do i = 0, 12*nside**2-1
+          if (mask(i,j) > 0.5d0) then
+             mask2map(k,1) = i
+             mask2map(k,2) = j
+             k             = k+1
+          end if
+       end do
+    end do
+
     ! Compute mean 
     allocate(mean(0:npix-1,nmaps), mean_1D(n), cov(n,n), map(0:npix-1,nmaps), map_1D(n), map_1D_(n,1))
     allocate(n_per_chain(numchain))
@@ -434,7 +455,7 @@ contains
     n_per_chain = 0
     do chain = 1, numchain
        
-       call getarg(12+chain,infile)
+       call getarg(13+chain,infile)
        open(unit, file=trim(infile), form='unformatted')
        read(unit) k
        counter = 0
@@ -489,7 +510,7 @@ contains
        m     = 0
        do chain = 1, numchain
           
-          call getarg(12+chain,infile)       
+          call getarg(13+chain,infile)       
           open(unit, file=trim(infile), form='unformatted')
           read(unit) k
           do counter = 1, n_per_chain(chain)
@@ -523,8 +544,8 @@ contains
              end if
              
              ! Linearize map
-             do j = 1, nmaps
-                map_1D((j-1)*npix+1:j*npix) = map(:,j)-mean(:,j)
+             do j = 1, n
+                map_1D(j) = map(mask2map(j,1),mask2map(j,2)) - mean(mask2map(j,1),mask2map(j,2))
              end do
              
              ! Compute outer product 
@@ -543,32 +564,23 @@ contains
              cov(j,i) = cov(i,j)
           end do
        end do
-       
-       k = 0
-       do j = 1, nmaps
-          do i = 0, npix-1
-             k = k+1
-             if (cov(k,k) <= 0.d0) then
-                cov(k,:) = 0.d0
-                cov(:,k) = 0.d0
-                mean(i,j) = -1.6375d30
-             end if
-          end do
-       end do
     end if
 
+    ! Apply mask
+    where (mask < 0.5d0)
+       mean = -1.6375d30
+    end where
+    
     ! Add regularization noise if requested
     call rand_init(handle, seed)
     if (any(sigma_reg > 0.d0)) then
-       k = 0
-       do j = 1, nmaps
-          do i = 0, npix-1
-             k = k+1
-             if (mean(i,j) /= -1.6375d30) then
-                mean(i,j) = mean(i,j) + sigma_reg(j)*rand_gauss(handle)
-                cov(k,k)  = cov(k,k) + sigma_reg(j)**2
-             end if
-          end do
+       do i = 1, n
+          j = mask2map(i,1)
+          k = mask2map(i,2)
+          if (sigma_reg(k) > 0.d0) then
+             mean(j,k) = mean(j,k) + sigma_reg(k)*rand_gauss(handle)
+             cov(i,i)  = cov(i,i) + sigma_reg(k)**2
+          end if
        end do
     end if
 
@@ -588,32 +600,32 @@ contains
        write(unit) .false. ! Not inverse
        close(unit)
        
-       open(54,file='test.dat')
-       do i = 1, n
-          write(58,*) i, cov(i,7418)
-       end do
-       close(54)
+!!$       open(54,file='test.dat')
+!!$       do i = 1, n
+!!$          write(58,*) i, cov(i,7418)
+!!$       end do
+!!$       close(54)
        
-       do k = 1, nmaps
-          do p = nint(0.3*npix), npix-1, nint(0.3*npix)
-             do i = 1, nmaps
-                mean(:,i) = cov((i-1)*npix+1:i*npix,(k-1)*npix+1+p)
-             end do
-             if (any(mean /= 0.d0)) then
-                call int2string(p,pix_text)
-                outfile = trim(prefix) // '_' // s_text(k) // &
-                     & '_pix' // pix_text // '.fits'
-                call write_map3(outfile, mean, ordering=ordering)    
-             end if
-          end do
-       end do
+!!$       do k = 1, nmaps
+!!$          do p = nint(0.3*npix), npix-1, nint(0.3*npix)
+!!$             do i = 1, nmaps
+!!$                mean(:,i) = cov((i-1)*npix+1:i*npix,(k-1)*npix+1+p)
+!!$             end do
+!!$             if (any(mean /= 0.d0)) then
+!!$                call int2string(p,pix_text)
+!!$                outfile = trim(prefix) // '_' // s_text(k) // &
+!!$                     & '_pix' // pix_text // '.fits'
+!!$                call write_map3(outfile, mean, ordering=ordering)    
+!!$             end if
+!!$          end do
+!!$       end do
        
        k = 0
-       do j = 1, nmaps
-          do i = 0, npix-1
-             k = k+1
-             mean(i,j) = sqrt(cov(k,k))
-          end do
+       mean = -1.6375d30
+       do i = 1, n
+          j = mask2map(i,1)
+          k = mask2map(i,2)
+          mean(j,k) = sqrt(cov(i,i))
        end do
        outfile = trim(prefix) // '_rms.fits'
        call write_map3(outfile, mean, ordering=ordering)    
