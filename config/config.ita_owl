@@ -50,10 +50,10 @@ export MPCC := mpicc
 # =========== Compiler Optimizations =============
 
 # Fortran 90 compiler flags
-#export F90FLAGS := -O3 -traceback -vec_report0
-#export F90FLAGS := -O3 -traceback -vec_report0 -assume byterecl -heap-arrays 16384
-#export F90FLAGS := -g -C -traceback -vec_report0 -assume byterecl -heap-arrays 16384 -traceback
-export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx -vec_report0
+#export F90FLAGS := -O3 -traceback 
+#export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384
+#export F90FLAGS := -g -C -traceback  -assume byterecl -heap-arrays 16384 -traceback
+export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx 
 
 # Fortran 77 compiler flags
 export FFLAGS := -O2
@@ -77,7 +77,7 @@ export MPFCLIBS := -lmpi_f90 -lmpi_f77 -openmp
 # instead of lowercase (*.mod).
 #export FORTRAN_UPPER := 1
 
-export LOCAL=/mn/stornext/u2/hke/owl/local
+export LOCAL=/mn/stornext/u3/hke/owl/local
 
 # =============== CFITSIO Linking ================
 
@@ -85,17 +85,24 @@ export LOCAL=/mn/stornext/u2/hke/owl/local
 export CFITSIO_INCLUDE := 
 export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio
 
+# =============== SHARP Linking ================
+
+# The include and linking commands for cfitsio.
+export SHARP_INCLUDE := 
+export SHARP_LINK := -L/mn/stornext/u3/hke/owl/local/src/libsharp/auto/lib -lsharp
+
 
 # =============== LAPACK Linking =================
 
 # The include and linking commands for LAPACK.
 MKLPATH := /opt/app-sync/intel/composer_xe_2011_sp1.9.293/mkl/lib/intel64
 export LAPACK_INCLUDE := 
-export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH) -L$(MKLPATH)  -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lpthread
+export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH) -L$(MKLPATH)  -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lpthread 
+
 
 
 # ================ Healpix linking ================
-export HEALPIX := /mn/stornext/u2/hke/owl/local/src/Healpix_3.11
+export HEALPIX := /mn/stornext/u3/hke/owl/local/src/dagsshealpix
 export HEALPIX_INCLUDE := -I$(HEALPIX)/include
 export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/sigurdkn/local/include
