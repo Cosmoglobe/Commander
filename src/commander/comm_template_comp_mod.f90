@@ -39,6 +39,8 @@ contains
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     real(dp),        dimension(:,:), allocatable                        :: evalTemplateBand
 
+    evalTemplateBand = 0.d0
+
   end function evalTemplateBand
   
   ! Return component projected from map
@@ -48,6 +50,8 @@ contains
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
     real(dp),        dimension(:,:), allocatable                        :: projectTemplateBand
+
+    projectTemplateBand = 0.d0
   end function projectTemplateBand
   
   ! Dump current sample to HEALPix FITS file

@@ -535,11 +535,11 @@ contains
     call initialize_chain_files(chain_dir, chain, num_gibbs_iter)
 
     !call sample_gains(s_i, chain, iter)
-    !call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
+    call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
     !call output_component_maps(map_id, s_i, chain, iter, chain_dir)
     !call free_slaves
-    !call mpi_finalize(ierr)
-    !stop
+    call mpi_finalize(ierr)
+    stop
 
     if (output_ml_map_and_covmat) then
        call compute_residuals(s_i, .false.)

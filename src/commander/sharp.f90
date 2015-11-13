@@ -21,12 +21,12 @@ module sharp
 
   type sharp_geom_info
      type(c_ptr) :: handle
-     integer(c_ptrdiff_t) :: n_local
+     integer(C_INTPTR_T) :: n_local
   end type sharp_geom_info
 
   type sharp_alm_info
      type(c_ptr) :: handle
-     integer(c_ptrdiff_t) :: n_local
+     integer(C_INTPTR_T) :: n_local
   end type sharp_alm_info
 
   interface
@@ -37,7 +37,7 @@ module sharp
        use iso_c_binding
        integer(c_int), value, intent(in)    :: lmax, nm, stride, flags
        integer(c_int), intent(in)           :: mval(nm)
-       integer(c_ptrdiff_t), intent(in)     :: mvstart(nm)
+       integer(C_INTPTR_T), intent(in)     :: mvstart(nm)
        type(c_ptr), intent(out)             :: alm_info
      end subroutine sharp_make_general_alm_info
 
@@ -51,7 +51,7 @@ module sharp
 
      function c_sharp_alm_count(alm_info) bind(c, name='sharp_alm_count')
        use iso_c_binding
-       integer(c_ptrdiff_t)           :: c_sharp_alm_count
+       integer(C_INTPTR_T)           :: c_sharp_alm_count
        type(c_ptr), value, intent(in) :: alm_info
      end function c_sharp_alm_count
 
@@ -77,7 +77,7 @@ module sharp
 
      function c_sharp_map_size(info) bind(c, name='sharp_map_size')
        use iso_c_binding
-       integer(c_ptrdiff_t) :: c_sharp_map_size
+       integer(C_INTPTR_T) :: c_sharp_map_size
        type(c_ptr), value   :: info
      end function c_sharp_map_size
 
