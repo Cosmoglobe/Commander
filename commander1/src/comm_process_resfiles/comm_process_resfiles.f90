@@ -405,7 +405,7 @@ contains
     read(temp,*) seed
     call getarg(12,temp)
     read(temp,*) compute_covar
-    call getarg(12,maskfile)
+    call getarg(13,maskfile)
     numchain = iargc()-13
     npix     = 12*nside**2
     unit     = 58
