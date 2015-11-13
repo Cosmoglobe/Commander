@@ -104,6 +104,7 @@ contains
     integer(i4b)       :: lmax_basis, pol, nval, nhigh, num_fg_temp, nside_temp, npix_temp
     real(dp)           :: t1, t2, Tthreshold, Pthreshold, reg(3), scale, W_max_T, W_max_P
     real(dp)           :: BBamp, cvec(3), weight_T, weight_P
+    logical(lgt)       :: comp_cov
     character(len=5)   :: itext
     character(len=512) :: mapfile, maskfile, covfile, beamfile, outfile, filename, temp
     character(len=512) :: basis, prefix, clfile, partext, tempcovmat(10)
@@ -122,7 +123,7 @@ contains
 
     if (iargc() < 17) then
        write(*,*) '    Pre-process low-l likelihood inputs from map and covariance matrix'
-       write(*,*) '    Options:  [mapfile] [maskfile] [covfile] [beamfile] [clfile] [lmax_data]'
+       write(*,*) '    Options:  [mapfile] [maskfile] [covfile] [compressed cov T/F] [beamfile] [clfile] [lmax_data]'
        write(*,*) '              [lmax_basis_T] [lmax_basis_P] [basis] [T threshold] [P threshold]'
        write(*,*) '              [BB amp] [T reg] [P reg] [seed] [outprefix] [template1] [rescale CMB]'
        write(*,*) '              [template2] [tempcovmat/none] [rescale CMB]...'
@@ -137,29 +138,31 @@ contains
     call getarg(2,mapfile)
     call getarg(3,maskfile)
     call getarg(4,covfile)
-    call getarg(5,beamfile)
-    call getarg(6,clfile)
-    call getarg(7,temp)
-    read(temp,*) lmax
+    call getarg(5,temp)	
+    read(temp,*) comp_cov
+    call getarg(6,beamfile)
+    call getarg(7,clfile)
     call getarg(8,temp)
-    read(temp,*) lhigh_T
+    read(temp,*) lmax
     call getarg(9,temp)
+    read(temp,*) lhigh_T
+    call getarg(10,temp)
     read(temp,*) lhigh_P
-    call getarg(10,basis)
-    call getarg(11,temp)
-    read(temp,*) Tthreshold
+    call getarg(11,basis)
     call getarg(12,temp)
-    read(temp,*) Pthreshold
+    read(temp,*) Tthreshold
     call getarg(13,temp)
-    read(temp,*) BBamp
+    read(temp,*) Pthreshold
     call getarg(14,temp)
-    read(temp,*) reg(1)
+    read(temp,*) BBamp
     call getarg(15,temp)
+    read(temp,*) reg(1)
+    call getarg(16,temp)
     read(temp,*) reg(2)
     reg(3) = reg(2)
-    call getarg(16,temp)
+    call getarg(17,temp)
     read(temp,*) seed
-    call getarg(17,prefix)
+    call getarg(18,prefix)
     numcomp = (lmax+1)**2
 
     call rand_init(handle, seed)
@@ -268,40 +271,34 @@ contains
     end do
 
     ! Read covariance matrix
-    allocate(cov(n_p,n_p))
-    call comm_read_covmat(covfile, nmaps, cov, scale)
-    do j = 1, nmaps
-       if (reg(j) < 0) then
-          cov((j-1)*npix+1:j*npix,:) = 0.d0
-          cov(:,(j-1)*npix+1:j*npix) = 0.d0
-       end if
-    end do
+    if (comp_cov) then
+       allocate(cov(nval,nval))
+       call comm_read_covmat(covfile, nmaps, cov, scale)
+    else	  
+       allocate(cov(n_p,n_p))
+       call comm_read_covmat(covfile, nmaps, cov, scale)
+       do j = 1, nmaps
+          if (reg(j) < 0) then
+             cov((j-1)*npix+1:j*npix,:) = 0.d0
+             cov(:,(j-1)*npix+1:j*npix) = 0.d0
+          end if
+       end do
+    end if
     map_1d = map_1d * scale ! Assume map is in same units as covariance matrix
 
-    ! Add regularization noise to covariance matrix
-    ind = 1
-    do j = 1, nmaps
-       do i = 1, npix
-          cov(ind,ind) = cov(ind,ind) + reg(j)**2
-          do k = 1, n_d
-             map_1d(ind,k)  = map_1d(ind,k)  + abs(reg(j)) * rand_gauss(handle)
+    ! Add regularization noise to covariance matrix; DOES NOT YET SUPPORT COMPRESSED COVMATS
+    if (any(reg > 0.d0)) then
+       ind = 1
+       do j = 1, nmaps
+          do i = 1, npix
+             cov(ind,ind) = cov(ind,ind) + reg(j)**2
+             do k = 1, n_d
+                map_1d(ind,k)  = map_1d(ind,k)  + abs(reg(j)) * rand_gauss(handle)
+             end do
+             ind          = ind+1
           end do
-          ind          = ind+1
        end do
-    end do
-
-!    open(58,file='cov_with_2uK_regnoise.unf',form='unformatted')
-!    write(58) cov
-!    close(58)
-
-!    do i = 1, nmaps
-!       map(:,i) = map_1d((i-1)*npix+1:i*npix,1)
-!    end	do
-
-!    call write_map3('map.fits', map)	
-!    call write_map3('mask.fits', mask)	
-!    stop
-
+   end if
 
     ! Compute spherical harmonics
     write(*,*) 'Computing spherical harmonics'
@@ -357,7 +354,7 @@ contains
        npix_temp   = 1
     end if
     q           = npix/npix_temp
-    num_fg_temp = (iargc()-17)/3
+    num_fg_temp = (iargc()-18)/3
     numtemp     = num_fg_temp * npix_temp
     if (n_t > 0) numtemp = numtemp+4 
     allocate(T(n_p,numtemp), rescale_CMB(numtemp))
@@ -365,9 +362,9 @@ contains
     rescale_CMB = .false.
     if (num_fg_temp > 0) then
        do k = 1, num_fg_temp
-          call getarg(17+3*k-2,filename)
-          call getarg(17+3*k-1,partext)
-          call getarg(17+3*k,  tempcovmat(k))
+          call getarg(18+3*k-2,filename)
+          call getarg(18+3*k-1,partext)
+          call getarg(18+3*k,  tempcovmat(k))
           read(partext,*) rescale_CMB(k)
           call read_map(filename, map)
           do i = 1, nmaps
@@ -396,7 +393,11 @@ contains
        
        allocate(S_mat(nval,nval))
        call get_basis_S(0.d0, 1.d0, cls, beam, Y(map2mask,:), S_mat)
-       S_mat = S_mat + cov(map2mask,map2mask)
+       if (comp_cov) then
+          S_mat = S_mat + cov
+       else
+          S_mat = S_mat + cov(map2mask,map2mask)
+       end if
        call invert_matrix(S_mat)
        S_mat(1:n_t,n_t+1:nval) = 0.d0
        S_mat(n_t+1:nval,1:n_t) = 0.d0
@@ -451,21 +452,34 @@ contains
        deallocate(S_mat)
 
        do i = 1, numtemp
-          cov(map2mask,map2mask) = cov(map2mask,map2mask) + &
-               & Pt_invN_TP(i,i) * matmul(PT(:,i:i), transpose(PT(:,i:i)))
+          if (comp_cov) then
+             cov = cov + &
+                  & Pt_invN_TP(i,i) * matmul(PT(:,i:i), transpose(PT(:,i:i)))
+	  else
+             cov(map2mask,map2mask) = cov(map2mask,map2mask) + &
+                  & Pt_invN_TP(i,i) * matmul(PT(:,i:i), transpose(PT(:,i:i)))
+          end if
           if (trim(tempcovmat(i)) /= 'none' .and. i <= num_fg_temp) then
              allocate(tempcov(n_p,n_p))
              call comm_read_covmat(tempcovmat(i), nmaps, tempcov, scale)
              tempcov(1:npix,:) = 0.d0 ! Don't include temperature correlations in covariance
              tempcov(:,1:npix) = 0.d0
-             cov(map2mask,map2mask) = cov(map2mask,map2mask) + A_T(i)**2 * tempcov(map2mask,map2mask)
+	     if (comp_cov) then
+	        cov = cov + A_T(i)**2 * tempcov(map2mask,map2mask)
+	     else
+	        cov(map2mask,map2mask) = cov(map2mask,map2mask) + A_T(i)**2 * tempcov(map2mask,map2mask)
+             end if
              deallocate(tempcov)
           end if
        end do
-       cov(1:npix,:)     = cov(1:npix,:)     / (1.d0-weight_T)
-       cov(:,1:npix)     = cov(:,1:npix)     / (1.d0-weight_T)
-       cov(npix+1:n_p,:) = cov(npix+1:n_p,:) / (1.d0-weight_P)
-       cov(:,npix+1:n_p) = cov(:,npix+1:n_p) / (1.d0-weight_P)
+       if (weight_T /= 0.d0) then
+          cov(1:npix,:)     = cov(1:npix,:)     / (1.d0-weight_T)
+          cov(:,1:npix)     = cov(:,1:npix)     / (1.d0-weight_T)
+       end if
+       if (weight_P /= 0.d0) then
+          cov(npix+1:n_p,:) = cov(npix+1:n_p,:) / (1.d0-weight_P)
+          cov(:,npix+1:n_p) = cov(:,npix+1:n_p) / (1.d0-weight_P)
+       end if
     end if
 
     if (nmaps == 1) then
@@ -496,12 +510,20 @@ contains
 
     else if (trim(basis) == 'eigen_N') then
 
-       P = cov(map2mask,map2mask)
+       if (comp_cov) then
+          P = cov(map2mask,map2mask)
+       else
+          P = cov
+       end if
        call invert_matrix(P)
 
     else if (trim(basis) == 'eigen_StoN') then
 
-       P = cov(map2mask,map2mask)
+       if (comp_cov) then
+          P = cov
+       else
+          P = cov(map2mask,map2mask)
+       end if
        call invert_matrix(P)
        allocate(buffer(nval,nval), S_mat(nval,nval))
        ! Compute S^1/2 * invN * S^1/2
@@ -514,7 +536,11 @@ contains
 
        allocate(S_mat(nval,nval))
        call get_basis_S(BBamp, 1.d0, cls, beam, Y(map2mask,:), S_mat)
-       P = cov(map2mask,map2mask) + S_mat
+       if (comp_cov) then
+          P = cov + S_mat
+       else
+          P = cov(map2mask,map2mask) + S_mat
+       end if
        deallocate(S_mat)
 
     else
@@ -604,7 +630,11 @@ contains
     !d = matmul(transpose(V_red), map_1d(map2mask))
     call dgemm('T','N',n,n_d,nval,1.d0,V_red,nval,map_1d(map2mask,:),nval,0.d0,d,n)
     ! Compute C = V^t * C * V
-    call dgemm('N','N',nval,n,nval,1.d0,cov(map2mask,map2mask),nval,V_red,nval,0.d0,buffer,nval)
+    if (comp_cov) then
+       call dgemm('N','N',nval,n,nval,1.d0,cov,nval,V_red,nval,0.d0,buffer,nval)
+    else 
+       call dgemm('N','N',nval,n,nval,1.d0,cov(map2mask,map2mask),nval,V_red,nval,0.d0,buffer,nval)
+    end if
     call dgemm('T','N',n,n,nval,1.d0,V_red,nval,buffer,nval,0.d0,C,n)
     ! Compute projection vectors, P_harm = Y^t * V
     call dgemm('T','N',n_h,n,nval,1.d0,Y(map2mask,:),nval,V_red,nval,0.d0,P_harm,n_h)

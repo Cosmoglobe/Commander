@@ -479,9 +479,7 @@ contains
       real(dp), allocatable, dimension(:)   :: buffer
       real(dp), allocatable, dimension(:,:) :: map
    
-         unit   = comm_getlun()
-      npix   = size(cov,1) / nmaps
-      nside  = nint(sqrt(real(npix,dp)/12.d0))
+      unit   = comm_getlun()
       n      = len(trim(covfile))
       n_p    = size(cov,1)
       suffix = covfile(n-3:n)
@@ -499,7 +497,9 @@ contains
          close(unit)
       else if (suffix == '.dat') then
          ! Assume binary C format
-            scale     = 1.d6 ! Assume data are in K
+         npix      = size(cov,1) / nmaps
+         nside     = nint(sqrt(real(npix,dp)/12.d0))
+         scale     = 1.d6 ! Assume data are in K
          cov_order = 2    ! Assume covariance matrix is in NESTED format
          open(unit,file=trim(covfile),form='unformatted',access='direct', recl=8*n_p)
          do i = 1, n_p
@@ -509,6 +509,8 @@ contains
          cov = cov * scale**2
       else if (suffix == 'fits') then
          ! Assume binary C format
+         npix      = size(cov,1) / nmaps
+         nside     = nint(sqrt(real(npix,dp)/12.d0))
          scale     = 1.d0 ! Assume data are in uK
          cov_order = 1    ! Map is always converted to RING format
          allocate(map(0:npix-1,nmaps))
@@ -527,6 +529,8 @@ contains
          stop
       end if
       if (cov_order == 2) then
+         npix   = size(cov,1) / nmaps
+         nside  = nint(sqrt(real(npix,dp)/12.d0))
          allocate(buffer(0:npix-1))
          ! Convert columns from nest to ring
          do i = 1, n_p
