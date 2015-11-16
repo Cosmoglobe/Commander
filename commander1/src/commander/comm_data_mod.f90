@@ -326,17 +326,17 @@ contains
              call initialize_mono_and_dipole_temp(nside, fg_temp_lowres(:,1,i,1:4))
           end if
        
-          if (num_fg_temp > 4) then
+          if (num_fg_temp > num_md_temp) then
              allocate(map_in(0:npix-1,nmaps))
 
              ! Read foreground templates
-             do j = 1, num_fg_temp-4
+             do j = 1, num_fg_temp-num_md_temp
                 call int2string(j,temp_text)
                 paramtext = 'FG_TEMPLATE' // map_text // '_' // temp_text
                 call get_parameter(paramfile, trim(paramtext), par_string=filename)
                 call read_map(filename, map_in)
                 if (nmaps==3 .and. (.not. sample_T_modes)) map_in(:,1) = 0.d0
-                fg_temp_lowres(:,:,i,4+j) = map_in
+                fg_temp_lowres(:,:,i,num_md_temp+j) = map_in
              end do
 
              deallocate(map_in)
