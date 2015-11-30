@@ -783,7 +783,7 @@ contains
     call getarg(4, filelist)
     call getarg(5, temp)
     read(temp,*) lmin_eval
-    call getarg(5, temp)
+    call getarg(6, temp)
     read(temp,*) lmax_eval
     do i = 1, 6
        call getarg(6+i, temp)
