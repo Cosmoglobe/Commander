@@ -45,10 +45,10 @@ contains
     call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters
-    constructor%npar = 1
+    constructor%npar         = 1
     allocate(constructor%theta_def(1), constructor%p_gauss(2,1), constructor%p_uni(2,1))
     allocate(constructor%poltype(1), constructor%indlabel(1))
-    constructor%theta_def(1) = cpar%cs_theta_def(id_abs,1)
+    constructor%theta_def(1) = cpar%cs_theta_def(1,id_abs)
     constructor%p_uni(:,1)   = cpar%cs_p_uni(id_abs,:,1)
     constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
     constructor%indlabel(1)  = 'nu_p'

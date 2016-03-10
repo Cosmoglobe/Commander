@@ -4,6 +4,7 @@ module comm_comp_mod
   use comm_bp_mod
   use comm_map_mod
   use comm_cr_utils
+  use comm_data_mod
   implicit none
 
   private
@@ -137,19 +138,19 @@ module comm_comp_mod
   
 contains
 
-  subroutine initComp(self, cpar, id)
+  subroutine initComp(self, cpar, id, id_abs)
     implicit none
     class(comm_comp)               :: self
     type(comm_params),  intent(in) :: cpar
-    integer(i4b),       intent(in) :: id
+    integer(i4b),       intent(in) :: id, id_abs
 
     self%id      = id
-    self%active  = cpar%cs_include(id)
-    self%label   = cpar%cs_label(id)
-    self%type    = cpar%cs_type(id)
-    self%class   = cpar%cs_class(id)
-    self%unit    = cpar%cs_unit(id)
-    self%nu_ref  = cpar%cs_nu_ref(id)
+    self%active  = cpar%cs_include(id_abs)
+    self%label   = cpar%cs_label(id_abs)
+    self%type    = cpar%cs_type(id_abs)
+    self%class   = cpar%cs_class(id_abs)
+    self%unit    = cpar%cs_unit(id_abs)
+    self%nu_ref  = cpar%cs_nu_ref(id_abs)
 
     ! Set up conversion factor between RJ and native component unit
     select case (trim(self%unit))
@@ -176,14 +177,26 @@ contains
     integer(i4b),     intent(in) :: unit
 
     integer(i4b) :: i
-    real(dp)     :: nu, dnu
+    real(dp)     :: nu, dnu, S
 
-    nu = nu_dump(1)
-    dnu = (nu_dump(2)/nu_dump(1))**(1.d0/(n_dump-1))
-    do i = 1, n_dump
-       write(unit,*) nu*1d-9, self%S(nu, theta=self%theta_def(1:self%npar))
-       nu = nu*dnu
-    end do
+    if (trim(self%type) == 'line') then
+       do i = 1, numband
+          S = self%S(band=i, theta=self%theta_def(1:self%npar))
+          if (S /= 0.d0) write(unit,*) data(i)%bp%nu_c*1d-9, S
+       end do
+    else
+       nu = nu_dump(1)
+       dnu = (nu_dump(2)/nu_dump(1))**(1.d0/(n_dump-1))
+       do i = 1, n_dump
+          if (self%npar > 0) then
+             S = self%S(nu, theta=self%theta_def(1:self%npar))
+          else
+             S = self%S(nu)
+          end if
+          if (S /= 0.d0) write(unit,*) nu*1d-9, S
+          nu = nu*dnu
+       end do
+    end if
     
   end subroutine dumpSED
 

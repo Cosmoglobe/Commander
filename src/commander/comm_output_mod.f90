@@ -12,13 +12,14 @@ contains
     type(comm_params), intent(in) :: cpar
     integer(i4b),      intent(in) :: iter
 
-    integer(i4b)              :: i
-    real(dp)                  :: chisq
-    character(len=4)          :: ctext
-    character(len=6)          :: itext
-    character(len=512)        :: postfix
-    class(comm_map),  pointer :: map
-    class(comm_comp), pointer :: c
+    integer(i4b)                 :: i
+    real(dp)                     :: chisq
+    character(len=4)             :: ctext
+    character(len=6)             :: itext
+    character(len=512)           :: postfix
+    class(comm_mapinfo), pointer :: info
+    class(comm_map),     pointer :: map
+    class(comm_comp),    pointer :: c
 
     call int2string(cpar%mychain, ctext)
     call int2string(iter,         itext)
@@ -40,11 +41,15 @@ contains
        map => compute_residual(i)
        call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'// &
             & trim(postfix)//'.fits')
+       call map%dealloc()
     end do
     
-    
     ! Compute and output chi-square
-    call compute_chisq(chisq_fullsky=chisq)
+    info => comm_mapinfo(cpar%comm_chain, cpar%nside_chisq, 0, cpar%nmaps_chisq, cpar%pol_chisq)
+    map  => comm_map(info)
+    call compute_chisq(chisq_map=map, chisq_fullsky=chisq)
+    call map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
+    call map%dealloc()
     if (cpar%myid == cpar%root) write(*,fmt='(a,i4,a,e16.3)') &
          & 'Chain = ', cpar%mychain, ' -- chisq = ', chisq
 

@@ -47,6 +47,9 @@ contains
        data(i)%label        = cpar%ds_label(i)
        data(i)%period       = cpar%ds_period(i)
        data(i)%unit         = cpar%ds_unit(i)
+       if (cpar%myid == 0 .and. cpar%verbosity > 0) &
+            & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(i)%label)
+       call update_status(status, "data_"//trim(data(i)%label))
 
        ! Initialize map structures
        nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
@@ -102,6 +105,9 @@ contains
     call QuickSort(ind_ds, nu)
     deallocate(nu)
 
+    ! Dump unit conversion factors to file
+    if (cpar%myid == 0) call dump_unit_conversion(cpar%outdir)
+
   end subroutine initialize_data_mod
 
 
@@ -116,8 +122,6 @@ contains
        RJ2data = self%bp%a2t
     case ('MJy/sr') 
        RJ2data = self%bp%a2t / self%bp%f2t
-    case ('K km/s') 
-       RJ2data = self%bp%a2t / self%bp%co2t
     case ('y_SZ') 
        RJ2data = self%bp%a2sz
     case ('uK_RJ') 
@@ -125,5 +129,22 @@ contains
     end select
     
   end function RJ2data
+
+  subroutine dump_unit_conversion(dir)
+    implicit none
+    character(len=*), intent(in) :: dir
+    integer(i4b) :: i, q, unit
+
+    unit = getlun()
+    open(unit, file=trim(dir)//'/unit_conversions.dat', recl=1024)
+    write(unit,*) '# Band   BP type   Nu_c (GHz)  a2t [K_cmb/K_RJ]' // &
+         & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]'
+    do i = 1, numband
+       q = ind_ds(i)
+       write(unit,fmt='(a7,a10,f10.1,3e16.5)') trim(data(q)%label), trim(data(q)%bp%type), &
+            & data(q)%bp%nu_c/1.d9, data(q)%bp%a2t, 1.d0/data(q)%bp%f2t*1e6, data(q)%bp%a2sz * 1.d6
+    end do
+    close(unit)
+  end subroutine dump_unit_conversion
 
 end module comm_data_mod

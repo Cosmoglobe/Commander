@@ -584,5 +584,69 @@ contains
 
   end function mpi_dot_product
 
+
+
+  ! Routine for reading a spectrum file
+  subroutine read_spectrum(filename, spectrum)
+    implicit none
+
+    character(len=*),                               intent(in)  :: filename
+    real(dp),           allocatable, dimension(:,:)             :: spectrum
+
+    real(dp)            :: S_ref
+    integer(i4b)        :: i, j, numpoint, unit, first, last
+    character(len=128)  :: nu, val, string
+
+    unit = getlun()
+    open(unit, file=trim(filename))
+
+    ! Find the number of entries
+    numpoint = 0
+    do while (.true.)
+       read(unit,*,end=1) string
+
+       if (string(1:1)=='#') cycle
+
+       backspace(unit)
+       read(unit,*,end=1) nu, val
+       numpoint = numpoint + 1
+    end do
+1   close(unit)
+
+    if (numpoint == 0) then
+       write(*,*) 'No valid data entries in spectrum file ', trim(filename)
+       stop
+    end if
+
+    allocate(spectrum(numpoint,2))
+    i = 0
+    open(unit, file=trim(filename))
+    do while (.true.)
+       read(unit,*,end=2) string
+
+       if (string(1:1)=='#') cycle
+
+       backspace(unit)
+       read(unit,*,end=1) nu, val
+       i = i+1
+
+       read(nu,*)  spectrum(i,1)
+       read(val,*) spectrum(i,2)
+
+       do j = 1, i-1
+          if (spectrum(i,1) == spectrum(j,1)) then
+             write(*,*) 'ERROR: Spectrum file ', trim(filename), ' contains double entries; j = ', j, ', spectrum = ', spectrum(i,1)
+             stop
+          end if
+       end do
+  
+    end do
+2   close(unit)
+
+    ! Convert from GHz to Hz
+    spectrum(:,1) = spectrum(:,1) * 1.d9
+
+  end subroutine read_spectrum
+
   
 end module comm_utils

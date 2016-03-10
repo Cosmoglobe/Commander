@@ -190,13 +190,13 @@ contains
 
 
     if (x0 < x(1) .or. x0 > x(m)) then
-!       write(*,*) 'splin2_full_precomp -- Warning: x0 out of bounds = ', x0
+       write(*,*) 'splin2_full_precomp -- Warning: x0 out of bounds = ', x0
        splin2_full_precomp = 0.d0
        return
     end if
 
     if (y0 < y(1) .or. y0 > y(n)) then
-!       write(*,*) 'splin2_full_precomp -- Warning: y0 out of bounds = ', y0
+       write(*,*) 'splin2_full_precomp -- Warning: y0 out of bounds = ', y0
        splin2_full_precomp = 0.d0
        return
     end if

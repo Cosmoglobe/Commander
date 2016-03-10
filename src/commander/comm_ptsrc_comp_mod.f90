@@ -29,10 +29,10 @@ module comm_ptsrc_comp_mod
   
 contains
 
-  function constructor(cpar, id, glon, glat, amp, beta, id_src, P_ref)
+  function constructor(cpar, id, id_abs, glon, glat, amp, beta, id_src, P_ref)
     implicit none
     class(comm_params),       intent(in) :: cpar
-    integer(i4b),             intent(in) :: id
+    integer(i4b),             intent(in) :: id, id_abs
     real(dp),                 intent(in) :: glon, glat
     real(dp), dimension(:),   intent(in) :: amp
     real(dp), dimension(:,:), intent(in) :: beta
@@ -47,17 +47,17 @@ contains
     allocate(constructor)
 
     ! Initialize general parameters
-    constructor%class     = cpar%cs_class(id)
-    constructor%type      = cpar%cs_type(id)
-    constructor%label     = cpar%cs_label(id)
-    constructor%nmaps     = 1; if (cpar%cs_polarization(id)) constructor%nmaps = 3
+    constructor%class     = cpar%cs_class(id_abs)
+    constructor%type      = cpar%cs_type(id_abs)
+    constructor%label     = cpar%cs_label(id_abs)
+    constructor%nmaps     = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
     constructor%glon      = glon * DEG2RAD
     constructor%glat      = glat * DEG2RAD
-    constructor%nu_ref    = cpar%cs_nu_ref(id)
-    constructor%outprefix = trim(cpar%cs_label(id))
+    constructor%nu_ref    = cpar%cs_nu_ref(id_abs)
+    constructor%outprefix = trim(cpar%cs_label(id_abs))
     constructor%id_src    = id_src
     allocate(constructor%poltype(1))
-    constructor%poltype   = cpar%cs_poltype(1,id)
+    constructor%poltype   = cpar%cs_poltype(1,id_abs)
 
     ! Allocate data structures
     allocate(constructor%x(constructor%nmaps))
@@ -112,8 +112,8 @@ contains
     case ("radio")
        constructor%npar = 2   ! (alpha, beta)
        allocate(constructor%p_uni(2,constructor%npar), constructor%p_gauss(2,constructor%npar))
-       constructor%p_uni   = cpar%cs_p_uni(id,:,:)
-       constructor%p_gauss = cpar%cs_p_gauss(id,:,:)
+       constructor%p_uni   = cpar%cs_p_uni(id_abs,:,:)
+       constructor%p_gauss = cpar%cs_p_gauss(id_abs,:,:)
 
        allocate(constructor%theta(constructor%npar,constructor%nmaps))
        do i = 1, numband
@@ -126,8 +126,8 @@ contains
     case ("fir")
        constructor%npar = 2   ! (beta, T_d)
        allocate(constructor%p_uni(2,constructor%npar), constructor%p_gauss(2,constructor%npar))
-       constructor%p_uni   = cpar%cs_p_uni(id,:,:)
-       constructor%p_gauss = cpar%cs_p_gauss(id,:,:)
+       constructor%p_uni   = cpar%cs_p_uni(id_abs,:,:)
+       constructor%p_gauss = cpar%cs_p_gauss(id_abs,:,:)
 
        allocate(constructor%theta(constructor%npar,constructor%nmaps))
        do i = 1, numband
@@ -138,8 +138,8 @@ contains
           end if
        end do
        allocate(constructor%p_uni(2,constructor%npar), constructor%p_gauss(2,constructor%npar))
-       constructor%p_uni   = cpar%cs_p_uni(id,:,:)
-       constructor%p_gauss = cpar%cs_p_gauss(id,:,:)
+       constructor%p_uni   = cpar%cs_p_uni(id_abs,:,:)
+       constructor%p_gauss = cpar%cs_p_gauss(id_abs,:,:)
     case ("sz")
        constructor%npar = 0   ! (none)
        do i = 1, numband

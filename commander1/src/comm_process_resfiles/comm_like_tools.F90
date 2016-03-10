@@ -207,6 +207,7 @@ contains
           map_1d((j-1)*npix+1:j*npix,1) = map(:,j)
        end do
     end if
+
     allocate(mask(0:npix-1,nmaps), mask_1d(n_p))
     call read_map(maskfile, mask)
     where (mask < 0.5d0)
@@ -232,6 +233,7 @@ contains
           end if
        end do
     end do
+
 
     ! Set up lmax to lhigh conversion array
     if (nmaps == 3) then
@@ -824,7 +826,7 @@ contains
           end do
        end do
        lnLs(n) = comm_lowl_compute_lnL(cls=cls_fid, ierr=ierr, enforce_pos_def=.false.)
-       !write(*,*) n, trim(filename), lnLs(n)
+       write(*,*) n, trim(filename), lnLs(n)
     end do
 91  close(unit)
     

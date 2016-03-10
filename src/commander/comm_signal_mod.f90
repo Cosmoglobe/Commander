@@ -4,6 +4,11 @@ module comm_signal_mod
   use comm_diffuse_comp_mod
   use comm_cmb_comp_mod
   use comm_powlaw_comp_mod
+  use comm_spindust_comp_mod
+  use comm_MBB_comp_mod
+  use comm_freefree_comp_mod
+  use comm_line_comp_mod
+  use comm_md_comp_mod
   use comm_template_comp_mod
   use comm_ptsrc_comp_mod
   use comm_cr_mod
@@ -17,26 +22,42 @@ contains
 
     type(comm_params), intent(in) :: cpar
 
-    integer(i4b) :: i
+    integer(i4b) :: i, n
     class(comm_comp), pointer :: c
     
-    ncomp = cpar%cs_ncomp
-    do i = 1, ncomp
+    ncomp = 0
+    do i = 1, cpar%cs_ncomp_tot
+       if (.not. cpar%cs_include(i)) cycle
+       ncomp = ncomp + 1
+       if (cpar%myid == 0 .and. cpar%verbosity > 0) &
+            & write(*,fmt='(a,i5,a,a)') '  Initializing component ', i, ' : ', trim(cpar%cs_label(i))
+
        ! Initialize object
        select case (trim(cpar%cs_class(i)))
        case ("diffuse")
           ! Diffuse components
           select case (trim(cpar%cs_type(i)))
           case ("cmb")
-             c => comm_cmb_comp(cpar, i)
+             c => comm_cmb_comp(cpar, ncomp, i)
           case ("power_law")
-             c => comm_powlaw_comp(cpar, i)
+             c => comm_powlaw_comp(cpar, ncomp, i)
+          case ("spindust")
+             c => comm_spindust_comp(cpar, ncomp, i)
+          case ("MBB")
+             c => comm_MBB_comp(cpar, ncomp, i)
+          case ("freefree")
+             c => comm_freefree_comp(cpar, ncomp, i)
+          case ("line")
+             c => comm_line_comp(cpar, ncomp, i)
+          case ("md")
+             c => initialize_md_comps(cpar, ncomp, i, n)
+             ncomp = ncomp + n - 1
           case default
              call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
           end select
           call add_to_complist(c)
        case ("ptsrc")
-          call initialize_ptsrc_comp(cpar, i)
+          call initialize_ptsrc_comp(cpar, ncomp, i)
        case ("template")
           ! Point source components
           select case (trim(cpar%cs_type(i)))
@@ -127,10 +148,10 @@ contains
     end if
   end subroutine add_to_complist
 
-  subroutine initialize_ptsrc_comp(cpar, id)
+  subroutine initialize_ptsrc_comp(cpar, id, id_abs)
     implicit none
     class(comm_params), intent(in) :: cpar
-    integer(i4b),       intent(in) :: id
+    integer(i4b),       intent(in) :: id, id_abs
 
     integer(i4b)        :: unit, i, npar, nmaps
     real(dp)            :: glon, glat, nu_ref
@@ -144,8 +165,8 @@ contains
 
     unit = getlun()
 
-    nmaps = 1; if (cpar%cs_polarization(id)) nmaps = 3
-    select case (trim(cpar%cs_type(id)))
+    nmaps = 1; if (cpar%cs_polarization(id_abs)) nmaps = 3
+    select case (trim(cpar%cs_type(id_abs)))
     case ("radio")
        npar = 2
     case ("fir")
@@ -157,14 +178,14 @@ contains
     
     ! Initialize point sources based on catalog information
     nullify(P_ref)
-    open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id)),recl=1024)
+    open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
     do while (.true.)
        read(unit,'(a)',end=1) line
        line = trim(line)
        if (line(1:1) == '#' .or. trim(line) == '') cycle
        write(*,*) trim(line)
        read(line,*) glon, glat, amp, beta, id_ptsrc
-       c => comm_ptsrc_comp(cpar, id, glon, glat, amp, beta, id_ptsrc, P_ref)
+       c => comm_ptsrc_comp(cpar, id, id_abs, glon, glat, amp, beta, id_ptsrc, P_ref)
        call add_to_complist(c)
        select type (c)
        class is (comm_ptsrc_comp)

@@ -6,6 +6,7 @@ module comm_cr_mod
   use comm_template_comp_mod
   use rngmod
   use comm_cr_utils
+  use math_tools
   implicit none
 
   private
@@ -49,7 +50,7 @@ contains
     end interface
 
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
-    real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2
+    real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
     real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s
     real(dp), allocatable, dimension(:,:) :: alm
     class(comm_comp),   pointer :: c
@@ -63,12 +64,31 @@ contains
     allocate(Ax(n), r(n), d(n), q(n), s(n))
 
     ! Update preconditioner
+    call wall_time(t1)
     call P%update
+    call wall_time(t2)
+    if (cpar%myid == root .and. cpar%verbosity > 2) then
+       write(*,fmt='(a,f8.2)') 'CG initialize preconditioner, time = ', real(t2-t1,sp)
+    end if
     
     ! Initialize the CG search
     x  = 0.d0
     r  = b ! - A(x)   ! x is zero
     d  = invM(r, P)
+
+    !if (cpar%myid == 0) write(*,*) real(b(1:10),sp)
+
+!!$    do i = 1, size(b)
+!!$       x(i) = P%invM_(i-1,1)%M(1,1)*b(i)
+!!$       !x(i) = b(i)
+!!$       x(i) = 1.d0
+!!$       r    = A(x)
+!!$       if (cpar%myid == 0) write(*,*) real(r(i),sp), P%invM_(i-1,1)%M(1,1), r(i)*P%invM_(i-1,1)%M(1,1) !real(b(1)/r(1),sp), real(b(1),sp)
+!!$    end do
+!!$
+!!$    return
+!!$    call mpi_finalize(ierr)
+!!$    stop
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
     delta0    = delta_new
@@ -77,7 +97,10 @@ contains
        
        if (delta_new < eps * delta0) exit
 
+       call wall_time(t3)
        q     = A(d)
+       call wall_time(t4)
+       !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'A time = ', real(t4-t3,sp)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
        x     = x + alpha * d
 
@@ -88,7 +111,10 @@ contains
           r = r - alpha*q
        end if
 
+       call wall_time(t3)
        s         = invM(r, P)
+       call wall_time(t4)
+       !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'invM time = ', real(t4-t3,sp)
        delta_old = delta_new 
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
@@ -96,9 +122,9 @@ contains
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
-          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f6.2)') 'CG iter. ', i, ' -- res = ', &
+          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') 'CG iter. ', i, ' -- res = ', &
                & real(delta_new,sp), ', tol = ', real(eps * delta0,sp), &
-               & ', wall time = ', real(t2-t1,sp)
+               & ', time = ', real(t2-t1,sp)
        end if
 
     end do
@@ -108,16 +134,17 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%cltype) == 'none') exit
-          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
-          call cr_extract_comp(c%id, x, alm)
-          call c%Cl%sqrtS(alm=alm) ! Multiply with sqrt(Cl)
-          call cr_insert_comp(c%id, .false., alm, x)
-          deallocate(alm)
+          if (trim(c%cltype) /= 'none') then
+             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+             call cr_extract_comp(c%id, x, alm)
+             call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)
+             call cr_insert_comp(c%id, .false., alm, x)
+             deallocate(alm)
+          end if
        end select
        c => c%next()
     end do
-    
+
     if (i >= maxiter) then
        write(*,*) 'ERROR: Convergence in CG search not reached within maximum'
        write(*,*) '       number of iterations = ', maxiter
@@ -192,7 +219,7 @@ contains
     real(dp),         allocatable, dimension(:), intent(out)            :: rhs
 
     integer(i4b) :: i, j, l, m, k, n, ierr
-    class(comm_map),     pointer                 :: map, Tm
+    class(comm_map),     pointer                 :: map, Tm, mu
     class(comm_comp),    pointer                 :: c
     class(comm_mapinfo), pointer                 :: info
     real(dp),        allocatable, dimension(:,:) :: eta
@@ -213,7 +240,7 @@ contains
        ! Add channel-dependent white noise fluctuation
        do k = 1, map%info%nmaps
           do j = 0, map%info%np-1
-             map%map(j,k) = map%map(j,k) + rand_gauss(handle)
+!             map%map(j,k) = map%map(j,k) + rand_gauss(handle)
           end do
        end do
 
@@ -221,7 +248,13 @@ contains
        call data(i)%N%sqrtInvN(map)
 
        ! Convolve with transpose beam
+       call map%Yt()
        call data(i)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=map)
+
+!!$       call map%Y()
+!!$       call map%writeFITS('test.fits')
+!!$       call mpi_finalize(ierr)
+!!$       stop
        
        ! Multiply with (transpose and component specific) mixing matrix, and
        ! insert into correct segment
@@ -232,9 +265,17 @@ contains
              info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, c%lmax_amp, &
                   & c%nmaps, data(i)%info%pol)
              Tm     => comm_map(info)
-             Tm%map = map%map
-             Tm%map = c%F(i)%p%map * map%map
-             call Tm%Yt
+             call map%alm_equal(Tm)
+             !Tm%alm = map%alm
+             if (c%lmax_ind == 0) then
+                do j = 1, min(c%x%info%nmaps, Tm%info%nmaps)
+                   Tm%alm(:,j) = Tm%alm(:,j) * c%F_mean(i,j)
+                end do
+             else
+                call Tm%Y()
+                Tm%map = c%F(i)%p%map * map%map
+                call Tm%YtW()
+             end if
              call c%Cl%sqrtS(map=Tm) ! Multiply with sqrt(Cl)
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
              deallocate(Tm)
@@ -245,25 +286,41 @@ contains
        deallocate(map)
     end do
 
-    ! Add prior dependent terms
+!!$    write(*,*) real(rhs(1:100),sp)
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+    ! Add prior terms
     c => compList
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%cltype) == 'none') exit
-          n = ind_comp(c%id,2)
-          allocate(eta(c%x%info%nalm,c%x%info%nmaps))
-          do j = 1, c%x%info%nmaps
-             do i = 1, c%x%info%nalm
-                eta(i,j) = rand_gauss(handle)
+          if (trim(c%cltype) /= 'none') then
+             n = ind_comp(c%id,2)
+             allocate(eta(0:c%x%info%nalm-1,c%x%info%nmaps))
+             eta = 0.d0
+             ! Variance term
+             do j = 1, c%x%info%nmaps
+                do i = 0, c%x%info%nalm-1
+!                   eta(i,j) = rand_gauss(handle)
+                end do
              end do
-          end do
-          call cr_insert_comp(c%id, .true., eta, rhs)
-          deallocate(eta)
+             ! Mean term
+             if (associated(c%mu)) then
+                mu => comm_map(c%mu)
+                call c%Cl%sqrtInvS(map=mu)
+                eta = eta + mu%alm
+                call mu%dealloc()
+             end if
+             call cr_insert_comp(c%id, .true., eta, rhs)
+             deallocate(eta)
+          end if
        end select
        c => c%next()
     end do
     nullify(c)
+
+!    write(*,*) real(rhs(1:100),sp)
 
   end subroutine cr_computeRHS
 
@@ -292,12 +349,13 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%cltype) == 'none') exit
-          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
-          call cr_extract_comp(c%id, sqrtS_x, alm)
-          call c%Cl%sqrtS(alm=alm) ! Multiply with sqrt(Cl)
-          call cr_insert_comp(c%id, .false., alm, sqrtS_x)
-          deallocate(alm)
+          if (trim(c%cltype) /= 'none') then
+             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+             call cr_extract_comp(c%id, sqrtS_x, alm)
+             call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)
+             call cr_insert_comp(c%id, .false., alm, sqrtS_x)
+             deallocate(alm)
+          end if
        end select
        c => c%next()
     end do
@@ -316,6 +374,7 @@ contains
           select type (c)
           class is (comm_diffuse_comp)
              call cr_extract_comp(c%id, sqrtS_x, alm)
+             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
              m = c%getBand(i, amp_in=alm)
              map%map = map%map + m
              deallocate(alm, m)
@@ -337,6 +396,7 @@ contains
        do while (associated(c))
           select type (c)
           class is (comm_diffuse_comp)
+             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
              alm = c%projectBand(i, map)
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
@@ -356,22 +416,25 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%cltype) == 'none') exit
-          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
-          ! Multiply with sqrt(Cl)
-          call cr_extract_comp(c%id, y, alm)
-          call c%Cl%sqrtS(alm=alm)
-          call cr_insert_comp(c%id, .false., alm, y)
-          ! Add (unity) prior term
-          call cr_extract_comp(c%id, x, alm)
-          call cr_insert_comp(c%id, .true., alm, y)
-          deallocate(alm)
+          if (trim(c%cltype) /= 'none') then
+             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+             ! Multiply with sqrt(Cl)
+             call cr_extract_comp(c%id, y, alm)
+             call c%Cl%sqrtS(alm=alm, info=c%x%info)
+             call cr_insert_comp(c%id, .false., alm, y)
+             ! Add (unity) prior term
+             call cr_extract_comp(c%id, x, alm)
+             call cr_insert_comp(c%id, .true., alm, y)
+             deallocate(alm)
+          end if
        end select
        c => c%next()
     end do
     nullify(c)
     call wall_time(t2)
 !    write(*,*) 'e', t2-t1
+    !call mpi_finalize(i)
+    !stop
 
     ! Return result and clean up
     call wall_time(t1)
@@ -395,19 +458,6 @@ contains
     if (.not. allocated(cr_invM)) allocate(cr_invM(size(x)))
     cr_invM = x
     
-!!$    c => compList
-!!$    do while (associated(c))
-!!$       select type (c)
-!!$       class is (comm_diffuse_comp)
-!!$          allocate(alm(c%x%info%nalm,c%x%info%nmaps))
-!!$          call cr_extract_comp(c%id, x, alm)          
-!!$          call c%invM(Nscale, alm)
-!!$          call cr_insert_comp(c%id, .false., alm, cr_invM)
-!!$          deallocate(alm)
-!!$       end select
-!!$       c => c%next()
-!!$    end do
-
     ! Jointly precondition diffuse components
     call precond_diff_comps(P, cr_invM)
     

@@ -27,10 +27,10 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id)
+  function constructor(cpar, id, id_abs)
     implicit none
     type(comm_params),   intent(in) :: cpar
-    integer(i4b),        intent(in) :: id
+    integer(i4b),        intent(in) :: id, id_abs
     class(comm_powlaw_comp), pointer   :: constructor
 
     integer(i4b) :: i
@@ -38,15 +38,15 @@ contains
 
     ! General parameters
     allocate(constructor)
-    call constructor%initDiffuse(cpar, id)
+    call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters
-    constructor%npar = 1
+    constructor%npar         = 1
     allocate(constructor%theta_def(1), constructor%p_gauss(2,1), constructor%p_uni(2,1))
     allocate(constructor%poltype(1), constructor%indlabel(1))
-    constructor%theta_def(1) = cpar%cs_theta_def(id,1)
-    constructor%p_uni(:,1)   = cpar%cs_p_uni(id,:,1)
-    constructor%p_gauss(:,1) = cpar%cs_p_gauss(id,:,1)
+    constructor%theta_def(1) = cpar%cs_theta_def(1,id_abs)
+    constructor%p_uni(:,1)   = cpar%cs_p_uni(id_abs,:,1)
+    constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
     constructor%indlabel(1)  = 'beta'
 
     ! Initialize spectral index map
@@ -54,12 +54,12 @@ contains
          & constructor%nmaps, constructor%pol)
 
     allocate(constructor%theta(1))
-    if (trim(cpar%cs_input_ind(1,id)) == 'default') then
+    if (trim(cpar%cs_input_ind(1,id_abs)) == 'default') then
        constructor%theta(1)%p => comm_map(info)
        constructor%theta(1)%p%map = constructor%theta_def(1)
     else
        ! Read map from FITS file, and convert to alms
-       constructor%theta(1)%p => comm_map(info, cpar%cs_input_ind(1,id))
+       constructor%theta(1)%p => comm_map(info, cpar%cs_input_ind(1,id_abs))
     end if
     call constructor%theta(1)%p%YtW
 
@@ -72,9 +72,6 @@ contains
     ! Initialize mixing matrix
     call constructor%updateMixmat
 
-    ! Initialize preconditioner
-    call constructor%initPrecond
-    
   end function constructor
 
   ! Definition:

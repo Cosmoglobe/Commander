@@ -41,11 +41,14 @@ contains
     class(comm_map),                    intent(in) :: mask
     class(comm_N_rms),                  pointer    :: constructor
 
-    character(len=512) :: dir
+    character(len=512) :: dir, cache
+    character(len=4)   :: itext
     
     ! General parameters
     allocate(constructor)
-    dir = trim(cpar%datadir) // '/'
+    call int2string(info%myid, itext)
+    dir   = trim(cpar%datadir) // '/'
+    cache = trim(dir) // 'invNlm_' // trim(cpar%ds_label(id)) // '_proc' // itext // '.unf'
 
     ! Component specific parameters
     constructor%type    = cpar%ds_noise_format(id)
@@ -55,6 +58,7 @@ contains
     constructor%pol     = info%nmaps == 3
     constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id)))
     constructor%siN%map = 1.d0 / constructor%siN%map
+    call constructor%siN%YtW
 
     ! Apply mask
     constructor%siN%map = constructor%siN%map * mask%map
@@ -62,7 +66,8 @@ contains
     ! Set up diagonal covariance matrix in both pixel and harmonic space
     constructor%invN_diag     => comm_map(info)
     constructor%invN_diag%map = constructor%siN%map**2
-    call compute_invN_lm(constructor%invN_diag)
+    call constructor%invN_diag%YtW
+    call compute_invN_lm(cache, constructor%invN_diag)
     
   end function constructor
 

@@ -3,6 +3,7 @@ module comm_map_mod
   use healpix_types
   use fitstools
   use pix_tools
+  use udgrade_nr
   use iso_c_binding, only : c_ptr, c_double
   use head_fits
   implicit none
@@ -48,6 +49,7 @@ module comm_map_mod
      procedure     :: readFITS
      procedure     :: dealloc => deallocate_comm_map
      procedure     :: alm_equal
+     procedure     :: udgrade
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -474,7 +476,31 @@ contains
 
   end subroutine write_map
 
-  
+  ! Note: Allocates a full-size internal map. Should not be used extensively.
+  subroutine udgrade(self, map_out)
+    implicit none
+    class(comm_map), intent(in)    :: self
+    class(comm_map), intent(inout) :: map_out
+
+    integer(i4b) :: i, j, ierr
+    real(dp), allocatable, dimension(:,:) :: m_in, m_out
+
+!    if (self%info%nside == map_out%info%nside) then
+!       map_out%map = self%map
+!       return
+!    end if
+
+    allocate(m_in(0:self%info%npix-1,self%info%nmaps))
+    allocate(m_out(0:map_out%info%npix-1,map_out%info%nmaps))
+    m_in                  = 0.d0
+    m_in(self%info%pix,:) = self%map
+    call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
+    call mpi_allreduce(MPI_IN_PLACE, m_out, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+    map_out%map = m_out(map_out%info%pix,:)
+    deallocate(m_in, m_out)
+
+  end subroutine udgrade
+
   !**************************************************
   !                   Utility routines
   !**************************************************
@@ -559,12 +585,18 @@ contains
 
     class(comm_map), pointer :: c
     
-    c => self%nextLink
-    do while (associated(c%nextLink))
-       c => c%nextLink
-    end do
-    link%prevLink => c
-    c%nextLink    => link
+    if (associated(self%nextLink)) then
+       c => self%nextLink
+       do while (associated(c%nextLink))
+          c => c%nextLink
+       end do
+       !link%prevLink => c
+       c%nextLink    => link
+    else
+       !link%prevLink => self
+       self%nextLink => link
+    end if
+
   end subroutine add
   
 end module comm_map_mod

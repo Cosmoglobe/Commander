@@ -11,7 +11,7 @@ module comm_bp_mod
      character(len=512) :: type, model
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, co2t, a2sz
+     real(dp)           :: nu_c, a2t, f2t, a2sz
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta
    contains
      ! Data procedures
@@ -87,6 +87,7 @@ contains
     ! Initialize raw bandpass
     if (trim(constructor%type) == 'delta') then
        allocate(constructor%nu0(1),constructor%tau0(1), constructor%nu(1), constructor%tau(1))
+       constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
     else
@@ -98,53 +99,24 @@ contains
     ! Initialize fitting model
     constructor%model = cpar%ds_bpmodel(id)
     if (trim(constructor%model) == 'additive_shift') then
-       constructor%npar = 1.d0
+       constructor%npar = 1
        allocate(constructor%delta(constructor%npar))
-       constructor%delta = 1.d0
+       constructor%delta = 0.d0
     else if (trim(constructor%model) == 'powlaw_tilt') then
-       constructor%npar = 1.d0
+       constructor%npar = 1
        allocate(constructor%delta(constructor%npar))
-       constructor%delta = 1.d0
+       constructor%delta = 0.d0
     else
        call report_error('Error -- unsupported bandpass model = ' // trim(constructor%model))
     end if
 
     ! Initialize active bandpass 
     call constructor%update_tau(constructor%delta)
-    constructor%co2t = cpar%ds_co2t(id)
 
   end function constructor
   
 
   
-  subroutine initialize_bandpass(MJysr_convention, T_CMB_in, bptype, bpname, bpmodel, nu_c, &
-       & a2t, f2t, a2sz, nu0, nu, tau0, tau)
-    implicit none
-    
-    character(len=*),                            intent(in)  :: MJysr_convention
-    character(len=*),                            intent(in)  :: bptype, bpname, bpmodel
-    real(dp),                                    intent(in)  :: nu_c, T_CMB_in
-    real(dp),                                    intent(out) :: a2t, f2t, a2sz
-    real(dp),         allocatable, dimension(:), intent(out) :: nu0, nu, tau0, tau
-
-    integer(i4b)        :: n
-    real(dp)            :: threshold, delta
-
-!!$    if (myid == 0) then
-!!$       open(unit,file=trim(chaindir)//'/unit_conversions.dat',recl=1024)
-!!$       write(unit,*) '# Band        Convention           Nu_c (GHz)      a2t [K_cmb/K_RJ]' // &
-!!$            & '      t2f [MJy/K_cmb]   co2t [uK_cmb / (K km/s)]   a2sz [y_sz/K_RJ]'
-!!$       do i = 1, numband
-!!$          q = i2f(i)
-!!$          write(unit,fmt='(a,a,a,a,f16.5,4e20.5)') bp(q)%label, ' ', bp(q)%id, ' ', &
-!!$               & bp(q)%nu_c/1.d9, bp(q)%a2t, 1.d0/bp(q)%f2t*1e6, bp(q)%co2t, bp(q)%a2sz * 1.d6
-!!$       end do
-!!$       close(unit)
-!!$    end if
-
-  end subroutine initialize_bandpass
-
-
   subroutine update_tau(self, delta)
     implicit none
 

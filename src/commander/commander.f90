@@ -5,6 +5,7 @@ program commander
   use comm_cr_mod
   use comm_chisq_mod
   use comm_output_mod
+  use comm_comp_mod
   implicit none
 
   ! *********************************************************************
@@ -32,6 +33,10 @@ program commander
   integer(i4b)        :: iargc, ierr, iter, stat
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle
+
+  type(comm_mapinfo), pointer :: info
+  type(comm_map), pointer :: m
+  class(comm_comp), pointer :: c1
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
@@ -64,6 +69,22 @@ program commander
   call initialize_bp_mod(cpar);          call update_status(status, "init_bp")
   call initialize_data_mod(cpar);        call update_status(status, "init_data")
   call initialize_signal_mod(cpar);      call update_status(status, "init_signal")
+
+  call data(1)%map%YtW()
+  !write(*,*) data(1)%map%alm(0:3,1)
+  !call mpi_finalize(ierr)
+  !stop
+
+!!$  c1 => compList
+!!$  c1 => c1%next()
+!!$  call c1%dumpFITS('hei', '.')
+
+  ! Output SEDs for each component
+  if (.false.) then
+     if (cpar%myid == cpar%root) call dump_components('sed.dat')
+     call mpi_finalize(ierr)
+     stop
+  end if
   
   ! **************************************************************
   ! *                   Carry out computations                   *

@@ -197,7 +197,7 @@ contains
                 chisq_prop_rms = buffer
                 call mpi_allreduce(chisq0_rms, buffer, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm_chain, ierr)
                 chisq0_rms = buffer
-                if (chisq_prop_rms == chisq0_rms) cycle
+                !if (chisq_prop_rms == chisq0_rms) cycle
                 if (myid_chain == root) then
                    fg_param_map(:,:,p) = par_prop(:,:,p)
                    do k = 1, numprocs_chain-1
@@ -228,7 +228,8 @@ contains
                       call get_smooth_par_map(par_prop, par_smooth)
                       call compute_total_chisq(map_id, s=s, index_map=par_smooth, chisq_fullsky=chisq_prop)
                       ! Prior term is neglected, since it cancels due to our proposal distribution
-                      Delta = (chisq_prop-chisq_prop_rms)-(chisq0-chisq0_rms)
+                      !Delta = (chisq_prop-chisq_prop_rms)-(chisq0-chisq0_rms)
+                      Delta = (chisq_prop-chisq0) + (chisq_prop_rms-chisq0_rms) ! Simple MH
                       if (rms_specind > 0.d0 .or. trim(operation) == 'optimize') then
                          if (chisq_prop < chisq0) then
                             accept_prob = 1.d0
@@ -326,11 +327,24 @@ contains
     real(dp)         :: chisq_old, alpha
     real(dp), allocatable, dimension(:) :: x_n, S_n
     logical(lgt)     :: return_prior
-    character(len=3) :: id_text
+    character(len=5) :: id_text
 
     integer(i4b), save :: iteration = 0
     
     alpha = 1.d0
+
+    if (trim(noise_format) /= 'rms') then
+       alpha = 0.05d0
+       par = par_map(region%pix(1,1),region%pix(1,2),p) 
+       chisq_in = (par+3.1d0)**2 / 0.3d0**3
+       par = par + alpha * rand_gauss(handle)
+       chisq_out = (par+3.1d0)**2 / 0.3d0**3
+       do i = 1, region%n
+          par_map(region%pix(i,1),region%pix(i,2),p) = par
+       end do
+       return
+    end if
+
 
     ! Prepare reduced data set
     npix_reg = region%n_ext
@@ -498,16 +512,20 @@ contains
              end do
 
 !!$             !call int2string(myid_chain, id_text)
-!!$             iteration = iteration+1
-!!$             call int2string(iteration, id_text)
-!!$             open(58,file='p'//id_text//'.dat')
-!!$             do i = 1, 100
-!!$                par = fg_components(comp)%priors(p_local,1) + &
-!!$                     & (fg_components(comp)%priors(p_local,2)-fg_components(comp)%priors(p_local,1)) * &
-!!$                     & (i-1.d0)/(100.d0-1.d0)
-!!$                write(58,*) par, lnL_specind_ARS(par)
-!!$             end do
-!!$             close(58)
+!!$             if (comp == 1 .and. p_local == 2 .and. region%pix_ext(1,1) == 1000) then
+!!$                iteration = iteration+1
+!!$                call int2string(iteration, id_text)
+!!$                open(58,file='p'//id_text//'.dat')
+!!$                do i = 1, 10000
+!!$                   par = fg_components(comp)%priors(p_local,1) + &
+!!$                        & (fg_components(comp)%priors(p_local,2)-fg_components(comp)%priors(p_local,1)) * &
+!!$                        & (i-1.d0)/(10000.d0-1.d0)
+!!$                   write(58,*) par, lnL_specind_ARS(par)
+!!$                end do
+!!$                close(58)
+!!$                !call mpi_finalize(ierr)
+!!$                !stop
+!!$             end if
 
              !if (present(chisq_out)) chisq_out = -2.d0*lnL_specind_ARS(0.683d0)
           else

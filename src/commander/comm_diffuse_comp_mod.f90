@@ -10,7 +10,7 @@ module comm_diffuse_comp_mod
   implicit none
 
   private
-  public comm_diffuse_comp, precondDiff, precond_diff_comps
+  public comm_diffuse_comp, precondDiff, precond_diff_comps, add_to_npre
   
   !**************************************************
   !            Diffuse component class
@@ -25,7 +25,7 @@ module comm_diffuse_comp_mod
 
      class(comm_map),               pointer     :: mask
      class(comm_map),               pointer     :: x      ! Spatial parameters
-     class(comm_map),               pointer     :: inv_M  ! Preconditioner
+     class(comm_map),               pointer     :: mu     ! Spatial prior mean
      class(comm_B),                 pointer     :: B_out  ! Output beam
      class(comm_Cl),                pointer     :: Cl     ! Power spectrum
      class(map_ptr),  dimension(:), allocatable :: theta  ! Spectral parameters
@@ -38,18 +38,21 @@ module comm_diffuse_comp_mod
      procedure :: getBand     => evalDiffuseBand
      procedure :: projectBand => projectDiffuseBand
      procedure :: dumpFITS    => dumpDiffuseToFITS
-     procedure :: initPrecond 
   end type comm_diffuse_comp
 
   type diff_ptr
      class(comm_diffuse_comp), pointer :: p
   end type diff_ptr
   
+  type invM_lm
+     integer(i4b)                              :: n
+     integer(i4b), allocatable, dimension(:)   :: ind, comp2ind
+     real(dp),     allocatable, dimension(:,:) :: M0, M
+  end type invM_lm
+
   type precondDiff
-     integer(i4b) :: lmax, nside, nmaps
      real(dp)     :: Nscale
-     real(dp), allocatable, dimension(:,:,:,:) :: invM0 ! (npre,npre,0:nalm-1,nmaps)
-     real(dp), allocatable, dimension(:,:,:,:) :: invM  ! (npre,npre,0:nalm-1,nmaps)
+     type(invM_lm), allocatable, dimension(:,:)      :: invM_ ! (0:nalm-1,nmaps)
    contains
      procedure :: update  => updateDiffPrecond
   end type precondDiff
@@ -67,23 +70,23 @@ module comm_diffuse_comp_mod
   
 contains
 
-  subroutine initDiffuse(self, cpar, id)
+  subroutine initDiffuse(self, cpar, id, id_abs)
     implicit none
     class(comm_diffuse_comp)            :: self
     type(comm_params),       intent(in) :: cpar
-    integer(i4b),            intent(in) :: id
+    integer(i4b),            intent(in) :: id, id_abs
 
     integer(i4b) :: i
     type(comm_mapinfo), pointer :: info
     
-    call self%initComp(cpar, id)
+    call self%initComp(cpar, id, id_abs)
 
     ! Initialize variables specific to diffuse source type
-    self%pol      = cpar%cs_polarization(id)
-    self%nside    = cpar%cs_nside(id)
-    self%lmax_amp = cpar%cs_lmax_amp(id)
-    self%lmax_ind = cpar%cs_lmax_ind(id)
-    self%cltype   = cpar%cs_cltype(id)
+    self%pol      = cpar%cs_polarization(id_abs)
+    self%nside    = cpar%cs_nside(id_abs)
+    self%lmax_amp = cpar%cs_lmax_amp(id_abs)
+    self%lmax_ind = cpar%cs_lmax_ind(id_abs)
+    self%cltype   = cpar%cs_cltype(id_abs)
     self%nmaps    = 1; if (self%pol) self%nmaps = 3
     info          => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
 
@@ -94,17 +97,20 @@ contains
     nmaps_pre = max(nmaps_pre, self%nmaps)
 
     ! Initialize amplitude map
-    if (trim(cpar%cs_input_amp(id)) == 'zero' .or. trim(cpar%cs_input_amp(id)) == 'none') then
+    if (trim(cpar%cs_input_amp(id_abs)) == 'zero' .or. trim(cpar%cs_input_amp(id_abs)) == 'none') then
        self%x => comm_map(info)
     else
        ! Read map from FITS file, and convert to alms
-       self%x => comm_map(info, cpar%cs_input_amp(id))
+       self%x => comm_map(info, cpar%cs_input_amp(id_abs))
        call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
 
-    ! Initialize preconditioner structure
-    self%inv_M => comm_map(info)
+    ! Initialize prior mean
+    if (trim(cpar%cs_prior_amp(id_abs)) /= 'none') then
+       self%mu => comm_map(info, cpar%cs_prior_amp(id_abs))
+       call self%mu%YtW
+    end if
 
     ! Allocate mixing matrix
     allocate(self%F(numband), self%F_mean(numband,self%nmaps))
@@ -115,10 +121,10 @@ contains
     end do
 
     ! Initialize output beam
-    self%B_out => comm_B_bl(cpar, self%x%info, 0, fwhm=cpar%cs_fwhm(id))
+    self%B_out => comm_B_bl(cpar, self%x%info, 0, fwhm=cpar%cs_fwhm(id_abs))
 
     ! Initialize power spectrum
-    self%Cl => comm_Cl(cpar, self%x%info, id)
+    self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)
     
   end subroutine initDiffuse
 
@@ -128,9 +134,11 @@ contains
     real(dp),                    intent(in) :: Nscale
     class(precondDiff), pointer             :: constPreDiff
 
-    integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m
+    integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
+    integer(i4b), allocatable, dimension(:) :: ind
     class(comm_comp),         pointer :: c
     class(comm_diffuse_comp), pointer :: p1, p2
+    real(dp),     allocatable, dimension(:,:) :: mat
 
     allocate(constPreDiff)
 
@@ -151,28 +159,57 @@ contains
     end if
 
     ! Build frequency-dependent part of preconditioner
-    allocate(constPreDiff%invM0(npre,npre,0:info_pre%nalm-1,info_pre%nmaps))
-    allocate(constPreDiff%invM(npre,npre,0:info_pre%nalm-1,info_pre%nmaps))
-    constPreDiff%invM0 = 0.d0
+    allocate(mat(npre,npre))
+    allocate(constPreDiff%invM_(0:info_pre%nalm-1,info_pre%nmaps), ind(npre))
     do j = 1, info_pre%nmaps
        do i1 = 0, info_pre%nalm-1
           call info_pre%i2lm(i1, l, m)
+          mat = 0.d0
           do q = 1, numband
              call data(q)%info%lm2i(l,m,i2)
              if (i2 == -1) cycle
              do k1 = 1, npre
                 p1 => diffComps(k1)%p
+                if (l > p1%lmax_amp) cycle
                 do k2 = 1, npre
                    p2 => diffComps(k2)%p
-                   constPreDiff%invM0(k1,k2,i1,j) = constPreDiff%invM0(k1,k2,i1,j) + &
+                   if (l > p2%lmax_amp) cycle
+                   mat(k1,k2) = mat(k1,k2) + &
                         & data(q)%N%invN_diag%alm(i2,j) * &                         ! invN_{lm,lm}
                         & data(q)%B%b_l(l,j)**2 * &                                 ! b_l^2
                         & p1%F_mean(q,j) * p2%F_mean(q,j) ! F(c1)*F(c2)
+!!$                   if (.false. .and. l == 0  .and. m == 0) then
+!!$                      write(*,*)
+!!$                      write(*,*) data(q)%N%invN_diag%alm(i2,j)
+!!$                      write(*,*) data(q)%B%b_l(l,j)
+!!$                      write(*,*) p1%F_mean(q,j), p2%F_mean(q,j)
+!!$                      write(*,*) constPreDiff%invM0(k1,k2,i1,j)
+!!$                   end if
                 end do
              end do
           end do
+
+          n = 0
+          allocate(constPreDiff%invM_(i1,j)%comp2ind(npre))
+          constPreDiff%invM_(i1,j)%comp2ind = -1
+          do k1 = 1, npre
+             !if (constPreDiff%invM0(k1,k1,i1,j) > 0.d0) then
+             if (mat(k1,k1) > 0.d0) then
+                n = n+1
+                ind(n) = k1
+                constPreDiff%invM_(i1,j)%comp2ind(k1) = n
+             end if
+          end do
+          constPreDiff%invM_(i1,j)%n = n
+          allocate(constPreDiff%invM_(i1,j)%ind(n))
+          allocate(constPreDiff%invM_(i1,j)%M0(n,n), constPreDiff%invM_(i1,j)%M(n,n))
+          constPreDiff%invM_(i1,j)%ind = ind(1:n)
+          constPreDiff%invM_(i1,j)%M0   = mat(ind(1:n),ind(1:n))
+
        end do
     end do
+
+    deallocate(ind, mat)
 
   end function constPreDiff
 
@@ -180,39 +217,152 @@ contains
     implicit none
     class(precondDiff), intent(inout) :: self
 
-    integer(i4b) :: i, j, k1, k2
-    
-    self%invM = self%invM0
-    
+    integer(i4b) :: i, j, k, k1, k2, l, m, n, ierr, unit, p, q
+    real(dp)     :: W_ref
+    logical(lgt), save :: first_call = .true.
+    integer(i4b), allocatable, dimension(:) :: ind
+    real(dp),     allocatable, dimension(:) :: W
+    real(dp),     allocatable, dimension(:) :: cond, W_min
+    real(dp),     allocatable, dimension(:,:) :: alm
+
+    ! Initialize current preconditioner to F^t * B^t * invN * B * F
+    !self%invM    = self%invM0
+    do j = 1, info_pre%nmaps
+       do i = 0, info_pre%nalm-1
+          self%invM_(i,j)%M = self%invM_(i,j)%M0
+       end do
+    end do
+
     ! Right-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
        do k2 = 1, npre
-          call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k2,k1,:,:))
+          !call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k2,k1,:,:), info=info_pre)
+          do j = 1, info_pre%nmaps
+             do i = 0, info_pre%nalm-1
+                p = self%invM_(i,j)%comp2ind(k1)
+                q = self%invM_(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) then
+                   alm(i,j) = self%invM_(i,j)%M(q,p)
+                else
+                   alm(i,j) = 0.d0
+                end if
+             end do
+          end do
+          call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
+          do j = 1, info_pre%nmaps
+             do i = 0, info_pre%nalm-1
+                p = self%invM_(i,j)%comp2ind(k1)
+                q = self%invM_(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) self%invM_(i,j)%M(q,p) = alm(i,j)
+             end do
+          end do
        end do
+       deallocate(alm)
     end do
 
     ! Left-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
        do k2 = 1, npre
-          call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k1,k2,:,:))
+          !call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k1,k2,:,:), info=info_pre)
+          do j = 1, info_pre%nmaps
+             do i = 0, info_pre%nalm-1
+                p = self%invM_(i,j)%comp2ind(k1)
+                q = self%invM_(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) then
+                   alm(i,j) = self%invM_(i,j)%M(p,q)
+                else
+                   alm(i,j) = 0.d0
+                end if
+             end do
+          end do
+          call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
+          do j = 1, info_pre%nmaps
+             do i = 0, info_pre%nalm-1
+                p = self%invM_(i,j)%comp2ind(k1)
+                q = self%invM_(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) self%invM_(i,j)%M(p,q) = alm(i,j)
+             end do
+          end do
        end do
+       deallocate(alm)
     end do
+
+
 
     ! Add unity 
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
-       self%invM(k1,k1,:,:) = self%invM(k1,k1,:,:) + 1.d0
+       do i = 0, info_pre%nalm-1
+          call info_pre%i2lm(i, l, m)
+          if (l <= diffComps(k1)%p%lmax_amp) then
+             !self%invM(k1,k1,i,:)     = self%invM(k1,k1,i,:) + 1.d0
+             do j = 1, info_pre%nmaps
+                self%invM_(i,j)%M(k1,k1) = self%invM_(i,j)%M(k1,k1) + 1.d0
+             end do
+          end if
+       end do
     end do
 
-    ! Invert
+    ! Print out worst condition number in first call
+    if (first_call) then
+       allocate(cond(0:lmax_pre), W_min(0:lmax_pre))
+       cond  = 0.d0
+       W_min = 1.d30
+       do j = 1, nmaps_pre
+          do i = 0, info_pre%nalm-1
+             call info_pre%i2lm(i, l, m)
+             n = self%invM_(i,j)%n
+             if (n > 0) then
+                allocate(W(n), ind(n))
+                call get_eigenvalues(self%invM_(i,j)%M, W)
+                W_ref    = minval(abs(W))
+                cond(l)  = max(cond(l), maxval(abs(W/W_ref)))
+                W_min(l) = min(W_min(l), minval(W))
+!!$                if (l == 100) then
+!!$                   if (info_pre%myid == 0) then
+!!$                      write(*,*) l, m
+!!$                      do k = 1, npre
+!!$                         write(*,*) self%invM(k,:,i,j)
+!!$                      end do
+!!$                      write(*,*)
+!!$                      write(*,*) real(W,sp)
+!!$                      write(*,*) cond(l), W_min(l)
+!!$                   end if
+!!$                   call mpi_finalize(ierr)
+!!$                   stop
+!!$                end if
+                deallocate(W, ind)
+             end if
+          end do
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, cond,  lmax_pre+1, MPI_DOUBLE_PRECISION, MPI_MAX, info_pre%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, W_min, lmax_pre+1, MPI_DOUBLE_PRECISION, MPI_MIN, info_pre%comm, ierr)
+       if (info_pre%myid == 0) then
+          write(*,*) 'Precond -- largest condition number = ', real(maxval(cond),sp)
+          write(*,*) 'Precond -- smallest eigenvalue      = ', real(minval(W_min),sp)
+          unit = getlun()
+          open(unit, file='precond_eigenvals.dat', recl=1024)
+          do l = 0, lmax_pre
+             write(unit,fmt='(i8,2e16.8)') l, cond(l), W_min(l)
+          end do
+          close(unit)
+       end if
+
+       first_call = .false.
+       deallocate(cond, W_min)
+    end if
+
+    ! Invert matrix
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          call invert_matrix_with_mask(self%invM(:,:,i,j))
+          call invert_matrix_with_mask(self%invM_(i,j)%M)
        end do
-    end do    
-
+    end do
+       
   end subroutine updateDiffPrecond
     
   
@@ -236,7 +386,7 @@ contains
     end if
     
     ! Compute mixing matrix
-    allocate(theta_p(self%nmaps,self%npar))
+    allocate(theta_p(self%npar,self%nmaps))
     do i = 1, numband
 
        ! Compute spectral parameters at the correct resolution for this channel
@@ -281,7 +431,7 @@ contains
           end if
 
           ! Temperature
-          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) * data(i)%RJ2data()
+          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) 
 
           ! Polarization
           if (self%nmaps == 3) then
@@ -289,14 +439,14 @@ contains
              if (all(self%poltype < 2)) then
                 self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1)
              else
-                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) * self%RJ2unit()
+                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) 
              end if
        
              ! Stokes U
              if (all(self%poltype < 3)) then
                 self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2)
              else
-                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) * self%RJ2unit()
+                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) 
              end if
           end if
           
@@ -312,6 +462,8 @@ contains
 
     end do
     nullify(t, t0)
+
+    
 
   end subroutine updateMixmat
 
@@ -337,6 +489,7 @@ contains
     else
        m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
+    !write(*,*) 'getBand', m%alm(0,1)
     if (self%lmax_amp > data(band)%map%info%lmax) then
        ! Nullify elements above band-specific lmax to avoid aliasing during projection
        do i = 0, m%info%nalm-1
@@ -350,15 +503,17 @@ contains
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
        end do
     else
-       call m%Y
+       call m%Y()
        m%map = m%map * self%F(band)%p%map
+       call m%YtW()
     end if
 
     ! Convolve with band-specific beam
     call data(band)%B%conv(alm_in=(self%lmax_ind==0), alm_out=.false., trans=.false., map=m)
+    call m%Y()
 
     ! Return pixelized map
-    allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
+    if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
     evalDiffuseBand = m%map
 
     ! Clean up
@@ -385,6 +540,7 @@ contains
     m         => comm_map(map)
 
     ! Convolve with band-specific beam
+    call m%Yt()
     call data(band)%B%conv(alm_in=.false., alm_out=(self%lmax_ind==0), trans=.true., map=m)
 
     ! Scale to correct frequency through multiplication with mixing matrix
@@ -393,44 +549,18 @@ contains
        do i = 1, nmaps
           m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
        end do
-       m_out%alm = m_out%alm * self%x%info%npix/(4.d0*pi) ! From beam convolution
     else
+       call m%Y()
        m_out%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
-       call m_out%Yt
+       call m_out%YtW()
     end if
 
-    allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+    if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
     projectDiffuseBand = m_out%alm
 
     deallocate(m, m_out, info)
     
   end function projectDiffuseBand
-
-  ! Return component projected from map
-  subroutine initPrecond(self)
-    implicit none
-    class(comm_diffuse_comp), intent(inout) :: self
-
-    integer(i4b) :: i, j, k, l, m, ind
-    real(dp)     :: alm(self%inv_M%info%nmaps)
-
-    self%inv_M%map = 0.d0
-    do j = 0, self%x%info%nalm-1
-       call self%x%info%i2lm(j,l,m)
-       ! Compute inv_M = sum_nu F^t * B^t * invN * B * F
-       do i = 1, numband
-          call data(i)%N%invN_diag%info%lm2i(l,m,k)
-          if (k > -1) then
-             alm = data(i)%N%invN_diag%alm(k,:) * data(i)%B%b_l(l,:)**2 * self%F_mean(i,:)**2
-             if (trim(self%cltype) /= 'none') then
-                ! inv_M = C^(1/2) * F^t * B^t * invN * B * F * C^(1/2)
-             end if
-             self%inv_M%alm(j,:) = self%inv_M%alm(j,:) + alm
-          end if
-       end do
-    end do
-
-  end subroutine initPrecond
 
   subroutine precond_diff_comps(P, x)
     implicit none
@@ -458,7 +588,8 @@ contains
     ! Multiply with preconditioner
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
+          !y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
+          y(P%invM_(i,j)%ind,i,j) = matmul(P%invM_(i,j)%M, y(P%invM_(i,j)%ind,i,j))
        end do
     end do
 
@@ -487,34 +618,87 @@ contains
     class(comm_diffuse_comp),                intent(in)           :: self
     character(len=*),                        intent(in)           :: dir
 
-    integer(i4b)       :: i
+    integer(i4b)       :: i, l, m, ierr, unit
+    real(dp)           :: vals(10)
+    logical(lgt)       :: exist, first_call = .true.
     character(len=512) :: filename
     class(comm_map), pointer :: map
 
-    ! Write amplitude
-    map => comm_map(self%x)
-    call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
-   
-    filename = trim(self%label) // '_' // trim(postfix) // '.fits'
-    call map%Y
-    call map%writeFITS(trim(dir)//'/'//trim(filename))
-    deallocate(map)
+    if (trim(self%type) == 'md') then
+       filename = trim(dir)//'/md_' // trim(postfix) // '.dat'
+       vals = 0.d0
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          if (l == 0) then                 ! Monopole
+             vals(1)  = 1.d0/sqrt(4.d0*pi) * self%x%alm(i,1)             * self%RJ2unit_
+             vals(5)  = 1.d0/sqrt(4.d0*pi) * self%mu%alm(i,1)            * self%RJ2unit_
+             vals(9)  = 1.d0/sqrt(4.d0*pi) * sqrt(self%Cl%Dl(0,1))       * self%RJ2unit_
+          end if
+          if (l == 1 .and. m == -1) then   ! Y dipole
+             vals(3)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
+             vals(7)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
+          end if
+          if (l == 1 .and. m ==  0) then   ! Z dipole
+             vals(4)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
+             vals(8)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
+          end if
+          if (l == 1 .and. m ==  1) then   ! X dipole
+             vals(2)  = -1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
+             vals(6)  = -1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
+             vals(10) =  1.d0/sqrt(4.d0*pi/3.d0) * sqrt(self%Cl%Dl(1,1))  * self%RJ2unit_
+          end if
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, vals, 10, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       if (self%x%info%myid == 0) then
+          inquire(file=trim(filename), exist=exist)
+          unit = getlun()
+          if (first_call) then
+             open(unit, file=trim(filename), recl=1024)
+             write(unit,*) '# Band          M_def       X_def       Y_def       Z_def     M_mean      X_mean      Y_mean      Z_mean     M_rms       D_rms'
+             first_call = .false.
+          else
+             open(unit, file=trim(filename), recl=1024, position='append')
+          end if
+          write(unit,'(a12,10e12.3)') trim(self%label), vals
+          close(unit)
+       end if
+    else
 
-    ! Write spectral index maps
-    do i = 1, self%npar
-       filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
-            & trim(postfix) // '.fits'
-       call self%theta(i)%p%Y
-       call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-    end do
-
-    ! Write mixing matrices
-    do i = 1, numband
-       filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
-            & trim(postfix) // '.fits'
-       call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-    end do
+       ! Write amplitude
+       map => comm_map(self%x)
+       map%alm = map%alm * self%RJ2unit_ ! Output in requested units
+       call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
+       
+       filename = trim(self%label) // '_' // trim(postfix) // '.fits'
+       call map%Y
+       call map%writeFITS(trim(dir)//'/'//trim(filename))
+       deallocate(map)
+       
+       ! Write spectral index maps
+       do i = 1, self%npar
+          filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
+               & trim(postfix) // '.fits'
+          call self%theta(i)%p%Y
+          call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+       end do
+       
+       ! Write mixing matrices
+       do i = 1, numband
+          filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
+               & trim(postfix) // '.fits'
+          call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+       end do
+    end if
         
   end subroutine dumpDiffuseToFITS
+
+  subroutine add_to_npre(n, nside, lmax, nmaps)
+    implicit none
+    integer(i4b), intent(in) :: n, nside, lmax, nmaps
+    npre      = npre + n
+    nside_pre = min(lmax_pre, nside)
+    lmax_pre  = max(lmax_pre, lmax)
+    nmaps_pre = max(nmaps_pre, nmaps)
+  end subroutine add_to_npre
   
 end module comm_diffuse_comp_mod

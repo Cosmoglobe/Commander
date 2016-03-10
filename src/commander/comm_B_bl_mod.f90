@@ -51,8 +51,8 @@ contains
     end if
 
     ! Initialize real-space profile
-    call constructor%initBTheta(filename=trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(id)))
-    constructor%r_max = maxval(constructor%b_theta(1)%x)
+    !call constructor%initBTheta(filename=trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(id)))
+    !constructor%r_max = maxval(constructor%b_theta(1)%x)
     
   end function constructor
   
@@ -65,16 +65,18 @@ contains
 
     integer(i4b) :: i, l
 
-    if (.not. alm_in) call map%YtW
+    !if (.not. alm_in) call map%YtW
     
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
        if (l <= self%info%lmax) then
-          map%alm(i,:) = map%alm(i,:) * self%b_l(map%info%lm(1,i),:)
+          map%alm(i,:) = map%alm(i,:) * self%b_l(l,:)
+       else
+          map%alm(i,:) = 0.d0
        end if
     end do
 
-    if (.not. alm_out) call map%Y
+    !if (.not. alm_out) call map%Y
 
   end subroutine matmulB
   

@@ -49,16 +49,32 @@ module comm_N_mod
 
 contains
 
-  subroutine compute_invN_lm(invN_diag)
+  subroutine compute_invN_lm(cache, invN_diag)
     implicit none
 
-    class(comm_map), intent(inout) :: invN_diag
+    character(len=*), intent(in)    :: cache
+    class(comm_map),  intent(inout) :: invN_diag
 
-    real(dp)     :: l0min, l0max, l1min, l1max, npix
-    integer(i4b) :: i, j, k, l, m, lp, l2, ier, twolmaxp2, pos, lmax
+    real(dp)     :: l0min, l0max, l1min, l1max, npix, checksum
+    integer(i4b) :: i, j, k, l, m, lp, l2, ier, twolmaxp2, pos, lmax, unit
+    logical(lgt) :: exist
     complex(dpc) :: val(invN_diag%info%nmaps)
     real(dp), allocatable, dimension(:)   :: threej_symbols, threej_symbols_m0
     real(dp), allocatable, dimension(:,:) :: N_lm, a_l0
+
+    unit = getlun()
+    inquire(file=trim(cache), exist=exist)
+    if (exist) then
+       open(unit, file=trim(cache), form='unformatted')
+       read(unit) checksum
+       if (abs(sum(abs(invN_diag%map))-checksum)/abs(checksum) < 1d-6) then
+          read(unit) invN_diag%alm
+          close(unit)
+          return
+       else
+          close(unit)
+       end if
+    end if
 
     lmax      = invN_diag%info%lmax
     twolmaxp2 = 2*lmax+2
@@ -105,6 +121,12 @@ contains
     end do
 
     invN_diag%alm = N_lm
+
+    ! Write cache file to disk
+    open(unit, file=trim(cache), form='unformatted')
+    write(unit) sum(abs(invN_diag%map))    ! Check-sum
+    write(unit) invN_diag%alm
+    close(unit)
 
     deallocate(N_lm, threej_symbols, threej_symbols_m0, a_l0)
     
