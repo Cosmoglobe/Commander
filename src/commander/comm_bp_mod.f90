@@ -110,6 +110,10 @@ contains
        call report_error('Error -- unsupported bandpass model = ' // trim(constructor%model))
     end if
 
+    ! Read default delta from instrument parameter file
+    call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
+         & 'delta', cpar%ds_label(id), 0.d0, constructor%delta(1))
+
     ! Initialize active bandpass 
     call constructor%update_tau(constructor%delta)
 

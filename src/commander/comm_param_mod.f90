@@ -70,12 +70,14 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
 
      ! Component parameters
-     integer(i4b) :: cs_ncomp, cs_ncomp_tot
+     character(len=512) :: cs_inst_parfile
+     integer(i4b)       :: cs_ncomp, cs_ncomp_tot
      logical(lgt),       allocatable, dimension(:)     :: cs_include
      character(len=512), allocatable, dimension(:)     :: cs_label
      character(len=512), allocatable, dimension(:)     :: cs_type
      character(len=512), allocatable, dimension(:)     :: cs_class
      logical(lgt),       allocatable, dimension(:)     :: cs_polarization
+     real(dp),           allocatable, dimension(:)     :: cs_cg_scale
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
      integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
@@ -280,6 +282,7 @@ contains
     integer(i4b)     :: i, n
     character(len=2) :: itext
     
+    call get_parameter(paramfile, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
     call get_parameter(paramfile, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
 
     n = cpar%cs_ncomp_tot
@@ -291,7 +294,7 @@ contains
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
-    allocate(cpar%cs_catalog(n), cpar%cs_SED_template(n))
+    allocate(cpar%cs_catalog(n), cpar%cs_SED_template(n), cpar%cs_cg_scale(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
@@ -302,6 +305,7 @@ contains
        if (trim(cpar%cs_type(i)) == 'md') then
           call get_parameter(paramfile, 'COMP_MD_DEFINITION_FILE'//itext, par_string=cpar%cs_SED_template(i))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
+          call get_parameter(paramfile, 'COMP_CG_SCALE'//itext,        par_dp=cpar%cs_cg_scale(i))
           call get_parameter(paramfile, 'COMP_NSIDE'//itext,           par_int=cpar%cs_nside(i))
           call get_parameter(paramfile, 'COMP_LMAX_AMP'//itext,        par_int=cpar%cs_lmax_amp(i))
           call get_parameter(paramfile, 'COMP_LMAX_IND'//itext,        par_int=cpar%cs_lmax_ind(i))

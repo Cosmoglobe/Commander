@@ -79,11 +79,10 @@ contains
     !if (cpar%myid == 0) write(*,*) real(b(1:10),sp)
 
 !!$    do i = 1, size(b)
-!!$       x(i) = P%invM_(i-1,1)%M(1,1)*b(i)
-!!$       !x(i) = b(i)
+!!$       x    = 0.d0
 !!$       x(i) = 1.d0
 !!$       r    = A(x)
-!!$       if (cpar%myid == 0) write(*,*) real(r(i),sp), P%invM_(i-1,1)%M(1,1), r(i)*P%invM_(i-1,1)%M(1,1) !real(b(1)/r(1),sp), real(b(1),sp)
+!!$       if (cpar%myid == 0) write(*,*) i, size(b), real(r(i),sp), real(P%invM_(i-1,1)%M(1,1),sp), real(r(i)*P%invM_(i-1,1)%M(1,1),sp)
 !!$    end do
 !!$
 !!$    return
@@ -265,16 +264,19 @@ contains
              info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, c%lmax_amp, &
                   & c%nmaps, data(i)%info%pol)
              Tm     => comm_map(info)
-             call map%alm_equal(Tm)
-             !Tm%alm = map%alm
-             if (c%lmax_ind == 0) then
-                do j = 1, min(c%x%info%nmaps, Tm%info%nmaps)
-                   Tm%alm(:,j) = Tm%alm(:,j) * c%F_mean(i,j)
-                end do
+             if (c%F_null(i)) then
+                Tm%alm = 0.d0
              else
-                call Tm%Y()
-                Tm%map = c%F(i)%p%map * map%map
-                call Tm%YtW()
+                call map%alm_equal(Tm)
+                if (c%lmax_ind == 0) then
+                   do j = 1, min(c%x%info%nmaps, Tm%info%nmaps)
+                      Tm%alm(:,j) = Tm%alm(:,j) * c%F_mean(i,j)
+                   end do
+                else
+                   call Tm%Y()
+                   Tm%map = c%F(i)%p%map * Tm%map
+                   call Tm%YtW()
+                end if
              end if
              call c%Cl%sqrtS(map=Tm) ! Multiply with sqrt(Cl)
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)

@@ -648,5 +648,44 @@ contains
 
   end subroutine read_spectrum
 
+  subroutine read_instrument_file(filename, field, label, default, val)
+    implicit none
+    character(len=*), intent(in)  :: filename, field, label
+    real(dp),         intent(in)  :: default
+    real(dp),         intent(out) :: val
+    
+    integer(i4b)        :: unit, i, j
+    character(len=512)  :: band
+    character(len=1024) :: line
+    real(dp)            :: vals(2)
+    logical(lgt)        :: ok
+
+    inquire(file=trim(filename), exist=ok)
+    if (ok) then
+       unit = getlun()
+       open(unit, file=trim(filename), recl=1024)
+       do while (.true.)
+          read(unit,'(a)',end=99) line
+          line = trim(adjustl(line))
+          if (line(1:1) == '#') cycle
+          read(line,*) band, vals
+          if (trim(band) == trim(label)) then
+             if (trim(field) == 'gain') then
+                val = vals(1)
+             else if (trim(field) == 'delta') then
+                val = vals(2)
+             else
+                call report_error('Unsupported instrument field = '//trim(field))
+             end if
+             goto 99
+          end if
+       end do
+       val = default
+99     close(unit)
+    else
+       val = default
+    end if
+
+  end subroutine read_instrument_file
   
 end module comm_utils

@@ -10,6 +10,7 @@ module comm_data_mod
      logical(lgt)                 :: active
      character(len=512)           :: label, unit
      integer(i4b)                 :: period
+     real(dp)                     :: gain
 
      class(comm_mapinfo), pointer :: info
      class(comm_map),     pointer :: map
@@ -57,6 +58,10 @@ contains
             & nmaps, cpar%ds_polarization(i))
        data(i)%map  => comm_map(data(i)%info, trim(dir)//trim(cpar%ds_mapfile(i)))
        call update_status(status, "data_map")
+
+       ! Read default gain from instrument parameter file
+       call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
+            & 'gain', cpar%ds_label(i), 1.d0, data(i)%gain)
 
        ! Initialize mask structures
        if (trim(cpar%ds_maskfile(i)) == 'fullsky') then

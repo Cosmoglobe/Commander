@@ -130,7 +130,9 @@ contains
 
     allocate(x(ncr))
     call cr_computeRHS(handle, rhs)
+    call update_status(status, "init_precond1")
     P => precondDiff(cpar%comm_chain, Nscale)
+    call update_status(status, "init_precond2")
     call solve_cr_eqn_by_CG(cpar, cr_matmulA, cr_invM, x, rhs, stat, P)
     call cr_x2amp(x)
     deallocate(rhs,x,P)

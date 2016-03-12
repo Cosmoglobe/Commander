@@ -20,6 +20,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: nside, nx, x0
      logical(lgt)       :: pol
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv
+     real(dp)           :: cg_scale
      real(dp), allocatable, dimension(:,:) :: cls
      real(dp), allocatable, dimension(:,:) :: F_mean
 
@@ -30,6 +31,7 @@ module comm_diffuse_comp_mod
      class(comm_Cl),                pointer     :: Cl     ! Power spectrum
      class(map_ptr),  dimension(:), allocatable :: theta  ! Spectral parameters
      type(map_ptr),   dimension(:), allocatable :: F      ! Mixing matrix
+     logical(lgt),    dimension(:), allocatable :: F_null ! Don't allocate space for null mixmat's
      type(F_int_ptr), dimension(:), allocatable :: F_int  ! SED integrator
    contains
      procedure :: initDiffuse
@@ -87,6 +89,7 @@ contains
     self%lmax_amp = cpar%cs_lmax_amp(id_abs)
     self%lmax_ind = cpar%cs_lmax_ind(id_abs)
     self%cltype   = cpar%cs_cltype(id_abs)
+    self%cg_scale = cpar%cs_cg_scale(id_abs)
     self%nmaps    = 1; if (self%pol) self%nmaps = 3
     info          => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
 
@@ -113,12 +116,15 @@ contains
     end if
 
     ! Allocate mixing matrix
-    allocate(self%F(numband), self%F_mean(numband,self%nmaps))
+    call update_status(status, "init_pre_mix")
+    allocate(self%F(numband), self%F_mean(numband,self%nmaps), self%F_null(numband))
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-       self%F(i)%p => comm_map(info)
+       self%F(i)%p    => comm_map(info)
+       self%F_null(i) =  .false.
     end do
+    call update_status(status, "init_postmix")
 
     ! Initialize output beam
     self%B_out => comm_B_bl(cpar, self%x%info, 0, fwhm=cpar%cs_fwhm(id_abs))
@@ -389,6 +395,9 @@ contains
     allocate(theta_p(self%npar,self%nmaps))
     do i = 1, numband
 
+       ! Don't update null mixing matrices
+       if (self%F_null(i)) cycle
+
        ! Compute spectral parameters at the correct resolution for this channel
        if (self%npar > 0) then
           info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(1)%p%info%lmax, &
@@ -431,22 +440,22 @@ contains
           end if
 
           ! Temperature
-          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) 
+          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) * data(i)%gain * self%cg_scale
 
           ! Polarization
           if (self%nmaps == 3) then
              ! Stokes Q
              if (all(self%poltype < 2)) then
-                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1)
+                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) * data(i)%gain * self%cg_scale
              else
-                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) 
+                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) * data(i)%gain * self%cg_scale
              end if
        
              ! Stokes U
              if (all(self%poltype < 3)) then
-                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2)
+                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) * data(i)%gain * self%cg_scale
              else
-                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) 
+                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) * data(i)%gain * self%cg_scale
              end if
           end if
           
@@ -462,8 +471,7 @@ contains
 
     end do
     nullify(t, t0)
-
-    
+    deallocate(theta_p)
 
   end subroutine updateMixmat
 
@@ -498,19 +506,23 @@ contains
     end if
 
     ! Scale to correct frequency through multiplication with mixing matrix
-    if (self%lmax_ind == 0) then
-       do i = 1, m%info%nmaps
-          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
-       end do
+    if (self%F_null(band)) then
+       m%map = 0.d0
     else
+       if (self%lmax_ind == 0) then
+          do i = 1, m%info%nmaps
+             m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+          end do
+       else
+          call m%Y()
+          m%map = m%map * self%F(band)%p%map
+          call m%YtW()
+       end if
+       
+       ! Convolve with band-specific beam
+       call data(band)%B%conv(alm_in=(self%lmax_ind==0), alm_out=.false., trans=.false., map=m)
        call m%Y()
-       m%map = m%map * self%F(band)%p%map
-       call m%YtW()
     end if
-
-    ! Convolve with band-specific beam
-    call data(band)%B%conv(alm_in=(self%lmax_ind==0), alm_out=.false., trans=.false., map=m)
-    call m%Y()
 
     ! Return pixelized map
     if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
@@ -544,15 +556,19 @@ contains
     call data(band)%B%conv(alm_in=.false., alm_out=(self%lmax_ind==0), trans=.true., map=m)
 
     ! Scale to correct frequency through multiplication with mixing matrix
-    if (self%lmax_ind == 0) then
-       call m%alm_equal(m_out)
-       do i = 1, nmaps
-          m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
-       end do
+    if (self%F_null(band)) then
+       m_out%alm = 0.d0
     else
-       call m%Y()
-       m_out%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
-       call m_out%YtW()
+       if (self%lmax_ind == 0) then
+          call m%alm_equal(m_out)
+          do i = 1, nmaps
+             m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
+          end do
+       else
+          call m%Y()
+          m_out%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
+          call m_out%YtW()
+       end if
     end if
 
     if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
@@ -666,7 +682,7 @@ contains
 
        ! Write amplitude
        map => comm_map(self%x)
-       map%alm = map%alm * self%RJ2unit_ ! Output in requested units
+       map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
        call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
        
        filename = trim(self%label) // '_' // trim(postfix) // '.fits'
@@ -684,6 +700,7 @@ contains
        
        ! Write mixing matrices
        do i = 1, numband
+          if (self%F_null(i)) cycle
           filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
                & trim(postfix) // '.fits'
           call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
