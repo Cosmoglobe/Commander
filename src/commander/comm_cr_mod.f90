@@ -99,7 +99,7 @@ contains
        call wall_time(t3)
        q     = A(d)
        call wall_time(t4)
-       !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'A time = ', real(t4-t3,sp)
+       if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'A time = ', real(t4-t3,sp)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
        x     = x + alpha * d
 
@@ -113,7 +113,7 @@ contains
        call wall_time(t3)
        s         = invM(r, P)
        call wall_time(t4)
-       !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'invM time = ', real(t4-t3,sp)
+       if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'invM time = ', real(t4-t3,sp)
        delta_old = delta_new 
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
@@ -334,8 +334,8 @@ contains
     real(dp), dimension(size(x))                        :: cr_matmulA
 
     real(dp)                  :: t1, t2
-    integer(i4b)              :: i, j
-    class(comm_map),  pointer :: map
+    integer(i4b)              :: i, j, myid
+    class(comm_map),  pointer :: map!, map2
     class(comm_comp), pointer :: c
     real(dp),        allocatable, dimension(:)   :: y, sqrtS_x
     real(dp),        allocatable, dimension(:,:) :: alm, m
@@ -343,6 +343,7 @@ contains
     ! Initialize output array
     allocate(y(ncr), sqrtS_x(ncr))
     y = 0.d0
+    myid = data(1)%map%info%myid
 
     ! Multiply with sqrt(S)
     call wall_time(t1)
@@ -362,7 +363,7 @@ contains
        c => c%next()
     end do
     call wall_time(t2)
-!    write(*,*) 'a', t2-t1
+    !if (myid == 0) write(*,fmt='(a,f8.2)') 'sqrtS time = ', real(t2-t1,sp)
 
     
     ! Add frequency dependent terms
@@ -370,43 +371,59 @@ contains
 
        ! Compute component-summed map, ie., column-wise matrix elements
        call wall_time(t1)
-       map => comm_map(data(i)%info)
+       map => comm_map(data(i)%info)   ! For diffuse components
+       !map2 => comm_map(data(i)%info)   ! For diffuse components
        c   => compList
        do while (associated(c))
           select type (c)
           class is (comm_diffuse_comp)
+             !call cr_extract_comp(c%id, sqrtS_x, alm)
+             !allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+             !m = c%getBand(i, amp_in=alm)
+             !map%map = map%map + m
+             !write(*,*) 'a', sum(abs(map%map))
+             !deallocate(alm, m)
              call cr_extract_comp(c%id, sqrtS_x, alm)
-             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-             m = c%getBand(i, amp_in=alm)
-             map%map = map%map + m
+             allocate(m(0:c%x%info%nalm-1,c%x%info%nmaps))
+             m = c%getBand(i, amp_in=alm, alm_out=.true.)
+             call map%add_alm(m, c%x%info)
              deallocate(alm, m)
+             !call map2%Y()
+             !write(*,*) 'b', sum(abs(map2%map))
           end select
           c => c%next()
        end do
+       call map%Y()                    ! For diffuse components
        call wall_time(t2)
-!       write(*,*) 'b', t2-t1
+       if (myid == 0) write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
+
+!!$       write(*,*) 'final  = ', sum(abs(map%map))
+!!$       write(*,*) 'final2 = ', sum(abs(map2%map))
+!!$       call mpi_finalize(i)
+!!$       stop
 
        ! Multiply with invN
        call wall_time(t1)
        call data(i)%N%InvN(map, Nscale)
        call wall_time(t2)
-!       write(*,*) 'c', t2-t1
+       !if (myid == 0) write(*,fmt='(a,f8.2)') 'invN time = ', real(t2-t1,sp)
 
        ! Project summed map into components, ie., row-wise matrix elements
        call wall_time(t1)
        c   => compList
+       call map%Yt()             ! Prepare for diffuse components
        do while (associated(c))
           select type (c)
           class is (comm_diffuse_comp)
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
-             alm = c%projectBand(i, map)
+             alm = c%projectBand(i, map, alm_in=.true.)
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
           end select
           c => c%next()
        end do
        call wall_time(t2)
-!       write(*,*) 'd', t2-t1
+       !if (myid == 0) write(*,fmt='(a,f8.2)') 'projBand time = ', real(t2-t1,sp)
 
        deallocate(map)
        
@@ -434,7 +451,7 @@ contains
     end do
     nullify(c)
     call wall_time(t2)
-!    write(*,*) 'e', t2-t1
+    !if (myid == 0) write(*,fmt='(a,f8.2)') 'prior time = ', real(t2-t1,sp)
     !call mpi_finalize(i)
     !stop
 

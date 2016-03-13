@@ -31,22 +31,24 @@ module comm_template_comp_mod
 
 contains
 
-  function evalTemplateBand(self, band, amp_in, pix)
+  function evalTemplateBand(self, band, amp_in, pix, alm_out)
     implicit none
     class(comm_template_comp),                    intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
+    logical(lgt),                                 intent(in),  optional :: alm_out
     real(dp),        dimension(:,:), allocatable                        :: evalTemplateBand
 
   end function evalTemplateBand
   
   ! Return component projected from map
-  function projectTemplateBand(self, band, map)
+  function projectTemplateBand(self, band, map, alm_in)
     implicit none
     class(comm_template_comp),                    intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
+    logical(lgt),                                 intent(in), optional  :: alm_in
     real(dp),        dimension(:,:), allocatable                        :: projectTemplateBand
   end function projectTemplateBand
   

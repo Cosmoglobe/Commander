@@ -475,17 +475,31 @@ contains
 
   end subroutine updateMixmat
 
-  function evalDiffuseBand(self, band, amp_in, pix)
+  function evalDiffuseBand(self, band, amp_in, pix, alm_out)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
+    logical(lgt),                                 intent(in),  optional :: alm_out
     real(dp),        dimension(:,:), allocatable                        :: evalDiffuseBand
 
     integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp
+    logical(lgt) :: alm_out_
     class(comm_mapinfo), pointer :: info
     class(comm_map),     pointer :: m
+
+    alm_out_ = .false.; if (present(alm_out)) alm_out_ = alm_out
+
+    if (self%F_null(band)) then
+       if (alm_out_) then
+          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+       else
+          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
+       end if
+       evalDiffuseBand = 0.d0
+       return
+    end if
 
     ! Initialize amplitude map
     nmaps =  min(data(band)%info%nmaps, self%nmaps)
@@ -506,27 +520,29 @@ contains
     end if
 
     ! Scale to correct frequency through multiplication with mixing matrix
-    if (self%F_null(band)) then
-       m%map = 0.d0
+    if (self%lmax_ind == 0) then
+       do i = 1, m%info%nmaps
+          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+       end do
     else
-       if (self%lmax_ind == 0) then
-          do i = 1, m%info%nmaps
-             m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
-          end do
-       else
-          call m%Y()
-          m%map = m%map * self%F(band)%p%map
-          call m%YtW()
-       end if
-       
-       ! Convolve with band-specific beam
-       call data(band)%B%conv(alm_in=(self%lmax_ind==0), alm_out=.false., trans=.false., map=m)
        call m%Y()
+       m%map = m%map * self%F(band)%p%map
+       call m%YtW()
     end if
+       
+    ! Convolve with band-specific beam
+    call data(band)%B%conv(alm_in=(self%lmax_ind==0), alm_out=.false., trans=.false., map=m)
+    if (.not. alm_out_) call m%Y()
 
-    ! Return pixelized map
-    if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
-    evalDiffuseBand = m%map
+    ! Return correct data product
+    if (alm_out_) then
+       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+       evalDiffuseBand = m%alm
+    else
+       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
+       evalDiffuseBand = m%map
+    end if
+       
 
     ! Clean up
     deallocate(m, info)
@@ -534,14 +550,16 @@ contains
   end function evalDiffuseBand
 
   ! Return component projected from map
-  function projectDiffuseBand(self, band, map)
+  function projectDiffuseBand(self, band, map, alm_in)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
+    logical(lgt),                                 intent(in), optional  :: alm_in
     real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
 
     integer(i4b) :: i, nmaps
+    logical(lgt) :: alm_in_
     class(comm_mapinfo), pointer :: info
     class(comm_map),     pointer :: m, m_out
 
@@ -550,15 +568,16 @@ contains
          & self%x%info%nmaps, self%x%info%nmaps==3)
     m_out     => comm_map(info)
     m         => comm_map(map)
-
-    ! Convolve with band-specific beam
-    call m%Yt()
-    call data(band)%B%conv(alm_in=.false., alm_out=(self%lmax_ind==0), trans=.true., map=m)
+    alm_in_ = .false.; if (present(alm_in)) alm_in_ = alm_in
 
     ! Scale to correct frequency through multiplication with mixing matrix
     if (self%F_null(band)) then
        m_out%alm = 0.d0
     else
+       ! Convolve with band-specific beam
+       if (.not. alm_in) call m%Yt()
+       call data(band)%B%conv(alm_in=.false., alm_out=(self%lmax_ind==0), trans=.true., map=m)
+
        if (self%lmax_ind == 0) then
           call m%alm_equal(m_out)
           do i = 1, nmaps
