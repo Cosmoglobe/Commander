@@ -33,13 +33,15 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, mask)
+  function constructor(cpar, info, id, mask, handle, regnoise)
     implicit none
-    type(comm_params),                  intent(in) :: cpar
-    type(comm_mapinfo), target,         intent(in) :: info
-    integer(i4b),                       intent(in) :: id
-    class(comm_map),                    intent(in) :: mask
-    class(comm_N_rms),                  pointer    :: constructor
+    type(comm_params),                  intent(in)    :: cpar
+    type(comm_mapinfo), target,         intent(in)    :: info
+    integer(i4b),                       intent(in)    :: id
+    class(comm_map),                    intent(in)    :: mask
+    type(planck_rng),                   intent(inout) :: handle
+    real(dp), dimension(0:,1:),         intent(out)   :: regnoise
+    class(comm_N_rms),                  pointer       :: constructor
 
     character(len=512) :: dir, cache
     character(len=4)   :: itext
@@ -57,6 +59,7 @@ contains
     constructor%np      = info%np
     constructor%pol     = info%nmaps == 3
     constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id)))
+    call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id), regnoise)
     constructor%siN%map = 1.d0 / constructor%siN%map
     call constructor%siN%YtW
 
@@ -124,5 +127,65 @@ contains
        res%map = infinity
     end where
   end subroutine returnRMS
+
+  subroutine uniformize_rms(handle, rms, fsky, regnoise)
+    implicit none
+    type(planck_rng),                   intent(inout) :: handle
+    class(comm_map),                    intent(inout) :: rms
+    real(dp),                           intent(in)    :: fsky
+    real(dp),         dimension(0:,1:), intent(out)   :: regnoise
+
+    integer(i4b) :: i, j, nbin=1000, ierr, b
+    real(dp)     :: limits(2), dx, threshold, sigma
+    real(dp), allocatable, dimension(:) :: F
+
+    if (fsky <= 0.d0) then
+       regnoise = 0.d0
+       return
+    end if
+    if (fsky >= 1.d0) call report_error('Error: Too large noise regularization fsky threshold')
+
+    allocate(F(nbin))
+    do j = 1, rms%info%nmaps
+       ! Find pixel histogram across cores
+       limits(1) = minval(rms%map(:,j))
+       limits(2) = maxval(rms%map(:,j))
+       call mpi_allreduce(MPI_IN_PLACE, limits(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, rms%info%comm, ierr)       
+       call mpi_allreduce(MPI_IN_PLACE, limits(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, rms%info%comm, ierr)       
+       dx = (limits(2)-limits(1))/nbin
+       F = 0.d0
+       do i = 0, rms%info%np-1
+          b    = max(min(int((rms%map(i,j)-limits(1))/dx),nbin),1)
+          F(b) = F(b) + 1.d0
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, F, nbin, MPI_DOUBLE_PRECISION, MPI_SUM, rms%info%comm, ierr)
+
+       ! Compute cumulative distribution
+       do i = 2, nbin
+          F(i) = F(i-1) + F(i)
+       end do
+       F = F / maxval(F)
+
+       ! Find threshold
+       i = 1
+       do while (F(i) < fsky)
+          i = i+1
+       end do
+       threshold = limits(1) + dx*(i-1)
+
+       ! Update RMS map, and draw corresponding noise realization
+       do i = 0, rms%info%np-1
+          if (rms%map(i,j) < threshold) then
+             sigma         = sqrt(threshold**2 - rms%map(i,j)**2)
+             rms%map(i,j)  = threshold                  ! Update RMS map to requested limit
+             regnoise(i,j) = sigma * rand_gauss(handle) ! Draw corresponding noise realization
+          else
+             regnoise(i,j) = 0.d0
+          end if
+       end do
+    end do
+    deallocate(F)
+
+  end subroutine uniformize_rms
 
 end module comm_N_rms_mod

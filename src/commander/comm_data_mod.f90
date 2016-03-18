@@ -29,15 +29,15 @@ module comm_data_mod
   
 contains
 
-  subroutine initialize_data_mod(cpar)
+  subroutine initialize_data_mod(cpar, handle)
     implicit none
-
-    type(comm_params), intent(in) :: cpar
+    type(comm_params), intent(in)    :: cpar
+    type(planck_rng),  intent(inout) :: handle
 
     integer(i4b)       :: i, j, m, nmaps
     character(len=512) :: dir
     real(dp), allocatable, dimension(:)   :: nu
-    real(dp), allocatable, dimension(:,:) :: map
+    real(dp), allocatable, dimension(:,:) :: map, regnoise
 
     ! Read all data sets
     numband = cpar%numband
@@ -80,7 +80,10 @@ contains
        ! Initialize noise structures
        select case (trim(cpar%ds_noise_format(i)))
        case ('rms') 
-          data(i)%N => comm_N_rms(cpar, data(i)%info, i, data(i)%mask)
+          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          data(i)%N       => comm_N_rms(cpar, data(i)%info, i, data(i)%mask, handle, regnoise)
+          data(i)%map%map = data(i)%map%map + regnoise  ! Add regularization noise
+          deallocate(regnoise)
        case default
           call report_error("Unknown noise format: " // trim(cpar%ds_noise_format(i)))
        end select

@@ -31,7 +31,8 @@ module comm_param_mod
      ! Output parameters
      character(len=512) :: outdir
      integer(i4b)       :: nside_chisq, nmaps_chisq
-     logical(lgt)       :: pol_chisq
+     logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
+     integer(i4b)       :: output_cg_freq
      
      ! Numerical parameters
      integer(i4b)      :: cg_lmax_precond, cg_maxiter
@@ -50,6 +51,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_noise_format
      character(len=512), allocatable, dimension(:)   :: ds_mapfile
      character(len=512), allocatable, dimension(:)   :: ds_noise_rms
+     real(dp),           allocatable, dimension(:)   :: ds_noise_uni_fsky
      character(len=512), allocatable, dimension(:)   :: ds_maskfile
      character(len=512), allocatable, dimension(:)   :: ds_maskfile_calib
      character(len=512), allocatable, dimension(:)   :: ds_beamtype
@@ -206,6 +208,12 @@ contains
     call get_parameter(paramfile, 'NSIDE_CHISQ',              par_int=cpar%nside_chisq)
     call get_parameter(paramfile, 'POLARIZATION_CHISQ',       par_lgt=cpar%pol_chisq)
     cpar%nmaps_chisq = 1; if (cpar%pol_chisq) cpar%nmaps_chisq = 3
+
+    call get_parameter(paramfile, 'OUTPUT_MIXING_MATRIX',     par_lgt=cpar%output_mixmat)
+    call get_parameter(paramfile, 'OUTPUT_RESIDUAL_MAPS',     par_lgt=cpar%output_residuals)
+    call get_parameter(paramfile, 'OUTPUT_CHISQ_MAP',         par_lgt=cpar%output_chisq)
+    call get_parameter(paramfile, 'OUTPUT_EVERY_NTH_CG_ITERATION', par_int=cpar%output_cg_freq)
+    call get_parameter(paramfile, 'OUTPUT_CG_PRECOND_EIGENVALS', par_lgt=cpar%output_cg_eigenvals)
     
   end subroutine read_global_params
 
@@ -227,7 +235,7 @@ contains
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
     allocate(cpar%ds_noise_rms(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
-    allocate(cpar%ds_samp_noiseamp(n))
+    allocate(cpar%ds_samp_noiseamp(n), cpar%ds_noise_uni_fsky(n))
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
     allocate(cpar%ds_period(n), cpar%ds_beamtype(n), cpar%ds_blfile(n))
     allocate(cpar%ds_pixwin(n), cpar%ds_btheta_file(n))
@@ -246,6 +254,7 @@ contains
        call get_parameter(paramfile, 'BAND_NOISE_FORMAT'//itext,    par_string=cpar%ds_noise_format(i))
        call get_parameter(paramfile, 'BAND_MAPFILE'//itext,         par_string=cpar%ds_mapfile(i))
        call get_parameter(paramfile, 'BAND_NOISE_RMS'//itext,       par_string=cpar%ds_noise_rms(i))
+       call get_parameter(paramfile, 'BAND_NOISE_UNIFORMIZE_FSKY'//itext, par_dp=cpar%ds_noise_uni_fsky(i))
        call get_parameter(paramfile, 'BAND_MASKFILE'//itext,        par_string=cpar%ds_maskfile(i))
        call get_parameter(paramfile, 'BAND_MASKFILE_CALIB'//itext,  par_string=cpar%ds_maskfile_calib(i))
        call get_parameter(paramfile, 'BAND_BEAMTYPE'//itext,        par_string=cpar%ds_beamtype(i))
@@ -331,6 +340,7 @@ contains
                 call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_B'//itext,  par_dp=cpar%cs_cl_amp_def(i,3))
                 call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_B'//itext,  par_dp=cpar%cs_cl_beta_def(i,3))
              end if
+             cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(i)**2
           end if
           call get_parameter(paramfile, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
           

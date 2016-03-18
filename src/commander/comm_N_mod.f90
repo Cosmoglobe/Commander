@@ -55,7 +55,7 @@ contains
     character(len=*), intent(in)    :: cache
     class(comm_map),  intent(inout) :: invN_diag
 
-    real(dp)     :: l0min, l0max, l1min, l1max, npix, checksum
+    real(dp)     :: l0min, l0max, l1min, l1max, npix, checksum, t1, t2
     integer(i4b) :: i, j, k, l, m, lp, l2, ier, twolmaxp2, pos, lmax, unit
     logical(lgt) :: exist
     complex(dpc) :: val(invN_diag%info%nmaps)
@@ -80,15 +80,17 @@ contains
     twolmaxp2 = 2*lmax+2
     npix      = real(invN_diag%info%npix,dp)
 
-    allocate(threej_symbols(twolmaxp2))
-    allocate(threej_symbols_m0(twolmaxp2))
     allocate(N_lm(0:invN_diag%info%nalm-1,invN_diag%info%nmaps))
     allocate(a_l0(0:lmax,invN_diag%info%nmaps))
     call invN_diag%YtW
     if (invN_diag%info%myid == 0) a_l0 = invN_diag%alm(0:lmax,:)
     call mpi_bcast(a_l0, size(a_l0), MPI_DOUBLE_PRECISION, 0, invN_diag%info%comm, ier)
-    
-    pos = 0
+
+    call wall_time(t1)
+    !$OMP PARALLEL PRIVATE(pos,j,m,l,threej_symbols_m0,threej_symbols,ier,val,l2,lp,l0min,l0max,l1min,l1max)
+    allocate(threej_symbols(twolmaxp2))
+    allocate(threej_symbols_m0(twolmaxp2))
+    !$OMP DO SCHEDULE(guided)
     do j = 1, invN_diag%info%nm
        m = invN_diag%info%ms(j)
        do l = m, lmax
@@ -109,16 +111,19 @@ contains
           val = val * (2*l+1) / sqrt(4.d0*pi) * npix / (4.d0*pi)
           if (mod(m,2)/=0) val = -val
 
+          call invN_diag%info%lm2i(l,m,pos)
           if (m == 0) then
              N_lm(pos,:)   = real(val,dp)
-             pos           = pos+1
           else
              N_lm(pos,:)   = real(val,dp)
              N_lm(pos+1,:) = real(val,dp)
-             pos               = pos+2
           end if
        end do
     end do
+    !$OMP END DO
+    deallocate(threej_symbols, threej_symbols_m0)
+    !$OMP END PARALLEL
+    call wall_time(t2)
 
     invN_diag%alm = N_lm
 
@@ -128,7 +133,7 @@ contains
     write(unit) invN_diag%alm
     close(unit)
 
-    deallocate(N_lm, threej_symbols, threej_symbols_m0, a_l0)
+    deallocate(N_lm, a_l0)
     
   end subroutine compute_invN_lm
   

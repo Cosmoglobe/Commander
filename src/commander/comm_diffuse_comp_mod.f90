@@ -18,7 +18,7 @@ module comm_diffuse_comp_mod
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0
-     logical(lgt)       :: pol
+     logical(lgt)       :: pol, output_mixmat
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv
      real(dp)           :: cg_scale
      real(dp), allocatable, dimension(:,:) :: cls
@@ -67,6 +67,8 @@ module comm_diffuse_comp_mod
   integer(i4b) :: lmax_pre  = -1
   integer(i4b) :: nside_pre = 1000000
   integer(i4b) :: nmaps_pre = -1
+  logical(lgt) :: output_cg_eigenvals
+  character(len=512) :: outdir
   class(comm_mapinfo), pointer                   :: info_pre
   class(diff_ptr),     allocatable, dimension(:) :: diffComps
   
@@ -84,14 +86,17 @@ contains
     call self%initComp(cpar, id, id_abs)
 
     ! Initialize variables specific to diffuse source type
-    self%pol      = cpar%cs_polarization(id_abs)
-    self%nside    = cpar%cs_nside(id_abs)
-    self%lmax_amp = cpar%cs_lmax_amp(id_abs)
-    self%lmax_ind = cpar%cs_lmax_ind(id_abs)
-    self%cltype   = cpar%cs_cltype(id_abs)
-    self%cg_scale = cpar%cs_cg_scale(id_abs)
-    self%nmaps    = 1; if (self%pol) self%nmaps = 3
-    info          => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
+    self%pol           = cpar%cs_polarization(id_abs)
+    self%nside         = cpar%cs_nside(id_abs)
+    self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
+    self%lmax_ind      = cpar%cs_lmax_ind(id_abs)
+    self%cltype        = cpar%cs_cltype(id_abs)
+    self%cg_scale      = cpar%cs_cg_scale(id_abs)
+    self%nmaps         = 1; if (self%pol) self%nmaps = 3
+    self%output_mixmat = cpar%output_mixmat
+    output_cg_eigenvals = cpar%output_cg_eigenvals
+    outdir              = cpar%outdir
+    info               => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
 
     ! Diffuse preconditioner variables
     npre      = npre+1
@@ -141,6 +146,7 @@ contains
     class(precondDiff), pointer             :: constPreDiff
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
+    real(dp)     :: t1, t2
     integer(i4b), allocatable, dimension(:) :: ind
     class(comm_comp),         pointer :: c
     class(comm_diffuse_comp), pointer :: p1, p2
@@ -165,9 +171,12 @@ contains
     end if
 
     ! Build frequency-dependent part of preconditioner
-    allocate(mat(npre,npre))
-    allocate(constPreDiff%invM_(0:info_pre%nalm-1,info_pre%nmaps), ind(npre))
+    call wall_time(t1)
+    allocate(constPreDiff%invM_(0:info_pre%nalm-1,info_pre%nmaps))
+    !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
+    allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
+       !!$OMP DO SCHEDULE(guided)
        do i1 = 0, info_pre%nalm-1
           call info_pre%i2lm(i1, l, m)
           mat = 0.d0
@@ -181,16 +190,9 @@ contains
                    p2 => diffComps(k2)%p
                    if (l > p2%lmax_amp) cycle
                    mat(k1,k2) = mat(k1,k2) + &
-                        & data(q)%N%invN_diag%alm(i2,j) * &                         ! invN_{lm,lm}
-                        & data(q)%B%b_l(l,j)**2 * &                                 ! b_l^2
-                        & p1%F_mean(q,j) * p2%F_mean(q,j) ! F(c1)*F(c2)
-!!$                   if (.false. .and. l == 0  .and. m == 0) then
-!!$                      write(*,*)
-!!$                      write(*,*) data(q)%N%invN_diag%alm(i2,j)
-!!$                      write(*,*) data(q)%B%b_l(l,j)
-!!$                      write(*,*) p1%F_mean(q,j), p2%F_mean(q,j)
-!!$                      write(*,*) constPreDiff%invM0(k1,k2,i1,j)
-!!$                   end if
+                        & data(q)%N%invN_diag%alm(i2,j) * &  ! invN_{lm,lm}
+                        & data(q)%B%b_l(l,j)**2 * &          ! b_l^2
+                        & p1%F_mean(q,j) * p2%F_mean(q,j)    ! F(c1)*F(c2)
                 end do
              end do
           end do
@@ -199,7 +201,6 @@ contains
           allocate(constPreDiff%invM_(i1,j)%comp2ind(npre))
           constPreDiff%invM_(i1,j)%comp2ind = -1
           do k1 = 1, npre
-             !if (constPreDiff%invM0(k1,k1,i1,j) > 0.d0) then
              if (mat(k1,k1) > 0.d0) then
                 n = n+1
                 ind(n) = k1
@@ -213,9 +214,21 @@ contains
           constPreDiff%invM_(i1,j)%M0   = mat(ind(1:n),ind(1:n))
 
        end do
+       !!$OMP END DO
     end do
-
     deallocate(ind, mat)
+    !!$OMP END PARALLEL
+    call wall_time(t2)
+    !if (info_pre%myid == 0) write(*,*) 'constPreDiff = ', t2-t1
+
+!!$    if (info_pre%myid == 0) then
+!!$       write(*,*) 'wall time = ', t2-t1
+!!$       do i = 0, 10
+!!$          write(*,*) info_pre%myid, i, sum(abs(constPreDiff%invM_(i,1)%M0))
+!!$       end do
+!!$    end if
+!!$    call mpi_finalize(i)
+!!$    stop
 
   end function constPreDiff
 
@@ -224,7 +237,7 @@ contains
     class(precondDiff), intent(inout) :: self
 
     integer(i4b) :: i, j, k, k1, k2, l, m, n, ierr, unit, p, q
-    real(dp)     :: W_ref
+    real(dp)     :: W_ref, t1, t2
     logical(lgt), save :: first_call = .true.
     integer(i4b), allocatable, dimension(:) :: ind
     real(dp),     allocatable, dimension(:) :: W
@@ -239,12 +252,27 @@ contains
        end do
     end do
 
+!!$    if (info_pre%myid == 0) then
+!!$       n = self%invM_(0,1)%n
+!!$       allocate(W(n))
+!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
+!!$       write(*,*) 'W0 = ', real(W,sp)
+!!$       deallocate(W)
+!!$       write(*,*) 
+!!$       do i = 1, 3
+!!$          write(*,*) real(self%invM_(0,1)%M(i,:),sp)
+!!$       end do
+!!$       write(*,*)
+!!$    end if
+
     ! Right-multiply with sqrt(Cl)
+    call wall_time(t1)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
+       !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
-          !call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k2,k1,:,:), info=info_pre)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 p = self%invM_(i,j)%comp2ind(k1)
@@ -265,15 +293,18 @@ contains
              end do
           end do
        end do
+       !$OMP END DO
        deallocate(alm)
+       !$OMP END PARALLEL
     end do
 
     ! Left-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
+       !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
-          !call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k1,k2,:,:), info=info_pre)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 p = self%invM_(i,j)%comp2ind(k1)
@@ -294,27 +325,59 @@ contains
              end do
           end do
        end do
+       !$OMP END DO
        deallocate(alm)
+       !$OMP END PARALLEL
     end do
+    !call wall_time(t2)
+    !write(*,*) 'sqrtS = ', t2-t1
 
+!!$    if (info_pre%myid == 0) then
+!!$       n = self%invM_(0,1)%n
+!!$       allocate(W(n))
+!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
+!!$       write(*,*) 'W1 = ', real(W,sp)
+!!$       deallocate(W)
+!!$       write(*,*) 
+!!$       do i = 1, 3
+!!$          write(*,*) real(self%invM_(0,1)%M(i,:),sp)
+!!$       end do
+!!$       write(*,*)
+!!$    end if
 
 
     ! Add unity 
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       !$OMP PARALLEL PRIVATE(i,l,m,j,p)
+       !$OMP DO SCHEDULE(guided)
        do i = 0, info_pre%nalm-1
           call info_pre%i2lm(i, l, m)
           if (l <= diffComps(k1)%p%lmax_amp) then
-             !self%invM(k1,k1,i,:)     = self%invM(k1,k1,i,:) + 1.d0
              do j = 1, info_pre%nmaps
-                self%invM_(i,j)%M(k1,k1) = self%invM_(i,j)%M(k1,k1) + 1.d0
+                p = self%invM_(i,j)%comp2ind(k1)
+                self%invM_(i,j)%M(p,p) = self%invM_(i,j)%M(p,p) + 1.d0
              end do
           end if
        end do
+       !$OMP END DO
+       !$OMP END PARALLEL
     end do
 
+!!$    if (info_pre%myid == 0) then
+!!$       n = self%invM_(0,1)%n
+!!$       allocate(W(n))
+!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
+!!$       write(*,*) 'W2 = ', real(W,sp)
+!!$       deallocate(W)
+!!$    end if
+
+!!$    call mpi_finalize(i)
+!!$    stop
+
     ! Print out worst condition number in first call
-    if (first_call) then
+    call wall_time(t1)
+    if (first_call .and. output_cg_eigenvals) then
        allocate(cond(0:lmax_pre), W_min(0:lmax_pre))
        cond  = 0.d0
        W_min = 1.d30
@@ -328,19 +391,6 @@ contains
                 W_ref    = minval(abs(W))
                 cond(l)  = max(cond(l), maxval(abs(W/W_ref)))
                 W_min(l) = min(W_min(l), minval(W))
-!!$                if (l == 100) then
-!!$                   if (info_pre%myid == 0) then
-!!$                      write(*,*) l, m
-!!$                      do k = 1, npre
-!!$                         write(*,*) self%invM(k,:,i,j)
-!!$                      end do
-!!$                      write(*,*)
-!!$                      write(*,*) real(W,sp)
-!!$                      write(*,*) cond(l), W_min(l)
-!!$                   end if
-!!$                   call mpi_finalize(ierr)
-!!$                   stop
-!!$                end if
                 deallocate(W, ind)
              end if
           end do
@@ -351,7 +401,7 @@ contains
           write(*,*) 'Precond -- largest condition number = ', real(maxval(cond),sp)
           write(*,*) 'Precond -- smallest eigenvalue      = ', real(minval(W_min),sp)
           unit = getlun()
-          open(unit, file='precond_eigenvals.dat', recl=1024)
+          open(unit, file=trim(outdir)//'/precond_eigenvals.dat', recl=1024)
           do l = 0, lmax_pre
              write(unit,fmt='(i8,2e16.8)') l, cond(l), W_min(l)
           end do
@@ -361,13 +411,18 @@ contains
        first_call = .false.
        deallocate(cond, W_min)
     end if
+    call wall_time(t2)
+    !write(*,*) 'eigen = ', t2-t1
 
     ! Invert matrix
+    call wall_time(t1)
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
           call invert_matrix_with_mask(self%invM_(i,j)%M)
        end do
     end do
+    call wall_time(t2)
+    !write(*,*) 'invert = ', t2-t1
        
   end subroutine updateDiffPrecond
     
@@ -486,6 +541,7 @@ contains
 
     integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp
     logical(lgt) :: alm_out_
+    real(dp)     :: t1, t2
     class(comm_mapinfo), pointer :: info
     class(comm_map),     pointer :: m
 
@@ -511,7 +567,6 @@ contains
     else
        m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
-    !write(*,*) 'getBand', m%alm(0,1)
     if (self%lmax_amp > data(band)%map%info%lmax) then
        ! Nullify elements above band-specific lmax to avoid aliasing during projection
        do i = 0, m%info%nalm-1
@@ -720,12 +775,14 @@ contains
        end do
        
        ! Write mixing matrices
-       do i = 1, numband
-          if (self%F_null(i)) cycle
-          filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
-               & trim(postfix) // '.fits'
-          call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-       end do
+       if (self%output_mixmat) then
+          do i = 1, numband
+             if (self%F_null(i)) cycle
+             filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
+                  & trim(postfix) // '.fits'
+             call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          end do
+       end if
     end if
         
   end subroutine dumpDiffuseToFITS

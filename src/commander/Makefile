@@ -57,7 +57,7 @@ comm_B_bl_mod.o :          comm_B_mod.o
 comm_beam_mod.o :          comm_B_bl_mod.o
 comm_data_mod.o :          comm_map_mod.o comm_noise_mod.o comm_bp_mod.o comm_beam_mod.o
 comm_cr_mod.o :            comm_data_mod.o comm_comp_mod.o \
-                           comm_template_comp_mod.o comm_diffuse_comp_mod.o
+                           comm_template_comp_mod.o comm_diffuse_comp_mod.o comm_output_mod.o
 comm_chisq_mod.o :         comm_data_mod.o comm_comp_mod.o
 comm_output_mod.o :        comm_comp_mod.o
 commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_chisq_mod.o \

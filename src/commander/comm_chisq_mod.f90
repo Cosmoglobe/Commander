@@ -43,27 +43,53 @@ contains
     character(len=512), dimension(:), intent(in), optional :: exclude_comps
     class(comm_map),    pointer                            :: res
 
+    real(dp) :: t1, t2, t3, t4
     class(comm_comp),    pointer :: c
-    real(dp),     allocatable, dimension(:,:) :: map
+    real(dp),     allocatable, dimension(:,:) :: map, alm
     integer(i4b), allocatable, dimension(:)   :: pix
     integer(i4b) :: ierr
     
     ! Initialize to full data set
-    res => comm_map(data(band)%map)
+    res => comm_map(data(band)%info)
 
-    ! Subtract all components
+    ! Compute predicted signal for this band
     c => compList
+    !call wall_time(t1)
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          allocate(map(0:res%info%np-1,res%info%nmaps))          
-          map     = c%getBand(band)
-          res%map = res%map - map
-          deallocate(map)
+          !allocate(map(0:res%info%np-1,res%info%nmaps))          
+          !map     = c%getBand(band)
+          !res%map = res%map - map
+          !deallocate(map)
+          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
+          !call wall_time(t3)
+          alm     = c%getBand(band, alm_out=.true.)
+          !call wall_time(t4)
+          !if (data(band)%info%myid == 0) write(*,*) 'CPU getband = ', t4-t3
+          !call wall_time(t3)
+          call res%add_alm(alm, c%x%info)
+          !call wall_time(t4)
+          !if (data(band)%info%myid == 0) write(*,*) 'CPU add = ', t4-t3
+          deallocate(alm)
        end select
        c => c%next()
     end do
+    !call wall_time(t2)
+    !if (data(band)%info%myid == 0) write(*,*) 'CPU build = ', t2-t1
 
+    !call wall_time(t1)
+    call res%Y()
+    !call wall_time(t2)
+    !if (data(band)%info%myid == 0) write(*,*) 'CPU Y = ', t2-t1
+    
+    ! Compute residual map
+    !call wall_time(t1)
+    res%map = data(band)%map%map - res%map
+    !call wall_time(t2)
+    !if (data(band)%info%myid == 0) write(*,*) 'CPU subtract = ', t2-t1
+
+    ! Clean up
     nullify(c)
 
   end function compute_residual
