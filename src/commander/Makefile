@@ -13,7 +13,7 @@ COBJS  := d1mach.o drc3jj.o sharp.o sort_utils.o math_tools.o locate_mod.o splin
           comm_F_line_mod.o comm_data_mod.o comm_bp_mod.o comm_Cl_mod.o \
           comm_chisq_mod.o comm_cr_mod.o comm_signal_mod.o comm_output_mod.o
 
-all : commander sharp_test
+all : commander #sharp_test
 
 
 locate_mod.o :             math_tools.o

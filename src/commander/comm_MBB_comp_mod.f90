@@ -49,7 +49,7 @@ contains
        constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
        constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
     end do
-    constructor%indlabel  = ['beta', 'T']
+    constructor%indlabel  = ['beta', 'T   ']
 
     ! Initialize spectral parameter maps
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
