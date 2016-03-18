@@ -53,7 +53,7 @@ export MPCC := mpicc
 #export F90FLAGS := -O3 -traceback 
 #export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384
 #export F90FLAGS := -g -C -traceback -xAVX -arch AVX -mavx 
-export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx 
+export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx -openmp
 
 # Fortran 77 compiler flags
 export FFLAGS := -O2

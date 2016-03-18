@@ -7,6 +7,7 @@ module comm_cr_mod
   use rngmod
   use comm_cr_utils
   use math_tools
+  use comm_output_mod
   implicit none
 
   private
@@ -99,12 +100,12 @@ contains
        call wall_time(t3)
        q     = A(d)
        call wall_time(t4)
-       if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'A time = ', real(t4-t3,sp)
+       !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'A time = ', real(t4-t3,sp)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
        x     = x + alpha * d
 
        ! Restart every 50th iteration to suppress numerical errors
-       if (mod(i,50) == 0) then
+       if (.false. .and. mod(i,50) == 0) then
           r = b - A(x)
        else
           r = r - alpha*q
@@ -113,11 +114,33 @@ contains
        call wall_time(t3)
        s         = invM(r, P)
        call wall_time(t4)
-       if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'invM time = ', real(t4-t3,sp)
+       !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'invM time = ', real(t4-t3,sp)
        delta_old = delta_new 
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
+
+       if (cpar%output_cg_freq > 0) then
+          if (mod(i,cpar%output_cg_freq) == 0) then
+             ! Multiply with sqrt(S)     
+             c       => compList
+             do while (associated(c))
+                select type (c)
+                class is (comm_diffuse_comp)
+                   if (trim(c%cltype) /= 'none') then
+                      allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+                      call cr_extract_comp(c%id, x, alm)
+                      call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)  
+                      call cr_insert_comp(c%id, .false., alm, x)
+                      deallocate(alm)
+                   end if
+                end select
+                c => c%next()
+             end do
+             call cr_x2amp(x)
+             call output_FITS_sample(cpar, i)
+          end if
+       end if
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
@@ -395,7 +418,7 @@ contains
        end do
        call map%Y()                    ! For diffuse components
        call wall_time(t2)
-       if (myid == 0) write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
+       !if (myid == 0) write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
 
 !!$       write(*,*) 'final  = ', sum(abs(map%map))
 !!$       write(*,*) 'final2 = ', sum(abs(map2%map))
