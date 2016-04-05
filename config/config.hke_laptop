@@ -53,8 +53,8 @@ export MPCXX := mpicxx
 # =========== Compiler Optimizations =============
 
 # Fortran 90 compiler flags
-#export F90FLAGS := -O3 -w -fopenmp -lpthread
-export F90FLAGS := -g -Og -fcheck=all -fbounds-check -fbacktrace -finit-real=nan -fopenmp
+export F90FLAGS := -O3 -w -fopenmp -lpthread
+#export F90FLAGS := -g -Og -fcheck=all -fbounds-check -fbacktrace -finit-real=nan -fopenmp
 #export F90FLAGS := -g -C -fbacktrace -fopenmp
 #export F90FLAGS := -O2 -fimplicit-none -Wall -Wline-truncation -Wcharacter-truncation -Wsurprising -Waliasing -Wimplicit-interface -Wunused-parameter -fwhole-file -fcheck=all -pedantic -fbacktrace
 #export F90FLAGS := -g -C -traceback -w -openmp -heap-arrays 16384 -assume byterecl
@@ -116,3 +116,8 @@ export HEALPIX_INCLUDE := -I$(HEALDIR)/include
 export HEALPIX_LINK := $(HEALDIR)/lib/libhealpix.a
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod
 #export HEALPIX_LINK := -L/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod -lhealpix
+
+# =============== HDF ============================
+export HDF_LINK := -lhdf5_fortran -lhdf5 
+export HDF_LINK_CPP := -lhdf5_cpp -lhdf5 
+export HDF_INCLUDE := -I/usr/lib64/gfortran/modules

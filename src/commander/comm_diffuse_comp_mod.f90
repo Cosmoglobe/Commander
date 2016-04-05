@@ -153,7 +153,9 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat
 
     allocate(constPreDiff)
-
+    
+    if (npre == 0) return
+    
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
        allocate(diffComps(npre))
@@ -169,7 +171,7 @@ contains
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
-
+    
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
     allocate(constPreDiff%invM_(0:info_pre%nalm-1,info_pre%nmaps))
@@ -244,6 +246,8 @@ contains
     real(dp),     allocatable, dimension(:) :: cond, W_min
     real(dp),     allocatable, dimension(:,:) :: alm
 
+    if (npre == 0) return
+    
     ! Initialize current preconditioner to F^t * B^t * invN * B * F
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
@@ -600,7 +604,8 @@ contains
        
 
     ! Clean up
-    deallocate(m, info)
+    deallocate(info)
+    call m%dealloc
 
   end function evalDiffuseBand
 
@@ -648,7 +653,9 @@ contains
     if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
     projectDiffuseBand = m_out%alm
 
-    deallocate(m, m_out, info)
+    deallocate(info)
+    call m%dealloc
+    call m_out%dealloc
     
   end function projectDiffuseBand
 
@@ -661,6 +668,8 @@ contains
     real(dp), allocatable, dimension(:,:)   :: alm
     real(dp), allocatable, dimension(:,:,:) :: y
 
+    if (npre == 0) return
+    
     ! Reformat linear array into y(npre,nalm,nmaps) structure
     allocate(y(npre,0:info_pre%nalm-1,info_pre%nmaps))
     y = 0.d0

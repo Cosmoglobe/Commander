@@ -687,5 +687,15 @@ contains
     end if
 
   end subroutine read_instrument_file
+
+  subroutine assert(condition, error_message)
+    implicit none
+    logical(lgt) :: condition
+    character(len=*) :: error_message
+    if(condition) return
+    write(*,fmt="(a)") error_message
+    stop
+  end subroutine
+
   
 end module comm_utils

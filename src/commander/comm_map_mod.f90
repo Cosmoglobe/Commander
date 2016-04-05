@@ -215,7 +215,8 @@ contains
     implicit none
 
     type(comm_mapinfo) :: self
-
+    
+    deallocate(self%rings, self%ms, self%mind, self%lm, self%pix, self%W)
     call sharp_destroy_alm_info(self%alm_info)
     call sharp_destroy_geom_info(self%geom_info)
     

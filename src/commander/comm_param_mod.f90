@@ -259,7 +259,7 @@ contains
        call get_parameter(paramfile, 'BAND_MASKFILE_CALIB'//itext,  par_string=cpar%ds_maskfile_calib(i))
        call get_parameter(paramfile, 'BAND_BEAMTYPE'//itext,        par_string=cpar%ds_beamtype(i))
        call get_parameter(paramfile, 'BAND_BEAM_B_L_FILE'//itext,   par_string=cpar%ds_blfile(i))
-       call get_parameter(paramfile, 'BAND_BEAM_B_THETA_FILE'//itext, par_string=cpar%ds_btheta_file(i))
+       call get_parameter(paramfile, 'BAND_BEAM_B_PTSRC_FILE'//itext, par_string=cpar%ds_btheta_file(i))
        call get_parameter(paramfile, 'BAND_PIXEL_WINDOW'//itext,    par_string=cpar%ds_pixwin(i))
        call get_parameter(paramfile, 'BAND_SAMP_NOISE_AMP'//itext,  par_lgt=cpar%ds_samp_noiseamp(i))
        call get_parameter(paramfile, 'BAND_BANDPASS_TYPE'//itext,   par_string=cpar%ds_bptype(i))
@@ -439,22 +439,48 @@ contains
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
           call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
           call get_parameter(paramfile, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
-          call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext,    &
-               & par_dp=cpar%cs_p_uni(i,1,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_HIGH'//itext,   &
-               & par_dp=cpar%cs_p_uni(i,2,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_MEAN'//itext, &
-               & par_dp=cpar%cs_p_gauss(i,1,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_RMS'//itext,  &
-               & par_dp=cpar%cs_p_gauss(i,2,1))
-          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
-               & par_dp=cpar%cs_p_uni(i,1,2))
-          call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
-               & par_dp=cpar%cs_p_uni(i,2,2))
-          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
-               & par_dp=cpar%cs_p_gauss(i,1,2))
-          call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
-               & par_dp=cpar%cs_p_gauss(i,2,2))
+          call get_parameter(paramfile, 'COMP_NSIDE'//itext,    par_int=cpar%cs_nside(i))
+          call get_parameter(paramfile, 'COMP_NU_REF'//itext,   par_dp=cpar%cs_nu_ref(i))
+          select case (trim(cpar%cs_type(i)))
+          case ('radio')
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,1))
+             call get_parameter(paramfile, 'COMP_DEFAULT_ALPHA'//itext,          &
+                  & par_dp=cpar%cs_theta_def(1,i))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,2))
+             call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
+                  & par_dp=cpar%cs_theta_def(2,i))
+          case ('fir')
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,1))             
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_T_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_T_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_T_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_T_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,2))
+          end select
        end if
        
     end do

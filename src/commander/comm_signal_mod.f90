@@ -57,7 +57,11 @@ contains
           end select
           call add_to_complist(c)
        case ("ptsrc")
-          call initialize_ptsrc_comp(cpar, ncomp, i)
+          c => comm_ptsrc_comp(cpar, ncomp, i)
+          call add_to_complist(c)
+          call c%dumpFITS('test', cpar%outdir)
+          !call mpi_finalize(i)
+          !stop
        case ("template")
           ! Point source components
           select case (trim(cpar%cs_type(i)))
@@ -75,7 +79,6 @@ contains
        case default
           call report_error("Unknown component class: "//trim(cpar%cs_class(i)))
        end select
-
     end do
 
     ! Compute position and length of each component in parameter array
@@ -149,56 +152,5 @@ contains
        call compList%add(c)
     end if
   end subroutine add_to_complist
-
-  subroutine initialize_ptsrc_comp(cpar, id, id_abs)
-    implicit none
-    class(comm_params), intent(in) :: cpar
-    integer(i4b),       intent(in) :: id, id_abs
-
-    integer(i4b)        :: unit, i, npar, nmaps
-    real(dp)            :: glon, glat, nu_ref
-    logical(lgt)        :: pol
-    character(len=1024) :: line
-    character(len=128)  :: id_ptsrc
-    class(comm_comp),       pointer :: c
-    class(comm_ptsrc_comp), pointer :: P_ref
-    real(dp), allocatable, dimension(:)   :: amp
-    real(dp), allocatable, dimension(:,:) :: beta
-
-    unit = getlun()
-
-    nmaps = 1; if (cpar%cs_polarization(id_abs)) nmaps = 3
-    select case (trim(cpar%cs_type(id_abs)))
-    case ("radio")
-       npar = 2
-    case ("fir")
-       npar = 2
-    case ("sz")
-       npar = 0
-    end select
-    allocate(amp(nmaps), beta(npar,nmaps))
-    
-    ! Initialize point sources based on catalog information
-    nullify(P_ref)
-    open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
-    do while (.true.)
-       read(unit,'(a)',end=1) line
-       line = trim(line)
-       if (line(1:1) == '#' .or. trim(line) == '') cycle
-       write(*,*) trim(line)
-       read(line,*) glon, glat, amp, beta, id_ptsrc
-       c => comm_ptsrc_comp(cpar, id, id_abs, glon, glat, amp, beta, id_ptsrc, P_ref)
-       call add_to_complist(c)
-       select type (c)
-       class is (comm_ptsrc_comp)
-          P_ref => c
-       end select
-    end do 
-1   close(unit)
-
-    call mpi_finalize(i)
-    stop
-
-  end subroutine initialize_ptsrc_comp
   
 end module comm_signal_mod

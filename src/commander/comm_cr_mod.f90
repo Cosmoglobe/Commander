@@ -3,6 +3,7 @@ module comm_cr_mod
   use comm_data_mod
   use comm_param_mod
   use comm_diffuse_comp_mod
+  use comm_ptsrc_comp_mod
   use comm_template_comp_mod
   use rngmod
   use comm_cr_utils
@@ -77,19 +78,6 @@ contains
     r  = b ! - A(x)   ! x is zero
     d  = invM(r, P)
 
-    !if (cpar%myid == 0) write(*,*) real(b(1:10),sp)
-
-!!$    do i = 1, size(b)
-!!$       x    = 0.d0
-!!$       x(i) = 1.d0
-!!$       r    = A(x)
-!!$       if (cpar%myid == 0) write(*,*) i, size(b), real(r(i),sp), real(P%invM_(i-1,1)%M(1,1),sp), real(r(i)*P%invM_(i-1,1)%M(1,1),sp)
-!!$    end do
-!!$
-!!$    return
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
     delta0    = delta_new
     do i = 1, maxiter
@@ -142,6 +130,8 @@ contains
           end if
        end if
 
+       write(*,*) x(size(x)-1:size(x))
+
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
           write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') 'CG iter. ', i, ' -- res = ', &
@@ -151,7 +141,7 @@ contains
 
     end do
 
-    ! Multiply with sqrt(S)
+    ! Multiply with sqrt(S), and insert into right object
     c       => compList
     do while (associated(c))
        select type (c)
@@ -196,10 +186,15 @@ contains
     c   => compList
     do while (associated(c))
        select type (c)
-       class is (comm_diffuse_comp)
+       class is (comm_diffuse_comp) 
           do i = 1, c%x%info%nmaps
              cr_amp2x_full(ind:ind+c%x%info%nalm-1) = c%x%alm(:,i)
              ind = ind + c%x%info%nalm
+          end do
+       class is (comm_ptsrc_comp) 
+          do i = 1, c%nmaps
+             cr_amp2x_full(ind:ind+c%nsrc-1) = c%x(:,i)
+             ind = ind + c%nsrc
           end do
        end select
        c => c%next()
@@ -224,6 +219,11 @@ contains
              c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
              ind = ind + c%x%info%nalm
           end do
+       class is (comm_ptsrc_comp)
+          do i = 1, c%nmaps
+             c%x(:,i) = x(ind:ind+c%nsrc-1)
+             ind = ind + c%nsrc
+          end do
        end select
        c => c%next()
     end do
@@ -244,7 +244,7 @@ contains
     class(comm_map),     pointer                 :: map, Tm, mu
     class(comm_comp),    pointer                 :: c
     class(comm_mapinfo), pointer                 :: info
-    real(dp),        allocatable, dimension(:,:) :: eta
+    real(dp),        allocatable, dimension(:,:) :: eta, Tp
 
     call rand_init(handle, 10)
     
@@ -304,6 +304,11 @@ contains
              call c%Cl%sqrtS(map=Tm) ! Multiply with sqrt(Cl)
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
              deallocate(Tm)
+          class is (comm_ptsrc_comp)
+             allocate(Tp(c%nsrc,c%nmaps))
+             Tp = c%projectBand(i,map)
+             call cr_insert_comp(c%id, .true., Tp, rhs)
+             deallocate(Tp)
           end select
           c => c%next()
        end do
@@ -358,10 +363,10 @@ contains
 
     real(dp)                  :: t1, t2
     integer(i4b)              :: i, j, myid
-    class(comm_map),  pointer :: map!, map2
+    class(comm_map),  pointer :: map, pmap
     class(comm_comp), pointer :: c
     real(dp),        allocatable, dimension(:)   :: y, sqrtS_x
-    real(dp),        allocatable, dimension(:,:) :: alm, m
+    real(dp),        allocatable, dimension(:,:) :: alm, m, pamp
 
     ! Initialize output array
     allocate(y(ncr), sqrtS_x(ncr))
@@ -394,36 +399,30 @@ contains
 
        ! Compute component-summed map, ie., column-wise matrix elements
        call wall_time(t1)
-       map => comm_map(data(i)%info)   ! For diffuse components
-       !map2 => comm_map(data(i)%info)   ! For diffuse components
+       map  => comm_map(data(i)%info)   ! For diffuse components
+       pmap => comm_map(data(i)%info)   ! For point-source components
        c   => compList
        do while (associated(c))
           select type (c)
           class is (comm_diffuse_comp)
-             !call cr_extract_comp(c%id, sqrtS_x, alm)
-             !allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-             !m = c%getBand(i, amp_in=alm)
-             !map%map = map%map + m
-             !write(*,*) 'a', sum(abs(map%map))
-             !deallocate(alm, m)
              call cr_extract_comp(c%id, sqrtS_x, alm)
              allocate(m(0:c%x%info%nalm-1,c%x%info%nmaps))
              m = c%getBand(i, amp_in=alm, alm_out=.true.)
              call map%add_alm(m, c%x%info)
              deallocate(alm, m)
-             !call map2%Y()
-             !write(*,*) 'b', sum(abs(map2%map))
+          class is (comm_ptsrc_comp)
+             call cr_extract_comp(c%id, sqrtS_x, pamp)
+             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+             m = c%getBand(i, amp_in=pamp)
+             pmap%map = pmap%map + m
+             deallocate(pamp, m)
           end select
           c => c%next()
        end do
-       call map%Y()                    ! For diffuse components
+       call map%Y()                    ! Diffuse components
+       map%map = map%map + pmap%map    ! Add compact objects
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
-
-!!$       write(*,*) 'final  = ', sum(abs(map%map))
-!!$       write(*,*) 'final2 = ', sum(abs(map2%map))
-!!$       call mpi_finalize(i)
-!!$       stop
 
        ! Multiply with invN
        call wall_time(t1)
@@ -442,13 +441,18 @@ contains
              alm = c%projectBand(i, map, alm_in=.true.)
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
+          class is (comm_ptsrc_comp)
+             allocate(pamp(0:c%nsrc-1,c%nmaps))
+             pamp = c%projectBand(i, map)
+             call cr_insert_comp(c%id, .true., pamp, y)
+             deallocate(pamp)
           end select
           c => c%next()
        end do
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'projBand time = ', real(t2-t1,sp)
 
-       deallocate(map)
+       deallocate(map,pmap)
        
     end do
 
@@ -483,7 +487,7 @@ contains
     cr_matmulA = y
     deallocate(y, sqrtS_x)
     call wall_time(t2)
-!    write(*,*) 'f', t2-t1
+    !    write(*,*) 'f', t2-t1
     
   end function cr_matmulA
 
@@ -502,6 +506,8 @@ contains
     
     ! Jointly precondition diffuse components
     call precond_diff_comps(P, cr_invM)
+
+    ! Jointly precondition compact object components
     
   end function cr_invM
 
