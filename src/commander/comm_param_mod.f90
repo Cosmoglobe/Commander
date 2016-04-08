@@ -441,6 +441,7 @@ contains
           call get_parameter(paramfile, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
           call get_parameter(paramfile, 'COMP_NSIDE'//itext,    par_int=cpar%cs_nside(i))
           call get_parameter(paramfile, 'COMP_NU_REF'//itext,   par_dp=cpar%cs_nu_ref(i))
+          call get_parameter(paramfile, 'COMP_CG_SCALE'//itext, par_dp=cpar%cs_cg_scale(i))
           select case (trim(cpar%cs_type(i)))
           case ('radio')
              call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext,    &

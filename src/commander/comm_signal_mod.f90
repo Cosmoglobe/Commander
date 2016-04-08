@@ -129,16 +129,16 @@ contains
     integer(i4b) :: stat, i
     real(dp)     :: Nscale = 1.d-4
     real(dp),           allocatable, dimension(:) :: rhs, x
-    class(precondDiff), pointer                   :: P
 
     allocate(x(ncr))
     call cr_computeRHS(handle, rhs)
     call update_status(status, "init_precond1")
-    P => precondDiff(cpar%comm_chain, Nscale)
+    call initDiffPrecond(cpar%comm_chain)
+    call initPtsrcPrecond(cpar%comm_chain)
     call update_status(status, "init_precond2")
-    call solve_cr_eqn_by_CG(cpar, cr_matmulA, cr_invM, x, rhs, stat, P)
+    call solve_cr_eqn_by_CG(cpar, x, rhs, stat)
     call cr_x2amp(x)
-    deallocate(rhs,x,P)
+    deallocate(rhs,x)
 
   end subroutine sample_amps_by_CG
 

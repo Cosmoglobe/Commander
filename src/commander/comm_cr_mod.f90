@@ -7,6 +7,7 @@ module comm_cr_mod
   use comm_template_comp_mod
   use rngmod
   use comm_cr_utils
+  use comm_cr_precond_mod
   use math_tools
   use comm_output_mod
   implicit none
@@ -24,32 +25,13 @@ module comm_cr_mod
 
 contains
 
-  recursive subroutine solve_cr_eqn_by_CG(cpar, A, invM, x, b, stat, P)
+  subroutine solve_cr_eqn_by_CG(cpar, x, b, stat)
     implicit none
 
     type(comm_params),                intent(in)    :: cpar
     real(dp),          dimension(1:), intent(out)   :: x
     real(dp),          dimension(1:), intent(in)    :: b
     integer(i4b),                     intent(out)   :: stat
-    class(precondDiff),               intent(inout) :: P
-
-    interface
-       recursive function A(x, Nscale)
-         import dp
-         implicit none
-         real(dp), dimension(:),       intent(in)           :: x
-         real(dp), dimension(size(x))                       :: A
-         real(dp),                     intent(in), optional :: Nscale
-       end function A
-
-       recursive function invM(x, P)
-         import precondDiff, dp
-         implicit none
-         real(dp),              dimension(:), intent(in) :: x
-         class(precondDiff),                  intent(in) :: P
-         real(dp), allocatable, dimension(:)             :: invM
-       end function invM
-    end interface
 
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
@@ -67,16 +49,31 @@ contains
 
     ! Update preconditioner
     call wall_time(t1)
-    call P%update
+    call update_precond
     call wall_time(t2)
     if (cpar%myid == root .and. cpar%verbosity > 2) then
        write(*,fmt='(a,f8.2)') 'CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
     
+!!$    write(*,*) P_cr%invM_src(1,1)%M(1,:)
+!!$    write(*,*) P_cr%invM_src(1,1)%M(2,:)
+!!$    write(*,*)
+!!$    x    = 0.d0
+!!$    x(1) = 1.d0
+!!$    q     = cr_matmulA(x)
+!!$    write(*,*) q
+!!$        x    = 0.d0
+!!$    x(2) = 1.d0
+!!$    q     = cr_matmulA(x)
+!!$    write(*,*) q
+!!$
+!!$    call mpi_finalize(ierr)
+!!$    stop
+    
     ! Initialize the CG search
     x  = 0.d0
     r  = b ! - A(x)   ! x is zero
-    d  = invM(r, P)
+    d  = cr_invM(r)
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
     delta0    = delta_new
@@ -86,7 +83,7 @@ contains
        if (delta_new < eps * delta0) exit
 
        call wall_time(t3)
-       q     = A(d)
+       q     = cr_matmulA(d)
        call wall_time(t4)
        !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'A time = ', real(t4-t3,sp)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
@@ -94,13 +91,13 @@ contains
 
        ! Restart every 50th iteration to suppress numerical errors
        if (.false. .and. mod(i,50) == 0) then
-          r = b - A(x)
+          r = b - cr_matmulA(x)
        else
           r = r - alpha*q
        end if
 
        call wall_time(t3)
-       s         = invM(r, P)
+       s         = cr_invM(r)
        call wall_time(t4)
        !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'invM time = ', real(t4-t3,sp)
        delta_old = delta_new 
@@ -354,12 +351,11 @@ contains
 
   end subroutine cr_computeRHS
 
-  recursive function cr_matmulA(x, Nscale)
+  recursive function cr_matmulA(x)
     implicit none
 
-    real(dp), dimension(1:),     intent(in)             :: x
-    real(dp),                    intent(in),   optional :: Nscale
-    real(dp), dimension(size(x))                        :: cr_matmulA
+    real(dp), dimension(1:),     intent(in)  :: x
+    real(dp), dimension(size(x))             :: cr_matmulA
 
     real(dp)                  :: t1, t2
     integer(i4b)              :: i, j, myid
@@ -426,7 +422,7 @@ contains
 
        ! Multiply with invN
        call wall_time(t1)
-       call data(i)%N%InvN(map, Nscale)
+       call data(i)%N%InvN(map)
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'invN time = ', real(t2-t1,sp)
 
@@ -491,10 +487,9 @@ contains
     
   end function cr_matmulA
 
-  recursive function cr_invM(x, P)
+  function cr_invM(x)
     implicit none
     real(dp),              dimension(:), intent(in) :: x
-    class(precondDiff),                  intent(in) :: P
     real(dp), allocatable, dimension(:)             :: cr_invM
 
     integer(i4b) :: ierr
@@ -503,13 +498,18 @@ contains
 
     if (.not. allocated(cr_invM)) allocate(cr_invM(size(x)))
     cr_invM = x
-    
-    ! Jointly precondition diffuse components
-    call precond_diff_comps(P, cr_invM)
-
-    ! Jointly precondition compact object components
+    call applyDiffPrecond(cr_invM)
+    call applyPtsrcPrecond(cr_invM)
     
   end function cr_invM
 
+  subroutine update_precond
+    implicit none
+
+    call updateDiffPrecond
+    call updatePtsrcPrecond
+
+  end subroutine update_precond
+  
   
 end module comm_cr_mod

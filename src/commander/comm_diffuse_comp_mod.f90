@@ -7,10 +7,11 @@ module comm_diffuse_comp_mod
   use comm_Cl_mod
   use math_tools
   use comm_cr_utils
+  use comm_cr_precond_mod
   implicit none
 
   private
-  public comm_diffuse_comp, precondDiff, precond_diff_comps, add_to_npre
+  public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond
   
   !**************************************************
   !            Diffuse component class
@@ -45,23 +46,6 @@ module comm_diffuse_comp_mod
   type diff_ptr
      class(comm_diffuse_comp), pointer :: p
   end type diff_ptr
-  
-  type invM_lm
-     integer(i4b)                              :: n
-     integer(i4b), allocatable, dimension(:)   :: ind, comp2ind
-     real(dp),     allocatable, dimension(:,:) :: M0, M
-  end type invM_lm
-
-  type precondDiff
-     real(dp)     :: Nscale
-     type(invM_lm), allocatable, dimension(:,:)      :: invM_ ! (0:nalm-1,nmaps)
-   contains
-     procedure :: update  => updateDiffPrecond
-  end type precondDiff
-
-  interface precondDiff
-     procedure constPreDiff
-  end interface precondDiff
   
   integer(i4b) :: npre      =  0
   integer(i4b) :: lmax_pre  = -1
@@ -139,11 +123,9 @@ contains
     
   end subroutine initDiffuse
 
-  function constPreDiff(comm, Nscale)
+  subroutine initDiffPrecond(comm)
     implicit none
     integer(i4b),                intent(in) :: comm
-    real(dp),                    intent(in) :: Nscale
-    class(precondDiff), pointer             :: constPreDiff
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
@@ -152,8 +134,6 @@ contains
     class(comm_diffuse_comp), pointer :: p1, p2
     real(dp),     allocatable, dimension(:,:) :: mat
 
-    allocate(constPreDiff)
-    
     if (npre == 0) return
     
     if (.not. allocated(diffComps)) then
@@ -174,7 +154,7 @@ contains
     
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(constPreDiff%invM_(0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(P_cr%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
     !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
     allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
@@ -200,20 +180,20 @@ contains
           end do
 
           n = 0
-          allocate(constPreDiff%invM_(i1,j)%comp2ind(npre))
-          constPreDiff%invM_(i1,j)%comp2ind = -1
+          allocate(P_cr%invM_diff(i1,j)%comp2ind(npre))
+          P_cr%invM_diff(i1,j)%comp2ind = -1
           do k1 = 1, npre
              if (mat(k1,k1) > 0.d0) then
                 n = n+1
                 ind(n) = k1
-                constPreDiff%invM_(i1,j)%comp2ind(k1) = n
+                P_cr%invM_diff(i1,j)%comp2ind(k1) = n
              end if
           end do
-          constPreDiff%invM_(i1,j)%n = n
-          allocate(constPreDiff%invM_(i1,j)%ind(n))
-          allocate(constPreDiff%invM_(i1,j)%M0(n,n), constPreDiff%invM_(i1,j)%M(n,n))
-          constPreDiff%invM_(i1,j)%ind = ind(1:n)
-          constPreDiff%invM_(i1,j)%M0   = mat(ind(1:n),ind(1:n))
+          P_cr%invM_diff(i1,j)%n = n
+          allocate(P_cr%invM_diff(i1,j)%ind(n))
+          allocate(P_cr%invM_diff(i1,j)%M0(n,n), P_cr%invM_diff(i1,j)%M(n,n))
+          P_cr%invM_diff(i1,j)%ind = ind(1:n)
+          P_cr%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
 
        end do
        !!$OMP END DO
@@ -226,17 +206,16 @@ contains
 !!$    if (info_pre%myid == 0) then
 !!$       write(*,*) 'wall time = ', t2-t1
 !!$       do i = 0, 10
-!!$          write(*,*) info_pre%myid, i, sum(abs(constPreDiff%invM_(i,1)%M0))
+!!$          write(*,*) info_pre%myid, i, sum(abs(P_cr%invM_diff(i,1)%M0))
 !!$       end do
 !!$    end if
 !!$    call mpi_finalize(i)
 !!$    stop
 
-  end function constPreDiff
+  end subroutine initDiffPrecond
 
-  subroutine updateDiffPrecond(self)
+  subroutine updateDiffPrecond
     implicit none
-    class(precondDiff), intent(inout) :: self
 
     integer(i4b) :: i, j, k, k1, k2, l, m, n, ierr, unit, p, q
     real(dp)     :: W_ref, t1, t2
@@ -252,7 +231,7 @@ contains
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
        do i = 0, info_pre%nalm-1
-          self%invM_(i,j)%M = self%invM_(i,j)%M0
+          P_cr%invM_diff(i,j)%M = P_cr%invM_diff(i,j)%M0
        end do
     end do
 
@@ -279,10 +258,10 @@ contains
        do k2 = 1, npre
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                p = self%invM_(i,j)%comp2ind(k1)
-                q = self%invM_(i,j)%comp2ind(k2)
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) then
-                   alm(i,j) = self%invM_(i,j)%M(q,p)
+                   alm(i,j) = P_cr%invM_diff(i,j)%M(q,p)
                 else
                    alm(i,j) = 0.d0
                 end if
@@ -291,9 +270,9 @@ contains
           call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                p = self%invM_(i,j)%comp2ind(k1)
-                q = self%invM_(i,j)%comp2ind(k2)
-                if (p /= -1 .and. q /= -1) self%invM_(i,j)%M(q,p) = alm(i,j)
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(q,p) = alm(i,j)
              end do
           end do
        end do
@@ -311,10 +290,10 @@ contains
        do k2 = 1, npre
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                p = self%invM_(i,j)%comp2ind(k1)
-                q = self%invM_(i,j)%comp2ind(k2)
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) then
-                   alm(i,j) = self%invM_(i,j)%M(p,q)
+                   alm(i,j) = P_cr%invM_diff(i,j)%M(p,q)
                 else
                    alm(i,j) = 0.d0
                 end if
@@ -323,9 +302,9 @@ contains
           call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                p = self%invM_(i,j)%comp2ind(k1)
-                q = self%invM_(i,j)%comp2ind(k2)
-                if (p /= -1 .and. q /= -1) self%invM_(i,j)%M(p,q) = alm(i,j)
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(p,q) = alm(i,j)
              end do
           end do
        end do
@@ -359,8 +338,8 @@ contains
           call info_pre%i2lm(i, l, m)
           if (l <= diffComps(k1)%p%lmax_amp) then
              do j = 1, info_pre%nmaps
-                p = self%invM_(i,j)%comp2ind(k1)
-                self%invM_(i,j)%M(p,p) = self%invM_(i,j)%M(p,p) + 1.d0
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                P_cr%invM_diff(i,j)%M(p,p) = P_cr%invM_diff(i,j)%M(p,p) + 1.d0
              end do
           end if
        end do
@@ -388,10 +367,10 @@ contains
        do j = 1, nmaps_pre
           do i = 0, info_pre%nalm-1
              call info_pre%i2lm(i, l, m)
-             n = self%invM_(i,j)%n
+             n = P_cr%invM_diff(i,j)%n
              if (n > 0) then
                 allocate(W(n), ind(n))
-                call get_eigenvalues(self%invM_(i,j)%M, W)
+                call get_eigenvalues(P_cr%invM_diff(i,j)%M, W)
                 W_ref    = minval(abs(W))
                 cond(l)  = max(cond(l), maxval(abs(W/W_ref)))
                 W_min(l) = min(W_min(l), minval(W))
@@ -422,7 +401,7 @@ contains
     call wall_time(t1)
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          call invert_matrix_with_mask(self%invM_(i,j)%M)
+          call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
        end do
     end do
     call wall_time(t2)
@@ -659,9 +638,8 @@ contains
     
   end function projectDiffuseBand
 
-  subroutine precond_diff_comps(P, x)
+  subroutine applyDiffPrecond(x)
     implicit none
-    class(precondDiff),               intent(in)    :: P
     real(dp),           dimension(:), intent(inout) :: x
 
     integer(i4b)              :: i, j, k, l, m, nmaps
@@ -688,7 +666,8 @@ contains
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
           !y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
-          y(P%invM_(i,j)%ind,i,j) = matmul(P%invM_(i,j)%M, y(P%invM_(i,j)%ind,i,j))
+          y(P_cr%invM_diff(i,j)%ind,i,j) = &
+               & matmul(P_cr%invM_diff(i,j)%M, y(P_cr%invM_diff(i,j)%ind,i,j))
        end do
     end do
 
@@ -708,7 +687,7 @@ contains
     
     deallocate(y)
 
-  end subroutine precond_diff_comps
+  end subroutine applyDiffPrecond
   
   ! Dump current sample to HEALPix FITS file
   subroutine dumpDiffuseToFITS(self, postfix, dir)

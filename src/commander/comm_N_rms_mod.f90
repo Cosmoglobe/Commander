@@ -75,45 +75,37 @@ contains
   end function constructor
 
   ! Return map_out = invN * map
-  subroutine matmulInvN_1map(self, map, Nscale)
+  subroutine matmulInvN_1map(self, map)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
-    real(dp),          intent(in),    optional :: Nscale
     map%map = (self%siN%map)**2 * map%map
-    if (present(Nscale)) map%map = map%map * Nscale
   end subroutine matmulInvN_1map
   
   ! Return map_out = sqrtInvN * map
-  subroutine matmulSqrtInvN_1map(self, map, Nscale)
+  subroutine matmulSqrtInvN_1map(self, map)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
-    real(dp),          intent(in),    optional :: Nscale
     map%map = self%siN%map * map%map
-    if (present(Nscale)) map%map = map%map * sqrt(Nscale)
   end subroutine matmulSqrtInvN_1map
 
   ! Return map_out = invN * map
-  subroutine matmulInvN_2map(self, map, res, Nscale)
+  subroutine matmulInvN_2map(self, map, res)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(in)              :: map
     class(comm_map),   intent(inout)           :: res
-    real(dp),          intent(in),    optional :: Nscale
     res%map = (self%siN%map)**2 * map%map
-    if (present(Nscale)) res%map = res%map * Nscale
   end subroutine matmulInvN_2map
   
   ! Return map_out = sqrtInvN * map
-  subroutine matmulSqrtInvN_2map(self, map, res, Nscale)
+  subroutine matmulSqrtInvN_2map(self, map, res)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(in)              :: map
     class(comm_map),   intent(inout)           :: res
-    real(dp),          intent(in),    optional :: Nscale
     res%map = self%siN%map * map%map
-    if (present(Nscale)) res%map = res%map * sqrt(Nscale)
   end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map

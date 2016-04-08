@@ -1,4 +1,5 @@
 module comm_ptsrc_comp_mod
+  use math_tools
   use comm_param_mod
   use comm_comp_mod
   use comm_F_int_mod
@@ -7,11 +8,13 @@ module comm_ptsrc_comp_mod
   use comm_data_mod
   use pix_tools
   use comm_hdf_mod
+  use comm_cr_utils
+  use comm_cr_precond_mod
   use locate_mod
   implicit none
 
   private
-  public comm_ptsrc_comp
+  public comm_ptsrc_comp, initPtsrcPrecond, updatePtsrcPrecond, applyPtsrcPrecond
 
   !**************************************************
   !            Compact object class
@@ -45,11 +48,21 @@ module comm_ptsrc_comp_mod
      procedure :: projectBand  => projectPtsrcBand
      procedure :: updateF
      procedure :: S => evalSED
+     procedure :: getScale
   end type comm_ptsrc_comp
 
   interface comm_ptsrc_comp
      procedure constructor
   end interface comm_ptsrc_comp
+
+  type ptsrc_ptr
+     class(comm_ptsrc_comp), pointer :: p
+  end type ptsrc_ptr
+  
+  integer(i4b) :: ncomp_pre =   0
+  integer(i4b) :: npre      =   0
+  integer(i4b) :: nmaps_pre =  -1
+  class(ptsrc_ptr), allocatable, dimension(:) :: ptsrcComps
   
 contains
 
@@ -74,9 +87,10 @@ contains
     constructor%nu_ref    = cpar%cs_nu_ref(id_abs)
     constructor%nside     = cpar%cs_nside(id_abs)
     constructor%outprefix = trim(cpar%cs_label(id_abs))
-    constructor%cg_scale  = 1.d0
+    constructor%cg_scale  = cpar%cs_cg_scale(id_abs)
     allocate(constructor%poltype(1))
     constructor%poltype   = cpar%cs_poltype(1,id_abs)
+    ncomp_pre                 = ncomp_pre + 1
 
     ! Initialize frequency scaling parameters
     allocate(constructor%F_int(numband))
@@ -177,7 +191,7 @@ contains
     case ("radio")
        !evalSED = exp(theta(1) * (nu/self%nu_ref) + theta(2) * (log(nu/self%nu_ref))**2) * &
        !     & (self%nu_ref/nu)**2
-       evalSED = (self%nu_ref/nu)**(2.d0+theta(1))
+       evalSED = (self%nu_ref/nu)**(2.d0+theta(1)) 
     case ("fir")
        x = h/(k_B*theta(2))
        evalSED = (exp(x*self%nu_ref)-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref)**(theta(1)+1.d0)
@@ -213,12 +227,8 @@ contains
              amp = self%x(i,j)
           end if
           
-          ! Amplitude in flux density in mJy; convert to brightness temperature in uK
-          ! The nu**2 dependence goes into the mixing matrix
-          amp = 1.d-23 * (c/self%nu_ref)**2 / (2.d0*k_b*self%src(i)%T(band)%Omega_b(j)) * amp
-          
           ! Scale to correct frequency through multiplication with mixing matrix
-          amp = self%src(i)%T(band)%F(j) *  amp
+          amp = self%getScale(band,i,j) * self%src(i)%T(band)%F(j) *  amp
           
           ! Project with beam
           do q = 1, self%src(i)%T(band)%np
@@ -256,10 +266,7 @@ contains
           end do
 
           ! Scale to correct frequency through multiplication with mixing matrix
-          val = self%src(i)%T(band)%F(j) * val
-
-          ! Amplitude in flux density in mJy; convert to brightness temperature
-          val = 1.d-23 * (c/self%nu_ref)**2 / (2.d0*k_b*self%src(i)%T(band)%Omega_b(j)) * val
+          val = self%getScale(band,i,j) * self%src(i)%T(band)%F(j) * val
 
           ! Return value
           projectPtsrcBand(i,j) = val
@@ -283,7 +290,7 @@ contains
     ! Output point source maps for each frequency
     do i = 1, numband
        map => comm_map(data(i)%info)
-       map%map = self%getBand(i)       
+       map%map = self%getBand(i) * self%cg_scale
        filename = trim(self%label) // '_' // trim(data(i)%label) // '_' // trim(postfix) // '.fits'
        call map%writeFITS(trim(dir)//'/'//trim(filename))
        deallocate(map)
@@ -331,6 +338,8 @@ contains
        else
           self%nsrc = self%nsrc + 1
           self%ncr  = self%ncr  + nmaps
+          npre      = npre + 1
+          nmaps_pre = max(nmaps_pre, nmaps)
        end if
     end do 
 1   close(unit)
@@ -350,7 +359,7 @@ contains
        self%src(i)%glon     = glon * DEG2RAD
        self%src(i)%glat     = glat * DEG2RAD
        self%src(i)%theta    = beta
-       self%x(i,:)          =  amp
+       self%x(i,:)          = amp / self%cg_scale
     end do 
 2   close(unit)
 
@@ -406,7 +415,6 @@ contains
 
     ! Find number of pixels in beam
     write(itext,*) pix
-    write(*,*) trim(itext)
     call open_hdf_file(filename, file, 'r')
     call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
     n = ext(1)
@@ -493,6 +501,230 @@ contains
 
   end subroutine compute_symmetric_beam
 
-  
+  subroutine initPtsrcPrecond(comm)
+    implicit none
+    integer(i4b),                intent(in) :: comm
+
+    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr
+    real(dp)     :: t1, t2
+    class(comm_comp),         pointer :: c, c1, c2
+    class(comm_ptsrc_comp),   pointer :: pt1, pt2
+    real(dp),     allocatable, dimension(:,:) :: mat, mat2
+
+    if (ncomp_pre == 0) return
+
+    call mpi_comm_rank(comm, myid, ierr)
+    
+!!$    if (.not. allocated(ptsrcComps)) then
+!!$       ! Set up an array of all the diffuse components
+!!$       write(*,*) ncomp_pre
+!!$       allocate(ptsrcComps(ncomp_pre))
+!!$       c => compList
+!!$       i =  1
+!!$       do while (associated(c))
+!!$          select type (c)
+!!$          class is (comm_ptsrc_comp)
+!!$             ptsrcComps(i)%p => c
+!!$             write(*,*) i
+!!$             write(*,*) 'a', c%src(1)%T(1)%np
+!!$             write(*,*) 'b', c%src(1)%T(2)%np
+!!$             write(*,*) 'c', c%src(2)%T(1)%np
+!!$             write(*,*) 'd', c%src(2)%T(2)%np
+!!$             write(*,*) 'a', ptsrcComps(i)%p%src(1)%T(1)%np
+!!$             write(*,*) 'b', ptsrcComps(i)%p%src(1)%T(2)%np
+!!$             write(*,*) 'c', ptsrcComps(i)%p%src(2)%T(1)%np
+!!$             write(*,*) 'd', ptsrcComps(i)%p%src(2)%T(2)%np
+!!$             i               =  i+1
+!!$          end select
+!!$          c => c%next()
+!!$       end do
+!!$    end if
+    
+    ! Build frequency-dependent part of preconditioner
+    call wall_time(t1)
+    allocate(P_cr%invM_src(1,nmaps_pre))
+    allocate(mat(npre,npre), mat2(npre,npre))
+    do j = 1, nmaps_pre
+
+       mat = 0.d0
+       i1  = 0
+       c1 => compList
+       do while (associated(c1))
+          select type (c1)
+          class is (comm_ptsrc_comp)
+             pt1 => c1
+          class default 
+             c1 => c1%next()
+             cycle
+          end select
+          if (j > pt1%nmaps) then
+             c1 => c1%next()
+             cycle
+          end if
+          do k1 = 1, pt1%nsrc
+             !write(*,*) k1, pt1%nsrc             
+             i1 = i1+1
+
+             i2 = 0
+             c2 => compList
+             do while (associated(c2))
+                !do j2 = 1, ncomp_pre
+                select type (c2)
+                class is (comm_ptsrc_comp)
+                   pt2 => c2
+                class default 
+                   c2 => c2%next()
+                   cycle
+                end select
+                
+                if (j > pt2%nmaps) then
+                   c2 => c2%next()
+                   cycle
+                end if
+                do k2 = 1, pt2%nsrc
+                   !write(*,*) k2, pt2%nsrc
+                   i2 = i2+1
+                   if (i2 < i1) cycle
+
+                   do l = 1, numband
+                      n1 = pt1%src(k1)%T(l)%np
+                      n2 = pt2%src(k2)%T(l)%np
+
+                      ! Search for common pixels; skip if no pixel overlap
+                      if (pt1%src(k1)%T(l)%pix(1,1)  > pt2%src(k2)%T(l)%pix(n2,1)) cycle
+                      if (pt1%src(k1)%T(l)%pix(n1,1) < pt2%src(k2)%T(l)%pix(1,1))  cycle
+
+                      p1 = 1
+                      p2 = 1
+                      do while (.true.)
+                         if (pt1%src(k1)%T(l)%pix(p1,1) == pt2%src(k2)%T(l)%pix(p2,1)) then
+                            p  = pt1%src(k1)%T(l)%pix(p1,1)
+                            mat(i1,i2) = mat(i1,i2) + &
+                                 & data(l)%N%invN_diag%map(p,j) * &          ! invN_{p,p}
+                                 & pt1%src(k1)%T(l)%map(p1,j) * & ! B_1
+                                 & pt2%src(k2)%T(l)%map(p2,j) * & ! B_2
+                                 & pt1%src(k1)%T(l)%F(j)      * & ! F_1
+                                 & pt2%src(k2)%T(l)%F(j)      * & ! F_2
+                                 & pt1%getScale(l,k1,j)       * & ! Unit 1
+                                 & pt2%getScale(l,k2,j)           ! Unit 2
+                            p1 = p1+1
+                            p2 = p2+1                            
+                         else if (pt1%src(k1)%T(l)%pix(p1,1) < pt2%src(k2)%T(l)%pix(p2,1)) then
+                            p1 = p1+1
+                         else
+                            p2 = p2+1
+                         end if
+                         if (p1 >= n1 .or. p2 >= n2) exit
+                         if (pt1%src(k1)%T(l)%pix(p1,1) > pt2%src(k2)%T(l)%pix(n2,1)) exit
+                         if (pt1%src(k1)%T(l)%pix(n1,1) < pt2%src(k2)%T(l)%pix(p2,1)) exit
+                      end do
+                   end do
+                   mat(i2,i1) = mat(i1,i2)
+                end do
+                c2 => c2%next()
+             end do
+          end do
+          c1 => c1%next()
+       end do
+
+       ! Collect contributions from all cores
+       call mpi_reduce(mat, mat2, size(mat2), MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+       if (myid == 0) then
+          call invert_matrix_with_mask(mat2)
+          allocate(P_cr%invM_src(1,j)%M(npre,npre))
+          P_cr%invM_src(1,j)%M = mat2
+       end if
+    end do
+    call wall_time(t2)
+    write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
+
+    deallocate(mat,mat2)
+    
+  end subroutine initPtsrcPrecond
+
+  subroutine updatePtsrcPrecond
+    implicit none
+
+    ! Placeholder for now; already fully initialized
+    if (npre == 0) return
+       
+  end subroutine updatePtsrcPrecond
+
+
+  subroutine applyPtsrcPrecond(x)
+    implicit none
+    real(dp),           dimension(:), intent(inout) :: x
+
+    integer(i4b)              :: i, j, k, l, m, nmaps
+    real(dp), allocatable, dimension(:,:) :: amp
+    real(dp), allocatable, dimension(:,:) :: y
+    class(comm_comp),       pointer :: c
+    class(comm_ptsrc_comp), pointer :: pt
+
+    if (npre == 0) return
+    
+    ! Reformat linear array into y(npre,nalm,nmaps) structure
+    allocate(y(npre,nmaps_pre))
+    y = 0.d0
+    l = 1
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_ptsrc_comp)
+          pt => c
+       class default 
+          c => c%next()
+          cycle
+       end select
+       call cr_extract_comp(pt%id, x, amp)
+       do k = 1, pt%nmaps
+          y(l:l+pt%nsrc-1,k) = amp(:,k)
+       end do
+       l  = l + pt%nsrc
+       c => c%next()
+       deallocate(amp)
+    end do
+
+    ! Multiply with preconditioner
+    do j = 1, nmaps_pre
+       y(:,j) = matmul(P_cr%invM_src(1,j)%M, y(:,j))
+    end do
+
+    ! Reformat y(npre,nmaps) structure back into linear array
+    l = 1
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_ptsrc_comp)
+          pt => c
+       class default 
+          c => c%next()
+          cycle
+       end select
+       allocate(amp(pt%nsrc,pt%nmaps))
+       do k = 1, pt%nmaps
+          amp(:,k) = y(l:l+pt%nsrc-1,k)
+       end do
+       call cr_insert_comp(pt%id, .false., amp, x)
+       l = l + pt%nsrc
+       c => c%next()
+       deallocate(amp)
+    end do
+        
+    deallocate(y)
+
+  end subroutine applyPtsrcPrecond
+
+  function getScale(self, band, id, pol)
+    implicit none
+    class(comm_ptsrc_comp), intent(in) :: self
+    integer(i4b),           intent(in) :: band, id, pol
+    real(dp)                           :: getScale
+
+    if (trim(self%type) == 'radio') then
+       getScale = 1.d-23 * (c/self%nu_ref)**2 / (2.d0*k_b*self%src(id)%T(band)%Omega_b(pol))
+    end if
+
+  end function getScale
   
 end module comm_ptsrc_comp_mod

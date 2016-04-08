@@ -31,10 +31,11 @@ comm_cr_utils.o :          comm_utils.o
 comm_cr_precond_mod.o :    comm_utils.o
 comm_comp_mod.o :          comm_bp_mod.o comm_param_mod.o comm_cr_utils.o comm_data_mod.o
 comm_Cl_mod.o :            comm_map_mod.o
-comm_diffuse_comp_mod.o :  comm_comp_mod.o comm_data_mod.o comm_F_int_mod.o comm_Cl_mod.o
+comm_diffuse_comp_mod.o :  comm_comp_mod.o comm_data_mod.o comm_F_int_mod.o comm_Cl_mod.o \
+                           comm_cr_precond_mod.o
 comm_template_comp_mod.o : comm_comp_mod.o
 comm_ptsrc_comp_mod.o :    comm_template_comp_mod.o comm_F_int_0D_mod.o comm_F_int_2D_mod.o \
-                           comm_hdf_mod.o
+                           comm_hdf_mod.o comm_cr_precond_mod.o
 comm_cmb_comp_mod.o :      comm_diffuse_comp_mod.o comm_F_int_0D_mod.o
 comm_powlaw_comp_mod.o :   comm_diffuse_comp_mod.o comm_F_int_1D_mod.o
 comm_spindust_comp_mod.o : comm_diffuse_comp_mod.o comm_F_int_1D_mod.o
