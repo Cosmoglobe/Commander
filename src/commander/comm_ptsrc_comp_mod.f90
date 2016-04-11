@@ -29,7 +29,7 @@ module comm_ptsrc_comp_mod
 
   type ptsrc
      character(len=512) :: outprefix
-     character(len=512) :: id_src
+     character(len=512) :: id
      real(dp)           :: glon, glat, f_beam
      type(Tnu), allocatable, dimension(:)   :: T      ! Spatial template (nband)
      real(dp),  allocatable, dimension(:,:) :: theta  ! Spectral parameters (npar,nmaps)
@@ -38,7 +38,7 @@ module comm_ptsrc_comp_mod
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale
-     integer(i4b)       :: nside, nsrc
+     integer(i4b)       :: nside, nsrc, ncr_tot, myid, comm
      real(dp),        allocatable, dimension(:,:) :: x      ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:)   :: F_int  ! SED integrator (numband)
      type(ptsrc),     allocatable, dimension(:)   :: src    ! Source template (nsrc)
@@ -62,6 +62,7 @@ module comm_ptsrc_comp_mod
   integer(i4b) :: ncomp_pre =   0
   integer(i4b) :: npre      =   0
   integer(i4b) :: nmaps_pre =  -1
+  integer(i4b) :: myid_pre  =  -1
   class(ptsrc_ptr), allocatable, dimension(:) :: ptsrcComps
   
 contains
@@ -79,6 +80,7 @@ contains
     allocate(constructor)
 
     ! Initialize general parameters
+    myid_pre              = cpar%myid
     constructor%class     = cpar%cs_class(id_abs)
     constructor%type      = cpar%cs_type(id_abs)
     constructor%label     = cpar%cs_label(id_abs)
@@ -90,7 +92,9 @@ contains
     constructor%cg_scale  = cpar%cs_cg_scale(id_abs)
     allocate(constructor%poltype(1))
     constructor%poltype   = cpar%cs_poltype(1,id_abs)
-    ncomp_pre                 = ncomp_pre + 1
+    constructor%myid      = cpar%myid
+    constructor%comm      = cpar%comm_chain
+    ncomp_pre             = ncomp_pre + 1
 
     ! Initialize frequency scaling parameters
     allocate(constructor%F_int(numband))
@@ -211,32 +215,39 @@ contains
     logical(lgt),                                 intent(in),  optional :: alm_out
     real(dp),        dimension(:,:), allocatable                        :: evalPtsrcBand
 
-    integer(i4b) :: i, j, p, q
-    real(dp)     :: amp
+    integer(i4b) :: i, j, p, q, ierr
+    real(dp)     :: a
+    real(dp), allocatable, dimension(:,:) :: amp
 
     if (.not. allocated(evalPtsrcBand)) &
          & allocate(evalPtsrcBand(0:data(band)%info%np-1,data(band)%info%nmaps))
+
+    allocate(amp(self%nsrc,self%nmaps))
+    if (self%myid == 0) then
+       if (present(amp_in)) then
+          amp = amp_in
+       else
+          amp = self%x
+       end if
+    end if
+    call mpi_bcast(amp, size(amp), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
 
     ! Loop over sources
     evalPtsrcBand = 0.d0
     do i = 1, self%nsrc
        do j = 1, self%src(i)%T(band)%nmaps
-          if (present(amp_in)) then
-             amp = amp_in(i,j)
-          else
-             amp = self%x(i,j)
-          end if
-          
           ! Scale to correct frequency through multiplication with mixing matrix
-          amp = self%getScale(band,i,j) * self%src(i)%T(band)%F(j) *  amp
+          a = self%getScale(band,i,j) * self%src(i)%T(band)%F(j) *  amp(i,j)
           
           ! Project with beam
           do q = 1, self%src(i)%T(band)%np
              p = self%src(i)%T(band)%pix(q,1)
-             evalPtsrcBand(p,j) = evalPtsrcBand(p,j) + amp * self%src(i)%T(band)%map(q,j)
+             evalPtsrcBand(p,j) = evalPtsrcBand(p,j) + a * self%src(i)%T(band)%map(q,j)
           end do
        end do
     end do
+
+    if (allocated(amp)) deallocate(amp)
     
   end function evalPtsrcBand
   
@@ -249,14 +260,16 @@ contains
     logical(lgt),                                 intent(in), optional  :: alm_in
     real(dp),        dimension(:,:), allocatable                        :: projectPtsrcBand
 
-    integer(i4b) :: i, j, q, p
+    integer(i4b) :: i, j, q, p, ierr
     real(dp)     :: val
+    real(dp), allocatable, dimension(:,:) :: amp, amp2
     
     if (.not. allocated(projectPtsrcBand)) &
-         & allocate(projectPtsrcBand(self%nsrc*self%nmaps,self%nmaps))
+         & allocate(projectPtsrcBand(self%nsrc,self%nmaps))
 
     ! Loop over sources
-    projectPtsrcBand = 0.d0
+    allocate(amp(self%nsrc,self%nmaps), amp2(self%nsrc,self%nmaps))
+    amp = 0.d0
     do i = 1, self%nsrc
        do j = 1, self%src(i)%T(band)%nmaps
           val = 0.d0
@@ -269,9 +282,14 @@ contains
           val = self%getScale(band,i,j) * self%src(i)%T(band)%F(j) * val
 
           ! Return value
-          projectPtsrcBand(i,j) = val
+          amp(i,j) = val
        end do
     end do
+
+    call mpi_reduce(amp, amp2, size(amp2), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+    if (self%myid == 0) projectPtsrcBand = amp2
+
+    deallocate(amp,amp2)
     
   end function projectPtsrcBand
   
@@ -281,7 +299,7 @@ contains
     character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
-    integer(i4b)       :: i, l, m, ierr, unit
+    integer(i4b)       :: i, l, m, ierr, unit, ind(1)
     real(dp)           :: vals(10)
     logical(lgt)       :: exist, first_call = .true.
     character(len=512) :: filename
@@ -291,11 +309,56 @@ contains
     do i = 1, numband
        map => comm_map(data(i)%info)
        map%map = self%getBand(i) * self%cg_scale
-       filename = trim(self%label) // '_' // trim(data(i)%label) // '_' // trim(postfix) // '.fits'
+       filename = trim(self%label) // '_' // trim(postfix) // '.fits'
        call map%writeFITS(trim(dir)//'/'//trim(filename))
        deallocate(map)
     end do
 
+    ! Output catalog
+    if (self%myid == 0) then
+       unit     = getlun()
+       filename = trim(self%label) // '_' // trim(postfix) // '.dat'
+       open(unit,file=trim(dir)//'/'//trim(filename),recl=1024,status='replace')
+       if (self%nmaps == 3) then
+          if (trim(self%type) == 'radio') then
+             write(unit,*) '# '
+             write(unit,*) '# SED model type      = ', trim(self%type)
+             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
+             write(unit,*) '# '
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    alpha_I   beta_I   Q(mJy)  ' // &
+                  & ' alpha_Q  beta_Q  U(mJy)  alpha_U  beta_U  ID'
+          end if
+       else
+          if (trim(self%type) == 'radio') then
+             write(unit,*) '# '
+             write(unit,*) '# SED model type      = ', trim(self%type)
+             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
+             write(unit,*) '# '
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    alpha_I   beta_I   ID'
+          end if
+       end if
+       do i = 1, self%nsrc
+          if (self%nmaps == 3) then
+             if (trim(self%type) == 'radio') then
+                write(unit,fmt='(2f10.4,f16.3,2f8.3,f16.3,2f8.3,f16.3,2f8.3,2a)') &
+                     & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
+                     & self%x(i,1)*self%cg_scale, self%src(i)%theta(:,1), &
+                     & self%x(i,2)*self%cg_scale, self%src(i)%theta(:,2), &
+                     & self%x(i,3)*self%cg_scale, self%src(i)%theta(:,3), &
+                     & '  ', trim(self%src(i)%id)
+             end if
+          else
+             if (trim(self%type) == 'radio') then
+                write(unit,fmt='(2f10.4,f16.3,2f8.3,2a)') &
+                     & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
+                     & self%x(i,1)*self%cg_scale, self%src(i)%theta(:,1), &
+                     & '  ', trim(self%src(i)%id)
+             end if
+          end if
+       end do
+       close(unit)
+    end if
+    
   end subroutine dumpPtsrcToFITS
 
 
@@ -328,18 +391,20 @@ contains
 
     ! Count number of valid sources
     open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
-    self%nsrc = 0
-    self%ncr  = 0
+    self%nsrc    = 0
+    self%ncr     = 0
+    self%ncr_tot = 0
     do while (.true.)
        read(unit,'(a)',end=1) line
        line = trim(line)
        if (line(1:1) == '#' .or. trim(line) == '') then
           cycle
        else
-          self%nsrc = self%nsrc + 1
-          self%ncr  = self%ncr  + nmaps
-          npre      = npre + 1
-          nmaps_pre = max(nmaps_pre, nmaps)
+          self%nsrc    = self%nsrc + 1
+          npre         = npre + 1
+          nmaps_pre    = max(nmaps_pre, nmaps)
+          self%ncr_tot = self%ncr_tot  + nmaps
+          if (cpar%myid == 0) self%ncr  = self%ncr  + nmaps
        end if
     end do 
 1   close(unit)
@@ -355,7 +420,7 @@ contains
        read(line,*) flabel, pix, nside, glon, glat, amp, beta, id_ptsrc
        i                             = i+1
        allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(numband))
-       self%src(i)%id_src   = id_ptsrc
+       self%src(i)%id       = id_ptsrc
        self%src(i)%glon     = glon * DEG2RAD
        self%src(i)%glat     = glat * DEG2RAD
        self%src(i)%theta    = beta
@@ -385,7 +450,7 @@ contains
              call report_error('Radial ptsrc beam profile not yet implemented')
           else if (filename(n-2:n) == '.h5' .or. filename(n-3:n) == '.hdf') then
              ! Read precomputed Febecop beam from HDF file
-             call read_febecop_beam(filename, self%src(j)%glon, self%src(j)%glat, i, &
+             call read_febecop_beam(cpar, filename, self%src(j)%glon, self%src(j)%glat, i, &
                   & self%src(j)%T(i))
           else
              call report_error('Unsupported point source template = '//trim(filename))
@@ -396,19 +461,21 @@ contains
   end subroutine read_sources
 
 
-  subroutine read_febecop_beam(filename, glon, glat, band, T)
+  subroutine read_febecop_beam(cpar, filename, glon, glat, band, T)
     implicit none
-    character(len=*), intent(in)    :: filename
-    real(dp),         intent(in)    :: glon, glat
-    integer(i4b),     intent(in)    :: band
-    type(Tnu),        intent(inout) :: T
+    class(comm_params), intent(in)    :: cpar
+    character(len=*),   intent(in)    :: filename
+    real(dp),           intent(in)    :: glon, glat
+    integer(i4b),       intent(in)    :: band
+    type(Tnu),          intent(inout) :: T
 
-    integer(i4b)      :: i, j, n, pix, ext(1)
+    integer(i4b)      :: i, j, n, pix, ext(1), ierr, m(1)
     character(len=16) :: itext
     type(hdf_file)    :: file
     integer(i4b), allocatable, dimension(:)   :: ind
     integer(i4b), allocatable, dimension(:,:) :: mypix
     real(dp),     allocatable, dimension(:,:) :: b, mybeam
+    real(dp),     allocatable, dimension(:)   :: buffer
 
     ! Find center pixel number for current source
     call ang2pix_ring(T%nside, 0.5d0*pi-glat, glon, pix)
@@ -428,12 +495,12 @@ contains
     ! Find number of pixels belonging to current processor
     T%np = 0
     i    = 1
-    j    = locate(data(band)%info%pix, ind(i))
+    j    = max(locate(data(band)%info%pix, ind(i)),0)
     if (j > -1) then
        do while (.true.)
           if (ind(i) == data(band)%info%pix(j)) then
              T%np            = T%np + 1
-             mypix(T%np,1)   = j
+             mypix(T%np,1)   = j-1
              mypix(T%np,2)   = data(band)%info%pix(j)
              mybeam(T%np,:)  = b(i,:)
              i               = i+1
@@ -505,7 +572,7 @@ contains
     implicit none
     integer(i4b),                intent(in) :: comm
 
-    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr
+    integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2
     class(comm_comp),         pointer :: c, c1, c2
     class(comm_ptsrc_comp),   pointer :: pt1, pt2
@@ -608,7 +675,7 @@ contains
                                  & pt1%getScale(l,k1,j)       * & ! Unit 1
                                  & pt2%getScale(l,k2,j)           ! Unit 2
                             p1 = p1+1
-                            p2 = p2+1                            
+                            p2 = p2+1
                          else if (pt1%src(k1)%T(l)%pix(p1,1) < pt2%src(k2)%T(l)%pix(p2,1)) then
                             p1 = p1+1
                          else
@@ -636,7 +703,7 @@ contains
        end if
     end do
     call wall_time(t2)
-    write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
+    if (myid_pre == 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
 
     deallocate(mat,mat2)
     
@@ -661,7 +728,7 @@ contains
     class(comm_comp),       pointer :: c
     class(comm_ptsrc_comp), pointer :: pt
 
-    if (npre == 0) return
+    if (npre == 0 .or. myid_pre /= 0) return
     
     ! Reformat linear array into y(npre,nalm,nmaps) structure
     allocate(y(npre,nmaps_pre))

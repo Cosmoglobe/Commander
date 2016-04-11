@@ -59,7 +59,7 @@ contains
        case ("ptsrc")
           c => comm_ptsrc_comp(cpar, ncomp, i)
           call add_to_complist(c)
-          call c%dumpFITS('test', cpar%outdir)
+          !call c%dumpFITS('test', cpar%outdir)
           !call mpi_finalize(i)
           !stop
        case ("template")

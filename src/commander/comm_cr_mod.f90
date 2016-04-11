@@ -55,21 +55,21 @@ contains
        write(*,fmt='(a,f8.2)') 'CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
     
-!!$    write(*,*) P_cr%invM_src(1,1)%M(1,:)
-!!$    write(*,*) P_cr%invM_src(1,1)%M(2,:)
-!!$    write(*,*)
-!!$    x    = 0.d0
-!!$    x(1) = 1.d0
+!!$    if (cpar%myid == root) write(*,*) P_cr%invM_src(1,1)%M(1,:)
+!!$    if (cpar%myid == root) write(*,*) P_cr%invM_src(1,1)%M(2,:)
+!!$    if (cpar%myid == root) write(*,*)
+!!$    if (cpar%myid == root) x    = 0.d0
+!!$    if (cpar%myid == root) x(1) = 1.d0
 !!$    q     = cr_matmulA(x)
-!!$    write(*,*) q
-!!$        x    = 0.d0
-!!$    x(2) = 1.d0
+!!$    if (cpar%myid == root) write(*,*) q
+!!$    if (cpar%myid == root) x    = 0.d0
+!!$    if (cpar%myid == root) x(2) = 1.d0
 !!$    q     = cr_matmulA(x)
-!!$    write(*,*) q
+!!$    if (cpar%myid == root) write(*,*) q
 !!$
 !!$    call mpi_finalize(ierr)
 !!$    stop
-    
+!!$    
     ! Initialize the CG search
     x  = 0.d0
     r  = b ! - A(x)   ! x is zero
@@ -127,7 +127,7 @@ contains
           end if
        end if
 
-       write(*,*) x(size(x)-1:size(x))
+       if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
@@ -218,8 +218,10 @@ contains
           end do
        class is (comm_ptsrc_comp)
           do i = 1, c%nmaps
-             c%x(:,i) = x(ind:ind+c%nsrc-1)
-             ind = ind + c%nsrc
+             if (c%myid == 0) then
+                c%x(:,i) = x(ind:ind+c%nsrc-1)
+                ind = ind + c%nsrc
+             end if
           end do
        end select
        c => c%next()
@@ -304,7 +306,7 @@ contains
           class is (comm_ptsrc_comp)
              allocate(Tp(c%nsrc,c%nmaps))
              Tp = c%projectBand(i,map)
-             call cr_insert_comp(c%id, .true., Tp, rhs)
+             if (c%myid == 0) call cr_insert_comp(c%id, .true., Tp, rhs)
              deallocate(Tp)
           end select
           c => c%next()
@@ -440,7 +442,7 @@ contains
           class is (comm_ptsrc_comp)
              allocate(pamp(0:c%nsrc-1,c%nmaps))
              pamp = c%projectBand(i, map)
-             call cr_insert_comp(c%id, .true., pamp, y)
+             if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
              deallocate(pamp)
           end select
           c => c%next()

@@ -2,6 +2,7 @@ module comm_chisq_mod
   use comm_data_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
+  use comm_ptsrc_comp_mod
   implicit none
 
 
@@ -48,49 +49,37 @@ contains
     real(dp),     allocatable, dimension(:,:) :: map, alm
     integer(i4b), allocatable, dimension(:)   :: pix
     integer(i4b) :: ierr
+    class(comm_map), pointer :: ptsrc
     
     ! Initialize to full data set
-    res => comm_map(data(band)%info)
+    res   => comm_map(data(band)%info)  ! Diffuse 
+    ptsrc => comm_map(data(band)%info)  ! Compact
 
     ! Compute predicted signal for this band
     c => compList
-    !call wall_time(t1)
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          !allocate(map(0:res%info%np-1,res%info%nmaps))          
-          !map     = c%getBand(band)
-          !res%map = res%map - map
-          !deallocate(map)
           allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
-          !call wall_time(t3)
           alm     = c%getBand(band, alm_out=.true.)
-          !call wall_time(t4)
-          !if (data(band)%info%myid == 0) write(*,*) 'CPU getband = ', t4-t3
-          !call wall_time(t3)
           call res%add_alm(alm, c%x%info)
-          !call wall_time(t4)
-          !if (data(band)%info%myid == 0) write(*,*) 'CPU add = ', t4-t3
           deallocate(alm)
+       class is (comm_ptsrc_comp)
+          allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
+          map       = c%getBand(band)
+          ptsrc%map = ptsrc%map + map
+          deallocate(map)
        end select
        c => c%next()
     end do
-    !call wall_time(t2)
-    !if (data(band)%info%myid == 0) write(*,*) 'CPU build = ', t2-t1
-
-    !call wall_time(t1)
     call res%Y()
-    !call wall_time(t2)
-    !if (data(band)%info%myid == 0) write(*,*) 'CPU Y = ', t2-t1
     
     ! Compute residual map
-    !call wall_time(t1)
-    res%map = data(band)%map%map - res%map
-    !call wall_time(t2)
-    !if (data(band)%info%myid == 0) write(*,*) 'CPU subtract = ', t2-t1
+    res%map = data(band)%map%map - res%map - ptsrc%map
 
     ! Clean up
     nullify(c)
+    call ptsrc%dealloc
 
   end function compute_residual
     
