@@ -11,6 +11,7 @@ module comm_ptsrc_comp_mod
   use comm_cr_utils
   use comm_cr_precond_mod
   use locate_mod
+  use spline_1D_mod
   implicit none
 
   private
@@ -62,6 +63,7 @@ module comm_ptsrc_comp_mod
   integer(i4b) :: ncomp_pre =   0
   integer(i4b) :: npre      =   0
   integer(i4b) :: nmaps_pre =  -1
+  integer(i4b) :: comm_pre  =  -1
   integer(i4b) :: myid_pre  =  -1
   class(ptsrc_ptr), allocatable, dimension(:) :: ptsrcComps
   
@@ -80,6 +82,7 @@ contains
     allocate(constructor)
 
     ! Initialize general parameters
+    comm_pre              = cpar%comm_chain
     myid_pre              = cpar%myid
     constructor%class     = cpar%cs_class(id_abs)
     constructor%type      = cpar%cs_type(id_abs)
@@ -309,7 +312,7 @@ contains
     do i = 1, numband
        map => comm_map(data(i)%info)
        map%map = self%getBand(i) * self%cg_scale
-       filename = trim(self%label) // '_' // trim(postfix) // '.fits'
+       filename = trim(self%label) // '_' // trim(data(i)%label) // '_' // trim(postfix) // '.fits'
        call map%writeFITS(trim(dir)//'/'//trim(filename))
        deallocate(map)
     end do
@@ -431,6 +434,7 @@ contains
 
     ! Initialize beam templates
     do j = 1, self%nsrc
+       if (mod(j,100) == 0 .and. self%myid == 0) write(*,*) j, self%nsrc
        do i = 1, numband
           self%src(j)%T(i)%nside   = data(i)%info%nside
           self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
@@ -440,14 +444,14 @@ contains
           ! Get pixel space template
           filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(i))
           n        = len(trim(adjustl(filename)))
-          if (n == 0 .or. trim(filename) == 'none') then
+          if (trim(trim(cpar%ds_btheta_file(i))) == 'none') then
              ! Build template internally from b_l
-             call report_error('Bl ptsrc beam not yet implemented')
-             call compute_symmetric_beam(self%src(j)%glon, self%src(j)%glat, &
+             call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
                   & self%src(j)%T(i), bl=data(i)%B%b_l)
-          else if (filename(n-2:n) == '.dat') then
+          else if (filename(n-3:n) == '.dat' .or. filename(n-3:n) == '.txt') then
              ! Build template internally from b_l
-             call report_error('Radial ptsrc beam profile not yet implemented')
+             call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
+                  & self%src(j)%T(i), beamfile=filename)             
           else if (filename(n-2:n) == '.h5' .or. filename(n-3:n) == '.hdf') then
              ! Read precomputed Febecop beam from HDF file
              call read_febecop_beam(cpar, filename, self%src(j)%glon, self%src(j)%glat, i, &
@@ -495,7 +499,7 @@ contains
     ! Find number of pixels belonging to current processor
     T%np = 0
     i    = 1
-    j    = max(locate(data(band)%info%pix, ind(i)),0)
+    j    = locate(data(band)%info%pix, ind(i))
     if (j > -1) then
        do while (.true.)
           if (ind(i) == data(band)%info%pix(j)) then
@@ -528,44 +532,143 @@ contains
   end subroutine read_febecop_beam
 
 
-  subroutine compute_symmetric_beam(glon, glat, T, bl, br)
+  subroutine compute_symmetric_beam(band, glon, glat, T, bl, beamfile)
     implicit none
-    real(dp),  intent(in)    :: glon, glat
-    type(Tnu), intent(inout) :: T
+    integer(i4b), intent(in)     :: band
+    real(dp),     intent(in)     :: glon, glat
+    type(Tnu),    intent(inout)  :: T
     real(dp),  dimension(0:,1:), intent(in), optional :: bl
-    real(dp),  dimension(1:),    intent(in), optional :: br
-          
-!!$    ! Search for pixels controlled by current processor
-!!$    npix = 12*constructor%T(i)%nside**2
-!!$    call ang2vec(0.5d0*pi-constructor%glat, constructor%glon, vec0)
-!!$    call query_disc(constructor%T(i)%nside, vec0, data(i)%B%r_max, listpix, nlist)
-!!$    constructor%T(i)%np = 0
-!!$    k                   = 1   ! map counter
-!!$    j                   = 0   ! source counter
-!!$    do while (k <= data(i)%info%np .and. j <= nlist-1)
-!!$       if (listpix(j) == data(i)%info%pix(k)) then
-!!$          constructor%T(i)%np       = constructor%T(i)%np + 1
-!!$          hits(constructor%T(i)%np) = k
-!!$          j                         = j+1
-!!$          k                         = k+1
-!!$       else if (listpix(j) < data(i)%info%pix(k)) then
-!!$          j = j+1
-!!$       else
-!!$          k = k+1
-!!$       end if
-!!$    end do
-!!$    
-!!$    allocate(constructor%T(i)%pix(constructor%T(i)%np,2))
-!!$    allocate(constructor%T(i)%map(constructor%T(i)%np,constructor%T(i)%nmaps))
-!!$    allocate(constructor%T(i)%F(constructor%T(i)%nmaps))
-!!$    constructor%T(i)%pix(:,2) = hits(1:constructor%T(i)%np)
-!!$    do j = 1, constructor%T(i)%np
-!!$       constructor%T(i)%pix(j,1) = data(i)%info%pix(constructor%T(i)%pix(j,2))
-!!$       call pix2vec_ring(constructor%T(i)%nside, constructor%T(i)%pix(j,1), vec)
-!!$       call angdist(vec0, vec, r)
-!!$       constructor%T(i)%map(j,:) = r
-!!$    end do
+    character(len=*),            intent(in), optional :: beamfile
 
+    integer(i4b) :: i, j, k(1), l, nside, n, npix, nlist, q, itmp, ierr
+    integer(i4b), save :: band_cache = -1
+    real(dp)     :: vec0(3), vec(3), tmax, theta, t1, t2, t3, t4, bmax, rtmp(3), b_max(3), b_tot(3)
+    integer(i4b),      allocatable, dimension(:)       :: listpix
+    integer(i4b),      allocatable, dimension(:,:)     :: mypix
+    real(dp),          allocatable, dimension(:,:)     :: beam, mybeam
+    type(spline_type), allocatable, dimension(:), save :: br
+
+    !call wall_time(t1)
+    
+    ! Get azimuthally symmetric beam, either from Bl's or from file
+    !call wall_time(t3)
+    if (band /= band_cache) then
+       if (allocated(br)) deallocate(br)
+       if (present(bl)) then
+          call compute_radial_beam(T%nmaps, bl, br)
+       else if (present(beamfile)) then
+          call read_radial_beam(T%nmaps, beamfile, br)
+       end if
+       band_cache = band
+    end if
+    !call wall_time(t4)
+!    write(*,*) 'init = ', t4-t3
+
+    ! Find maximum radius over all polarization modes
+    !call wall_time(t3)
+    tmax = 0.d0
+    q    = 4            ! Nside ratio between highres and lowres maps
+    do i = 1, T%nmaps
+       tmax = max(tmax, maxval(br(i)%x))
+    end do
+    nside = q*T%nside                   ! Adopt a twice higher resolution to mimic pixwin
+    npix  = 4*(tmax / (pi/3/nside))**2  ! Rough npix estimate for current beam
+    call ang2vec(0.5d0*pi-glat, glon, vec0)
+    allocate(listpix(0:npix-1), beam(0:npix-1,T%nmaps))
+    call query_disc(nside, vec0, tmax, listpix, nlist)
+    !call wall_time(t4)
+!    write(*,*) 'query = ', t4-t3
+
+    ! Make a high-resolution pixelized beam map centered on given position, and
+    ! downgrade pixel number to correct Nside
+    !call wall_time(t3)
+    do i = 0, nlist-1
+       call pix2vec_ring(nside, listpix(i), vec)
+       call angdist(vec0, vec, theta)
+       if (theta > tmax) then
+          beam(i,j)  = 0.d0
+          listpix(i) = 0.d0
+       else
+          do j = 1, T%nmaps
+             beam(i,j) = splint(br(j), theta)
+          end do
+          call ring2nest(nside, listpix(i), listpix(i))
+          listpix(i) = listpix(i)/q**2
+          call nest2ring(T%nside, listpix(i), listpix(i))
+       end if
+    end do
+    !call wall_time(t4)
+!    write(*,*) 'build = ', t4-t3, ', nlist = ', nlist
+
+    ! Sort listpix according to increasing pixel number; it's already almost sorted, so
+    ! just do a simple insertion sort
+    !call wall_time(t3)
+    do i = 0, nlist-1
+       itmp            = listpix(i)
+       rtmp(1:T%nmaps) = beam(i,1:T%nmaps)
+       j               = i-1
+       do while (j >= 0 .and. listpix(j) > itmp)
+          listpix(j+1) = listpix(j)
+          beam(j+1,:)  = beam(j,:)
+          j            = j-1
+       end do
+       listpix(j+1) = itmp
+       beam(j+1,:)  = rtmp(1:T%nmaps)
+    end do
+    !call wall_time(t4)
+!    write(*,*) 'sort = ', t4-t3
+
+    ! Find number of pixels belonging to current processor
+    !call wall_time(t3)
+    allocate(mybeam(nlist,T%nmaps), mypix(nlist,2))
+    T%np = 0
+    i    = 0
+    j    = locate(data(band)%info%pix, listpix(i))
+    if (j > -1) then
+       do while (.true.)
+          if (listpix(i) == data(band)%info%pix(j)) then
+             T%np            = T%np + 1
+             mypix(T%np,1)   = j-1
+             mypix(T%np,2)   = data(band)%info%pix(j)
+             mybeam(T%np,:)  = beam(i,:)
+             do while (i < n-1)
+                i = i+1
+                if (listpix(i-1) == listpix(i)) then
+                   mybeam(T%np,:) = mybeam(T%np,:) + beam(i,:)
+                else
+                   exit
+                end if
+             end do
+             j               = j+1
+          else if (listpix(i) < data(band)%info%pix(j)) then
+             i               = i+1
+          else
+             j               = j+1
+          end if
+          if (i > nlist-1) exit
+          if (j > data(band)%info%np) exit
+       end do
+    end if
+
+    ! Store pixels that belong to current processor    
+    do i = 1, T%nmaps
+       b_max(i) = maxval(mybeam(1:T%np,i))
+       b_tot(i) = sum(mybeam(1:T%np,i))
+    end do
+    call mpi_allreduce(MPI_IN_PLACE, b_max(1:T%nmaps), T%nmaps, MPI_DOUBLE_PRECISION, &
+         & MPI_MAX, comm_pre, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, b_tot(1:T%nmaps), T%nmaps, MPI_DOUBLE_PRECISION, &
+         & MPI_SUM, comm_pre, ierr)
+
+    allocate(T%pix(T%np,2), T%map(T%np,T%nmaps), T%Omega_b(T%nmaps))
+    T%pix = mypix(1:T%np,:)
+    do i = 1, T%nmaps
+       T%map(:,i)   = mybeam(1:T%np,i) / b_max(i)
+       T%Omega_b(i) = b_tot(i)/b_max(i) * 4.d0*pi/(12.d0*T%nside**2)
+    end do
+
+    deallocate(listpix, mypix, beam, mybeam)
+    
   end subroutine compute_symmetric_beam
 
   subroutine initPtsrcPrecond(comm)
@@ -581,32 +684,7 @@ contains
     if (ncomp_pre == 0) return
 
     call mpi_comm_rank(comm, myid, ierr)
-    
-!!$    if (.not. allocated(ptsrcComps)) then
-!!$       ! Set up an array of all the diffuse components
-!!$       write(*,*) ncomp_pre
-!!$       allocate(ptsrcComps(ncomp_pre))
-!!$       c => compList
-!!$       i =  1
-!!$       do while (associated(c))
-!!$          select type (c)
-!!$          class is (comm_ptsrc_comp)
-!!$             ptsrcComps(i)%p => c
-!!$             write(*,*) i
-!!$             write(*,*) 'a', c%src(1)%T(1)%np
-!!$             write(*,*) 'b', c%src(1)%T(2)%np
-!!$             write(*,*) 'c', c%src(2)%T(1)%np
-!!$             write(*,*) 'd', c%src(2)%T(2)%np
-!!$             write(*,*) 'a', ptsrcComps(i)%p%src(1)%T(1)%np
-!!$             write(*,*) 'b', ptsrcComps(i)%p%src(1)%T(2)%np
-!!$             write(*,*) 'c', ptsrcComps(i)%p%src(2)%T(1)%np
-!!$             write(*,*) 'd', ptsrcComps(i)%p%src(2)%T(2)%np
-!!$             i               =  i+1
-!!$          end select
-!!$          c => c%next()
-!!$       end do
-!!$    end if
-    
+        
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
     allocate(P_cr%invM_src(1,nmaps_pre))
@@ -793,5 +871,102 @@ contains
     end if
 
   end function getScale
+
+  subroutine read_radial_beam(nmaps, beamfile, br)
+    implicit none
+    integer(i4b),                                 intent(in)  :: nmaps
+    character(len=*),                             intent(in)  :: beamfile
+    type(spline_type), allocatable, dimension(:), intent(out) :: br
+
+    integer(i4b) :: i, j, n, unit
+    character(len=1024) :: line
+    real(dp), allocatable, dimension(:)   :: x
+    real(dp), allocatable, dimension(:,:) :: y
+
+    ! Find number of entries
+    unit = getlun()
+    open(unit,file=trim(beamfile), recl=1024, status='old')
+    n = 0
+    do while (.true.)
+       read(unit,'(a)',end=10) line
+       line = trim(adjustl(line))
+       if (line(1:1) == '#' .or. line(1:1) == ' ') cycle
+       n = n+1
+    end do
+10  close(unit)
+
+    allocate(x(n), y(n,nmaps))
+    n = 0
+    open(unit,file=trim(beamfile), recl=1024, status='old')
+    do while (.true.)
+       read(unit,'(a)',end=11) line
+       line = trim(adjustl(line))
+       if (line(1:1) == '#' .or. line(1:1) == ' ') cycle
+       n = n+1
+       read(line,*) x(n), y(n,:)
+    end do
+11  close(unit)
+
+    ! Spline beam
+    allocate(br(nmaps))
+    do i = 1, nmaps
+       x      = x * DEG2RAD
+       y(:,i) = y(:,i) / maxval(y(:,i))
+       call spline(br(i), x, y(:,i))
+    end do
+
+    deallocate(x, y)
+
+  end subroutine read_radial_beam
+
+  subroutine compute_radial_beam(nmaps, bl, br)
+    implicit none
+    integer(i4b),                                     intent(in)  :: nmaps
+    real(dp),                       dimension(0:,1:), intent(in)  :: bl
+    type(spline_type), allocatable, dimension(:),     intent(out) :: br
+
+    integer(i4b)  :: i, j, k, m, n, l, lmax
+    real(dp)      :: theta_max, threshold
+    real(dp), allocatable, dimension(:)   :: x, pl
+    real(dp), allocatable, dimension(:,:) :: y
+    
+    n         = 1000
+    lmax      = size(bl,1)-1
+    threshold = 1.d-6
+
+    ! Find typical size
+    l    = 0
+    do while (bl(l,1) > 0.5d0)
+       l = l+1
+    end do
+    theta_max = pi/l * 10.d0
+    
+    ! Compute radial beams
+    allocate(x(n), y(n,nmaps), pl(0:lmax))
+    do i = 1, n
+       x(i) = theta_max/(n-1) * real(i-1,dp)
+       call comp_normalised_Plm(lmax, 0, x(i), pl)
+       do j = 1, nmaps
+          y(i,j) = 0.d0
+          do l = 0, lmax
+             y(i,j) = y(i,j) + bl(l,j)*pl(l)/sqrt(4.d0*pi/real(2*l+1,dp))
+          end do
+       end do
+    end do
+
+    ! Spline significant part of beam profile
+    allocate(br(nmaps))
+    do j = 1, nmaps
+       y(:,j) = y(:,j) / maxval(y(:,j))
+       m      = 0
+       do while (y(m+1,j) > threshold .and. m < n)
+          m = m+1
+       end do
+       call spline(br(j), x(1:m), y(1:m,j))
+    end do
+
+    deallocate(x, y, pl)
+    
+  end subroutine compute_radial_beam
   
 end module comm_ptsrc_comp_mod
