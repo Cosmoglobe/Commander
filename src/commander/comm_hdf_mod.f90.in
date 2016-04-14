@@ -1,0 +1,351 @@
+! Due to the extreme amount of redundancy in hdf_mod, it is now generated
+! by using the handy tempita template language. All the machinery for
+! doing this is included in the repository, so this should just work.
+{{py:
+ndim   = 8
+types  = [
+    [ "dp",  "real",    "dp",  "H5T_IEEE_F64LE", "H5T_NATIVE_DOUBLE"  ],
+    [ "sp",  "real",    "sp",  "H5T_IEEE_F32LE", "H5T_NATIVE_REAL"    ],
+    [ "int", "integer", "i4b", "H5T_STD_I32LE",  "H5T_NATIVE_INTEGER" ],
+]
+def desc(i):
+    return "%dd" % i
+def dims(i):
+    if i == 0: return ""
+    else: return ",dimension("+",".join([":" for i in range(i)])+")"
+def args(id,i):
+    return ",".join(["%s%d" % (id,i) for i in range(i)])
+}}
+module comm_hdf_mod
+  use healpix_types
+  use comm_utils
+  use hdf5
+  implicit none
+
+  type hdf_file
+     character(len=512) :: filename, setname
+     integer(hid_t)     :: filehandle, sethandle, status
+  end type hdf_file
+
+  interface read_hdf
+     {{for s in ["", "slice_"]}}
+     {{for d in range(ndim)}}
+     {{for t in types}}
+     module procedure read_hdf_{{s}}{{desc(d)}}_{{t[0]}}
+     {{endfor}}
+     {{endfor}}
+     {{endfor}}
+  end interface
+
+  interface read_alloc_hdf
+     {{for d in range(1,ndim)}}
+     {{for t in types}}
+     module procedure read_alloc_hdf_{{desc(d)}}_{{t[0]}}
+     {{endfor}}
+     {{endfor}}
+  end interface
+
+  interface write_hdf
+     {{for s in ["", "slice_"]}}
+     {{for d in range(ndim)}}
+     {{for t in types}}
+     module procedure write_hdf_{{s}}{{desc(d)}}_{{t[0]}}
+     {{endfor}}
+     {{endfor}}
+     {{endfor}}
+  end interface
+
+  interface slice
+     {{for d in range(ndim)}}
+     module procedure slice_{{desc(d)}}
+     {{endfor}}
+  end interface
+
+contains
+
+  ! *****************************************************
+  ! Initialization and cleanup routines
+  ! *****************************************************
+  subroutine initialize_comm_hdf_mod
+    implicit none
+    logical(lgt), save :: initialized = .false.
+    integer(i4b)       :: status
+    if(initialized) return
+    call h5open_f(status)
+    call assert(status==0, 'comm_hdf_mod: Could not initialize hdf module')
+    initialized = .true.
+  end subroutine initialize_comm_hdf_mod
+
+  subroutine cleanup_comm_hdf_mod
+    implicit none
+    integer(i4b) :: status
+    call h5close_f(status)
+    call assert(status==0, 'comm_hdf_mod: Could not close hdf module')
+  end subroutine cleanup_comm_hdf_mod
+
+  ! *****************************************************
+  ! Basic file open and close routines
+  ! *****************************************************
+  subroutine open_hdf_file(filename, file, mode)
+    implicit none
+    character(len=*), intent(in) :: filename
+    character(len=1), intent(in) :: mode
+    type(hdf_file)               :: file
+
+    ! Initialize
+    call initialize_comm_hdf_mod
+
+    ! Open file in either read or write mode
+    file%filename = filename
+    if (mode == 'r') then
+       call h5fopen_f(file%filename, H5F_ACC_RDONLY_F, file%filehandle, file%status)
+    else if (mode == 'w') then
+       call h5fcreate_f(file%filename, H5F_ACC_TRUNC_F, file%filehandle, file%status)
+    else
+       write(*,*) 'comm_hdf_mod: Unknown hdf file mode =', mode
+       stop
+    end if
+
+    ! Initalize sethandle to empty value
+    file%setname   = ''
+    file%sethandle = -1
+  end subroutine open_hdf_file
+
+  subroutine close_hdf_file(file)
+    implicit none
+    type(hdf_file) :: file
+    call close_hdf_set(file)
+    call h5fclose_f(file%filehandle, file%status)
+    call assert(file%status>=0, 'comm_hdf_mod: Could not close file')
+  end subroutine close_hdf_file
+
+  subroutine open_hdf_set(file, setname)
+    implicit none
+    type(hdf_file)               :: file
+    character(len=*), intent(in) :: setname
+    if (trim(file%setname) == trim(setname)) return
+    call close_hdf_set(file)
+    file%setname = setname
+    call h5dopen_f(file%filehandle, file%setname, file%sethandle, file%status)
+  end subroutine open_hdf_set
+
+  subroutine close_hdf_set(file)
+    implicit none
+    type(hdf_file) :: file
+    if (file%sethandle == -1) return
+    call h5dclose_f(file%sethandle, file%status)
+    call assert(file%status>=0, 'comm_hdf_mod: Could not close set')
+    file%sethandle = -1
+    file%setname   = ''
+  end subroutine close_hdf_set
+
+  ! *****************************************************
+  ! Query operations
+  ! *****************************************************
+  function get_rank_hdf(file, setname) result(rank)
+    implicit none
+    type(hdf_file)                :: file
+    character(len=*), intent(in)  :: setname
+    integer(i4b)                  :: rank
+    integer(hid_t)                :: space
+    call open_hdf_set(file, setname)
+    call h5dget_space_f(file%sethandle, space, file%status)
+    call h5sget_simple_extent_ndims_f(space, rank, file%status)
+    call h5sclose_f(space, file%status)
+  end function
+
+  subroutine get_size_hdf(file, setname, ext)
+    implicit none
+    type(hdf_file)                  :: file
+    character(len=*),   intent(in)  :: setname
+    integer(i4b),       intent(out) :: ext(:)
+    integer(i4b)                    :: rank
+    integer(hid_t)                  :: space, n
+    integer(hsize_t), allocatable, dimension(:) :: ext_hdf, mext_hdf
+    call open_hdf_set(file, setname)
+    call h5dget_space_f(file%sethandle, space, file%status)
+    call h5sget_simple_extent_ndims_f(space, rank, file%status)
+    allocate(ext_hdf(rank), mext_hdf(rank))
+    call h5sget_simple_extent_dims_f(space, ext_hdf, mext_hdf, file%status)
+    call h5sclose_f(space, file%status)
+    n = min(size(ext),rank)
+    ext(:n) = ext_hdf(:n)
+    deallocate(ext_hdf, mext_hdf)
+  end subroutine get_size_hdf
+
+  ! *****************************************************
+  ! Set read operations
+  ! *****************************************************
+
+  {{for d in range(ndim)}}
+  {{for t in types}}
+  subroutine read_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: setname
+    {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(out) :: val
+    call open_hdf_set(file, setname)
+    call h5dread_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set")
+  end subroutine
+
+  {{endfor}}
+  {{endfor}}
+
+  {{for d in range(1,ndim)}}
+  {{for t in types}}
+  subroutine read_alloc_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: setname
+    {{t[1]}}({{t[2]}}) {{dims(d)}}, allocatable, intent(out) :: val
+    integer(i4b) :: n({{d}})
+    if(allocated(val)) deallocate(val)
+    call get_size_hdf(file, setname, n)
+    allocate(val({{",".join(["n(%d)" % (i+1) for i in range(d)])}}))
+    call open_hdf_set(file, setname)
+    call h5dread_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set")
+  end subroutine
+
+  {{endfor}}
+  {{endfor}}
+
+  ! *****************************************************
+  ! Set write operations
+  ! *****************************************************
+
+  {{for d in range(ndim)}}
+  {{for t in types}}
+  subroutine write_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in) :: setname
+    {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
+    call create_hdf_set(file, setname, shape(val), {{t[3]}})
+    call h5dwrite_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+  end subroutine
+
+  {{endfor}}
+  {{endfor}}
+
+  ! *****************************************************
+  ! Sliced set operations.
+  !  These are like read/write, but the dataset is
+  !  indexed with a slice. Note that the dataset must
+  !  exist beforehand. Use crate_hdf_set for this.
+  ! *****************************************************
+
+  {{for op in [["read","out"],["write","in"]]}}
+  {{for d in range(ndim)}}
+  {{for t in types}}
+  subroutine {{op[0]}}_hdf_slice_{{desc(d)}}_{{t[0]}}(file, setname, slice, arr)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*),  intent(in) :: setname
+    integer(i4b),      intent(in) :: slice(:,:)
+    {{t[1]}}({{t[2]}}) {{dims(d)}}, intent({{op[1]}}) :: arr
+    integer(hid_t)                :: dspace, mspace
+    integer(i4b),     allocatable :: ext(:)
+    integer(hsize_t)              :: hslice(3,size(slice,2))
+    ! Set up data spaces for memory and disk
+    call h5screate_simple_f(size(shape(arr)),int(shape(arr),hsize_t), mspace, file%status)
+    call open_hdf_set(file, setname)
+    allocate(ext(get_rank_hdf(file, setname)))
+    call get_size_hdf(file, setname, ext)
+    call h5screate_simple_f(size(ext), int(ext,hsize_t), dspace, file%status)
+    ! Specify the slice
+    hslice = int(parse_hdf_slice(slice, ext),hsize_t)
+    call h5sselect_hyperslab_f(dspace, H5S_SELECT_SET_F, hslice(1,:), hslice(2,:), &
+     & file%status, stride=hslice(3,:))
+    call h5d{{op[0]}}_f(file%sethandle, {{t[4]}}, arr, int(shape(arr),hsize_t), &
+     & file%status, file_space_id=dspace, mem_space_id=mspace)
+    call h5sclose_f(dspace, file%status)
+    call h5sclose_f(mspace, file%status)
+    deallocate(ext)
+  end subroutine
+
+  {{endfor}}
+  {{endfor}}
+  {{endfor}}
+
+  ! *****************************************************
+  ! Dataset creation operation
+  ! *****************************************************
+  subroutine create_hdf_set(file, setname, ext, type_id)
+    implicit none
+
+    type(hdf_file)                               :: file
+    character(len=*),                 intent(in) :: setname
+    integer(i4b),     dimension(:),   intent(in) :: ext
+    integer(i4b)                                 :: type_id
+    integer(hid_t) :: space
+    if (trim(file%setname) /= trim(setname)) call close_hdf_set(file)
+    file%setname = setname
+    call h5screate_simple_f(size(ext), int(ext,hsize_t), space, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot create data space")
+    call h5dcreate_f(file%filehandle, file%setname, type_id, space, file%sethandle, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot create data set")
+    call h5sclose_f(space, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot close data space")
+  end subroutine create_hdf_set
+
+  ! Group creation. Once created, they can be used by specifying "group/dset" instaed
+  ! of just "dset".
+  subroutine create_hdf_group(file, group)
+    implicit none
+    type(hdf_file)   :: file
+    character(len=*) :: group
+    integer(i4b)     :: gid
+    call h5gcreate_f(file%filehandle, group, gid, file%status)
+    call h5gclose_f(gid, file%status)
+  end subroutine
+
+  ! **********************
+  ! Helper functions
+  ! **********************
+
+  function slice_0d() result(res)
+    implicit none
+    integer(i4b) :: res(3,0)
+    res = 0
+  end function
+
+  function slice_1d(s0) result(res)
+    implicit none
+    integer(i4b), dimension(:) :: s0(:)
+    integer(i4b)               :: res(3,1)
+    select case(size(s0))
+       case(0);  res(:,1) = [1,-1,1]
+       case(1);  res(:,1) = [s0(1),s0(1),1]
+       case(2);  res(:,1) = [s0(1),s0(2),1]
+       case(3:); res(:,1) = s0
+    end select
+  end function
+
+  {{for d in range(2,ndim)}}
+  function slice_{{desc(d)}}({{args("s",d)}}) result(res)
+    implicit none
+    integer(i4b), dimension(:) :: {{args("s",d)}}
+    integer(i4b)               :: res(3,{{d}})
+    {{for i in range(d)}}
+    res(:,{{i+1}}:{{i+1}}) = slice_1d({{"s%d"%i}})
+    {{endfor}}
+  end function
+
+  {{endfor}}
+  function parse_hdf_slice(slice, ext) result(hslice)
+    implicit none
+    integer(i4b), intent(in) :: slice(:,:), ext(:)
+    integer(i4b)             :: hslice(3,size(slice,2)), i
+    hslice = slice
+    ! Negative indices count from the end, with -1 being the last valid index
+    where(hslice([1,2],:) < 0) hslice([1,2],:) = hslice([1,2],:) + spread(ext,1,2) + 1
+    ! We need to translate "to" into "count"
+    hslice(2,:) = (hslice(2,:)-hslice(1,:)+hslice(3,:))/hslice(3,:)
+    ! 0 based
+    hslice(1,:) = hslice(1,:) - 1
+  end function
+
+end module comm_hdf_mod
