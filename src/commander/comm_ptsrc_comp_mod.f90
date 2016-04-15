@@ -411,6 +411,9 @@ contains
        end if
     end do 
 1   close(unit)
+
+    if (self%nsrc == 0) call report_error('No valid sources in = ' // &
+         & trim(trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs))))
     
     ! Initialize point sources based on catalog information
     allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
@@ -677,6 +680,7 @@ contains
 
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2
+    logical(lgt) :: skip
     class(comm_comp),         pointer :: c, c1, c2
     class(comm_ptsrc_comp),   pointer :: pt1, pt2
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
@@ -695,14 +699,13 @@ contains
        i1  = 0
        c1 => compList
        do while (associated(c1))
+          skip = .true.
           select type (c1)
           class is (comm_ptsrc_comp)
-             pt1 => c1
-          class default 
-             c1 => c1%next()
-             cycle
+             pt1  => c1
+             skip = .false.
           end select
-          if (j > pt1%nmaps) then
+          if (skip .or. j > pt1%nmaps) then
              c1 => c1%next()
              cycle
           end if
@@ -714,15 +717,13 @@ contains
              c2 => compList
              do while (associated(c2))
                 !do j2 = 1, ncomp_pre
+                skip = .true.
                 select type (c2)
                 class is (comm_ptsrc_comp)
                    pt2 => c2
-                class default 
-                   c2 => c2%next()
-                   cycle
+                   skip = .false.
                 end select
-                
-                if (j > pt2%nmaps) then
+                if (skip .or. j > pt2%nmaps) then
                    c2 => c2%next()
                    cycle
                 end if
@@ -736,6 +737,7 @@ contains
                       n2 = pt2%src(k2)%T(l)%np
 
                       ! Search for common pixels; skip if no pixel overlap
+                      if (n1 == 0 .or. n2 == 0) cycle
                       if (pt1%src(k1)%T(l)%pix(1,1)  > pt2%src(k2)%T(l)%pix(n2,1)) cycle
                       if (pt1%src(k1)%T(l)%pix(n1,1) < pt2%src(k2)%T(l)%pix(1,1))  cycle
 
@@ -801,6 +803,7 @@ contains
     real(dp),           dimension(:), intent(inout) :: x
 
     integer(i4b)              :: i, j, k, l, m, nmaps
+    logical(lgt)              :: skip
     real(dp), allocatable, dimension(:,:) :: amp
     real(dp), allocatable, dimension(:,:) :: y
     class(comm_comp),       pointer :: c
@@ -814,13 +817,16 @@ contains
     l = 1
     c => compList
     do while (associated(c))
+       skip = .true.
        select type (c)
        class is (comm_ptsrc_comp)
           pt => c
-       class default 
+          skip = .false.
+       end select
+       if (skip) then
           c => c%next()
           cycle
-       end select
+       end if
        call cr_extract_comp(pt%id, x, amp)
        do k = 1, pt%nmaps
           y(l:l+pt%nsrc-1,k) = amp(:,k)
@@ -839,13 +845,16 @@ contains
     l = 1
     c => compList
     do while (associated(c))
+       skip = .true.
        select type (c)
        class is (comm_ptsrc_comp)
           pt => c
-       class default 
+          skip = .false.
+       end select
+       if (skip) then
           c => c%next()
           cycle
-       end select
+       end if
        allocate(amp(pt%nsrc,pt%nmaps))
        do k = 1, pt%nmaps
           amp(:,k) = y(l:l+pt%nsrc-1,k)

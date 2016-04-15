@@ -35,7 +35,7 @@ contains
 
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
-    real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s
+    real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s, x_out
     real(dp), allocatable, dimension(:,:) :: alm
     class(comm_comp),   pointer :: c
 
@@ -108,22 +108,26 @@ contains
        if (cpar%output_cg_freq > 0) then
           if (mod(i,cpar%output_cg_freq) == 0) then
              ! Multiply with sqrt(S)     
+             allocate(x_out(n))
+             x_out = x
              c       => compList
              do while (associated(c))
                 select type (c)
                 class is (comm_diffuse_comp)
                    if (trim(c%cltype) /= 'none') then
                       allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
-                      call cr_extract_comp(c%id, x, alm)
+                      call cr_extract_comp(c%id, x_out, alm)
                       call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)  
-                      call cr_insert_comp(c%id, .false., alm, x)
+                      call cr_insert_comp(c%id, .false., alm, x_out)
                       deallocate(alm)
                    end if
                 end select
                 c => c%next()
              end do
-             call cr_x2amp(x)
+             call cr_x2amp(x_out)
              call output_FITS_sample(cpar, i)
+             deallocate(x_out)
+             call cr_x2amp(x)
           end if
        end if
 
