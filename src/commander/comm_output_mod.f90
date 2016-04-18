@@ -52,12 +52,12 @@ contains
           call wall_time(t3)
           map => compute_residual(i)
           call wall_time(t4)
-          if (cpar%myid == 0) write(*,*) 'compute = ', t4-t3
+          !if (cpar%myid == 0) write(*,*) 'compute = ', t4-t3
           call wall_time(t3)
           call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'// &
                & trim(postfix)//'.fits')
           call wall_time(t4)
-          if (cpar%myid == 0) write(*,*) 'write = ', t4-t3
+          !if (cpar%myid == 0) write(*,*) 'write = ', t4-t3
           call map%dealloc()
        end do
        !call wall_time(t2)

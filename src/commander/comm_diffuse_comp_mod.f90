@@ -20,7 +20,7 @@ module comm_diffuse_comp_mod
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0
      logical(lgt)       :: pol, output_mixmat
-     integer(i4b)       :: lmax_amp, lmax_ind, lpiv
+     integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod
      real(dp)           :: cg_scale
      real(dp), allocatable, dimension(:,:) :: cls
      real(dp), allocatable, dimension(:,:) :: F_mean
@@ -73,6 +73,7 @@ contains
     self%pol           = cpar%cs_polarization(id_abs)
     self%nside         = cpar%cs_nside(id_abs)
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
+    self%l_apod        = cpar%cs_l_apod(id_abs)
     self%lmax_ind      = cpar%cs_lmax_ind(id_abs)
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale      = cpar%cs_cg_scale(id_abs)

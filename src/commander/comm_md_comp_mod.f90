@@ -73,6 +73,7 @@ contains
     constructor%pol      = .false.
     constructor%nside    = data(band)%map%info%nside
     constructor%lmax_amp = 1
+    constructor%l_apod   = 2
     constructor%lmax_ind = 0
     constructor%cltype   = 'binned'
     constructor%nmaps    = 1

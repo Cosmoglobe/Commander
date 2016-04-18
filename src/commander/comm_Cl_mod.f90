@@ -20,7 +20,7 @@ module comm_Cl_mod
      character(len=512)           :: type  ! {none, binned, power_law}
      character(len=512)           :: label ! {none, binned, power_law}
      character(len=512)           :: outdir
-     integer(i4b)                 :: lmax, nmaps, nspec
+     integer(i4b)                 :: lmax, nmaps, nspec, l_apod
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
      real(dp),         allocatable, dimension(:,:)   :: Dl
      real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat, sqrtInvS_mat
@@ -78,6 +78,7 @@ contains
     constructor%info   => info
     constructor%label  = cpar%cs_label(id_abs)
     constructor%lmax   = cpar%cs_lmax_amp(id_abs)
+    constructor%l_apod = cpar%cs_l_apod(id_abs)
     constructor%nmaps  = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
     constructor%nspec  = 1; if (cpar%cs_polarization(id_abs)) constructor%nspec = 6
     constructor%outdir = cpar%outdir
@@ -224,18 +225,21 @@ contains
     real(dp),        dimension(0:,1:), intent(inout), optional :: alm
     class(comm_mapinfo),               intent(in),    optional :: info
     integer(i4b) :: i, l
+    real(dp)     :: f_apod
     if (trim(self%type) == 'none') return
 
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
-          map%alm(i,:) = matmul(self%S_mat(:,:,l), map%alm(i,:))
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          map%alm(i,:) = f_apod**2 * matmul(self%S_mat(:,:,l), map%alm(i,:))
        end do
     else if (present(alm)) then
        do i = 0, info%nalm-1
           l = info%lm(1,i)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
           if (l <= self%lmax) then
-             alm(i,:) = matmul(self%S_mat(:,:,l), alm(i,:))
+             alm(i,:) = f_apod**2 * matmul(self%S_mat(:,:,l), alm(i,:))
           else
              alm(i,:) = 0.d0
           end if
@@ -250,17 +254,20 @@ contains
     real(dp),        dimension(0:,1:), intent(inout), optional :: alm
     class(comm_mapinfo),               intent(in),    optional :: info
     integer(i4b) :: i, l
+    real(dp)     :: f_apod
     if (trim(self%type) == 'none') return
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
-          map%alm(i,:) = matmul(self%sqrtS_mat(:,:,l), map%alm(i,:))
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          map%alm(i,:) = f_apod * matmul(self%sqrtS_mat(:,:,l), map%alm(i,:))
        end do
     else if (present(alm)) then
        do i = 0, info%nalm-1
           l = info%lm(1,i)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
           if (l <= self%lmax) then
-             alm(i,:) = matmul(self%sqrtS_mat(:,:,l), alm(i,:))
+             alm(i,:) = f_apod * matmul(self%sqrtS_mat(:,:,l), alm(i,:))
           else
              alm(i,:) = 0.d0
           end if
@@ -275,23 +282,40 @@ contains
     real(dp),        dimension(0:,1:), intent(inout), optional :: alm
     class(comm_mapinfo),               intent(in),    optional :: info
     integer(i4b) :: i, l
+    real(dp)     :: f_apod
     if (trim(self%type) == 'none') return
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
-          map%alm(i,:) = matmul(self%sqrtInvS_mat(:,:,l), map%alm(i,:))
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .false.)
+          map%alm(i,:) = f_apod * matmul(self%sqrtInvS_mat(:,:,l), map%alm(i,:))
        end do
     else if (present(alm)) then
        do i = 0, info%nalm-1
           l = info%lm(1,i)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .false.)
           if (l <= self%lmax) then
-             alm(i,:) = matmul(self%sqrtInvS_mat(:,:,l), alm(i,:))
+             alm(i,:) = f_apod * matmul(self%sqrtInvS_mat(:,:,l), alm(i,:))
           else
              alm(i,:) = 0.d0
           end if
        end do
     end if
   end subroutine matmulSqrtInvS
+
+  function get_Cl_apod(l, l_apod, lmax, positive)
+    implicit none
+    integer(i4b), intent(in) :: l, l_apod, lmax
+    logical(lgt), intent(in) :: positive
+    real(dp)                 :: get_Cl_apod
+    real(dp) :: alpha
+    if (l > l_apod) then
+       get_Cl_apod = 0.5d0*(1.d0 - cos(pi*real(lmax-l+1,dp)/real(lmax-l_apod,dp)))
+    else
+       get_Cl_apod = 1.d0
+    end if
+    if (.not. positive) get_Cl_apod = 1.d0 / get_Cl_apod
+  end function get_Cl_apod
 
   subroutine read_Cl_file(self, clfile)
     implicit none

@@ -83,6 +83,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
      integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
+     integer(i4b),       allocatable, dimension(:)     :: cs_l_apod
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
      character(len=512), allocatable, dimension(:)     :: cs_unit
      real(dp),           allocatable, dimension(:)     :: cs_nu_ref
@@ -297,6 +298,7 @@ contains
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
+    allocate(cpar%cs_l_apod(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
@@ -317,6 +319,7 @@ contains
           call get_parameter(paramfile, 'COMP_CG_SCALE'//itext,        par_dp=cpar%cs_cg_scale(i))
           call get_parameter(paramfile, 'COMP_NSIDE'//itext,           par_int=cpar%cs_nside(i))
           call get_parameter(paramfile, 'COMP_LMAX_AMP'//itext,        par_int=cpar%cs_lmax_amp(i))
+          call get_parameter(paramfile, 'COMP_L_APOD'//itext,          par_int=cpar%cs_l_apod(i))
           call get_parameter(paramfile, 'COMP_LMAX_IND'//itext,        par_int=cpar%cs_lmax_ind(i))
           call get_parameter(paramfile, 'COMP_UNIT'//itext,            par_string=cpar%cs_unit(i))
           call get_parameter(paramfile, 'COMP_NU_REF'//itext,          par_dp=cpar%cs_nu_ref(i))
