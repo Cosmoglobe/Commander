@@ -70,12 +70,12 @@ program commander
   call initialize_data_mod(cpar, handle);  call update_status(status, "init_data")
   call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
 
-  !call output_FITS_sample(cpar, 100)
+  call output_FITS_sample(cpar, 100)
   
   !call data(1)%map%YtW()
   !write(*,*) data(1)%map%alm(0:3,1)
-  !call mpi_finalize(ierr)
-  !stop
+  call mpi_finalize(ierr)
+  stop
 
 !!$  c1 => compList
 !!$  c1 => c1%next()

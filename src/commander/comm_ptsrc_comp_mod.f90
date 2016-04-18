@@ -60,11 +60,12 @@ module comm_ptsrc_comp_mod
      class(comm_ptsrc_comp), pointer :: p
   end type ptsrc_ptr
   
-  integer(i4b) :: ncomp_pre =   0
-  integer(i4b) :: npre      =   0
-  integer(i4b) :: nmaps_pre =  -1
-  integer(i4b) :: comm_pre  =  -1
-  integer(i4b) :: myid_pre  =  -1
+  integer(i4b) :: ncomp_pre    =   0
+  integer(i4b) :: npre         =   0
+  integer(i4b) :: nmaps_pre    =  -1
+  integer(i4b) :: comm_pre     =  -1
+  integer(i4b) :: myid_pre     =  -1
+  integer(i4b) :: numprocs_pre =  -1
   class(ptsrc_ptr), allocatable, dimension(:) :: ptsrcComps
   
 contains
@@ -84,6 +85,7 @@ contains
     ! Initialize general parameters
     comm_pre              = cpar%comm_chain
     myid_pre              = cpar%myid
+    numprocs_pre          = cpar%numprocs_chain
     constructor%class     = cpar%cs_class(id_abs)
     constructor%type      = cpar%cs_type(id_abs)
     constructor%label     = cpar%cs_label(id_abs)
@@ -374,7 +376,7 @@ contains
     integer(i4b)        :: unit, i, j, npar, nmaps, pix, nside, n
     real(dp)            :: glon, glat, nu_ref
     logical(lgt)        :: pol
-    character(len=1024) :: line, filename
+    character(len=1024) :: line, filename, tempfile
     character(len=128)  :: id_ptsrc, flabel
     real(dp), allocatable, dimension(:)   :: amp
     real(dp), allocatable, dimension(:,:) :: beta
@@ -436,6 +438,7 @@ contains
 
 
     ! Initialize beam templates
+    tempfile = trim(cpar%datadir)//'/'//trim(cpar%cs_ptsrc_template(id_abs))
     do j = 1, self%nsrc
        if (mod(j,100) == 0 .and. self%myid == 0) write(*,*) j, self%nsrc
        do i = 1, numband
@@ -444,40 +447,47 @@ contains
           allocate(self%src(j)%T(i)%F(self%src(j)%T(i)%nmaps))
           self%src(j)%T(i)%F       = 0.d0
 
-          ! Get pixel space template
-          filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(i))
-          n        = len(trim(adjustl(filename)))
-          if (trim(trim(cpar%ds_btheta_file(i))) == 'none') then
-             ! Build template internally from b_l
-             call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
-                  & self%src(j)%T(i), bl=data(i)%B%b_l)
-          else if (filename(n-3:n) == '.dat' .or. filename(n-3:n) == '.txt') then
-             ! Build template internally from b_l
-             call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
-                  & self%src(j)%T(i), beamfile=filename)             
-          else if (filename(n-2:n) == '.h5' .or. filename(n-3:n) == '.hdf') then
-             ! Read precomputed Febecop beam from HDF file
-             call read_febecop_beam(cpar, filename, self%src(j)%glon, self%src(j)%glat, i, &
-                  & self%src(j)%T(i))
+          ! Get pixel space template; try precomputed templates first
+          if (trim(cpar%cs_ptsrc_template(id_abs)) /= 'none' .and. &
+               & .not.  cpar%output_ptsrc_beams) then
+             call read_febecop_beam(cpar, tempfile, data(i)%label, &
+                  & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))             
           else
-             call report_error('Unsupported point source template = '//trim(filename))
+             filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(i))
+             n        = len(trim(adjustl(filename)))
+             if (filename(n-2:n) == '.h5') then
+                ! Read precomputed Febecop beam from HDF file
+                call read_febecop_beam(cpar, filename, 'none', &
+                     & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))
+             else if (trim(trim(cpar%ds_btheta_file(i))) == 'none') then
+                ! Build template internally from b_l
+                call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
+                     & self%src(j)%T(i), bl=data(i)%B%b_l)
+             else if (filename(n-3:n) == '.dat' .or. filename(n-3:n) == '.txt') then
+                ! Build template internally from b_l
+                call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
+                     & self%src(j)%T(i), beamfile=filename)             
+             else
+                call report_error('Unsupported point source template = '//trim(filename))
+             end if
           end if
        end do
     end do
+    if (cpar%output_ptsrc_beams) call dump_beams_to_hdf(self, tempfile)
     
   end subroutine read_sources
 
 
-  subroutine read_febecop_beam(cpar, filename, glon, glat, band, T)
+  subroutine read_febecop_beam(cpar, filename, label, glon, glat, band, T)
     implicit none
     class(comm_params), intent(in)    :: cpar
-    character(len=*),   intent(in)    :: filename
+    character(len=*),   intent(in)    :: filename, label
     real(dp),           intent(in)    :: glon, glat
     integer(i4b),       intent(in)    :: band
     type(Tnu),          intent(inout) :: T
 
     integer(i4b)      :: i, j, n, pix, ext(1), ierr, m(1)
-    character(len=16) :: itext
+    character(len=128) :: itext
     type(hdf_file)    :: file
     integer(i4b), allocatable, dimension(:)   :: ind
     integer(i4b), allocatable, dimension(:,:) :: mypix
@@ -489,6 +499,7 @@ contains
 
     ! Find number of pixels in beam
     write(itext,*) pix
+    if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
     call open_hdf_file(filename, file, 'r')
     call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
     n = ext(1)
@@ -496,7 +507,7 @@ contains
     ! Read full beam from file
     allocate(ind(n), b(n,T%nmaps), mypix(n,2), mybeam(n,T%nmaps))
     call read_hdf(file, trim(adjustl(itext))//'/indices', ind)
-    call read_hdf(file, trim(adjustl(itext))//'/values',  b(:,1))
+    call read_hdf(file, trim(adjustl(itext))//'/values',  b)
     call close_hdf_file(file)
 
     ! Find number of pixels belonging to current processor
@@ -534,6 +545,84 @@ contains
     
   end subroutine read_febecop_beam
 
+  subroutine dump_beams_to_hdf(self, filename)
+    implicit none
+    class(comm_ptsrc_comp), intent(in)  :: self
+    character(len=*),       intent(out) :: filename
+
+    integer(i4b)   :: i, j, k, l, n, m, p, ierr, nmaps, itmp
+    real(dp)       :: rtmp(3)
+    logical(lgt)   :: exist
+    type(hdf_file) :: file
+    character(len=128) :: itext
+    integer(i4b), allocatable, dimension(:)   :: ind
+    real(dp),     allocatable, dimension(:,:) :: beam
+    integer(i4b), dimension(MPI_STATUS_SIZE) :: status
+
+    inquire(file=trim(filename), exist=exist)
+    if (exist) call report_error('Error: Ptsrc template file already exist = '//trim(filename))
+    call mpi_barrier(comm_pre, ierr)
+
+    if (myid_pre == 0) call open_hdf_file(filename, file, 'w')
+    do k = 1, self%nsrc
+       do i = 1, numband
+          if (myid_pre == 0 .and. k == 1) &
+               & call create_hdf_group(file, trim(adjustl(data(i)%label)))
+          nmaps = self%src(k)%T(i)%nmaps
+          call ang2pix_ring(data(i)%info%nside, 0.5d0*pi-self%src(k)%glat, self%src(k)%glon, p)
+          write(itext,*) p
+          itext = trim(adjustl(data(i)%label))//'/'//trim(adjustl(itext))
+          if (myid_pre == 0) call create_hdf_group(file, trim(itext))
+
+          ! Collect beam contributions from each core
+          n = self%src(k)%T(i)%np
+          call mpi_allreduce(MPI_IN_PLACE, n, 1, MPI_INTEGER, MPI_SUM, comm_pre, ierr)
+          if (myid_pre == 0) then
+             allocate(ind(n), beam(n,self%nmaps))
+             n = 0
+             m = self%src(k)%T(i)%np
+             ind(n+1:n+m)    = self%src(k)%T(i)%pix(:,2)
+             beam(n+1:n+m,:) = self%src(k)%T(i)%map
+             n               = n+m
+             do j = 1, numprocs_pre-1
+                call mpi_recv(m, 1, MPI_INTEGER, j, 61, comm_pre, status, ierr)
+                call mpi_recv(ind(n+1:n+m), m, MPI_DOUBLE_PRECISION, j, &
+                     & 61, comm_pre, status, ierr)
+                call mpi_recv(beam(n+1:n+m,:), m*nmaps, MPI_DOUBLE_PRECISION, j, &
+                     & 61, comm_pre, status, ierr)
+                n = n+m
+             end do
+             ! Sort according to increasing pixel number
+             do j = 2, n
+                itmp          = ind(j)
+                rtmp(1:nmaps) = beam(j,1:nmaps)
+                l             = j-1
+                do while (l > 0)
+                   if (ind(l) <= itmp) exit
+                   ind(l+1)     = ind(l)
+                   beam(l+1,:)  = beam(l,:)
+                   l            = l-1
+                end do
+                ind(l+1)    = itmp
+                beam(l+1,:) = rtmp(1:nmaps)
+             end do
+
+             ! Write to HDF file
+             call write_hdf(file, trim(adjustl(itext))//'/indices', ind)
+             call write_hdf(file, trim(adjustl(itext))//'/values',  beam)
+             deallocate(ind, beam)
+          else
+             m = self%src(k)%T(i)%np
+             call mpi_send(m, 1, MPI_INTEGER, 0, 61, comm_pre, ierr)
+             call mpi_send(self%src(k)%T(i)%pix(:,2), m, MPI_INTEGER, 0, 61, comm_pre, ierr)
+             call mpi_send(self%src(k)%T(i)%map, m*nmaps, MPI_DOUBLE_PRECISION, 0, 61, comm_pre, ierr)
+          end if
+       end do
+    end do
+    if (myid_pre == 0) call close_hdf_file(file)    
+    
+  end subroutine dump_beams_to_hdf
+  
 
   subroutine compute_symmetric_beam(band, glon, glat, T, bl, beamfile)
     implicit none
@@ -610,7 +699,8 @@ contains
        itmp            = listpix(i)
        rtmp(1:T%nmaps) = beam(i,1:T%nmaps)
        j               = i-1
-       do while (j >= 0 .and. listpix(j) > itmp)
+       do while (j >= 0)
+          if (listpix(j) <= itmp) exit
           listpix(j+1) = listpix(j)
           beam(j+1,:)  = beam(j,:)
           j            = j-1

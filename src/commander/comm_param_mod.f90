@@ -33,6 +33,7 @@ module comm_param_mod
      integer(i4b)       :: nside_chisq, nmaps_chisq
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
+     logical(lgt)       :: output_ptsrc_beams
      
      ! Numerical parameters
      integer(i4b)      :: cg_lmax_precond, cg_maxiter
@@ -106,6 +107,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
      character(len=512), allocatable, dimension(:)     :: cs_catalog
+     character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
      
   end type comm_params
 
@@ -215,6 +217,7 @@ contains
     call get_parameter(paramfile, 'OUTPUT_CHISQ_MAP',         par_lgt=cpar%output_chisq)
     call get_parameter(paramfile, 'OUTPUT_EVERY_NTH_CG_ITERATION', par_int=cpar%output_cg_freq)
     call get_parameter(paramfile, 'OUTPUT_CG_PRECOND_EIGENVALS', par_lgt=cpar%output_cg_eigenvals)
+    call get_parameter(paramfile, 'OUTPUT_PTSRC_BEAMS',       par_lgt=cpar%output_ptsrc_beams)
     
   end subroutine read_global_params
 
@@ -306,6 +309,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_SED_template(n), cpar%cs_cg_scale(n))
+    allocate(cpar%cs_ptsrc_template(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
@@ -441,6 +445,8 @@ contains
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
           call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
+          call get_parameter(paramfile, 'COMP_PTSRC_TEMPLATE'//itext,  &
+               & par_string=cpar%cs_ptsrc_template(i))
           call get_parameter(paramfile, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
           call get_parameter(paramfile, 'COMP_NSIDE'//itext,    par_int=cpar%cs_nside(i))
           call get_parameter(paramfile, 'COMP_NU_REF'//itext,   par_dp=cpar%cs_nu_ref(i))
