@@ -494,21 +494,31 @@ contains
     real(dp),     allocatable, dimension(:,:) :: b, mybeam
     real(dp),     allocatable, dimension(:)   :: buffer
 
-    ! Find center pixel number for current source
-    call ang2pix_ring(T%nside, 0.5d0*pi-glat, glon, pix)
+    if (myid_pre == 0) then
+       ! Find center pixel number for current source
+       call ang2pix_ring(T%nside, 0.5d0*pi-glat, glon, pix)
 
-    ! Find number of pixels in beam
-    write(itext,*) pix
-    if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
-    call open_hdf_file(filename, file, 'r')
-    call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
-    n = ext(1)
+       ! Find number of pixels in beam
+       write(itext,*) pix
+       if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
+       call open_hdf_file(filename, file, 'r')
+       call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
+       n = ext(1)
 
-    ! Read full beam from file
-    allocate(ind(n), b(n,T%nmaps), mypix(n,2), mybeam(n,T%nmaps))
-    call read_hdf(file, trim(adjustl(itext))//'/indices', ind)
-    call read_hdf(file, trim(adjustl(itext))//'/values',  b)
-    call close_hdf_file(file)
+       ! Read full beam from file
+       allocate(ind(n), b(n,T%nmaps), mypix(n,2), mybeam(n,T%nmaps))
+       call read_hdf(file, trim(adjustl(itext))//'/indices', ind)
+       call read_hdf(file, trim(adjustl(itext))//'/values',  b)
+       call close_hdf_file(file)
+
+       ! Distribute information
+       call mpi_bcast(n,   1, MPI_INTEGER, 0, comm_pre, ierr)
+    else
+       call mpi_bcast(n, 1, MPI_INTEGER, 0, comm_pre, ierr)
+       allocate(ind(n), b(n,T%nmaps), mypix(n,2), mybeam(n,T%nmaps))
+    end if
+    call mpi_bcast(ind, size(ind), MPI_INTEGER,          0, comm_pre, ierr)
+    call mpi_bcast(b,   size(b),   MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
 
     ! Find number of pixels belonging to current processor
     T%np = 0
