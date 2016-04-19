@@ -31,6 +31,7 @@ contains
        ncomp = ncomp + 1
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') '  Initializing component ', i, ' : ', trim(cpar%cs_label(i))
+       call update_status(status, "init_"//trim(cpar%cs_label(i)))
 
        ! Initialize object
        select case (trim(cpar%cs_class(i)))
