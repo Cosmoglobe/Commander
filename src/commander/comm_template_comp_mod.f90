@@ -2,6 +2,7 @@ module comm_template_comp_mod
   use comm_param_mod
   use comm_comp_mod
   use comm_map_mod
+  use comm_hdf_mod
   implicit none
 
   private
@@ -53,10 +54,13 @@ contains
   end function projectTemplateBand
   
   ! Dump current sample to HEALPix FITS file
-  subroutine dumpTemplateToFITS(self, postfix, dir)
+  subroutine dumpTemplateToFITS(self, iter, chainfile, output_hdf, postfix, dir)
     implicit none
-    character(len=*),                        intent(in)           :: postfix
     class(comm_template_comp),               intent(in)           :: self
+    integer(i4b),                            intent(in)           :: iter
+    type(hdf_file),                          intent(in)           :: chainfile
+    logical(lgt),                            intent(in)           :: output_hdf
+    character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
     integer(i4b)       :: i

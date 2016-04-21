@@ -2,6 +2,7 @@ module comm_Cl_mod
   use comm_param_mod
   use comm_map_mod
   use math_tools
+  use comm_hdf_mod
   implicit none
 
   private
@@ -430,10 +431,12 @@ contains
     
   end subroutine sample_Cls_powlaw
 
-  subroutine writeFITS(self, chain, iter)
+  subroutine writeFITS(self, chain, iter, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(inout) :: self
     integer(i4b),     intent(in)    :: chain, iter
+    type(hdf_file),   intent(in), optional :: hdffile
+    character(len=*), intent(in), optional :: hdfpath
 
     character(len=4) :: ctext
     character(len=6) :: itext
@@ -448,19 +451,21 @@ contains
     case ('none')
        return
     case ('binned')
-       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
+       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext, hdffile=hdffile, hdfpath=hdfpath)
     case ('power_law')
        call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
-       call write_powlaw_to_FITS(self, 'c'//ctext)
+       call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
     end select
 
   end subroutine writeFITS
 
-  subroutine write_Dl_to_FITS(self, postfix)
+  subroutine write_Dl_to_FITS(self, postfix, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(in) :: self
     character(len=*), intent(in) :: postfix
-
+    type(hdf_file),   intent(in), optional :: hdffile
+    character(len=*), intent(in), optional :: hdfpath
+    
     integer(i4b) :: i, l, unit
     character(len=512) :: filename
 
@@ -483,12 +488,16 @@ contains
     end do
     close(unit)
 
+    if (present(hdffile)) call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl', self%Dl)       
+    
   end subroutine write_Dl_to_FITS
 
-  subroutine write_powlaw_to_FITS(self, postfix)
+  subroutine write_powlaw_to_FITS(self, postfix, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(inout) :: self
     character(len=*), intent(in)    :: postfix
+    type(hdf_file),   intent(in), optional :: hdffile
+    character(len=*), intent(in), optional :: hdfpath
 
     integer(i4b) :: unit
     character(len=512) :: filename
@@ -517,6 +526,11 @@ contains
        write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
     end if
     close(unit)
+
+    if (present(hdffile)) then
+       call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
+       call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+    end if
     
   end subroutine write_powlaw_to_FITS
   

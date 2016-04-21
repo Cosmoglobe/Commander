@@ -13,13 +13,14 @@ module comm_signal_mod
   use comm_ptsrc_comp_mod
   use comm_cr_mod
   use comm_cr_utils
+  use comm_hdf_mod
+  use comm_data_mod
   implicit none
 
 contains
 
   subroutine initialize_signal_mod(cpar)
     implicit none
-
     type(comm_params), intent(in) :: cpar
 
     integer(i4b) :: i, n
@@ -153,5 +154,45 @@ contains
        call compList%add(c)
     end if
   end subroutine add_to_complist
+
+  subroutine initialize_from_chain(cpar)
+    implicit none
+    type(comm_params), intent(in) :: cpar
+
+    integer(i4b)              :: i
+    character(len=4)          :: ctext
+    character(len=6)          :: itext
+    character(len=512)        :: chainfile, hdfpath
+    class(comm_comp), pointer :: c
+    type(hdf_file) :: file
+
+    if (cpar%init_samp <= 0) return
+
+    ! Open HDF file
+    call int2string(cpar%mychain,   ctext)
+    call int2string(cpar%init_samp, itext)
+    chainfile = trim(adjustl(cpar%outdir)) // '/' // trim(adjustl(cpar%chain_prefix)) // &
+         & '_c' // trim(adjustl(ctext)) // '.h5'
+    call open_hdf_file(chainfile, file, 'r')
+    
+    ! Initialize instrumental parameters
+    do i = 1, numband
+       call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
+            & data(i)%gain)
+       call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+            & data(i)%bp%delta)
+    end do
+    
+    ! Initialize component parameters
+    c   => compList
+    do while (associated(c))
+       call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
+       c => c%next()
+    end do
+
+    ! Close HDF file
+    call close_hdf_file(file)
+    
+  end subroutine initialize_from_chain
   
 end module comm_signal_mod

@@ -50,6 +50,7 @@ module comm_ptsrc_comp_mod
      procedure :: updateF
      procedure :: S => evalSED
      procedure :: getScale
+     procedure :: initHDF     => initPtsrcHDF     
   end type comm_ptsrc_comp
 
   interface comm_ptsrc_comp
@@ -299,16 +300,21 @@ contains
   end function projectPtsrcBand
   
   ! Dump current sample to HEALPix FITS file
-  subroutine dumpPtsrcToFITS(self, postfix, dir)
+  subroutine dumpPtsrcToFITS(self, iter, chainfile, output_hdf, postfix, dir)
     class(comm_ptsrc_comp),                  intent(in)           :: self
+    integer(i4b),                            intent(in)           :: iter
+    type(hdf_file),                          intent(in)           :: chainfile
+    logical(lgt),                            intent(in)           :: output_hdf
     character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
-    integer(i4b)       :: i, l, m, ierr, unit, ind(1)
+    integer(i4b)       :: i, j, l, m, ierr, unit, ind(1)
     real(dp)           :: vals(10)
     logical(lgt)       :: exist, first_call = .true.
-    character(len=512) :: filename
+    character(len=6)   :: itext
+    character(len=512) :: filename, path
     class(comm_map), pointer :: map
+    real(dp), allocatable, dimension(:,:,:) :: theta
 
     ! Output point source maps for each frequency
     do i = 1, numband
@@ -321,6 +327,22 @@ contains
 
     ! Output catalog
     if (self%myid == 0) then
+       if (output_hdf) then
+          ! Output to HDF
+          call int2string(iter, itext)
+          path = trim(adjustl(itext))//'/'//trim(adjustl(self%label))          
+          call create_hdf_group(chainfile, trim(adjustl(path)))
+          call write_hdf(chainfile, trim(adjustl(path))//'/amp',   self%x*self%cg_scale)
+          allocate(theta(self%nsrc,self%nmaps,self%npar))
+          do i = 1, self%nsrc
+             do j = 1, self%nmaps
+                theta(i,j,:) = self%src(i)%theta(:,j)
+             end do
+          end do
+          call write_hdf(chainfile, trim(adjustl(path))//'/specind', theta)
+          deallocate(theta)
+       end if
+       
        unit     = getlun()
        filename = trim(self%label) // '_' // trim(postfix) // '.dat'
        open(unit,file=trim(dir)//'/'//trim(filename),recl=1024,status='replace')
@@ -366,6 +388,34 @@ contains
     
   end subroutine dumpPtsrcToFITS
 
+  ! Dump current sample to HEALPix FITS file
+  subroutine initPtsrcHDF(self, cpar, hdffile, hdfpath)
+    implicit none
+    class(comm_ptsrc_comp),    intent(inout) :: self
+    type(comm_params),         intent(in)    :: cpar    
+    type(hdf_file),            intent(in)    :: hdffile
+    character(len=*),          intent(in)    :: hdfpath
+
+    integer(i4b)       :: i, j
+    real(dp)           :: md(4)
+    character(len=512) :: path
+    real(dp), allocatable, dimension(:,:,:) :: theta
+
+    path = trim(adjustl(hdfpath))//trim(adjustl(self%label)) // '/'
+    if (self%myid == 0) then
+       call read_hdf(hdffile, trim(adjustl(path))//'/amp', self%x)
+       self%x = self%x/self%cg_scale
+       
+       allocate(theta(self%nsrc,self%nmaps,self%npar))
+       call read_hdf(hdffile, trim(adjustl(path))//'/specind', theta)
+       do i = 1, self%nsrc
+          do j = 1, self%nmaps
+             self%src(i)%theta(:,j) = theta(i,j,:) 
+          end do
+       end do
+       deallocate(theta)
+    end if
+  end subroutine initPtsrcHDF
 
   subroutine read_sources(self, cpar, id, id_abs)
     implicit none

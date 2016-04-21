@@ -22,9 +22,8 @@ module comm_param_mod
      ! Global parameters
      character(len=24)  :: operation
      integer(i4b)       :: verbosity, base_seed, numchain
-     integer(i4b)       :: num_gibbs_iter, num_ml_iter
-     logical(lgt)       :: override_init
-     character(len=512) :: initfile
+     integer(i4b)       :: num_gibbs_iter, num_ml_iter, init_samp
+     character(len=512) :: chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
 
@@ -34,6 +33,7 @@ module comm_param_mod
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
      logical(lgt)       :: output_ptsrc_beams
+     logical(lgt)       :: output_input_model
      
      ! Numerical parameters
      integer(i4b)      :: cg_lmax_precond, cg_maxiter
@@ -196,8 +196,8 @@ contains
     call get_parameter(paramfile, 'NUMCHAIN',                 par_int=cpar%numchain)
     call get_parameter(paramfile, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
     call get_parameter(paramfile, 'NUM_ITER_WITH_ML_SEARCH',  par_int=cpar%num_ml_iter)
-    call get_parameter(paramfile, 'OVERRIDE_CHAIN_INIT',      par_lgt=cpar%override_init)
-    call get_parameter(paramfile, 'INIT_CHAIN_FILE',          par_string=cpar%initfile)
+    call get_parameter(paramfile, 'CHAIN_PREFIX',             par_string=cpar%chain_prefix)
+    call get_parameter(paramfile, 'INIT_SAMPLE_NUMBER',       par_int=cpar%init_samp)
 
     call get_parameter(paramfile, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
     call get_parameter(paramfile, 'CG_MAXITER',               par_int=cpar%cg_maxiter)
@@ -218,7 +218,8 @@ contains
     call get_parameter(paramfile, 'OUTPUT_EVERY_NTH_CG_ITERATION', par_int=cpar%output_cg_freq)
     call get_parameter(paramfile, 'OUTPUT_CG_PRECOND_EIGENVALS', par_lgt=cpar%output_cg_eigenvals)
     call get_parameter(paramfile, 'OUTPUT_PTSRC_BEAMS',       par_lgt=cpar%output_ptsrc_beams)
-    
+    call get_parameter(paramfile, 'OUTPUT_INPUT_MODEL',       par_lgt=cpar%output_input_model)
+
   end subroutine read_global_params
 
 

@@ -69,17 +69,14 @@ program commander
   call initialize_bp_mod(cpar);            call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);  call update_status(status, "init_data")
   call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
+  call initialize_from_chain(cpar)
 
-  !call output_FITS_sample(cpar, 100)
-  
-  !call data(1)%map%YtW()
-  !write(*,*) data(1)%map%alm(0:3,1)
-  !call mpi_finalize(ierr)
-  !stop
-
-!!$  c1 => compList
-!!$  c1 => c1%next()
-!!$  call c1%dumpFITS('hei', '.')
+  if (cpar%output_input_model) then
+     if (cpar%myid == 0) write(*,*) 'Outputting input model to sample number 999999'
+     call output_FITS_sample(cpar, 999999, .false.)
+     call mpi_finalize(ierr)
+     stop
+  end if
 
   ! Output SEDs for each component
   if (.false.) then
@@ -97,7 +94,7 @@ program commander
   ! Initialize output structures
 
   ! Run Gibbs loop
-  do iter = 1, cpar%num_gibbs_iter
+  do iter = max(1,cpar%init_samp+1), cpar%num_gibbs_iter
 
      ! Sample linear parameters with CG search
      call sample_amps_by_CG(cpar, handle)
@@ -113,7 +110,7 @@ program commander
      ! Compute goodness-of-fit statistics
      
      ! Output sample to disk
-     call output_FITS_sample(cpar, iter)
+     call output_FITS_sample(cpar, iter, .true.)
      
   end do
 

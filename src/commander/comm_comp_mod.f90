@@ -5,10 +5,11 @@ module comm_comp_mod
   use comm_map_mod
   use comm_cr_utils
   use comm_data_mod
+  use comm_hdf_mod
   implicit none
 
   private
-  public  :: comm_comp, ncomp, compList, dumpCompMaps
+  public  :: comm_comp, ncomp, compList!, dumpCompMaps
   
   !**************************************************
   !        Generic component class definition
@@ -42,8 +43,8 @@ module comm_comp_mod
      procedure(evalBand),    deferred :: getBand
      procedure(projectBand), deferred :: projectBand
      procedure                       :: dumpSED
-!     procedure(dumpHDF),    deferred :: dumpHDF
      procedure(dumpFITS),    deferred :: dumpFITS
+     procedure(initHDF),     deferred :: initHDF
      procedure                        :: RJ2unit
   end type comm_comp
 
@@ -117,12 +118,25 @@ module comm_comp_mod
 !!$     end subroutine dumpHDF
 !!$
      ! Dump current sample to HEALPix FITS file
-     subroutine dumpFITS(self, postfix, dir)
-       import comm_comp
+     subroutine dumpFITS(self, iter, chainfile, output_hdf, postfix, dir)
+       import comm_comp, i4b, hdf_file, lgt
        class(comm_comp),                        intent(in)           :: self
+       integer(i4b),                            intent(in)           :: iter
+       type(hdf_file),                          intent(in)           :: chainfile
+       logical(lgt),                            intent(in)           :: output_hdf
        character(len=*),                        intent(in)           :: postfix
        character(len=*),                        intent(in)           :: dir
      end subroutine dumpFITS
+
+     ! Initialize from HDF chain file
+     subroutine initHDF(self, cpar, hdffile, hdfpath)
+       import comm_comp, comm_params, hdf_file
+       class(comm_comp),                        intent(inout)        :: self
+       type(comm_params),                       intent(in)           :: cpar
+       type(hdf_file),                          intent(in)           :: hdffile
+       character(len=*),                        intent(in)           :: hdfpath
+     end subroutine initHDF
+       
   end interface
 
   !**************************************************
@@ -202,19 +216,19 @@ contains
     
   end subroutine dumpSED
 
-  subroutine dumpCompMaps(postfix, dir)
-    implicit none
-    character(len=*), intent(in) :: postfix, dir
-
-    class(comm_comp), pointer :: c
-
-    c => compList
-    do while (associated(c))
-       call c%dumpFITS(postfix, dir)
-       c => c%next()
-    end do
-    
-  end subroutine dumpCompMaps
+!!$  subroutine dumpCompMaps(postfix, dir)
+!!$    implicit none
+!!$    character(len=*), intent(in) :: postfix, dir
+!!$
+!!$    class(comm_comp), pointer :: c
+!!$
+!!$    c => compList
+!!$    do while (associated(c))
+!!$       call c%dumpFITS(postfix, dir)
+!!$       c => c%next()
+!!$    end do
+!!$    
+!!$  end subroutine dumpCompMaps
 
   function RJ2unit(self, bp)
     implicit none

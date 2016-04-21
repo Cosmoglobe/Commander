@@ -8,6 +8,7 @@ module comm_diffuse_comp_mod
   use math_tools
   use comm_cr_utils
   use comm_cr_precond_mod
+  use comm_hdf_mod
   implicit none
 
   private
@@ -41,6 +42,7 @@ module comm_diffuse_comp_mod
      procedure :: getBand     => evalDiffuseBand
      procedure :: projectBand => projectDiffuseBand
      procedure :: dumpFITS    => dumpDiffuseToFITS
+     procedure :: initHDF     => initDiffuseHDF
   end type comm_diffuse_comp
 
   type diff_ptr
@@ -691,17 +693,22 @@ contains
   end subroutine applyDiffPrecond
   
   ! Dump current sample to HEALPix FITS file
-  subroutine dumpDiffuseToFITS(self, postfix, dir)
+  subroutine dumpDiffuseToFITS(self, iter, chainfile, output_hdf, postfix, dir)
     implicit none
-    character(len=*),                        intent(in)           :: postfix
     class(comm_diffuse_comp),                intent(in)           :: self
+    integer(i4b),                            intent(in)           :: iter
+    type(hdf_file),                          intent(in)           :: chainfile
+    logical(lgt),                            intent(in)           :: output_hdf
+    character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
     integer(i4b)       :: i, l, m, ierr, unit
     real(dp)           :: vals(10)
     logical(lgt)       :: exist, first_call = .true.
-    character(len=512) :: filename
+    character(len=6)   :: itext
+    character(len=512) :: filename, path
     class(comm_map), pointer :: map
+    real(dp), allocatable, dimension(:,:) :: sigma_l
 
     if (trim(self%type) == 'md') then
        filename = trim(dir)//'/md_' // trim(postfix) // '.dat'
@@ -729,6 +736,12 @@ contains
        end do
        call mpi_allreduce(MPI_IN_PLACE, vals, 10, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        if (self%x%info%myid == 0) then
+          if (output_hdf) then
+             call int2string(iter, itext)
+             path = trim(adjustl(itext))//'/md/'//trim(adjustl(self%label))
+             call write_hdf(chainfile, trim(adjustl(path)), vals(1:4))
+          end if
+          
           inquire(file=trim(filename), exist=exist)
           unit = getlun()
           if (first_call) then
@@ -748,19 +761,43 @@ contains
        ! Write amplitude
        map => comm_map(self%x)
        map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
-       call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
-       
+
+       if (output_hdf) then
+          call int2string(iter, itext)
+          path = trim(adjustl(itext))//'/'//trim(adjustl(self%label))
+          if (self%x%info%myid == 0) call create_hdf_group(chainfile, trim(adjustl(path)))
+       end if
+
        filename = trim(self%label) // '_' // trim(postfix) // '.fits'
+       call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
        call map%Y
-       call map%writeFITS(trim(dir)//'/'//trim(filename))
+       map%alm = self%x%alm * self%RJ2unit_ * self%cg_scale  ! Replace convolved with original alms
+       if (output_hdf) then
+          call map%writeFITS(trim(dir)//'/'//trim(filename), &
+               & hdffile=chainfile, hdfpath=trim(path)//'/amp_')
+       else
+          call map%writeFITS(trim(dir)//'/'//trim(filename))
+       end if
        deallocate(map)
+
+       sigma_l = self%x%getSigmaL()
+       if (self%x%info%myid == 0 .and. output_hdf) then
+          call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
+       end if
+       deallocate(sigma_l)
        
        ! Write spectral index maps
        do i = 1, self%npar
           filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
                & trim(postfix) // '.fits'
           call self%theta(i)%p%Y
-          call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          if (output_hdf) then
+             call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename), &
+                  & hdffile=chainfile, hdfpath=trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
+                  & '_')
+          else
+             call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          end if
        end do
        
        ! Write mixing matrices
@@ -776,6 +813,44 @@ contains
         
   end subroutine dumpDiffuseToFITS
 
+  ! Dump current sample to HEALPix FITS file
+  subroutine initDiffuseHDF(self, cpar, hdffile, hdfpath)
+    implicit none
+    class(comm_diffuse_comp),  intent(inout) :: self
+    type(comm_params),         intent(in)    :: cpar    
+    type(hdf_file),            intent(in)    :: hdffile
+    character(len=*),          intent(in)    :: hdfpath
+
+    integer(i4b)       :: i, l, m
+    real(dp)           :: md(4)
+    character(len=512) :: path
+    
+    if (trim(self%type) == 'md') then
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'md/'//trim(adjustl(self%label)), md)
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          if (l == 0) then                 
+             self%x%alm(i,1) =  md(1) * sqrt(4.d0*pi)      / self%RJ2unit_  ! Monopole
+          else if (l == 1 .and. m == -1) then   
+             self%x%alm(i,1) =  md(3) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! Y dipole
+          else if (l == 1 .and. m ==  0) then   
+             self%x%alm(i,1) =  md(4) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! Z dipole
+          else if (l == 1 .and. m ==  1) then   
+             self%x%alm(i,1) = -md(2) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! X dipole
+          end if
+       end do
+    else
+       path = trim(adjustl(hdfpath))//trim(adjustl(self%label))
+       call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_alm')    ! Read amplitudes
+       self%x%alm = self%x%alm / (self%RJ2unit_ * self%cg_scale)
+       do i = 1, self%npar
+          call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
+               & '_alm')
+       end do       
+    end if
+
+  end subroutine initDiffuseHDF
+  
   subroutine add_to_npre(n, nside, lmax, nmaps)
     implicit none
     integer(i4b), intent(in) :: n, nside, lmax, nmaps

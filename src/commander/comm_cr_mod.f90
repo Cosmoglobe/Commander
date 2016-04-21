@@ -71,21 +71,37 @@ contains
 !!$    stop
 !!$    
     ! Initialize the CG search
-    x  = 0.d0
-    r  = b ! - A(x)   ! x is zero
+    if (.true.) then
+       call cr_amp2x(x)
+       ! Multiply with sqrt(invS)
+       c       => compList
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             if (trim(c%cltype) /= 'none') then
+                allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+                call cr_extract_comp(c%id, x, alm)
+                call c%Cl%sqrtInvS(alm=alm, info=c%x%info) ! Multiply with sqrt(inv(Cl))
+                call cr_insert_comp(c%id, .false., alm, x)
+                deallocate(alm)
+             end if
+          end select
+          c => c%next()
+       end do
+    else
+       x  = 0.d0
+    end if
+    r  = b - cr_matmulA(x)   ! x is zero
     d  = cr_invM(r)
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
-    delta0    = delta_new
+    delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(b))
     do i = 1, maxiter
        call wall_time(t1)
        
        if (delta_new < eps * delta0) exit
 
-       call wall_time(t3)
        q     = cr_matmulA(d)
-       call wall_time(t4)
-       !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'A time = ', real(t4-t3,sp)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
        x     = x + alpha * d
 
@@ -125,13 +141,13 @@ contains
                 c => c%next()
              end do
              call cr_x2amp(x_out)
-             call output_FITS_sample(cpar, i)
+             call output_FITS_sample(cpar, i, .false.)
              deallocate(x_out)
              call cr_x2amp(x)
           end if
        end if
 
-       if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
+       !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
@@ -173,35 +189,35 @@ contains
     
   end subroutine solve_cr_eqn_by_CG
 
-  function cr_amp2x_full()
+  subroutine cr_amp2x_full(x) 
     implicit none
-
-    real(dp), allocatable, dimension(:) :: cr_amp2x_full
+    real(dp), dimension(:), intent(out) :: x
 
     integer(i4b) :: i, ind
     class(comm_comp), pointer :: c
 
     ! Stack parameters linearly
-    allocate(cr_amp2x_full(ncr))
     ind = 1
     c   => compList
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp) 
           do i = 1, c%x%info%nmaps
-             cr_amp2x_full(ind:ind+c%x%info%nalm-1) = c%x%alm(:,i)
+             x(ind:ind+c%x%info%nalm-1) = c%x%alm(:,i)
              ind = ind + c%x%info%nalm
           end do
-       class is (comm_ptsrc_comp) 
-          do i = 1, c%nmaps
-             cr_amp2x_full(ind:ind+c%nsrc-1) = c%x(:,i)
-             ind = ind + c%nsrc
-          end do
+       class is (comm_ptsrc_comp)
+          if (c%myid == 0) then
+             do i = 1, c%nmaps
+                x(ind:ind+c%nsrc-1) = c%x(:,i)
+                ind = ind + c%nsrc
+             end do
+          end if
        end select
        c => c%next()
     end do
 
-  end function cr_amp2x_full
+  end subroutine cr_amp2x_full
 
   subroutine cr_x2amp_full(x)
     implicit none

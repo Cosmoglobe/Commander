@@ -6,9 +6,10 @@ module comm_map_mod
   use udgrade_nr
   use iso_c_binding, only : c_ptr, c_double
   use head_fits
+  use comm_hdf_mod
   implicit none
 
-  include "mpif.h"
+!  include "mpif.h"
       
   private
   public comm_map, comm_mapinfo, map_ptr
@@ -47,10 +48,12 @@ module comm_map_mod
      procedure     :: YtW  => exec_sharp_YtW
      procedure     :: writeFITS
      procedure     :: readFITS
+     procedure     :: readHDF
      procedure     :: dealloc => deallocate_comm_map
      procedure     :: alm_equal
      procedure     :: add_alm
      procedure     :: udgrade
+     procedure     :: getSigmaL
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -294,17 +297,21 @@ contains
   !                   IO routines
   !**************************************************
 
-  subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile)
+  subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile, &
+       & hdffile, hdfpath)
     implicit none
 
     class(comm_map),  intent(in) :: self
     character(len=*), intent(in) :: filename
     character(len=*), intent(in), optional :: comptype, unit, spectrumfile, ttype
     real(dp),         intent(in), optional :: nu_ref
+    type(hdf_file),   intent(in), optional :: hdffile
+    character(len=*), intent(in), optional :: hdfpath
 
-    integer(i4b) :: i, nmaps, npix, np, ierr
-    real(dp),     allocatable, dimension(:,:) :: map, buffer
+    integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr
+    real(dp),     allocatable, dimension(:,:) :: map, alm, buffer
     integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
     
     ! Only the root actually writes to disk; data are distributed via MPI
@@ -327,11 +334,47 @@ contains
        call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
        deallocate(p, map)
 
+       if (present(hdffile)) then
+          allocate(alm(0:(self%info%lmax+1)**2-1,self%info%nmaps))
+          do j = 0, self%info%nalm-1
+             l   = self%info%lm(1,j)
+             m   = self%info%lm(2,j)
+             ind = l**2 + l + m
+             alm(ind,:) = self%alm(j,:)
+          end do
+          do i = 1, self%info%nprocs-1
+             call mpi_recv(nlm,      1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(lm(2,0:nlm-1))
+             call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(buffer(0:nlm-1,nmaps))
+             call mpi_recv(buffer, size(buffer), &
+                  & MPI_DOUBLE_PRECISION, i, 98, self%info%comm, mpistat, ierr)
+             do j = 0, nlm-1
+                l   = lm(1,j)
+                m   = lm(2,j)
+                ind = l**2 + l + m                
+                alm(ind,:) = buffer(j,:)
+             end do
+             deallocate(lm, buffer)
+          end do
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   alm)
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
+          deallocate(alm)
+       end if
+
     else
        call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
        call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
        call mpi_send(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
             & self%info%comm, ierr)
+
+       if (present(hdffile)) then
+          call mpi_send(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%info%lm,   size(self%info%lm), MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%alm,       size(self%alm),     MPI_DOUBLE_PRECISION, 0, 98, &
+               & self%info%comm, ierr)
+       end if
     end if
     
   end subroutine writeFITS
@@ -390,6 +433,35 @@ contains
     end if
     
   end subroutine readFITS
+
+  subroutine readHDF(self, hdffile, hdfpath)
+    implicit none
+
+    class(comm_map),  intent(inout) :: self
+    type(hdf_file),   intent(in)    :: hdffile
+    character(len=*), intent(in)    :: hdfpath
+
+    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm
+    real(dp),     allocatable, dimension(:,:) :: alms
+    integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+
+    lmax  = self%info%lmax
+    nmaps = self%info%nmaps
+    nalm  = (lmax+1)**2
+
+    ! Only the root actually reads from disk; data are distributed via MPI
+    allocate(alms(0:nalm-1,nmaps))
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
+    call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    do i = 0, self%info%nalm-1
+       call self%info%i2lm(i, l, m)
+       j = l**2 + l + m
+       self%alm(i,:) = alms(j,:)
+    end do
+    deallocate(alms)
+    
+  end subroutine readHDF
 
   subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
     implicit none
@@ -619,5 +691,37 @@ contains
     end if
 
   end subroutine add
+
+  function getSigmaL(self) result(sigma_l)
+    implicit none
+    class(comm_map),                      intent(in) :: self
+    real(dp), allocatable, dimension(:,:)            :: sigma_l
+
+    integer(i4b) :: l, m, i, j, k, ind, nspec, lmax, nmaps, ierr
+
+    lmax  = self%info%lmax
+    nmaps = self%info%nmaps
+    nspec = nmaps*(nmaps+1)/2
+    allocate(sigma_l(0:lmax,nspec))
+    sigma_l = 0.d0
+    do ind = 0, self%info%nalm-1
+       call self%info%i2lm(ind,l,m)
+       k   = 1
+       do i = 1, nmaps
+          do j = i, nmaps
+             sigma_l(l,k) = sigma_l(l,k) + self%alm(ind,i)*self%alm(ind,j)
+             k            = k+1
+          end do
+       end do
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, sigma_l, size(sigma_l), MPI_DOUBLE_PRECISION, &
+         & MPI_SUM, self%info%comm, ierr)
+
+    do l = 0, lmax
+       sigma_l(l,:) = sigma_l(l,:) / real(2*l+1,dp)
+    end do
+
+  end function getSigmaL
   
 end module comm_map_mod

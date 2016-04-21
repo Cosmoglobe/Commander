@@ -101,6 +101,8 @@ contains
        call h5fopen_f(file%filename, H5F_ACC_RDONLY_F, file%filehandle, file%status)
     else if (mode == 'w') then
        call h5fcreate_f(file%filename, H5F_ACC_TRUNC_F, file%filehandle, file%status)
+    else if (mode == 'b') then
+       call h5fopen_f(file%filename, H5F_ACC_RDWR_F, file%filehandle, file%status)
     else
        write(*,*) 'comm_hdf_mod: Unknown hdf file mode =', mode
        stop
@@ -173,6 +175,16 @@ contains
     deallocate(ext_hdf, mext_hdf)
   end subroutine get_size_hdf
 
+!!$  function hdf_group_exist(file, group)
+!!$    implicit none
+!!$    type(hdf_file)                  :: file
+!!$    character(len=*),   intent(in)  :: group
+!!$    type(hf
+!!$    
+!!$
+!!$
+!!$  end function hdf_group_exist
+  
   ! *****************************************************
   ! Set read operations
   ! *****************************************************
@@ -291,7 +303,7 @@ contains
     call assert(file%status>=0, "comm_hdf_mod: Cannot close data space")
   end subroutine create_hdf_set
 
-  ! Group creation. Once created, they can be used by specifying "group/dset" instaed
+  ! Group creation. Once created, they can be used by specifying "group/dset" instead
   ! of just "dset".
   subroutine create_hdf_group(file, group)
     implicit none
