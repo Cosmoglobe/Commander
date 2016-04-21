@@ -483,6 +483,8 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,1,1))
              call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))             
+             call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
+                  & par_dp=cpar%cs_theta_def(1,i))
              call get_parameter(paramfile, 'COMP_PRIOR_UNI_T_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,2))
              call get_parameter(paramfile, 'COMP_PRIOR_UNI_T_HIGH'//itext,   &
@@ -491,6 +493,8 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,1,2))
              call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_T_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,2))
+             call get_parameter(paramfile, 'COMP_DEFAULT_T'//itext,          &
+                  & par_dp=cpar%cs_theta_def(2,i))             
           end select
        end if
        

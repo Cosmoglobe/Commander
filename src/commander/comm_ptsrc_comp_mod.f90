@@ -125,7 +125,6 @@ contains
        do i = 1, numband
           constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
        end do
-       allocate(constructor%p_uni(2,constructor%npar), constructor%p_gauss(2,constructor%npar))
     case ("sz")
        constructor%npar = 0   ! (none)
        do i = 1, numband
@@ -354,6 +353,13 @@ contains
              write(unit,*) '# '
              write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    alpha_I   beta_I   Q(mJy)  ' // &
                   & ' alpha_Q  beta_Q  U(mJy)  alpha_U  beta_U  ID'
+          else if (trim(self%type) == 'fir') then
+             write(unit,*) '# '
+             write(unit,*) '# SED model type      = ', trim(self%type)
+             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
+             write(unit,*) '# '
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    beta_I      T_I   Q(mJy)  ' // &
+                  & ' beta_Q     T_Q  U(mJy)  beta_U     T_U  ID'             
           end if
        else
           if (trim(self%type) == 'radio') then
@@ -362,11 +368,17 @@ contains
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
              write(unit,*) '# '
              write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    alpha_I   beta_I   ID'
+          else if (trim(self%type) == 'fir') then
+             write(unit,*) '# '
+             write(unit,*) '# SED model type      = ', trim(self%type)
+             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
+             write(unit,*) '# '
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    beta_I      T_I   ID'
           end if
        end if
        do i = 1, self%nsrc
           if (self%nmaps == 3) then
-             if (trim(self%type) == 'radio') then
+             if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
                 write(unit,fmt='(2f10.4,f16.3,2f8.3,f16.3,2f8.3,f16.3,2f8.3,2a)') &
                      & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
                      & self%x(i,1)*self%cg_scale, self%src(i)%theta(:,1), &
@@ -375,7 +387,7 @@ contains
                      & '  ', trim(self%src(i)%id)
              end if
           else
-             if (trim(self%type) == 'radio') then
+             if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
                 write(unit,fmt='(2f10.4,f16.3,2f8.3,2a)') &
                      & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
                      & self%x(i,1)*self%cg_scale, self%src(i)%theta(:,1), &
@@ -1025,7 +1037,7 @@ contains
     integer(i4b),           intent(in) :: band, id, pol
     real(dp)                           :: getScale
 
-    if (trim(self%type) == 'radio') then
+    if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
        getScale = 1.d-23 * (c/self%nu_ref)**2 / (2.d0*k_b*self%src(id)%T(band)%Omega_b(pol))
     end if
 
