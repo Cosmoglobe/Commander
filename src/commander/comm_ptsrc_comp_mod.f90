@@ -487,7 +487,7 @@ contains
        read(unit,'(a)',end=2) line
        line = trim(line)
        if (line(1:1) == '#' .or. trim(line) == '') cycle
-       read(line,*) flabel, pix, nside, glon, glat, amp, beta, id_ptsrc
+       read(line,*) glon, glat, amp, beta, id_ptsrc
        i                             = i+1
        allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(numband))
        self%src(i)%id       = id_ptsrc
