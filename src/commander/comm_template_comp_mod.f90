@@ -25,9 +25,10 @@ module comm_template_comp_mod
      real(dp),     allocatable, dimension(:,:) :: theta ! Spectral parameters (npar,nmaps)
      type(Tnu),    allocatable, dimension(:)   :: T     ! Spatial template (nband)
    contains
-     procedure :: dumpFITS => dumpTemplateToFITS
-     procedure :: getBand  => evalTemplateBand
-     procedure :: projectBand  => projectTemplateBand
+     procedure :: dumpFITS       => dumpTemplateToFITS
+     procedure :: getBand        => evalTemplateBand
+     procedure :: projectBand    => projectTemplateBand
+     procedure :: sampleSpecInd  => sampleTemplateSpecInd
   end type comm_template_comp
 
 contains
@@ -67,5 +68,12 @@ contains
     character(len=512) :: filename
     
   end subroutine dumpTemplateToFITS
+
+  ! Sample spectral parameters
+  subroutine sampleTemplateSpecInd(self, handle)
+    implicit none
+    class(comm_template_comp),               intent(inout)        :: self
+    type(planck_rng),                        intent(inout)        :: handle
+  end subroutine sampleTemplateSpecInd
   
 end module comm_template_comp_mod

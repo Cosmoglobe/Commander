@@ -50,7 +50,8 @@ module comm_ptsrc_comp_mod
      procedure :: updateF
      procedure :: S => evalSED
      procedure :: getScale
-     procedure :: initHDF     => initPtsrcHDF     
+     procedure :: initHDF       => initPtsrcHDF
+     procedure :: sampleSpecInd => samplePtsrcSpecInd
   end type comm_ptsrc_comp
 
   interface comm_ptsrc_comp
@@ -622,10 +623,11 @@ contains
     class(comm_ptsrc_comp), intent(in)  :: self
     character(len=*),       intent(out) :: filename
 
-    integer(i4b)   :: i, j, k, l, n, m, p, ierr, nmaps, itmp
+    integer(i4b)   :: i, j, k, l, n, m, p, ierr, nmaps, itmp, hdferr
     real(dp)       :: rtmp(3)
     logical(lgt)   :: exist
     type(hdf_file) :: file
+    TYPE(h5o_info_t) :: object_info    
     character(len=128) :: itext
     integer(i4b), allocatable, dimension(:)   :: ind
     real(dp),     allocatable, dimension(:,:) :: beam
@@ -644,7 +646,12 @@ contains
           call ang2pix_ring(data(i)%info%nside, 0.5d0*pi-self%src(k)%glat, self%src(k)%glon, p)
           write(itext,*) p
           itext = trim(adjustl(data(i)%label))//'/'//trim(adjustl(itext))
-          if (myid_pre == 0) call create_hdf_group(file, trim(itext))
+          if (myid_pre == 0) then
+             call h5eset_auto_f(0, hdferr)
+             call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
+             if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
+             call create_hdf_group(file, trim(itext))
+          end if
 
           ! Collect beam contributions from each core
           n = self%src(k)%T(i)%np
@@ -1139,5 +1146,12 @@ contains
     deallocate(x, y, pl)
     
   end subroutine compute_radial_beam
+
+  ! Sample spectral parameters
+  subroutine samplePtsrcSpecInd(self, handle)
+    implicit none
+    class(comm_ptsrc_comp),                  intent(inout)        :: self
+    type(planck_rng),                        intent(inout)        :: handle
+  end subroutine samplePtsrcSpecInd
   
 end module comm_ptsrc_comp_mod

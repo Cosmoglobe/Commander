@@ -27,7 +27,6 @@ contains
 
   subroutine solve_cr_eqn_by_CG(cpar, x, b, stat)
     implicit none
-
     type(comm_params),                intent(in)    :: cpar
     real(dp),          dimension(1:), intent(out)   :: x
     real(dp),          dimension(1:), intent(in)    :: b

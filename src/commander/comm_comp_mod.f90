@@ -38,14 +38,15 @@ module comm_comp_mod
      procedure :: add     ! add new link at the end
 
      ! Data procedures
-     procedure                        :: initComp
-     procedure(evalSED),     deferred :: S
-     procedure(evalBand),    deferred :: getBand
-     procedure(projectBand), deferred :: projectBand
-     procedure                       :: dumpSED
-     procedure(dumpFITS),    deferred :: dumpFITS
-     procedure(initHDF),     deferred :: initHDF
-     procedure                        :: RJ2unit
+     procedure                          :: initComp
+     procedure(evalSED),       deferred :: S
+     procedure(evalBand),      deferred :: getBand
+     procedure(projectBand),   deferred :: projectBand
+     procedure                          :: dumpSED
+     procedure(dumpFITS),      deferred :: dumpFITS
+     procedure(initHDF),       deferred :: initHDF
+     procedure                          :: RJ2unit
+     procedure(sampleSpecInd), deferred :: sampleSpecInd
   end type comm_comp
 
   abstract interface
@@ -136,6 +137,13 @@ module comm_comp_mod
        type(hdf_file),                          intent(in)           :: hdffile
        character(len=*),                        intent(in)           :: hdfpath
      end subroutine initHDF
+
+     ! Sample spectral parameters
+     subroutine sampleSpecInd(self, handle)
+       import comm_comp, planck_rng
+       class(comm_comp),                        intent(inout)        :: self
+       type(planck_rng),                        intent(inout)        :: handle
+     end subroutine sampleSpecInd
        
   end interface
 

@@ -14,7 +14,7 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i
+    integer(i4b)                 :: i, hdferr
     real(dp)                     :: chisq, t1, t2, t3, t4
     logical(lgt), save           :: first_call=.true.
     logical(lgt)                 :: exist, init
@@ -25,6 +25,7 @@ contains
     class(comm_map),     pointer :: map
     class(comm_comp),    pointer :: c
     type(hdf_file) :: file
+    TYPE(h5o_info_t) :: object_info
     
     call int2string(cpar%mychain, ctext)
     call int2string(iter,         itext)
@@ -47,6 +48,10 @@ contains
     end if
     if (cpar%myid_chain == 0 .and. output_hdf) then
        call open_hdf_file(chainfile, file, 'b')
+       ! Delete group if it already exists
+       call h5eset_auto_f(0, hdferr)
+       call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
+       if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
        call create_hdf_group(file, trim(adjustl(itext)))
        call create_hdf_group(file, trim(adjustl(itext))//'/md')             
     end if

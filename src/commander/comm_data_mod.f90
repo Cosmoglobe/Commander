@@ -14,6 +14,7 @@ module comm_data_mod
 
      class(comm_mapinfo), pointer :: info
      class(comm_map),     pointer :: map
+     class(comm_map),     pointer :: res
      class(comm_map),     pointer :: mask
      class(comm_N),       pointer :: N
      class(comm_bp),      pointer :: bp
@@ -57,6 +58,7 @@ contains
        data(i)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
        data(i)%map  => comm_map(data(i)%info, trim(dir)//trim(cpar%ds_mapfile(i)))
+       data(i)%res  => comm_map(data(i)%map)
        call update_status(status, "data_map")
 
        ! Read default gain from instrument parameter file

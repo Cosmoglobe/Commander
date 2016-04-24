@@ -6,6 +6,7 @@ program commander
   use comm_chisq_mod
   use comm_output_mod
   use comm_comp_mod
+  use comm_nonlin_mod
   implicit none
 
   ! *********************************************************************
@@ -97,11 +98,10 @@ program commander
   do iter = max(1,cpar%init_samp+1), cpar%num_gibbs_iter
 
      ! Sample linear parameters with CG search
-     call sample_amps_by_CG(cpar, handle)
+     !call sample_amps_by_CG(cpar, handle)
 
-     ! Sample amplitude parameters with positivity prior
-
-     ! Sample spectral indices
+     ! Sample non-linear parameters
+     call sample_nonlin_params(cpar, handle)
 
      ! Sample instrumental parameters
 

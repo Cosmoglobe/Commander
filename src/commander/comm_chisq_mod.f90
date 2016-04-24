@@ -52,7 +52,7 @@ contains
     class(comm_map), pointer :: ptsrc
     
     ! Initialize to full data set
-    res   => comm_map(data(band)%info)  ! Diffuse 
+    res   => comm_map(data(band)%info)  ! Diffuse
     ptsrc => comm_map(data(band)%info)  ! Compact
 
     ! Compute predicted signal for this band

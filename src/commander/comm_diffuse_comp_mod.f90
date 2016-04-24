@@ -9,6 +9,7 @@ module comm_diffuse_comp_mod
   use comm_cr_utils
   use comm_cr_precond_mod
   use comm_hdf_mod
+  use InvSamp_mod
   implicit none
 
   private
@@ -38,11 +39,12 @@ module comm_diffuse_comp_mod
    contains
      procedure :: initDiffuse
      procedure :: updateMixmat
-!!$     procedure :: dumpHDF  => dumpDiffuseToHDF
-     procedure :: getBand     => evalDiffuseBand
-     procedure :: projectBand => projectDiffuseBand
-     procedure :: dumpFITS    => dumpDiffuseToFITS
-     procedure :: initHDF     => initDiffuseHDF
+!!$     procedure :: dumpHDF    => dumpDiffuseToHDF
+     procedure :: getBand       => evalDiffuseBand
+     procedure :: projectBand   => projectDiffuseBand
+     procedure :: dumpFITS      => dumpDiffuseToFITS
+     procedure :: initHDF       => initDiffuseHDF
+     procedure :: sampleSpecInd => sampleDiffuseSpecInd
   end type comm_diffuse_comp
 
   type diff_ptr
@@ -859,5 +861,15 @@ contains
     lmax_pre  = max(lmax_pre, lmax)
     nmaps_pre = max(nmaps_pre, nmaps)
   end subroutine add_to_npre
+
+  ! Sample spectral parameters
+  subroutine sampleDiffuseSpecInd(self, handle)
+    implicit none
+    class(comm_diffuse_comp),                intent(inout)        :: self
+    type(planck_rng),                        intent(inout)        :: handle
+
+    integer(i4b) :: i, j, n, m
+    
+  end subroutine sampleDiffuseSpecInd
   
 end module comm_diffuse_comp_mod
