@@ -108,6 +108,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
      character(len=512), allocatable, dimension(:)     :: cs_catalog
      character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
+     real(dp),           allocatable, dimension(:)     :: cs_min_src_dist
      
   end type comm_params
 
@@ -310,7 +311,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_SED_template(n), cpar%cs_cg_scale(n))
-    allocate(cpar%cs_ptsrc_template(n))
+    allocate(cpar%cs_ptsrc_template(n), cpar%cs_min_src_dist(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
@@ -448,6 +449,7 @@ contains
           call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
           call get_parameter(paramfile, 'COMP_PTSRC_TEMPLATE'//itext,  &
                & par_string=cpar%cs_ptsrc_template(i))
+          call get_parameter(paramfile, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, par_dp=cpar%cs_min_src_dist(i))
           call get_parameter(paramfile, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
           call get_parameter(paramfile, 'COMP_NSIDE'//itext,    par_int=cpar%cs_nside(i))
           call get_parameter(paramfile, 'COMP_NU_REF'//itext,   par_dp=cpar%cs_nu_ref(i))

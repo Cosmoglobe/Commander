@@ -786,7 +786,7 @@ contains
        if (self%x%info%myid == 0 .and. output_hdf) then
           call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
        end if
-       deallocate(sigma_l)
+       if (allocated(sigma_l)) deallocate(sigma_l)
        
        ! Write spectral index maps
        do i = 1, self%npar

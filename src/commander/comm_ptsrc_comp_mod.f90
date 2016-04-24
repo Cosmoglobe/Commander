@@ -31,7 +31,7 @@ module comm_ptsrc_comp_mod
   type ptsrc
      character(len=512) :: outprefix
      character(len=512) :: id
-     real(dp)           :: glon, glat, f_beam
+     real(dp)           :: glon, glat, f_beam, vec(3)
      type(Tnu), allocatable, dimension(:)   :: T      ! Spatial template (nband)
      real(dp),  allocatable, dimension(:,:) :: theta  ! Spectral parameters (npar,nmaps)
   end type ptsrc
@@ -437,8 +437,8 @@ contains
     integer(i4b),           intent(in)    :: id, id_abs
 
     integer(i4b)        :: unit, i, j, npar, nmaps, pix, nside, n
-    real(dp)            :: glon, glat, nu_ref
-    logical(lgt)        :: pol
+    real(dp)            :: glon, glat, nu_ref, dist, vec0(3), vec(3)
+    logical(lgt)        :: pol, skip_src
     character(len=1024) :: line, filename, tempfile
     character(len=128)  :: id_ptsrc, flabel
     real(dp), allocatable, dimension(:)   :: amp
@@ -489,13 +489,28 @@ contains
        line = trim(line)
        if (line(1:1) == '#' .or. trim(line) == '') cycle
        read(line,*) glon, glat, amp, beta, id_ptsrc
-       i                             = i+1
-       allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(numband))
-       self%src(i)%id       = id_ptsrc
-       self%src(i)%glon     = glon * DEG2RAD
-       self%src(i)%glat     = glat * DEG2RAD
-       self%src(i)%theta    = beta
-       self%x(i,:)          = amp / self%cg_scale
+       ! Check for too close neighbours
+       skip_src = .false.
+       call ang2vec(0.5d0*pi-glon*DEG2RAD, glat*DEG2RAD, vec)
+       do j = 1, i
+          call angdist(vec, self%src(j)%vec, dist)
+          if (dist*RAD2DEG*60.d0 < cpar%cs_min_src_dist(id_abs)) then
+             skip_src = .true.
+             exit
+          end if
+       end do
+       if (skip_src) then
+          self%nsrc = self%nsrc-1
+       else
+          i                    = i+1
+          allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(numband))
+          self%src(i)%id       = id_ptsrc
+          self%src(i)%glon     = glon * DEG2RAD
+          self%src(i)%glat     = glat * DEG2RAD
+          self%src(i)%theta    = beta
+          self%x(i,:)          = amp / self%cg_scale
+          self%src(i)%vec      = vec
+       end if
     end do 
 2   close(unit)
 
@@ -621,7 +636,7 @@ contains
   subroutine dump_beams_to_hdf(self, filename)
     implicit none
     class(comm_ptsrc_comp), intent(in)  :: self
-    character(len=*),       intent(out) :: filename
+    character(len=*),       intent(in)  :: filename
 
     integer(i4b)   :: i, j, k, l, n, m, p, ierr, nmaps, itmp, hdferr
     real(dp)       :: rtmp(3)
