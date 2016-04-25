@@ -491,7 +491,7 @@ contains
        read(line,*) glon, glat, amp, beta, id_ptsrc
        ! Check for too close neighbours
        skip_src = .false.
-       call ang2vec(0.5d0*pi-glon*DEG2RAD, glat*DEG2RAD, vec)
+       call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
        do j = 1, i
           call angdist(vec, self%src(j)%vec, dist)
           if (dist*RAD2DEG*60.d0 < cpar%cs_min_src_dist(id_abs)) then
@@ -638,7 +638,7 @@ contains
     class(comm_ptsrc_comp), intent(in)  :: self
     character(len=*),       intent(in)  :: filename
 
-    integer(i4b)   :: i, j, k, l, n, m, p, ierr, nmaps, itmp, hdferr
+    integer(i4b)   :: i, j, k, l, n, n_tot, m, p, ierr, nmaps, itmp, hdferr
     real(dp)       :: rtmp(3)
     logical(lgt)   :: exist
     type(hdf_file) :: file
@@ -669,8 +669,7 @@ contains
           end if
 
           ! Collect beam contributions from each core
-          n = self%src(k)%T(i)%np
-          call mpi_allreduce(MPI_IN_PLACE, n, 1, MPI_INTEGER, MPI_SUM, comm_pre, ierr)
+          call mpi_reduce(self%src(k)%T(i)%np, n, 1, MPI_INTEGER, MPI_SUM, 0, comm_pre, ierr)
           if (myid_pre == 0) then
              allocate(ind(n), beam(n,self%nmaps))
              n = 0
