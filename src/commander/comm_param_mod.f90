@@ -23,7 +23,7 @@ module comm_param_mod
      character(len=24)  :: operation
      integer(i4b)       :: verbosity, base_seed, numchain
      integer(i4b)       :: num_gibbs_iter, num_ml_iter, init_samp
-     character(len=512) :: chain_prefix
+     character(len=512) :: chain_prefix, init_chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
 
@@ -32,7 +32,6 @@ module comm_param_mod
      integer(i4b)       :: nside_chisq, nmaps_chisq
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
-     logical(lgt)       :: output_ptsrc_beams
      logical(lgt)       :: output_input_model
      
      ! Numerical parameters
@@ -108,6 +107,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
      character(len=512), allocatable, dimension(:)     :: cs_catalog
      character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
+     logical(lgt),       allocatable, dimension(:)     :: cs_output_ptsrc_beam
      real(dp),           allocatable, dimension(:)     :: cs_min_src_dist
      
   end type comm_params
@@ -198,6 +198,7 @@ contains
     call get_parameter(paramfile, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
     call get_parameter(paramfile, 'NUM_ITER_WITH_ML_SEARCH',  par_int=cpar%num_ml_iter)
     call get_parameter(paramfile, 'CHAIN_PREFIX',             par_string=cpar%chain_prefix)
+    call get_parameter(paramfile, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
     call get_parameter(paramfile, 'INIT_SAMPLE_NUMBER',       par_int=cpar%init_samp)
 
     call get_parameter(paramfile, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
@@ -218,7 +219,6 @@ contains
     call get_parameter(paramfile, 'OUTPUT_CHISQ_MAP',         par_lgt=cpar%output_chisq)
     call get_parameter(paramfile, 'OUTPUT_EVERY_NTH_CG_ITERATION', par_int=cpar%output_cg_freq)
     call get_parameter(paramfile, 'OUTPUT_CG_PRECOND_EIGENVALS', par_lgt=cpar%output_cg_eigenvals)
-    call get_parameter(paramfile, 'OUTPUT_PTSRC_BEAMS',       par_lgt=cpar%output_ptsrc_beams)
     call get_parameter(paramfile, 'OUTPUT_INPUT_MODEL',       par_lgt=cpar%output_input_model)
 
   end subroutine read_global_params
@@ -311,7 +311,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_SED_template(n), cpar%cs_cg_scale(n))
-    allocate(cpar%cs_ptsrc_template(n), cpar%cs_min_src_dist(n))
+    allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
@@ -449,6 +449,8 @@ contains
           call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
           call get_parameter(paramfile, 'COMP_PTSRC_TEMPLATE'//itext,  &
                & par_string=cpar%cs_ptsrc_template(i))
+          call get_parameter(paramfile, 'COMP_OUTPUT_PTSRC_TEMPLATE'//itext,  &
+               & par_lgt=cpar%cs_output_ptsrc_beam(i))
           call get_parameter(paramfile, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, par_dp=cpar%cs_min_src_dist(i))
           call get_parameter(paramfile, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
           call get_parameter(paramfile, 'COMP_NSIDE'//itext,    par_int=cpar%cs_nside(i))

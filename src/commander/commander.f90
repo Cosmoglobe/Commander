@@ -31,7 +31,7 @@ program commander
   ! *                                                                   *
   ! *********************************************************************
 
-  integer(i4b)        :: iargc, ierr, iter, stat
+  integer(i4b)        :: iargc, ierr, iter, stat, first_sample
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle
 
@@ -95,7 +95,9 @@ program commander
   ! Initialize output structures
 
   ! Run Gibbs loop
-  do iter = max(1,cpar%init_samp+1), cpar%num_gibbs_iter
+  first_sample = 1
+  if (trim(cpar%init_chain_prefix) == trim(cpar%chain_prefix)) first_sample = cpar%init_samp+1
+  do iter = first_sample, cpar%num_gibbs_iter
 
      ! Sample linear parameters with CG search
      !call sample_amps_by_CG(cpar, handle)

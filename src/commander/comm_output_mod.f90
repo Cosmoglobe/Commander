@@ -14,7 +14,7 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i, hdferr
+    integer(i4b)                 :: i, hdferr, ierr
     real(dp)                     :: chisq, t1, t2, t3, t4
     logical(lgt), save           :: first_call=.true.
     logical(lgt)                 :: exist, init
@@ -35,7 +35,7 @@ contains
 
     ! Delete existing chain file if necessary; create new file if necessary; open file
     if (first_call .and. cpar%myid_chain == 0 .and. output_hdf) then
-       if (cpar%init_samp == -1) then
+       if (trim(cpar%init_chain_prefix) /= trim(cpar%chain_prefix)) then
           inquire(file=trim(chainfile), exist=exist)
           if (exist) call rm(trim(chainfile))
        end if

@@ -518,7 +518,8 @@ contains
     ! Initialize beam templates
     tempfile = trim(cpar%datadir)//'/'//trim(cpar%cs_ptsrc_template(id_abs))
     do j = 1, self%nsrc
-       if (mod(j,100) == 0 .and. self%myid == 0) write(*,*) j, self%nsrc
+       if (mod(j,100) == 0 .and. self%myid == 0) &
+            & write(*,fmt='(a,i6,a,i6)') '   Initializing src no. ', j, ' of ', self%nsrc
        do i = 1, numband
           self%src(j)%T(i)%nside   = data(i)%info%nside
           self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
@@ -527,7 +528,7 @@ contains
 
           ! Get pixel space template; try precomputed templates first
           if (trim(cpar%cs_ptsrc_template(id_abs)) /= 'none' .and. &
-               & .not.  cpar%output_ptsrc_beams) then
+               & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
              call read_febecop_beam(cpar, tempfile, data(i)%label, &
                   & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))             
           else
@@ -551,7 +552,7 @@ contains
           end if
        end do
     end do
-    if (cpar%output_ptsrc_beams) call dump_beams_to_hdf(self, tempfile)
+    if (cpar%cs_output_ptsrc_beam(id_abs)) call dump_beams_to_hdf(self, tempfile)
     
   end subroutine read_sources
 

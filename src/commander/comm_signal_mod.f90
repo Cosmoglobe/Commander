@@ -171,8 +171,12 @@ contains
     ! Open HDF file
     call int2string(cpar%mychain,   ctext)
     call int2string(cpar%init_samp, itext)
-    chainfile = trim(adjustl(cpar%outdir)) // '/' // trim(adjustl(cpar%chain_prefix)) // &
-         & '_c' // trim(adjustl(ctext)) // '.h5'
+    if (trim(cpar%chain_prefix) == trim(cpar%init_chain_prefix)) then
+       chainfile = trim(adjustl(cpar%outdir)) // '/' // trim(adjustl(cpar%chain_prefix)) // &
+            & '_c' // trim(adjustl(ctext)) // '.h5'
+    else
+       chainfile = trim(adjustl(cpar%init_chain_prefix))
+    end if
     call open_hdf_file(chainfile, file, 'r')
     
     ! Initialize instrumental parameters
