@@ -505,12 +505,14 @@ contains
        end do
 
        ! Compute mixing matrix average; for preconditioning only
+       allocate(buffer(self%nmaps))
        do j = 1, self%nmaps
           self%F_mean(i,j) = sum(self%F(i)%p%map(:,j))
        end do
-       call mpi_allreduce(MPI_IN_PLACE, self%F_mean(i,:), self%nmaps, &
+       call mpi_allreduce(self%F_mean(i,:), buffer, self%nmaps, &
             & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
-       self%F_mean(i,:) = self%F_mean(i,:) / self%F(i)%p%info%npix
+       self%F_mean(i,:) = buffer / self%F(i)%p%info%npix
+       deallocate(buffer)
 
     end do
     nullify(t, t0)

@@ -183,6 +183,7 @@ contains
 
     integer(i4b)       :: unit, l1, l2, n
     character(len=512) :: line
+    character(len=1), dimension(6) :: stat
 
     unit = getlun()
 
@@ -212,7 +213,10 @@ contains
        read(line,*) l1, l2
        if (l1 <= self%lmax .and. l2 <= self%lmax .and. l1 >= 0 .and. l2 >= 0) then
           n = n+1
-          read(line,*) self%bins(n,1), self%bins(n,2), self%stat(n,:)
+          read(line,*) l1, l2, stat   !self%bins(n,1), self%bins(n,2), self%stat(n,:)
+          self%bins(n,1) = l1
+          self%bins(n,2) = l2
+          self%stat(n,:) = stat
        end if
     end do
 2   close(unit)

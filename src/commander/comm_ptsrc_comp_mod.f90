@@ -603,7 +603,7 @@ contains
     T%np = 0
     i    = 1
     j    = locate(data(band)%info%pix, ind(i))
-    if (j > -1) then
+    if (j > 0) then
        do while (.true.)
           if (ind(i) == data(band)%info%pix(j)) then
              T%np            = T%np + 1
@@ -680,10 +680,12 @@ contains
              n               = n+m
              do j = 1, numprocs_pre-1
                 call mpi_recv(m, 1, MPI_INTEGER, j, 61, comm_pre, status, ierr)
-                call mpi_recv(ind(n+1:n+m), m, MPI_DOUBLE_PRECISION, j, &
-                     & 61, comm_pre, status, ierr)
-                call mpi_recv(beam(n+1:n+m,:), m*nmaps, MPI_DOUBLE_PRECISION, j, &
-                     & 61, comm_pre, status, ierr)
+                if (m > 0) then
+                   call mpi_recv(ind(n+1:n+m), m, MPI_DOUBLE_PRECISION, j, &
+                        & 61, comm_pre, status, ierr)
+                   call mpi_recv(beam(n+1:n+m,:), m*nmaps, MPI_DOUBLE_PRECISION, j, &
+                        & 61, comm_pre, status, ierr)
+                end if
                 n = n+m
              end do
              ! Sort according to increasing pixel number
@@ -708,8 +710,10 @@ contains
           else
              m = self%src(k)%T(i)%np
              call mpi_send(m, 1, MPI_INTEGER, 0, 61, comm_pre, ierr)
-             call mpi_send(self%src(k)%T(i)%pix(:,2), m, MPI_INTEGER, 0, 61, comm_pre, ierr)
-             call mpi_send(self%src(k)%T(i)%map, m*nmaps, MPI_DOUBLE_PRECISION, 0, 61, comm_pre, ierr)
+             if (m > 0) then
+                call mpi_send(self%src(k)%T(i)%pix(:,2), m, MPI_INTEGER, 0, 61, comm_pre, ierr)
+                call mpi_send(self%src(k)%T(i)%map, m*nmaps, MPI_DOUBLE_PRECISION, 0, 61, comm_pre, ierr)
+             end if
           end if
        end do
     end do
@@ -811,14 +815,14 @@ contains
     T%np = 0
     i    = 0
     j    = locate(data(band)%info%pix, listpix(i))
-    if (j > -1) then
+    if (j > 0) then
        do while (.true.)
           if (listpix(i) == data(band)%info%pix(j)) then
              T%np            = T%np + 1
              mypix(T%np,1)   = j-1
              mypix(T%np,2)   = data(band)%info%pix(j)
              mybeam(T%np,:)  = beam(i,:)
-             do while (i < n-1)
+             do while (i < nlist-1)
                 i = i+1
                 if (listpix(i-1) == listpix(i)) then
                    mybeam(T%np,:) = mybeam(T%np,:) + beam(i,:)

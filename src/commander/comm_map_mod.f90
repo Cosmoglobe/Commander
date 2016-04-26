@@ -386,7 +386,7 @@ contains
     character(len=*), intent(in)    :: filename
 
     integer(i4b) :: i, np, npix, ordering, nside, nmaps, ierr
-    real(dp),     allocatable, dimension(:,:) :: map
+    real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
@@ -421,8 +421,13 @@ contains
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
-          call mpi_send(map(p(1:np),:), np*self%info%nmaps, MPI_DOUBLE_PRECISION, i, 98, &
+          allocate(buffer(np,self%info%nmaps))
+          !call mpi_send(map(p(1:np),:), np*self%info%nmaps, MPI_DOUBLE_PRECISION, i, 98, &
+          !     & self%info%comm, ierr)
+          call mpi_send(buffer, np*self%info%nmaps, MPI_DOUBLE_PRECISION, i, 98, &
                & self%info%comm, ierr)
+          map(p(1:np),:) = buffer
+          deallocate(buffer)
        end do
        deallocate(p, map)
     else

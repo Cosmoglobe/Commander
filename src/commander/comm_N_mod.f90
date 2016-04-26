@@ -55,23 +55,29 @@ contains
 
     real(dp)     :: l0min, l0max, l1min, l1max, npix, checksum, t1, t2
     integer(i4b) :: i, j, k, l, m, lp, l2, ier, twolmaxp2, pos, lmax, unit
-    logical(lgt) :: exist
+    logical(lgt) :: exist, ok
     complex(dpc) :: val(invN_diag%info%nmaps)
     real(dp), allocatable, dimension(:)   :: threej_symbols, threej_symbols_m0
     real(dp), allocatable, dimension(:,:) :: N_lm, a_l0
 
+    ! Check if we are all ready to read precomputed structure
     unit = getlun()
     inquire(file=trim(cache), exist=exist)
     if (exist) then
        open(unit, file=trim(cache), form='unformatted')
        read(unit) checksum
-       if (abs(sum(abs(invN_diag%map))-checksum)/abs(checksum) < 1d-6) then
-          read(unit) invN_diag%alm
-          close(unit)
-          return
-       else
-          close(unit)
-       end if
+       exist = abs(sum(abs(invN_diag%map))-checksum)/abs(checksum) < 1d-6
+       close(unit)
+    end if
+    call mpi_allreduce(MPI_IN_PLACE, exist, 1, MPI_LOGICAL, MPI_LAND, invN_diag%info%comm, ier)
+
+    ! If all agree, read from disk. If not, recompute from scratch
+    if (exist) then
+       open(unit, file=trim(cache), form='unformatted')
+       read(unit) checksum
+       read(unit) invN_diag%alm
+       close(unit)
+       return
     end if
 
     lmax      = invN_diag%info%lmax
