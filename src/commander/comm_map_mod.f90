@@ -422,8 +422,7 @@ contains
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           allocate(buffer(np,self%info%nmaps))
-          !call mpi_send(map(p(1:np),:), np*self%info%nmaps, MPI_DOUBLE_PRECISION, i, 98, &
-          !     & self%info%comm, ierr)
+          buffer = map(p(1:np),:)
           call mpi_send(buffer, np*self%info%nmaps, MPI_DOUBLE_PRECISION, i, 98, &
                & self%info%comm, ierr)
           map(p(1:np),:) = buffer

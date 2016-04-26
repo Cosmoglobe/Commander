@@ -100,7 +100,7 @@ program commander
   do iter = first_sample, cpar%num_gibbs_iter
 
      ! Sample linear parameters with CG search
-     !call sample_amps_by_CG(cpar, handle)
+     call sample_amps_by_CG(cpar, handle)
 
      ! Sample non-linear parameters
      call sample_nonlin_params(cpar, handle)

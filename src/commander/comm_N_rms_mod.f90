@@ -43,6 +43,7 @@ contains
     real(dp), dimension(0:,1:),         intent(out)   :: regnoise
     class(comm_N_rms),                  pointer       :: constructor
 
+    integer(i4b)       :: ierr
     character(len=512) :: dir, cache
     character(len=4)   :: itext
     
@@ -59,6 +60,7 @@ contains
     constructor%np      = info%np
     constructor%pol     = info%nmaps == 3
     constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id)))
+
     call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id), regnoise)
     constructor%siN%map = 1.d0 / constructor%siN%map
     call constructor%siN%YtW

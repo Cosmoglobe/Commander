@@ -194,6 +194,7 @@ contains
                 P_cr%invM_diff(i1,j)%comp2ind(k1) = n
              end if
           end do
+
           P_cr%invM_diff(i1,j)%n = n
           allocate(P_cr%invM_diff(i1,j)%ind(n))
           allocate(P_cr%invM_diff(i1,j)%M0(n,n), P_cr%invM_diff(i1,j)%M(n,n))
@@ -337,10 +338,13 @@ contains
     ! Add unity 
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
-       !$OMP PARALLEL PRIVATE(i,l,m,j,p)
-       !$OMP DO SCHEDULE(guided)
+       !!$OMP PARALLEL PRIVATE(i,l,m,j,p)
+       !!$OMP DO SCHEDULE(guided)
        do i = 0, info_pre%nalm-1
           call info_pre%i2lm(i, l, m)
+          !if (info_pre%myid == 1) then
+          !write(*,*) info_pre%myid, i, l, m
+          !end if
           if (l <= diffComps(k1)%p%lmax_amp) then
              do j = 1, info_pre%nmaps
                 p = P_cr%invM_diff(i,j)%comp2ind(k1)
@@ -348,8 +352,8 @@ contains
              end do
           end if
        end do
-       !$OMP END DO
-       !$OMP END PARALLEL
+       !!$OMP END DO
+       !!$OMP END PARALLEL
     end do
 
 !!$    if (info_pre%myid == 0) then

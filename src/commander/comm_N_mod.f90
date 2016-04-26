@@ -130,6 +130,7 @@ contains
     call wall_time(t2)
 
     invN_diag%alm = N_lm
+    !write(*,*) sum(abs(invN_diag%alm))
 
     ! Write cache file to disk
     open(unit, file=trim(cache), form='unformatted')
