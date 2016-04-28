@@ -35,7 +35,8 @@ contains
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b)       :: i, j, m, nmaps
+    integer(i4b)       :: i, j, m, nmaps, ierr
+    real(dp)           :: t1, t2
     character(len=512) :: dir
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: map, regnoise

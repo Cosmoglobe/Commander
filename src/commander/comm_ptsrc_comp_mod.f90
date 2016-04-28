@@ -39,7 +39,7 @@ module comm_ptsrc_comp_mod
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale
-     integer(i4b)       :: nside, nsrc, ncr_tot, myid, comm
+     integer(i4b)       :: nside, nsrc, ncr_tot
      real(dp),        allocatable, dimension(:,:) :: x      ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:)   :: F_int  ! SED integrator (numband)
      type(ptsrc),     allocatable, dimension(:)   :: src    ! Source template (nsrc)
@@ -101,6 +101,7 @@ contains
     constructor%poltype   = cpar%cs_poltype(1,id_abs)
     constructor%myid      = cpar%myid
     constructor%comm      = cpar%comm_chain
+    constructor%numprocs  = cpar%numprocs_chain
     ncomp_pre             = ncomp_pre + 1
 
     ! Initialize frequency scaling parameters

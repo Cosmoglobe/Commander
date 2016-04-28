@@ -55,6 +55,9 @@ contains
     constructor%unit     = data(band)%unit
     constructor%nu_ref   = data(band)%bp%nu_c
     constructor%cg_scale = 1.d0
+    constructor%myid     = cpar%myid_chain
+    constructor%comm     = cpar%comm_chain
+    constructor%numprocs = cpar%numprocs_chain
     !constructor%ref_band = band
 
     ! Set up conversion factor between RJ and native component unit

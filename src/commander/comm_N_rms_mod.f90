@@ -63,7 +63,6 @@ contains
 
     call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id), regnoise)
     constructor%siN%map = 1.d0 / constructor%siN%map
-    call constructor%siN%YtW
 
     ! Apply mask
     constructor%siN%map = constructor%siN%map * mask%map
@@ -71,7 +70,6 @@ contains
     ! Set up diagonal covariance matrix in both pixel and harmonic space
     constructor%invN_diag     => comm_map(info)
     constructor%invN_diag%map = constructor%siN%map**2
-    call constructor%invN_diag%YtW
     call compute_invN_lm(cache, constructor%invN_diag)
     
   end function constructor

@@ -52,9 +52,9 @@ export MPCC := mpicc
 # Fortran 90 compiler flags
 #export F90FLAGS := -O3 -traceback 
 #export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384
-export F90FLAGS := -g -C -traceback -xAVX -arch AVX -mavx -qopenmp -check all,noarg_temp_created
+#export F90FLAGS := -g -C -traceback -xAVX -arch AVX -mavx -qopenmp -check all,noarg_temp_created
 #export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx -qopenmp
-#export F90FLAGS := -fast -traceback -qopenmp
+export F90FLAGS := -fast -traceback -qopenmp
 
 # Fortran 77 compiler flags
 export FFLAGS := -O2

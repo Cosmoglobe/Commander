@@ -18,6 +18,7 @@ all : commander #sharp_test
 
 locate_mod.o :             math_tools.o
 spline_1D_mod.o :          locate_mod.o
+spline_2D_mod.o :          comm_utils.o
 InvSamp_mod.o :            spline_1D_mod.o
 comm_map_mod.o :           sharp.o comm_hdf_mod.o
 comm_hdf_mod.o :           comm_utils.o
@@ -58,7 +59,7 @@ comm_F_int_mod.o :         comm_utils.o
 comm_F_line_mod.o :        comm_F_int_mod.o 
 comm_F_int_0D_mod.o :      comm_F_int_mod.o 
 comm_F_int_1D_mod.o :      comm_F_int_mod.o spline_1D_mod.o
-comm_F_int_2D_mod.o :      comm_F_int_mod.o spline_2D_mod.o
+comm_F_int_2D_mod.o :      comm_F_int_mod.o spline_2D_mod.o comm_utils.o
 comm_B_mod.o :             comm_map_mod.o
 comm_B_bl_mod.o :          comm_B_mod.o 
 comm_beam_mod.o :          comm_B_bl_mod.o

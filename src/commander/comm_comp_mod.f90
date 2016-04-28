@@ -21,7 +21,7 @@ module comm_comp_mod
 
      ! Data variables
      logical(lgt)       :: active
-     integer(i4b)       :: npar, ncr, id, nmaps
+     integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs
      character(len=512) :: label, class, type, unit
      real(dp)           :: nu_ref, RJ2unit_
      character(len=512), allocatable, dimension(:)   :: indlabel
@@ -168,13 +168,16 @@ contains
     type(comm_params),  intent(in) :: cpar
     integer(i4b),       intent(in) :: id, id_abs
 
-    self%id      = id
-    self%active  = cpar%cs_include(id_abs)
-    self%label   = cpar%cs_label(id_abs)
-    self%type    = cpar%cs_type(id_abs)
-    self%class   = cpar%cs_class(id_abs)
-    self%unit    = cpar%cs_unit(id_abs)
-    self%nu_ref  = cpar%cs_nu_ref(id_abs)
+    self%id       = id
+    self%active   = cpar%cs_include(id_abs)
+    self%label    = cpar%cs_label(id_abs)
+    self%type     = cpar%cs_type(id_abs)
+    self%class    = cpar%cs_class(id_abs)
+    self%unit     = cpar%cs_unit(id_abs)
+    self%nu_ref   = cpar%cs_nu_ref(id_abs)
+    self%myid     = cpar%myid_chain    
+    self%numprocs = cpar%numprocs_chain
+
 
     ! Set up conversion factor between RJ and native component unit
     select case (trim(self%unit))

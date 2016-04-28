@@ -348,7 +348,7 @@ contains
           if (l <= diffComps(k1)%p%lmax_amp) then
              do j = 1, info_pre%nmaps
                 p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                P_cr%invM_diff(i,j)%M(p,p) = P_cr%invM_diff(i,j)%M(p,p) + 1.d0
+                if (p > 0) P_cr%invM_diff(i,j)%M(p,p) = P_cr%invM_diff(i,j)%M(p,p) + 1.d0
              end do
           end if
        end do

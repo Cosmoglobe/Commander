@@ -166,7 +166,7 @@ contains
     class(comm_comp), pointer :: c
     type(hdf_file) :: file
 
-    if (cpar%init_samp <= 0) return
+    if (cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') return
 
     ! Open HDF file
     call int2string(cpar%mychain,   ctext)
