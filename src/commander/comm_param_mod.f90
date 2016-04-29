@@ -40,7 +40,7 @@ module comm_param_mod
 
      ! Data parameters
      integer(i4b)       :: numband
-     character(len=512) :: datadir
+     character(len=512) :: datadir, ds_sourcemask
      logical(lgt),       allocatable, dimension(:)   :: ds_active
      integer(i4b),       allocatable, dimension(:)   :: ds_period
      logical(lgt),       allocatable, dimension(:)   :: ds_polarization
@@ -133,7 +133,6 @@ contains
 
   subroutine initialize_mpi_struct(cpar, handle)
     implicit none
-
     type(comm_params), intent(inout) :: cpar
     type(planck_rng),  intent(out)   :: handle
 
@@ -233,8 +232,10 @@ contains
     integer(i4b)     :: i, j, n
     character(len=3) :: itext
     
-    call get_parameter(paramfile, 'NUMBAND',        par_int=cpar%numband)
-    call get_parameter(paramfile, 'DATA_DIRECTORY', par_string=cpar%datadir)
+    call get_parameter(paramfile, 'NUMBAND',         par_int=cpar%numband)
+    call get_parameter(paramfile, 'DATA_DIRECTORY',  par_string=cpar%datadir)
+    call get_parameter(paramfile, 'SOURCE_MASKFILE', par_string=cpar%ds_sourcemask)
+    cpar%ds_sourcemask = trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask)
 
     n = cpar%numband
     allocate(cpar%ds_active(n), cpar%ds_label(n))
@@ -250,7 +251,7 @@ contains
     allocate(cpar%ds_defaults(n,2))
     do i = 1, n
        call int2string(i, itext)
-       call get_parameter(paramfile, 'BAND_ACTIVE'//itext,          par_lgt=cpar%ds_active(i))
+       call get_parameter(paramfile, 'INCLUDE_BAND'//itext,         par_lgt=cpar%ds_active(i))
        call get_parameter(paramfile, 'BAND_OBS_PERIOD'//itext,      par_int=cpar%ds_period(i))
        call get_parameter(paramfile, 'BAND_LABEL'//itext,           par_string=cpar%ds_label(i))
        call get_parameter(paramfile, 'BAND_POLARIZATION'//itext,    par_lgt=cpar%ds_polarization(i))
@@ -926,7 +927,103 @@ contains
        ext = (/ 0, -1 /)
     end if
   end subroutine
-  
 
+  subroutine validate_params(cpar)
+    implicit none
+    type(comm_params), intent(inout) :: cpar
+
+    integer(i4b) :: i
+    logical(lgt) :: exist
+    character(len=512) :: datadir, chaindir, filename
+
+    datadir  = trim(cpar%datadir) // '/'
+    chaindir = trim(cpar%outdir) // '/'
+    
+    ! Check that all dataset files exist
+    do i = 1, cpar%numband
+       call validate_file(trim(datadir)//trim(cpar%ds_mapfile(i)))           ! Map file
+       if (trim(cpar%ds_maskfile(i)) /= 'fullsky') &
+            & call validate_file(trim(datadir)//trim(cpar%ds_maskfile(i)))   ! Mask file
+       if (trim(cpar%ds_noise_format(i)) == 'rms') &
+            & call validate_file(trim(datadir)//trim(cpar%ds_noise_rms(i)))  ! RMS file
+       if (trim(cpar%ds_bptype(i)) /= 'delta') &
+            & call validate_file(trim(datadir)//trim(cpar%ds_bpfile(i)))     ! Bandpass
+       call validate_file(trim(datadir)//trim(cpar%ds_pixwin(i)))            ! Pixel window
+       call validate_file(trim(datadir)//trim(cpar%ds_blfile(i)))            ! Beam b_l file
+       if (trim(cpar%ds_btheta_file(i)) /= 'none') &
+            & call validate_file(trim(datadir)//trim(cpar%ds_btheta_file(i))) ! Point source file
+    end do
+
+    ! Instrument data base
+    call validate_file(trim(datadir)//trim(cpar%cs_inst_parfile))   ! Instrument data base
+    if (trim(cpar%ds_sourcemask) /= 'none') &
+         & call validate_file(trim(cpar%ds_sourcemask))   ! Source mask
+
+    ! Check component files
+    do i = 1, cpar%cs_ncomp_tot
+       if (.not. cpar%cs_include(i)) cycle
+
+       if (trim(cpar%cs_type(i)) == 'md') then
+          call validate_file(trim(cpar%cs_SED_template(i)))
+       else if (trim(cpar%cs_class(i)) == 'diffuse') then
+          if (trim(cpar%cs_input_amp(i)) /= 'none') &
+               call validate_file(trim(datadir)//trim(cpar%cs_input_amp(i)))
+          if (trim(cpar%cs_prior_amp(i)) /= 'none') &
+               call validate_file(trim(datadir)//trim(cpar%cs_prior_amp(i)))
+          if (trim(cpar%cs_cltype(i)) == 'binned') then
+             call validate_file(trim(datadir)//trim(cpar%cs_binfile(i)))
+             call validate_file(trim(datadir)//trim(cpar%cs_clfile(i)))             
+          end if
+          if (trim(cpar%cs_mask(i)) /= 'fullsky') &
+               call validate_file(trim(datadir)//trim(cpar%cs_mask(i)))          
+          
+          select case (trim(cpar%cs_type(i)))
+          case ('power_law')
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+          case ('spindust')
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+             call validate_file(trim(datadir)//trim(cpar%cs_SED_template(i)))             
+          case ('MBB')
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+             if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))
+          case ('freefree')
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+             if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))             
+          case ('line')
+             call validate_file(trim(datadir)//trim(cpar%cs_SED_template(i)))
+          end select
+
+       else if (trim(cpar%cs_class(i)) == 'ptsrc') then
+          call validate_file(trim(datadir)//trim(cpar%cs_catalog(i)))
+          call validate_file(trim(datadir)//trim(cpar%cs_ptsrc_template(i)), &
+               & should_exist=.not. cpar%cs_output_ptsrc_beam(i))
+       end if
+       
+    end do
+    
+  end subroutine validate_params
+
+  subroutine validate_file(filename, should_exist)
+    implicit none
+    character(len=*), intent(in)           :: filename
+    logical(lgt),     intent(in), optional :: should_exist
+    logical(lgt) :: exist, default
+    default = .true.; if (present(should_exist)) default = should_exist
+    inquire(file=trim(filename), exist=exist)
+    if (exist .neqv. default) then
+       if (default) then
+          call report_error('Error: File does not exist = '//trim(filename))
+       else
+          call report_error('Error: File already exists = '//trim(filename))
+       end if
+    else
+    end if
+  end subroutine validate_file
 
 end module comm_param_mod

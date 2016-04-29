@@ -49,10 +49,10 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id)
+  function constructor(cpar, id, id_abs)
     implicit none
     type(comm_params),           intent(in) :: cpar
-    integer(i4b),                intent(in) :: id
+    integer(i4b),                intent(in) :: id, id_abs
     class(comm_bp),     pointer             :: constructor
 
     character(len=512) :: dir
@@ -61,10 +61,10 @@ contains
     allocate(constructor)
     dir = trim(cpar%datadir) // '/'
 
-    constructor%nu_c = cpar%ds_nu_c(id)
+    constructor%nu_c = cpar%ds_nu_c(id_abs)
     
     ! Define special case parameters
-    constructor%type = cpar%ds_bptype(id)
+    constructor%type = cpar%ds_bptype(id_abs)
     select case (trim(constructor%type))
     case ('delta')
        constructor%threshold = 0.d0
@@ -91,13 +91,13 @@ contains
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
     else
-       call read_bandpass(trim(dir)//cpar%ds_bpfile(id), constructor%threshold, &
+       call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), constructor%threshold, &
             & constructor%n, constructor%nu0, constructor%tau0)
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     end if
 
     ! Initialize fitting model
-    constructor%model = cpar%ds_bpmodel(id)
+    constructor%model = cpar%ds_bpmodel(id_abs)
     if (trim(constructor%model) == 'additive_shift') then
        constructor%npar = 1
        allocate(constructor%delta(constructor%npar))
@@ -112,7 +112,7 @@ contains
 
     ! Read default delta from instrument parameter file
     call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
-         & 'delta', cpar%ds_label(id), 0.d0, constructor%delta(1))
+         & 'delta', cpar%ds_label(id_abs), 0.d0, constructor%delta(1))
 
     ! Initialize active bandpass 
     call constructor%update_tau(constructor%delta)

@@ -33,11 +33,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, mask, handle, regnoise)
+  function constructor(cpar, info, id, id_abs, mask, handle, regnoise)
     implicit none
     type(comm_params),                  intent(in)    :: cpar
     type(comm_mapinfo), target,         intent(in)    :: info
-    integer(i4b),                       intent(in)    :: id
+    integer(i4b),                       intent(in)    :: id, id_abs
     class(comm_map),                    intent(in)    :: mask
     type(planck_rng),                   intent(inout) :: handle
     real(dp), dimension(0:,1:),         intent(out)   :: regnoise
@@ -54,14 +54,14 @@ contains
     cache = trim(dir) // 'invNlm_' // trim(cpar%ds_label(id)) // '_proc' // itext // '.unf'
 
     ! Component specific parameters
-    constructor%type    = cpar%ds_noise_format(id)
+    constructor%type    = cpar%ds_noise_format(id_abs)
     constructor%nside   = info%nside
     constructor%nmaps   = info%nmaps
     constructor%np      = info%np
     constructor%pol     = info%nmaps == 3
-    constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id)))
+    constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
 
-    call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id), regnoise)
+    call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), regnoise)
     constructor%siN%map = 1.d0 / constructor%siN%map
 
     ! Apply mask

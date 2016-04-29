@@ -1117,56 +1117,6 @@ contains
 
   end subroutine read_radial_beam
 
-  subroutine compute_radial_beam(nmaps, bl, br)
-    implicit none
-    integer(i4b),                                     intent(in)  :: nmaps
-    real(dp),                       dimension(0:,1:), intent(in)  :: bl
-    type(spline_type), allocatable, dimension(:),     intent(out) :: br
-
-    integer(i4b)  :: i, j, k, m, n, l, lmax
-    real(dp)      :: theta_max, threshold
-    real(dp), allocatable, dimension(:)   :: x, pl
-    real(dp), allocatable, dimension(:,:) :: y
-    
-    n         = 1000
-    lmax      = size(bl,1)-1
-    threshold = 1.d-6
-
-    ! Find typical size
-    l    = 0
-    do while (bl(l,1) > 0.5d0)
-       l = l+1
-    end do
-    theta_max = pi/l * 10.d0
-    
-    ! Compute radial beams
-    allocate(x(n), y(n,nmaps), pl(0:lmax))
-    do i = 1, n
-       x(i) = theta_max/(n-1) * real(i-1,dp)
-       call comp_normalised_Plm(lmax, 0, x(i), pl)
-       do j = 1, nmaps
-          y(i,j) = 0.d0
-          do l = 0, lmax
-             y(i,j) = y(i,j) + bl(l,j)*pl(l)/sqrt(4.d0*pi/real(2*l+1,dp))
-          end do
-       end do
-    end do
-
-    ! Spline significant part of beam profile
-    allocate(br(nmaps))
-    do j = 1, nmaps
-       y(:,j) = y(:,j) / maxval(y(:,j))
-       m      = 0
-       do while (y(m+1,j) > threshold .and. m < n)
-          m = m+1
-       end do
-       call spline(br(j), x(1:m), y(1:m,j))
-    end do
-
-    deallocate(x, y, pl)
-    
-  end subroutine compute_radial_beam
-
   ! Sample spectral parameters
   subroutine samplePtsrcSpecInd(self, handle)
     implicit none

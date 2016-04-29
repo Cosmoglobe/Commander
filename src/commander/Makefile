@@ -22,7 +22,7 @@ spline_2D_mod.o :          comm_utils.o
 InvSamp_mod.o :            spline_1D_mod.o
 comm_map_mod.o :           sharp.o comm_hdf_mod.o
 comm_hdf_mod.o :           comm_utils.o
-comm_utils.o :             comm_defs.o
+comm_utils.o :             comm_defs.o spline_1D_mod.o
 comm_system_mod.o :        comm_system_backend.o
 comm_shared_output_mod.o : comm_system_mod.o
 comm_status_mod.o :        comm_shared_output_mod.o

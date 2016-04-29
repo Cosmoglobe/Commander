@@ -24,11 +24,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, fwhm)
+  function constructor(cpar, info, id, id_abs, fwhm)
     implicit none
     type(comm_params),                  intent(in)           :: cpar
     type(comm_mapinfo), target,         intent(in)           :: info
-    integer(i4b),                       intent(in)           :: id
+    integer(i4b),                       intent(in)           :: id, id_abs
     real(dp),                           intent(in), optional :: fwhm
     class(comm_B_bl),   pointer                              :: constructor
 
@@ -46,13 +46,13 @@ contains
        call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm)
     else
        call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
-            & beamfile=trim(dir)//trim(cpar%ds_blfile(id)), &
-            & pixwin=trim(dir)//trim(cpar%ds_pixwin(id)))
+            & beamfile=trim(dir)//trim(cpar%ds_blfile(id_abs)), &
+            & pixwin=trim(dir)//trim(cpar%ds_pixwin(id_abs)))
     end if
 
     ! Initialize real-space profile
-    !call constructor%initBTheta(filename=trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(id)))
-    !constructor%r_max = maxval(constructor%b_theta(1)%x)
+    call compute_radial_beam(constructor%info%nmaps, constructor%b_l, constructor%b_theta)
+    constructor%r_max = maxval(constructor%b_theta(1)%x)
     
   end function constructor
   

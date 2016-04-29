@@ -121,7 +121,7 @@ contains
     call update_status(status, "init_postmix")
 
     ! Initialize output beam
-    self%B_out => comm_B_bl(cpar, self%x%info, 0, fwhm=cpar%cs_fwhm(id_abs))
+    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs))
 
     ! Initialize power spectrum
     self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)

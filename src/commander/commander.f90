@@ -44,6 +44,7 @@ program commander
   ! **************************************************************
   call read_comm_params(cpar)
   call initialize_mpi_struct(cpar, handle)
+  call validate_params(cpar)  
   call init_status(status, 'comm_status.txt')
   
   if (iargc() == 0) then

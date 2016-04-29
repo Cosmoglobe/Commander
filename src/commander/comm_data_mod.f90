@@ -4,10 +4,10 @@ module comm_data_mod
   use comm_noise_mod
   use comm_beam_mod
   use comm_map_mod
+  use locate_mod
   implicit none
 
   type comm_data_set
-     logical(lgt)                 :: active
      character(len=512)           :: label, unit
      integer(i4b)                 :: period
      real(dp)                     :: gain
@@ -35,57 +35,69 @@ contains
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b)       :: i, j, m, nmaps, ierr
+    integer(i4b)       :: i, j, n, m, nmaps, ierr, numband_tot
     real(dp)           :: t1, t2
     character(len=512) :: dir
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: map, regnoise
 
     ! Read all data sets
-    numband = cpar%numband
+    numband_tot = cpar%numband
     dir = trim(cpar%datadir) // '/'
-    allocate(data(numband))
-    do i = 1, numband
-       data(i)%active       = cpar%ds_active(i)
-       data(i)%label        = cpar%ds_label(i)
-       data(i)%period       = cpar%ds_period(i)
-       data(i)%unit         = cpar%ds_unit(i)
+    allocate(data(numband_tot))
+    n = 0
+    do i = 1, numband_tot
+       if (.not. cpar%ds_active(i)) cycle
+       n              = n+1
+       data(n)%label  = cpar%ds_label(i)
+       data(n)%period = cpar%ds_period(i)
+       data(n)%unit   = cpar%ds_unit(i)
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
-            & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(i)%label)
-       call update_status(status, "data_"//trim(data(i)%label))
+            & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
+       call update_status(status, "data_"//trim(data(n)%label))
 
        ! Initialize map structures
        nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
-       data(i)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
+       data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
-       data(i)%map  => comm_map(data(i)%info, trim(dir)//trim(cpar%ds_mapfile(i)))
-       data(i)%res  => comm_map(data(i)%map)
+       data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_mapfile(i)))
+       data(n)%res  => comm_map(data(n)%map)
        call update_status(status, "data_map")
 
+       ! Initialize beam structures
+       select case (trim(cpar%ds_beamtype(i)))
+       case ('b_l')
+          data(n)%B => comm_B_bl(cpar, data(n)%info, n, i)
+       case default
+          call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
+       end select
+       call update_status(status, "data_beam")
+       
        ! Read default gain from instrument parameter file
        call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
-            & 'gain', cpar%ds_label(i), 1.d0, data(i)%gain)
+            & 'gain', cpar%ds_label(i), 1.d0, data(n)%gain)
 
        ! Initialize mask structures
        if (trim(cpar%ds_maskfile(i)) == 'fullsky') then
-          data(i)%mask     => comm_map(data(i)%info)
-          data(i)%mask%map =  1.d0
+          data(n)%mask     => comm_map(data(n)%info)
+          data(n)%mask%map =  1.d0
        else
-          data(i)%mask  => comm_map(data(i)%info, trim(dir)//trim(cpar%ds_maskfile(i)))
-          where (data(i)%mask%map > 0.5d0)
-             data(i)%mask%map = 1.d0
+          data(n)%mask  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_maskfile(i)))
+          where (data(n)%mask%map > 0.5d0)
+             data(n)%mask%map = 1.d0
           elsewhere
-             data(i)%mask%map = 0.d0
+             data(n)%mask%map = 0.d0
           end where
        end if
+       call apply_source_mask(data(n)%mask, cpar%ds_sourcemask, data(n)%B%r_max)
        call update_status(status, "data_mask")
 
        ! Initialize noise structures
        select case (trim(cpar%ds_noise_format(i)))
        case ('rms') 
-          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
-          data(i)%N       => comm_N_rms(cpar, data(i)%info, i, data(i)%mask, handle, regnoise)
-          data(i)%map%map = data(i)%map%map + regnoise  ! Add regularization noise
+          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
+          data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, data(n)%mask, handle, regnoise)
+          data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
        case default
           call report_error("Unknown noise format: " // trim(cpar%ds_noise_format(i)))
@@ -93,19 +105,13 @@ contains
        call update_status(status, "data_N")
 
        ! Initialize bandpass structures
-       data(i)%bp => comm_bp(cpar, i)
+       data(n)%bp => comm_bp(cpar, n, i)
        call update_status(status, "data_bp")
        
-       ! Initialize beam structures
-       select case (trim(cpar%ds_beamtype(i)))
-       case ('b_l')
-          data(i)%B => comm_B_bl(cpar, data(i)%info, i)
-       case default
-          call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
-       end select
-       call update_status(status, "data_beam")
-
     end do
+    numband = n
+    if (cpar%myid == 0 .and. cpar%verbosity > 0) &
+         & write(*,fmt='(a,i5)') '  Number of active data sets = ', numband
     
     ! Sort bands according to nominal frequency
     allocate(ind_ds(numband), nu(numband))
@@ -158,4 +164,51 @@ contains
     close(unit)
   end subroutine dump_unit_conversion
 
+  subroutine apply_source_mask(mask, sourcefile, r_max)
+    implicit none
+    class(comm_map),  intent(inout) :: mask
+    character(len=*), intent(in)    :: sourcefile
+    real(dp),         intent(in)    :: r_max
+
+    integer(i4b)       :: i, j, p, unit, nlist, nmax=10000
+    real(dp)           :: lon, lat, rad, vec(3)
+    character(len=512) :: line
+    integer(i4b), allocatable, dimension(:) :: listpix
+
+    unit = getlun()
+    open(unit,file=trim(sourcefile),recl=1024,status='old')
+    do while (.true.)
+       read(unit,fmt='(a)',end=23) line
+       line = trim(adjustl(line))
+       if (line(1:1) == '#' .or. line(1:1) == ' ') cycle
+       read(line,*) lon, lat, rad
+       call ang2vec(0.5d0*pi-lat*DEG2RAD, lon*DEG2RAD, vec)
+       allocate(listpix(0:nmax-1))
+       call query_disc(mask%info%nside, vec, r_max*rad, listpix, nlist)
+
+       ! Mask pixels belonging to current processor
+       i    = 0
+       j    = locate(mask%info%pix, listpix(i))
+       if (j > 0) then
+          do while (.true.)
+             if (listpix(i) == mask%info%pix(j)) then
+                mask%map(j,:) = 0.d0
+                i             = i+1
+                j             = j+1
+             else if (listpix(i) < mask%info%pix(j)) then
+                i               = i+1
+             else
+                j               = j+1
+             end if
+             if (i > nlist-1) exit
+             if (j > mask%info%np) exit
+          end do
+       end if
+
+       deallocate(listpix)
+    end do
+23  close(unit)
+
+  end subroutine apply_source_mask
+  
 end module comm_data_mod
