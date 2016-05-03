@@ -95,12 +95,17 @@ contains
        call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
        call constructor%read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id_abs)))
        call constructor%binCls
+       if (cpar%only_pol) then
+          constructor%stat(:,1:3) = '0'
+          constructor%Dl(:,1)     = 0.d0
+          if (constructor%nspec == 6) constructor%Dl(:,2:3) = 0.d0
+       end if
     else if (trim(constructor%type) == 'power_law') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
+       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
     else
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
@@ -110,17 +115,19 @@ contains
   end function constructor
 
 
-  subroutine updatePowlaw(self, amp, beta)
+  subroutine updatePowlaw(self, amp, beta, only_pol)
     implicit none
     class(comm_Cl),                intent(inout) :: self
     real(dp),       dimension(1:), intent(in)    :: amp, beta
+    logical(lgt),                  intent(in)    :: only_pol
 
-    integer(i4b) :: i, j, l
+    integer(i4b) :: i, j, l, i_min
     
     self%amp   = amp
     self%beta  = beta
     self%Dl    = 0.d0
-    do i = 1, self%nmaps
+    i_min      = 1; if (only_pol) i_min = 2
+    do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
           self%Dl(l,j) = amp(i) * (real(l,dp)/real(self%lpiv,dp))**beta(i) 
@@ -350,7 +357,7 @@ contains
        end do
        deallocate(clin)
     else
-       ! Assume input file is in ASCII format with {l, TT, EE, BB, TE} ordering, and
+       ! Assume input file is in ASCII format with {l, TT, TE, EE, BB} ordering, and
        ! normalization is C_l * l(l+1)/2pi
        open(unit,file=trim(clfile))
        do while (.true.)
@@ -363,7 +370,8 @@ contains
                 self%Dl(l,TT) = Dl_TT 
              end if
           else
-             read(line,*) l, Dl_TT, Dl_EE, Dl_BB, Dl_TE
+             !write(*,*) trim(line)
+             read(line,*) l, Dl_TT, Dl_TE, Dl_EE, Dl_BB
              if (l <= self%lmax) then
                 self%Dl(l,TT) = Dl_TT 
                 self%Dl(l,TE) = Dl_TE 

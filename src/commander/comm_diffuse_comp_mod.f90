@@ -21,7 +21,7 @@ module comm_diffuse_comp_mod
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0
-     logical(lgt)       :: pol, output_mixmat
+     logical(lgt)       :: pol, output_mixmat, output_EB
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod
      real(dp)           :: cg_scale
      real(dp), allocatable, dimension(:,:) :: cls
@@ -86,6 +86,12 @@ contains
     output_cg_eigenvals = cpar%output_cg_eigenvals
     outdir              = cpar%outdir
     info               => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
+    if (self%pol) then
+       self%output_EB     = cpar%cs_output_EB(id_abs)
+    else
+       self%output_EB     = .false.
+    end if
+       
 
     ! Diffuse preconditioner variables
     npre      = npre+1
@@ -180,6 +186,10 @@ contains
                         & data(q)%N%invN_diag%alm(i2,j) * &  ! invN_{lm,lm}
                         & data(q)%B%b_l(l,j)**2 * &          ! b_l^2
                         & p1%F_mean(q,j) * p2%F_mean(q,j)    ! F(c1)*F(c2)
+!!$                   write(*,*) i1, l, m, i2
+!!$                   write(*,*) data(q)%N%invN_diag%alm(i2,j)
+!!$                   write(*,*) data(q)%B%b_l(l,j)
+!!$                   write(*,*) p1%F_mean(q,j)
                 end do
              end do
           end do
@@ -194,6 +204,11 @@ contains
                 P_cr%invM_diff(i1,j)%comp2ind(k1) = n
              end if
           end do
+!!$          write(*,*) i1, j, mat
+!!$          if (n == 0) then
+!!$             call mpi_finalize(k1)
+!!$             stop
+!!$          end if
 
           P_cr%invM_diff(i1,j)%n = n
           allocate(P_cr%invM_diff(i1,j)%ind(n))
@@ -237,7 +252,7 @@ contains
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
        do i = 0, info_pre%nalm-1
-          P_cr%invM_diff(i,j)%M = P_cr%invM_diff(i,j)%M0
+          if (P_cr%invM_diff(i,j)%n > 0) P_cr%invM_diff(i,j)%M = P_cr%invM_diff(i,j)%M0
        end do
     end do
 
@@ -264,6 +279,7 @@ contains
        do k2 = 1, npre
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
+                if (P_cr%invM_diff(i,j)%n == 0) cycle
                 p = P_cr%invM_diff(i,j)%comp2ind(k1)
                 q = P_cr%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) then
@@ -276,6 +292,7 @@ contains
           call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
+                if (P_cr%invM_diff(i,j)%n == 0) cycle                
                 p = P_cr%invM_diff(i,j)%comp2ind(k1)
                 q = P_cr%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(q,p) = alm(i,j)
@@ -296,6 +313,7 @@ contains
        do k2 = 1, npre
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
+                if (P_cr%invM_diff(i,j)%n == 0) cycle                
                 p = P_cr%invM_diff(i,j)%comp2ind(k1)
                 q = P_cr%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) then
@@ -308,6 +326,7 @@ contains
           call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
+                if (P_cr%invM_diff(i,j)%n == 0) cycle                
                 p = P_cr%invM_diff(i,j)%comp2ind(k1)
                 q = P_cr%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(p,q) = alm(i,j)
@@ -347,6 +366,7 @@ contains
           !end if
           if (l <= diffComps(k1)%p%lmax_amp) then
              do j = 1, info_pre%nmaps
+                if (P_cr%invM_diff(i,j)%n == 0) cycle                
                 p = P_cr%invM_diff(i,j)%comp2ind(k1)
                 if (p > 0) P_cr%invM_diff(i,j)%M(p,p) = P_cr%invM_diff(i,j)%M(p,p) + 1.d0
              end do
@@ -410,7 +430,8 @@ contains
     call wall_time(t1)
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
+          if (P_cr%invM_diff(i,j)%n > 0) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
+          !if (P_cr%invM_diff(i,j)%n > 0) P_cr%invM_diff(i,j)%M = P_cr%invM_diff(i,j)%M /pi
        end do
     end do
     call wall_time(t2)
@@ -492,15 +513,19 @@ contains
           ! Polarization
           if (self%nmaps == 3) then
              ! Stokes Q
-             if (all(self%poltype < 2)) then
-                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) * data(i)%gain * self%cg_scale
+             if (self%npar == 0) then
+                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) 
+             else if (all(self%poltype < 2)) then
+                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) 
              else
                 self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) * data(i)%gain * self%cg_scale
              end if
        
              ! Stokes U
-             if (all(self%poltype < 3)) then
-                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) * data(i)%gain * self%cg_scale
+             if (self%npar == 0) then
+                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) 
+             else if (all(self%poltype < 3)) then
+                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) 
              else
                 self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) * data(i)%gain * self%cg_scale
              end if
@@ -677,6 +702,7 @@ contains
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
           !y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
+          if (P_cr%invM_diff(i,j)%n == 0) cycle
           y(P_cr%invM_diff(i,j)%ind,i,j) = &
                & matmul(P_cr%invM_diff(i,j)%M, y(P_cr%invM_diff(i,j)%ind,i,j))
        end do
@@ -788,6 +814,17 @@ contains
        end if
        deallocate(map)
 
+       if (self%output_EB) then
+          map => comm_map(self%x)
+          map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
+          
+          filename = trim(self%label) // '_' // trim(postfix) // '_TEB.fits'
+          call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
+          call map%Y_EB
+          call map%writeFITS(trim(dir)//'/'//trim(filename))
+          deallocate(map)
+       end if
+       
        sigma_l = self%x%getSigmaL()
        if (self%x%info%myid == 0 .and. output_hdf) then
           call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             

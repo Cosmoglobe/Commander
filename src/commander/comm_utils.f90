@@ -718,6 +718,7 @@ contains
     l    = 0
     do while (bl(l,1) > 0.5d0)
        l = l+1
+       if (l == lmax) call report_error('Error: Beam has not fallen off to 0.5 by lmax')
     end do
     theta_max = pi/l * 10.d0
     

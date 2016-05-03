@@ -87,7 +87,14 @@ contains
     allocate(N_lm(0:invN_diag%info%nalm-1,invN_diag%info%nmaps))
     allocate(a_l0(0:lmax,invN_diag%info%nmaps))
     call invN_diag%YtW
-    if (invN_diag%info%myid == 0) a_l0 = invN_diag%alm(0:lmax,:)
+
+    if (invN_diag%info%myid == 0) then
+       ! Seriously ugly hack. Should figure out how to compute N_{lm,l'm'} properly
+       ! for polarization
+       do i = 1, invN_diag%info%nmaps       
+          a_l0(:,i) = invN_diag%alm(0:lmax,1)
+       end do
+    end if
     call mpi_bcast(a_l0, size(a_l0), MPI_DOUBLE_PRECISION, 0, invN_diag%info%comm, ier)
 
     call wall_time(t1)

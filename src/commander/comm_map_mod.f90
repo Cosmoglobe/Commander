@@ -46,6 +46,7 @@ module comm_map_mod
      procedure     :: Y    => exec_sharp_Y
      procedure     :: Yt   => exec_sharp_Yt
      procedure     :: YtW  => exec_sharp_YtW
+     procedure     :: Y_EB => exec_sharp_Y_EB
      procedure     :: writeFITS
      procedure     :: readFITS
      procedure     :: readHDF
@@ -239,9 +240,8 @@ contains
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-!          call sharp_execute(SHARP_Y, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-!               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
-          self%map(:,2:3) = 0.d0
+          call sharp_execute(SHARP_Y, 2, 2, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
        end if
     else
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
@@ -249,6 +249,21 @@ contains
     end if
     
   end subroutine exec_sharp_Y
+  
+  subroutine exec_sharp_Y_EB(self)
+    implicit none
+
+    class(comm_map), intent(inout)          :: self
+
+    integer(i4b) :: i
+    
+    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
+    do i = 1, self%info%nmaps
+       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
+            & self%map(:,i:i), self%info%geom_info, comm=self%info%comm)
+    end do
+    
+  end subroutine exec_sharp_Y_EB
 
   subroutine exec_sharp_Yt(self)
     implicit none
@@ -260,9 +275,8 @@ contains
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-          !call sharp_execute(SHARP_Yt, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-          !     & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
-          self%alm(:,2:3) = 0.d0
+          call sharp_execute(SHARP_Yt, 2, 2, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
        end if
        
     else
@@ -282,8 +296,8 @@ contains
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
             & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-!          call sharp_execute(SHARP_YtW, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-!               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+          call sharp_execute(SHARP_YtW, 2, 2, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
           self%alm(:,2:3) = 0.d0
        end if
     else

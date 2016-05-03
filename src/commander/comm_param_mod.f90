@@ -27,6 +27,7 @@ module comm_param_mod
      character(len=512) :: chain_prefix, init_chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
+     logical(lgt)       :: only_pol
 
      ! Output parameters
      character(len=512) :: outdir
@@ -99,6 +100,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
      integer(i4b),       allocatable, dimension(:)     :: cs_cl_poltype
+     logical(lgt),       allocatable, dimension(:)     :: cs_output_EB
      character(len=512), allocatable, dimension(:)     :: cs_input_amp
      character(len=512), allocatable, dimension(:)     :: cs_prior_amp
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
@@ -201,6 +203,7 @@ contains
     call get_parameter(paramfile, 'CHAIN_PREFIX',             par_string=cpar%chain_prefix)
     call get_parameter(paramfile, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
     call get_parameter(paramfile, 'INIT_SAMPLE_NUMBER',       par_int=cpar%init_samp)
+    call get_parameter(paramfile, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
 
     call get_parameter(paramfile, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
     call get_parameter(paramfile, 'CG_MAXITER',               par_int=cpar%cg_maxiter)
@@ -238,7 +241,6 @@ contains
     call get_parameter(paramfile, 'NUMBAND',         par_int=cpar%numband)
     call get_parameter(paramfile, 'DATA_DIRECTORY',  par_string=cpar%datadir)
     call get_parameter(paramfile, 'SOURCE_MASKFILE', par_string=cpar%ds_sourcemask)
-    cpar%ds_sourcemask = trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask)
 
     n = cpar%numband
     allocate(cpar%ds_active(n), cpar%ds_label(n))
@@ -307,7 +309,7 @@ contains
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
-    allocate(cpar%cs_l_apod(n))
+    allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
@@ -327,6 +329,8 @@ contains
        if (trim(cpar%cs_type(i)) == 'md') then
           call get_parameter(paramfile, 'COMP_MD_DEFINITION_FILE'//itext, par_string=cpar%cs_SED_template(1,i))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
+          if (cpar%cs_polarization(i)) &
+               & call get_parameter(paramfile, 'COMP_OUTPUT_EB_MAP'//itext,        par_lgt=cpar%cs_output_EB(i))
           call get_parameter(paramfile, 'COMP_CG_SCALE'//itext,        par_dp=cpar%cs_cg_scale(i))
           call get_parameter(paramfile, 'COMP_NSIDE'//itext,           par_int=cpar%cs_nside(i))
           call get_parameter(paramfile, 'COMP_LMAX_AMP'//itext,        par_int=cpar%cs_lmax_amp(i))
@@ -984,9 +988,10 @@ contains
     end do
 
     ! Instrument data base
-    call validate_file(trim(datadir)//trim(cpar%cs_inst_parfile))   ! Instrument data base
+    if (trim(cpar%cs_inst_parfile) /= 'none') &
+         & call validate_file(trim(datadir)//trim(cpar%cs_inst_parfile))   ! Instrument data base
     if (trim(cpar%ds_sourcemask) /= 'none') &
-         & call validate_file(trim(cpar%ds_sourcemask))   ! Source mask
+         & call validate_file(trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask))   ! Source mask
 
     ! Check component files
     do i = 1, cpar%cs_ncomp_tot

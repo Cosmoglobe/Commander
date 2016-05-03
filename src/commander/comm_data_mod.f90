@@ -89,7 +89,10 @@ contains
              data(n)%mask%map = 0.d0
           end where
        end if
-       call apply_source_mask(data(n)%mask, cpar%ds_sourcemask, data(n)%B%r_max)
+       if (trim(cpar%ds_sourcemask) /= 'none') then
+          call apply_source_mask(data(n)%mask, trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask), &
+               & data(n)%B%r_max)
+       end if
        call update_status(status, "data_mask")
 
        ! Initialize noise structures
