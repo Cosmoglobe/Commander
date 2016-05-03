@@ -4,6 +4,7 @@ module comm_signal_mod
   use comm_diffuse_comp_mod
   use comm_cmb_comp_mod
   use comm_powlaw_comp_mod
+  use comm_physdust_comp_mod
   use comm_spindust_comp_mod
   use comm_MBB_comp_mod
   use comm_freefree_comp_mod
@@ -43,6 +44,8 @@ contains
              c => comm_cmb_comp(cpar, ncomp, i)
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
+          case ("physdust")
+             c => comm_physdust_comp(cpar, ncomp, i)
           case ("spindust")
              c => comm_spindust_comp(cpar, ncomp, i)
           case ("MBB")
@@ -82,6 +85,8 @@ contains
           call report_error("Unknown component class: "//trim(cpar%cs_class(i)))
        end select
     end do
+
+    if (ncomp == 0) call report_error("Error: No signal components included in parameter file.")
 
     ! Compute position and length of each component in parameter array
     allocate(ind_comp(ncomp,3))

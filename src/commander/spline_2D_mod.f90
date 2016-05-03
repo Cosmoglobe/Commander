@@ -418,6 +418,79 @@ contains
   end function splin2_full_precomp
 
 
+  function splin2_full_precomp_irreg(x, y, coeff, x0, y0)
+    implicit none
+     
+    real(dp), dimension(1:),          intent(in)  :: x, y
+    real(dp), dimension(1:,1:,1:,1:), intent(in)  :: coeff
+    real(dp),                         intent(in)  :: x0, y0
+    real(dp)                                      :: splin2_full_precomp_irreg
+
+    integer(i4b) :: i, j, b_x, b_y, m, n
+    real(dp)     :: u, v, s, inv_h_x, inv_h_y
+    real(dp), dimension(4) :: u_pow, v_pow, Av
+
+    m = size(x)
+    n = size(y)
+
+    b_x = locate(x, x0)
+    b_y = locate(y, y0)
+    !b_x = max(min(int((x0-x(1))*inv_h_x)+1,m-1),1)
+    !b_y = max(min(int((y0-y(1))*inv_h_y)+1,n-1),1)
+
+
+    if (x0 < x(1) .or. x0 > x(m)) then
+       write(*,fmt='(a,3f8.3)') 'splin2_full_precomp_irreg -- Warning: x0 out of bounds = ', x(1), x0, x(m)
+       splin2_full_precomp_irreg = 0.d0
+       return
+    end if
+
+    if (y0 < y(1) .or. y0 > y(n)) then
+       write(*,fmt='(a,3f8.3)') 'splin2_full_precomp_irreg -- Warning: y0 out of bounds = ', y(1), y0, y(n)
+       splin2_full_precomp_irreg = 0.d0
+       return
+    end if
+
+    !inv_h_x = 1.d0 / (x(2)-x(1))
+    !inv_h_y = 1.d0 / (y(2)-y(1))
+    if (b_x == m) then
+       inv_h_x = 1.d0 / (x(b_x)-x(b_x-1))
+    else
+       inv_h_x = 1.d0 / (x(b_x+1)-x(b_x))
+    end if
+
+    if (b_y == n) then
+       inv_h_y = 1.d0 / (y(b_y)-y(b_y-1))
+    else
+       inv_h_y = 1.d0 / (y(b_y+1)-y(b_y))
+    end if
+
+    ! Compute spline value
+    u = (x0-x(b_x)) * inv_h_x
+    v = (y0-y(b_y)) * inv_h_y
+
+    u_pow(1) = 1.d0
+    u_pow(2) = u
+    u_pow(3) = u_pow(2) * u
+    u_pow(4) = u_pow(3) * u
+
+    v_pow(1) = 1.d0
+    v_pow(2) = v
+    v_pow(3) = v_pow(2) * v
+    v_pow(4) = v_pow(3) * v
+
+    s = 0.d0
+    do j = 1, 4
+       do i = 1, 4
+          s = s + coeff(i,j,b_x,b_y) * u_pow(i) * v_pow(j)
+       end do
+    end do
+
+    splin2_full_precomp_irreg = s
+
+  end function splin2_full_precomp_irreg
+
+
   ! -----------------------------------------------------------    
   ! Routines for direct low-precomputation 2D spline interpolation
   !-------------------------------------------------------------

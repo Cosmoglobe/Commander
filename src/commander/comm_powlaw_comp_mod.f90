@@ -59,7 +59,7 @@ contains
        constructor%theta(1)%p%map = constructor%theta_def(1)
     else
        ! Read map from FITS file, and convert to alms
-       constructor%theta(1)%p => comm_map(info, cpar%cs_input_ind(1,id_abs))
+       constructor%theta(1)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(1,id_abs)))
     end if
     call constructor%theta(1)%p%YtW
 

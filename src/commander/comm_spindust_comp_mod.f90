@@ -63,12 +63,12 @@ contains
        constructor%theta(1)%p%map = constructor%theta_def(1)
     else
        ! Read map from FITS file, and convert to alms
-       constructor%theta(1)%p => comm_map(info, cpar%cs_input_ind(1,id_abs))
+       constructor%theta(1)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(1,id_abs)))
     end if
     call constructor%theta(1)%p%YtW
 
     ! Initialize spectral template
-    call read_spectrum(cpar%cs_SED_template(id_abs), SED)
+    call read_spectrum(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), SED)
     ind                = maxloc(SED(:,2))
     constructor%nu_p0  = SED(ind(1),1)
     constructor%nu_min = minval(SED(:,1))

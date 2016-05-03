@@ -50,7 +50,8 @@ contains
     call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Read line template file
-    call read_line_template(cpar%cs_SED_template(id_abs), nline, label, mu, sigma, line2RJ, poltype)
+    call read_line_template(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), &
+         & nline, label, mu, sigma, line2RJ, poltype)
 
     ! Check how many lines are included in current run
     n         = 0

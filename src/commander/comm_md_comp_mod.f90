@@ -199,7 +199,7 @@ contains
 
     ! Find number of lines
     n = 0
-    open(unit, file=trim(cpar%cs_SED_template(id_abs)), recl=1024)
+    open(unit, file=trim(cpar%cs_SED_template(1,id_abs)), recl=1024)
     do while (.true.)
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))

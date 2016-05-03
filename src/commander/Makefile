@@ -4,7 +4,7 @@ COBJS  := d1mach.o drc3jj.o comm_hdf_mod.o sharp.o sort_utils.o math_tools.o loc
           comm_defs.o comm_utils.o comm_cr_utils.o comm_cr_precond_mod.o \
           comm_shared_output_mod.o comm_status_mod.o \
 	  comm_bp_utils.o comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o \
-	  comm_cmb_comp_mod.o comm_powlaw_comp_mod.o comm_MBB_comp_mod.o \
+	  comm_cmb_comp_mod.o comm_powlaw_comp_mod.o comm_physdust_comp_mod.o comm_MBB_comp_mod.o \
           comm_freefree_comp_mod.o comm_line_comp_mod.o comm_spindust_comp_mod.o \
           comm_md_comp_mod.o comm_template_comp_mod.o comm_ptsrc_comp_mod.o \
 	  comm_nonlin_mod.o comm_N_mod.o comm_N_rms_mod.o \
@@ -40,6 +40,7 @@ comm_ptsrc_comp_mod.o :    comm_template_comp_mod.o comm_F_int_0D_mod.o comm_F_i
                            comm_hdf_mod.o comm_cr_precond_mod.o
 comm_cmb_comp_mod.o :      comm_diffuse_comp_mod.o comm_F_int_0D_mod.o
 comm_powlaw_comp_mod.o :   comm_diffuse_comp_mod.o comm_F_int_1D_mod.o
+comm_physdust_comp_mod.o : comm_diffuse_comp_mod.o comm_F_int_1D_mod.o
 comm_spindust_comp_mod.o : comm_diffuse_comp_mod.o comm_F_int_1D_mod.o
 comm_MBB_comp_mod.o :      comm_diffuse_comp_mod.o comm_F_int_2D_mod.o
 comm_freefree_comp_mod.o : comm_diffuse_comp_mod.o comm_F_int_2D_mod.o
@@ -48,7 +49,8 @@ comm_md_comp_mod.o :       comm_diffuse_comp_mod.o comm_F_line_mod.o
 comm_signal_mod.o :        comm_powlaw_comp_mod.o comm_cmb_comp_mod.o \
                            comm_spindust_comp_mod.o comm_MBB_comp_mod.o \
                            comm_freefree_comp_mod.o comm_line_comp_mod.o \
-                           comm_md_comp_mod.o comm_template_comp_mod.o comm_cr_mod.o
+                           comm_md_comp_mod.o comm_template_comp_mod.o \
+                           comm_cr_mod.o comm_physdust_comp_mod.o
 comm_nonlin_mod.o :        comm_data_mod.o comm_comp_mod.o comm_chisq_mod.o
 comm_N_mod.o :             comm_param_mod.o
 comm_N_rms_mod.o :         comm_N_mod.o

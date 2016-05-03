@@ -81,7 +81,7 @@ program commander
   end if
 
   ! Output SEDs for each component
-  if (.false.) then
+  if (cpar%output_debug_seds) then
      if (cpar%myid == cpar%root) call dump_components('sed.dat')
      call mpi_finalize(ierr)
      stop
