@@ -138,7 +138,7 @@ contains
     real(dp),           allocatable, dimension(:) :: rhs, x
 
     allocate(x(ncr))
-    call cr_computeRHS(handle, rhs)
+    call cr_computeRHS(cpar%operation, handle, rhs)
     call update_status(status, "init_precond1")
     call initDiffPrecond(cpar%comm_chain)
     call initPtsrcPrecond(cpar%comm_chain)

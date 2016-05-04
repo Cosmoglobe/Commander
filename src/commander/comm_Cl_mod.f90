@@ -97,8 +97,8 @@ contains
        call constructor%binCls
        if (cpar%only_pol) then
           constructor%stat(:,1:3) = '0'
-          constructor%Dl(:,1)     = 0.d0
-          if (constructor%nspec == 6) constructor%Dl(:,2:3) = 0.d0
+          constructor%Dl(:,TT)     = 0.d0
+          if (constructor%nspec == 6) constructor%Dl(:,[TE,TB]) = 0.d0
        end if
     else if (trim(constructor%type) == 'power_law') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))

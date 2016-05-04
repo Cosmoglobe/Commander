@@ -260,9 +260,9 @@ contains
   ! Definition of linear system
   ! ---------------------------
 
-  subroutine cr_computeRHS(handle, rhs)
+  subroutine cr_computeRHS(operation, handle, rhs)
     implicit none
-
+    character(len=*),                            intent(in)             :: operation
     type(planck_rng),                            intent(inout)          :: handle
     real(dp),         allocatable, dimension(:), intent(out)            :: rhs
 
@@ -284,13 +284,15 @@ contains
        ! Set up Wiener filter term
        map => comm_map(data(i)%map)
        call data(i)%N%sqrtInvN(map)
-
+       
        ! Add channel-dependent white noise fluctuation
-       do k = 1, map%info%nmaps
-          do j = 0, map%info%np-1
-!             map%map(j,k) = map%map(j,k) + rand_gauss(handle)
+       if (trim(operation) == 'sample') then
+          do k = 1, map%info%nmaps
+             do j = 0, map%info%np-1
+                map%map(j,k) = map%map(j,k) + rand_gauss(handle)
+             end do
           end do
-       end do
+       end if
 
        ! Multiply with sqrt(invN)
        call data(i)%N%sqrtInvN(map)
@@ -299,11 +301,6 @@ contains
        call map%Yt()
        call data(i)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=map)
 
-!!$       call map%Y()
-!!$       call map%writeFITS('test.fits')
-!!$       call mpi_finalize(ierr)
-!!$       stop
-       
        ! Multiply with (transpose and component specific) mixing matrix, and
        ! insert into correct segment
        c => compList
@@ -342,10 +339,6 @@ contains
        deallocate(map)
     end do
 
-!!$    write(*,*) real(rhs(1:100),sp)
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
     ! Add prior terms
     c => compList
     do while (associated(c))
@@ -356,11 +349,13 @@ contains
              allocate(eta(0:c%x%info%nalm-1,c%x%info%nmaps))
              eta = 0.d0
              ! Variance term
-             do j = 1, c%x%info%nmaps
-                do i = 0, c%x%info%nalm-1
-!                   eta(i,j) = rand_gauss(handle)
+             if (trim(operation) == 'sample') then
+                do j = 1, c%x%info%nmaps
+                   do i = 0, c%x%info%nalm-1
+                      eta(i,j) = rand_gauss(handle)
+                   end do
                 end do
-             end do
+             end if
              ! Mean term
              if (associated(c%mu)) then
                 mu => comm_map(c%mu)
