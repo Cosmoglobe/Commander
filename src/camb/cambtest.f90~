@@ -1,9 +1,0 @@
-program cambtest
-  use comm_camb_mod
-  implicit none
-
-
-
-
-
-end program cambtest
