@@ -91,6 +91,9 @@ all : commander
 commander : 
 	@cd src/commander; $(MAKE)
 
+camb : 
+	@cd src/camb; $(MAKE)
+
 messcomm : 
 	@cd src/messcomm; $(MAKE) 
 
