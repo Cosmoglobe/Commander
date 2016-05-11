@@ -6,7 +6,7 @@ module comm_Cl_mod
   implicit none
 
   private
-  public comm_Cl
+  public comm_Cl, write_sigma_l
 
   integer(i4b), parameter :: TT = 1
   integer(i4b), parameter :: TE = 2
@@ -208,7 +208,7 @@ contains
 
     if (n == 0) call report_error("Error: Cl bin file " // trim(binfile) &
          & // " does not contain any valid entries")
-    
+
     self%nbin = n
     allocate(self%stat(n,6), self%bins(n,2))
     open(unit,file=trim(binfile))
@@ -398,7 +398,10 @@ contains
 
     do k = 1, self%nbin
        do j = 1, self%nspec
-          if (self%stat(k,j) == '0' .or. self%stat(k,j) == 'C') cycle
+          if (self%stat(k,j) == '0' .or. self%stat(k,j) == 'C') then
+             self%Dl(self%bins(k,1):self%bins(k,2),j) = 0.d0
+             cycle
+          end if
           val = 0.d0
           n   = 0.d0
           do l = self%bins(k,1), self%bins(k,2)
@@ -480,6 +483,7 @@ contains
     
     integer(i4b) :: i, l, unit
     character(len=512) :: filename
+    real(dp), allocatable, dimension(:,:) :: sigmal
 
     if (trim(self%outdir) == 'none') return
 
@@ -489,7 +493,7 @@ contains
     if (self%nspec == 1) then
        write(unit,*) '# Columns are {l, Dl_TT}'
     else
-       write(unit,*) '# Columns are {l, Dl_TT, Dl_EE, Dl_BB, Dl_TE, Dl_TB, Dl_EB}'
+       write(unit,*) '# Columns are {l, Dl_TT, Dl_TE, Dl_TB, Dl_EE, Dl_EB, Dl_BB}'
     end if
     do l = 0, self%lmax
        if (self%nspec == 1) then
@@ -545,6 +549,34 @@ contains
     end if
     
   end subroutine write_powlaw_to_FITS
+
+  subroutine write_sigma_l(filename, sigma_l)
+    implicit none
+    character(len=*),                   intent(in) :: filename
+    real(dp),         dimension(0:,1:), intent(in) :: sigma_l
+
+    integer(i4b) :: unit, l, lmax, nspec
+
+    lmax  = size(sigma_l,1)-1
+    nspec = size(sigma_l,2)
+
+    unit = getlun()
+    open(unit,file=trim(filename), recl=1024)
+    if (nspec == 1) then
+       write(unit,*) '# Columns are {l, Dl_TT}'
+    else
+       write(unit,*) '# Columns are {l, Dl_TT, Dl_TE, Dl_TB, Dl_EE, Dl_EB, Dl_BB}'
+    end if
+    do l = 0, lmax
+       if (nspec == 1) then
+          write(unit,fmt='(i6,e16.8)') l, sigma_l(l,:) * l*(l+1)/(2.d0*pi)
+       else
+          write(unit,fmt='(i6,6e16.8)') l, sigma_l(l,:) * l*(l+1)/(2.d0*pi)
+       end if
+    end do
+    close(unit)
+
+  end subroutine write_sigma_l
   
   
 end module comm_Cl_mod

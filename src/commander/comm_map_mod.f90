@@ -19,7 +19,7 @@ module comm_map_mod
      type(sharp_geom_info) :: geom_info
      logical(lgt) :: pol
      integer(i4b) :: comm, myid, nprocs
-     integer(i4b) :: nside, npix, nmaps, nring, np, lmax, nm, nalm
+     integer(i4b) :: nside, npix, nmaps, nspec, nring, np, lmax, nm, nalm
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
      integer(c_int), allocatable, dimension(:)   :: mind
@@ -100,6 +100,7 @@ contains
     constructor_mapinfo%nprocs = nprocs
     constructor_mapinfo%nside  = nside
     constructor_mapinfo%nmaps  = nmaps
+    constructor_mapinfo%nspec  = nmaps*(nmaps+1)/2
     constructor_mapinfo%lmax   = lmax
     constructor_mapinfo%pol    = pol
     constructor_mapinfo%npix   = 12*nside**2
@@ -256,12 +257,17 @@ contains
     class(comm_map), intent(inout)          :: self
 
     integer(i4b) :: i
+    type(comm_mapinfo), pointer :: info
     
+    info => comm_mapinfo(self%info%comm, self%info%nside, self%info%lmax, self%info%nmaps, .false.)
+
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     do i = 1, self%info%nmaps
-       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
-            & self%map(:,i:i), self%info%geom_info, comm=self%info%comm)
+       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
+            & self%map(:,i:i), info%geom_info, comm=info%comm)
     end do
+
+    deallocate(info)
     
   end subroutine exec_sharp_Y_EB
 
@@ -710,17 +716,16 @@ contains
 
   end subroutine add
 
-  function getSigmaL(self) result(sigma_l)
+  subroutine getSigmaL(self, sigma_l)
     implicit none
-    class(comm_map),                      intent(in) :: self
-    real(dp), allocatable, dimension(:,:)            :: sigma_l
+    class(comm_map),                   intent(in)  :: self
+    real(dp),        dimension(0:,1:), intent(out) :: sigma_l
 
     integer(i4b) :: l, m, i, j, k, ind, nspec, lmax, nmaps, ierr
 
     lmax  = self%info%lmax
     nmaps = self%info%nmaps
     nspec = nmaps*(nmaps+1)/2
-    allocate(sigma_l(0:lmax,nspec))
     sigma_l = 0.d0
     do ind = 0, self%info%nalm-1
        call self%info%i2lm(ind,l,m)
@@ -740,6 +745,6 @@ contains
        sigma_l(l,:) = sigma_l(l,:) / real(2*l+1,dp)
     end do
 
-  end function getSigmaL
+  end subroutine getSigmaL
   
 end module comm_map_mod

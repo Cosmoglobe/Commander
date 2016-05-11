@@ -63,11 +63,12 @@ contains
 !!$    q     = cr_matmulA(x)
 !!$    if (cpar%myid == root) write(*,*) q(j)
     
-!!$    do i = 1, n
+!!$    do i = 2*n/3+5, 3*n/3
 !!$       if (cpar%myid == root) x    = 0.d0
 !!$       if (cpar%myid == root) x(i) = 1.d0
 !!$       q     = cr_matmulA(x)
-!!$       if (cpar%myid == root) write(*,*) i, q(i)/P_cr%invM_diff(i-1,1)%M(1,1)
+!!$       j     = i-2*n/3
+!!$       if (cpar%myid == root) write(*,*) i, q(i)/P_cr%invM_diff(j-1,3)%M(1,1)
 !!$    end do
 !    if (cpar%myid == root) x    = 0.d0
 !    if (cpar%myid == root) x(2) = 1.d0
@@ -272,8 +273,6 @@ contains
     class(comm_mapinfo), pointer                 :: info
     real(dp),        allocatable, dimension(:,:) :: eta, Tp
 
-    call rand_init(handle, 10)
-    
     ! Initialize output vector
     allocate(rhs(ncr))
     rhs = 0.d0
@@ -283,23 +282,23 @@ contains
 
        ! Set up Wiener filter term
        map => comm_map(data(i)%map)
-       call data(i)%N%sqrtInvN(map)
-       
+
        ! Add channel-dependent white noise fluctuation
        if (trim(operation) == 'sample') then
+          call data(i)%N%sqrtInvN(map)           ! Multiply with sqrt(invN)
           do k = 1, map%info%nmaps
              do j = 0, map%info%np-1
                 map%map(j,k) = map%map(j,k) + rand_gauss(handle)
              end do
           end do
+          call data(i)%N%sqrtInvN(map)          ! Multiply with sqrt(invN)
+       else
+          call data(i)%N%invN(map)          ! Multiply with sqrt(invN)
        end if
-
-       ! Multiply with sqrt(invN)
-       call data(i)%N%sqrtInvN(map)
 
        ! Convolve with transpose beam
        call map%Yt()
-       call data(i)%B%conv(alm_in=.false., alm_out=.false., trans=.true., map=map)
+       call data(i)%B%conv(trans=.true., map=map)
 
        ! Multiply with (transpose and component specific) mixing matrix, and
        ! insert into correct segment
@@ -370,8 +369,6 @@ contains
        c => c%next()
     end do
     nullify(c)
-
-!    write(*,*) real(rhs(1:100),sp)
 
   end subroutine cr_computeRHS
 

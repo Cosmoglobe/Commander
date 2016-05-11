@@ -56,17 +56,14 @@ contains
     
   end function constructor
   
-  subroutine matmulB(self, alm_in, alm_out, trans, map)
+  subroutine matmulB(self, trans, map)
     implicit none
     class(comm_B_bl), intent(in)    :: self
-    logical(lgt),     intent(in)    :: alm_in, alm_out
     logical(lgt),     intent(in)    :: trans
     class(comm_map),  intent(inout) :: map
 
     integer(i4b) :: i, l
 
-    !if (.not. alm_in) call map%YtW
-    
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
        if (l <= self%info%lmax) then
@@ -75,8 +72,6 @@ contains
           map%alm(i,:) = 0.d0
        end if
     end do
-
-    !if (.not. alm_out) call map%Y
 
   end subroutine matmulB
   

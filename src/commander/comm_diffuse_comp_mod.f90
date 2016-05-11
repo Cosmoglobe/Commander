@@ -431,7 +431,6 @@ contains
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
           if (P_cr%invM_diff(i,j)%n > 0) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
-          !if (P_cr%invM_diff(i,j)%n > 0) P_cr%invM_diff(i,j)%M = P_cr%invM_diff(i,j)%M /pi
        end do
     end do
     call wall_time(t2)
@@ -605,7 +604,7 @@ contains
     end if
        
     ! Convolve with band-specific beam
-    call data(band)%B%conv(alm_in=(self%lmax_ind==0), alm_out=.false., trans=.false., map=m)
+    call data(band)%B%conv(trans=.false., map=m)
     if (.not. alm_out_) call m%Y()
 
     ! Return correct data product
@@ -651,7 +650,7 @@ contains
     else
        ! Convolve with band-specific beam
        if (.not. alm_in) call m%Yt()
-       call data(band)%B%conv(alm_in=.false., alm_out=(self%lmax_ind==0), trans=.true., map=m)
+       call data(band)%B%conv(trans=.true., map=m)
 
        if (self%lmax_ind == 0) then
           call m%alm_equal(m_out)
@@ -803,7 +802,7 @@ contains
        end if
 
        filename = trim(self%label) // '_' // trim(postfix) // '.fits'
-       call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
+       call self%B_out%conv(trans=.false., map=map)
        call map%Y
        map%alm = self%x%alm * self%RJ2unit_ * self%cg_scale  ! Replace convolved with original alms
        if (output_hdf) then
@@ -819,17 +818,21 @@ contains
           map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
           
           filename = trim(self%label) // '_' // trim(postfix) // '_TEB.fits'
-          call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
+          call self%B_out%conv(trans=.false., map=map)
           call map%Y_EB
           call map%writeFITS(trim(dir)//'/'//trim(filename))
           deallocate(map)
        end if
        
-       sigma_l = self%x%getSigmaL()
-       if (self%x%info%myid == 0 .and. output_hdf) then
-          call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
+       allocate(sigma_l(0:self%x%info%lmax,self%x%info%nspec))
+       call self%x%getSigmaL(sigma_l)
+       sigma_l = sigma_l * self%RJ2unit()**2
+       if (self%x%info%myid == 0) then
+          filename = trim(dir)//'/sigma_l_'//trim(self%label) // '_' // trim(postfix) // '.dat'
+          call write_sigma_l(filename, sigma_l)
+          if (output_hdf) call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
        end if
-       if (allocated(sigma_l)) deallocate(sigma_l)
+       deallocate(sigma_l)
        
        ! Write spectral index maps
        do i = 1, self%npar
