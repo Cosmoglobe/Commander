@@ -661,6 +661,7 @@ contains
     real(dp)            :: vals(2)
     logical(lgt)        :: ok
 
+    val = default
     inquire(file=trim(filename), exist=ok)
     if (ok) then
        unit = getlun()
@@ -681,10 +682,7 @@ contains
              goto 99
           end if
        end do
-       val = default
 99     close(unit)
-    else
-       val = default
     end if
 
   end subroutine read_instrument_file

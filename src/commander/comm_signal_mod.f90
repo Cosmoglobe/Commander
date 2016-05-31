@@ -44,6 +44,7 @@ contains
              c => comm_cmb_comp(cpar, ncomp, i)
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
+             call update_status(status, "init_done")
           case ("physdust")
              c => comm_physdust_comp(cpar, ncomp, i)
           case ("spindust")

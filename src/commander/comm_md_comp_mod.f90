@@ -133,7 +133,7 @@ contains
     end do
 
     ! Initialize output beam
-    constructor%B_out => comm_B_bl(cpar, constructor%x%info, 0, 0, fwhm=0.d0)
+    constructor%B_out => comm_B_bl(cpar, constructor%x%info, 0, 0, fwhm=0.d0, init_realspace=.false.)
 
     ! Initialize power spectrum
     allocate(constructor%Cl)

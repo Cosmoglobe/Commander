@@ -539,7 +539,7 @@ contains
     if (self%nspec == 1) then
        write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
     else
-       write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
+       write(unit,fmt='(i8,6e16.8)') self%iter, self%amp, self%beta
     end if
     close(unit)
 

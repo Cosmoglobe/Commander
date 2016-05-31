@@ -135,7 +135,6 @@ contains
        regnoise = 0.d0
        return
     end if
-    if (fsky >= 1.d0) call report_error('Error: Too large noise regularization fsky threshold')
 
     allocate(F(nbin))
     do j = 1, rms%info%nmaps

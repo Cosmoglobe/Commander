@@ -24,15 +24,17 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, id_abs, fwhm)
+  function constructor(cpar, info, id, id_abs, fwhm, init_realspace)
     implicit none
     type(comm_params),                  intent(in)           :: cpar
     type(comm_mapinfo), target,         intent(in)           :: info
     integer(i4b),                       intent(in)           :: id, id_abs
     real(dp),                           intent(in), optional :: fwhm
+    logical(lgt),                       intent(in), optional :: init_realspace
     class(comm_B_bl),   pointer                              :: constructor
 
     integer(i4b)       :: i
+    logical(lgt)       :: init_real
     character(len=512) :: dir
     
     ! General parameters
@@ -51,8 +53,11 @@ contains
     end if
 
     ! Initialize real-space profile
-    call compute_radial_beam(constructor%info%nmaps, constructor%b_l, constructor%b_theta)
-    constructor%r_max = maxval(constructor%b_theta(1)%x)
+    init_real = .true.; if (present(init_realspace)) init_real = init_realspace
+    if (init_real) then
+       call compute_radial_beam(constructor%info%nmaps, constructor%b_l, constructor%b_theta)
+       constructor%r_max = maxval(constructor%b_theta(1)%x)
+    end if
     
   end function constructor
   

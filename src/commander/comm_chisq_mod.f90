@@ -82,6 +82,50 @@ contains
     call ptsrc%dealloc
 
   end function compute_residual
+
+  subroutine output_signals_per_band(outdir, postfix)
+    implicit none
+    character(len=*), intent(in) :: outdir, postfix
     
+    integer(i4b) :: i
+    character(len=1024) :: filename
+    class(comm_comp), pointer :: c
+    class(comm_map),  pointer :: out
+    real(dp),     allocatable, dimension(:,:) :: map, alm
+    integer(i4b), allocatable, dimension(:)   :: pix
+    
+    do i = 1, numband
+       out => comm_map(data(i)%info)  
+
+       ! Compute predicted signal for this band
+       c => compList
+       do while (associated(c))
+          out%alm = 0.d0
+          out%map = 0.d0
+          select type (c)
+          class is (comm_diffuse_comp)
+             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
+             alm     = c%getBand(i, alm_out=.true.)
+             call out%add_alm(alm, c%x%info)
+             call out%Y()
+             deallocate(alm)
+          class is (comm_ptsrc_comp)
+             allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
+             map     = c%getBand(i)
+             out%map = out%map + map
+             deallocate(map)
+          end select
+          filename = trim(outdir)//'/'//trim(c%label)//'_'//trim(data(i)%label)//'_'//trim(postfix)//'.fits'
+          call out%writeFITS(filename)
+          c => c%next()
+       end do
+    end do
+
+    ! Clean up
+    nullify(c)
+    call out%dealloc
+
+  end subroutine output_signals_per_band
+
 
 end module comm_chisq_mod

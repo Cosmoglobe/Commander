@@ -109,6 +109,9 @@ contains
             & 'Chain = ', cpar%mychain, ' -- chisq = ', chisq
     end if
 
+    ! Output signal components per band
+    if (cpar%output_sig_per_band) call output_signals_per_band(cpar%outdir, postfix)
+
     if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
   end subroutine output_FITS_sample
 

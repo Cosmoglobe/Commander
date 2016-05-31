@@ -34,7 +34,7 @@ module comm_param_mod
      integer(i4b)       :: nside_chisq, nmaps_chisq
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
-     logical(lgt)       :: output_input_model, output_debug_seds
+     logical(lgt)       :: output_input_model, output_debug_seds, output_sig_per_band
      
      ! Numerical parameters
      integer(i4b)      :: cg_lmax_precond, cg_maxiter
@@ -225,6 +225,7 @@ contains
     call get_parameter(paramfile, 'OUTPUT_CG_PRECOND_EIGENVALS', par_lgt=cpar%output_cg_eigenvals)
     call get_parameter(paramfile, 'OUTPUT_INPUT_MODEL',       par_lgt=cpar%output_input_model)
     call get_parameter(paramfile, 'OUTPUT_DEBUG_SEDS',        par_lgt=cpar%output_debug_seds)
+    call get_parameter(paramfile, 'OUTPUT_SIGNALS_PER_BAND',  par_lgt=cpar%output_sig_per_band)
 
   end subroutine read_global_params
 

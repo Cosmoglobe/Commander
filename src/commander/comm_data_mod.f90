@@ -173,7 +173,7 @@ contains
     character(len=*), intent(in)    :: sourcefile
     real(dp),         intent(in)    :: r_max
 
-    integer(i4b)       :: i, j, p, unit, nlist, nmax=10000
+    integer(i4b)       :: i, j, l, p, unit, nlist, nmax=10000, itmp
     real(dp)           :: lon, lat, rad, vec(3)
     character(len=512) :: line
     integer(i4b), allocatable, dimension(:) :: listpix
@@ -188,6 +188,18 @@ contains
        call ang2vec(0.5d0*pi-lat*DEG2RAD, lon*DEG2RAD, vec)
        allocate(listpix(0:nmax-1))
        call query_disc(mask%info%nside, vec, r_max*rad, listpix, nlist)
+
+       ! Sort pixel list according to increasing pixel number
+       do j = 1, nlist-1
+          itmp          = listpix(j)
+          l             = j-1
+          do while (l >= 0)
+             if (listpix(l) <= itmp) exit
+             listpix(l+1) = listpix(l)
+             l            = l-1
+          end do
+          listpix(l+1)    = itmp
+       end do
 
        ! Mask pixels belonging to current processor
        i    = 0

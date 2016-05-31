@@ -61,7 +61,7 @@ contains
        ! Read map from FITS file, and convert to alms
        constructor%theta(1)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(1,id_abs)))
     end if
-    call constructor%theta(1)%p%YtW
+    call constructor%theta(1)%p%YtW_scalar
 
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(numband))

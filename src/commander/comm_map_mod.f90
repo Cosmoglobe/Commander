@@ -47,6 +47,9 @@ module comm_map_mod
      procedure     :: Yt   => exec_sharp_Yt
      procedure     :: YtW  => exec_sharp_YtW
      procedure     :: Y_EB => exec_sharp_Y_EB
+     procedure     :: Y_scalar    => exec_sharp_Y_scalar
+     procedure     :: Yt_scalar   => exec_sharp_Yt_scalar
+     procedure     :: YtW_scalar  => exec_sharp_YtW_scalar
      procedure     :: writeFITS
      procedure     :: readFITS
      procedure     :: readHDF
@@ -250,6 +253,20 @@ contains
     end if
     
   end subroutine exec_sharp_Y
+
+  subroutine exec_sharp_Y_scalar(self)
+    implicit none
+
+    class(comm_map), intent(inout)          :: self
+    integer(i4b) :: i
+
+    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
+    do i = 1, self%info%nmaps
+       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
+            & self%map(:,i:i), self%info%geom_info, comm=self%info%comm)
+    end do
+    
+  end subroutine exec_sharp_Y_scalar
   
   subroutine exec_sharp_Y_EB(self)
     implicit none
@@ -292,6 +309,20 @@ contains
     
   end subroutine exec_sharp_Yt
 
+  subroutine exec_sharp_Yt_scalar(self)
+    implicit none
+
+    class(comm_map), intent(inout) :: self
+    integer(i4b) :: i
+
+    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
+    do i = 1, self%info%nmaps
+       call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,i:i), self%info%alm_info, &
+            & self%map(:,i:i), self%info%geom_info, comm=self%info%comm)
+    end do
+    
+  end subroutine exec_sharp_Yt_scalar
+
   subroutine exec_sharp_YtW(self)
     implicit none
 
@@ -304,7 +335,6 @@ contains
        if (self%info%nmaps == 3) then
           call sharp_execute(SHARP_YtW, 2, 2, self%alm(:,2:3), self%info%alm_info, &
                & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
-          self%alm(:,2:3) = 0.d0
        end if
     else
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
@@ -312,6 +342,20 @@ contains
     end if
     
   end subroutine exec_sharp_YtW
+
+  subroutine exec_sharp_YtW_scalar(self)
+    implicit none
+
+    class(comm_map), intent(inout) :: self
+    integer(i4b) :: i
+
+    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
+    do i = 1, self%info%nmaps
+       call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,i:i), self%info%alm_info, &
+            & self%map(:,i:i), self%info%geom_info, comm=self%info%comm)
+    end do
+    
+  end subroutine exec_sharp_YtW_scalar
   
   !**************************************************
   !                   IO routines

@@ -64,7 +64,7 @@ contains
           ! Read map from FITS file, and convert to alms
           constructor%theta(i)%p => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_ind(i,id_abs)))
        end if
-       call constructor%theta(i)%p%YtW
+       call constructor%theta(i)%p%YtW_scalar
     end do
 
     ! Precompute mixmat integrator for each band
@@ -75,6 +75,8 @@ contains
 
     ! Initialize mixing matrix
     call constructor%updateMixmat
+
+    !write(*,*) 'mean ', constructor%F_mean
 
   end function constructor
 

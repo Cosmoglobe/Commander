@@ -127,10 +127,11 @@ contains
     call update_status(status, "init_postmix")
 
     ! Initialize output beam
-    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs))
+    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), init_realspace=.false.)
 
     ! Initialize power spectrum
     self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)
+
     
   end subroutine initDiffuse
 
@@ -472,7 +473,7 @@ contains
           t    => comm_map(info)
           nmaps            = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
           t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
-          call t%Y
+          call t%Y_scalar
           nullify(info)
           do j = 2, self%npar
              info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
@@ -480,7 +481,7 @@ contains
              t0    => comm_map(info)
              nmaps            = min(data(i)%info%nmaps, self%theta(j)%p%info%nmaps)
              t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-             call t0%Y
+             call t0%Y_scalar
              call t%add(t0)
              nullify(info)
           end do
@@ -838,7 +839,7 @@ contains
        do i = 1, self%npar
           filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
                & trim(postfix) // '.fits'
-          call self%theta(i)%p%Y
+          call self%theta(i)%p%Y_scalar
           if (output_hdf) then
              call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename), &
                   & hdffile=chainfile, hdfpath=trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
