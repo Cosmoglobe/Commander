@@ -58,6 +58,7 @@ module comm_map_mod
      procedure     :: add_alm
      procedure     :: udgrade
      procedure     :: getSigmaL
+     procedure     :: smooth
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -174,11 +175,13 @@ contains
     
   end function constructor_mapinfo
 
-  function constructor_map(info, filename)
+  function constructor_map(info, filename, mask_misspix, udgrade)
     implicit none
-    class(comm_mapinfo),           intent(in), target   :: info
-    character(len=*),              intent(in), optional :: filename
-    class(comm_map),     pointer                        :: constructor_map
+    class(comm_mapinfo),                              intent(in),  target   :: info
+    character(len=*),                                 intent(in),  optional :: filename
+    logical(lgt),                                     intent(in),  optional :: udgrade
+    real(dp),            allocatable, dimension(:,:), intent(out), optional :: mask_misspix
+    class(comm_map),     pointer                                            :: constructor_map
 
     allocate(constructor_map)
     constructor_map%info => info
@@ -186,7 +189,12 @@ contains
     allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
 
     if (present(filename)) then
-       call constructor_map%readFITS(filename)
+       if (present(mask_misspix)) then
+          allocate(mask_misspix(0:info%np-1,info%nmaps))
+          call constructor_map%readFITS(filename, mask=mask_misspix, udgrade=udgrade)
+       else
+          call constructor_map%readFITS(filename, udgrade=udgrade)
+       end if
     else
        constructor_map%map = 0.d0
     end if
@@ -443,14 +451,16 @@ contains
     
   end subroutine writeFITS
   
-  subroutine readFITS(self, filename)
+  subroutine readFITS(self, filename, mask, udgrade)
     implicit none
 
-    class(comm_map),  intent(inout) :: self
-    character(len=*), intent(in)    :: filename
+    class(comm_map),                    intent(inout) :: self
+    real(dp),         dimension(0:,1:), intent(out), optional :: mask
+    logical(lgt),                       intent(in),  optional :: udgrade
+    character(len=*),                   intent(in)    :: filename
 
-    integer(i4b) :: i, np, npix, ordering, nside, nmaps, ierr
-    real(dp),     allocatable, dimension(:,:) :: map, buffer
+    integer(i4b) :: i, j, np, npix, ordering, nside, nmaps, ierr, badpix
+    real(dp),     allocatable, dimension(:,:) :: map, buffer, map_in
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
@@ -461,7 +471,7 @@ contains
        call mpi_finalize(ierr)
        stop
     end if
-    if (nside /= self%info%nside) then
+    if (nside /= self%info%nside .and. .not. (present(udgrade))) then
        if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename)
        call mpi_finalize(ierr)
        stop
@@ -472,7 +482,26 @@ contains
 
        ! Read map and convert to RING format if necessary
        allocate(map(0:self%info%npix-1,self%info%nmaps))
-       call input_map(filename, map, self%info%npix, self%info%nmaps)
+       if (present(udgrade)) then
+          allocate(map_in(0:npix-1,nmaps))
+          call input_map(filename, map_in, npix, nmaps)
+          if (ordering == 1) then
+             call udgrade_ring(map_in, nside, map, nside_out=self%info%nside)
+          else
+             call udgrade_nest(map_in, nside, map, nside_out=self%info%nside)
+          end if
+          deallocate(map_in)
+       else
+          call input_map(filename, map, self%info%npix, self%info%nmaps)
+       end if
+
+       if (present(mask)) then
+          badpix = count(abs(map+1.6375d30) < 1d25 .or. map > 1.d30)
+          if (badpix > 0) then
+             write(*,fmt='(a,i8)') '   Number of bad pixels = ', badpix
+          end if
+       end if
+       
        if (ordering == 2) then
           do i = 1, self%info%nmaps
              call convert_nest2ring(self%info%nside, map(:,i))
@@ -498,6 +527,18 @@ contains
        call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
        call mpi_recv(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
             &  self%info%comm, mpistat, ierr)
+    end if
+
+    if (present(mask)) then
+       do j = 1, self%info%nmaps
+          do i = 0, self%info%np-1
+             if (abs(self%map(i,j)+1.6375d30) < 1d25 .or. self%map(i,j) == 0.d0 .or. self%map(i,j) > 1.d30) then
+                mask(i,j) = 0.d0
+             else
+                mask(i,j) = 1.d0
+             end if
+          end do
+       end do
     end if
     
   end subroutine readFITS
@@ -627,10 +668,10 @@ contains
     integer(i4b) :: i, j, ierr
     real(dp), allocatable, dimension(:,:) :: m_in, m_out
 
-!    if (self%info%nside == map_out%info%nside) then
-!       map_out%map = self%map
-!       return
-!    end if
+    if (self%info%nside == map_out%info%nside) then
+       map_out%map = self%map
+       return
+    end if
 
     allocate(m_in(0:self%info%npix-1,self%info%nmaps))
     allocate(m_out(0:map_out%info%npix-1,map_out%info%nmaps))
@@ -642,6 +683,33 @@ contains
     deallocate(m_in, m_out)
 
   end subroutine udgrade
+
+
+  subroutine smooth(self, fwhm)
+    implicit none
+    class(comm_map), intent(inout)    :: self
+    real(dp),        intent(in)       :: fwhm
+
+    integer(i4b) :: i, j, l, m
+    real(dp)     :: sigma, bl, fact_pol
+    real(dp), allocatable, dimension(:,:) :: m_in, m_out
+
+    if (fwhm <= 0.d0) return
+
+    call self%YtW
+    sigma    = fwhm * pi/180.d0/60.d0 / sqrt(8.d0*log(2.d0))
+    fact_pol = exp(2.d0*sigma**2)
+    do i = 0, self%info%nalm-1
+       call self%info%i2lm(i,l,m)
+       do j = 1, self%info%nmaps
+          bl = exp(-0.5*l*(l+1)*sigma**2)
+          if (j > 1) bl = bl * fact_pol
+          self%alm(i,j) = self%alm(i,j) * bl
+       end do
+    end do
+    call self%Y    
+
+  end subroutine smooth
 
   !**************************************************
   !                   Utility routines

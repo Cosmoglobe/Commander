@@ -85,9 +85,10 @@ contains
        do i = 1, numband
           call wall_time(t3)
           map => compute_residual(i)
-          call wall_time(t4)
-          !if (cpar%myid == 0) write(*,*) 'compute = ', t4-t3
-          call wall_time(t3)
+          call data(i)%apply_proc_mask(map)
+          !where (data(i)%procmask%map < 1.d0)  ! Apply processing mask
+             !map%map = -1.6375d30
+          !end where
           call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'// &
                & trim(postfix)//'.fits')
           call wall_time(t4)

@@ -16,11 +16,13 @@ module comm_data_mod
      class(comm_map),     pointer :: map
      class(comm_map),     pointer :: res
      class(comm_map),     pointer :: mask
+     class(comm_map),     pointer :: procmask
      class(comm_N),       pointer :: N
      class(comm_bp),      pointer :: bp
      class(comm_B),       pointer :: B
    contains
      procedure :: RJ2data
+     procedure :: apply_proc_mask
   end type comm_data_set
 
   integer(i4b) :: numband
@@ -39,7 +41,7 @@ contains
     real(dp)           :: t1, t2
     character(len=512) :: dir
     real(dp), allocatable, dimension(:)   :: nu
-    real(dp), allocatable, dimension(:,:) :: map, regnoise
+    real(dp), allocatable, dimension(:,:) :: map, regnoise, mask_misspix
 
     ! Read all data sets
     numband_tot = cpar%numband
@@ -60,7 +62,15 @@ contains
        nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
-       data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_mapfile(i)))
+       data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_mapfile(i)), mask_misspix=mask_misspix)
+
+       ! Read processing mask
+       if (trim(cpar%ds_procmask) /= 'none') then
+          data(n)%procmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+               & udgrade=.true.)
+          !data(n)%map%map = data(n)%map%map * data(n)%procmask%map
+          call smooth_inside_procmask(data(n), cpar%ds_fwhm_proc)
+       end if
        data(n)%res  => comm_map(data(n)%map)
        call update_status(status, "data_map")
 
@@ -89,11 +99,13 @@ contains
              data(n)%mask%map = 0.d0
           end where
        end if
+       data(n)%mask%map = data(n)%mask%map * mask_misspix
        if (trim(cpar%ds_sourcemask) /= 'none') then
           call apply_source_mask(data(n)%mask, trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask), &
                & data(n)%B%r_max)
        end if
        call update_status(status, "data_mask")
+       deallocate(mask_misspix)
 
        ! Initialize noise structures
        select case (trim(cpar%ds_noise_format(i)))
@@ -225,5 +237,39 @@ contains
 23  close(unit)
 
   end subroutine apply_source_mask
-  
+
+  subroutine smooth_inside_procmask(data, fwhm)
+    implicit none
+    class(comm_data_set), intent(in) :: data
+    real(dp),             intent(in) :: fwhm
+
+    integer(i4b) :: i, j
+    real(dp)     :: w
+    class(comm_mapinfo), pointer :: info
+    class(comm_map),     pointer :: map
+
+    map => comm_map(data%map)
+    call map%smooth(fwhm)
+    do j = 1, data%map%info%nmaps
+       do i = 0, data%map%info%np-1
+          w = data%procmask%map(i,j)
+          data%map%map(i,j) = w * data%map%map(i,j) + (1.d0-w) * map%map(i,j)
+       end do
+    end do
+    deallocate(map)
+
+  end subroutine smooth_inside_procmask
+
+  subroutine apply_proc_mask(self, map)
+    implicit none
+    class(comm_data_set), intent(in)    :: self
+    class(comm_map),      intent(inout) :: map
+
+    if (.not. associated(self%procmask)) return
+    where (self%procmask%map < 1.d0)  ! Apply processing mask
+       map%map = -1.6375d30
+    end where
+
+  end subroutine apply_proc_mask
+
 end module comm_data_mod

@@ -322,10 +322,16 @@ contains
     real(dp)                 :: get_Cl_apod
     real(dp) :: alpha
     if (l > l_apod) then
-       get_Cl_apod = 0.5d0*(1.d0 - cos(pi*real(lmax-l+1,dp)/real(lmax-l_apod,dp)))
+       alpha = log(1d3)
+       get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod,dp)**2)
     else
        get_Cl_apod = 1.d0
     end if
+!!$    if (l > l_apod) then
+!!$       get_Cl_apod = 0.5d0*(1.d0 - cos(pi*real(lmax-l+1,dp)/real(lmax-l_apod,dp)))
+!!$    else
+!!$       get_Cl_apod = 1.d0
+!!$    end if
     if (.not. positive) get_Cl_apod = 1.d0 / get_Cl_apod
   end function get_Cl_apod
 

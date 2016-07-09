@@ -28,6 +28,7 @@ module comm_diffuse_comp_mod
      real(dp), allocatable, dimension(:,:) :: F_mean
 
      class(comm_map),               pointer     :: mask
+     class(comm_map),               pointer     :: procmask
      class(comm_map),               pointer     :: x      ! Spatial parameters
      class(comm_map),               pointer     :: mu     ! Spatial prior mean
      class(comm_B),                 pointer     :: B_out  ! Output beam
@@ -108,6 +109,12 @@ contains
        call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
+
+    ! Read processing mask
+    if (trim(cpar%ds_procmask) /= 'none') then
+       self%procmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+            & udgrade=.true.)
+    end if
 
     ! Initialize prior mean
     if (trim(cpar%cs_prior_amp(id_abs)) /= 'none') then
@@ -806,6 +813,9 @@ contains
        call self%B_out%conv(trans=.false., map=map)
        call map%Y
        map%alm = self%x%alm * self%RJ2unit_ * self%cg_scale  ! Replace convolved with original alms
+
+       !call self%apply_proc_mask(map)
+
        if (output_hdf) then
           call map%writeFITS(trim(dir)//'/'//trim(filename), &
                & hdffile=chainfile, hdfpath=trim(path)//'/amp_')
@@ -821,6 +831,7 @@ contains
           filename = trim(self%label) // '_' // trim(postfix) // '_TEB.fits'
           call self%B_out%conv(trans=.false., map=map)
           call map%Y_EB
+          !call self%apply_proc_mask(map)
           call map%writeFITS(trim(dir)//'/'//trim(filename))
           deallocate(map)
        end if
@@ -840,6 +851,8 @@ contains
           filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
                & trim(postfix) // '.fits'
           call self%theta(i)%p%Y_scalar
+          !call self%apply_proc_mask(self%theta(i)%p)
+
           if (output_hdf) then
              call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename), &
                   & hdffile=chainfile, hdfpath=trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&

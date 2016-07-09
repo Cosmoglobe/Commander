@@ -42,7 +42,8 @@ module comm_param_mod
 
      ! Data parameters
      integer(i4b)       :: numband
-     character(len=512) :: datadir, ds_sourcemask
+     character(len=512) :: datadir, ds_sourcemask, ds_procmask
+     real(dp)           :: ds_fwhm_proc
      logical(lgt),       allocatable, dimension(:)   :: ds_active
      integer(i4b),       allocatable, dimension(:)   :: ds_period
      logical(lgt),       allocatable, dimension(:)   :: ds_polarization
@@ -239,9 +240,11 @@ contains
     integer(i4b)     :: i, j, n
     character(len=3) :: itext
     
-    call get_parameter(paramfile, 'NUMBAND',         par_int=cpar%numband)
-    call get_parameter(paramfile, 'DATA_DIRECTORY',  par_string=cpar%datadir)
-    call get_parameter(paramfile, 'SOURCE_MASKFILE', par_string=cpar%ds_sourcemask)
+    call get_parameter(paramfile, 'NUMBAND',             par_int=cpar%numband)
+    call get_parameter(paramfile, 'DATA_DIRECTORY',      par_string=cpar%datadir)
+    call get_parameter(paramfile, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask)
+    call get_parameter(paramfile, 'PROCESSING_MASKFILE', par_string=cpar%ds_procmask)
+    call get_parameter(paramfile, 'PROC_SMOOTH_SCALE',   par_dp=cpar%ds_fwhm_proc)
 
     n = cpar%numband
     allocate(cpar%ds_active(n), cpar%ds_label(n))
@@ -993,6 +996,8 @@ contains
          & call validate_file(trim(datadir)//trim(cpar%cs_inst_parfile))   ! Instrument data base
     if (trim(cpar%ds_sourcemask) /= 'none') &
          & call validate_file(trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask))   ! Source mask
+    if (trim(cpar%ds_procmask) /= 'none') &
+         & call validate_file(trim(cpar%datadir)//'/'//trim(cpar%ds_procmask))   ! Source mask
 
     ! Check component files
     do i = 1, cpar%cs_ncomp_tot

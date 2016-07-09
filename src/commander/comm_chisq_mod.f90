@@ -100,6 +100,11 @@ contains
        ! Compute predicted signal for this band
        c => compList
        do while (associated(c))
+          if (trim(c%type) == 'md') then
+             c => c%next()
+             cycle
+          end if
+
           out%alm = 0.d0
           out%map = 0.d0
           select type (c)
@@ -116,6 +121,7 @@ contains
              deallocate(map)
           end select
           filename = trim(outdir)//'/'//trim(c%label)//'_'//trim(data(i)%label)//'_'//trim(postfix)//'.fits'
+          !call data(i)%apply_proc_mask(out)
           call out%writeFITS(filename)
           c => c%next()
        end do

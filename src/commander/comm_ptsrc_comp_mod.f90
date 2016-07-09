@@ -32,8 +32,10 @@ module comm_ptsrc_comp_mod
      character(len=512) :: outprefix
      character(len=512) :: id
      real(dp)           :: glon, glat, f_beam, vec(3)
-     type(Tnu), allocatable, dimension(:)   :: T      ! Spatial template (nband)
-     real(dp),  allocatable, dimension(:,:) :: theta  ! Spectral parameters (npar,nmaps)
+     type(Tnu), allocatable, dimension(:)     :: T        ! Spatial template (nband)
+     real(dp),  allocatable, dimension(:,:)   :: theta    ! Spectral parameters (npar,nmaps)
+     real(dp),  allocatable, dimension(:,:,:) :: P_theta  ! Gaussian prior on spectral params (npar,nmaps,2)
+     real(dp),  allocatable, dimension(:,:)   :: P_x      ! Gaussian prior on amplitudes (nmaps,2)
   end type ptsrc
   
   type, extends (comm_comp) :: comm_ptsrc_comp
@@ -442,8 +444,8 @@ contains
     logical(lgt)        :: pol, skip_src
     character(len=1024) :: line, filename, tempfile
     character(len=128)  :: id_ptsrc, flabel
-    real(dp), allocatable, dimension(:)   :: amp
-    real(dp), allocatable, dimension(:,:) :: beta
+    real(dp), allocatable, dimension(:)   :: amp, amp_rms
+    real(dp), allocatable, dimension(:,:) :: beta, beta_rms
 
     unit = getlun()
 
@@ -456,7 +458,7 @@ contains
     case ("sz")
        npar = 0
     end select
-    allocate(amp(nmaps), beta(npar,nmaps))
+    allocate(amp(nmaps), amp_rms(nmaps), beta(npar,nmaps), beta_rms(npar,nmaps))
 
     ! Count number of valid sources
     open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
@@ -489,7 +491,7 @@ contains
        read(unit,'(a)',end=2) line
        line = trim(line)
        if (line(1:1) == '#' .or. trim(line) == '') cycle
-       read(line,*) glon, glat, amp, beta, id_ptsrc
+       read(line,*) glon, glat, amp, amp_rms, beta, beta_rms, id_ptsrc
        ! Check for too close neighbours
        skip_src = .false.
        call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
@@ -505,12 +507,20 @@ contains
        else
           i                    = i+1
           allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(numband))
-          self%src(i)%id       = id_ptsrc
-          self%src(i)%glon     = glon * DEG2RAD
-          self%src(i)%glat     = glat * DEG2RAD
-          self%src(i)%theta    = beta
-          self%x(i,:)          = amp / self%cg_scale
-          self%src(i)%vec      = vec
+          allocate(self%src(i)%P_theta(self%npar,self%nmaps,2))
+          allocate(self%src(i)%P_x(self%nmaps,2))
+          self%src(i)%id             = id_ptsrc
+          self%src(i)%glon           = glon * DEG2RAD
+          self%src(i)%glat           = glat * DEG2RAD
+          self%src(i)%theta          = beta
+          self%x(i,:)                = amp / self%cg_scale
+          self%src(i)%vec            = vec
+          self%src(i)%P_x(:,1)       = amp     / self%cg_scale
+          self%src(i)%P_x(:,2)       = amp_rms / self%cg_scale
+          self%src(i)%P_theta(:,:,1) = beta
+          self%src(i)%P_theta(:,:,2) = beta_rms
+          !self%src(i)%P_x(:,1) = 0.d0
+          !self%src(i)%P_x(:,2) = 0.d0 !1.d12
        end if
     end do 
 2   close(unit)
@@ -554,6 +564,8 @@ contains
        end do
     end do
     if (cpar%cs_output_ptsrc_beam(id_abs)) call dump_beams_to_hdf(self, tempfile)
+
+    deallocate(amp, amp_rms, beta, beta_rms)
     
   end subroutine read_sources
 
@@ -632,7 +644,7 @@ contains
     end do
 
     deallocate(ind, b, mypix, mybeam)
-    
+
   end subroutine read_febecop_beam
 
   subroutine dump_beams_to_hdf(self, filename)
@@ -950,7 +962,7 @@ contains
                          else
                             p2 = p2+1
                          end if
-                         if (p1 >= n1 .or. p2 >= n2) exit
+                         if (p1 > n1 .or. p2 > n2) exit
                          if (pt1%src(k1)%T(l)%pix(p1,1) > pt2%src(k2)%T(l)%pix(n2,1)) exit
                          if (pt1%src(k1)%T(l)%pix(n1,1) < pt2%src(k2)%T(l)%pix(p2,1)) exit
                       end do
@@ -965,7 +977,53 @@ contains
 
        ! Collect contributions from all cores
        call mpi_reduce(mat, mat2, size(mat2), MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+
        if (myid == 0) then
+          ! Multiply with sqrtS from left side
+          i1  = 0
+          c1 => compList
+          do while (associated(c1))
+             skip = .true.
+             select type (c1)
+             class is (comm_ptsrc_comp)
+                pt1  => c1
+                skip = .false.
+             end select
+             if (skip .or. j > pt1%nmaps) then
+                c1 => c1%next()
+                cycle
+             end if
+             do k1 = 1, pt1%nsrc
+                i1         = i1+1
+                mat2(i1,:) = mat2(i1,:) * pt1%src(k1)%P_x(j,2)
+             end do
+             c1 => c1%next()
+          end do
+          ! Multiply with sqrtS from right side
+          i1  = 0
+          c1 => compList
+          do while (associated(c1))
+             skip = .true.
+             select type (c1)
+             class is (comm_ptsrc_comp)
+                pt1  => c1
+                skip = .false.
+             end select
+             if (skip .or. j > pt1%nmaps) then
+                c1 => c1%next()
+                cycle
+             end if
+             do k1 = 1, pt1%nsrc
+                i1         = i1+1
+                mat2(:,i1) = mat2(:,i1) * pt1%src(k1)%P_x(j,2)
+             end do
+             c1 => c1%next()
+          end do
+          ! Add unity
+          do i1 = 1, npre
+             mat2(i1,i1) = mat2(i1,i1) + 1.d0
+          end do
+          ! Invert matrix to finalize preconditioner
           call invert_matrix_with_mask(mat2)
           allocate(P_cr%invM_src(1,j)%M(npre,npre))
           P_cr%invM_src(1,j)%M = mat2

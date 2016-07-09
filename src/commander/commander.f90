@@ -104,7 +104,7 @@ program commander
      call sample_amps_by_CG(cpar, handle)
 
      ! Sample non-linear parameters
-     call sample_nonlin_params(cpar, handle)
+     !call sample_nonlin_params(cpar, handle)
 
      ! Sample instrumental parameters
 
