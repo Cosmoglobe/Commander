@@ -329,10 +329,14 @@ contains
        call get_parameter(paramfile, 'COMP_LABEL'//itext,           par_string=cpar%cs_label(i))
        call get_parameter(paramfile, 'COMP_TYPE'//itext,            par_string=cpar%cs_type(i))
        call get_parameter(paramfile, 'COMP_CLASS'//itext,           par_string=cpar%cs_class(i))
-       call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
        if (trim(cpar%cs_type(i)) == 'md') then
+          call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
           call get_parameter(paramfile, 'COMP_MD_DEFINITION_FILE'//itext, par_string=cpar%cs_SED_template(1,i))
+       else if (trim(cpar%cs_type(i)) == 'template') then
+          call get_parameter(paramfile, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, &
+               & par_string=cpar%cs_SED_template(1,i))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
+          call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
           if (cpar%cs_polarization(i)) &
                & call get_parameter(paramfile, 'COMP_OUTPUT_EB_MAP'//itext,        par_lgt=cpar%cs_output_EB(i))
           call get_parameter(paramfile, 'COMP_CG_SCALE'//itext,        par_dp=cpar%cs_cg_scale(i))
@@ -484,6 +488,7 @@ contains
           end select
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
+          call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
           call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
           call get_parameter(paramfile, 'COMP_PTSRC_TEMPLATE'//itext,  &
                & par_string=cpar%cs_ptsrc_template(i))
@@ -1050,6 +1055,8 @@ contains
           call validate_file(trim(datadir)//trim(cpar%cs_catalog(i)))
           call validate_file(trim(datadir)//trim(cpar%cs_ptsrc_template(i)), &
                & should_exist=.not. cpar%cs_output_ptsrc_beam(i))
+       else if (trim(cpar%cs_class(i)) == 'template') then
+          call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
        end if
        
     end do

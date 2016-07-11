@@ -154,6 +154,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat
 
     if (npre == 0) return
+    if (allocated(P_cr%invM_diff)) return
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components

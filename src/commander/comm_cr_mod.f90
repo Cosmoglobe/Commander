@@ -51,7 +51,7 @@ contains
     call update_precond
     call wall_time(t2)
     if (cpar%myid == root .and. cpar%verbosity > 2) then
-       write(*,fmt='(a,f8.2)') 'CG initialize preconditioner, time = ', real(t2-t1,sp)
+       write(*,fmt='(a,f8.2)') '    CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
 
 !!$    if (cpar%myid == root) write(*,*) P_cr%invM_diff(10,1)%n
@@ -102,6 +102,13 @@ contains
                       pamp(i-1,j) = pamp(i-1,j) / c%src(i)%P_x(j,2) ! Multiply with sqrtInvS
                    end do
                 end do
+                call cr_insert_comp(c%id, .false., pamp, x)
+                deallocate(pamp)
+             end if
+          class is (comm_template_comp)
+             if (c%myid == 0) then
+                call cr_extract_comp(c%id, x, pamp)
+                pamp = pamp / c%P_cg(2) ! Multiply with sqrtInvS
                 call cr_insert_comp(c%id, .false., pamp, x)
                 deallocate(pamp)
              end if
@@ -168,6 +175,13 @@ contains
                       call cr_insert_comp(c%id, .false., pamp, x_out)
                       deallocate(pamp)
                    end if
+                class is (comm_template_comp)
+                   if (c%myid == 0) then
+                      call cr_extract_comp(c%id, x_out, pamp)
+                      pamp = pamp * c%P_cg(2) ! Multiply with sqrtInvS
+                      call cr_insert_comp(c%id, .false., pamp, x_out)
+                      deallocate(pamp)
+                   end if
                 end select
                 c => c%next()
              end do
@@ -182,7 +196,7 @@ contains
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
-          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') 'CG iter. ', i, ' -- res = ', &
+          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    CG iter. ', i, ' -- res = ', &
                & real(delta_new,sp), ', tol = ', real(eps * delta0,sp), &
                & ', time = ', real(t2-t1,sp)
        end if
@@ -212,6 +226,13 @@ contains
              call cr_insert_comp(c%id, .false., pamp, x)
              deallocate(pamp)
           end if
+       class is (comm_template_comp)
+          if (c%myid == 0) then
+             call cr_extract_comp(c%id, x, pamp)
+             pamp = pamp * c%P_cg(2) ! Multiply with sqrtS
+             call cr_insert_comp(c%id, .false., pamp, x)
+             deallocate(pamp)
+          end if
        end select
        c => c%next()
     end do
@@ -222,7 +243,7 @@ contains
        stat = stat + 1
     else
        if (cpar%myid == root .and. cpar%verbosity > 1) then
-          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') 'Final CG iter ', i-1, ' -- res = ', &
+          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    Final CG iter ', i-1, ' -- res = ', &
                & real(delta_new,sp), ', tol = ', real(eps * delta0,sp)
        end if
     end if
@@ -255,6 +276,11 @@ contains
                 ind = ind + c%nsrc
              end do
           end if
+       class is (comm_template_comp)
+          if (c%myid == 0) then
+             x(ind) = c%x(1,1)
+             ind    = ind + 1
+          end if
        end select
        c => c%next()
     end do
@@ -285,6 +311,11 @@ contains
                 ind = ind + c%nsrc
              end if
           end do
+       class is (comm_template_comp)
+          if (c%myid == 0) then
+             c%x(1,1) = x(ind)
+             ind      = ind + 1
+          end if
        end select
        c => c%next()
     end do
@@ -372,6 +403,14 @@ contains
                 call cr_insert_comp(c%id, .true., Tp, rhs)
              end if
              deallocate(Tp)
+          class is (comm_template_comp)
+             allocate(Tp(1,1))
+             Tp = c%projectBand(i,map)
+             if (c%myid == 0) then
+                Tp = Tp * c%P_cg(2)
+                call cr_insert_comp(c%id, .true., Tp, rhs)
+             end if
+             deallocate(Tp)
           end select
           c => c%next()
        end do
@@ -427,6 +466,19 @@ contains
              call cr_insert_comp(c%id, .true., eta, rhs)
              deallocate(eta)
           end if
+       class is (comm_template_comp)
+          if (c%myid == 0) then
+             allocate(eta(1,1))
+             eta = 0.d0
+             ! Variance term
+             if (trim(operation) == 'sample') then
+                eta(1,1) = rand_gauss(handle)
+             end if
+             ! Mean term
+             eta(1,1) = eta(1,1) + c%P_cg(1)/c%P_cg(2)
+             call cr_insert_comp(c%id, .true., eta, rhs)
+             deallocate(eta)
+          end if
        end select
        c => c%next()
     end do
@@ -477,6 +529,13 @@ contains
              call cr_insert_comp(c%id, .false., pamp, sqrtS_x)
              deallocate(pamp)
           end if
+       class is (comm_template_comp)
+          if (c%myid == 0) then
+             call cr_extract_comp(c%id, sqrtS_x, pamp)
+             pamp = pamp * c%P_cg(2) ! Multiply with sqrtS
+             call cr_insert_comp(c%id, .false., pamp, sqrtS_x)
+             deallocate(pamp)
+          end if
        end select
        c => c%next()
     end do
@@ -501,6 +560,12 @@ contains
              call map%add_alm(m, c%x%info)
              deallocate(alm, m)
           class is (comm_ptsrc_comp)
+             call cr_extract_comp(c%id, sqrtS_x, pamp)
+             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+             m = c%getBand(i, amp_in=pamp)
+             pmap%map = pmap%map + m
+             deallocate(pamp, m)
+          class is (comm_template_comp)
              call cr_extract_comp(c%id, sqrtS_x, pamp)
              allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
              m = c%getBand(i, amp_in=pamp)
@@ -534,6 +599,11 @@ contains
              deallocate(alm)
           class is (comm_ptsrc_comp)
              allocate(pamp(0:c%nsrc-1,c%nmaps))
+             pamp = c%projectBand(i, map)
+             if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
+             deallocate(pamp)
+          class is (comm_template_comp)
+             allocate(pamp(1,1))
              pamp = c%projectBand(i, map)
              if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
              deallocate(pamp)
@@ -579,6 +649,17 @@ contains
              call cr_insert_comp(c%id, .true., pamp, y)
              deallocate(pamp)
           end if
+       class is (comm_template_comp)
+          if (c%myid == 0) then
+             ! Multiply with sqrt(Cl)
+             call cr_extract_comp(c%id, y, pamp)
+             pamp = pamp * c%P_cg(2) ! Multiply with sqrtS
+             call cr_insert_comp(c%id, .false., pamp, y)
+             ! Add (unity) prior term
+             call cr_extract_comp(c%id, x, pamp)
+             call cr_insert_comp(c%id, .true., pamp, y)
+             deallocate(pamp)
+          end if
        end select
        c => c%next()
     end do
@@ -610,7 +691,7 @@ contains
     cr_invM = x
     call applyDiffPrecond(cr_invM)
     call applyPtsrcPrecond(cr_invM)
-    
+    call applyTemplatePrecond(cr_invM)
     
   end function cr_invM
 
@@ -619,6 +700,7 @@ contains
 
     call updateDiffPrecond
     call updatePtsrcPrecond
+    call updateTemplatePrecond
 
   end subroutine update_precond
   

@@ -11,6 +11,7 @@ module comm_cr_precond_mod
   type precond
      type(invM), allocatable, dimension(:,:)      :: invM_diff ! (0:nalm-1,nmaps)
      type(invM), allocatable, dimension(:,:)      :: invM_src  ! (1,nmaps)
+     type(invM), allocatable, dimension(:,:)      :: invM_temp ! (1,1)
   end type precond
 
   type(precond) :: P_cr

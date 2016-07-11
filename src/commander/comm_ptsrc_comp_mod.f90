@@ -70,7 +70,6 @@ module comm_ptsrc_comp_mod
   integer(i4b) :: comm_pre     =  -1
   integer(i4b) :: myid_pre     =  -1
   integer(i4b) :: numprocs_pre =  -1
-  class(ptsrc_ptr), allocatable, dimension(:) :: ptsrcComps
   
 contains
 
@@ -887,6 +886,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
 
     if (ncomp_pre == 0) return
+    if (allocated(P_cr%invM_src)) return
 
     call mpi_comm_rank(comm, myid, ierr)
         

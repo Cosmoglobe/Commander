@@ -32,6 +32,7 @@ program commander
   ! *********************************************************************
 
   integer(i4b)        :: iargc, ierr, iter, stat, first_sample
+  real(dp)            :: t1, t2
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle
 
@@ -100,8 +101,17 @@ program commander
   if (trim(cpar%init_chain_prefix) == trim(cpar%chain_prefix)) first_sample = cpar%init_samp+1
   do iter = first_sample, cpar%num_gibbs_iter
 
+     if (cpar%myid == 0) then
+        call wall_time(t1)
+        write(*,fmt='(a)') '---------------------------------------------------------------------'
+        write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
+     end if
+
      ! Sample linear parameters with CG search
      call sample_amps_by_CG(cpar, handle)
+
+     ! Sample partial-sky templates
+     call sample_partialsky_tempamps(cpar, handle)
 
      ! Sample non-linear parameters
      !call sample_nonlin_params(cpar, handle)
@@ -114,6 +124,11 @@ program commander
      
      ! Output sample to disk
      call output_FITS_sample(cpar, iter, .true.)
+
+     if (cpar%myid == 0) then
+        call wall_time(t2)
+        write(*,fmt='(a,i4,a,f8.3,a)') 'Chain = ', cpar%mychain+1, ' -- wall time = ', t2-t1, ' sec'
+     end if
      
   end do
 

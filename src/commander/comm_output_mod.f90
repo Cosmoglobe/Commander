@@ -107,7 +107,7 @@ contains
        call map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
        call map%dealloc()
        if (cpar%myid == cpar%root) write(*,fmt='(a,i4,a,e16.3)') &
-            & 'Chain = ', cpar%mychain, ' -- chisq = ', chisq
+            & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
     end if
 
     ! Output signal components per band

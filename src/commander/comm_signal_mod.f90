@@ -16,6 +16,7 @@ module comm_signal_mod
   use comm_cr_utils
   use comm_hdf_mod
   use comm_data_mod
+  use comm_chisq_mod
   implicit none
 
 contains
@@ -69,19 +70,10 @@ contains
           !call mpi_finalize(i)
           !stop
        case ("template")
-          ! Point source components
-          select case (trim(cpar%cs_type(i)))
-          case ("monopole")
-!             c => comm_cmb_comp(cpar, i)
-          case ("dipole")
-!             c => comm_powlaw_comp(cpar, i)
-          case ("rel_quadrupole")
-!             c => comm_powlaw_comp(cpar, i)
-          case ("file")
-!             c => comm_powlaw_comp(cpar, i)
-          case default
-             call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
-          end select
+          c => initialize_template_comps(cpar, ncomp, i, n)
+          !write(*,*) cpar%myid, ncomp, n
+          ncomp = ncomp + n - 1
+          call add_to_complist(c)
        case default
           call report_error("Unknown component class: "//trim(cpar%cs_class(i)))
        end select
@@ -143,6 +135,7 @@ contains
     call update_status(status, "init_precond1")
     call initDiffPrecond(cpar%comm_chain)
     call initPtsrcPrecond(cpar%comm_chain)
+    call initTemplatePrecond(cpar%comm_chain)
     call update_status(status, "init_precond2")
     call solve_cr_eqn_by_CG(cpar, x, rhs, stat)
     call cr_x2amp(x)
@@ -204,5 +197,73 @@ contains
     call close_hdf_file(file)
     
   end subroutine initialize_from_chain
+
+
+  subroutine sample_partialsky_tempamps(cpar, handle)
+    implicit none
+
+    type(comm_params), intent(in)    :: cpar
+    type(planck_rng),  intent(inout) :: handle
+
+    integer(i4b) :: i, ierr
+    logical(lgt) :: skip
+    real(dp)     :: vals(2), mu, sigma, amp, mu_p, sigma_p
+    class(comm_map),           pointer :: res, invN_res
+    class(comm_comp),          pointer :: c
+    class(comm_template_comp), pointer :: pt
+    
+    ! Compute predicted signal for this band
+    c => compList
+    do while (associated(c))
+       skip = .true.
+       select type (c)
+       class is (comm_template_comp)
+          pt  => c
+          if (associated(pt%mask)) skip = .false.
+       end select
+       if (skip) then
+          c => c%next()
+          cycle
+       end if
+
+       ! Get residual map
+       res      => compute_residual(pt%band, exclude_comps=[pt%label]) 
+       invN_res => comm_map(res)
+       call data(pt%band)%N%invN(invN_res)
+
+       ! Compute mean and variance
+       vals(1) = sum(invN_res%map * pt%T%map * pt%mask%map)
+       vals(2) = sum(pt%T%map     * pt%T%map * pt%mask%map)
+       call mpi_reduce(MPI_IN_PLACE, vals, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, res%info%comm, ierr)       
+
+       if (res%info%myid == 0) then
+          ! Compute mean and RMS from likelihood term
+          mu    = vals(1) / vals(2)
+          sigma = sqrt(1.d0/vals(2))
+
+          ! Add prior
+          mu_p    = pt%P(1)
+          sigma_p = pt%P(2)
+          mu      = (mu*sigma_p**2 + mu_p * sigma**2) / (sigma_p**2 + sigma**2)
+          sigma   = sqrt(sigma**2 * sigma_p**2 / (sigma**2 + sigma_p**2))
+
+          if (trim(cpar%operation) == 'sample') then
+             amp = mu + sigma * rand_gauss(handle)
+          else
+             amp = mu
+          end if
+
+          ! Update template amplitude in main structure
+          pt%x       = amp  ! Amplitude
+          pt%P_cg(1) = amp  ! CG prior mean
+          
+       end if
+
+       deallocate(res, invN_res)
+
+       c => c%next()
+    end do
+
+  end subroutine sample_partialsky_tempamps
   
 end module comm_signal_mod
