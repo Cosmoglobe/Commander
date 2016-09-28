@@ -72,7 +72,7 @@ program commander
   call initialize_bp_mod(cpar);            call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);  call update_status(status, "init_data")
   call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
-  call initialize_from_chain(cpar)
+  call initialize_from_chain(cpar);        call update_status(status, "init_from_chain")
 
   if (cpar%output_input_model) then
      if (cpar%myid == 0) write(*,*) 'Outputting input model to sample number 999999'
@@ -108,13 +108,13 @@ program commander
      end if
 
      ! Sample linear parameters with CG search
-     call sample_amps_by_CG(cpar, handle)
+     if (cpar%sample_signal_amplitudes) call sample_amps_by_CG(cpar, handle)
 
      ! Sample partial-sky templates
-     call sample_partialsky_tempamps(cpar, handle)
+     !call sample_partialsky_tempamps(cpar, handle)
 
      ! Sample non-linear parameters
-     !call sample_nonlin_params(cpar, handle)
+     call sample_nonlin_params(cpar, handle)
 
      ! Sample instrumental parameters
 

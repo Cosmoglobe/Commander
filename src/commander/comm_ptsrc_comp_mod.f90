@@ -12,6 +12,7 @@ module comm_ptsrc_comp_mod
   use comm_cr_precond_mod
   use locate_mod
   use spline_1D_mod
+  use InvSamp_mod
   implicit none
 
   private
@@ -25,17 +26,18 @@ module comm_ptsrc_comp_mod
      integer(i4b), allocatable, dimension(:,:) :: pix     ! Pixel list, both absolute and relative
      real(dp),     allocatable, dimension(:,:) :: map     ! (0:np-1,nmaps)
      real(dp),     allocatable, dimension(:)   :: F       ! Mixing matrix (nmaps)
-     real(dp),     allocatable, dimension(:)   :: Omega_b ! Solid angle (nmaps
+     real(dp),     allocatable, dimension(:)   :: Omega_b ! Solid angle (nmaps)
   end type Tnu
 
   type ptsrc
      character(len=512) :: outprefix
      character(len=512) :: id
      real(dp)           :: glon, glat, f_beam, vec(3)
-     type(Tnu), allocatable, dimension(:)     :: T        ! Spatial template (nband)
-     real(dp),  allocatable, dimension(:,:)   :: theta    ! Spectral parameters (npar,nmaps)
-     real(dp),  allocatable, dimension(:,:,:) :: P_theta  ! Gaussian prior on spectral params (npar,nmaps,2)
-     real(dp),  allocatable, dimension(:,:)   :: P_x      ! Gaussian prior on amplitudes (nmaps,2)
+     type(Tnu), allocatable, dimension(:)     :: T         ! Spatial template (nband)
+     real(dp),  allocatable, dimension(:,:)   :: theta     ! Spectral parameters (npar,nmaps)
+     real(dp),  allocatable, dimension(:,:)   :: theta_rms ! RMS of spectral parameters (npar,nmaps)
+     real(dp),  allocatable, dimension(:,:,:) :: P_theta   ! Gaussian prior on spectral params (npar,nmaps,2)
+     real(dp),  allocatable, dimension(:,:)   :: P_x       ! Gaussian prior on amplitudes (nmaps,2)
   end type ptsrc
   
   type, extends (comm_comp) :: comm_ptsrc_comp
@@ -70,6 +72,8 @@ module comm_ptsrc_comp_mod
   integer(i4b) :: comm_pre     =  -1
   integer(i4b) :: myid_pre     =  -1
   integer(i4b) :: numprocs_pre =  -1
+
+  character(len=24), private :: operation
   
 contains
 
@@ -104,6 +108,7 @@ contains
     constructor%comm      = cpar%comm_chain
     constructor%numprocs  = cpar%numprocs_chain
     ncomp_pre             = ncomp_pre + 1
+    operation             = cpar%operation
 
     ! Initialize frequency scaling parameters
     allocate(constructor%F_int(numband))
@@ -157,10 +162,6 @@ contains
     do j = 1, self%nsrc
        if (present(beta)) then
           self%src(j)%theta = beta(:,:,j)
-       else
-          do i = 1, self%nmaps
-             self%src(j)%theta(:,i) = self%theta_def
-          end do
        end if
        do i = 1, numband
           ! Temperature
@@ -246,7 +247,7 @@ contains
        do j = 1, self%src(i)%T(band)%nmaps
           ! Scale to correct frequency through multiplication with mixing matrix
           a = self%getScale(band,i,j) * self%src(i)%T(band)%F(j) *  amp(i,j)
-          
+
           ! Project with beam
           do q = 1, self%src(i)%T(band)%np
              p = self%src(i)%T(band)%pix(q,1)
@@ -370,13 +371,13 @@ contains
              write(unit,*) '# SED model type      = ', trim(self%type)
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
              write(unit,*) '# '
-             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    alpha_I   beta_I   ID'
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)          I_RMS(mJy)  alpha_I   beta_I   alpha_RMS_I   beta_RMS_I   ID'
           else if (trim(self%type) == 'fir') then
              write(unit,*) '# '
              write(unit,*) '# SED model type      = ', trim(self%type)
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
              write(unit,*) '# '
-             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    beta_I      T_I   ID'
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    I_RMS(mJy)  beta_I      T_I   beta_RMS_I     T_RMS_I      ID'
           end if
        end if
        do i = 1, self%nsrc
@@ -391,10 +392,10 @@ contains
              end if
           else
              if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
-                write(unit,fmt='(2f10.4,f16.3,2f8.3,2a)') &
+                write(unit,fmt='(2f10.4,2f16.3,4f8.3,2a)') &
                      & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
-                     & self%x(i,1)*self%cg_scale, self%src(i)%theta(:,1), &
-                     & '  ', trim(self%src(i)%id)
+                     & self%x(i,1)*self%cg_scale, 0.d0, self%src(i)%theta(:,1), &
+                     & self%src(i)%theta_rms(:,1), '  ', trim(self%src(i)%id)
              end if
           end if
        end do
@@ -416,20 +417,30 @@ contains
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: theta
 
+!!$    if (self%myid == 0) then
+!!$       write(*,*) 'Skipping ptsrc input from chain file'
+!!$    end if
+!!$
+!!$    return
+
     path = trim(adjustl(hdfpath))//trim(adjustl(self%label)) // '/'
     if (self%myid == 0) then
        call read_hdf(hdffile, trim(adjustl(path))//'/amp', self%x)
        self%x = self%x/self%cg_scale
-       
-       allocate(theta(self%nsrc,self%nmaps,self%npar))
-       call read_hdf(hdffile, trim(adjustl(path))//'/specind', theta)
-       do i = 1, self%nsrc
-          do j = 1, self%nmaps
-             self%src(i)%theta(:,j) = theta(i,j,:) 
-          end do
-       end do
-       deallocate(theta)
     end if
+       
+    allocate(theta(self%nsrc,self%nmaps,self%npar))
+    call read_hdf(hdffile, trim(adjustl(path))//'/specind', theta)
+    do i = 1, self%nsrc
+       do j = 1, self%nmaps
+          self%src(i)%theta(:,j) = theta(i,j,:) 
+       end do
+    end do
+    deallocate(theta)
+
+    !Update mixing matrix
+    call self%updateF
+
   end subroutine initPtsrcHDF
 
   subroutine read_sources(self, cpar, id, id_abs)
@@ -506,6 +517,7 @@ contains
        else
           i                    = i+1
           allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(numband))
+          allocate(self%src(i)%theta_rms(self%npar,self%nmaps))
           allocate(self%src(i)%P_theta(self%npar,self%nmaps,2))
           allocate(self%src(i)%P_x(self%nmaps,2))
           self%src(i)%id             = id_ptsrc
@@ -1180,6 +1192,165 @@ contains
     implicit none
     class(comm_ptsrc_comp),                  intent(inout)        :: self
     type(planck_rng),                        intent(inout)        :: handle
+
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status
+    real(dp)     :: a, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma
+    logical(lgt) :: ok
+    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta
+    real(dp),     allocatable, dimension(:,:) :: amp
+
+    delta_lnL_threshold = 25.d0
+    n                   = 101
+    n_ok                = 50
+
+    ! Distribute point source amplitudes
+    allocate(amp(self%nsrc,self%nmaps))
+    if (self%myid == 0) amp = self%x
+    call mpi_bcast(amp, size(amp), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+
+!    if (self%myid == 0) open(58,file='lnL_src.dat')
+
+    ! Sample spectral parameters
+    allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
+    do j = 1, self%npar
+       if (self%p_uni(2,j) == self%p_uni(1,j) .or. self%p_gauss(2,j) == 0.d0) cycle
+       
+       ! Loop over sources
+       call wall_time(t1)
+       do p = 1, self%nmaps
+          do k = 1, self%nsrc
+             theta = self%src(k)%theta(:,p)
+             
+             ! Refine grid until acceptance
+             ok = .false.
+             do counter = 1, 5
+                
+                if (counter == 1) then
+                   x_min = self%p_uni(1,j)
+                   x_max = self%p_uni(2,j)
+                end if
+                
+                ! Set up spectral parameter grid
+                do i = 1, n
+                   x(i) = x_min + (x_max-x_min)/(n-1.d0) * (i-1.d0)
+                end do
+                
+                lnL = 0.d0
+                do i = 1, n
+                   do l = 1, numband
+                      
+                      ! Compute mixing matrix
+                      theta(j) = x(i)
+                      s        = self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                      
+                      ! Compute predicted source amplitude for current band
+                      a = self%getScale(l,k,p) * s * amp(k,p)
+                      
+                      ! Compute likelihood by summing over pixels
+                      do q = 1, self%src(k)%T(l)%np
+                         pix = self%src(k)%T(l)%pix(q,1)
+                         lnL(i) = lnL(i) - 0.5d0 * (data(l)%res%map(pix,p)-self%src(k)%T(l)%map(q,p)*a)**2 / &
+                              & data(l)%N%rms_pix(pix,p)**2
+                      end do
+                      
+                   end do
+                end do
+                
+                ! Collect results from all cores
+                call mpi_reduce(lnL, P_tot, size(lnL), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+                
+                if (self%myid == 0) then
+                   ! Add Gaussian prior
+                   do i = 1, n
+                      P_tot(i) = P_tot(i) - 0.5d0 * (x(i)-self%p_gauss(1,j))**2 / self%p_gauss(2,j)**2
+                   end do
+
+                   ! Find acceptable range                   
+                   ind   = maxloc(P_tot)
+                   i_min = ind(1)
+                   do while (P_tot(ind(1))-P_tot(i_min) < delta_lnL_threshold .and. i_min > 1)
+                      i_min = i_min-1
+                   end do
+                   i_min = max(i_min-1,1)
+                   x_min = x(i_min)
+                   
+                   i_max = ind(1)
+                   do while (P_tot(ind(1))-P_tot(i_max) < delta_lnL_threshold .and. i_max < n)
+                      i_max = i_max+1
+                   end do
+                   i_max = min(i_max+1,n)
+                   x_max = x(i_max)
+                   
+                   ! Return ok if there are sufficient number of points in relevant range
+                   ok = (i_max-i_min) > n_ok
+                   !write(*,*) k, ok, i_max-i_min, real(x_min,sp), real(x_max,sp)
+                end if
+                
+                ! Broadcast status
+                call mpi_bcast(ok,    1, MPI_LOGICAL,          0, self%comm, ierr)
+                call mpi_bcast(x_min, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                call mpi_bcast(x_max, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                
+                if (ok) exit
+                
+             end do
+
+             ! Draw a sample or compute maximum-likelihood point
+             if (self%myid == 0) then
+                theta(j) = sample_InvSamp(handle, x, lnL_ptsrc, lnL_in=P_tot, prior=self%p_uni(:,j), &
+                     & status=status, optimize=(trim(operation)=='optimize'), use_precomputed_grid=.true.)
+
+                ! Compute and store RMS
+                P_tot = exp(P_tot-maxval(P_tot)) 
+                P_tot = P_tot / sum(P_tot) / (x(2)-x(1))
+                mu    = sum(x*P_tot)*(x(2)-x(1))
+                sigma = sqrt(sum((x-mu)**2*P_tot)*(x(2)-x(1)))
+                self%src(k)%theta_rms(j,p) = sigma
+                
+!!$                ind = maxloc(P_tot)
+!!$                write(*,*) k, self%nsrc, real(x(ind(1)),sp), real(theta(j),sp)
+!!$                do q = 1, n
+!!$                   write(58,*) x(q), P_tot(q)
+!!$                end do
+!!$                write(58,*)
+             end if
+             
+             ! Broadcast resulting parameter
+             call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+             
+             ! Update local variables
+             self%src(k)%theta(:,p) = theta
+
+             !call mpi_finalize(ierr)
+             !stop
+             
+          end do
+       end do
+       
+    end do
+!    call wall_time(t2)
+
+!!$    if (self%myid == 0) then
+!!$       close(58)
+!!$       write(*,*) 'wall time = ', t2-t1
+!!$    end if
+
+
+!    call mpi_finalize(q)
+!    stop
+
+    ! Update mixing matrix
+    call self%updateF
+
+    deallocate(x, P_tot, F, lnL, amp, theta)
+
   end subroutine samplePtsrcSpecInd
+
+  function lnL_ptsrc(x)
+    use healpix_types
+    implicit none
+    real(dp), intent(in) :: x
+    real(dp)             :: lnL_ptsrc
+  end function lnL_ptsrc
   
 end module comm_ptsrc_comp_mod

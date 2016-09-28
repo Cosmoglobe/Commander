@@ -104,7 +104,6 @@ contains
        constructor%P_cg  =  [mu,1.d-6]
     else
        constructor%P_cg  =  constructor%P      
-
     end if
 
   end function constructor

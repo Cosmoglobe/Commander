@@ -196,6 +196,7 @@ contains
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
+          write(*,*) '   Temp amp = ', real(x(n-4:n),sp)
           write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    CG iter. ', i, ' -- res = ', &
                & real(delta_new,sp), ', tol = ', real(eps * delta0,sp), &
                & ', time = ', real(t2-t1,sp)

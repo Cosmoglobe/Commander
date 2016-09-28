@@ -14,6 +14,7 @@ module comm_N_rms_mod
      procedure :: invN     => matmulInvN_1map
      procedure :: sqrtInvN => matmulSqrtInvN_1map
      procedure :: rms      => returnRMS
+     procedure :: rms_pix  => returnRMSpix
   end type comm_N_rms
 
   interface comm_N_rms
@@ -119,6 +120,19 @@ contains
        res%map = infinity
     end where
   end subroutine returnRMS
+  
+  ! Return rms for single pixel
+  function returnRMSpix(self, pix, pol)
+    implicit none
+    class(comm_N_rms),   intent(in)    :: self
+    integer(i4b),        intent(in)    :: pix, pol
+    real(dp)                           :: returnRMSpix
+    if (self%siN%map(pix,pol) > 0.d0) then
+       returnRMSpix = 1.d0/self%siN%map(pix,pol)
+    else
+       returnRMSpix = infinity
+    end if
+  end function returnRMSpix
 
   subroutine uniformize_rms(handle, rms, fsky, regnoise)
     implicit none

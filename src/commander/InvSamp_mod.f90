@@ -41,21 +41,20 @@ contains
     real(dp), dimension(INVSAMP_MAX_NUM_EVALS) :: S_n, S_n2, S_spline
     real(dp), dimension(N_SPLINE)      :: x, P, F
 
+    stat = 0
+    if (present(prior)) then
+       prior_ = prior
+    else
+       prior_ = [-1d100, 1d100]
+    end if
     use_precomputed_grid_ = .false.
     if (present(use_precomputed_grid)) use_precomputed_grid_ = use_precomputed_grid
     tol = TOLERANCE; if (present(tolerance_)) tol = tolerance_
     if (use_precomputed_grid_) then
-       n   = size(x_in)
-       x_n = x_in
-       S_n = lnL_in
+       n    = size(x_in)
+       x_n  = x_in
+       S_n  = lnL_in
     else
-       if (present(prior)) then
-          prior_ = prior
-       else
-          prior_ = [-1d100, 1d100]
-       end if
-       
-       stat     = 0
        n        = size(x_in)
        x_n(1:n) = x_in
        if (present(lnL_in)) then
@@ -229,7 +228,6 @@ contains
     
     if (stat == 0) then
        sample_InvSamp = max(min(sample_InvSamp, prior_(2)), prior_(1))
-       !if (use_precomputed_grid_) write(*,*) 'hei', sample_InvSamp, real(prior_,sp)
     else
        sample_InvSamp = 1.d30
     end if

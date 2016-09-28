@@ -17,6 +17,7 @@ module comm_N_mod
      procedure(matmulInvN),     deferred :: invN
      procedure(matmulSqrtInvN), deferred :: sqrtInvN
      procedure(returnRMS),      deferred :: rms
+     procedure(returnRMSpix),   deferred :: rms_pix
   end type comm_N
 
   abstract interface
@@ -43,6 +44,15 @@ module comm_N_mod
        class(comm_N),   intent(in)    :: self
        class(comm_map), intent(inout) :: res
      end subroutine returnRMS
+
+     ! Return rms map
+     function returnRMSpix(self, pix, pol)
+       import i4b, comm_N, dp
+       implicit none
+       class(comm_N),   intent(in)    :: self
+       integer(i4b),    intent(in)    :: pix, pol
+       real(dp)                       :: returnRMSpix
+     end function returnRMSpix
   end interface
 
 contains

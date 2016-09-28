@@ -179,16 +179,23 @@ contains
     call open_hdf_file(chainfile, file, 'r')
     
     ! Initialize instrumental parameters
+    call update_status(status, "init_chain_inst")
     do i = 1, numband
-       call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
-            & data(i)%gain)
-       call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
-            & data(i)%bp%delta)
+       if (cpar%ignore_gain_bp) then
+          data(i)%gain     = 1.d0
+          data(i)%bp%delta = 0.d0
+       else
+          call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
+               & data(i)%gain)
+          call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+               & data(i)%bp%delta)
+       end if
     end do
     
     ! Initialize component parameters
     c   => compList
     do while (associated(c))
+       call update_status(status, "init_chain_"//trim(c%label))
        call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
        c => c%next()
     end do
@@ -207,8 +214,8 @@ contains
 
     integer(i4b) :: i, ierr
     logical(lgt) :: skip
-    real(dp)     :: vals(2), mu, sigma, amp, mu_p, sigma_p
-    class(comm_map),           pointer :: res, invN_res
+    real(dp)     :: vals(2), vals2(2), mu, sigma, amp, mu_p, sigma_p
+    class(comm_map),           pointer :: res, invN_T
     class(comm_comp),          pointer :: c
     class(comm_template_comp), pointer :: pt
     
@@ -228,18 +235,18 @@ contains
 
        ! Get residual map
        res      => compute_residual(pt%band, exclude_comps=[pt%label]) 
-       invN_res => comm_map(res)
-       call data(pt%band)%N%invN(invN_res)
+       invN_T => comm_map(pt%T)
+       call data(pt%band)%N%invN(invN_T)
 
        ! Compute mean and variance
-       vals(1) = sum(invN_res%map * pt%T%map * pt%mask%map)
-       vals(2) = sum(pt%T%map     * pt%T%map * pt%mask%map)
-       call mpi_reduce(MPI_IN_PLACE, vals, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, res%info%comm, ierr)       
+       vals(1) = sum(invN_T%map * res%map  * pt%mask%map)
+       vals(2) = sum(invN_T%map * pt%T%map * pt%mask%map)
+       call mpi_reduce(vals, vals2, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, res%info%comm, ierr)       
 
        if (res%info%myid == 0) then
           ! Compute mean and RMS from likelihood term
-          mu    = vals(1) / vals(2)
-          sigma = sqrt(1.d0/vals(2))
+          mu    = vals2(1) / vals2(2)
+          sigma = sqrt(1.d0/vals2(2))
 
           ! Add prior
           mu_p    = pt%P(1)
@@ -259,7 +266,7 @@ contains
           
        end if
 
-       deallocate(res, invN_res)
+       deallocate(res, invN_T)
 
        c => c%next()
     end do

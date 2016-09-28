@@ -105,7 +105,7 @@ contains
        self%x => comm_map(info)
     else
        ! Read map from FITS file, and convert to alms
-       self%x => comm_map(info, cpar%cs_input_amp(id_abs))
+       self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
        call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
