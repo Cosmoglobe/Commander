@@ -40,23 +40,27 @@ contains
        end if
        
        ! Add current component back into residual
-       do i = 1, numband
-          allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-          m               = c%getBand(i)
-          data(i)%res%map = data(i)%res%map + m
-          deallocate(m)
-       end do
+       if (trim(c%class) /= 'ptsrc') then
+          do i = 1, numband
+             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+             m               = c%getBand(i)
+             data(i)%res%map = data(i)%res%map + m
+             deallocate(m)
+          end do
+       end if
 
        ! Sample spectral parameters
        call c%sampleSpecInd(handle)
 
        ! Subtract updated component from residual
-       do i = 1, numband
-          allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-          m               = c%getBand(i)
-          data(i)%res%map = data(i)%res%map - m
-          deallocate(m)
-       end do
+       if (trim(c%class) /= 'ptsrc') then
+          do i = 1, numband
+             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+             m               = c%getBand(i)
+             data(i)%res%map = data(i)%res%map - m
+             deallocate(m)
+          end do
+       end if
 
        c => c%next()
     end do

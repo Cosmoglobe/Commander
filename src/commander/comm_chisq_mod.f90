@@ -38,11 +38,12 @@ contains
 
   end subroutine compute_chisq
 
-  function compute_residual(band, exclude_comps) result (res)
+  function compute_residual(band, exclude_comps, cg_samp_group) result (res)
     implicit none
 
     integer(i4b),                     intent(in)           :: band
     character(len=512), dimension(:), intent(in), optional :: exclude_comps
+    integer(i4b),                     intent(in), optional :: cg_samp_group
     class(comm_map),    pointer                            :: res
 
     integer(i4b) :: i
@@ -52,6 +53,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: map, alm
     integer(i4b), allocatable, dimension(:)   :: pix
     integer(i4b) :: ierr
+    logical(lgt) :: nonzero
     class(comm_map), pointer :: ptsrc
     
     ! Initialize to full data set
@@ -60,6 +62,7 @@ contains
 
     ! Compute predicted signal for this band
     c => compList
+    nonzero = .false.
     do while (associated(c))
        skip = .false.
        if (present(exclude_comps)) then
@@ -67,6 +70,9 @@ contains
           do i = 1, size(exclude_comps)
              if (trim(c%label) == trim(exclude_comps(i))) skip = .true.
           end do
+       end if
+       if (present(cg_samp_group)) then
+          if (c%cg_samp_group == cg_samp_group) skip = .true.
        end if
        if (skip) then
           c => c%next()
@@ -79,6 +85,7 @@ contains
           alm     = c%getBand(band, alm_out=.true.)
           call res%add_alm(alm, c%x%info)
           deallocate(alm)
+          nonzero = .true.
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map       = c%getBand(band)
@@ -92,7 +99,7 @@ contains
        end select
        c => c%next()
     end do
-    call res%Y()
+    if (nonzero) call res%Y()
     
     ! Compute residual map
     res%map = data(band)%map%map - res%map - ptsrc%map

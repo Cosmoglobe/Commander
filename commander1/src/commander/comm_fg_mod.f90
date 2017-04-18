@@ -334,6 +334,7 @@ contains
     alpha = 1.d0
 
     if (trim(noise_format) /= 'rms') then
+       write(*,*) 'ERROR -- MUST BE FIXED!!'
        alpha = 0.05d0
        par = par_map(region%pix(1,1),region%pix(1,2),p) 
        chisq_in = (par+3.1d0)**2 / 0.3d0**3
@@ -456,8 +457,12 @@ contains
              status = 0
              par_1D = par_old
              chisq_old = -2.d0 * lnL_specind_ARS(par_old)
+!             write(*,*) par_old, chisq_old
              call powell(par_1D, neg_lnL_specind_ARS, status)
              chisq = -2.d0 * lnL_specind_ARS(par_1D(1))
+!             write(*,*) par_1D(1), chisq
+!             call mpi_finalize(ierr)
+!             stop
              if (chisq > chisq_old) then
                 write(*,*) 'Error -- powell failed'
                 write(*,*) chisq, chisq_old
@@ -505,7 +510,7 @@ contains
 !!$    call write_map('spec_out.fits', par_smooth(:,:,p_reg))
 
 
-          if (status == 0 .and. par /= 0.d0) then
+          if (status == 0) then
              par = max(min(par, P_uni_reg(2)), P_uni_reg(1))
              do i = 1, region%n
                 par_map(region%pix(i,1),region%pix(i,2),p_reg) = par
@@ -669,7 +674,7 @@ contains
     real(dp)             :: lnL_specind_ARS
 
     integer(i4b) :: i, j, n
-    real(dp)     :: lnL, f, lnL_jeffreys, lnL_gauss, par(10)
+    real(dp)     :: lnL, f, lnL_jeffreys, lnL_gauss, par(30)
     logical(lgt) :: jeffreys
     real(dp), allocatable, dimension(:,:) :: df
 

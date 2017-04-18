@@ -1250,6 +1250,7 @@ contains
           do q = 1, numband
              k = i2f(q)
              s1 = get_effective_fg_spectrum(fg_components(j), k, fg_components(j)%priors(:,3))
+             write(*,*) 's1 = ', s1
              if (trim(bp(k)%unit) == 'uK_cmb') then
                 write(*,*) real(bp(k)%nu_c/1.d9,sp), s1 / bp(k)%a2t
                 write(58,*) bp(k)%nu_c/1.d9, s1 / bp(k)%a2t

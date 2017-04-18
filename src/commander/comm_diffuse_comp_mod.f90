@@ -56,6 +56,7 @@ module comm_diffuse_comp_mod
   integer(i4b) :: lmax_pre  = -1
   integer(i4b) :: nside_pre = 1000000
   integer(i4b) :: nmaps_pre = -1
+  logical(lgt) :: recompute_diffuse_precond = .true.
   logical(lgt) :: output_cg_eigenvals
   character(len=512) :: outdir
   class(comm_mapinfo), pointer                   :: info_pre
@@ -256,6 +257,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: alm
 
     if (npre == 0) return
+    if (.not. recompute_diffuse_precond) return
     
     ! Initialize current preconditioner to F^t * B^t * invN * B * F
     !self%invM    = self%invM0
@@ -444,6 +446,9 @@ contains
     end do
     call wall_time(t2)
     !write(*,*) 'invert = ', t2-t1
+
+    ! Disable preconditioner update
+    recompute_diffuse_precond = .false.
        
   end subroutine updateDiffPrecond
     
@@ -554,6 +559,9 @@ contains
     end do
     nullify(t, t0)
     deallocate(theta_p)
+
+    ! Request preconditioner update
+    recompute_diffuse_precond = .true.
 
   end subroutine updateMixmat
 

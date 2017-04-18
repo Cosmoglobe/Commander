@@ -38,7 +38,7 @@ module comm_param_mod
      logical(lgt)       :: sample_signal_amplitudes
      
      ! Numerical parameters
-     integer(i4b)      :: cg_lmax_precond, cg_maxiter
+     integer(i4b)      :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_miniter
      real(dp)          :: cg_tol
 
      ! Data parameters
@@ -84,6 +84,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_class
      logical(lgt),       allocatable, dimension(:)     :: cs_polarization
      real(dp),           allocatable, dimension(:)     :: cs_cg_scale
+     integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
      integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
@@ -112,7 +113,11 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
      character(len=512), allocatable, dimension(:)     :: cs_catalog
      character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
+     real(dp),           allocatable, dimension(:)     :: cs_ptsrc_nu_min
+     real(dp),           allocatable, dimension(:)     :: cs_ptsrc_nu_max
+     logical(lgt),       allocatable, dimension(:)     :: cs_burn_in
      logical(lgt),       allocatable, dimension(:)     :: cs_output_ptsrc_beam
+     logical(lgt),       allocatable, dimension(:)     :: cs_apply_pos_prior
      real(dp),           allocatable, dimension(:)     :: cs_min_src_dist
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
      
@@ -208,6 +213,7 @@ contains
     call get_parameter(paramfile, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
 
     call get_parameter(paramfile, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
+    call get_parameter(paramfile, 'CG_MINITER',               par_int=cpar%cg_miniter)
     call get_parameter(paramfile, 'CG_MAXITER',               par_int=cpar%cg_maxiter)
     call get_parameter(paramfile, 'CG_TOLERANCE',             par_dp=cpar%cg_tol)
 
@@ -324,15 +330,17 @@ contains
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
-    allocate(cpar%cs_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(n))
+    allocate(cpar%cs_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(n), cpar%cs_cg_samp_group(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
-    allocate(cpar%cs_auxpar(MAXAUXPAR,n))
+    allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
+    allocate(cpar%cs_ptsrc_nu_min(n), cpar%cs_ptsrc_nu_max(n), cpar%cs_burn_in(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
        call get_parameter(paramfile, 'COMP_LABEL'//itext,           par_string=cpar%cs_label(i))
        call get_parameter(paramfile, 'COMP_TYPE'//itext,            par_string=cpar%cs_type(i))
        call get_parameter(paramfile, 'COMP_CLASS'//itext,           par_string=cpar%cs_class(i))
+       call get_parameter(paramfile, 'COMP_CG_SAMPLE_GROUP'//itext, par_int=cpar%cs_cg_samp_group(i))
        if (trim(cpar%cs_type(i)) == 'md') then
           call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
           call get_parameter(paramfile, 'COMP_MD_DEFINITION_FILE'//itext, par_string=cpar%cs_SED_template(1,i))
@@ -496,8 +504,15 @@ contains
           call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
           call get_parameter(paramfile, 'COMP_PTSRC_TEMPLATE'//itext,  &
                & par_string=cpar%cs_ptsrc_template(i))
+          call get_parameter(paramfile, 'COMP_NU_MIN_FIT'//itext,  par_dp=cpar%cs_ptsrc_nu_min(i))
+          call get_parameter(paramfile, 'COMP_NU_MAX_FIT'//itext,  par_dp=cpar%cs_ptsrc_nu_max(i))
+          call get_parameter(paramfile, 'COMP_BURN_IN_ON_FIRST_SAMPLE'//itext,  par_lgt=cpar%cs_burn_in(i))
+          cpar%cs_ptsrc_nu_min(i) = 1d9 * cpar%cs_ptsrc_nu_min(i)
+          cpar%cs_ptsrc_nu_max(i) = 1d9 * cpar%cs_ptsrc_nu_max(i)
           call get_parameter(paramfile, 'COMP_OUTPUT_PTSRC_TEMPLATE'//itext,  &
                & par_lgt=cpar%cs_output_ptsrc_beam(i))
+          call get_parameter(paramfile, 'COMP_APPLY_POSITIVITY_PRIOR'//itext, par_lgt=cpar%cs_apply_pos_prior(i))
+          if (cpar%cs_apply_pos_prior(i)) cpar%cs_cg_samp_group(i) = 0
           call get_parameter(paramfile, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, par_dp=cpar%cs_min_src_dist(i))
           call get_parameter(paramfile, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
           call get_parameter(paramfile, 'COMP_NSIDE'//itext,    par_int=cpar%cs_nside(i))
@@ -550,7 +565,8 @@ contains
        end if
        
     end do
-    cpar%cs_ncomp = count(cpar%cs_include)
+    cpar%cs_ncomp           = count(cpar%cs_include)
+    cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
     ! Convert to proper units
     cpar%cs_nu_ref = cpar%cs_nu_ref * 1d9

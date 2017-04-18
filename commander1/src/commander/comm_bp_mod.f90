@@ -8,7 +8,7 @@ module comm_bp_mod
   real(dp), parameter :: h        = 1.0545726691251021d-34 * 2.d0*pi !6.626068d-34
   real(dp), parameter :: c        = 2.99792458d8
   real(dp)            :: T_CMB    = 2.7255d0
-  character(len=128)  :: bp_model = 'additive_shift'
+  character(len=128)  :: bp_model = 'powlaw_tilt'
 
   interface sz_thermo
      module procedure sz_thermo_single, sz_thermo_array
@@ -222,8 +222,16 @@ contains
              bp(j)%tau(i) = bp(j)%tau0(i) * (1.d0 + 1d9*delta(j) * (bp(j)%nu(i)-bp(j)%nu_c))
           end do
           
-       else if (trim(bp_model) == 'additive_shift') then
+       else if (trim(bp_model) == 'powlaw_tilt') then
           
+          ! Linear tilt model
+          bp(j)%nu = bp(j)%nu0
+          do i = 1, n
+             bp(j)%tau(i) = bp(j)%tau0(i) * (bp(j)%nu(i)/bp(j)%nu_c)**delta(j)
+          end do
+
+       else if (trim(bp_model) == 'additive_shift') then
+
           ! Additive frequency shift
           bp(j)%tau = bp(j)%tau0
           do i = 1, n

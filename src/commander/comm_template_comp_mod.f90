@@ -55,6 +55,7 @@ module comm_template_comp_mod
   integer(i4b) :: comm_pre     =  -1
   integer(i4b) :: myid_pre     =  -1
   integer(i4b) :: numprocs_pre =  -1
+  logical(lgt) :: recompute_template_precond = .true.
   
 contains
 
@@ -79,6 +80,7 @@ contains
     constructor%nmaps     = 1    ! Only used for CR book-keeping; must be 1 for templates
     constructor%outprefix = trim(cpar%cs_label(id_abs))
     constructor%cg_scale  = 1.d0
+    constructor%cg_samp_group  = cpar%cs_cg_samp_group(id_abs)
     constructor%myid      = cpar%myid
     constructor%comm      = cpar%comm_chain
     constructor%numprocs  = cpar%numprocs_chain

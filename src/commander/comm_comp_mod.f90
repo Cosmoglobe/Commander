@@ -21,7 +21,7 @@ module comm_comp_mod
 
      ! Data variables
      logical(lgt)       :: active
-     integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs
+     integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_samp_group
      character(len=512) :: label, class, type, unit
      real(dp)           :: nu_ref, RJ2unit_
      character(len=512), allocatable, dimension(:)   :: indlabel
@@ -47,6 +47,7 @@ module comm_comp_mod
      procedure(initHDF),       deferred :: initHDF
      procedure                          :: RJ2unit
      procedure(sampleSpecInd), deferred :: sampleSpecInd
+     procedure                          :: CG_mask
   end type comm_comp
 
   abstract interface
@@ -168,15 +169,16 @@ contains
     type(comm_params),  intent(in) :: cpar
     integer(i4b),       intent(in) :: id, id_abs
 
-    self%id       = id
-    self%active   = cpar%cs_include(id_abs)
-    self%label    = cpar%cs_label(id_abs)
-    self%type     = cpar%cs_type(id_abs)
-    self%class    = cpar%cs_class(id_abs)
-    self%unit     = cpar%cs_unit(id_abs)
-    self%nu_ref   = cpar%cs_nu_ref(id_abs)
-    self%myid     = cpar%myid_chain    
-    self%numprocs = cpar%numprocs_chain
+    self%id              = id
+    self%active          = cpar%cs_include(id_abs)
+    self%label           = cpar%cs_label(id_abs)
+    self%type            = cpar%cs_type(id_abs)
+    self%class           = cpar%cs_class(id_abs)
+    self%unit            = cpar%cs_unit(id_abs)
+    self%nu_ref          = cpar%cs_nu_ref(id_abs)
+    self%myid            = cpar%myid_chain    
+    self%numprocs        = cpar%numprocs_chain
+    self%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
 
 
     ! Set up conversion factor between RJ and native component unit
@@ -259,6 +261,17 @@ contains
     end if
     
   end function RJ2unit
+
+  subroutine CG_mask(self, samp_group, mask)
+    implicit none
+
+    class(comm_comp),               intent(in)    :: self
+    integer(i4b),                   intent(in)    :: samp_group
+    real(dp),         dimension(:), intent(inout) :: mask
+
+    call cr_mask(self%id, samp_group==self%cg_samp_group, mask)
+
+  end subroutine CG_mask
   
   function next(self)
     class(comm_comp) :: self

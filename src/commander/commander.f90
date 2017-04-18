@@ -31,7 +31,7 @@ program commander
   ! *                                                                   *
   ! *********************************************************************
 
-  integer(i4b)        :: iargc, ierr, iter, stat, first_sample
+  integer(i4b)        :: iargc, ierr, iter, stat, first_sample, samp_group
   real(dp)            :: t1, t2
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle
@@ -98,7 +98,8 @@ program commander
 
   ! Run Gibbs loop
   first_sample = 1
-  if (trim(cpar%init_chain_prefix) == trim(cpar%chain_prefix)) first_sample = cpar%init_samp+1
+!  if (trim(cpar%init_chain_prefix) == trim(cpar%chain_prefix)) 
+first_sample = 1 !cpar%init_samp+1
   do iter = first_sample, cpar%num_gibbs_iter
 
      if (cpar%myid == 0) then
@@ -107,8 +108,15 @@ program commander
         write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
 
-     ! Sample linear parameters with CG search
-     if (cpar%sample_signal_amplitudes) call sample_amps_by_CG(cpar, handle)
+     ! Sample linear parameters with CG search; loop over CG sample groups
+     if (cpar%sample_signal_amplitudes) then
+        do samp_group = 1, cpar%cg_num_samp_groups
+           if (cpar%myid == 0) then
+              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_samp_groups
+           end if
+           call sample_amps_by_CG(cpar, samp_group, handle)
+        end do
+     end if
 
      ! Sample partial-sky templates
      !call sample_partialsky_tempamps(cpar, handle)
@@ -127,7 +135,7 @@ program commander
 
      if (cpar%myid == 0) then
         call wall_time(t2)
-        write(*,fmt='(a,i4,a,f8.3,a)') 'Chain = ', cpar%mychain+1, ' -- wall time = ', t2-t1, ' sec'
+        write(*,fmt='(a,i4,a,f8.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
      end if
      
   end do

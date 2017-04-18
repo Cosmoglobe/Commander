@@ -25,9 +25,10 @@ module comm_cr_mod
 
 contains
 
-  subroutine solve_cr_eqn_by_CG(cpar, x, b, stat)
+  subroutine solve_cr_eqn_by_CG(cpar, samp_group, x, b, stat)
     implicit none
     type(comm_params),                intent(in)    :: cpar
+    integer(i4b),                     intent(in)    :: samp_group
     real(dp),          dimension(1:), intent(out)   :: x
     real(dp),          dimension(1:), intent(in)    :: b
     integer(i4b),                     intent(out)   :: stat
@@ -81,10 +82,14 @@ contains
 
     ! Initialize the CG search
     if (.true.) then
-       call cr_amp2x(x)
+       call cr_amp2x(samp_group, x)
        ! Multiply with sqrt(invS)
        c       => compList
        do while (associated(c))
+          if (c%cg_samp_group /= samp_group) then
+             c => c%next()
+             cycle
+          end if
           select type (c)
           class is (comm_diffuse_comp)
              if (trim(c%cltype) /= 'none') then
@@ -118,7 +123,7 @@ contains
     else
        x  = 0.d0
     end if
-    r  = b - cr_matmulA(x)   ! x is zero
+    r  = b - cr_matmulA(x, samp_group)   ! x is zero
     d  = cr_invM(r)
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
@@ -126,15 +131,15 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
        
-       if (delta_new < eps * delta0) exit
+       if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new < 1d-30 * delta0)) exit
 
-       q     = cr_matmulA(d)
+       q     = cr_matmulA(d, samp_group)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
        x     = x + alpha * d
 
        ! Restart every 50th iteration to suppress numerical errors
        if (.false. .and. mod(i,50) == 0) then
-          r = b - cr_matmulA(x)
+          r = b - cr_matmulA(x, samp_group)
        else
           r = r - alpha*q
        end if
@@ -155,6 +160,10 @@ contains
              x_out = x
              c       => compList
              do while (associated(c))
+                if (c%cg_samp_group /= samp_group) then
+                   c => c%next()
+                   cycle
+                end if
                 select type (c)
                 class is (comm_diffuse_comp)
                    if (trim(c%cltype) /= 'none') then
@@ -185,10 +194,10 @@ contains
                 end select
                 c => c%next()
              end do
-             call cr_x2amp(x_out)
+             call cr_x2amp(samp_group, x_out)
              call output_FITS_sample(cpar, i, .false.)
              deallocate(x_out)
-             call cr_x2amp(x)
+             call cr_x2amp(samp_group, x)
           end if
        end if
 
@@ -207,6 +216,10 @@ contains
     ! Multiply with sqrt(S), and insert into right object
     c       => compList
     do while (associated(c))
+       if (c%cg_samp_group /= samp_group) then
+          c => c%next()
+          cycle
+       end if
        select type (c)
        class is (comm_diffuse_comp)
           if (trim(c%cltype) /= 'none') then
@@ -244,7 +257,7 @@ contains
        stat = stat + 1
     else
        if (cpar%myid == root .and. cpar%verbosity > 1) then
-          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    Final CG iter ', i-1, ' -- res = ', &
+          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    Final CG iter ', i, ' -- res = ', &
                & real(delta_new,sp), ', tol = ', real(eps * delta0,sp)
        end if
     end if
@@ -253,8 +266,9 @@ contains
     
   end subroutine solve_cr_eqn_by_CG
 
-  subroutine cr_amp2x_full(x) 
+  subroutine cr_amp2x_full(samp_group, x) 
     implicit none
+    integer(i4b),           intent(in)  :: samp_group
     real(dp), dimension(:), intent(out) :: x
 
     integer(i4b) :: i, ind
@@ -267,19 +281,19 @@ contains
        select type (c)
        class is (comm_diffuse_comp) 
           do i = 1, c%x%info%nmaps
-             x(ind:ind+c%x%info%nalm-1) = c%x%alm(:,i)
+             if (c%cg_samp_group == samp_group) x(ind:ind+c%x%info%nalm-1) = c%x%alm(:,i)
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
           if (c%myid == 0) then
              do i = 1, c%nmaps
-                x(ind:ind+c%nsrc-1) = c%x(:,i)
+                if (c%cg_samp_group == samp_group) x(ind:ind+c%nsrc-1) = c%x(:,i)
                 ind = ind + c%nsrc
              end do
           end if
        class is (comm_template_comp)
           if (c%myid == 0) then
-             x(ind) = c%x(1,1)
+             if (c%cg_samp_group == samp_group) x(ind) = c%x(1,1)
              ind    = ind + 1
           end if
        end select
@@ -288,9 +302,9 @@ contains
 
   end subroutine cr_amp2x_full
 
-  subroutine cr_x2amp_full(x)
+  subroutine cr_x2amp_full(samp_group, x)
     implicit none
-
+    integer(i4b),           intent(in) :: samp_group
     real(dp), dimension(:), intent(in) :: x
 
     integer(i4b) :: i, ind
@@ -302,19 +316,19 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           do i = 1, c%x%info%nmaps
-             c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
+             if (c%cg_samp_group == samp_group) c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
           do i = 1, c%nmaps
              if (c%myid == 0) then
-                c%x(:,i) = x(ind:ind+c%nsrc-1)
+                if (c%cg_samp_group == samp_group) c%x(:,i) = x(ind:ind+c%nsrc-1)
                 ind = ind + c%nsrc
              end if
           end do
        class is (comm_template_comp)
           if (c%myid == 0) then
-             c%x(1,1) = x(ind)
+             if (c%cg_samp_group == samp_group) c%x(1,1) = x(ind)
              ind      = ind + 1
           end if
        end select
@@ -327,10 +341,12 @@ contains
   ! Definition of linear system
   ! ---------------------------
 
-  subroutine cr_computeRHS(operation, handle, rhs)
+  subroutine cr_computeRHS(operation, handle, mask, samp_group, rhs)
     implicit none
     character(len=*),                            intent(in)             :: operation
     type(planck_rng),                            intent(inout)          :: handle
+    integer(i4b),                                intent(in)             :: samp_group
+    real(dp),         allocatable, dimension(:), intent(in)             :: mask
     real(dp),         allocatable, dimension(:), intent(out)            :: rhs
 
     integer(i4b) :: i, j, l, m, k, n, ierr
@@ -347,7 +363,8 @@ contains
     do i = 1, numband
 
        ! Set up Wiener filter term
-       map => comm_map(data(i)%map)
+       !map => comm_map(data(i)%map)
+       map => compute_residual(i, cg_samp_group=samp_group) 
 
        ! Add channel-dependent white noise fluctuation
        if (trim(operation) == 'sample') then
@@ -370,6 +387,10 @@ contains
        ! insert into correct segment
        c => compList
        do while (associated(c))
+          if (c%cg_samp_group /= samp_group) then
+             c => c%next()
+             cycle
+          end if
           select type (c)
           class is (comm_diffuse_comp)
              info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, c%lmax_amp, &
@@ -422,6 +443,10 @@ contains
     ! Add prior terms
     c => compList
     do while (associated(c))
+       if (c%cg_samp_group /= samp_group) then
+          c => c%next()
+          cycle
+       end if
        select type (c)
        class is (comm_diffuse_comp)
           if (trim(c%cltype) /= 'none') then
@@ -487,11 +512,12 @@ contains
 
   end subroutine cr_computeRHS
 
-  recursive function cr_matmulA(x)
+  recursive function cr_matmulA(x, samp_group)
     implicit none
 
-    real(dp), dimension(1:),     intent(in)  :: x
-    real(dp), dimension(size(x))             :: cr_matmulA
+    real(dp),     dimension(1:),     intent(in)  :: x
+    integer(i4b),                    intent(in)  :: samp_group
+    real(dp),     dimension(size(x))             :: cr_matmulA
 
     real(dp)                  :: t1, t2
     integer(i4b)              :: i, j, myid
@@ -510,6 +536,10 @@ contains
     sqrtS_x = x
     c       => compList
     do while (associated(c))
+       if (c%cg_samp_group /= samp_group) then
+          c => c%next()
+          cycle
+       end if
        select type (c)
        class is (comm_diffuse_comp)
           if (trim(c%cltype) /= 'none') then
@@ -553,6 +583,10 @@ contains
        pmap => comm_map(data(i)%info)   ! For point-source components
        c   => compList
        do while (associated(c))
+          if (c%cg_samp_group /= samp_group) then
+             c => c%next()
+             cycle
+          end if
           select type (c)
           class is (comm_diffuse_comp)
              call cr_extract_comp(c%id, sqrtS_x, alm)
@@ -592,6 +626,10 @@ contains
        c   => compList
        call map%Yt()             ! Prepare for diffuse components
        do while (associated(c))
+          if (c%cg_samp_group /= samp_group) then
+             c => c%next()
+             cycle
+          end if
           select type (c)
           class is (comm_diffuse_comp)
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
@@ -622,6 +660,10 @@ contains
     call wall_time(t1)
     c   => compList
     do while (associated(c))
+       if (c%cg_samp_group /= samp_group) then
+          c => c%next()
+          cycle
+       end if
        select type (c)
        class is (comm_diffuse_comp)
           if (trim(c%cltype) /= 'none') then

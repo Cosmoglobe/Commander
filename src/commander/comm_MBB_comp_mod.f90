@@ -45,6 +45,7 @@ contains
     allocate(constructor%theta_def(2), constructor%p_gauss(2,2), constructor%p_uni(2,2))
     allocate(constructor%poltype(2), constructor%indlabel(2))
     do i = 1, 2
+       constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
        constructor%theta_def(i) = cpar%cs_theta_def(i,id_abs)
        constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
        constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)

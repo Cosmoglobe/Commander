@@ -95,7 +95,7 @@ contains
        i             = i+1
        c             => c%next()
     end do
-
+       
   end subroutine initialize_signal_mod
 
   subroutine dump_components(filename)
@@ -120,28 +120,45 @@ contains
     
   end subroutine dump_components
 
-  subroutine sample_amps_by_CG(cpar, handle)
+  subroutine sample_amps_by_CG(cpar, samp_group, handle)
     implicit none
 
     type(comm_params), intent(in)    :: cpar
+    integer(i4b),      intent(in)    :: samp_group
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: stat, i
     real(dp)     :: Nscale = 1.d-4
-    real(dp),           allocatable, dimension(:) :: rhs, x
+    class(comm_comp), pointer :: c
+    real(dp),           allocatable, dimension(:) :: rhs, x, mask
 
-    allocate(x(ncr))
-    call cr_computeRHS(cpar%operation, handle, rhs)
+    allocate(x(ncr), mask(ncr))
+
+    ! Set up component mask for current sample group
+    c => compList
+    do while (associated(c))
+       call c%CG_mask(samp_group, mask)
+       c => c%next()
+    end do
+    
+    ! Solve the linear system
+    call cr_computeRHS(cpar%operation, handle, mask, samp_group, rhs)
     call update_status(status, "init_precond1")
-    call initDiffPrecond(cpar%comm_chain)
-    call initPtsrcPrecond(cpar%comm_chain)
-    call initTemplatePrecond(cpar%comm_chain)
+    call initPrecond(cpar%comm_chain)
     call update_status(status, "init_precond2")
-    call solve_cr_eqn_by_CG(cpar, x, rhs, stat)
-    call cr_x2amp(x)
+    call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat)
+    call cr_x2amp(samp_group, x)
     deallocate(rhs,x)
 
   end subroutine sample_amps_by_CG
+
+  subroutine initPrecond(comm)
+    implicit none
+    integer(i4b), intent(in) :: comm
+    call initDiffPrecond(comm)
+    call initPtsrcPrecond(comm)
+    call initTemplatePrecond(comm)
+  end subroutine initPrecond
 
   subroutine add_to_complist(c)
     implicit none

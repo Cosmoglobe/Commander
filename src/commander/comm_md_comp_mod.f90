@@ -47,17 +47,18 @@ contains
     allocate(constructor)
 
     ! Initialize comm_comp_mod parameters
-    constructor%id       = id
-    constructor%active   = cpar%cs_include(id_abs)
-    constructor%label    = data(band)%label
-    constructor%type     = cpar%cs_type(id_abs)
-    constructor%class    = cpar%cs_class(id_abs)
-    constructor%unit     = data(band)%unit
-    constructor%nu_ref   = data(band)%bp%nu_c
-    constructor%cg_scale = 1.d0
-    constructor%myid     = cpar%myid_chain
-    constructor%comm     = cpar%comm_chain
-    constructor%numprocs = cpar%numprocs_chain
+    constructor%id              = id
+    constructor%active          = cpar%cs_include(id_abs)
+    constructor%label           = data(band)%label
+    constructor%type            = cpar%cs_type(id_abs)
+    constructor%class           = cpar%cs_class(id_abs)
+    constructor%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
+    constructor%unit            = data(band)%unit
+    constructor%nu_ref          = data(band)%bp%nu_c
+    constructor%cg_scale        = 1.d0
+    constructor%myid            = cpar%myid_chain
+    constructor%comm            = cpar%comm_chain
+    constructor%numprocs        = cpar%numprocs_chain
     !constructor%ref_band = band
 
     ! Set up conversion factor between RJ and native component unit

@@ -22,7 +22,7 @@ contains
     character(len=6)             :: itext
     character(len=512)           :: postfix, chainfile, hdfpath
     class(comm_mapinfo), pointer :: info
-    class(comm_map),     pointer :: map
+    class(comm_map),     pointer :: map, chisq_map, chisq_sub
     class(comm_comp),    pointer :: c
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
@@ -80,34 +80,39 @@ contains
     !if (cpar%myid == 0) write(*,*) 'components = ', t2-t1
 
     ! Output channel-specific residual maps
-    if (cpar%output_residuals) then
-       !call wall_time(t1)
+    if (cpar%output_residuals .or. cpar%output_chisq) then
+       if (cpar%output_chisq) then
+          info      => comm_mapinfo(cpar%comm_chain, cpar%nside_chisq, 0, cpar%nmaps_chisq, cpar%pol_chisq)
+          chisq_map => comm_map(info)
+          chisq_sub => comm_map(info)
+       end if
        do i = 1, numband
           call wall_time(t3)
           map => compute_residual(i)
-          call data(i)%apply_proc_mask(map)
-          !where (data(i)%procmask%map < 1.d0)  ! Apply processing mask
-             !map%map = -1.6375d30
-          !end where
-          call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'// &
-               & trim(postfix)//'.fits')
-          call wall_time(t4)
-          !if (cpar%myid == 0) write(*,*) 'write = ', t4-t3
+          !call data(i)%apply_proc_mask(map)
+          if (cpar%output_residuals) then
+             call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'// &
+                  & trim(postfix)//'.fits')
+             call wall_time(t4)
+          end if
+          if (cpar%output_chisq) then
+             call data(i)%N%sqrtInvN(map)
+             map%map = map%map**2
+             
+             chisq_sub => comm_map(chisq_map%info)
+             call map%udgrade(chisq_sub)
+             chisq_map%map = chisq_map%map + chisq_sub%map * (map%info%npix/chisq_sub%info%npix)
+          end if
           call map%dealloc()
        end do
-       !call wall_time(t2)
-       !if (cpar%myid == 0) write(*,*) 'residuals = ', t2-t1
-    end if
-
-    ! Compute and output chi-square
-    if (cpar%output_chisq) then
-       info => comm_mapinfo(cpar%comm_chain, cpar%nside_chisq, 0, cpar%nmaps_chisq, cpar%pol_chisq)
-       map  => comm_map(info)
-       call compute_chisq(chisq_map=map, chisq_fullsky=chisq)
-       call map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
-       call map%dealloc()
-       if (cpar%myid == cpar%root) write(*,fmt='(a,i4,a,e16.3)') &
-            & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
+       
+       if (cpar%output_chisq) then
+          call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
+          if (cpar%myid == cpar%root) write(*,fmt='(a,i4,a,e16.8)') &
+               & '    Chain = ', cpar%mychain, ' -- chisq = ', sum(chisq_map%map)
+          call chisq_map%dealloc()
+          call chisq_sub%dealloc()
+       end if
     end if
 
     ! Output signal components per band

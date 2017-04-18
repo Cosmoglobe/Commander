@@ -40,7 +40,7 @@ module comm_fg_component_mod
   
   type fg_meta_data
      character(len=24)                             :: type, init_mode, label, amp_unit
-     character(len=12), dimension(10)              :: indlabel, ind_unit, ttype
+     character(len=12), dimension(30)              :: indlabel, ind_unit, ttype
      integer(i4b)                                  :: npar, ref_band, fg_id
      logical(lgt)                                  :: apply_jeffreys_prior
      logical(lgt)                                  :: output_freq_comp_maps
@@ -568,6 +568,73 @@ contains
 !          end if
 !          call mpi_finalize(ierr)
 !          stop
+          allocate(fg_components(i)%S_nu_ref(size(spectrum,1),3))
+          fg_components(i)%S_nu_ref(:,1:2) = spectrum
+          deallocate(spectrum)
+          fg_components(i)%s_nu_ref(:,2) = log(fg_components(i)%s_nu_ref(:,2))
+          call spline(fg_components(i)%S_nu_ref(:,1), fg_components(i)%S_nu_ref(:,2), &
+               & 1.d30, 1.d30, fg_components(i)%S_nu_ref(:,3))
+          ind = maxloc(fg_components(i)%S_nu_ref(:,2))
+          fg_components(i)%nu_peak = fg_components(i)%S_nu_ref(ind(1),1)
+
+       else if (trim(fg_components(i)%type) == 'AME_freq_shift_2par') then
+
+          paramname = 'APPLY_JEFFREYS_PRIOR' // i_text
+          call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%apply_jeffreys_prior)       
+
+          num_fg_par                   = num_fg_par + 2
+          fg_components(i)%indlabel(1) = 'nup'
+          fg_components(i)%indlabel(2) = 'alpha'
+          fg_components(i)%ind_unit(1) = 'GHz'
+          fg_components(i)%ind_unit(2) = ''
+          fg_components(i)%ttype(1)    = 'Frequency'
+          fg_components(i)%ttype(2)    = 'Index'
+          fg_components(i)%npar        = 2
+          allocate(fg_components(i)%priors(fg_components(i)%npar,3))
+          allocate(fg_components(i)%gauss_prior(2,2))
+          allocate(fg_components(i)%par(numgrid,2))
+          allocate(fg_components(i)%S_2D(4,4,numgrid,numgrid,numband))
+
+          paramname = 'INITIALIZATION_MODE' // i_text
+          call get_parameter(paramfile, paramname, par_string=fg_components(i)%init_mode)
+
+          call get_parameter(paramfile, 'INITIALIZATION_MODE' // i_text, par_string=fg_components(i)%init_mode)
+          call get_parameter(paramfile, 'DEFAULT_FREQUENCY' // i_text, par_dp=fg_components(i)%priors(1,3))
+          call get_parameter(paramfile, 'DEFAULT_TILT' // i_text, par_dp=fg_components(i)%priors(2,3))
+
+          call get_parameter(paramfile, 'FREQUENCY_PRIOR_UNIFORM_LOW'  // &
+               & i_text, par_dp=fg_components(i)%priors(1,1))
+          call get_parameter(paramfile, 'FREQUENCY_PRIOR_UNIFORM_HIGH' // &
+               & i_text, par_dp=fg_components(i)%priors(1,2))
+          if (fg_components(i)%priors(1,1) >= fg_components(i)%priors(1,2)) then
+             write(*,*) 'Error: Lower prior is larger than or equal to upper prior for parameter no. ', i
+             call mpi_finalize(ierr)
+             stop
+          end if
+          call get_parameter(paramfile, 'FREQUENCY_PRIOR_GAUSSIAN_MEAN'  // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(1,1))
+          call get_parameter(paramfile, 'FREQUENCY_PRIOR_GAUSSIAN_STDDEV' // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(1,2))
+
+          call get_parameter(paramfile, 'TILT_PRIOR_UNIFORM_LOW'  // &
+               & i_text, par_dp=fg_components(i)%priors(2,1))
+          call get_parameter(paramfile, 'TILT_PRIOR_UNIFORM_HIGH' // &
+               & i_text, par_dp=fg_components(i)%priors(2,2))
+          if (fg_components(i)%priors(2,1) >= fg_components(i)%priors(2,2)) then
+             write(*,*) 'Error: Lower prior is larger than or equal to upper prior for parameter no. ', i
+             call mpi_finalize(ierr)
+             stop
+          end if
+          call get_parameter(paramfile, 'TILT_PRIOR_GAUSSIAN_MEAN'  // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(2,1))
+          call get_parameter(paramfile, 'TILT_PRIOR_GAUSSIAN_STDDEV' // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(2,2))
+
+          paramname = 'SPECTRUM_FILENAME' // i_text
+          call get_parameter(paramfile, paramname, par_string=filename_spectrum)
+          call read_spectrum(filename_spectrum, spectrum)
+          spectrum(:,2) = spectrum(:,2) / maxval(spectrum(:,2))
+
           allocate(fg_components(i)%S_nu_ref(size(spectrum,1),3))
           fg_components(i)%S_nu_ref(:,1:2) = spectrum
           deallocate(spectrum)
@@ -1131,6 +1198,9 @@ contains
     else if (trim(fg_comp%type) == 'AME_freq_shift') then                         
        get_ideal_fg_spectrum = compute_AME_freq_shift_spectrum(nu, fg_comp%nu_ref, p(1), &
             & fg_comp%nu_peak, fg_comp%S_nu_ref, fg_comp%p_rms)
+    else if (trim(fg_comp%type) == 'AME_freq_shift_2par') then                         
+       get_ideal_fg_spectrum = compute_AME_freq_shift_2par_spectrum(nu, fg_comp%nu_ref, p(1), p(2), &
+            & fg_comp%nu_peak, fg_comp%S_nu_ref, fg_comp%p_rms)
     else if (trim(fg_comp%type) == 'magnetic_dust') then                         
        get_ideal_fg_spectrum = compute_magnetic_dust_spectrum(nu, fg_comp%nu_ref, &
             & p(1),fg_comp%S_nu_ref, fg_comp%p_rms)
@@ -1364,6 +1434,35 @@ contains
     end if
 
   end function compute_AME_freq_shift_spectrum
+
+  function compute_AME_freq_shift_2par_spectrum(nu, nu_ref, nu_p, alpha, nu_p0, S, rms)
+    implicit none
+
+    real(dp),                 intent(in)  :: nu, nu_ref, nu_p, nu_p0, alpha
+    real(dp), dimension(:),   intent(in)  :: rms
+    real(dp), dimension(:,:), intent(in)  :: S
+    real(dp)                              :: compute_AME_freq_shift_2par_spectrum
+
+    integer(i4b) :: i, n_nu
+    real(dp)     :: scale
+    real(dp)     :: w, w_tot, nup, nu_min, nu_max, dnu, nu_rms, nu_low, nu_high
+
+    nu_low = minval(S(:,1)); nu_high = maxval(S(:,1))
+    if (nu < nu_low .or. nu > nu_high) then
+       compute_AME_freq_shift_2par_spectrum = 0.d0
+    else
+       scale = nu_p0 / (nu_p*1.d9) ! nu_p is in GHz
+       if (scale*nu > nu_low .and. scale*nu < nu_high) then
+          compute_AME_freq_shift_2par_spectrum = &
+               & exp(splint(S(:,1), S(:,2), S(:,3), scale*nu)) / &
+               & exp(splint(S(:,1), S(:,2), S(:,3), scale*nu_ref)) * (nu_ref/nu)**(2.d0-alpha)
+       else
+          compute_AME_freq_shift_2par_spectrum = 0.d0
+       end if
+       return
+    end if
+
+  end function compute_AME_freq_shift_2par_spectrum
 
   function compute_magnetic_dust_spectrum(nu, nu_ref, T_m, S, rms)
     implicit none
@@ -1666,6 +1765,11 @@ contains
                       else if (trim(fg_components(i)%type) == 'power_law') then
                          s(j) = compute_power_law_spectrum(nu, fg_components(i)%nu_ref, &
                               & fg_components(i)%par(k,1), fg_components(i)%par(l,2), &
+                              & fg_components(i)%p_rms)
+                      else if (trim(fg_components(i)%type) == 'AME_freq_shift_2par') then                         
+                         s(j) = compute_AME_freq_shift_2par_spectrum(nu, fg_components(i)%nu_ref, &
+                              & fg_components(i)%par(k,1), fg_components(i)%par(l,2), &
+                              & fg_components(i)%nu_peak, fg_components(i)%S_nu_ref, &
                               & fg_components(i)%p_rms)
                       else if (trim(fg_components(i)%type) == 'power_law_break') then
                          s(j) = compute_power_law_break_spectrum(nu, fg_components(i)%nu_ref, &

@@ -13,6 +13,7 @@ module comm_ptsrc_comp_mod
   use locate_mod
   use spline_1D_mod
   use InvSamp_mod
+  use powell_mod
   implicit none
 
   private
@@ -32,8 +33,9 @@ module comm_ptsrc_comp_mod
   type ptsrc
      character(len=512) :: outprefix
      character(len=512) :: id
-     real(dp)           :: glon, glat, f_beam, vec(3)
+     real(dp)           :: glon, glat, f_beam, vec(3), red_chisq
      type(Tnu), allocatable, dimension(:)     :: T         ! Spatial template (nband)
+     real(dp),  allocatable, dimension(:)     :: amp_rms   ! Amplitude RMS (nmaps)
      real(dp),  allocatable, dimension(:,:)   :: theta     ! Spectral parameters (npar,nmaps)
      real(dp),  allocatable, dimension(:,:)   :: theta_rms ! RMS of spectral parameters (npar,nmaps)
      real(dp),  allocatable, dimension(:,:,:) :: P_theta   ! Gaussian prior on spectral params (npar,nmaps,2)
@@ -42,8 +44,9 @@ module comm_ptsrc_comp_mod
   
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
-     real(dp)           :: cg_scale
+     real(dp)           :: cg_scale, nu_min_fit, nu_max_fit
      integer(i4b)       :: nside, nsrc, ncr_tot
+     logical(lgt)       :: apply_pos_prior, burn_in
      real(dp),        allocatable, dimension(:,:) :: x      ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:)   :: F_int  ! SED integrator (numband)
      type(ptsrc),     allocatable, dimension(:)   :: src    ! Source template (nsrc)
@@ -66,14 +69,20 @@ module comm_ptsrc_comp_mod
      class(comm_ptsrc_comp), pointer :: p
   end type ptsrc_ptr
   
-  integer(i4b) :: ncomp_pre    =   0
-  integer(i4b) :: npre         =   0
-  integer(i4b) :: nmaps_pre    =  -1
-  integer(i4b) :: comm_pre     =  -1
-  integer(i4b) :: myid_pre     =  -1
-  integer(i4b) :: numprocs_pre =  -1
+  integer(i4b) :: ncomp_pre               =   0
+  integer(i4b) :: npre                    =   0
+  integer(i4b) :: nmaps_pre               =  -1
+  integer(i4b) :: comm_pre                =  -1
+  integer(i4b) :: myid_pre                =  -1
+  integer(i4b) :: numprocs_pre            =  -1
+  logical(lgt) :: recompute_ptsrc_precond = .true.
 
   character(len=24), private :: operation
+
+  ! Variables for non-linear search
+  class(comm_ptsrc_comp), pointer, private :: c_lnL
+  integer(i4b),                    private :: k_lnL, p_lnL
+  real(dp),                        private :: a_old_lnL
   
 contains
 
@@ -102,13 +111,21 @@ contains
     constructor%nside     = cpar%cs_nside(id_abs)
     constructor%outprefix = trim(cpar%cs_label(id_abs))
     constructor%cg_scale  = cpar%cs_cg_scale(id_abs)
+    constructor%cg_samp_group  = cpar%cs_cg_samp_group(id_abs)
     allocate(constructor%poltype(1))
     constructor%poltype   = cpar%cs_poltype(1,id_abs)
     constructor%myid      = cpar%myid
     constructor%comm      = cpar%comm_chain
     constructor%numprocs  = cpar%numprocs_chain
+    constructor%nu_min_fit = cpar%cs_ptsrc_nu_min(id_abs)
+    constructor%nu_max_fit = cpar%cs_ptsrc_nu_max(id_abs)
     ncomp_pre             = ncomp_pre + 1
     operation             = cpar%operation
+    constructor%apply_pos_prior = cpar%cs_apply_pos_prior(id_abs)
+    constructor%burn_in   = cpar%cs_burn_in(id_abs)
+
+    ! Disable CG search when asking for positivity prior
+    if (constructor%apply_pos_prior)  constructor%cg_samp_group = 0
 
     ! Initialize frequency scaling parameters
     allocate(constructor%F_int(numband))
@@ -371,13 +388,13 @@ contains
              write(unit,*) '# SED model type      = ', trim(self%type)
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
              write(unit,*) '# '
-             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)          I_RMS(mJy)  alpha_I   beta_I   alpha_RMS_I   beta_RMS_I   ID'
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)          I_RMS(mJy)  alpha_I beta_I  a_RMS_I   b_RMS_I      chisq     ID'
           else if (trim(self%type) == 'fir') then
              write(unit,*) '# '
              write(unit,*) '# SED model type      = ', trim(self%type)
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
              write(unit,*) '# '
-             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    I_RMS(mJy)  beta_I      T_I   beta_RMS_I     T_RMS_I      ID'
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    I_RMS(mJy)  beta_I      T_I   beta_RMS_I     T_RMS_I      chisq    ID'
           end if
        end if
        do i = 1, self%nsrc
@@ -392,10 +409,11 @@ contains
              end if
           else
              if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
-                write(unit,fmt='(2f10.4,2f16.3,4f8.3,2a)') &
+                write(unit,fmt='(2f10.4,2f16.3,4f8.3,f12.3,2a)') &
                      & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
-                     & self%x(i,1)*self%cg_scale, 0.d0, self%src(i)%theta(:,1), &
-                     & self%src(i)%theta_rms(:,1), '  ', trim(self%src(i)%id)
+                     & self%x(i,1)*self%cg_scale, self%src(i)%amp_rms(1), self%src(i)%theta(:,1), &
+                     & self%src(i)%theta_rms(:,1), min(self%src(i)%red_chisq,10000.d0), '  ', &
+                     & trim(self%src(i)%id)
              end if
           end if
        end do
@@ -518,6 +536,7 @@ contains
           i                    = i+1
           allocate(self%src(i)%theta(self%npar,self%nmaps), self%src(i)%T(numband))
           allocate(self%src(i)%theta_rms(self%npar,self%nmaps))
+          allocate(self%src(i)%amp_rms(self%nmaps))
           allocate(self%src(i)%P_theta(self%npar,self%nmaps,2))
           allocate(self%src(i)%P_x(self%nmaps,2))
           self%src(i)%id             = id_ptsrc
@@ -898,7 +917,8 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
 
     if (ncomp_pre == 0) return
-    if (allocated(P_cr%invM_src)) return
+    if (.not. recompute_ptsrc_precond) return
+    if (allocated(P_cr%invM_src)) deallocate(P_cr%invM_src)
 
     call mpi_comm_rank(comm, myid, ierr)
         
@@ -1045,14 +1065,15 @@ contains
     if (myid_pre == 0) write(*,*) 'ptsrc precond init = ', real(t2-t1,sp)
 
     deallocate(mat,mat2)
+
+    recompute_ptsrc_precond = .false.
     
   end subroutine initPtsrcPrecond
 
   subroutine updatePtsrcPrecond
     implicit none
 
-    ! Placeholder for now; already fully initialized
-    if (npre == 0) return
+    call initPtsrcPrecond(comm_pre)
        
   end subroutine updatePtsrcPrecond
 
@@ -1190,145 +1211,430 @@ contains
   ! Sample spectral parameters
   subroutine samplePtsrcSpecInd(self, handle)
     implicit none
-    class(comm_ptsrc_comp),                  intent(inout)        :: self
-    type(planck_rng),                        intent(inout)        :: handle
+    class(comm_ptsrc_comp),                  intent(inout)  :: self
+    type(planck_rng),                        intent(inout)  :: handle
 
-    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status
-    real(dp)     :: a, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
     logical(lgt) :: ok
-    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta
+    logical(lgt), save :: first_call = .true.
+    class(comm_comp), pointer :: c
+    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
     real(dp),     allocatable, dimension(:,:) :: amp
 
     delta_lnL_threshold = 25.d0
     n                   = 101
     n_ok                = 50
+    n_gibbs             = 10
+    if (first_call .and. self%burn_in) n_gibbs = 1000
+    first_call          = .false.
+
+    if (trim(operation) == 'optimize') then
+       allocate(theta(self%npar))
+       do p = 1, self%nmaps
+          do k = 1, self%nsrc             
+             p_lnL       = p
+             k_lnL       = k
+             c           => compList     ! Extremely ugly hack...
+             do while (self%id /= c%id)
+                c => c%next()
+             end do
+             select type (c)
+             class is (comm_ptsrc_comp)
+                c_lnL => c
+             end select
+             
+             ! Add current point source to latest residual
+             if (self%myid == 0) then
+                a     = self%x(k,p)
+                theta = self%src(k)%theta(:,p)
+             end if
+             call mpi_bcast(a,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+             call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+             
+             do l = 1, numband
+                ! Compute mixing matrix
+                s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                do q = 1, self%src(k)%T(l)%np
+                   pix = self%src(k)%T(l)%pix(q,1)
+                   data(l)%res%map(pix,p) = data(l)%res%map(pix,p) + s*self%src(k)%T(l)%map(q,p) * a
+                end do
+             end do
+
+             if (self%myid == 0) then
+                ! Perform non-linear search
+                allocate(x(1+self%npar))
+                x(1)                   = self%x(k,p)
+                if (self%apply_pos_prior .and. p == 1 .and. x(1) < 0.d0) x(1) = 0.d0
+                x(2:1+self%npar)       = self%src(k)%theta(:,p)
+                call powell(x, lnL_ptsrc_multi, ierr)
+                a                      = x(1)
+                theta                  = x(2:1+self%npar)
+                do l = 1, c_lnL%npar
+                   if (c_lnL%p_gauss(2,l) == 0.d0 .or. c_lnL%p_uni(1,l) == c_lnL%p_uni(2,l)) &
+                        & theta(l) = c_lnL%p_gauss(1,l)
+                end do
+                self%x(k,p)            = x(1)
+                self%src(k)%theta(:,p) = theta
+                deallocate(x)
+                
+                ! Release slaves
+                flag = 0
+                call mpi_bcast(flag, 1, MPI_INTEGER, 0, c_lnL%comm, ierr)
+             else
+                do while (.true.)
+                   call mpi_bcast(flag, 1, MPI_INTEGER, 0, c_lnL%comm, ierr)
+                   if (flag == 1) then
+                      chisq = lnL_ptsrc_multi()
+                   else
+                      exit
+                   end if
+                end do
+             end if
+
+             ! Distribute updated parameters
+             call mpi_bcast(a,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+             call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+             self%src(k)%theta(:,p) = theta
+             
+             ! Update residuals
+             chisq = 0.d0
+             n_pix = 0
+             do l = 1, numband
+                s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                do q = 1, self%src(k)%T(l)%np
+                   pix = self%src(k)%T(l)%pix(q,1)
+                   data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
+                   if (data(l)%bp%nu_c >= self%nu_min_fit .and. data(l)%bp%nu_c <= self%nu_max_fit) then
+                      chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
+                      n_pix = n_pix + 1
+                   end if
+                end do
+             end do
+             
+             call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+             call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
+             if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot / n_pix_tot-1.d0) / sqrt(0.5d0/n_pix_tot)
+             if (self%myid == 0) write(*,*) k, real(a,sp), real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
+          end do
+       end do
+       deallocate(theta)
+
+       ! Update mixing matrix
+       call self%updateF
+       
+       ! Ask for CG preconditioner update
+       recompute_ptsrc_precond = .true.
+       return
+    end if
+
 
     ! Distribute point source amplitudes
-    allocate(amp(self%nsrc,self%nmaps))
+    allocate(amp(self%nsrc,self%nmaps), a_curr(numband))
     if (self%myid == 0) amp = self%x
     call mpi_bcast(amp, size(amp), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
 
-!    if (self%myid == 0) open(58,file='lnL_src.dat')
 
-    ! Sample spectral parameters
+!!$    ! Output point source amplitudes per frequency for debugging purposes
+!!$    allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
+!!$    p = 1
+!!$    do k = self%nsrc-10, self%nsrc
+!!$       theta = self%src(k)%theta(:,1)
+!!$       if (self%myid == 0) open(68,file='ptsrc_sed.dat', recl=1024)
+!!$       do l = 1, numband
+!!$          !if (data(l)%bp%nu_c > 500d9) cycle
+!!$          ! Compute mixing matrix
+!!$          !s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+!!$          !s = self%getScale(l,k,p) * data(l)%gain * self%cg_scale
+!!$          s = data(l)%gain * self%cg_scale
+!!$          
+!!$          ! Compute likelihood by summing over pixels
+!!$          a = 0.d0
+!!$          b = 0.d0
+!!$          do q = 1, self%src(k)%T(l)%np
+!!$             if (data(l)%bp%nu_c > 500d9) then
+!!$                unitconv = (data(l)%bp%f2t/data(l)%bp%a2t)
+!!$             else
+!!$                unitconv = 1.d0/data(l)%bp%a2t
+!!$             end if
+!!$             pix = self%src(k)%T(l)%pix(q,1)
+!!$             w   = s*self%src(k)%T(l)%map(q,p) / (data(l)%N%rms_pix(pix,p)*unitconv)**2 
+!!$             a   = a + w * s*self%src(k)%T(l)%map(q,p)
+!!$             if (data(l)%bp%nu_c > 500d9) then
+!!$                b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * s*self%src(k)%T(l)%map(q,p))*unitconv
+!!$             else
+!!$                b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * s*self%src(k)%T(l)%map(q,p))*unitconv
+!!$             end if
+!!$          end do
+!!$
+!!$          ! Collect results from all cores
+!!$          call mpi_reduce(a, a_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+!!$          call mpi_reduce(b, b_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+!!$          
+!!$          if (self%myid == 0) then
+!!$             
+!!$             ! Compute maximum likelihood solution
+!!$             s = 1.d-23 * (c/data(l)%bp%nu_c)**2 / (2.d0*k_b*self%src(k)%T(l)%Omega_b(p))
+!!$             write(*,*) data(l)%bp%nu_c, self%src(k)%T(l)%Omega_b(p)
+!!$             sigma   = 1.d0  / sqrt(a_tot) / s
+!!$             mu      = b_tot / a_tot       / s
+!!$             
+!!$             if (self%myid == 0) write(68,*) real(data(l)%bp%nu_c/1.d9,sp), mu, sigma
+!!$          end if
+!!$          
+!!$       end do
+!!$       if (self%myid == 0) write(68,*) 
+!!$    end do
+!!$    close(68)
+!!$
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+
+!    if (self%myid == 0) open(68,file='ptsrc.dat', recl=1024)
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
-    do j = 1, self%npar
-       if (self%p_uni(2,j) == self%p_uni(1,j) .or. self%p_gauss(2,j) == 0.d0) cycle
-       
-       ! Loop over sources
-       call wall_time(t1)
-       do p = 1, self%nmaps
-          do k = 1, self%nsrc
-             theta = self%src(k)%theta(:,p)
-             
-             ! Refine grid until acceptance
-             ok = .false.
-             do counter = 1, 5
+    do iter = 1, n_gibbs
+
+       if (self%myid == 0) write(*,*) iter, n_gibbs
+
+       ! Sample spectral parameters
+       do j = 1, self%npar
+          if (self%p_uni(2,j) == self%p_uni(1,j) .or. self%p_gauss(2,j) == 0.d0) cycle
+          
+          ! Loop over sources
+          call wall_time(t1)
+          do p = 1, self%nmaps
+             do k = 1, self%nsrc             
+             !do k = self%nsrc, self%nsrc
+                theta = self%src(k)%theta(:,p)
                 
-                if (counter == 1) then
-                   x_min = self%p_uni(1,j)
-                   x_max = self%p_uni(2,j)
-                end if
-                
-                ! Set up spectral parameter grid
-                do i = 1, n
-                   x(i) = x_min + (x_max-x_min)/(n-1.d0) * (i-1.d0)
+                !if (self%myid == 0) write(*,*) iter
+
+                ! Construct current source model
+                do l = 1, numband
+                   if (data(l)%bp%nu_c < self%nu_min_fit .or. data(l)%bp%nu_c > self%nu_max_fit) cycle
+                   s         = self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
                 end do
                 
-                lnL = 0.d0
-                do i = 1, n
-                   do l = 1, numband
-                      
-                      ! Compute mixing matrix
-                      theta(j) = x(i)
-                      s        = self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
-                      
-                      ! Compute predicted source amplitude for current band
-                      a = self%getScale(l,k,p) * s * amp(k,p)
-                      
-                      ! Compute likelihood by summing over pixels
-                      do q = 1, self%src(k)%T(l)%np
-                         pix = self%src(k)%T(l)%pix(q,1)
-                         lnL(i) = lnL(i) - 0.5d0 * (data(l)%res%map(pix,p)-self%src(k)%T(l)%map(q,p)*a)**2 / &
-                              & data(l)%N%rms_pix(pix,p)**2
+                ! Refine grid until acceptance
+                ok = .false.
+                do counter = 1, 5
+                   
+                   if (counter == 1) then
+                      x_min = self%p_uni(1,j)
+                      x_max = self%p_uni(2,j)
+                   end if
+                   
+                   ! Set up spectral parameter grid
+                   do i = 1, n
+                      x(i) = x_min + (x_max-x_min)/(n-1.d0) * (i-1.d0)
+                   end do
+                   
+                   lnL = 0.d0
+                   do i = 1, n
+                      do l = 1, numband
+                         if (data(l)%bp%nu_c < self%nu_min_fit .or. data(l)%bp%nu_c > self%nu_max_fit) cycle
+                         
+                         ! Compute mixing matrix
+                         theta(j) = x(i)
+                         s        = self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                         
+                         ! Compute predicted source amplitude for current band
+                         a = self%getScale(l,k,p) * s * amp(k,p)
+                         
+                         ! Compute likelihood by summing over pixels
+                         do q = 1, self%src(k)%T(l)%np
+                            pix = self%src(k)%T(l)%pix(q,1)
+                            lnL(i) = lnL(i) - 0.5d0 * (data(l)%res%map(pix,p)-&
+                                 & self%src(k)%T(l)%map(q,p)*(a-a_curr(l)))**2 / &
+                                 & data(l)%N%rms_pix(pix,p)**2
+                         end do
+                         
+                      end do
+                   end do
+                   
+                   ! Collect results from all cores
+                   call mpi_reduce(lnL, P_tot, size(lnL), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+                   
+                   if (self%myid == 0) then
+                      ! Add Gaussian prior
+                      do i = 1, n
+                         P_tot(i) = P_tot(i) - 0.5d0 * (x(i)-self%p_gauss(1,j))**2 / self%p_gauss(2,j)**2
                       end do
                       
+                      ! Find acceptable range                   
+                      ind   = maxloc(P_tot)
+                      i_min = ind(1)
+                      do while (P_tot(ind(1))-P_tot(i_min) < delta_lnL_threshold .and. i_min > 1)
+                         i_min = i_min-1
+                      end do
+                      i_min = max(i_min-1,1)
+                      x_min = x(i_min)
+                      
+                      i_max = ind(1)
+                      do while (P_tot(ind(1))-P_tot(i_max) < delta_lnL_threshold .and. i_max < n)
+                         i_max = i_max+1
+                      end do
+                      i_max = min(i_max+1,n)
+                      x_max = x(i_max)
+                      
+                      ! Return ok if there are sufficient number of points in relevant range
+                      ok = (i_max-i_min) > n_ok
+                      !write(*,*) k, ok, i_max-i_min, real(x_min,sp), real(x_max,sp)
+                   end if
+                   
+                   ! Broadcast status
+                   call mpi_bcast(ok,    1, MPI_LOGICAL,          0, self%comm, ierr)
+                   call mpi_bcast(x_min, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                   call mpi_bcast(x_max, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                   
+                   if (ok) exit
+                   
+                end do
+                
+                ! Draw a sample or compute maximum-likelihood point
+                if (self%myid == 0) then
+                   theta(j) = sample_InvSamp(handle, x, lnL_ptsrc, lnL_in=P_tot, prior=self%p_uni(:,j), &
+                        & status=status, optimize=(trim(operation)=='optimize'), use_precomputed_grid=.true.)
+                   
+                   ! Compute and store RMS
+                   P_tot = exp(P_tot-maxval(P_tot)) 
+                   P_tot = P_tot / sum(P_tot) / (x(2)-x(1))
+                   mu    = sum(x*P_tot)*(x(2)-x(1))
+                   sigma = sqrt(sum((x-mu)**2*P_tot)*(x(2)-x(1)))
+                   self%src(k)%theta_rms(j,p) = sigma
+                   
+                   !write(*,*) 'ind = ', real(theta(j),sp), real(mu,sp), real(sigma,sp)
+
+                   !ind = maxloc(P_tot)
+                   !write(*,*) k, self%nsrc, real(x(ind(1)),sp), real(theta(j),sp)
+                   !open(58,file='ind.dat')
+                   !do q = 1, n
+                   !   write(58,*) x(q), P_tot(q)
+                   !end do
+                   !close(58)
+                end if
+                
+                ! Broadcast resulting parameter
+                call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                
+                ! Update local variables
+                self%src(k)%theta(:,p) = theta
+
+                ! Update residuals
+                do l = 1, numband
+                   ! Compute mixing matrix
+                   s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   
+                   ! Compute likelihood by summing over pixels
+                   do q = 1, self%src(k)%T(l)%np
+                      pix = self%src(k)%T(l)%pix(q,1)
+                      data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - self%src(k)%T(l)%map(q,p) * (s*amp(k,p)-a_curr(l))
                    end do
                 end do
                 
-                ! Collect results from all cores
-                call mpi_reduce(lnL, P_tot, size(lnL), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-                
-                if (self%myid == 0) then
-                   ! Add Gaussian prior
-                   do i = 1, n
-                      P_tot(i) = P_tot(i) - 0.5d0 * (x(i)-self%p_gauss(1,j))**2 / self%p_gauss(2,j)**2
-                   end do
-
-                   ! Find acceptable range                   
-                   ind   = maxloc(P_tot)
-                   i_min = ind(1)
-                   do while (P_tot(ind(1))-P_tot(i_min) < delta_lnL_threshold .and. i_min > 1)
-                      i_min = i_min-1
-                   end do
-                   i_min = max(i_min-1,1)
-                   x_min = x(i_min)
-                   
-                   i_max = ind(1)
-                   do while (P_tot(ind(1))-P_tot(i_max) < delta_lnL_threshold .and. i_max < n)
-                      i_max = i_max+1
-                   end do
-                   i_max = min(i_max+1,n)
-                   x_max = x(i_max)
-                   
-                   ! Return ok if there are sufficient number of points in relevant range
-                   ok = (i_max-i_min) > n_ok
-                   !write(*,*) k, ok, i_max-i_min, real(x_min,sp), real(x_max,sp)
-                end if
-                
-                ! Broadcast status
-                call mpi_bcast(ok,    1, MPI_LOGICAL,          0, self%comm, ierr)
-                call mpi_bcast(x_min, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-                call mpi_bcast(x_max, 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-                
-                if (ok) exit
+                !call mpi_finalize(ierr)
+                !stop
                 
              end do
+          end do
+          
+       end do
+       !    call wall_time(t2)
+       
+       ! Sample point source amplitudes
+       do p = 1, self%nmaps
+          !do k = self%nsrc, self%nsrc
+          do k = 1, self%nsrc
+             a_old = amp(k,p) ! Store old amplitude to recompute residual
+             
+             a     = 0.d0
+             b     = 0.d0
+             theta = self%src(k)%theta(:,p)
+             do l = 1, numband
+                if (data(l)%bp%nu_c < self%nu_min_fit .or. data(l)%bp%nu_c > self%nu_max_fit) cycle
 
-             ! Draw a sample or compute maximum-likelihood point
-             if (self%myid == 0) then
-                theta(j) = sample_InvSamp(handle, x, lnL_ptsrc, lnL_in=P_tot, prior=self%p_uni(:,j), &
-                     & status=status, optimize=(trim(operation)=='optimize'), use_precomputed_grid=.true.)
-
-                ! Compute and store RMS
-                P_tot = exp(P_tot-maxval(P_tot)) 
-                P_tot = P_tot / sum(P_tot) / (x(2)-x(1))
-                mu    = sum(x*P_tot)*(x(2)-x(1))
-                sigma = sqrt(sum((x-mu)**2*P_tot)*(x(2)-x(1)))
-                self%src(k)%theta_rms(j,p) = sigma
+                ! Compute mixing matrix
+                s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
                 
-!!$                ind = maxloc(P_tot)
-!!$                write(*,*) k, self%nsrc, real(x(ind(1)),sp), real(theta(j),sp)
-!!$                do q = 1, n
-!!$                   write(58,*) x(q), P_tot(q)
-!!$                end do
-!!$                write(58,*)
+                ! Compute likelihood by summing over pixels
+                do q = 1, self%src(k)%T(l)%np
+                   pix = self%src(k)%T(l)%pix(q,1)
+                   w   = s*self%src(k)%T(l)%map(q,p) / data(l)%N%rms_pix(pix,p)**2 
+                   a   = a + w * s*self%src(k)%T(l)%map(q,p)
+                   b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * s*self%src(k)%T(l)%map(q,p))
+                end do
+             end do
+             
+             ! Collect results from all cores
+             call mpi_reduce(a, a_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+             call mpi_reduce(b, b_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+             
+             if (self%myid == 0) then
+                
+                ! Compute maximum likelihood solution
+                sigma   = 1.d0  / sqrt(a_tot)
+                mu      = b_tot / a_tot
+                !write(*,*) 'amp0  = ', real(mu,sp), real(sigma,sp)
+                
+                ! Add Gaussian prior
+                mu_p    = self%src(k)%P_x(p,1)
+                sigma_p = self%src(k)%P_x(p,2)
+                mu      = (mu*sigma_p**2 + mu_p * sigma**2) / (sigma_p**2 + sigma**2)
+                sigma   = sqrt(sigma**2 * sigma_p**2 / (sigma**2 + sigma_p**2))
+                self%src(k)%amp_rms(p) = sigma
+                
+                ! Draw sample
+                if (trim(operation) == 'optimize') then
+                   amp(k,p) = mu
+                   if (self%apply_pos_prior .and. p == 1) amp(k,p) = max(amp(k,p), 0.d0)
+                else
+                   amp(k,p) = mu + sigma * rand_gauss(handle)
+                   if (self%apply_pos_prior .and. p == 1) then
+                      do while (amp(k,p) < 0.d0)
+                         amp(k,p) = rand_trunc_gauss(handle, mu, 0.d0, sigma)
+                      end do
+                   end if
+                end if
              end if
              
-             ! Broadcast resulting parameter
-             call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+             ! Distribute amplitude
+             call mpi_bcast(amp(k,p), 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+             if (self%myid == 0) self%x(k,p) = amp(k,p)
              
-             ! Update local variables
-             self%src(k)%theta(:,p) = theta
+             ! Update residuals
+             chisq = 0.d0
+             n_pix = 0
+             do l = 1, numband
+                ! Compute mixing matrix
+                s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                
+                ! Compute likelihood by summing over pixels
+                do q = 1, self%src(k)%T(l)%np
+                   pix = self%src(k)%T(l)%pix(q,1)
+                   data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(k)%T(l)%map(q,p) * (amp(k,p)-a_old)
+                   if (data(l)%bp%nu_c >= self%nu_min_fit .and. data(l)%bp%nu_c <= self%nu_max_fit) then
+                      chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
+                      n_pix = n_pix + 1
+                   end if
+                end do
+             end do
 
-             !call mpi_finalize(ierr)
-             !stop
+             call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+             call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
+             if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot / n_pix_tot-1.d0) / sqrt(0.5d0/n_pix_tot)
+
+             !if (self%myid == 0) write(*,*) 'amp = ', real(amp(k,p),sp), real(mu,sp), real(sigma,sp)
+             !if (self%myid == 0 .and. k == self%nsrc) write(68,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
+             if (self%myid == 0 .and. iter==n_gibbs) write(*,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              
           end do
        end do
-       
+
     end do
-!    call wall_time(t2)
+    !if (self%myid == 0) close(68)
+
 
 !!$    if (self%myid == 0) then
 !!$       close(58)
@@ -1336,13 +1642,16 @@ contains
 !!$    end if
 
 
-!    call mpi_finalize(q)
-!    stop
+    !call mpi_finalize(q)
+    !stop
 
     ! Update mixing matrix
     call self%updateF
 
-    deallocate(x, P_tot, F, lnL, amp, theta)
+    ! Ask for CG preconditioner update
+    recompute_ptsrc_precond = .true.
+
+    deallocate(x, P_tot, F, lnL, amp, theta, a_curr)
 
   end subroutine samplePtsrcSpecInd
 
@@ -1351,6 +1660,120 @@ contains
     implicit none
     real(dp), intent(in) :: x
     real(dp)             :: lnL_ptsrc
+    lnL_ptsrc = 0.d0
   end function lnL_ptsrc
+
+  function lnL_ptsrc_multi(p)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:), intent(in), optional :: p
+    real(dp)                                     :: lnL_ptsrc_multi
+
+    integer(i4b) :: i, l, k, q, pix, ierr, flag
+    real(dp)     :: lnL, amp, s, a
+    real(dp), allocatable, dimension(:) :: theta
+
+    allocate(theta(c_lnL%npar))
+    if (c_lnL%myid == 0) then
+       flag = 1
+       call mpi_bcast(flag, 1, MPI_INTEGER, 0, c_lnL%comm, ierr)
+       amp   = p(1)
+       theta = p(2:1+c_lnL%npar)
+       do l = 1, c_lnL%npar
+          if (c_lnL%p_gauss(2,l) == 0.d0 .or. c_lnL%p_uni(1,l) == c_lnL%p_uni(2,l)) &
+               & theta(l) = c_lnL%p_gauss(1,l)
+       end do
+    end if
+    call mpi_bcast(amp,             1, MPI_DOUBLE_PRECISION, 0, c_lnL%comm, ierr)
+    call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, c_lnL%comm, ierr)
+
+    ! Check amplitude prior
+    if (c_lnL%apply_pos_prior .and. p_lnL == 1 .and. amp < 0.d0) then
+       lnL_ptsrc_multi = 1.d30
+       deallocate(theta)
+       return
+    end if
+    
+    ! Check spectral index priors
+    do l = 1, c_lnL%npar
+       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
+          lnL_ptsrc_multi = 1.d30
+          deallocate(theta)
+          return
+       end if
+    end do
+
+
+    lnL = 0.d0
+    do l = 1, numband
+       if (data(l)%bp%nu_c < c_lnL%nu_min_fit .or. data(l)%bp%nu_c > c_lnL%nu_max_fit) cycle
+          
+       ! Compute mixing matrix
+       s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+          
+       ! Compute predicted source amplitude for current band
+       a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
+          
+       ! Compute likelihood by summing over pixels
+       do q = 1, c_lnL%src(k_lnL)%T(l)%np
+          pix = c_lnL%src(k_lnL)%T(l)%pix(q,1)
+          lnL = lnL - 0.5d0 * (data(l)%res%map(pix,p_lnL)-c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a)**2 / &
+               & data(l)%N%rms_pix(pix,p_lnL)**2
+       end do
+          
+    end do
+    
+    ! Collect results from all cores
+    call mpi_reduce(lnL, lnL_ptsrc_multi, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, c_lnL%comm, ierr)
+    
+    if (c_lnL%myid == 0) then
+       ! Apply amplitude prior
+       if (c_lnL%src(k_lnL)%P_x(p_lnL,2) > 0.d0) then
+!          lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (amp-c_lnL%src(k_lnL)%P_x(p_lnL,1))**2 / &
+!               & c_lnL%src(k_lnL)%P_x(p_lnL,2)**2
+       end if
+
+       ! Apply index priors
+       do l = 1, c_lnL%npar
+          if (c_lnL%p_gauss(2,l) > 0.d0) then
+!             lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / &
+!                  & c_lnL%p_gauss(2,l)**2 
+          end if
+       end do
+
+       ! Return chi-square
+       lnL_ptsrc_multi = -2.d0*lnL_ptsrc_multi
+       !write(*,fmt='(f16.3,f8.3,f16.3)') amp, theta(1), lnL_ptsrc_multi
+    end if
+
+    deallocate(theta)
+
+  end function lnL_ptsrc_multi
+  
+  function rand_trunc_gauss(rng_handle, mu, mu_, sigma)
+    implicit none
+
+    real(dp),         intent(in)    :: mu, mu_, sigma
+    type(planck_rng), intent(inout) :: rng_handle
+    real(dp)                        :: rand_trunc_gauss
+
+    integer(i4b) :: n
+    real(dp) :: eta, alpha, z, rho, u, mu0
+    logical(lgt) :: ok
+
+    mu0   = (mu_ - mu)/sigma
+    alpha = 0.5d0 * (mu0 + sqrt(mu0**2 + 4.d0))
+    do while (.true.)
+       z   = -log(rand_uni(rng_handle)) / alpha + mu0
+       rho = exp(-0.5d0 * (z-alpha)**2)
+       if (rand_uni(rng_handle) < rho) then
+          rand_trunc_gauss = sigma*z + mu
+          exit
+       end if
+    end do
+
+  end function rand_trunc_gauss
   
 end module comm_ptsrc_comp_mod
+
+! LocalWords:  src
