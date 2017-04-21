@@ -58,6 +58,7 @@ module comm_diffuse_comp_mod
   integer(i4b) :: nmaps_pre = -1
   logical(lgt) :: recompute_diffuse_precond = .true.
   logical(lgt) :: output_cg_eigenvals
+  logical(lgt), private :: only_pol
   character(len=512) :: outdir
   class(comm_mapinfo), pointer                   :: info_pre
   class(diff_ptr),     allocatable, dimension(:) :: diffComps
@@ -85,6 +86,7 @@ contains
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
     self%output_mixmat = cpar%output_mixmat
+    only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
     outdir              = cpar%outdir
     info               => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
@@ -196,10 +198,13 @@ contains
                         & data(q)%N%invN_diag%alm(i2,j) * &  ! invN_{lm,lm}
                         & data(q)%B%b_l(l,j)**2 * &          ! b_l^2
                         & p1%F_mean(q,j) * p2%F_mean(q,j)    ! F(c1)*F(c2)
-!!$                   write(*,*) i1, l, m, i2
-!!$                   write(*,*) data(q)%N%invN_diag%alm(i2,j)
-!!$                   write(*,*) data(q)%B%b_l(l,j)
-!!$                   write(*,*) p1%F_mean(q,j)
+!!$                   if (info_pre%myid == 0 .and. j == 2 .and. i1 > 5) then
+!!$                      write(*,*) i1, l, m, i2, k1, k2
+!!$                      write(*,*) data(q)%N%invN_diag%alm(i2,j)
+!!$                      write(*,*) data(q)%B%b_l(l,j)
+!!$                      write(*,*) p1%F_mean(q,j), p2%F_mean(q,j)
+!!$                      write(*,*) mat
+!!$                   end if
                 end do
              end do
           end do
@@ -214,17 +219,18 @@ contains
                 P_cr%invM_diff(i1,j)%comp2ind(k1) = n
              end if
           end do
-!!$          write(*,*) i1, j, mat
-!!$          if (n == 0) then
-!!$             call mpi_finalize(k1)
-!!$             stop
-!!$          end if
-
           P_cr%invM_diff(i1,j)%n = n
           allocate(P_cr%invM_diff(i1,j)%ind(n))
           allocate(P_cr%invM_diff(i1,j)%M0(n,n), P_cr%invM_diff(i1,j)%M(n,n))
           P_cr%invM_diff(i1,j)%ind = ind(1:n)
           P_cr%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
+
+!!$          if (j == 2 .and. i1 > 5) then
+!!$             if (info_pre%myid == 0) write(*,*) 'n = ', n, l, m, j
+!!$             if (info_pre%myid == 0) write(*,*) 'invN = ', P_cr%invM_diff(i1,j)%M0
+!!$             call mpi_finalize(k1)
+!!$             stop
+!!$          end if
 
        end do
        !!$OMP END DO
@@ -350,6 +356,14 @@ contains
     end do
     !call wall_time(t2)
     !write(*,*) 'sqrtS = ', t2-t1
+
+    ! Nullify temperature block if only polarization
+    if (only_pol) then
+       do i = 0, info_pre%nalm-1
+          if (P_cr%invM_diff(i,1)%n == 0) cycle                
+          P_cr%invM_diff(i,1)%M = 0.d0
+       end do
+    end if
 
 !!$    if (info_pre%myid == 0) then
 !!$       n = self%invM_(0,1)%n
@@ -485,16 +499,24 @@ contains
                & data(i)%info%nmaps, data(i)%info%pol)
           t    => comm_map(info)
           nmaps            = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
-          t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
-          call t%Y_scalar
+          if (self%lmax_ind >= 0) then
+             t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
+             call t%Y_scalar
+          else
+             t%map = self%theta(1)%p%map
+          end if
           nullify(info)
           do j = 2, self%npar
              info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
                   & self%theta(j)%p%info%lmax, data(i)%info%nmaps, data(i)%info%pol)
              t0    => comm_map(info)
              nmaps            = min(data(i)%info%nmaps, self%theta(j)%p%info%nmaps)
-             t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-             call t0%Y_scalar
+             if (self%lmax_ind >= 0) then
+                t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
+                call t0%Y_scalar
+             else
+                t0%map = self%theta(j)%p%map
+             end if
              call t%add(t0)
              nullify(info)
           end do
@@ -854,12 +876,12 @@ contains
           if (output_hdf) call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
        end if
        deallocate(sigma_l)
-       
+
        ! Write spectral index maps
        do i = 1, self%npar
           filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
                & trim(postfix) // '.fits'
-          call self%theta(i)%p%Y_scalar
+          if (self%lmax_ind >= 0) call self%theta(i)%p%Y_scalar
           !call self%apply_proc_mask(self%theta(i)%p)
 
           if (output_hdf) then
@@ -881,7 +903,7 @@ contains
           end do
        end if
     end if
-        
+
   end subroutine dumpDiffuseToFITS
 
   ! Dump current sample to HEALPix FITS file

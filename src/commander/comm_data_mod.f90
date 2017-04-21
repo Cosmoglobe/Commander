@@ -63,6 +63,7 @@ contains
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
        data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_mapfile(i)), mask_misspix=mask_misspix)
+       if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
 
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
@@ -104,6 +105,7 @@ contains
           call apply_source_mask(data(n)%mask, trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask), &
                & data(n)%B%r_max)
        end if
+       if (cpar%only_pol) data(n)%mask%map(:,1) = 0.d0
        call update_status(status, "data_mask")
        deallocate(mask_misspix)
 

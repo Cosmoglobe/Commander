@@ -55,15 +55,16 @@ contains
        write(*,fmt='(a,f8.2)') '    CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
 
-!!$    if (cpar%myid == root) write(*,*) P_cr%invM_diff(10,1)%n
-!!$    if (cpar%myid == root) write(*,*) P_cr%invM_diff(10,1)%M(1,1)
-!!$    j = 1
+!!$    k = 6
+!!$    l = n/3+k
+!!$    if (cpar%myid == root) write(*,*) P_cr%invM_diff(k,2)%n
+!!$    if (cpar%myid == root) write(*,*) 1.d0/P_cr%invM_diff(k,2)%M(1,1)
 !!$    if (cpar%myid == root) write(*,*)
 !!$    if (cpar%myid == root) x    = 0.d0
-!!$    if (cpar%myid == root) x(j) = 1.d0
-!!$    q     = cr_matmulA(x)
-!!$    if (cpar%myid == root) write(*,*) q(j)
-!!$    if (cpar%myid == root) write(*,*) P_cr%invM_src(1,1)%M(j,j)
+!!$    if (cpar%myid == root) x(l) = 1.d0
+!!$    q     = cr_matmulA(x, samp_group)
+!!$    if (cpar%myid == root) write(*,*) q(l)
+!!$    !if (cpar%myid == root) write(*,*) P_cr%invM_src(k,2)%M(1,1)
 !!$    
 !!$    do i = 2*n/3+5, 3*n/3
 !!$       if (cpar%myid == root) x    = 0.d0

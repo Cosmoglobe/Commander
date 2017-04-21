@@ -14,6 +14,7 @@ module comm_Cl_mod
   integer(i4b), parameter :: EE = 4
   integer(i4b), parameter :: EB = 5
   integer(i4b), parameter :: BB = 6
+  logical(lgt), private   :: only_pol
   
   type :: comm_Cl
      ! General parameters
@@ -85,6 +86,7 @@ contains
     constructor%outdir = cpar%outdir
     datadir            = cpar%datadir
     nmaps              = constructor%nmaps
+    only_pol           = cpar%only_pol
 
     allocate(constructor%Dl(0:constructor%lmax,constructor%nspec))
     allocate(constructor%sqrtS_mat(nmaps,nmaps,0:constructor%lmax))
@@ -238,7 +240,16 @@ contains
     class(comm_mapinfo),               intent(in),    optional :: info
     integer(i4b) :: i, l
     real(dp)     :: f_apod
-    if (trim(self%type) == 'none') return
+    if (trim(self%type) == 'none') then
+       if (only_pol) then
+          if (present(map)) then
+             map%alm(:,1) = 0.d0
+          else if (present(alm)) then
+             alm(:,1) = 0.d0
+          end if
+       end if
+       return
+    end if
 
     if (present(map)) then
        do i = 0, self%info%nalm-1
@@ -267,7 +278,16 @@ contains
     class(comm_mapinfo),               intent(in),    optional :: info
     integer(i4b) :: i, l
     real(dp)     :: f_apod
-    if (trim(self%type) == 'none') return
+    if (trim(self%type) == 'none') then
+       if (only_pol) then
+          if (present(map)) then
+             map%alm(:,1) = 0.d0
+          else if (present(alm)) then
+             alm(:,1) = 0.d0
+          end if
+       end if
+       return
+    end if
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
@@ -295,7 +315,16 @@ contains
     class(comm_mapinfo),               intent(in),    optional :: info
     integer(i4b) :: i, l
     real(dp)     :: f_apod
-    if (trim(self%type) == 'none') return
+    if (trim(self%type) == 'none') then
+       if (only_pol) then
+          if (present(map)) then
+             map%alm(:,1) = 0.d0
+          else if (present(alm)) then
+             alm(:,1) = 0.d0
+          end if
+       end if
+       return
+    end if
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
