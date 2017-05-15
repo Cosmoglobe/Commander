@@ -515,7 +515,7 @@ contains
                 t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
                 call t0%Y_scalar
              else
-                call self%theta(j)%p%udgrade(t)
+                call self%theta(j)%p%udgrade(t0)
              end if
              call t%add(t0)
              nullify(info)
