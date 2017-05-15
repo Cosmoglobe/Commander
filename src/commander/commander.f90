@@ -122,7 +122,7 @@ first_sample = 1 !cpar%init_samp+1
      !call sample_partialsky_tempamps(cpar, handle)
 
      ! Sample non-linear parameters
-     call sample_nonlin_params(cpar, handle)
+     !call sample_nonlin_params(cpar, handle)
 
      ! Sample instrumental parameters
 

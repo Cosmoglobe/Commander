@@ -503,7 +503,7 @@ contains
              t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
              call t%Y_scalar
           else
-             t%map = self%theta(1)%p%map
+             call self%theta(1)%p%udgrade(t)
           end if
           nullify(info)
           do j = 2, self%npar
@@ -515,7 +515,7 @@ contains
                 t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
                 call t0%Y_scalar
              else
-                t0%map = self%theta(j)%p%map
+                call self%theta(j)%p%udgrade(t)
              end if
              call t%add(t0)
              nullify(info)

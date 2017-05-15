@@ -533,6 +533,7 @@ contains
     call initialize_chain_files(chain_dir, chain, num_gibbs_iter)
 
 !    call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
+!    call mpi_finalize(ierr)
 !    stop
 
     if (output_ml_map_and_covmat) then
@@ -606,6 +607,7 @@ contains
 
              ! Enforce zero CMB monopole and dipole if requested; transfer CMB offsets to template coefficients
           if (.not. enforce_zero_cl .and. sample_fg_pix) call set_pix_cmb_equal_to_Cl_cmb(s_i)
+          call set_exclude_fg_amp(.false.)
        end if
 
 !!$       write(*,*) 'b2'
