@@ -99,7 +99,7 @@ contains
     do i = 1, n
        constructor%theta(i)%p     => comm_map(info)
        constructor%theta(i)%p%map = constructor%theta_def(i)
-       call constructor%theta(i)%p%YtW
+       if (constructor%lmax_ind >= 0) call constructor%theta(i)%p%YtW_scalar
     end do
 
 
