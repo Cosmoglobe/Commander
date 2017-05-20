@@ -212,6 +212,10 @@ contains
     ! Initialize component parameters
     c   => compList
     do while (associated(c))
+       if (.not. c%init_from_HDF) then
+          c => c%next()
+          cycle
+       end if
        call update_status(status, "init_chain_"//trim(c%label))
        call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
        c => c%next()

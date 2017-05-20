@@ -79,6 +79,7 @@ module comm_param_mod
      character(len=512) :: cs_inst_parfile
      integer(i4b)       :: cs_ncomp, cs_ncomp_tot
      logical(lgt),       allocatable, dimension(:)     :: cs_include
+     logical(lgt),       allocatable, dimension(:)     :: cs_initHDF
      character(len=512), allocatable, dimension(:)     :: cs_label
      character(len=512), allocatable, dimension(:)     :: cs_type
      character(len=512), allocatable, dimension(:)     :: cs_class
@@ -323,7 +324,7 @@ contains
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
-    allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n))
+    allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
@@ -337,6 +338,7 @@ contains
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
+       call get_parameter(paramfile, 'COMP_INIT_FROM_HDF'//itext,   par_lgt=cpar%cs_initHDF(i))
        call get_parameter(paramfile, 'COMP_LABEL'//itext,           par_string=cpar%cs_label(i))
        call get_parameter(paramfile, 'COMP_TYPE'//itext,            par_string=cpar%cs_type(i))
        call get_parameter(paramfile, 'COMP_CLASS'//itext,           par_string=cpar%cs_class(i))
@@ -365,7 +367,7 @@ contains
           if (trim(cpar%cs_cltype(i)) == 'binned') then
              call get_parameter(paramfile, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
              call get_parameter(paramfile, 'COMP_CL_DEFAULT_FILE'//itext,     par_string=cpar%cs_clfile(i))
-          else if (trim(cpar%cs_cltype(i)) == 'power_law') then
+          else if (trim(cpar%cs_cltype(i)) == 'power_law' .or. trim(cpar%cs_cltype(i)) == 'exp') then
              call get_parameter(paramfile, 'COMP_CL_POLTYPE'//itext,      par_int=cpar%cs_cl_poltype(i))
              call get_parameter(paramfile, 'COMP_CL_L_PIVOT'//itext,      par_int=cpar%cs_lpivot(i))
              call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_MEAN'//itext, par_dp=cpar%cs_cl_prior(i,1))

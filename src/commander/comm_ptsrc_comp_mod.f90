@@ -595,6 +595,18 @@ contains
     end do
     if (cpar%cs_output_ptsrc_beam(id_abs)) call dump_beams_to_hdf(self, tempfile)
 
+!!$    if (trim(self%label) == 'fir') then
+!!$       if (self%myid == 0) then
+!!$          write(*,*) 'Warning: Initializing fir at default'
+!!$          self%x = 0.d0
+!!$       end if
+!!$       do i = 1, self%nsrc
+!!$          do j = 1, self%nmaps
+!!$             self%src(i)%theta(:,j) = self%theta_def
+!!$          end do
+!!$       end do
+!!$    end if
+
     deallocate(amp, amp_rms, beta, beta_rms)
     
   end subroutine read_sources
@@ -1736,8 +1748,8 @@ contains
        ! Apply index priors
        do l = 1, c_lnL%npar
           if (c_lnL%p_gauss(2,l) > 0.d0) then
-!             lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / &
-!                  & c_lnL%p_gauss(2,l)**2 
+             lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / &
+                  & c_lnL%p_gauss(2,l)**2 
           end if
        end do
 

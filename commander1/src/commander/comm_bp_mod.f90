@@ -8,7 +8,7 @@ module comm_bp_mod
   real(dp), parameter :: h        = 1.0545726691251021d-34 * 2.d0*pi !6.626068d-34
   real(dp), parameter :: c        = 2.99792458d8
   real(dp)            :: T_CMB    = 2.7255d0
-  character(len=128)  :: bp_model = 'powlaw_tilt'
+  character(len=128)  :: bp_model = 'additive_shift'
 
   interface sz_thermo
      module procedure sz_thermo_single, sz_thermo_array

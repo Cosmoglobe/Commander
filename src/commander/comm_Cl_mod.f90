@@ -19,8 +19,8 @@ module comm_Cl_mod
   type :: comm_Cl
      ! General parameters
      class(comm_mapinfo), pointer :: info
-     character(len=512)           :: type  ! {none, binned, power_law}
-     character(len=512)           :: label ! {none, binned, power_law}
+     character(len=512)           :: type  ! {none, binned, power_law, exp}
+     character(len=512)           :: label ! {none, binned, power_law, exp}
      character(len=512)           :: outdir
      integer(i4b)                 :: lmax, nmaps, nspec, l_apod
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
@@ -32,7 +32,7 @@ module comm_Cl_mod
      character(len=1), allocatable, dimension(:,:) :: stat
      integer(i4b), allocatable, dimension(:,:)     :: bins
      
-     ! Power law parameters
+     ! Power law/exponential parameters
      character(len=512) :: plfile
      integer(i4b)       :: iter = 0
      real(dp)           :: prior(2), lpiv
@@ -48,6 +48,7 @@ module comm_Cl_mod
      procedure :: binCls
      procedure :: writeFITS
      procedure :: updatePowlaw
+     procedure :: updateExponential
      procedure :: updateS
   end type comm_Cl
 
@@ -108,6 +109,12 @@ contains
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
        call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+    else if (trim(constructor%type) == 'exp') then
+       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
+       constructor%lpiv          = cpar%cs_lpivot(id_abs)
+       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
+       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
+       call constructor%updateExponential(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
     else
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
@@ -138,6 +145,28 @@ contains
     end do
 
   end subroutine updatePowlaw
+
+  subroutine updateExponential(self, amp, beta, only_pol)
+    implicit none
+    class(comm_Cl),                intent(inout) :: self
+    real(dp),       dimension(1:), intent(in)    :: amp, beta
+    logical(lgt),                  intent(in)    :: only_pol
+
+    integer(i4b) :: i, j, l, i_min
+    
+    self%amp   = amp
+    self%beta  = beta
+    self%Dl    = 0.d0
+    i_min      = 1; if (only_pol) i_min = 2
+    do i = i_min, self%nmaps
+       j = i*(1-i)/2 + (i-1)*self%nmaps + i
+       do l = 1, self%lmax
+          self%Dl(l,j) = amp(i) * exp(-beta(i)*(real(l,dp)/real(self%lpiv,dp))) 
+       end do
+       self%Dl(0,j) = self%Dl(1,j)
+    end do
+
+  end subroutine updateExponential
 
   subroutine updateS(self)
     implicit none
@@ -461,6 +490,8 @@ contains
        call sample_Cls_inverse_wishart(self, map)
     case ('power_law')
        call sample_Cls_powlaw(self, map)
+    case ('exp')
+       call sample_Cls_powlaw(self, map)
     end select
     
   end subroutine sampleCls
@@ -503,6 +534,9 @@ contains
     case ('binned')
        call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext, hdffile=hdffile, hdfpath=hdfpath)
     case ('power_law')
+       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
+       call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
+    case ('exp')
        call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
        call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
     end select

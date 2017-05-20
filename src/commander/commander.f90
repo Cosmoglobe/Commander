@@ -121,8 +121,10 @@ first_sample = 1 !cpar%init_samp+1
      ! Sample partial-sky templates
      !call sample_partialsky_tempamps(cpar, handle)
 
+     !call output_FITS_sample(cpar, 1000, .true.)
+
      ! Sample non-linear parameters
-     !call sample_nonlin_params(cpar, handle)
+     call sample_nonlin_params(cpar, handle)
 
      ! Sample instrumental parameters
 

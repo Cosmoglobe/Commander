@@ -20,7 +20,7 @@ module comm_comp_mod
      class(comm_comp), pointer :: prevLink => null()
 
      ! Data variables
-     logical(lgt)       :: active
+     logical(lgt)       :: active, init_from_HDF
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_samp_group
      character(len=512) :: label, class, type, unit
      real(dp)           :: nu_ref, RJ2unit_
@@ -179,7 +179,7 @@ contains
     self%myid            = cpar%myid_chain    
     self%numprocs        = cpar%numprocs_chain
     self%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
-
+    self%init_from_HDF   = cpar%cs_initHDF(id_abs)
 
     ! Set up conversion factor between RJ and native component unit
     select case (trim(self%unit))
