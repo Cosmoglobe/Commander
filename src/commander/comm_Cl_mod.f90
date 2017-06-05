@@ -381,7 +381,7 @@ contains
     real(dp) :: alpha
     if (l > l_apod) then
        alpha = log(1d3)
-       get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod,dp)**2)
+       get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod+1,dp)**2)
     else
        get_Cl_apod = 1.d0
     end if
