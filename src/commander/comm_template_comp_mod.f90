@@ -41,6 +41,7 @@ module comm_template_comp_mod
      procedure :: S => evalSED
      procedure :: initHDF       => initTemplateHDF
      procedure :: sampleSpecInd => sampleTempSpecInd
+     procedure :: updateMixmat  => updateTempMixmat
   end type comm_template_comp
 
   interface comm_template_comp
@@ -463,10 +464,20 @@ contains
   end subroutine applyTemplatePrecond
 
   ! Sample spectral parameters
-  subroutine sampleTempSpecInd(self, handle)
+  subroutine sampleTempSpecInd(self, handle, id)
     implicit none
     class(comm_template_comp),               intent(inout)        :: self
     type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: id
   end subroutine sampleTempSpecInd
+
+
+  subroutine updateTempMixmat(self, theta, beta)
+    implicit none
+    class(comm_template_comp),         intent(inout)        :: self
+    class(comm_map), dimension(:),     intent(in), optional :: theta
+    real(dp),        dimension(:,:,:), intent(in), optional :: beta  ! (npar,nmaps,nsrc)
+
+  end subroutine updateTempMixmat
   
 end module comm_template_comp_mod

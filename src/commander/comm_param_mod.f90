@@ -22,12 +22,17 @@ module comm_param_mod
 
      ! Global parameters
      character(len=24)  :: operation
-     integer(i4b)       :: verbosity, base_seed, numchain
+     integer(i4b)       :: verbosity, base_seed, numchain, num_smooth_scales
      integer(i4b)       :: num_gibbs_iter, num_ml_iter, init_samp
      character(len=512) :: chain_prefix, init_chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
      logical(lgt)       :: only_pol
+     real(dp),           allocatable, dimension(:)     :: fwhm_smooth
+     real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
+     integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
+     integer(i4b),       allocatable, dimension(:)     :: nside_smooth
+     character(len=512), allocatable, dimension(:)     :: pixwin_smooth
 
      ! Output parameters
      character(len=512) :: outdir
@@ -55,6 +60,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_noise_format
      character(len=512), allocatable, dimension(:)   :: ds_mapfile
      character(len=512), allocatable, dimension(:)   :: ds_noise_rms
+     character(len=512), allocatable, dimension(:,:) :: ds_noise_rms_smooth
      real(dp),           allocatable, dimension(:)   :: ds_noise_uni_fsky
      character(len=512), allocatable, dimension(:)   :: ds_maskfile
      character(len=512), allocatable, dimension(:)   :: ds_maskfile_calib
@@ -100,6 +106,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_binfile
      integer(i4b),       allocatable, dimension(:)     :: cs_lpivot
      character(len=512), allocatable, dimension(:)     :: cs_mask
+     character(len=512), allocatable, dimension(:)     :: cs_indmask
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
@@ -110,16 +117,18 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
+     integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
      character(len=512), allocatable, dimension(:)     :: cs_catalog
      character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
-     real(dp),           allocatable, dimension(:)     :: cs_ptsrc_nu_min
-     real(dp),           allocatable, dimension(:)     :: cs_ptsrc_nu_max
+     real(dp),           allocatable, dimension(:,:)   :: cs_nu_min
+     real(dp),           allocatable, dimension(:,:)   :: cs_nu_max
      logical(lgt),       allocatable, dimension(:)     :: cs_burn_in
      logical(lgt),       allocatable, dimension(:)     :: cs_output_ptsrc_beam
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_pos_prior
      real(dp),           allocatable, dimension(:)     :: cs_min_src_dist
+     real(dp),           allocatable, dimension(:)     :: cs_amp_rms_scale
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
      
   end type comm_params
@@ -201,6 +210,9 @@ contains
     character(len=*),  intent(in)    :: paramfile
     type(comm_params), intent(inout) :: cpar
 
+    integer(i4b)     :: i
+    character(len=2) :: itext
+
     call get_parameter(paramfile, 'VERBOSITY',                par_int=cpar%verbosity)
     call get_parameter(paramfile, 'OPERATION',                par_string=cpar%operation)
 
@@ -239,6 +251,22 @@ contains
 
     call get_parameter(paramfile, 'SAMPLE_SIGNAL_AMPLITUDES', par_lgt=cpar%sample_signal_amplitudes)
 
+    call get_parameter(paramfile, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
+
+    allocate(cpar%fwhm_smooth(cpar%num_smooth_scales))
+    allocate(cpar%fwhm_postproc_smooth(cpar%num_smooth_scales))
+    allocate(cpar%lmax_smooth(cpar%num_smooth_scales))
+    allocate(cpar%nside_smooth(cpar%num_smooth_scales))
+    allocate(cpar%pixwin_smooth(cpar%num_smooth_scales))
+    do i = 1, cpar%num_smooth_scales
+       call int2string(i, itext)
+       call get_parameter(paramfile, 'FWHM_SMOOTHING_SCALE'//itext, par_dp=cpar%fwhm_smooth(i))
+       call get_parameter(paramfile, 'FWHM_POSTPROC_SMOOTHING_SCALE'//itext, par_dp=cpar%fwhm_postproc_smooth(i))
+       call get_parameter(paramfile, 'LMAX_SMOOTHING_SCALE'//itext, par_int=cpar%lmax_smooth(i))
+       call get_parameter(paramfile, 'NSIDE_SMOOTHING_SCALE'//itext, par_int=cpar%nside_smooth(i))
+       call get_parameter(paramfile, 'PIXWIN_SMOOTHING_SCALE'//itext, par_string=cpar%pixwin_smooth(i))
+    end do
+
   end subroutine read_global_params
 
 
@@ -250,6 +278,7 @@ contains
 
     integer(i4b)     :: i, j, n
     character(len=3) :: itext
+    character(len=2) :: jtext
     
     call get_parameter(paramfile, 'NUMBAND',             par_int=cpar%numband)
     call get_parameter(paramfile, 'DATA_DIRECTORY',      par_string=cpar%datadir)
@@ -262,6 +291,7 @@ contains
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
     allocate(cpar%ds_noise_rms(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
+    allocate(cpar%ds_noise_rms_smooth(n,cpar%num_smooth_scales))
     allocate(cpar%ds_samp_noiseamp(n), cpar%ds_noise_uni_fsky(n))
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
     allocate(cpar%ds_period(n), cpar%ds_beamtype(n), cpar%ds_blfile(n))
@@ -301,6 +331,11 @@ contains
        call get_parameter(paramfile, 'BAND_GAIN_APOD_FWHM'//itext,  par_string=cpar%ds_gain_fwhm(i))
        call get_parameter(paramfile, 'BAND_DEFAULT_GAIN'//itext,    par_dp=cpar%ds_defaults(i,GAIN))
        call get_parameter(paramfile, 'BAND_DEFAULT_NOISEAMP'//itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
+       do j = 1, cpar%num_smooth_scales
+          call int2string(j, jtext)          
+          call get_parameter(paramfile, 'BAND_NOISE_RMS'//itext//'_SMOOTH'//jtext, &
+               & par_string=cpar%ds_noise_rms_smooth(i,j))
+       end do
     end do
 
     ! Convert to proper internal units where necessary
@@ -328,13 +363,15 @@ contains
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
+    allocate(cpar%cs_indmask(n), cpar%cs_amp_rms_scale(n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(n), cpar%cs_cg_samp_group(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
-    allocate(cpar%cs_ptsrc_nu_min(n), cpar%cs_ptsrc_nu_max(n), cpar%cs_burn_in(n))
+    allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
+    allocate(cpar%cs_smooth_scale(n,MAXPAR))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
@@ -367,7 +404,7 @@ contains
           if (trim(cpar%cs_cltype(i)) == 'binned') then
              call get_parameter(paramfile, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
              call get_parameter(paramfile, 'COMP_CL_DEFAULT_FILE'//itext,     par_string=cpar%cs_clfile(i))
-          else if (trim(cpar%cs_cltype(i)) == 'power_law' .or. trim(cpar%cs_cltype(i)) == 'exp') then
+          else if (trim(cpar%cs_cltype(i)) == 'power_law' .or. trim(cpar%cs_cltype(i)) == 'exp' .or. trim(cpar%cs_cltype(i))=='gauss') then
              call get_parameter(paramfile, 'COMP_CL_POLTYPE'//itext,      par_int=cpar%cs_cl_poltype(i))
              call get_parameter(paramfile, 'COMP_CL_L_PIVOT'//itext,      par_int=cpar%cs_lpivot(i))
              call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_MEAN'//itext, par_dp=cpar%cs_cl_prior(i,1))
@@ -383,7 +420,8 @@ contains
              cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(i)**2
           end if
           call get_parameter(paramfile, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
-          
+          cpar%cs_indmask(i) = 'fullsky'
+
           select case (trim(cpar%cs_type(i)))
           case ('power_law')
              call get_parameter(paramfile, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
@@ -399,6 +437,12 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,1,1))
              call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))
+             call get_parameter(paramfile, 'COMP_INDMASK'//itext,               &
+                  & par_string=cpar%cs_indmask(i))
+             call get_parameter(paramfile, 'COMP_BETA_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,1))
+             call get_parameter(paramfile, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter(paramfile, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
           case ('physdust')
              call get_parameter(paramfile, 'COMP_UMIN_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter(paramfile, 'COMP_INPUT_UMIN_MAP'//itext,        &
@@ -424,6 +468,9 @@ contains
              call get_parameter(paramfile, 'COMP_SIL_FILE2_'//itext,  par_string=cpar%cs_SED_template(2,i))
              call get_parameter(paramfile, 'COMP_CARB_FILE1_'//itext,  par_string=cpar%cs_SED_template(3,i))
              call get_parameter(paramfile, 'COMP_CARB_FILE2_'//itext,  par_string=cpar%cs_SED_template(4,i))
+             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             write(*,*) 'ERROR -- smoothing not yet supported.'
+             stop
           case ('spindust')
              call get_parameter(paramfile, 'COMP_NU_P_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter(paramfile, 'COMP_INPUT_NU_P_MAP'//itext,        &
@@ -440,6 +487,11 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,2,1))
              call get_parameter(paramfile, 'COMP_SED_TEMPLATE'//itext,  &
                   & par_string=cpar%cs_SED_template(1,i))
+             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter(paramfile, 'COMP_NU_P_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,1))
+             call get_parameter(paramfile, 'COMP_NU_P_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter(paramfile, 'COMP_NU_P_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
           case ('MBB')
              call get_parameter(paramfile, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter(paramfile, 'COMP_INPUT_BETA_MAP'//itext,        &
@@ -467,6 +519,15 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,1,2))
              call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_T_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,2))
+             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter(paramfile, 'COMP_BETA_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,1))
+             call get_parameter(paramfile, 'COMP_T_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,2))
+             call get_parameter(paramfile, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter(paramfile, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter(paramfile, 'COMP_T_NU_MIN'//itext,      par_dp=cpar%cs_nu_min(i,2))
+             call get_parameter(paramfile, 'COMP_T_NU_MAX'//itext,      par_dp=cpar%cs_nu_max(i,2))
           case ('freefree')
              call get_parameter(paramfile, 'COMP_EM_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter(paramfile, 'COMP_INPUT_EM_MAP'//itext,        &
@@ -494,11 +555,21 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,1,2))
              call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_TE_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,2))
+             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter(paramfile, 'COMP_EM_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,1))
+             call get_parameter(paramfile, 'COMP_T_E_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,2))
+             call get_parameter(paramfile, 'COMP_EM_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter(paramfile, 'COMP_EM_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter(paramfile, 'COMP_T_E_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))
+             call get_parameter(paramfile, 'COMP_T_E_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
           case ('line')
              call get_parameter(paramfile, 'COMP_LINE_TEMPLATE'//itext,  &
                   & par_string=cpar%cs_SED_template(1,i))
              call get_parameter(paramfile, 'COMP_BAND_REF'//itext, &
                   & par_string=cpar%cs_band_ref(i))
+             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
           end select
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
@@ -506,11 +577,8 @@ contains
           call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
           call get_parameter(paramfile, 'COMP_PTSRC_TEMPLATE'//itext,  &
                & par_string=cpar%cs_ptsrc_template(i))
-          call get_parameter(paramfile, 'COMP_NU_MIN_FIT'//itext,  par_dp=cpar%cs_ptsrc_nu_min(i))
-          call get_parameter(paramfile, 'COMP_NU_MAX_FIT'//itext,  par_dp=cpar%cs_ptsrc_nu_max(i))
           call get_parameter(paramfile, 'COMP_BURN_IN_ON_FIRST_SAMPLE'//itext,  par_lgt=cpar%cs_burn_in(i))
-          cpar%cs_ptsrc_nu_min(i) = 1d9 * cpar%cs_ptsrc_nu_min(i)
-          cpar%cs_ptsrc_nu_max(i) = 1d9 * cpar%cs_ptsrc_nu_max(i)
+          call get_parameter(paramfile, 'COMP_AMP_RMS_SCALE_FACTOR'//itext,  par_dp=cpar%cs_amp_rms_scale(i))
           call get_parameter(paramfile, 'COMP_OUTPUT_PTSRC_TEMPLATE'//itext,  &
                & par_lgt=cpar%cs_output_ptsrc_beam(i))
           call get_parameter(paramfile, 'COMP_APPLY_POSITIVITY_PRIOR'//itext, par_lgt=cpar%cs_apply_pos_prior(i))
@@ -542,6 +610,10 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,2,2))
              call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
                   & par_dp=cpar%cs_theta_def(2,i))
+             call get_parameter(paramfile, 'COMP_ALPHA_NU_MIN'//itext,  par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter(paramfile, 'COMP_ALPHA_NU_MAX'//itext,  par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter(paramfile, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))
+             call get_parameter(paramfile, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
           case ('fir')
              call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
@@ -563,6 +635,10 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,2,2))
              call get_parameter(paramfile, 'COMP_DEFAULT_T'//itext,          &
                   & par_dp=cpar%cs_theta_def(2,i))             
+             call get_parameter(paramfile, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter(paramfile, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter(paramfile, 'COMP_T_NU_MIN'//itext,      par_dp=cpar%cs_nu_min(i,2))
+             call get_parameter(paramfile, 'COMP_T_NU_MAX'//itext,      par_dp=cpar%cs_nu_max(i,2))
           end select
        end if
        
@@ -571,7 +647,10 @@ contains
     cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
     ! Convert to proper units
-    cpar%cs_nu_ref = cpar%cs_nu_ref * 1d9
+    cpar%cs_nu_ref = 1d9 * cpar%cs_nu_ref
+    cpar%cs_nu_min = 1d9 * cpar%cs_nu_min
+    cpar%cs_nu_max = 1d9 * cpar%cs_nu_max
+
 
   end subroutine read_component_params
 
@@ -996,7 +1075,7 @@ contains
     implicit none
     type(comm_params), intent(inout) :: cpar
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j
     logical(lgt) :: exist
     character(len=512) :: datadir, chaindir, filename
 
@@ -1016,6 +1095,10 @@ contains
        call validate_file(trim(datadir)//trim(cpar%ds_blfile(i)))            ! Beam b_l file
        if (trim(cpar%ds_btheta_file(i)) /= 'none') &
             & call validate_file(trim(datadir)//trim(cpar%ds_btheta_file(i))) ! Point source file
+       do j = 1, cpar%num_smooth_scales
+          if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none' .and. trim(cpar%ds_noise_rms_smooth(i,j))/= 'native') &
+               & call validate_file(trim(datadir)//trim(cpar%ds_noise_rms_smooth(i,j)))  ! Smoothed RMS file
+       end do
     end do
 
     ! Instrument data base
@@ -1043,6 +1126,8 @@ contains
           end if
           if (trim(cpar%cs_mask(i)) /= 'fullsky') &
                call validate_file(trim(datadir)//trim(cpar%cs_mask(i)))          
+          if (trim(cpar%cs_indmask(i)) /= 'fullsky') &
+               call validate_file(trim(datadir)//trim(cpar%cs_indmask(i)))          
           
           select case (trim(cpar%cs_type(i)))
           case ('power_law')

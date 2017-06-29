@@ -51,7 +51,8 @@ export MPCC := mpicc
 
 # Fortran 90 compiler flags
 #export F90FLAGS := -O3 -traceback 
-export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384
+#
+export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384 -fpe0
 #export F90FLAGS := -g -C -traceback -xAVX -arch AVX -mavx -qopenmp -check all,noarg_temp_created -fpe0
 #export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx -qopenmp
 #export F90FLAGS := -fast -traceback -qopenmp
@@ -68,7 +69,7 @@ export LDFLAGS := -lm -qopenmp -cxxlib
 
 # ============== Language Mixing =================
 
-export MPFCLIBS := -lmpi_f90 -lmpi_f77 -qopenmp
+export MPFCLIBS := -qopenmp
 
 
 # ============== Fortran Features ================
@@ -96,9 +97,9 @@ export SHARP_LINK := -L/mn/stornext/u3/hke/owl/local/src/libsharp/auto/lib -lsha
 # =============== LAPACK Linking =================
 
 # The include and linking commands for LAPACK.
-MKLPATH := /opt/app-sync/intel/composer_xe_2011_sp1.9.293/mkl/lib/intel64
+MKLPATH := $(MKLROOT)
 export LAPACK_INCLUDE := 
-export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH) -L$(MKLPATH)  -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lpthread 
+export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH)/lib/intel64 -L$(MKLPATH)/lib/intel64  -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lpthread 
 
 
 

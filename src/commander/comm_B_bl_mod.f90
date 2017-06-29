@@ -7,34 +7,42 @@ module comm_B_bl_mod
   implicit none
 
   private
-  public comm_B_bl
+  public comm_B_bl, comm_B_bl_ptr
 
   type, extends (comm_B) :: comm_B_bl
    contains
      ! Data procedures
-     procedure :: conv => matmulB
+     procedure :: conv   => matmulB
+     procedure :: deconv => matmulInvB
   end type comm_B_bl
 
   interface comm_B_bl
      procedure constructor
   end interface comm_B_bl
 
+  type comm_B_bl_ptr
+     type(comm_B_bl), pointer :: p
+  end type comm_B_bl_ptr
+
 contains
 
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, id_abs, fwhm, init_realspace)
+  function constructor(cpar, info, id, id_abs, fwhm, nside, pixwin, init_realspace)
     implicit none
     type(comm_params),                  intent(in)           :: cpar
     type(comm_mapinfo), target,         intent(in)           :: info
     integer(i4b),                       intent(in)           :: id, id_abs
     real(dp),                           intent(in), optional :: fwhm
+    character(len=*),                   intent(in), optional :: pixwin
+    integer(i4b),                       intent(in), optional :: nside
     logical(lgt),                       intent(in), optional :: init_realspace
     class(comm_B_bl),   pointer                              :: constructor
 
     integer(i4b)       :: i
     logical(lgt)       :: init_real
+    character(len=4)   :: nside_text
     character(len=512) :: dir
     
     ! General parameters
@@ -45,7 +53,16 @@ contains
     constructor%type  =  'b_l'    
     constructor%info  => info
     if (present(fwhm)) then
-       call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm)
+       if (present(nside)) then
+          call int2string(nside, nside_text)
+          call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
+               & pixwin=trim(dir)//'/pixel_window_n'//nside_text//'.fits')
+       else if (present(pixwin)) then
+          call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
+               & pixwin=trim(pixwin))
+       else
+          call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm)
+       end if
     else
        call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
             & beamfile=trim(dir)//trim(cpar%ds_blfile(id_abs)), &
@@ -79,5 +96,30 @@ contains
     end do
 
   end subroutine matmulB
+
+  subroutine matmulInvB(self, trans, map)
+    implicit none
+    class(comm_B_bl), intent(in)    :: self
+    logical(lgt),     intent(in)    :: trans
+    class(comm_map),  intent(inout) :: map
+
+    integer(i4b) :: i, l, j
+
+    do i = 0, map%info%nalm-1
+       l = map%info%lm(1,i)
+       if (l <= self%info%lmax) then
+          do j = 1, map%info%nmaps
+             if (self%b_l(l,j) > 1.d-12) then
+                map%alm(i,j) = map%alm(i,j) / self%b_l(l,j)
+             else
+                map%alm(i,j) = 0.d0
+             end if
+          end do
+       else
+          map%alm(i,:) = 0.d0
+       end if
+    end do
+
+  end subroutine matmulInvB
   
 end module comm_B_bl_mod

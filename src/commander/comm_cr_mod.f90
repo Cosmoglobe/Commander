@@ -132,7 +132,7 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
        
-       if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new < 1d-30 * delta0)) exit
+       if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
        q     = cr_matmulA(d, samp_group)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
@@ -364,7 +364,6 @@ contains
     do i = 1, numband
 
        ! Set up Wiener filter term
-       !map => comm_map(data(i)%map)
        map => compute_residual(i, cg_samp_group=samp_group) 
 
        ! Add channel-dependent white noise fluctuation

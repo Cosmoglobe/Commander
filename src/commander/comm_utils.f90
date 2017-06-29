@@ -748,6 +748,30 @@ contains
     
   end subroutine compute_radial_beam
 
+  function rand_trunc_gauss(rng_handle, mu, mu_, sigma)
+    implicit none
+
+    real(dp),         intent(in)    :: mu, mu_, sigma
+    type(planck_rng), intent(inout) :: rng_handle
+    real(dp)                        :: rand_trunc_gauss
+
+    integer(i4b) :: n
+    real(dp) :: eta, alpha, z, rho, u, mu0
+    logical(lgt) :: ok
+
+    mu0   = (mu_ - mu)/sigma
+    alpha = 0.5d0 * (mu0 + sqrt(mu0**2 + 4.d0))
+    do while (.true.)
+       z   = -log(rand_uni(rng_handle)) / alpha + mu0
+       rho = exp(-0.5d0 * (z-alpha)**2)
+       if (rand_uni(rng_handle) < rho) then
+          rand_trunc_gauss = sigma*z + mu
+          exit
+       end if
+    end do
+
+  end function rand_trunc_gauss
+  
   
   
 end module comm_utils

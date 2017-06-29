@@ -22,13 +22,16 @@ module comm_comp_mod
      ! Data variables
      logical(lgt)       :: active, init_from_HDF
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_samp_group
-     character(len=512) :: label, class, type, unit
+     character(len=512) :: label, class, type, unit, operation
      real(dp)           :: nu_ref, RJ2unit_
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
      real(dp),           allocatable, dimension(:)   :: theta_def
      real(dp),           allocatable, dimension(:,:) :: p_gauss
      real(dp),           allocatable, dimension(:,:) :: p_uni
+     integer(i4b),       allocatable, dimension(:)   :: smooth_scale
+     real(dp),           allocatable, dimension(:)   :: nu_min_ind
+     real(dp),           allocatable, dimension(:)   :: nu_max_ind
 
    contains
      ! Linked list procedures
@@ -48,6 +51,7 @@ module comm_comp_mod
      procedure                          :: RJ2unit
      procedure(sampleSpecInd), deferred :: sampleSpecInd
      procedure                          :: CG_mask
+     procedure(updateMixmat),  deferred :: updateMixmat
   end type comm_comp
 
   abstract interface
@@ -140,11 +144,20 @@ module comm_comp_mod
      end subroutine initHDF
 
      ! Sample spectral parameters
-     subroutine sampleSpecInd(self, handle)
-       import comm_comp, planck_rng
+     subroutine sampleSpecInd(self, handle, id)
+       import comm_comp, planck_rng, i4b
        class(comm_comp),                        intent(inout)        :: self
        type(planck_rng),                        intent(inout)        :: handle
+       integer(i4b),                            intent(in)           :: id
      end subroutine sampleSpecInd
+
+     ! Update mixing matrices
+     subroutine updateMixmat(self, theta, beta)
+       import comm_comp, comm_map, dp
+       class(comm_comp),                        intent(inout)        :: self
+       class(comm_map), dimension(:),           intent(in), optional :: theta
+       real(dp),        dimension(:,:,:),       intent(in), optional :: beta
+     end subroutine updateMixmat
        
   end interface
 
@@ -180,6 +193,7 @@ contains
     self%numprocs        = cpar%numprocs_chain
     self%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     self%init_from_HDF   = cpar%cs_initHDF(id_abs)
+    self%operation       = cpar%operation
 
     ! Set up conversion factor between RJ and native component unit
     select case (trim(self%unit))

@@ -10,10 +10,12 @@ module comm_diffuse_comp_mod
   use comm_cr_precond_mod
   use comm_hdf_mod
   use InvSamp_mod
+  use powell_mod
   implicit none
 
   private
-  public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond
+  public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
+       & res_smooth, rms_smooth
   
   !**************************************************
   !            Diffuse component class
@@ -29,17 +31,20 @@ module comm_diffuse_comp_mod
 
      class(comm_map),               pointer     :: mask
      class(comm_map),               pointer     :: procmask
-     class(comm_map),               pointer     :: x      ! Spatial parameters
-     class(comm_map),               pointer     :: mu     ! Spatial prior mean
-     class(comm_B),                 pointer     :: B_out  ! Output beam
-     class(comm_Cl),                pointer     :: Cl     ! Power spectrum
-     class(map_ptr),  dimension(:), allocatable :: theta  ! Spectral parameters
-     type(map_ptr),   dimension(:), allocatable :: F      ! Mixing matrix
-     logical(lgt),    dimension(:), allocatable :: F_null ! Don't allocate space for null mixmat's
-     type(F_int_ptr), dimension(:), allocatable :: F_int  ! SED integrator
+     class(comm_map),               pointer     :: indmask
+     class(comm_map),               pointer     :: x            ! Spatial parameters
+     class(comm_map),               pointer     :: x_smooth     ! Spatial parameters
+     class(comm_map),               pointer     :: mu           ! Spatial prior mean
+     class(comm_B),                 pointer     :: B_out        ! Output beam
+     class(comm_Cl),                pointer     :: Cl           ! Power spectrum
+     class(map_ptr),  dimension(:), allocatable :: theta        ! Spectral parameters
+     class(map_ptr),  dimension(:), allocatable :: theta_smooth ! Spectral parameters
+     type(map_ptr),   dimension(:), allocatable :: F            ! Mixing matrix
+     logical(lgt),    dimension(:), allocatable :: F_null       ! Don't allocate space for null mixmat's
+     type(F_int_ptr), dimension(:), allocatable :: F_int        ! SED integrator
    contains
      procedure :: initDiffuse
-     procedure :: updateMixmat
+     procedure :: updateMixmat  => updateDiffuseMixmat
 !!$     procedure :: dumpHDF    => dumpDiffuseToHDF
      procedure :: getBand       => evalDiffuseBand
      procedure :: projectBand   => projectDiffuseBand
@@ -62,6 +67,17 @@ module comm_diffuse_comp_mod
   character(len=512) :: outdir
   class(comm_mapinfo), pointer                   :: info_pre
   class(diff_ptr),     allocatable, dimension(:) :: diffComps
+
+  character(len=24), private :: operation
+
+  ! Variables for non-linear search
+  class(comm_diffuse_comp), pointer,       private :: c_lnL
+  integer(i4b),                            private :: k_lnL, p_lnL, id_lnL
+  real(dp),                                private :: a_lnL
+  real(dp), allocatable, dimension(:),     private :: theta_lnL        
+  logical(lgt),                            private :: apply_mixmat = .true.
+  type(map_ptr),        allocatable, dimension(:) :: res_smooth
+  type(comm_N_rms_ptr), allocatable, dimension(:) :: rms_smooth
   
 contains
 
@@ -95,6 +111,7 @@ contains
     else
        self%output_EB     = .false.
     end if
+    operation          = cpar%operation
        
 
     ! Diffuse preconditioner variables
@@ -109,6 +126,7 @@ contains
     else
        ! Read map from FITS file, and convert to alms
        self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
+       self%x%map = self%x%map / self%RJ2unit_
        call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
@@ -116,6 +134,12 @@ contains
     ! Read processing mask
     if (trim(cpar%ds_procmask) /= 'none') then
        self%procmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+            & udgrade=.true.)
+    end if
+
+    ! Read processing mask
+    if (trim(cpar%cs_indmask(id_abs)) /= 'fullsky') then
+       self%indmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_indmask(id_abs)), &
             & udgrade=.true.)
     end if
 
@@ -137,11 +161,15 @@ contains
     call update_status(status, "init_postmix")
 
     ! Initialize output beam
-    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), init_realspace=.false.)
+    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
+         & init_realspace=.false.)
 
     ! Initialize power spectrum
     self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)
 
+    ! Initialize pointers for non-linear search
+    if (.not. allocated(res_smooth)) allocate(res_smooth(numband))
+    if (.not. allocated(rms_smooth)) allocate(rms_smooth(numband))
     
   end subroutine initDiffuse
 
@@ -468,16 +496,19 @@ contains
     
   
   ! Evaluate amplitude map in brightness temperature at reference frequency
-  subroutine updateMixmat(self, theta)
+  subroutine updateDiffuseMixmat(self, theta, beta)
     implicit none
     class(comm_diffuse_comp),                  intent(inout)           :: self
     class(comm_map),           dimension(:),   intent(in),    optional :: theta
+    real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
 
     integer(i4b) :: i, j, k, n, nmaps, ierr
     real(dp),        allocatable, dimension(:,:) :: theta_p
     real(dp),        allocatable, dimension(:)   :: nu, s, buffer
     class(comm_mapinfo),          pointer        :: info
     class(comm_map),              pointer        :: t, t0
+
+    if (trim(self%type) == 'md') return
     
     ! Copy over alms from input structure, and compute pixel-space parameter maps
     if (present(theta)) then
@@ -585,7 +616,7 @@ contains
     ! Request preconditioner update
     recompute_diffuse_precond = .true.
 
-  end subroutine updateMixmat
+  end subroutine updateDiffuseMixmat
 
   function evalDiffuseBand(self, band, amp_in, pix, alm_out)
     implicit none
@@ -631,15 +662,17 @@ contains
        end do
     end if
 
-    ! Scale to correct frequency through multiplication with mixing matrix
-    if (self%lmax_ind == 0) then
-       do i = 1, m%info%nmaps
-          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
-       end do
-    else
-       call m%Y()
-       m%map = m%map * self%F(band)%p%map
-       call m%YtW()
+    if (apply_mixmat) then
+       ! Scale to correct frequency through multiplication with mixing matrix
+       if (self%lmax_ind == 0) then
+          do i = 1, m%info%nmaps
+             m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+          end do
+       else
+          call m%Y()
+          m%map = m%map * self%F(band)%p%map
+          call m%YtW()
+       end if
     end if
        
     ! Convolve with band-specific beam
@@ -882,7 +915,6 @@ contains
           filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
                & trim(postfix) // '.fits'
           if (self%lmax_ind >= 0) call self%theta(i)%p%Y_scalar
-          !call self%apply_proc_mask(self%theta(i)%p)
 
           if (output_hdf) then
              call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename), &
@@ -934,13 +966,15 @@ contains
        end do
     else
        path = trim(adjustl(hdfpath))//trim(adjustl(self%label))
-       call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_alm')    ! Read amplitudes
+       call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_')    ! Read amplitudes
        self%x%alm = self%x%alm / (self%RJ2unit_ * self%cg_scale)
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
-               & '_alm')
+               & '_')
        end do       
     end if
+
+    call self%updateMixmat
 
   end subroutine initDiffuseHDF
   
@@ -954,13 +988,301 @@ contains
   end subroutine add_to_npre
 
   ! Sample spectral parameters
-  subroutine sampleDiffuseSpecInd(self, handle)
+  subroutine sampleDiffuseSpecInd(self, handle, id)
     implicit none
     class(comm_diffuse_comp),                intent(inout)        :: self
     type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: id
 
-    integer(i4b) :: i, j, n, m
-    
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+    logical(lgt) :: ok
+    logical(lgt), save :: first_call = .true.
+    class(comm_comp), pointer :: c
+    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
+    real(dp),     allocatable, dimension(:,:) :: amp
+
+    delta_lnL_threshold = 25.d0
+    n                   = 101
+    n_ok                = 50
+    first_call          = .false.
+
+    if (trim(operation) == 'optimize') then
+
+       do p = 1, self%x_smooth%info%nmaps
+          do k = 0, self%x_smooth%info%np-1
+             p_lnL       = p
+             k_lnL       = k
+             !c_lnL       => self
+             id_lnL      = id
+             c           => compList     ! Extremely ugly hack...
+             do while (self%id /= c%id)
+                c => c%next()
+             end do
+             select type (c)
+             class is (comm_diffuse_comp)
+                c_lnL => c
+             end select
+             
+             ! Perform non-linear search
+             allocate(x(1), theta_lnL(self%npar))
+             a_lnL     = self%x_smooth%map(k,p)
+             x(1)      = max(min(self%theta(id)%p%map(k,p),c_lnL%p_uni(2,id_lnL)),c_lnL%p_uni(1,id_lnL))
+             do i = 1, c%npar
+                if (i == id) cycle
+                theta_lnL(i) = self%theta_smooth(i)%p%map(k,p)
+             end do
+             call powell(x, lnL_diffuse_multi, ierr)
+             if (ierr == 0) then
+                self%theta(id)%p%map(k,p) = x(1)
+             else
+                write(*,*) 'Warning: Spectral index Powell search did not converge'
+             end if
+             deallocate(x, theta_lnL)
+
+          end do
+       end do
+
+       ! Update mixing matrix
+       call self%updateMixmat
+       
+       ! Ask for CG preconditioner update
+       if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
+
+       return
+    end if
+
   end subroutine sampleDiffuseSpecInd
+
+
+  function lnL_diffuse_multi(p)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:), intent(in), optional :: p
+    real(dp)                                     :: lnL_diffuse_multi
+    
+    integer(i4b) :: i, l, k, q, pix, ierr, flag
+    real(dp)     :: lnL, amp, s, a
+    real(dp), allocatable, dimension(:) :: theta
+
+    allocate(theta(c_lnL%npar))
+    theta         = theta_lnL
+    theta(id_lnL) = p(1)
+    
+    ! Check spectral index priors
+    do l = 1, c_lnL%npar
+       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
+          lnL_diffuse_multi = 1.d30
+          deallocate(theta)
+          return
+       end if
+    end do
+    
+    lnL = 0.d0
+    do l = 1, numband
+       !if (c_lnL%x%info%myid == 0) write(*,*) l, numband
+       if (.not. associated(rms_smooth(l)%p)) cycle
+       
+       ! Compute predicted source amplitude for current band
+       s = a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       
+       ! Compute likelihood 
+       lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
+
+       !if (c_lnL%x%info%myid == 0) write(*,*) l, s, lnL
+
+!!$       if (c_lnL%x%info%pix(k_lnL) == 534044) then
+!!$          write(*,fmt='(5f10.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,p_lnL)-a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
+!!$       end if
+
+    end do
+
+
+    !call mpi_finalize(i)
+    !stop
+
+    ! Apply index priors
+    do l = 1, c_lnL%npar
+       if (c_lnL%p_gauss(2,l) > 0.d0) then
+          lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+       end if
+    end do
+    
+    ! Return chi-square
+    lnL_diffuse_multi = -2.d0*lnL
+
+!!$    if (c_lnL%x%info%pix(k_lnL) == 534044) then
+!!$       write(*,*) 'lnL = ', lnL, theta(id_lnL)
+!!$       write(*,*)
+!!$    end if
+
+
+    deallocate(theta)
+
+  end function lnL_diffuse_multi
+
+
+
+
+!!$  ! Sample spectral parameters
+!!$  subroutine sampleDiffuseSpecInd(self, handle, id)
+!!$    implicit none
+!!$    class(comm_diffuse_comp),                intent(inout)        :: self
+!!$    type(planck_rng),                        intent(inout)        :: handle
+!!$    integer(i4b),                            intent(in)           :: id
+!!$
+!!$    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+!!$    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+!!$    logical(lgt) :: ok
+!!$    logical(lgt), save :: first_call = .true.
+!!$    class(comm_comp), pointer :: c
+!!$    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
+!!$    real(dp),     allocatable, dimension(:,:) :: amp
+!!$
+!!$    delta_lnL_threshold = 25.d0
+!!$    n                   = 101
+!!$    n_ok                = 50
+!!$    first_call          = .false.
+!!$
+!!$    if (trim(operation) == 'optimize') then
+!!$
+!!$       allocate(amps_lnL(0:data(6)%info%np-1,data(6)%info%nmaps,6:9))
+!!$       !allocate(amps_lnL(0:data(1)%info%np-1,data(1)%info%nmaps,numband))
+!!$       apply_mixmat = .false.
+!!$       do i = 6, 9
+!!$          amps_lnL(:,:,i) = self%getBand(i)
+!!$       end do
+!!$       apply_mixmat = .true.
+!!$
+!!$
+!!$       do p = 1, data(6)%info%nmaps
+!!$          do k = 0, data(6)%info%np-1
+!!$             p_lnL       = p
+!!$             k_lnL       = k
+!!$             c           => compList     ! Extremely ugly hack...
+!!$             do while (self%id /= c%id)
+!!$                c => c%next()
+!!$             end do
+!!$             select type (c)
+!!$             class is (comm_diffuse_comp)
+!!$                c_lnL => c
+!!$             end select
+!!$             
+!!$             ! Perform non-linear search
+!!$             if (self%p_gauss(2,1) == 0.d0 .and. self%p_gauss(2,2) > 0.d0) then
+!!$                ! Dust T
+!!$                allocate(x(1))
+!!$                x(1)         = self%theta(2)%p%map(k,p)
+!!$                a_old_lnL    = self%x%map(k,p)
+!!$                beta_old_lnL = self%theta(1)%p%map(k,p)
+!!$                call powell(x, lnL_diffuse_multi, ierr)
+!!$                self%theta(2)%p%map(k,p) = x(1)
+!!$                deallocate(x)
+!!$             end if
+!!$
+!!$             if (self%p_gauss(2,1) > 0.d0 .and. self%p_gauss(2,2) == 0.d0) then
+!!$                ! Dust T
+!!$                allocate(x(1))
+!!$                x(1)         = self%theta(1)%p%map(k,p)
+!!$                a_old_lnL    = self%x%map(k,p)
+!!$                T_old_lnL    = self%theta(2)%p%map(k,p)
+!!$                call powell(x, lnL_diffuse_multi, ierr)
+!!$                self%theta(1)%p%map(k,p) = x(1)
+!!$                deallocate(x)
+!!$             end if
+!!$
+!!$
+!!$             if (self%p_gauss(2,1) > 0.d0 .and. self%p_gauss(2,2) > 0.d0) then
+!!$                ! Dust beta and T
+!!$                allocate(x(2))
+!!$                x(1)         = self%theta(1)%p%map(k,p)
+!!$                x(2)         = self%theta(2)%p%map(k,p)
+!!$                a_old_lnL    = self%x%map(k,p)
+!!$                call powell(x, lnL_diffuse_multi, ierr)
+!!$                self%theta(1)%p%map(k,p) = x(1)
+!!$                self%theta(2)%p%map(k,p) = x(2)
+!!$                deallocate(x)
+!!$             end if
+!!$
+!!$
+!!$
+!!$
+!!$
+!!$          end do
+!!$       end do
+!!$
+!!$       ! Update mixing matrix
+!!$       call self%updateMixmat
+!!$       
+!!$       ! Ask for CG preconditioner update
+!!$       if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
+!!$
+!!$       deallocate(amps_lnL)
+!!$       return
+!!$    end if
+!!$
+!!$  end subroutine sampleDiffuseSpecInd
+!!$
+!!$
+!!$  function lnL_diffuse_multi(p)
+!!$    use healpix_types
+!!$    implicit none
+!!$    real(dp), dimension(:), intent(in), optional :: p
+!!$    real(dp)                                     :: lnL_diffuse_multi
+!!$    
+!!$    integer(i4b) :: i, l, k, q, pix, ierr, flag
+!!$    real(dp)     :: lnL, amp, s, a
+!!$    real(dp), allocatable, dimension(:) :: theta
+!!$    
+!!$    allocate(theta(c_lnL%npar))
+!!$    if (c_lnL%p_gauss(2,1) > 0.d0 .and. c_lnL%p_gauss(2,2) > 0.d0) then
+!!$       theta(1) = p(1)
+!!$       theta(2) = p(2)
+!!$    else if (c_lnL%p_gauss(2,1) > 0.d0 .and. c_lnL%p_gauss(2,2) == 0.d0) then
+!!$       theta(1) = p(1)
+!!$       theta(2) = T_old_lnL
+!!$    else if (c_lnL%p_gauss(2,1) == 0.d0 .and. c_lnL%p_gauss(2,2) > 0.d0) then
+!!$       theta(1) = beta_old_lnL
+!!$       theta(2) = p(1)
+!!$    end if
+!!$    
+!!$    ! Check spectral index priors
+!!$    do l = 1, c_lnL%npar
+!!$       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
+!!$          lnL_diffuse_multi = 1.d30
+!!$          deallocate(theta)
+!!$          return
+!!$       end if
+!!$    end do
+!!$    
+!!$    lnL = 0.d0
+!!$    do l = 6, 9
+!!$    !do l = 1, numband
+!!$       
+!!$       ! Compute mixing matrix
+!!$       s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+!!$       
+!!$       ! Compute predicted source amplitude for current band
+!!$       a = s * amps_lnL(k_lnL,p_lnL,l)
+!!$       
+!!$       ! Compute likelihood 
+!!$       lnL = lnL - 0.5d0 * (data(l)%res%map(k_lnL,p_lnL)-a)**2 / data(l)%N%rms_pix(k_lnL,p_lnL)**2
+!!$
+!!$    end do
+!!$    
+!!$    ! Apply index priors
+!!$    do l = 1, c_lnL%npar
+!!$       if (c_lnL%p_gauss(2,l) > 0.d0) then
+!!$          lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+!!$       end if
+!!$    end do
+!!$    
+!!$    ! Return chi-square
+!!$    lnL_diffuse_multi = -2.d0*lnL
+!!$
+!!$    deallocate(theta)
+!!$
+!!$  end function lnL_diffuse_multi
+
   
 end module comm_diffuse_comp_mod

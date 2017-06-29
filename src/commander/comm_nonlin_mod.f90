@@ -3,18 +3,27 @@ module comm_nonlin_mod
   use comm_data_mod
   use comm_comp_mod
   use comm_chisq_mod
+  use comm_gain_mod
+  use comm_line_comp_mod
+  use comm_diffuse_comp_mod
   implicit none
 
 contains
 
-  subroutine sample_nonlin_params(cpar, handle)
+  subroutine sample_nonlin_params(cpar, iter, handle)
     implicit none
     type(comm_params),  intent(in)    :: cpar
+    integer(i4b),       intent(in)    :: iter
     type(planck_rng),   intent(inout) :: handle    
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j, k, smooth_scale, id_native
     real(dp)     :: t1, t2
-    class(comm_map), pointer :: res
+    integer(i4b) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
+    integer(i4b) :: status_amp   !               1 = native, 2 = smooth
+    character(len=2) :: itext
+    class(comm_mapinfo), pointer :: info
+    class(comm_N),       pointer :: tmp
+    class(comm_map),     pointer :: res
     class(comm_comp),   pointer                    :: c
     real(dp),          allocatable, dimension(:,:) :: m
 
@@ -25,6 +34,7 @@ contains
        res             => compute_residual(i)
        data(i)%res%map =  res%map
        call res%dealloc()
+       nullify(res)
     end do
     
     ! Sample spectral parameters for each signal component
@@ -49,8 +59,148 @@ contains
           end do
        end if
 
-       ! Sample spectral parameters
-       call c%sampleSpecInd(handle)
+       do j = 1, c%npar
+
+          if (c%p_gauss(2,j) == 0.d0) cycle
+
+          ! Set up smoothed data
+          select type (c)
+          class is (comm_line_comp)
+             if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
+          class is (comm_diffuse_comp)
+             if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
+
+             ! Set up type of smoothing scale
+             id_native    = 0
+
+             ! Compute smoothed residuals
+             nullify(info)
+             status_amp = 0
+             do i = 1, numband
+                if (cpar%num_smooth_scales == 0) then
+                   status_amp   = 1
+                   status_fit   = 1    ! Native
+                   smooth_scale = 0
+                else
+                   smooth_scale = c%smooth_scale(j)
+                   if (.not. associated(data(i)%N_smooth(smooth_scale)%p) .or. &
+                        & data(i)%bp%nu_c < c%nu_min_ind(j) .or. &
+                        & data(i)%bp%nu_c > c%nu_max_ind(j)) then
+                      status_fit = 0
+                   else
+                      if (.not. associated(data(i)%B_smooth(smooth_scale)%p)) then
+                         status_amp   = 1
+                         status_fit   = 1 ! Native
+                      else
+                         status_amp   = 2
+                         status_fit   = 2 ! Smooth
+                      end if
+                   end if
+                end if
+
+                if (status_fit == 0) then
+                   ! Channel is not included in fit
+                   nullify(res_smooth(i)%p)
+                   nullify(rms_smooth(i)%p)
+                else if (status_fit == 1) then
+                   ! Fit is done in native resolution
+                   id_native          = i
+                   info               => data(i)%res%info
+                   res_smooth(i)%p    => data(i)%res
+                   tmp                => data(i)%N
+                   select type (tmp)
+                   class is (comm_N_rms)
+                      rms_smooth(i)%p    => tmp
+                   end select
+                else if (status_fit == 2) then
+                   ! Fit is done with downgraded data
+                   info  => comm_mapinfo(data(i)%res%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+                        & data(i)%res%info%nmaps, data(i)%res%info%pol)
+                   call smooth_map(info, .false., data(i)%B%b_l, data(i)%res, &
+                        & data(i)%B_smooth(smooth_scale)%p%b_l, res_smooth(i)%p)
+                   rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
+                end if
+
+!!$                call int2string(i,itext)
+!!$                call res_smooth(i)%p%writeFITS('res'//itext//'.fits')
+
+             end do
+
+             ! Compute smoothed amplitude map
+             if (.not. associated(info) .or. status_amp == 0) then
+                write(*,*) 'Error: No bands contribute to index fit!'
+                call mpi_finalize(i)
+                stop
+             end if
+             if (status_amp == 1) then
+                ! Smooth to the beam of the last native channel
+                info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, c%x%info%lmax, &
+                     & c%x%info%nmaps, c%x%info%pol)
+                call smooth_map(info, .true., data(id_native)%B%b_l*0.d0+1.d0, c%x, &  
+                     & data(id_native)%B%b_l, c%x_smooth)
+             else if (status_amp == 2) then
+                ! Smooth to the common FWHM
+                info  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+                     & c%x%info%nmaps, c%x%info%pol)
+                call smooth_map(info, .true., &
+                     & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%x, &  
+                     & data(1)%B_smooth(smooth_scale)%p%b_l,           c%x_smooth)
+             end if
+
+             !c%x_smooth%map = c%x_smooth%map * c%F(1)%p%map
+
+!!$             call c%x_smooth%writeFITS('x.fits')
+!!$             call mpi_finalize(i)
+!!$             stop
+
+             ! Compute smoothed spectral index maps
+             allocate(c%theta_smooth(c%npar))
+             do k = 1, c%npar
+                if (k == j) cycle
+                if (status_fit == 2) then
+                   info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
+                        & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
+                   call smooth_map(info, .false., &
+                        & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                        & data(1)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
+                else if (status_fit == 1) then
+                   info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
+                        & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
+                   call smooth_map(info, .false., &
+                        & data(id_native)%B%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                        & data(id_native)%B%b_l,           c%theta_smooth(k)%p)
+                end if
+             end do
+
+          end select
+
+          ! Sample spectral parameters
+          call c%sampleSpecInd(handle, j)
+
+          ! Clean up temporary data structures
+          select type (c)
+          class is (comm_line_comp)
+          class is (comm_diffuse_comp)
+
+             if (cpar%num_smooth_scales > 0) then
+                if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                   ! Smooth index map with a postprocessing beam
+                   deallocate(c%theta_smooth)
+                   allocate(c%theta_smooth(c%npar))
+                   info  => comm_mapinfo(c%theta(j)%p%info%comm, cpar%nside_smooth(smooth_scale), &
+                        & cpar%lmax_smooth(smooth_scale), c%theta(j)%p%info%nmaps, c%theta(j)%p%info%pol)
+                   call smooth_map(info, .false., &
+                        & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(j)%p, &  
+                        & data(1)%B_postproc(smooth_scale)%p%b_l,           c%theta_smooth(j)%p)
+                   c%theta(j)%p%map = c%theta_smooth(j)%p%map
+                end if
+             end if
+
+             deallocate(c%x_smooth)
+             deallocate(c%theta_smooth)
+          end select
+
+       end do
 
        ! Subtract updated component from residual
        if (trim(c%class) /= 'ptsrc') then
@@ -62,8 +212,25 @@ contains
           end do
        end if
 
+       ! Loop to next component
        c => c%next()
     end do
+
+    ! Sample calibration factors
+    do i = 1, numband
+       if (.not. data(i)%sample_gain) cycle
+       call sample_gain(i, cpar%outdir, cpar%mychain, iter, handle)
+    end do
+
+
+    ! Update mixing matrices
+    if (any(data%sample_gain)) then
+       c => compList
+       do while (associated(c))
+          call c%updateMixmat
+          c => c%next()
+       end do
+    end if
 
     call wall_time(t2)
     if (cpar%myid == 0) write(*,*) 'CPU time specind = ', real(t2-t1,sp)

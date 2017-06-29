@@ -20,6 +20,7 @@ module comm_line_comp_mod
      real(dp),     allocatable, dimension(:) :: line2RJ
    contains
      procedure :: S    => evalSED
+     procedure :: sampleSpecInd => sampleLineRatios
   end type comm_line_comp
 
   interface comm_line_comp
@@ -187,5 +188,108 @@ contains
 
   end subroutine read_line_template
 
+  ! Sample line ratios
+  subroutine sampleLineRatios(self, handle, id)
+    implicit none
+    class(comm_line_comp),                   intent(inout)        :: self
+    type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: id
+
+    integer(i4b)    :: i, j, l, n, m, band, ierr
+    real(dp)        :: A, b, mu, sigma, par, sigma_p, scale, w
+    class(comm_map), pointer :: invN_amp, amp, mask
+    
+    ! Loop over lines
+    do i = 1, self%npar
+
+       band = self%ind2band(i)
+       if (band == self%ref_band) cycle
+
+       ! Construct mask
+       if (associated(self%indmask)) then
+          if (data(band)%info%nside /= self%indmask%info%nside) then
+             call report_error("Mask udgrade in line_comp not yet supported.")
+          else
+             mask => self%indmask
+          end if
+       end if
+
+       ! Compute likelihood term
+       w            = self%theta(i)%p%map(1,1)
+       amp          => comm_map(data(band)%info)
+       invN_amp     => comm_map(data(band)%info)
+       amp%map      =  self%getBand(band)/w
+       invN_amp%map = amp%map
+       call data(band)%N%invN(invN_amp)     ! Inverse noise variance weighted amplitude map
+
+       ! Reduce across processors
+       if (associated(self%indmask)) then
+          A = sum(invN_amp%map * mask%map * amp%map)
+          b = sum(invN_amp%map * mask%map * data(band)%res%map)
+       else
+          A = sum(invN_amp%map * amp%map)
+          b = sum(invN_amp%map * data(band)%res%map)
+       end if
+       call mpi_allreduce(MPI_IN_PLACE, A, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+
+       call amp%dealloc()
+       call invN_amp%dealloc()
+
+       ! Compute new line ratio; just root processor
+       if (self%x%info%myid == 0) then
+
+          if (A > 0.d0) then
+             mu    = b / A
+             sigma = sqrt(1.d0 / A)
+          else if (self%p_gauss(2,i) > 0.d0) then
+             mu    = 0.d0
+             sigma = 1.d30
+          else
+             mu    = self%p_uni(1,i) + (self%p_uni(2,i)-self%p_uni(1,i))*rand_uni(handle)
+             sigma = 0.d0
+          end if
+
+          ! Add prior
+          if (self%p_gauss(2,i) > 0.d0) then
+             sigma_p = self%p_gauss(2,i) !/ sqrt(real(npix_reg,dp))
+             mu      = (mu*sigma_p**2 + self%p_gauss(1,i) * sigma**2) / (sigma_p**2 + sigma**2)
+             sigma   = sqrt(sigma**2 * sigma_p**2 / (sigma**2 + sigma_p**2))
+          end if
+
+          ! Draw sample
+          par = -1.d30
+          if (trim(self%operation) == 'optimize') then
+             if (mu < self%p_uni(1,i)) then
+                par = self%p_uni(1,i)
+             else if (mu > self%p_uni(2,i)) then
+                par = self%p_uni(2,i)
+             else
+                par = mu
+             end if
+          else
+             do while (par < self%p_uni(1,i) .or. par > self%p_uni(2,i))
+                if (mu < self%p_uni(1,i)) then
+                   par = rand_trunc_gauss(handle, mu, self%p_uni(1,i), sigma)
+                else if (mu > self%p_uni(2,i)) then
+                   par = 2.d0*mu-rand_trunc_gauss(handle, mu, 2.d0*mu-self%p_uni(2,i), sigma)
+                else
+                   par = mu + sigma * rand_gauss(handle)
+                end if
+             end do
+          end if
+          
+          write(*,*) '  Line ratio i = ', i, ' = ', par
+       end if
+
+       ! Distribute new relative line ratio, and update
+       call mpi_bcast(par, 1, MPI_DOUBLE_PRECISION, 0, self%x%info%comm, ierr)
+       self%theta(i)%p%map = par
+
+    end do
+
+    call self%updateMixmat()
+
+  end subroutine sampleLineRatios
   
 end module comm_line_comp_mod

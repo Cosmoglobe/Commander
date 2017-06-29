@@ -58,6 +58,7 @@ module comm_map_mod
      procedure     :: add_alm
      procedure     :: udgrade
      procedure     :: getSigmaL
+     procedure     :: getCrossSigmaL
      procedure     :: smooth
 
      ! Linked list procedures
@@ -404,7 +405,6 @@ contains
           deallocate(buffer)
        end do
        call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
-       deallocate(p, map)
 
        if (present(hdffile)) then
           allocate(alm(0:(self%info%lmax+1)**2-1,self%info%nmaps))
@@ -430,10 +430,13 @@ contains
              deallocate(lm, buffer)
           end do
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   alm)
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),   map)
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
           deallocate(alm)
        end if
+
+       deallocate(p, map)
 
     else
        call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
@@ -550,18 +553,19 @@ contains
     type(hdf_file),   intent(in)    :: hdffile
     character(len=*), intent(in)    :: hdfpath
 
-    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm
-    real(dp),     allocatable, dimension(:,:) :: alms
+    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
+    real(dp),     allocatable, dimension(:,:) :: alms, map
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
     lmax  = self%info%lmax
+    npix  = self%info%npix
     nmaps = self%info%nmaps
     nalm  = (lmax+1)**2
 
     ! Only the root actually reads from disk; data are distributed via MPI
     allocate(alms(0:nalm-1,nmaps))
-    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath))//'alm', alms)
     call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
     do i = 0, self%info%nalm-1
        call self%info%i2lm(i, l, m)
@@ -569,6 +573,15 @@ contains
        self%alm(i,:) = alms(j,:)
     end do
     deallocate(alms)
+
+    ! Only the root actually reads from disk; data are distributed via MPI
+    allocate(map(0:npix-1,nmaps))
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath))//'map', map)
+    call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    do i = 1, nmaps
+       self%map(:,i) = map(self%info%pix,i)
+    end do
+    deallocate(map)
     
   end subroutine readHDF
 
@@ -858,5 +871,37 @@ contains
     end do
 
   end subroutine getSigmaL
+
+  subroutine getCrossSigmaL(self, map2, sigma_l)
+    implicit none
+    class(comm_map),                   intent(in)  :: self, map2
+    real(dp),        dimension(0:,1:), intent(out) :: sigma_l
+
+    integer(i4b) :: l, m, i, j, k, ind, ind2, nspec, lmax, nmaps, ierr
+
+    lmax  = self%info%lmax
+    nmaps = self%info%nmaps
+    nspec = nmaps*(nmaps+1)/2
+    sigma_l = 0.d0
+    do ind = 0, self%info%nalm-1
+       call self%info%i2lm(ind,l,m)
+       call map2%info%lm2i(l,m,ind2)
+       k   = 1
+       do i = 1, nmaps
+          do j = i, nmaps
+             sigma_l(l,k) = sigma_l(l,k) + self%alm(ind,i)*map2%alm(ind2,j)
+             k            = k+1
+          end do
+       end do
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, sigma_l, size(sigma_l), MPI_DOUBLE_PRECISION, &
+         & MPI_SUM, self%info%comm, ierr)
+
+    do l = 0, lmax
+       sigma_l(l,:) = sigma_l(l,:) / real(2*l+1,dp)
+    end do
+
+  end subroutine getCrossSigmaL
   
 end module comm_map_mod

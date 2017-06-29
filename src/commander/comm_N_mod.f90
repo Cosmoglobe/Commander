@@ -76,7 +76,11 @@ contains
     if (exist) then
        open(unit, file=trim(cache), form='unformatted')
        read(unit) checksum
-       exist = abs(sum(abs(invN_diag%map))-checksum)/abs(checksum) < 1d-6
+       if (checksum > 0.d0) then
+          exist = abs(sum(abs(invN_diag%map))-checksum)/abs(checksum) < 1d-6
+       else 
+          exist = sum(abs(invN_diag%map)) == 0.d0
+       end if
        close(unit)
     end if
     call mpi_allreduce(MPI_IN_PLACE, exist, 1, MPI_LOGICAL, MPI_LAND, invN_diag%info%comm, ier)

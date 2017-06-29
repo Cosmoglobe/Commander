@@ -49,6 +49,7 @@ module comm_Cl_mod
      procedure :: writeFITS
      procedure :: updatePowlaw
      procedure :: updateExponential
+     procedure :: updateGaussian
      procedure :: updateS
   end type comm_Cl
 
@@ -115,9 +116,18 @@ contains
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
        call constructor%updateExponential(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+    else if (trim(constructor%type) == 'gauss') then
+       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
+       constructor%lpiv          = cpar%cs_lpivot(id_abs)
+       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
+       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
+       call constructor%updateGaussian(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
     else
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
+
+    !constructor%Dl = constructor%Dl / c%RJ2unit_    ! Define prior in output units
+
 
     call constructor%updateS
     
@@ -167,6 +177,27 @@ contains
     end do
 
   end subroutine updateExponential
+
+  subroutine updateGaussian(self, amp, beta, only_pol)
+    implicit none
+    class(comm_Cl),                intent(inout) :: self
+    real(dp),       dimension(1:), intent(in)    :: amp, beta
+    logical(lgt),                  intent(in)    :: only_pol
+
+    integer(i4b) :: i, j, l, i_min
+    
+    self%amp   = amp
+    self%beta  = beta
+    self%Dl    = 0.d0
+    i_min      = 1; if (only_pol) i_min = 2
+    do i = i_min, self%nmaps
+       j = i*(1-i)/2 + (i-1)*self%nmaps + i
+       do l = 0, self%lmax
+          self%Dl(l,j) = amp(i) * exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+       end do
+    end do
+
+  end subroutine updateGaussian
 
   subroutine updateS(self)
     implicit none
@@ -381,7 +412,7 @@ contains
     real(dp) :: alpha
     if (l > l_apod) then
        alpha = log(1d3)
-       get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod,dp)**2)
+       get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod+1,dp)**2)
     else
        get_Cl_apod = 1.d0
     end if

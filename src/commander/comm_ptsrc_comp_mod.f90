@@ -44,7 +44,7 @@ module comm_ptsrc_comp_mod
   
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
-     real(dp)           :: cg_scale, nu_min_fit, nu_max_fit
+     real(dp)           :: cg_scale, amp_rms_scale
      integer(i4b)       :: nside, nsrc, ncr_tot
      logical(lgt)       :: apply_pos_prior, burn_in
      real(dp),        allocatable, dimension(:,:) :: x      ! Amplitudes (sum(nsrc),nmaps)
@@ -54,7 +54,7 @@ module comm_ptsrc_comp_mod
      procedure :: dumpFITS => dumpPtsrcToFITS
      procedure :: getBand  => evalPtsrcBand
      procedure :: projectBand  => projectPtsrcBand
-     procedure :: updateF
+     procedure :: updateMixmat => updateF
      procedure :: S => evalSED
      procedure :: getScale
      procedure :: initHDF       => initPtsrcHDF
@@ -75,7 +75,8 @@ module comm_ptsrc_comp_mod
   integer(i4b) :: comm_pre                =  -1
   integer(i4b) :: myid_pre                =  -1
   integer(i4b) :: numprocs_pre            =  -1
-  logical(lgt) :: recompute_ptsrc_precond = .true.
+  logical(lgt) :: recompute_ptsrc_precond = .false.
+  logical(lgt) :: apply_ptsrc_precond     = .false.
 
   character(len=24), private :: operation
 
@@ -83,7 +84,7 @@ module comm_ptsrc_comp_mod
   class(comm_ptsrc_comp), pointer, private :: c_lnL
   integer(i4b),                    private :: k_lnL, p_lnL
   real(dp),                        private :: a_old_lnL
-  
+
 contains
 
   function constructor(cpar, id, id_abs)
@@ -99,30 +100,32 @@ contains
     allocate(constructor)
 
     ! Initialize general parameters
-    comm_pre              = cpar%comm_chain
-    myid_pre              = cpar%myid
-    numprocs_pre          = cpar%numprocs_chain
-    constructor%class     = cpar%cs_class(id_abs)
-    constructor%type      = cpar%cs_type(id_abs)
-    constructor%label     = cpar%cs_label(id_abs)
-    constructor%id        = id
-    constructor%nmaps     = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
-    constructor%nu_ref    = cpar%cs_nu_ref(id_abs)
-    constructor%nside     = cpar%cs_nside(id_abs)
-    constructor%outprefix = trim(cpar%cs_label(id_abs))
-    constructor%cg_scale  = cpar%cs_cg_scale(id_abs)
-    constructor%cg_samp_group  = cpar%cs_cg_samp_group(id_abs)
+    comm_pre                    = cpar%comm_chain
+    myid_pre                    = cpar%myid
+    numprocs_pre                = cpar%numprocs_chain
+    constructor%class           = cpar%cs_class(id_abs)
+    constructor%type            = cpar%cs_type(id_abs)
+    constructor%label           = cpar%cs_label(id_abs)
+    constructor%id              = id
+    constructor%nmaps           = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
+    constructor%nu_ref          = cpar%cs_nu_ref(id_abs)
+    constructor%nside           = cpar%cs_nside(id_abs)
+    constructor%outprefix       = trim(cpar%cs_label(id_abs))
+    constructor%cg_scale        = cpar%cs_cg_scale(id_abs)
+    constructor%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     allocate(constructor%poltype(1))
-    constructor%poltype   = cpar%cs_poltype(1,id_abs)
-    constructor%myid      = cpar%myid
-    constructor%comm      = cpar%comm_chain
-    constructor%numprocs  = cpar%numprocs_chain
-    constructor%nu_min_fit = cpar%cs_ptsrc_nu_min(id_abs)
-    constructor%nu_max_fit = cpar%cs_ptsrc_nu_max(id_abs)
-    ncomp_pre             = ncomp_pre + 1
-    operation             = cpar%operation
+    constructor%poltype         = cpar%cs_poltype(1,id_abs)
+    constructor%myid            = cpar%myid
+    constructor%comm            = cpar%comm_chain
+    constructor%numprocs        = cpar%numprocs_chain
+    constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
+    ncomp_pre                   = ncomp_pre + 1
+    operation                   = cpar%operation
     constructor%apply_pos_prior = cpar%cs_apply_pos_prior(id_abs)
-    constructor%burn_in   = cpar%cs_burn_in(id_abs)
+    constructor%burn_in         = cpar%cs_burn_in(id_abs)
+    constructor%amp_rms_scale   = cpar%cs_amp_rms_scale(id_abs)
+
+    if (constructor%cg_samp_group > 0) recompute_ptsrc_precond = .true.
 
     ! Disable CG search when asking for positivity prior
     if (constructor%apply_pos_prior)  constructor%cg_samp_group = 0
@@ -134,9 +137,12 @@ contains
        constructor%npar = 2   ! (alpha, beta)
        allocate(constructor%p_uni(2,constructor%npar), constructor%p_gauss(2,constructor%npar))
        allocate(constructor%theta_def(constructor%npar))
-       constructor%p_uni     = cpar%cs_p_uni(id_abs,:,:)
-       constructor%p_gauss   = cpar%cs_p_gauss(id_abs,:,:)
-       constructor%theta_def = cpar%cs_theta_def(1:2,id_abs)
+       allocate(constructor%nu_min_ind(constructor%npar), constructor%nu_max_ind(constructor%npar))
+       constructor%p_uni      = cpar%cs_p_uni(id_abs,:,:)
+       constructor%p_gauss    = cpar%cs_p_gauss(id_abs,:,:)
+       constructor%theta_def  = cpar%cs_theta_def(1:2,id_abs)
+       constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
+       constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
        do i = 1, numband
           constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
        end do
@@ -144,9 +150,12 @@ contains
        constructor%npar = 2   ! (beta, T_d)
        allocate(constructor%p_uni(2,constructor%npar), constructor%p_gauss(2,constructor%npar))
        allocate(constructor%theta_def(constructor%npar))
+       allocate(constructor%nu_min_ind(constructor%npar), constructor%nu_max_ind(constructor%npar))
        constructor%p_uni     = cpar%cs_p_uni(id_abs,:,:)
        constructor%p_gauss   = cpar%cs_p_gauss(id_abs,:,:)
        constructor%theta_def = cpar%cs_theta_def(1:2,id_abs)
+       constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
+       constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
        do i = 1, numband
           constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
        end do
@@ -163,16 +172,17 @@ contains
     call read_sources(constructor, cpar, id, id_abs)
 
     ! Update mixing matrix
-    call constructor%updateF
+    call constructor%updateMixmat
 
   end function constructor
 
 
 
-  subroutine updateF(self, beta)
+  subroutine updateF(self, theta, beta)
     implicit none
-    class(comm_ptsrc_comp),                   intent(inout)        :: self
-    real(dp),               dimension(:,:,:), intent(in), optional :: beta  ! (npar,nmaps,nsrc)
+    class(comm_ptsrc_comp),            intent(inout)        :: self
+    class(comm_map), dimension(:),     intent(in), optional :: theta
+    real(dp),        dimension(:,:,:), intent(in), optional :: beta  ! (npar,nmaps,nsrc)
 
     integer(i4b) :: i, j
     
@@ -253,7 +263,7 @@ contains
        if (present(amp_in)) then
           amp = amp_in
        else
-          amp = self%x
+          amp = self%x(1:self%nsrc,:)
        end if
     end if
     call mpi_bcast(amp, size(amp), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
@@ -352,7 +362,7 @@ contains
           call int2string(iter, itext)
           path = trim(adjustl(itext))//'/'//trim(adjustl(self%label))          
           call create_hdf_group(chainfile, trim(adjustl(path)))
-          call write_hdf(chainfile, trim(adjustl(path))//'/amp',   self%x*self%cg_scale)
+          call write_hdf(chainfile, trim(adjustl(path))//'/amp',   self%x(1:self%nsrc,:)*self%cg_scale)
           allocate(theta(self%nsrc,self%nmaps,self%npar))
           do i = 1, self%nsrc
              do j = 1, self%nmaps
@@ -457,7 +467,7 @@ contains
     deallocate(theta)
 
     !Update mixing matrix
-    call self%updateF
+    call self%updateMixmat
 
   end subroutine initPtsrcHDF
 
@@ -520,6 +530,7 @@ contains
        line = trim(line)
        if (line(1:1) == '#' .or. trim(line) == '') cycle
        read(line,*) glon, glat, amp, amp_rms, beta, beta_rms, id_ptsrc
+       amp_rms = amp_rms * self%amp_rms_scale ! Adjust listed RMS by given value
        ! Check for too close neighbours
        skip_src = .false.
        call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
@@ -573,7 +584,7 @@ contains
              call read_febecop_beam(cpar, tempfile, data(i)%label, &
                   & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))             
           else
-             filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(i))
+             filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(data(i)%id_abs))
              n        = len(trim(adjustl(filename)))
              if (filename(n-2:n) == '.h5') then
                 ! Read precomputed Febecop beam from HDF file
@@ -658,6 +669,10 @@ contains
     T%np = 0
     i    = 1
     j    = locate(data(band)%info%pix, ind(i))
+    do while (j == 0 .and. i < n) 
+       i = i+1
+       j = locate(data(band)%info%pix, ind(i))
+    end do
     if (j > 0) then
        do while (.true.)
           if (ind(i) == data(band)%info%pix(j)) then
@@ -922,7 +937,7 @@ contains
     integer(i4b),                intent(in) :: comm
 
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
-    real(dp)     :: t1, t2
+    real(dp)     :: t1, t2, t3, t4
     logical(lgt) :: skip
     class(comm_comp),         pointer :: c, c1, c2
     class(comm_ptsrc_comp),   pointer :: pt1, pt2
@@ -1068,7 +1083,10 @@ contains
              mat2(i1,i1) = mat2(i1,i1) + 1.d0
           end do
           ! Invert matrix to finalize preconditioner
+          call wall_time(t3)
           call invert_matrix_with_mask(mat2)
+          call wall_time(t4)
+ if (myid_pre == 0) write(*,*) 'ptsrc precond inv = ', real(t4-t3,sp)
           allocate(P_cr%invM_src(1,j)%M(npre,npre))
           P_cr%invM_src(1,j)%M = mat2
        end if
@@ -1079,6 +1097,7 @@ contains
     deallocate(mat,mat2)
 
     recompute_ptsrc_precond = .false.
+    apply_ptsrc_precond     = .true.
     
   end subroutine initPtsrcPrecond
 
@@ -1101,7 +1120,7 @@ contains
     class(comm_comp),       pointer :: c
     class(comm_ptsrc_comp), pointer :: pt
 
-    if (npre == 0 .or. myid_pre /= 0) return
+    if (npre == 0 .or. myid_pre /= 0 .or. .not. apply_ptsrc_precond) return
     
     ! Reformat linear array into y(npre,nalm,nmaps) structure
     allocate(y(npre,nmaps_pre))
@@ -1221,10 +1240,11 @@ contains
   end subroutine read_radial_beam
 
   ! Sample spectral parameters
-  subroutine samplePtsrcSpecInd(self, handle)
+  subroutine samplePtsrcSpecInd(self, handle, id)
     implicit none
     class(comm_ptsrc_comp),                  intent(inout)  :: self
     type(planck_rng),                        intent(inout)  :: handle
+    integer(i4b),                            intent(in)     :: id
 
     integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
     real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
@@ -1317,7 +1337,7 @@ contains
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
-                   if (data(l)%bp%nu_c >= self%nu_min_fit .and. data(l)%bp%nu_c <= self%nu_max_fit) then
+                   if (data(l)%bp%nu_c >= self%nu_min_ind(1) .and. data(l)%bp%nu_c <= self%nu_max_ind(1)) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
                       n_pix = n_pix + 1
                    end if
@@ -1333,17 +1353,17 @@ contains
        deallocate(theta)
 
        ! Update mixing matrix
-       call self%updateF
+       call self%updateMixmat
        
        ! Ask for CG preconditioner update
-       recompute_ptsrc_precond = .true.
+       if (self%cg_samp_group > 0) recompute_ptsrc_precond = .true.
        return
     end if
 
 
     ! Distribute point source amplitudes
     allocate(amp(self%nsrc,self%nmaps), a_curr(numband))
-    if (self%myid == 0) amp = self%x
+    if (self%myid == 0) amp = self%x(1:self%nsrc,:)
     call mpi_bcast(amp, size(amp), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
 
 
@@ -1424,7 +1444,7 @@ contains
 
                 ! Construct current source model
                 do l = 1, numband
-                   if (data(l)%bp%nu_c < self%nu_min_fit .or. data(l)%bp%nu_c > self%nu_max_fit) cycle
+                   if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
                    s         = self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
                 end do
@@ -1446,7 +1466,7 @@ contains
                    lnL = 0.d0
                    do i = 1, n
                       do l = 1, numband
-                         if (data(l)%bp%nu_c < self%nu_min_fit .or. data(l)%bp%nu_c > self%nu_max_fit) cycle
+                         if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
                          
                          ! Compute mixing matrix
                          theta(j) = x(i)
@@ -1565,7 +1585,7 @@ contains
              b     = 0.d0
              theta = self%src(k)%theta(:,p)
              do l = 1, numband
-                if (data(l)%bp%nu_c < self%nu_min_fit .or. data(l)%bp%nu_c > self%nu_max_fit) cycle
+                if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
 
                 ! Compute mixing matrix
                 s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
@@ -1626,7 +1646,7 @@ contains
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(k)%T(l)%map(q,p) * (amp(k,p)-a_old)
-                   if (data(l)%bp%nu_c >= self%nu_min_fit .and. data(l)%bp%nu_c <= self%nu_max_fit) then
+                   if (data(l)%bp%nu_c >= self%nu_min_ind(1) .and. data(l)%bp%nu_c <= self%nu_max_ind(1)) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
                       n_pix = n_pix + 1
                    end if
@@ -1658,10 +1678,10 @@ contains
     !stop
 
     ! Update mixing matrix
-    call self%updateF
+    call self%updateMixmat
 
     ! Ask for CG preconditioner update
-    recompute_ptsrc_precond = .true.
+    if (self%cg_samp_group > 0) recompute_ptsrc_precond = .true.
 
     deallocate(x, P_tot, F, lnL, amp, theta, a_curr)
 
@@ -1718,7 +1738,7 @@ contains
 
     lnL = 0.d0
     do l = 1, numband
-       if (data(l)%bp%nu_c < c_lnL%nu_min_fit .or. data(l)%bp%nu_c > c_lnL%nu_max_fit) cycle
+       if (data(l)%bp%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
        s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
@@ -1761,30 +1781,6 @@ contains
     deallocate(theta)
 
   end function lnL_ptsrc_multi
-  
-  function rand_trunc_gauss(rng_handle, mu, mu_, sigma)
-    implicit none
-
-    real(dp),         intent(in)    :: mu, mu_, sigma
-    type(planck_rng), intent(inout) :: rng_handle
-    real(dp)                        :: rand_trunc_gauss
-
-    integer(i4b) :: n
-    real(dp) :: eta, alpha, z, rho, u, mu0
-    logical(lgt) :: ok
-
-    mu0   = (mu_ - mu)/sigma
-    alpha = 0.5d0 * (mu0 + sqrt(mu0**2 + 4.d0))
-    do while (.true.)
-       z   = -log(rand_uni(rng_handle)) / alpha + mu0
-       rho = exp(-0.5d0 * (z-alpha)**2)
-       if (rand_uni(rng_handle) < rho) then
-          rand_trunc_gauss = sigma*z + mu
-          exit
-       end if
-    end do
-
-  end function rand_trunc_gauss
   
 end module comm_ptsrc_comp_mod
 

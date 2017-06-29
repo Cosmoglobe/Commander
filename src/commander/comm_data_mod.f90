@@ -9,17 +9,24 @@ module comm_data_mod
 
   type comm_data_set
      character(len=512)           :: label, unit
-     integer(i4b)                 :: period
+     integer(i4b)                 :: period, id_abs
+     logical(lgt)                 :: sample_gain
      real(dp)                     :: gain
+     character(len=128)           :: gain_comp
+     integer(i4b)                 :: gain_lmin, gain_lmax
 
      class(comm_mapinfo), pointer :: info
      class(comm_map),     pointer :: map
      class(comm_map),     pointer :: res
      class(comm_map),     pointer :: mask
      class(comm_map),     pointer :: procmask
+     class(comm_map),     pointer :: gainmask
      class(comm_N),       pointer :: N
      class(comm_bp),      pointer :: bp
      class(comm_B),       pointer :: B
+     type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
+     type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
+     type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data
      procedure :: apply_proc_mask
@@ -40,6 +47,8 @@ contains
     integer(i4b)       :: i, j, n, m, nmaps, ierr, numband_tot
     real(dp)           :: t1, t2
     character(len=512) :: dir
+    class(comm_N), pointer  :: tmp
+    class(comm_mapinfo), pointer :: info_smooth, info_postproc
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: map, regnoise, mask_misspix
 
@@ -50,10 +59,15 @@ contains
     n = 0
     do i = 1, numband_tot
        if (.not. cpar%ds_active(i)) cycle
-       n              = n+1
-       data(n)%label  = cpar%ds_label(i)
-       data(n)%period = cpar%ds_period(i)
-       data(n)%unit   = cpar%ds_unit(i)
+       n                   = n+1
+       data(n)%id_abs      = i
+       data(n)%label       = cpar%ds_label(i)
+       data(n)%period      = cpar%ds_period(i)
+       data(n)%unit        = cpar%ds_unit(i)
+       data(n)%sample_gain = cpar%ds_sample_gain(i)
+       data(n)%gain_comp   = cpar%ds_gain_calib_comp(i)
+       data(n)%gain_lmin   = cpar%ds_gain_lmin(i)
+       data(n)%gain_lmax   = cpar%ds_gain_lmax(i)
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
@@ -74,6 +88,14 @@ contains
        end if
        data(n)%res  => comm_map(data(n)%map)
        call update_status(status, "data_map")
+
+       if (data(n)%sample_gain) then
+          ! Read calibration mask
+          if (trim(cpar%ds_maskfile_calib(i)) /= 'fullsky') then
+             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_maskfile_calib(i)), &
+                  & udgrade=.true.)
+          end if
+       end if
 
        ! Initialize beam structures
        select case (trim(cpar%ds_beamtype(i)))
@@ -113,7 +135,7 @@ contains
        select case (trim(cpar%ds_noise_format(i)))
        case ('rms') 
           allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
-          data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, data(n)%mask, handle, regnoise)
+          data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise)
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
        case default
@@ -124,7 +146,43 @@ contains
        ! Initialize bandpass structures
        data(n)%bp => comm_bp(cpar, n, i)
        call update_status(status, "data_bp")
-       
+
+       ! Initialize smoothed data structures
+       allocate(data(n)%B_smooth(cpar%num_smooth_scales))
+       allocate(data(n)%B_postproc(cpar%num_smooth_scales))
+       allocate(data(n)%N_smooth(cpar%num_smooth_scales))
+       do j = 1, cpar%num_smooth_scales
+          if (cpar%fwhm_smooth(j) > 0.d0) then
+             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, cpar%lmax_smooth(j), &
+                  & data(n)%info%nmaps, data(n)%info%pol)
+             data(n)%B_smooth(j)%p => &
+               & comm_B_bl(cpar, info_smooth, n, i, fwhm=cpar%fwhm_smooth(j), pixwin=cpar%pixwin_smooth(j), &
+               & init_realspace=.false.)
+          else
+             nullify(data(n)%B_smooth(j)%p)
+          end if
+          if (cpar%fwhm_postproc_smooth(j) > 0.d0) then
+             info_postproc => comm_mapinfo(data(n)%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+                  & data(n)%info%nmaps, data(n)%info%pol)
+             data(n)%B_postproc(j)%p => &
+                  & comm_B_bl(cpar, info_postproc, n, i, fwhm=cpar%fwhm_postproc_smooth(j),&
+                  & init_realspace=.false.)
+          else
+             nullify(data(n)%B_postproc(j)%p)
+          end if
+          if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'native') then
+             tmp => data(n)%N
+             select type (tmp)
+             class is (comm_N_rms)
+                data(n)%N_smooth(j)%p => tmp
+             end select
+          else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
+             data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle, regnoise)
+          else
+             nullify(data(n)%N_smooth(j)%p)
+          end if
+       end do
+
     end do
     numband = n
     if (cpar%myid == 0 .and. cpar%verbosity > 0) &
@@ -273,5 +331,48 @@ contains
     end where
 
   end subroutine apply_proc_mask
+
+  subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out)
+    implicit none
+    class(comm_mapinfo),                      intent(in),   target :: info
+    logical(lgt),                             intent(in)           :: alms_in
+    real(dp),            dimension(0:,1:),    intent(in)           :: bl_in, bl_out
+    class(comm_map),                          intent(inout)        :: map_in
+    class(comm_map),                          intent(out), pointer :: map_out
+
+    integer(i4b) :: i, j, l, lmax
+
+    map_out => comm_map(info)
+
+    if (.not. alms_in) then
+       !map_out%map = map_in%map
+       call map_in%udgrade(map_out)
+       call map_out%YtW
+    else
+       call map_in%alm_equal(map_out)
+    end if
+
+
+    ! Deconvolve old beam, and convolve with new beam
+    lmax  = min(size(bl_in,1)-1, size(bl_out,1)-1)
+    do i = 0, info%nalm-1
+       l = info%lm(1,i)
+       if (l > lmax) then
+          map_out%alm(i,:) = 0.d0
+          cycle
+       end if
+       do j = 1, map_out%info%nmaps
+          if (bl_in(l,j) > 1.d-12) then
+             map_out%alm(i,j) = map_out%alm(i,j) * bl_out(l,j) / bl_in(l,j)
+          else
+             map_out%alm(i,j) = 0.d0
+          end if
+       end do
+    end do    
+
+    ! Recompose map
+    call map_out%Y
+
+  end subroutine smooth_map
 
 end module comm_data_mod

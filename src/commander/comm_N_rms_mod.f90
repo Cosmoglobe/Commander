@@ -5,7 +5,7 @@ module comm_N_rms_mod
   implicit none
 
   private
-  public comm_N_rms
+  public comm_N_rms, comm_N_rms_ptr
   
   type, extends (comm_N) :: comm_N_rms
      class(comm_map), pointer :: siN
@@ -21,6 +21,12 @@ module comm_N_rms_mod
      procedure constructor
   end interface comm_N_rms
 
+  type comm_N_rms_ptr
+     type(comm_N_rms), pointer :: p
+  end type comm_N_rms_ptr
+
+
+
 !!$  interface matmulInvN
 !!$     module procedure matmulInvN_1map, matmulInvN_2map
 !!$  end interface matmulInvN
@@ -34,19 +40,20 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, id_abs, mask, handle, regnoise)
+  function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise)
     implicit none
     type(comm_params),                  intent(in)    :: cpar
     type(comm_mapinfo), target,         intent(in)    :: info
-    integer(i4b),                       intent(in)    :: id, id_abs
+    integer(i4b),                       intent(in)    :: id, id_abs, id_smooth
     class(comm_map),                    intent(in)    :: mask
     type(planck_rng),                   intent(inout) :: handle
     real(dp), dimension(0:,1:),         intent(out)   :: regnoise
     class(comm_N_rms),                  pointer       :: constructor
 
-    integer(i4b)       :: ierr
+    integer(i4b)       :: ierr, tmp, nside_smooth
     character(len=512) :: dir, cache
     character(len=4)   :: itext
+    type(comm_mapinfo), pointer :: info_smooth
     
     ! General parameters
     allocate(constructor)
@@ -56,22 +63,31 @@ contains
 
     ! Component specific parameters
     constructor%type    = cpar%ds_noise_format(id_abs)
-    constructor%nside   = info%nside
     constructor%nmaps   = info%nmaps
-    constructor%np      = info%np
     constructor%pol     = info%nmaps == 3
     constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
-
-    call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), regnoise)
+    if (id_smooth == 0) then
+       constructor%nside   = info%nside
+       constructor%np      = info%np
+       constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
+       call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), regnoise)
+       constructor%siN%map = constructor%siN%map * mask%map ! Apply mask
+    else
+       tmp         =  getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth)
+       info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
+            & constructor%nmaps, constructor%pol)
+       constructor%nside   = info_smooth%nside
+       constructor%np      = info_smooth%np
+       constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+    end if
     constructor%siN%map = 1.d0 / constructor%siN%map
 
-    ! Apply mask
-    constructor%siN%map = constructor%siN%map * mask%map
-
-    ! Set up diagonal covariance matrix in both pixel and harmonic space
-    constructor%invN_diag     => comm_map(info)
-    constructor%invN_diag%map = constructor%siN%map**2
-    call compute_invN_lm(cache, constructor%invN_diag)
+    ! Set up diagonal covariance matrix
+    if (id_smooth == 0) then
+       constructor%invN_diag     => comm_map(info)
+       constructor%invN_diag%map = constructor%siN%map**2
+       call compute_invN_lm(cache, constructor%invN_diag)
+    end if
     
   end function constructor
 

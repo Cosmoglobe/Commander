@@ -124,7 +124,7 @@ first_sample = 1 !cpar%init_samp+1
      !call output_FITS_sample(cpar, 1000, .true.)
 
      ! Sample non-linear parameters
-     call sample_nonlin_params(cpar, handle)
+     call sample_nonlin_params(cpar, iter, handle)
 
      ! Sample instrumental parameters
 

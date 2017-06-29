@@ -48,11 +48,14 @@ contains
     constructor%npar         = 1
     allocate(constructor%theta_def(1), constructor%p_gauss(2,1), constructor%p_uni(2,1))
     allocate(constructor%poltype(1), constructor%indlabel(1))
+    allocate(constructor%nu_min_ind(1), constructor%nu_max_ind(1))
     constructor%poltype(1)   = cpar%cs_poltype(1,id_abs)
     constructor%theta_def(1) = cpar%cs_theta_def(1,id_abs)
     constructor%p_uni(:,1)   = cpar%cs_p_uni(id_abs,:,1)
     constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
     constructor%indlabel(1)  = 'nu_p'
+    constructor%nu_min_ind(1) = cpar%cs_nu_min(id_abs,1)
+    constructor%nu_max_ind(1) = cpar%cs_nu_max(id_abs,1)
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
@@ -86,6 +89,10 @@ contains
 
     ! Initialize mixing matrix
     call constructor%updateMixmat
+
+    ! Set up smoothing scale information
+    allocate(constructor%smooth_scale(constructor%npar))
+    constructor%smooth_scale = cpar%cs_smooth_scale(id_abs,1:constructor%npar)
 
   end function constructor
 

@@ -202,10 +202,10 @@ contains
     first = 1
     last  = m
     if (threshold > 0.d0) then
-       do while (y(first) < threshold*maxval(y))
+       do while (y(first) < threshold*maxval(y(1:m)))
           first = first+1
        end do
-       do while (y(last) < threshold*maxval(y))
+       do while (y(last) < threshold*maxval(y(1:m)))
           last = last-1
        end do
     end if
