@@ -440,7 +440,7 @@ contains
     type(hdf_file),            intent(in)    :: hdffile
     character(len=*),          intent(in)    :: hdfpath
 
-    integer(i4b)       :: i, j
+    integer(i4b)       :: i, j, p
     real(dp)           :: md(4)
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: theta
@@ -477,13 +477,14 @@ contains
     class(comm_params),     intent(in)    :: cpar
     integer(i4b),           intent(in)    :: id, id_abs
 
-    integer(i4b)        :: unit, i, j, npar, nmaps, pix, nside, n
+    integer(i4b)        :: unit, i, j, p, npar, nmaps, pix, nside, n, ierr
     real(dp)            :: glon, glat, nu_ref, dist, vec0(3), vec(3)
     logical(lgt)        :: pol, skip_src
     character(len=1024) :: line, filename, tempfile
     character(len=128)  :: id_ptsrc, flabel
     real(dp), allocatable, dimension(:)   :: amp, amp_rms
     real(dp), allocatable, dimension(:,:) :: beta, beta_rms
+    integer(i4b), allocatable, dimension(:,:) :: mask, mask2
 
     unit = getlun()
 
@@ -523,8 +524,10 @@ contains
     
     ! Initialize point sources based on catalog information
     allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
+    allocate(mask(self%nsrc,self%nmaps), mask2(self%nsrc,self%nmaps))
     open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
-    i = 0
+    i    = 0
+    mask = 1
     do while (.true.)
        read(unit,'(a)',end=2) line
        line = trim(line)
@@ -562,10 +565,37 @@ contains
           self%src(i)%P_theta(:,:,2) = beta_rms
           !self%src(i)%P_x(:,1) = 0.d0
           !self%src(i)%P_x(:,2) = 0.d0 !1.d12
+
+          ! Check for processing mask; disable source if within mask
+          call ang2pix_ring(data(1)%info%nside, 0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, pix)
+          p = locate(data(1)%info%pix, pix)
+          if (p > -1) then
+             if (data(1)%info%pix(p) == pix) then
+                do j = 1, self%nmaps
+                   if (data(1)%procmask%map(p,j) < 0.5d0) then
+                      mask(i,j) = 0
+                   end if
+                end do
+             end if
+          end if
+
        end if
     end do 
 2   close(unit)
 
+    ! Check for processing mask; disable source if within mask
+    call mpi_allreduce(mask, mask2, size(mask), MPI_INTEGER, MPI_MIN, comm_pre, ierr)
+    do i = 1, self%nsrc
+       do j = 1, self%nmaps
+          if (mask2(i,j) == 0) then
+!!$             if (self%myid == 0) write(*,*) 'Disabling source ', i, j
+!!$             self%src(i)%P_x(j,1) = 1d-6   ! Prior mean; mJy
+!!$             self%src(i)%P_x(j,2) = 1d-6   ! Prior RMS
+!!$             self%x(i,j)          = 1d-6   ! Prior RMS
+          end if
+       end do
+    end do
+    deallocate(mask, mask2)
 
     ! Initialize beam templates
     tempfile = trim(cpar%datadir)//'/'//trim(cpar%cs_ptsrc_template(id_abs))

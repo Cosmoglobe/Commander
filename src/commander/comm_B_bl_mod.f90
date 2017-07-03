@@ -59,7 +59,7 @@ contains
                & pixwin=trim(dir)//'/pixel_window_n'//nside_text//'.fits')
        else if (present(pixwin)) then
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
-               & pixwin=trim(pixwin))
+               & pixwin=trim(dir)//'/'//trim(pixwin))
        else
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm)
        end if

@@ -40,7 +40,7 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise)
+  function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask)
     implicit none
     type(comm_params),                  intent(in)    :: cpar
     type(comm_mapinfo), target,         intent(in)    :: info
@@ -49,6 +49,7 @@ contains
     type(planck_rng),                   intent(inout) :: handle
     real(dp), dimension(0:,1:),         intent(out)   :: regnoise
     class(comm_N_rms),                  pointer       :: constructor
+    class(comm_map),                    pointer, intent(in), optional :: procmask
 
     integer(i4b)       :: ierr, tmp, nside_smooth
     character(len=512) :: dir, cache
@@ -72,6 +73,11 @@ contains
        constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
        call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), regnoise)
        constructor%siN%map = constructor%siN%map * mask%map ! Apply mask
+       if (present(procmask)) then
+          where (procmask%map < 0.5d0)
+             constructor%siN%map = constructor%siN%map * 1.d2 ! Boost noise by 100 in processing mask
+          end where
+       end if
     else
        tmp         =  getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth)
        info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
@@ -80,7 +86,11 @@ contains
        constructor%np      = info_smooth%np
        constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
     end if
-    constructor%siN%map = 1.d0 / constructor%siN%map
+    where (constructor%siN%map > 0.d0) 
+       constructor%siN%map = 1.d0 / constructor%siN%map
+    elsewhere
+       constructor%siN%map = 0.d0
+    end where
 
     ! Set up diagonal covariance matrix
     if (id_smooth == 0) then

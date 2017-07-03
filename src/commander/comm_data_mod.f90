@@ -84,7 +84,7 @@ contains
           data(n)%procmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
                & udgrade=.true.)
           !data(n)%map%map = data(n)%map%map * data(n)%procmask%map
-          call smooth_inside_procmask(data(n), cpar%ds_fwhm_proc)
+          !call smooth_inside_procmask(data(n), cpar%ds_fwhm_proc)
        end if
        data(n)%res  => comm_map(data(n)%map)
        call update_status(status, "data_map")
@@ -135,7 +135,8 @@ contains
        select case (trim(cpar%ds_noise_format(i)))
        case ('rms') 
           allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
-          data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise)
+          data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+               & data(n)%procmask)
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
        case default
