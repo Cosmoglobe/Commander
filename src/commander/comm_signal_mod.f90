@@ -95,6 +95,9 @@ contains
        i             = i+1
        c             => c%next()
     end do
+
+!    call mpi_finalize(i)
+!    stop
        
   end subroutine initialize_signal_mod
 
@@ -148,6 +151,7 @@ contains
     call update_status(status, "init_precond2")
     call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat)
     call cr_x2amp(samp_group, x)
+    call update_status(status, "cr_end")
     deallocate(rhs,x)
 
   end subroutine sample_amps_by_CG
@@ -197,17 +201,19 @@ contains
     
     ! Initialize instrumental parameters
     call update_status(status, "init_chain_inst")
-    do i = 1, numband
-       if (cpar%ignore_gain_bp) then
-          data(i)%gain     = 1.d0
-          data(i)%bp%delta = 0.d0
-       else
-          call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
-               & data(i)%gain)
-          call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
-               & data(i)%bp%delta)
-       end if
-    end do
+    if (cpar%cs_init_inst_hdf) then
+       do i = 1, numband
+          if (cpar%ignore_gain_bp) then
+             data(i)%gain     = 1.d0
+             data(i)%bp%delta = 0.d0
+          else
+             call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
+                  & data(i)%gain)
+             call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+                  & data(i)%bp%delta)
+          end if
+       end do
+    end if
     
     ! Initialize component parameters
     c   => compList

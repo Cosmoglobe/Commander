@@ -18,9 +18,9 @@ contains
 
     integer(i4b) :: i, j, k, smooth_scale, id_native
     real(dp)     :: t1, t2
-    integer(i4b) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
-    integer(i4b) :: status_amp   !               1 = native, 2 = smooth
-    character(len=2) :: itext
+    integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
+    integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
+    character(len=2) :: itext, jtext
     class(comm_mapinfo), pointer :: info
     class(comm_N),       pointer :: tmp
     class(comm_map),     pointer :: res
@@ -38,6 +38,7 @@ contains
     end do
     
     ! Sample spectral parameters for each signal component
+    allocate(status_fit(numband))
     c => compList
     do while (associated(c))
        if (c%npar == 0) then
@@ -49,19 +50,23 @@ contains
           cycle
        end if
        
-       ! Add current component back into residual
-       if (trim(c%class) /= 'ptsrc') then
-          do i = 1, numband
-             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-             m               = c%getBand(i)
-             data(i)%res%map = data(i)%res%map + m
-             deallocate(m)
-          end do
-       end if
-
        do j = 1, c%npar
 
           if (c%p_gauss(2,j) == 0.d0) cycle
+
+
+          ! Add current component back into residual
+!!$          call int2string(j,itext)
+!!$          call data(j)%res%writeFITS('res_before'//itext//'.fits')
+
+          if (trim(c%class) /= 'ptsrc') then
+             do i = 1, numband
+                allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+                m               = c%getBand(i)
+                data(i)%res%map = data(i)%res%map + m
+                deallocate(m)
+             end do
+          end if
 
           ! Set up smoothed data
           select type (c)
@@ -69,40 +74,38 @@ contains
              if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
           class is (comm_diffuse_comp)
              if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
+             call update_status(status, "nonlin start " // trim(c%label)// ' ' // trim(c%indlabel(j)))
 
              ! Set up type of smoothing scale
              id_native    = 0
 
              ! Compute smoothed residuals
              nullify(info)
-             status_amp = 0
+             status_amp   = 0
+             status_fit   = 0
+             smooth_scale = c%smooth_scale(j)
              do i = 1, numband
                 if (cpar%num_smooth_scales == 0) then
-                   status_amp   = 1
-                   status_fit   = 1    ! Native
-                   smooth_scale = 0
+                   status_fit(i)   = 1    ! Native
                 else
-                   smooth_scale = c%smooth_scale(j)
                    if (.not. associated(data(i)%N_smooth(smooth_scale)%p) .or. &
                         & data(i)%bp%nu_c < c%nu_min_ind(j) .or. &
                         & data(i)%bp%nu_c > c%nu_max_ind(j)) then
-                      status_fit = 0
+                      status_fit(i) = 0
                    else
                       if (.not. associated(data(i)%B_smooth(smooth_scale)%p)) then
-                         status_amp   = 1
-                         status_fit   = 1 ! Native
+                         status_fit(i)   = 1 ! Native
                       else
-                         status_amp   = 2
-                         status_fit   = 2 ! Smooth
+                         status_fit(i)   = 2 ! Smooth
                       end if
                    end if
                 end if
-
-                if (status_fit == 0) then
+                
+                if (status_fit(i) == 0) then
                    ! Channel is not included in fit
                    nullify(res_smooth(i)%p)
                    nullify(rms_smooth(i)%p)
-                else if (status_fit == 1) then
+                else if (status_fit(i) == 1) then
                    ! Fit is done in native resolution
                    id_native          = i
                    info               => data(i)%res%info
@@ -112,7 +115,7 @@ contains
                    class is (comm_N_rms)
                       rms_smooth(i)%p    => tmp
                    end select
-                else if (status_fit == 2) then
+                else if (status_fit(i) == 2) then
                    ! Fit is done with downgraded data
                    info  => comm_mapinfo(data(i)%res%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
                         & data(i)%res%info%nmaps, data(i)%res%info%pol)
@@ -125,6 +128,7 @@ contains
 !!$                call res_smooth(i)%p%writeFITS('res'//itext//'.fits')
 
              end do
+             status_amp = maxval(status_fit)
 
              ! Compute smoothed amplitude map
              if (.not. associated(info) .or. status_amp == 0) then
@@ -157,18 +161,18 @@ contains
              allocate(c%theta_smooth(c%npar))
              do k = 1, c%npar
                 if (k == j) cycle
-                if (status_fit == 2) then
-                   info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
-                        & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
-                   call smooth_map(info, .false., &
-                        & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
-                        & data(1)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
-                else if (status_fit == 1) then
+                if (status_amp == 1) then ! Native resolution
                    info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
                         & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
                    call smooth_map(info, .false., &
                         & data(id_native)%B%b_l*0.d0+1.d0, c%theta(k)%p, &  
                         & data(id_native)%B%b_l,           c%theta_smooth(k)%p)
+                else if (status_amp == 2) then ! Common FWHM resolution
+                   info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
+                        & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
+                   call smooth_map(info, .false., &
+                        & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                        & data(1)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
                 end if
              end do
 
@@ -181,11 +185,32 @@ contains
           select type (c)
           class is (comm_line_comp)
           class is (comm_diffuse_comp)
+             
+             if (associated(c%x_smooth)) then
+                call c%x_smooth%dealloc(clean_info=.true.)
+                nullify(c%x_smooth)
+             end if
+             do k =1, c%npar
+                if (k == j) cycle
+                if (allocated(c%theta_smooth)) then
+                   if (associated(c%theta_smooth(k)%p)) then
+                      call c%theta_smooth(k)%p%dealloc(clean_info=.true.)
+                   end if
+                end if
+             end do
+             if (allocated(c%theta_smooth)) deallocate(c%theta_smooth)
+             do i = 1, numband
+                if (.not. associated(rms_smooth(i)%p)) cycle
+                if (status_fit(i) == 2) then
+                   call res_smooth(i)%p%dealloc(clean_info=.true.)
+                end if
+                nullify(res_smooth(i)%p)
+             end do
 
              if (cpar%num_smooth_scales > 0) then
                 if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
                    ! Smooth index map with a postprocessing beam
-                   deallocate(c%theta_smooth)
+                   !deallocate(c%theta_smooth)
                    allocate(c%theta_smooth(c%npar))
                    info  => comm_mapinfo(c%theta(j)%p%info%comm, cpar%nside_smooth(smooth_scale), &
                         & cpar%lmax_smooth(smooth_scale), c%theta(j)%p%info%nmaps, c%theta(j)%p%info%pol)
@@ -193,28 +218,38 @@ contains
                         & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(j)%p, &  
                         & data(1)%B_postproc(smooth_scale)%p%b_l,           c%theta_smooth(j)%p)
                    c%theta(j)%p%map = c%theta_smooth(j)%p%map
+                   call c%theta_smooth(j)%p%dealloc(clean_info=.true.)
+                   deallocate(c%theta_smooth)
                 end if
              end if
 
-             deallocate(c%x_smooth)
-             deallocate(c%theta_smooth)
+             call update_status(status, "nonlin stop " // trim(c%label)// ' ' // trim(c%indlabel(j)))
+
           end select
 
-       end do
+          ! Subtract updated component from residual
+          if (trim(c%class) /= 'ptsrc') then
+             do i = 1, numband
+                allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+                m               = c%getBand(i)
+                data(i)%res%map = data(i)%res%map - m
+                deallocate(m)
+             end do
+          end if
 
-       ! Subtract updated component from residual
-       if (trim(c%class) /= 'ptsrc') then
-          do i = 1, numband
-             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-             m               = c%getBand(i)
-             data(i)%res%map = data(i)%res%map - m
-             deallocate(m)
-          end do
-       end if
+!!$          call int2string(j,itext)
+!!$          call data(j)%res%writeFITS('res_after'//itext//'.fits')
+
+
+       end do
 
        ! Loop to next component
        c => c%next()
     end do
+    deallocate(status_fit)
+
+!!$    call mpi_finalize(i)
+!!$    stop
 
     ! Sample calibration factors
     do i = 1, numband

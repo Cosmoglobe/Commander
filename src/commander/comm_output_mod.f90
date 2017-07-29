@@ -84,7 +84,6 @@ contains
        if (cpar%output_chisq) then
           info      => comm_mapinfo(cpar%comm_chain, cpar%nside_chisq, 0, cpar%nmaps_chisq, cpar%pol_chisq)
           chisq_map => comm_map(info)
-          chisq_sub => comm_map(info)
        end if
        do i = 1, numband
           call wall_time(t3)
@@ -102,6 +101,7 @@ contains
              chisq_sub => comm_map(chisq_map%info)
              call map%udgrade(chisq_sub)
              chisq_map%map = chisq_map%map + chisq_sub%map * (map%info%npix/chisq_sub%info%npix)
+             call chisq_sub%dealloc()
           end if
           call map%dealloc()
        end do
@@ -111,8 +111,7 @@ contains
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
           if (cpar%myid == cpar%root) write(*,fmt='(a,i4,a,e16.8)') &
                & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
-          call chisq_map%dealloc()
-          call chisq_sub%dealloc()
+          call chisq_map%dealloc(clean_info=.true.)
        end if
     end if
 

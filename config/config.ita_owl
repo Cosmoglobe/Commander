@@ -52,7 +52,7 @@ export MPCC := mpicc
 # Fortran 90 compiler flags
 #export F90FLAGS := -O3 -traceback 
 #
-export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384 
+export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384  #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
 #export F90FLAGS := -g -C -traceback -xAVX -arch AVX -mavx -qopenmp -check all,noarg_temp_created -fpe0
 #export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx -qopenmp
 #export F90FLAGS := -fast -traceback -qopenmp
@@ -64,7 +64,8 @@ export FFLAGS := -O2
 export CFLAGS := -O3 
 
 # Extra flags used for linking
-export LDFLAGS := -lm -qopenmp -cxxlib
+export LDFLAGS := -lm -qopenmp -cxxlib #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
+ 
 
 
 # ============== Language Mixing =================

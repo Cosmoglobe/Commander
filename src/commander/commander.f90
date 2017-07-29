@@ -31,7 +31,7 @@ program commander
   ! *                                                                   *
   ! *********************************************************************
 
-  integer(i4b)        :: iargc, ierr, iter, stat, first_sample, samp_group
+  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group
   real(dp)            :: t1, t2
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle
@@ -46,7 +46,7 @@ program commander
   call read_comm_params(cpar)
   call initialize_mpi_struct(cpar, handle)
   call validate_params(cpar)  
-  call init_status(status, 'comm_status.txt')
+  call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -118,13 +118,18 @@ first_sample = 1 !cpar%init_samp+1
         end do
      end if
 
+     ! Output sample to disk
+     call output_FITS_sample(cpar, iter, .true.)
+
      ! Sample partial-sky templates
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
 
      ! Sample non-linear parameters
-     call sample_nonlin_params(cpar, iter, handle)
+     do i = 1, cpar%num_ind_cycle
+        call sample_nonlin_params(cpar, iter, handle)
+     end do
 
      ! Sample instrumental parameters
 
@@ -132,12 +137,9 @@ first_sample = 1 !cpar%init_samp+1
 
      ! Compute goodness-of-fit statistics
      
-     ! Output sample to disk
-     call output_FITS_sample(cpar, iter, .true.)
-
      if (cpar%myid == 0) then
         call wall_time(t2)
-        write(*,fmt='(a,i4,a,f8.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+        write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
      end if
      
   end do

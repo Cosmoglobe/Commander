@@ -43,8 +43,10 @@ module comm_param_mod
      logical(lgt)       :: sample_signal_amplitudes
      
      ! Numerical parameters
-     integer(i4b)      :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_miniter
-     real(dp)          :: cg_tol
+     character(len=512) :: cg_conv_crit
+     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_miniter, cg_check_conv_freq
+     real(dp)           :: cg_tol
+     integer(i4b)       :: num_ind_cycle
 
      ! Data parameters
      integer(i4b)       :: numband
@@ -83,6 +85,7 @@ module comm_param_mod
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
+     logical(lgt)       :: cs_init_inst_hdf
      integer(i4b)       :: cs_ncomp, cs_ncomp_tot
      logical(lgt),       allocatable, dimension(:)     :: cs_include
      logical(lgt),       allocatable, dimension(:)     :: cs_initHDF
@@ -225,10 +228,13 @@ contains
     call get_parameter(paramfile, 'INIT_SAMPLE_NUMBER',       par_int=cpar%init_samp)
     call get_parameter(paramfile, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
 
+    call get_parameter(paramfile, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
     call get_parameter(paramfile, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
     call get_parameter(paramfile, 'CG_MINITER',               par_int=cpar%cg_miniter)
     call get_parameter(paramfile, 'CG_MAXITER',               par_int=cpar%cg_maxiter)
     call get_parameter(paramfile, 'CG_TOLERANCE',             par_dp=cpar%cg_tol)
+    call get_parameter(paramfile, 'CG_CONV_CHECK_FREQUENCY',  par_int=cpar%cg_check_conv_freq)
+    call get_parameter(paramfile, 'NUM_INDEX_CYCLES_PER_ITERATION', par_int=cpar%num_ind_cycle)
 
     call get_parameter(paramfile, 'T_CMB',                    par_dp=cpar%T_cmb)
     call get_parameter(paramfile, 'MJYSR_CONVENTION',         par_string=cpar%MJysr_convention)
@@ -354,6 +360,7 @@ contains
     character(len=2) :: itext
     
     call get_parameter(paramfile, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
+    call get_parameter(paramfile, 'INIT_INSTRUMENT_FROM_HDF', par_lgt=cpar%cs_init_inst_hdf)
     call get_parameter(paramfile, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
 
     n = cpar%cs_ncomp_tot

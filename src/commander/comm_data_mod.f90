@@ -135,8 +135,12 @@ contains
        select case (trim(cpar%ds_noise_format(i)))
        case ('rms') 
           allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
-          data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
-               & data(n)%procmask)
+          if (associated(data(n)%procmask)) then
+             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+                  & data(n)%procmask)
+          else
+             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise)
+          end if
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
        case default

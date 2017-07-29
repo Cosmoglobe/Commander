@@ -75,7 +75,7 @@ contains
        constructor%siN%map = constructor%siN%map * mask%map ! Apply mask
        if (present(procmask)) then
           where (procmask%map < 0.5d0)
-             constructor%siN%map = constructor%siN%map * 1.d1 ! Boost noise by 10 in processing mask
+             constructor%siN%map = constructor%siN%map * 20.d0 ! Boost noise by 20 in processing mask
           end where
        end if
     else

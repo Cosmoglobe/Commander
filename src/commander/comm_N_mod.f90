@@ -152,10 +152,12 @@ contains
     !write(*,*) sum(abs(invN_diag%alm))
 
     ! Write cache file to disk
-    open(unit, file=trim(cache), form='unformatted')
-    write(unit) sum(abs(invN_diag%map))    ! Check-sum
-    write(unit) invN_diag%alm
-    close(unit)
+    if (.true.) then
+       open(unit, file=trim(cache), form='unformatted')
+       write(unit) sum(abs(invN_diag%map))    ! Check-sum
+       write(unit) invN_diag%alm
+       close(unit)
+    end if
 
     deallocate(N_lm, a_l0)
     

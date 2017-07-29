@@ -9,12 +9,13 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(chisq_map, chisq_fullsky)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky)
     implicit none
+    integer(i4b),    intent(in)              :: comm
     class(comm_map), intent(inout), optional :: chisq_map
     real(dp),        intent(out),   optional :: chisq_fullsky
 
-    integer(i4b) :: i, j, k, p
+    integer(i4b) :: i, j, k, p, ierr
     real(dp)     :: t1, t2
     class(comm_map), pointer :: res, chisq_sub
 
@@ -34,6 +35,10 @@ contains
           if (present(chisq_fullsky)) chisq_fullsky = chisq_fullsky + sum(res%map)
           call res%dealloc()
        end do
+    end if
+
+    if (present(chisq_fullsky)) then
+       call mpi_allreduce(MPI_IN_PLACE, chisq_fullsky, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
     end if
 
   end subroutine compute_chisq
@@ -106,7 +111,7 @@ contains
 
     ! Clean up
     nullify(c)
-    call ptsrc%dealloc
+    call ptsrc%dealloc()
 
   end function compute_residual
 

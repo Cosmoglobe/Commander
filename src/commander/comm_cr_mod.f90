@@ -35,6 +35,7 @@ contains
 
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
+    real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev
     real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s, x_out
     real(dp), allocatable, dimension(:,:) :: alm, pamp
     class(comm_comp),   pointer :: c
@@ -45,11 +46,14 @@ contains
     n       = size(x)
 
     ! Allocate temporary data vectors
+    call update_status(status, "cr1")
     allocate(Ax(n), r(n), d(n), q(n), s(n))
 
     ! Update preconditioner
     call wall_time(t1)
+    call update_status(status, "cr2")
     call update_precond
+    call update_status(status, "cr3")
     call wall_time(t2)
     if (cpar%myid == root .and. cpar%verbosity > 2) then
        write(*,fmt='(a,f8.2)') '    CG initialize preconditioner, time = ', real(t2-t1,sp)
@@ -124,15 +128,42 @@ contains
     else
        x  = 0.d0
     end if
+    call update_status(status, "cr4")
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
+    call update_status(status, "cr5")
     d  = cr_invM(r)
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(b))
+
+    ! Set up convergence criterion
+    if (trim(cpar%cg_conv_crit) == 'residual') then
+       lim_convergence = eps*delta0
+       val_convergence = 1.d2*lim_convergence
+    else if (trim(cpar%cg_conv_crit) == 'chisq') then
+       lim_convergence = eps
+       val_convergence = 1.d0
+       call cr_compute_chisq(cpar%comm_chain, samp_group, x, chisq)
+    else
+       write(*,*) 'Error: Unsupported convergence criterion = ', trim(cpar%cg_conv_crit)
+    end if
     do i = 1, maxiter
        call wall_time(t1)
        
-       if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
+       ! Check convergence
+       if (mod(i,cpar%cg_check_conv_freq) == 0) then
+          if (trim(cpar%cg_conv_crit) == 'residual') then
+             val_convergence = delta_new
+          else if (trim(cpar%cg_conv_crit) == 'chisq') then
+             chisq_prev      = chisq
+             call cr_compute_chisq(cpar%comm_chain, samp_group, x, chisq)
+             val_convergence = abs((chisq_prev-chisq)/chisq)
+          end if
+          if (val_convergence < lim_convergence .and. &
+               & (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
+       end if
+          
+       !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
        q     = cr_matmulA(d, samp_group)
        alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
@@ -206,10 +237,15 @@ contains
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
-          write(*,*) '   Temp amp = ', real(x(n-4:n),sp)
-          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    CG iter. ', i, ' -- res = ', &
-               & real(delta_new,sp), ', tol = ', real(eps * delta0,sp), &
-               & ', time = ', real(t2-t1,sp)
+          if (trim(cpar%cg_conv_crit) == 'residual') then
+             write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
+                  & real(val_convergence,sp), ', tol = ', real(lim_convergence,sp), &
+                  & ', time = ', real(t2-t1,sp)
+          else if (trim(cpar%cg_conv_crit) == 'chisq') then
+             write(*,fmt='(a,i5,a,e13.5,a,f7.4,a,f8.2)') '  CG iter. ', i, ' -- chisq = ', &
+                  & real(chisq,sp), ', delta = ', real(val_convergence,sp), &
+                  & ', time = ', real(t2-t1,sp)
+          end if
        end if
 
     end do
@@ -251,6 +287,7 @@ contains
        end select
        c => c%next()
     end do
+    call update_status(status, "cr8")
 
     if (i >= maxiter) then
        write(*,*) 'ERROR: Convergence in CG search not reached within maximum'
@@ -259,13 +296,73 @@ contains
     else
        if (cpar%myid == root .and. cpar%verbosity > 1) then
           write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    Final CG iter ', i, ' -- res = ', &
-               & real(delta_new,sp), ', tol = ', real(eps * delta0,sp)
+               & real(val_convergence,sp), ', tol = ', real(lim_convergence,sp)
        end if
     end if
 
     deallocate(Ax, r, d, q, s)
+    call update_status(status, "cr9")
     
   end subroutine solve_cr_eqn_by_CG
+
+  subroutine cr_compute_chisq(comm, samp_group, x, chisq)
+    implicit none
+    integer(i4b),            intent(in)  :: comm, samp_group
+    real(dp), dimension(1:), intent(in)  :: x
+    real(dp),                intent(out) :: chisq
+
+    integer(i4b) :: j, k, n
+    real(dp), allocatable, dimension(:)   :: x_out
+    real(dp), allocatable, dimension(:,:) :: alm, pamp
+    class(comm_comp),   pointer :: c
+
+    n = size(x)
+
+    ! Multiply with sqrt(S)     
+    allocate(x_out(n))
+    x_out = x
+    c       => compList
+    do while (associated(c))
+       if (c%cg_samp_group /= samp_group) then
+          c => c%next()
+          cycle
+       end if
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%cltype) /= 'none') then
+             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+             call cr_extract_comp(c%id, x_out, alm)
+             call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)  
+             call cr_insert_comp(c%id, .false., alm, x_out)
+             deallocate(alm)
+          end if
+       class is (comm_ptsrc_comp)
+          if (c%myid == 0) then
+             call cr_extract_comp(c%id, x_out, pamp)
+             do j = 1, c%nmaps
+                do k = 1, c%nsrc
+                   pamp(k-1,j) = pamp(k-1,j) * c%src(k)%P_x(j,2) ! Multiply with sqrtInvS
+                end do
+             end do
+             call cr_insert_comp(c%id, .false., pamp, x_out)
+             deallocate(pamp)
+          end if
+       class is (comm_template_comp)
+          if (c%myid == 0) then
+             call cr_extract_comp(c%id, x_out, pamp)
+             pamp = pamp * c%P_cg(2) ! Multiply with sqrtInvS
+             call cr_insert_comp(c%id, .false., pamp, x_out)
+             deallocate(pamp)
+          end if
+       end select
+       c => c%next()
+    end do
+    call cr_x2amp(samp_group, x_out)
+    call compute_chisq(comm, chisq_fullsky=chisq)
+    deallocate(x_out)
+    call cr_x2amp(samp_group, x)
+
+  end subroutine cr_compute_chisq
 
   subroutine cr_amp2x_full(samp_group, x) 
     implicit none
@@ -412,7 +509,8 @@ contains
              end if
              call c%Cl%sqrtS(map=Tm) ! Multiply with sqrt(Cl)
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
-             deallocate(Tm)
+             call Tm%dealloc(clean_info=.true.)
+             nullify(info)
           class is (comm_ptsrc_comp)
              allocate(Tp(c%nsrc,c%nmaps))
              Tp = c%projectBand(i,map)
@@ -437,7 +535,7 @@ contains
           c => c%next()
        end do
 
-       deallocate(map)
+       call map%dealloc()
     end do
 
     ! Add prior terms
@@ -652,8 +750,8 @@ contains
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'projBand time = ', real(t2-t1,sp)
 
-       deallocate(map,pmap)
-       
+       call map%dealloc()
+       call pmap%dealloc()
     end do
 
     ! Add prior term and multiply with sqrt(S) for relevant components

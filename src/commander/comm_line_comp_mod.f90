@@ -78,8 +78,8 @@ contains
              constructor%theta_def(n) = mu(j)
              constructor%p_gauss(1,n) = mu(j)
              constructor%p_gauss(2,n) = sigma(j)
-             constructor%p_uni(1,n)   = mu(j)-5*sigma(j)
-             constructor%p_uni(2,n)   = mu(j)+5*sigma(j)
+             constructor%p_uni(1,n)   = -10.d0   !mu(j)-5*sigma(j)
+             constructor%p_uni(2,n)   =  10.d0   !mu(j)+5*sigma(j)
              constructor%poltype(n)   = poltype(j)
              constructor%indlabel(n)  = label(j)
              constructor%line2RJ(n)   = line2RJ(j)
@@ -198,9 +198,10 @@ contains
     integer(i4b)    :: i, j, l, n, m, band, ierr
     real(dp)        :: A, b, mu, sigma, par, sigma_p, scale, w
     class(comm_map), pointer :: invN_amp, amp, mask
+    character(len=2) :: id_text
     
     band = self%ind2band(id)
-    if (band == self%ref_band) return
+    !if (band == self%ref_band) return
 
     ! Construct mask
     if (associated(self%indmask)) then
@@ -219,6 +220,12 @@ contains
     invN_amp%map = amp%map
     call data(band)%N%invN(invN_amp)     ! Inverse noise variance weighted amplitude map
     
+!!$    call int2string(id, id_text)
+!!$    call mask%writeFITS('co_mask'//id_text//'.fits')
+!!$    call amp%writeFITS('co_amp'//id_text//'.fits')
+!!$    call data(band)%res%writeFITS('co_res'//id_text//'.fits')
+!!$    call data(band)%N%invN_diag%writeFITS('co_invN'//id_text//'.fits')
+
     ! Reduce across processors
     if (associated(self%indmask)) then
        A = sum(invN_amp%map * mask%map * amp%map)
@@ -235,7 +242,9 @@ contains
     
     ! Compute new line ratio; just root processor
     if (self%x%info%myid == 0) then
-       
+
+!       write(*,*) 'A,b = ', A, b
+
        if (A > 0.d0) then
           mu    = b / A
           sigma = sqrt(1.d0 / A)
@@ -246,6 +255,8 @@ contains
           mu    = self%p_uni(1,id) + (self%p_uni(2,id)-self%p_uni(1,id))*rand_uni(handle)
           sigma = 0.d0
        end if
+
+!       write(*,*) '  mu, sigma = ', mu, sigma
        
        ! Add prior
        if (self%p_gauss(2,id) > 0.d0) then
@@ -253,6 +264,8 @@ contains
           mu      = (mu*sigma_p**2 + self%p_gauss(1,id) * sigma**2) / (sigma_p**2 + sigma**2)
           sigma   = sqrt(sigma**2 * sigma_p**2 / (sigma**2 + sigma_p**2))
        end if
+
+!       write(*,*) '  mu_prior, sigma_prior = ', mu, sigma
        
        ! Draw sample
        par = -1.d30
@@ -281,8 +294,23 @@ contains
     
     ! Distribute new relative line ratio, and update
     call mpi_bcast(par, 1, MPI_DOUBLE_PRECISION, 0, self%x%info%comm, ierr)
-    self%theta(id)%p%map = par
-    
+
+    if (band == self%ref_band) then
+       self%x%map = self%x%map * par  ! Rescale amplitude map, but leave mixing matrix
+       self%x%alm = self%x%alm * par  
+       do i = 1, self%npar            ! Rescale line ratios at other frequencies
+          if (self%ind2band(i) == self%ref_band) cycle
+          self%theta(i)%p%map = self%theta(i)%p%map / par
+          if (self%lmax_ind >= 0) then
+             self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) / par
+          end if
+       end do
+    else
+       self%theta(id)%p%map = par
+       if (self%lmax_ind >= 0) then
+          self%theta(id)%p%alm(:,1) = par * sqrt(4.d0*pi)
+       end if
+    end if
     call self%updateMixmat()
 
   end subroutine sampleLineRatios

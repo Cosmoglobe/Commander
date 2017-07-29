@@ -510,6 +510,8 @@ contains
 
     if (trim(self%type) == 'md') return
     
+    call update_status(status, "mixupdate1 " // trim(self%label))
+
     ! Copy over alms from input structure, and compute pixel-space parameter maps
     if (present(theta)) then
        do i = 1, self%npar
@@ -525,9 +527,9 @@ contains
        if (self%F_null(i)) cycle
 
        ! Compute spectral parameters at the correct resolution for this channel
-       if (self%npar > 0) then
-          info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(1)%p%info%lmax, &
-               & data(i)%info%nmaps, data(i)%info%pol)
+        if (self%npar > 0) then
+           info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(1)%p%info%lmax, &
+                & data(i)%info%nmaps, data(i)%info%pol)
           t    => comm_map(info)
           nmaps            = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
           if (self%lmax_ind >= 0) then
@@ -551,7 +553,7 @@ contains
              call t%add(t0)
              nullify(info)
           end do
-       end if
+        end if
        
        ! Loop over all pixels, computing mixing matrix for each
        do j = 0, self%F(i)%p%info%np-1
@@ -609,9 +611,17 @@ contains
        self%F_mean(i,:) = buffer / self%F(i)%p%info%npix
        deallocate(buffer)
 
+       if (self%npar > 0) then
+          call t%dealloc(clean_info=.true.)
+          call t0%dealloc(clean_info=.true.)
+          nullify(t)
+          nullify(t0)
+       end if
+    
     end do
-    nullify(t, t0)
     deallocate(theta_p)
+
+    call update_status(status, "mixupdate2 " // trim(self%label))
 
     ! Request preconditioner update
     recompute_diffuse_precond = .true.
@@ -690,8 +700,8 @@ contains
        
 
     ! Clean up
-    deallocate(info)
-    call m%dealloc
+    call m%dealloc(clean_info=.true.)
+    nullify(info)
 
   end function evalDiffuseBand
 
@@ -739,10 +749,10 @@ contains
     if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
     projectDiffuseBand = m_out%alm
 
-    deallocate(info)
-    call m%dealloc
-    call m_out%dealloc
-    
+    call m%dealloc()
+    call m_out%dealloc(clean_info=.true.)
+    nullify(info)
+
   end function projectDiffuseBand
 
   subroutine applyDiffPrecond(x)
@@ -886,7 +896,7 @@ contains
        else
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if
-       deallocate(map)
+       call map%dealloc()
 
        if (self%output_EB) then
           map => comm_map(self%x)
@@ -897,7 +907,7 @@ contains
           call map%Y_EB
           !call self%apply_proc_mask(map)
           call map%writeFITS(trim(dir)//'/'//trim(filename))
-          deallocate(map)
+          call map%dealloc()
        end if
        
        allocate(sigma_l(0:self%x%info%lmax,self%x%info%nspec))

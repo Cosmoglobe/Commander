@@ -29,7 +29,7 @@ module comm_map_mod
    contains
      procedure     :: lm2i
      procedure     :: i2lm
-     final :: comm_mapinfo_finalize
+     procedure     :: dealloc => comm_mapinfo_finalize
   end type comm_mapinfo
 
   type :: comm_map
@@ -217,26 +217,47 @@ contains
     
   end function constructor_clone
 
-  subroutine deallocate_comm_map(self)
+  subroutine deallocate_comm_map(self, clean_info)
     implicit none
 
-    class(comm_map), intent(inout) :: self
+    class(comm_map), intent(inout)          :: self
+    logical(lgt),    intent(in),   optional :: clean_info
+    class(comm_map), pointer :: link
 
+    logical(lgt) :: clean_info_
+
+    clean_info_ = .false.; if (present(clean_info)) clean_info_ = clean_info
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
+    if (clean_info_ .and. associated(self%info)) call self%info%dealloc()
     nullify(self%info)
+
+    if (associated(self%nextLink)) then
+       ! Deallocate all links
+       link => self%nextLink
+       do while (associated(link))
+          if (allocated(link%map)) deallocate(link%map)
+          if (allocated(link%alm)) deallocate(link%alm)
+          if (clean_info_ .and. associated(link%info)) call link%info%dealloc()
+          nullify(link%info)
+          link => link%nextLink
+       end do
+       nullify(self%nextLink)
+    end if
 
   end subroutine deallocate_comm_map
 
   subroutine comm_mapinfo_finalize(self)
     implicit none
 
-    type(comm_mapinfo) :: self
+    class(comm_mapinfo) :: self
     
-    deallocate(self%rings, self%ms, self%mind, self%lm, self%pix, self%W)
-    call sharp_destroy_alm_info(self%alm_info)
-    call sharp_destroy_geom_info(self%geom_info)
-    
+    if (allocated(self%rings)) then
+       deallocate(self%rings, self%ms, self%mind, self%lm, self%pix, self%W)
+       call sharp_destroy_alm_info(self%alm_info)
+       call sharp_destroy_geom_info(self%geom_info)
+    end if
+
   end subroutine comm_mapinfo_finalize
   
   !**************************************************
@@ -679,7 +700,7 @@ contains
     class(comm_map), intent(inout) :: map_out
 
     integer(i4b) :: i, j, ierr
-    real(dp), allocatable, dimension(:,:) :: m_in, m_out
+    real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer
 
     if (self%info%nside == map_out%info%nside) then
        map_out%map = self%map
@@ -688,12 +709,13 @@ contains
 
     allocate(m_in(0:self%info%npix-1,self%info%nmaps))
     allocate(m_out(0:map_out%info%npix-1,map_out%info%nmaps))
+    allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
     call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
-    call mpi_allreduce(MPI_IN_PLACE, m_out, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-    map_out%map = m_out(map_out%info%pix,:)
-    deallocate(m_in, m_out)
+    call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+    map_out%map = buffer(map_out%info%pix,:)
+    deallocate(m_in, m_out, buffer)
 
   end subroutine udgrade
 
