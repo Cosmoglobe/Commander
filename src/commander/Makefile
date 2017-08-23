@@ -75,6 +75,8 @@ commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_
                            comm_output_mod.o
 
 
+
+
 commander : libcommander.a commander.o
 	$(MPF90) -o commander commander.o $(LINK) $(MPFCLIBS)
 

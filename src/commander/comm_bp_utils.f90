@@ -49,17 +49,19 @@ contains
   end function compute_sz_thermo_array
   
 
-  function compute_ant2thermo_array(nu)
+  function compute_ant2thermo_array(nu) result(a2t)
     implicit none
     real(dp), dimension(:),        intent(in)  :: nu
-    real(dp), dimension(size(nu))              :: compute_ant2thermo_array
+    real(dp), dimension(size(nu))              :: a2t
 
     integer(i4b) :: i
     real(dp)     :: x
 
+    write(*,*) 'Do NOT use this function -- results in NaNs on some compilers/systems!'
+    stop
     do i = 1, size(nu)
        x = h*nu(i) / (k_B*T_CMB)
-       compute_ant2thermo_array(i) = (exp(x)-1.d0)**2 / (x**2 * exp(x))
+       a2t(i) = (exp(x)-1.d0)**2 / (x**2 * exp(x))
     end do
     
   end function compute_ant2thermo_array

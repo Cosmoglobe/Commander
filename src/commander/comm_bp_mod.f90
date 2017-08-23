@@ -55,6 +55,7 @@ contains
     integer(i4b),                intent(in) :: id, id_abs
     class(comm_bp),     pointer             :: constructor
 
+    integer(i4b)       :: i
     character(len=512) :: dir
     
     ! General parameters
@@ -155,7 +156,9 @@ contains
 
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
-    a            = comp_a2t(self%nu)          
+    do i = 1, n
+       a(i) = comp_a2t(self%nu(i))          
+    end do
     bnu_prime    = comp_bnu_prime(self%nu)
     bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)
     sz           = comp_sz_thermo(self%nu)
