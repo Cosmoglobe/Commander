@@ -157,11 +157,11 @@ contains
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
-       a(i) = comp_a2t(self%nu(i))          
+       a(i)            = comp_a2t(self%nu(i))          
+       bnu_prime(i)    = comp_bnu_prime(self%nu(i))
+       bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+       sz(i)           = comp_sz_thermo(self%nu(i))
     end do
-    bnu_prime    = comp_bnu_prime(self%nu)
-    bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)
-    sz           = comp_sz_thermo(self%nu)
 
     select case (trim(self%type))
     case ('delta')

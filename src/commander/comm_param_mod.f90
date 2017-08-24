@@ -45,6 +45,7 @@ module comm_param_mod
      ! Numerical parameters
      character(len=512) :: cg_conv_crit
      integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_miniter, cg_check_conv_freq
+     logical(lgt)       :: cg_init_zero
      real(dp)           :: cg_tol
      integer(i4b)       :: num_ind_cycle
 
@@ -234,6 +235,7 @@ contains
     call get_parameter(paramfile, 'CG_MAXITER',               par_int=cpar%cg_maxiter)
     call get_parameter(paramfile, 'CG_TOLERANCE',             par_dp=cpar%cg_tol)
     call get_parameter(paramfile, 'CG_CONV_CHECK_FREQUENCY',  par_int=cpar%cg_check_conv_freq)
+    call get_parameter(paramfile, 'CG_INIT_AMPS_ON_ZERO',     par_lgt=cpar%cg_init_zero)
     call get_parameter(paramfile, 'NUM_INDEX_CYCLES_PER_ITERATION', par_int=cpar%num_ind_cycle)
 
     call get_parameter(paramfile, 'T_CMB',                    par_dp=cpar%T_cmb)

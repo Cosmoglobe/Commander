@@ -86,7 +86,9 @@ contains
 !!$    stop
 
     ! Initialize the CG search
-    if (.true.) then
+    if (cpar%cg_init_zero) then
+       x  = 0.d0
+    else 
        call cr_amp2x(samp_group, x)
        ! Multiply with sqrt(invS)
        c       => compList
@@ -125,8 +127,6 @@ contains
           end select
           c => c%next()
        end do
-    else
-       x  = 0.d0
     end if
     call update_status(status, "cr4")
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
