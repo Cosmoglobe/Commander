@@ -12,6 +12,7 @@ module comm_N_rms_mod
    contains
      ! Data procedures
      procedure :: invN     => matmulInvN_1map
+     procedure :: N        => matmulN_1map
      procedure :: sqrtInvN => matmulSqrtInvN_1map
      procedure :: rms      => returnRMS
      procedure :: rms_pix  => returnRMSpix
@@ -51,10 +52,12 @@ contains
     class(comm_N_rms),                  pointer       :: constructor
     class(comm_map),                    pointer, intent(in), optional :: procmask
 
-    integer(i4b)       :: ierr, tmp, nside_smooth
+    integer(i4b)       :: i, ierr, tmp, nside_smooth
+    real(dp)           :: sum_tau, sum_tau2, sum_noise, npix
     character(len=512) :: dir, cache
     character(len=4)   :: itext
     type(comm_mapinfo), pointer :: info_smooth
+    class(comm_map),    pointer :: invW_tau
     
     ! General parameters
     allocate(constructor)
@@ -92,11 +95,38 @@ contains
        constructor%siN%map = 0.d0
     end where
 
+    ! Set siN to its mean; useful for debugging purposes
+    if (cpar%set_noise_to_mean) then
+       do i = 1, constructor%nmaps
+          sum_noise = sum(constructor%siN%map(:,i))
+          npix      = size(constructor%siN%map(:,i))
+          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          constructor%siN%map(:,i) = sum_noise/npix
+       end do
+    end if
+
     ! Set up diagonal covariance matrix
-    if (id_smooth == 0) then
+    if (id_smooth == 0 .and. trim(cpar%cg_precond) == 'diagonal') then
        constructor%invN_diag     => comm_map(info)
        constructor%invN_diag%map = constructor%siN%map**2
        call compute_invN_lm(cache, constructor%invN_diag)
+    end if
+
+    ! Compute alpha_nu for pseudo-inverse preconditioner
+    if (trim(cpar%cg_precond) == 'pseudoinv') then
+       allocate(constructor%alpha_nu(constructor%nmaps))
+       invW_tau     => comm_map(constructor%siN)
+       invW_tau%map =  invW_tau%map**2
+       call invW_tau%Yt()
+       call invW_tau%Y()
+       do i = 1, constructor%nmaps
+          sum_tau  = sum(invW_tau%map(:,i))
+          sum_tau2 = sum(invW_tau%map(:,i)**2)
+          call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          constructor%alpha_nu(i) = sqrt(sum_tau2/sum_tau)
+       end do
     end if
     
   end function constructor
@@ -108,6 +138,18 @@ contains
     class(comm_map),   intent(inout)           :: map
     map%map = (self%siN%map)**2 * map%map
   end subroutine matmulInvN_1map
+
+  ! Return map_out = N * map
+  subroutine matmulN_1map(self, map)
+    implicit none
+    class(comm_N_rms), intent(in)              :: self
+    class(comm_map),   intent(inout)           :: map
+    where (self%siN%map > 0.d0)
+       map%map = map%map / (self%siN%map)**2 
+    elsewhere
+       map%map = 0.d0
+    end where
+  end subroutine matmulN_1map
   
   ! Return map_out = sqrtInvN * map
   subroutine matmulSqrtInvN_1map(self, map)
@@ -184,6 +226,7 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, limits(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, rms%info%comm, ierr)       
        call mpi_allreduce(MPI_IN_PLACE, limits(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, rms%info%comm, ierr)       
        dx = (limits(2)-limits(1))/nbin
+       if (dx == 0.d0) cycle
        F = 0.d0
        do i = 0, rms%info%np-1
           b    = max(min(int((rms%map(i,j)-limits(1))/dx),nbin),1)

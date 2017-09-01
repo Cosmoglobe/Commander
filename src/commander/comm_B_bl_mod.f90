@@ -40,7 +40,7 @@ contains
     logical(lgt),                       intent(in), optional :: init_realspace
     class(comm_B_bl),   pointer                              :: constructor
 
-    integer(i4b)       :: i
+    integer(i4b)       :: i, l
     logical(lgt)       :: init_real
     character(len=4)   :: nside_text
     character(len=512) :: dir
@@ -53,6 +53,10 @@ contains
     constructor%type  =  'b_l'    
     constructor%info  => info
     if (present(fwhm)) then
+       allocate(constructor%b_l(0:constructor%info%lmax,constructor%info%nmaps))
+!!$       do l = 0, constructor%info%lmax
+!!$          constructor%b_l(l,:) = exp(-0.5d0*l*(l+1)*(fwhm*pi/180.d0/60/sqrt(8.d0*log(2.d0)))**2)
+!!$       end do
        if (present(nside)) then
           call int2string(nside, nside_text)
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
@@ -70,11 +74,11 @@ contains
     end if
 
     ! Initialize real-space profile
-    init_real = .true.; if (present(init_realspace)) init_real = init_realspace
-    if (init_real) then
-       call compute_radial_beam(constructor%info%nmaps, constructor%b_l, constructor%b_theta)
-       constructor%r_max = maxval(constructor%b_theta(1)%x)
-    end if
+!!$    init_real = .true.; if (present(init_realspace)) init_real = init_realspace
+!!$    if (init_real) then
+!!$       call compute_radial_beam(constructor%info%nmaps, constructor%b_l, constructor%b_theta)
+!!$       constructor%r_max = maxval(constructor%b_theta(1)%x)
+!!$    end if
     
   end function constructor
   

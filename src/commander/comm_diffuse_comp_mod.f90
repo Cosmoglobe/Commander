@@ -15,7 +15,7 @@ module comm_diffuse_comp_mod
 
   private
   public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
-       & res_smooth, rms_smooth
+       & res_smooth, rms_smooth, print_precond_mat
   
   !**************************************************
   !            Diffuse component class
@@ -64,7 +64,7 @@ module comm_diffuse_comp_mod
   logical(lgt) :: recompute_diffuse_precond = .true.
   logical(lgt) :: output_cg_eigenvals
   logical(lgt), private :: only_pol
-  character(len=512) :: outdir
+  character(len=512) :: outdir, precond_type
   class(comm_mapinfo), pointer                   :: info_pre
   class(diff_ptr),     allocatable, dimension(:) :: diffComps
 
@@ -105,6 +105,7 @@ contains
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
     outdir              = cpar%outdir
+    precond_type        = cpar%cg_precond
     info               => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
     if (self%pol) then
        self%output_EB     = cpar%cs_output_EB(id_abs)
@@ -177,6 +178,21 @@ contains
     implicit none
     integer(i4b),                intent(in) :: comm
 
+    select case (trim(precond_type))
+    case ("diagonal")
+       call initDiffPrecond_diagonal(comm)
+    case ("pseudoinv")
+       call initDiffPrecond_pseudoinv(comm)
+    case default
+       call report_error("Preconditioner type not supported")
+    end select
+
+  end subroutine initDiffPrecond
+
+  subroutine initDiffPrecond_diagonal(comm)
+    implicit none
+    integer(i4b),                intent(in) :: comm
+
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
     integer(i4b), allocatable, dimension(:) :: ind
@@ -226,13 +242,6 @@ contains
                         & data(q)%N%invN_diag%alm(i2,j) * &  ! invN_{lm,lm}
                         & data(q)%B%b_l(l,j)**2 * &          ! b_l^2
                         & p1%F_mean(q,j) * p2%F_mean(q,j)    ! F(c1)*F(c2)
-!!$                   if (info_pre%myid == 0 .and. j == 2 .and. i1 > 5) then
-!!$                      write(*,*) i1, l, m, i2, k1, k2
-!!$                      write(*,*) data(q)%N%invN_diag%alm(i2,j)
-!!$                      write(*,*) data(q)%B%b_l(l,j)
-!!$                      write(*,*) p1%F_mean(q,j), p2%F_mean(q,j)
-!!$                      write(*,*) mat
-!!$                   end if
                 end do
              end do
           end do
@@ -252,34 +261,73 @@ contains
           allocate(P_cr%invM_diff(i1,j)%M0(n,n), P_cr%invM_diff(i1,j)%M(n,n))
           P_cr%invM_diff(i1,j)%ind = ind(1:n)
           P_cr%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
-
-!!$          if (j == 2 .and. i1 > 5) then
-!!$             if (info_pre%myid == 0) write(*,*) 'n = ', n, l, m, j
-!!$             if (info_pre%myid == 0) write(*,*) 'invN = ', P_cr%invM_diff(i1,j)%M0
-!!$             call mpi_finalize(k1)
-!!$             stop
-!!$          end if
-
        end do
        !!$OMP END DO
     end do
     deallocate(ind, mat)
     !!$OMP END PARALLEL
     call wall_time(t2)
-    !if (info_pre%myid == 0) write(*,*) 'constPreDiff = ', t2-t1
 
-!!$    if (info_pre%myid == 0) then
-!!$       write(*,*) 'wall time = ', t2-t1
-!!$       do i = 0, 10
-!!$          write(*,*) info_pre%myid, i, sum(abs(P_cr%invM_diff(i,1)%M0))
-!!$       end do
-!!$    end if
-!!$    call mpi_finalize(i)
-!!$    stop
+  end subroutine initDiffPrecond_diagonal
 
-  end subroutine initDiffPrecond
+
+  subroutine initDiffPrecond_pseudoinv(comm)
+    implicit none
+    integer(i4b),                intent(in) :: comm
+
+    integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
+    real(dp)     :: t1, t2
+    integer(i4b), allocatable, dimension(:) :: ind
+    class(comm_comp),         pointer :: c
+    class(comm_diffuse_comp), pointer :: p1, p2
+    real(dp),     allocatable, dimension(:,:) :: mat
+
+    if (npre == 0) return
+    if (allocated(P_cr%invM_diff)) return
+    
+    if (.not. allocated(diffComps)) then
+       ! Set up an array of all the diffuse components
+       allocate(diffComps(npre))
+       c => compList
+       i =  1
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             diffComps(i)%p => c
+             i              =  i+1
+          end select
+          c => c%next()
+       end do
+       info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
+    end if
+    
+    ! Allocate space for pseudo-inverse of U
+    call wall_time(t1)
+    allocate(P_cr%invM_diff(0:lmax_pre,info_pre%nmaps))
+    do j = 1, info_pre%nmaps
+       do l = 0, lmax_pre
+          allocate(P_cr%invM_diff(l,j)%M(npre,numband+npre))
+       end do
+    end do
+
+  end subroutine initDiffPrecond_pseudoinv
+
 
   subroutine updateDiffPrecond
+    implicit none
+
+    select case (trim(precond_type))
+    case ("diagonal")
+       call updateDiffPrecond_diagonal
+    case ("pseudoinv")
+       call updateDiffPrecond_pseudoinv
+    case default
+       call report_error("Preconditioner type not supported")
+    end select
+
+  end subroutine updateDiffPrecond
+
+  subroutine updateDiffPrecond_diagonal
     implicit none
 
     integer(i4b) :: i, j, k, k1, k2, l, m, n, ierr, unit, p, q
@@ -334,7 +382,11 @@ contains
                 end if
              end do
           end do
+          !if (info_pre%myid == 0) write(*,*) 'a', k1, k2, alm(4,1)
           call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
+          !if (info_pre%myid == 0) write(*,*) 'b', k1, k2, alm(4,1)
+          !call mpi_finalize(j)
+          !stop
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 if (P_cr%invM_diff(i,j)%n == 0) cycle                
@@ -368,7 +420,9 @@ contains
                 end if
              end do
           end do
+!          if (info_pre%myid == 0) write(*,*) 'c', k1, k2, alm(4,1)
           call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
+!          if (info_pre%myid == 0) write(*,*) 'd', k1, k2, alm(4,1)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 if (P_cr%invM_diff(i,j)%n == 0) cycle                
@@ -483,6 +537,11 @@ contains
     call wall_time(t1)
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
+!!$          if (info_pre%myid == 0) then
+!!$             do k = 1, P_cr%invM_diff(i,j)%n
+!!$                write(*,*) real(P_cr%invM_diff(i,j)%M(k,:),sp)
+!!$             end do
+!!$          end if
           if (P_cr%invM_diff(i,j)%n > 0) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
        end do
     end do
@@ -492,7 +551,75 @@ contains
     ! Disable preconditioner update
     recompute_diffuse_precond = .false.
        
-  end subroutine updateDiffPrecond
+  end subroutine updateDiffPrecond_diagonal
+
+
+  subroutine updateDiffPrecond_pseudoinv
+    implicit none
+
+    integer(i4b) :: i, j, k, l, n, ierr, p, q
+    real(dp)     :: t1, t2, Cl
+    real(dp),     allocatable, dimension(:,:) :: mat
+
+    if (npre == 0) return
+    if (.not. recompute_diffuse_precond) return
+
+    ! Build pinv_U
+    call wall_time(t1)
+    allocate(mat(numband+npre,npre))
+    do j = 1, info_pre%nmaps
+       do l = 0, lmax_pre
+
+          ! Data section
+          mat = 0.d0
+          do q = 1, numband
+             if (l > data(q)%info%lmax) cycle
+             do k = 1, npre
+                if (l > diffComps(k)%p%lmax_amp) cycle
+                mat(q,k) = data(q)%N%alpha_nu(j) * &
+                          & data(q)%B%b_l(l,j) * &
+                          & diffComps(k)%p%F_mean(q,j)
+
+                if (trim(diffComps(k)%p%Cl%type) /= 'none') then
+                   mat(q,k) = mat(q,k)*sqrt(diffComps(k)%p%Cl%getCl(l,j))
+                end if
+             end do
+          end do
+
+          ! Prior section
+          do k = 1, npre
+             if (trim(diffComps(k)%p%Cl%type) == 'none' .or. l > diffComps(k)%p%lmax_amp) cycle
+             mat(numband+k,k) = 1.d0
+          end do
+
+          ! Store pseudo-inverse of U
+          call compute_pseudo_inverse(mat, P_cr%invM_diff(l,j)%M)
+          !P_cr%invM_diff(l,j)%M = transpose(mat)
+
+!!$          !if (info_pre%myid == 0 .and. l > 4498 .and. l < 4503) then
+!!$          if (info_pre%myid == 0) then
+!!$             write(*,*)
+!!$             do k = 1, numband+npre
+!!$                write(*,*) mat(k,:)
+!!$             end do
+!!$             write(*,*) shape(mat)
+!!$             do k = 1, npre
+!!$                write(*,*) P_cr%invM_diff(l,j)%M(k,:)
+!!$             end do
+!!$          end if
+
+       end do
+    end do
+    deallocate(mat)
+    call wall_time(t2)
+
+!!$    call mpi_finalize(k)
+!!$    stop
+
+    ! Disable preconditioner update
+    recompute_diffuse_precond = .false.
+
+  end subroutine updateDiffPrecond_pseudoinv
     
   
   ! Evaluate amplitude map in brightness temperature at reference frequency
@@ -759,6 +886,21 @@ contains
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
 
+    select case (trim(precond_type))
+    case ("diagonal")
+       call applyDiffPrecond_diagonal(x)
+    case ("pseudoinv")
+       call applyDiffPrecond_pseudoinv(x)
+    case default
+       call report_error("Preconditioner type not supported")
+    end select
+
+  end subroutine applyDiffPrecond
+
+  subroutine applyDiffPrecond_diagonal(x)
+    implicit none
+    real(dp),           dimension(:), intent(inout) :: x
+
     integer(i4b)              :: i, j, k, l, m, nmaps
     real(dp), allocatable, dimension(:,:)   :: alm
     real(dp), allocatable, dimension(:,:,:) :: y
@@ -805,7 +947,109 @@ contains
     
     deallocate(y)
 
-  end subroutine applyDiffPrecond
+  end subroutine applyDiffPrecond_diagonal
+
+
+  subroutine applyDiffPrecond_pseudoinv(x)
+    implicit none
+    real(dp),           dimension(:), intent(inout) :: x
+
+    integer(i4b)              :: i, j, k, l, m, p, q, nmaps
+    real(dp), allocatable, dimension(:)     :: w
+    real(dp), allocatable, dimension(:,:)   :: alm
+    real(dp), allocatable, dimension(:,:,:) :: y, z
+    class(comm_map), pointer                :: invN_x
+
+    if (npre == 0) return
+    
+    ! Reformat linear array into y(npre,nalm,nmaps) structure
+    allocate(y(npre,0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(z(npre,0:info_pre%nalm-1,info_pre%nmaps))
+    y = 0.d0
+    do i = 1, npre
+       nmaps = diffComps(i)%p%x%info%nmaps
+       call cr_extract_comp(diffComps(i)%p%id, x, alm)
+       do j = 0, diffComps(i)%p%x%info%nalm-1
+          call diffComps(i)%p%x%info%i2lm(j, l, m)
+          call info_pre%lm2i(l, m, k)
+          y(i,k,1:nmaps) = alm(j,1:nmaps)
+       end do
+       deallocate(alm)
+    end do
+
+    ! Frequency-dependent terms
+    z = 0.d0
+    do k = 1, numband
+       invN_x => comm_map(data(k)%info)
+       nmaps  =  data(k)%info%nmaps
+       
+       ! Sum over (U^plus)^t
+       do i = 0, data(k)%info%nalm-1
+          call data(k)%info%i2lm(i, l, m)
+          if (l > info_pre%lmax) cycle
+          call info_pre%lm2i(l,m,j)
+          do q = 1, npre
+             do p = 1, nmaps
+                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr%invM_diff(l,p)%M(q,k) * y(q,j,p)
+             end do
+          end do
+       end do
+
+       ! Multiply by T
+       call invN_x%WY
+       call data(k)%N%N(invN_x)
+       call invN_x%YtW
+       do i = 1, nmaps
+          invN_x%alm(:,i) = invN_x%alm(:,i) * data(k)%N%alpha_nu(i)**2
+       end do
+
+       ! Sum over U^plus
+       do i = 0, data(k)%info%nalm-1
+          call data(k)%info%i2lm(i, l, m)
+          if (l > info_pre%lmax) cycle
+          call info_pre%lm2i(l,m,j)
+          do q = 1, npre
+             do p = 1, nmaps
+                z(q,j,p) = z(q,j,p) + P_cr%invM_diff(l,p)%M(q,k) * invN_x%alm(i,p)
+             end do
+          end do
+       end do
+
+       call invN_x%dealloc()
+    end do
+
+    ! Prior terms
+    allocate(w(npre))
+    do p = 1, info_pre%nmaps
+       do i = 0, info_pre%nalm-1
+          call info_pre%i2lm(i, l, m)
+          w        = y(:,i,p)
+          w        = matmul(transpose(P_cr%invM_diff(l,p)%M(1:npre,numband+1:numband+npre)),w)
+          w        = matmul(          P_cr%invM_diff(l,p)%M(1:npre,numband+1:numband+npre), w)
+          z(:,i,p) = z(:,i,p) + w
+       end do
+    end do
+    deallocate(w)
+
+    ! Reformat z(npre,nalm,nmaps) structure into linear array
+    do i = 1, npre
+       nmaps = diffComps(i)%p%x%info%nmaps
+       allocate(alm(0:diffComps(i)%p%x%info%nalm-1,nmaps))
+       alm = 0.d0
+       do j = 0, diffComps(i)%p%x%info%nalm-1
+          call diffComps(i)%p%x%info%i2lm(j, l, m)
+          call info_pre%lm2i(l, m, k)
+          alm(j,1:nmaps) = z(i,k,1:nmaps)
+       end do
+       call cr_insert_comp(diffComps(i)%p%id, .false., alm, x)
+       deallocate(alm)
+    end do
+    
+    deallocate(y, z)
+
+  end subroutine applyDiffPrecond_pseudoinv
+
+
   
   ! Dump current sample to HEALPix FITS file
   subroutine dumpDiffuseToFITS(self, iter, chainfile, output_hdf, postfix, dir)
@@ -1295,4 +1539,48 @@ contains
 !!$  end function lnL_diffuse_multi
 
   
+  subroutine print_precond_mat
+    implicit none
+
+    integer(i4b) :: l, m, i, j
+    real(dp), allocatable, dimension(:)   :: W
+    real(dp), allocatable, dimension(:,:) :: mat
+
+    if (info_pre%myid /= 0) return
+
+    open(58,file=trim(outdir)//'/precond_W.dat',recl=1024)
+    if (trim(precond_type) == 'diagonal') then
+       do l = 0, info_pre%lmax
+          call info_pre%lm2i(l, 0, i)
+          write(*,*) 
+          write(*,*) l 
+          do j = 1, size(P_cr%invM_diff(i,1)%M(j,:),1)
+             write(*,*) real(P_cr%invM_diff(i,1)%M(j,:),sp)
+          end do
+          allocate(W(P_cr%invM_diff(i,1)%n))
+          call get_eigenvalues(P_cr%invM_diff(i,1)%M, W)
+          write(58,*) l, real(W,sp)
+          deallocate(W)
+       end do
+    else
+       allocate(mat(npre,npre))
+       do l = 0, info_pre%lmax
+          mat = matmul(P_cr%invM_diff(l,1)%M, transpose(P_cr%invM_diff(l,1)%M))
+          write(*,*) 
+          write(*,*) l 
+          do j = 1, npre
+             write(*,*) real(mat(j,:),sp)
+          end do
+          allocate(W(npre))
+          call get_eigenvalues(mat, W)
+          write(58,*) l, real(W,sp)
+          deallocate(W)
+       end do
+       deallocate(mat)
+    end if
+    close(58)
+
+
+  end subroutine print_precond_mat
+
 end module comm_diffuse_comp_mod

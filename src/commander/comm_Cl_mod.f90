@@ -51,6 +51,7 @@ module comm_Cl_mod
      procedure :: updateExponential
      procedure :: updateGaussian
      procedure :: updateS
+     procedure :: getCl
   end type comm_Cl
 
   interface comm_Cl
@@ -194,6 +195,9 @@ contains
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 0, self%lmax
           self%Dl(l,j) = amp(i) * exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+!!$          if (self%info%myid == 0) then
+!!$             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
+!!$          end if
        end do
     end do
 
@@ -223,8 +227,10 @@ contains
           end do
        end do
        self%sqrtInvS_mat(:,:,l) = self%sqrtS_mat(:,:,l)
-       
+
        call compute_hermitian_root(self%sqrtS_mat(:,:,l), 0.5d0)
+!       if (self%info%myid == 0) write(*,*) l, self%sqrtS_mat(:,:,l), self%sqrtInvS_mat(:,:,l)
+       
        do i = 1, self%nmaps
           if (.not. ok(i)) then
              self%sqrtS_mat(i,:,l) = 0.d0
@@ -242,6 +248,9 @@ contains
        end do
 
     end do
+
+!!$    call mpi_finalize(i)
+!!$    stop
 
   end subroutine updateS
 
@@ -363,6 +372,7 @@ contains
           else
              alm(i,:) = 0.d0
           end if
+          !if (self%info%myid == 0 .and. i == 4) write(*,*) l, real(f_apod,sp), real(self%sqrtS_mat(:,:,l),sp),  real(alm(i,:),sp), self%Dl(l,:), trim(self%label)
        end do
     end if
   end subroutine matmulSqrtS
@@ -410,18 +420,20 @@ contains
     logical(lgt), intent(in) :: positive
     real(dp)                 :: get_Cl_apod
     real(dp) :: alpha
-    if (l > l_apod) then
+    if (l <= l_apod) then
+       get_Cl_apod = 1.d0
+    else if (l > lmax) then
+       get_Cl_apod = 0.d0
+    else
        alpha = log(1d3)
        get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod+1,dp)**2)
-    else
-       get_Cl_apod = 1.d0
     end if
 !!$    if (l > l_apod) then
 !!$       get_Cl_apod = 0.5d0*(1.d0 - cos(pi*real(lmax-l+1,dp)/real(lmax-l_apod,dp)))
 !!$    else
 !!$       get_Cl_apod = 1.d0
 !!$    end if
-    if (.not. positive) get_Cl_apod = 1.d0 / get_Cl_apod
+    if (.not. positive .and. l <= lmax) get_Cl_apod = 1.d0 / get_Cl_apod
   end function get_Cl_apod
 
   subroutine read_Cl_file(self, clfile)
@@ -677,6 +689,20 @@ contains
     close(unit)
 
   end subroutine write_sigma_l
-  
+
+  function getCl(self, l, p)
+    implicit none
+    class(comm_Cl),  intent(in) :: self    
+    integer(i4b),    intent(in) :: l, p
+    real(dp)                    :: getCl
+
+    if (l == 0) then
+       getCl = self%Dl(l,p)
+    else
+       getCl = self%Dl(l,p) / (l*(l+1)/2.d0/pi)
+    end if
+    getCl = getCl * get_Cl_apod(l, self%l_apod, self%lmax, .true.)**2
+
+  end function getCl
   
 end module comm_Cl_mod

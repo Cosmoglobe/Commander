@@ -43,9 +43,9 @@ module comm_param_mod
      logical(lgt)       :: sample_signal_amplitudes
      
      ! Numerical parameters
-     character(len=512) :: cg_conv_crit
+     character(len=512) :: cg_conv_crit, cg_precond
      integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_miniter, cg_check_conv_freq
-     logical(lgt)       :: cg_init_zero
+     logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
      integer(i4b)       :: num_ind_cycle
 
@@ -230,12 +230,14 @@ contains
     call get_parameter(paramfile, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
 
     call get_parameter(paramfile, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
+    call get_parameter(paramfile, 'CG_PRECOND_TYPE',          par_string=cpar%cg_precond)
     call get_parameter(paramfile, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
     call get_parameter(paramfile, 'CG_MINITER',               par_int=cpar%cg_miniter)
     call get_parameter(paramfile, 'CG_MAXITER',               par_int=cpar%cg_maxiter)
     call get_parameter(paramfile, 'CG_TOLERANCE',             par_dp=cpar%cg_tol)
     call get_parameter(paramfile, 'CG_CONV_CHECK_FREQUENCY',  par_int=cpar%cg_check_conv_freq)
     call get_parameter(paramfile, 'CG_INIT_AMPS_ON_ZERO',     par_lgt=cpar%cg_init_zero)
+    call get_parameter(paramfile, 'SET_ALL_NOISE_MAPS_TO_MEAN',     par_lgt=cpar%set_noise_to_mean)
     call get_parameter(paramfile, 'NUM_INDEX_CYCLES_PER_ITERATION', par_int=cpar%num_ind_cycle)
 
     call get_parameter(paramfile, 'T_CMB',                    par_dp=cpar%T_cmb)

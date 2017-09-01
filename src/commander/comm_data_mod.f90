@@ -79,6 +79,16 @@ contains
        data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_mapfile(i)), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
 
+!!$       data(n)%res => comm_map(data(n)%map)
+!!$       call data(n)%res%writeFITS('res1.fits')
+!!$       call data(n)%res%YtW()
+!!$       call data(n)%res%Y()
+!!$       call data(n)%res%writeFITS('res2.fits')
+!!$       data(n)%res%map = data(n)%map%map - data(n)%res%map
+!!$       call data(n)%res%writeFITS('res3.fits')
+!!$       call mpi_finalize(ierr)
+!!$       stop
+
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
           data(n)%procmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &

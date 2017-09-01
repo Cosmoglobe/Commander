@@ -7,6 +7,7 @@ module comm_map_mod
   use iso_c_binding, only : c_ptr, c_double
   use head_fits
   use comm_hdf_mod
+  use extension
   implicit none
 
 !  include "mpif.h"
@@ -16,7 +17,7 @@ module comm_map_mod
 
   type :: comm_mapinfo
      type(sharp_alm_info)  :: alm_info
-     type(sharp_geom_info) :: geom_info
+     type(sharp_geom_info) :: geom_info_T, geom_info_P
      logical(lgt) :: pol
      integer(i4b) :: comm, myid, nprocs
      integer(i4b) :: nside, npix, nmaps, nspec, nring, np, lmax, nm, nalm
@@ -25,7 +26,7 @@ module comm_map_mod
      integer(c_int), allocatable, dimension(:)   :: mind
      integer(c_int), allocatable, dimension(:,:) :: lm
      integer(c_int), allocatable, dimension(:)   :: pix
-     real(c_double), allocatable, dimension(:)   :: W
+     real(c_double), allocatable, dimension(:,:) :: W
    contains
      procedure     :: lm2i
      procedure     :: i2lm
@@ -46,6 +47,7 @@ module comm_map_mod
      procedure     :: Y    => exec_sharp_Y
      procedure     :: Yt   => exec_sharp_Yt
      procedure     :: YtW  => exec_sharp_YtW
+     procedure     :: WY   => exec_sharp_WY
      procedure     :: Y_EB => exec_sharp_Y_EB
      procedure     :: Y_scalar    => exec_sharp_Y_scalar
      procedure     :: Yt_scalar   => exec_sharp_Yt_scalar
@@ -93,8 +95,13 @@ contains
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
     integer(i4b) :: myid, nprocs, ierr
-    integer(i4b) :: l, m, i, j, iring, np, ind
+    integer(i4b) :: l, m, i, j, k, iring, np, ind 
+    real(dp)     :: nullval
+    logical(lgt) :: anynull
     integer(i4b), allocatable, dimension(:) :: pixlist
+    real(dp),     allocatable, dimension(:,:) :: weights
+    character(len=5)   :: nside_text
+    character(len=512) :: weight_file, healpixdir
 
     call mpi_comm_rank(comm, myid, ierr)
     call mpi_comm_size(comm, nprocs, ierr)
@@ -114,19 +121,37 @@ contains
     allocate(pixlist(0:4*nside-1))
     constructor_mapinfo%nring = 0
     constructor_mapinfo%np    = 0
-    do i = 1+myid, 4*nside-1, nprocs
+!    do i = 1+myid, 4*nside-1, nprocs
+!       call in_ring(nside, i, 0.d0, pi, pixlist, np)
+!       constructor_mapinfo%nring = constructor_mapinfo%nring + 1
+!       constructor_mapinfo%np    = constructor_mapinfo%np    + np
+!    end do
+    do i = 1+myid, 2*nside, nprocs
        call in_ring(nside, i, 0.d0, pi, pixlist, np)
        constructor_mapinfo%nring = constructor_mapinfo%nring + 1
        constructor_mapinfo%np    = constructor_mapinfo%np    + np
+       if (i < 2*nside) then ! Symmetric about equator
+          constructor_mapinfo%nring = constructor_mapinfo%nring + 1
+          constructor_mapinfo%np    = constructor_mapinfo%np    + np
+       end if
     end do
     allocate(constructor_mapinfo%rings(constructor_mapinfo%nring))
     allocate(constructor_mapinfo%pix(constructor_mapinfo%np))
     j = 1
-    do i = 1, constructor_mapinfo%nring
-       constructor_mapinfo%rings(i) = 1 + myid + (i-1)*nprocs
-       call in_ring(nside, constructor_mapinfo%rings(i), 0.d0, pi, pixlist, np)
+    k = 1
+    do i = 1+myid, 2*nside, nprocs
+       call in_ring(nside, i, 0.d0, pi, pixlist, np)
+       constructor_mapinfo%rings(k) = i
        constructor_mapinfo%pix(j:j+np-1) = pixlist(0:np-1)
+       k = k + 1
        j = j + np
+       if (i < 2*nside) then ! Symmetric about equator
+          call in_ring(nside, 4*nside-i, 0.d0, pi, pixlist, np)
+          constructor_mapinfo%rings(k) = 4*nside-i
+          constructor_mapinfo%pix(j:j+np-1) = pixlist(0:np-1)
+          k = k + 1
+          j = j + np
+       end if
     end do
     deallocate(pixlist)
 
@@ -164,16 +189,30 @@ contains
        end if
     end do
     
-    ! Read ring weights
-    allocate(constructor_mapinfo%W(constructor_mapinfo%nring))
-    constructor_mapinfo%W = 1.d0
-
-    ! Create SHARP info structures
+    ! Read ring weights, and create SHARP info structures
     call sharp_make_mmajor_real_packed_alm_info(lmax, ms=constructor_mapinfo%ms, &
          & alm_info=constructor_mapinfo%alm_info)
-    call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
-         & geom_info=constructor_mapinfo%geom_info)
-    
+!!$    allocate(constructor_mapinfo%W(constructor_mapinfo%nring/2,1))
+!!$    constructor_mapinfo%W = 1.d0
+    call getEnvironment('HEALPIX', healpixdir) 
+    call int2string(nside, nside_text)
+    weight_file = trim(healpixdir)//'/data/weight_ring_n' // nside_text // '.fits'
+    if (nmaps == 1) then
+       allocate(constructor_mapinfo%W(2*nside,1))
+       call read_dbintab(weight_file, constructor_mapinfo%W, 2*nside, 1, nullval, anynull)
+       constructor_mapinfo%W = constructor_mapinfo%W + 1.d0
+       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
+            & weight=constructor_mapinfo%W(:,1), geom_info=constructor_mapinfo%geom_info_T)
+    else
+       allocate(constructor_mapinfo%W(2*nside,2))
+       call read_dbintab(weight_file, constructor_mapinfo%W, 2*nside, 2, nullval, anynull)
+       constructor_mapinfo%W(:,:) = constructor_mapinfo%W + 1.d0
+       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
+            & weight=constructor_mapinfo%W(:,1), geom_info=constructor_mapinfo%geom_info_T)
+       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
+            & weight=constructor_mapinfo%W(:,2), geom_info=constructor_mapinfo%geom_info_P)
+    end if
+
   end function constructor_mapinfo
 
   function constructor_map(info, filename, mask_misspix, udgrade)
@@ -255,7 +294,8 @@ contains
     if (allocated(self%rings)) then
        deallocate(self%rings, self%ms, self%mind, self%lm, self%pix, self%W)
        call sharp_destroy_alm_info(self%alm_info)
-       call sharp_destroy_geom_info(self%geom_info)
+       call sharp_destroy_geom_info(self%geom_info_T)
+       if (self%nmaps == 3) call sharp_destroy_geom_info(self%geom_info_P)
     end if
 
   end subroutine comm_mapinfo_finalize
@@ -272,17 +312,37 @@ contains
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
        if (self%info%nmaps == 3) then
           call sharp_execute(SHARP_Y, 2, 2, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
     else
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)       
+            & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
     
   end subroutine exec_sharp_Y
+
+  subroutine exec_sharp_WY(self)
+    implicit none
+
+    class(comm_map), intent(inout)          :: self
+
+    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
+    if (self%info%pol) then
+       call sharp_execute(SHARP_WY, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
+       if (self%info%nmaps == 3) then
+          call sharp_execute(SHARP_WY, 2, 2, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
+       end if
+    else
+       call sharp_execute(SHARP_WY, 0, self%info%nmaps, self%alm, self%info%alm_info, &
+            & self%map, self%info%geom_info_T, comm=self%info%comm)       
+    end if
+    
+  end subroutine exec_sharp_WY
 
   subroutine exec_sharp_Y_scalar(self)
     implicit none
@@ -293,7 +353,7 @@ contains
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
-            & self%map(:,i:i), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
     
   end subroutine exec_sharp_Y_scalar
@@ -311,7 +371,7 @@ contains
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
-            & self%map(:,i:i), info%geom_info, comm=info%comm)
+            & self%map(:,i:i), info%geom_info_T, comm=info%comm)
     end do
 
     deallocate(info)
@@ -326,15 +386,15 @@ contains
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
        if (self%info%nmaps == 3) then
           call sharp_execute(SHARP_Yt, 2, 2, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
        
     else
        call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)       
+            & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
     
   end subroutine exec_sharp_Yt
@@ -348,7 +408,7 @@ contains
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,i:i), self%info%alm_info, &
-            & self%map(:,i:i), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
     
   end subroutine exec_sharp_Yt_scalar
@@ -361,17 +421,18 @@ contains
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
        if (self%info%nmaps == 3) then
           call sharp_execute(SHARP_YtW, 2, 2, self%alm(:,2:3), self%info%alm_info, &
-               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
+               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
     else
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)
+            & self%map, self%info%geom_info_T, comm=self%info%comm)
     end if
     
   end subroutine exec_sharp_YtW
+
 
   subroutine exec_sharp_YtW_scalar(self)
     implicit none
@@ -382,7 +443,7 @@ contains
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,i:i), self%info%alm_info, &
-            & self%map(:,i:i), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
     
   end subroutine exec_sharp_YtW_scalar

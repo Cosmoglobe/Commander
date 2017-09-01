@@ -59,15 +59,33 @@ contains
        write(*,fmt='(a,f8.2)') '    CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
 
+!!$    call print_precond_mat
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
 !!$    k = 6
 !!$    l = n/3+k
 !!$    if (cpar%myid == root) write(*,*) P_cr%invM_diff(k,2)%n
 !!$    if (cpar%myid == root) write(*,*) 1.d0/P_cr%invM_diff(k,2)%M(1,1)
 !!$    if (cpar%myid == root) write(*,*)
+
+!!$    l = 10
 !!$    if (cpar%myid == root) x    = 0.d0
 !!$    if (cpar%myid == root) x(l) = 1.d0
 !!$    q     = cr_matmulA(x, samp_group)
-!!$    if (cpar%myid == root) write(*,*) q(l)
+!!$    if (cpar%myid == root) write(*,*) q(l-1:l+1)
+!!$
+!!$    if (cpar%myid == root) x    = 0.d0
+!!$    if (cpar%myid == root) x(l) = 1.d0
+!!$    q  = cr_invM(x)
+!!$    do i = 1, size(q)
+!!$       if (abs(q(i) > 1d-10)) write(*,*) i, q(i)
+!!$    end do
+
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+
 !!$    !if (cpar%myid == root) write(*,*) P_cr%invM_src(k,2)%M(1,1)
 !!$    
 !!$    do i = 2*n/3+5, 3*n/3
@@ -137,7 +155,7 @@ contains
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(b))
 
     ! Set up convergence criterion
-    if (trim(cpar%cg_conv_crit) == 'residual') then
+    if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
        lim_convergence = eps*delta0
        val_convergence = 1.d2*lim_convergence
     else if (trim(cpar%cg_conv_crit) == 'chisq') then
@@ -152,7 +170,7 @@ contains
        
        ! Check convergence
        if (mod(i,cpar%cg_check_conv_freq) == 0) then
-          if (trim(cpar%cg_conv_crit) == 'residual') then
+          if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
              val_convergence = delta_new
           else if (trim(cpar%cg_conv_crit) == 'chisq') then
              chisq_prev      = chisq
@@ -160,7 +178,8 @@ contains
              val_convergence = abs((chisq_prev-chisq)/chisq)
           end if
           if (val_convergence < lim_convergence .and. &
-               & (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
+               & (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0) .and. &
+               & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
        end if
           
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
@@ -237,7 +256,10 @@ contains
 
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
-          if (trim(cpar%cg_conv_crit) == 'residual') then
+          if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
+!             write(*,*) '  CG iter. ', i, ' -- res = ', &
+!                  & val_convergence, ', tol = ', lim_convergence, &
+!                  & ', time = ', real(t2-t1,sp)
              write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
                   & real(val_convergence,sp), ', tol = ', real(lim_convergence,sp), &
                   & ', time = ', real(t2-t1,sp)
@@ -289,7 +311,7 @@ contains
     end do
     call update_status(status, "cr8")
 
-    if (i >= maxiter) then
+    if (i >= maxiter .and. trim(cpar%cg_conv_crit) /= 'fixed_iter') then
        write(*,*) 'ERROR: Convergence in CG search not reached within maximum'
        write(*,*) '       number of iterations = ', maxiter
        stat = stat + 1

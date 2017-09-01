@@ -11,10 +11,12 @@ module comm_N_mod
      character(len=512)       :: type
      integer(i4b)             :: nside, nmaps, np
      logical(lgt)             :: pol
+     real(dp), allocatable, dimension(:) :: alpha_nu ! (T,Q,U)
      class(comm_map), pointer :: invN_diag
    contains
      ! Data procedures
      procedure(matmulInvN),     deferred :: invN
+     procedure(matmulN),        deferred :: N
      procedure(matmulSqrtInvN), deferred :: sqrtInvN
      procedure(returnRMS),      deferred :: rms
      procedure(returnRMSpix),   deferred :: rms_pix
@@ -28,6 +30,14 @@ module comm_N_mod
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
      end subroutine matmulInvN
+
+     ! Return map_out = N * map
+     subroutine matmulN(self, map)
+       import comm_map, comm_N, dp, i4b
+       implicit none
+       class(comm_N),   intent(in)             :: self
+       class(comm_map), intent(inout)          :: map
+     end subroutine matmulN
 
      ! Return map_out = sqrtInvN * map
      subroutine matmulSqrtInvN(self, map)

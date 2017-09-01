@@ -569,13 +569,15 @@ contains
           ! Check for processing mask; disable source if within mask
           call ang2pix_ring(data(1)%info%nside, 0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, pix)
           p = locate(data(1)%info%pix, pix)
-          if (p > -1) then
-             if (data(1)%info%pix(p) == pix) then
-                do j = 1, self%nmaps
-                   if (data(1)%procmask%map(p,j) < 0.5d0) then
-                      mask(i,j) = 0
-                   end if
-                end do
+          if (associated(data(1)%procmask)) then
+             if (p > -1) then
+                if (data(1)%info%pix(p) == pix) then
+                   do j = 1, self%nmaps
+                      if (data(1)%procmask%map(p,j) < 0.5d0) then
+                         mask(i,j) = 0
+                      end if
+                   end do
+                end if
              end if
           end if
 
