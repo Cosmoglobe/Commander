@@ -190,6 +190,7 @@ contains
     self%unit            = cpar%cs_unit(id_abs)
     self%nu_ref          = cpar%cs_nu_ref(id_abs)
     self%myid            = cpar%myid_chain    
+    self%comm            = cpar%comm_chain
     self%numprocs        = cpar%numprocs_chain
     self%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     self%init_from_HDF   = cpar%cs_initHDF(id_abs)
