@@ -195,9 +195,9 @@ contains
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 0, self%lmax
           self%Dl(l,j) = amp(i) * exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
-!!$          if (self%info%myid == 0) then
-!!$             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
-!!$          end if
+!          if (self%info%myid == 0) then
+!             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
+!          end if
        end do
     end do
 
@@ -696,10 +696,13 @@ contains
     integer(i4b),    intent(in) :: l, p
     real(dp)                    :: getCl
 
+    integer(i4b) :: j
+
+    j = p*(1-p)/2 + (p-1)*self%nmaps + p
     if (l == 0) then
-       getCl = self%Dl(l,p)
+       getCl = self%Dl(l,j)
     else
-       getCl = self%Dl(l,p) / (l*(l+1)/2.d0/pi)
+       getCl = self%Dl(l,j) / (l*(l+1)/2.d0/pi)
     end if
     getCl = getCl * get_Cl_apod(l, self%l_apod, self%lmax, .true.)**2
 

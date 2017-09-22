@@ -75,7 +75,7 @@ contains
 
        if (nmaps == 1) then
           sqrt_S(1,1,l)     = sqrt(S(1,1,l))
-          inv_sqrt_S(1,1,l) = 1.d0 / sqrt_S(1,1,l)
+          if (sqrt_S(1,1,l) > 0.d0) inv_sqrt_S(1,1,l) = 1.d0 / sqrt_S(1,1,l)
        else
 
           acceptable_mode = .true.

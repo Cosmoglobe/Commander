@@ -1542,11 +1542,12 @@ contains
   subroutine print_precond_mat
     implicit none
 
-    integer(i4b) :: l, m, i, j
+    integer(i4b) :: l, m, i, j, p
     real(dp), allocatable, dimension(:)   :: W
     real(dp), allocatable, dimension(:,:) :: mat
 
     if (info_pre%myid /= 0) return
+    p = 2
 
     open(58,file=trim(outdir)//'/precond_W.dat',recl=1024)
     if (trim(precond_type) == 'diagonal') then
@@ -1554,18 +1555,18 @@ contains
           call info_pre%lm2i(l, 0, i)
           write(*,*) 
           write(*,*) l 
-          do j = 1, size(P_cr%invM_diff(i,1)%M(j,:),1)
-             write(*,*) real(P_cr%invM_diff(i,1)%M(j,:),sp)
+          do j = 1, size(P_cr%invM_diff(i,p)%M(j,:),1)
+             write(*,*) real(P_cr%invM_diff(i,p)%M(j,:),sp)
           end do
-          allocate(W(P_cr%invM_diff(i,1)%n))
-          call get_eigenvalues(P_cr%invM_diff(i,1)%M, W)
+          allocate(W(P_cr%invM_diff(i,p)%n))
+          call get_eigenvalues(P_cr%invM_diff(i,p)%M, W)
           write(58,*) l, real(W,sp)
           deallocate(W)
        end do
     else
        allocate(mat(npre,npre))
        do l = 0, info_pre%lmax
-          mat = matmul(P_cr%invM_diff(l,1)%M, transpose(P_cr%invM_diff(l,1)%M))
+          mat = matmul(P_cr%invM_diff(l,p)%M, transpose(P_cr%invM_diff(l,p)%M))
           write(*,*) 
           write(*,*) l 
           do j = 1, npre

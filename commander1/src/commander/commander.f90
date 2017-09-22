@@ -532,9 +532,9 @@ contains
     first_iteration = 1
     call initialize_chain_files(chain_dir, chain, num_gibbs_iter)
 
-!    call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
-!    call mpi_finalize(ierr)
-!    stop
+!!$    call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
+!!$    call mpi_finalize(ierr)
+!!$    stop
 
     if (output_ml_map_and_covmat) then
        call compute_residuals(s_i, .false.)

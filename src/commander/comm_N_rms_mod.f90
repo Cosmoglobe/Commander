@@ -120,19 +120,30 @@ contains
        invW_tau%map =  invW_tau%map**2
        call invW_tau%Yt()
        call invW_tau%Y()
-       do i = 1, constructor%nmaps
-          sum_tau  = sum(invW_tau%map(:,i))
-          sum_tau2 = sum(invW_tau%map(:,i)**2)
+       ! Temperature
+       sum_tau  = sum(invW_tau%map(:,1))
+       sum_tau2 = sum(invW_tau%map(:,1)**2)
+       call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+       if (sum_tau > 0.d0) then
+          constructor%alpha_nu(1) = sqrt(sum_tau2/sum_tau)
+       else
+          constructor%alpha_nu(1) = 0.d0
+       end if
+
+       if (constructor%nmaps == 3) then
+          sum_tau  = sum(invW_tau%map(:,2:3))
+          sum_tau2 = sum(invW_tau%map(:,2:3)**2)
           call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
           call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
           if (sum_tau > 0.d0) then
-             constructor%alpha_nu(i) = sqrt(sum_tau2/sum_tau)
+             constructor%alpha_nu(2:3) = sqrt(sum_tau2/sum_tau)
           else
-             constructor%alpha_nu(i) = 0.d0
+             constructor%alpha_nu(2:3) = 0.d0
           end if
-       end do
+       end if
     end if
-    
+
   end function constructor
 
   ! Return map_out = invN * map
