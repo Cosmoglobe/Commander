@@ -46,7 +46,7 @@ contains
     character(len=2)    :: i_text
     character(len=256)  :: filename, chaindir, gain_init_file, bp_init_file, MJySr_convention
     character(len=5000) :: line
-    real(dp), allocatable, dimension(:) :: freq
+    real(dp), allocatable, dimension(:) :: freq, a2t
 
     call mpi_comm_rank(comm_chain, myid_chain, ierr)
 
@@ -123,8 +123,14 @@ contains
           bp(i)%tau0(1) = 1.d0
        end if
 
-    end do
+!!$       allocate(a2t(bp(i)%n))
+!!$       call compute_ant2thermo(bp(i)%nu, a2t)
+!!$       if (myid == 0) write(*,*) bp(i)%nu
+!!$       if (myid == 0) write(*,*) a2t
+!!$       call mpi_finalize(ierr)
+!!$       stop
 
+    end do
 
     ! Sort bands according to frequencies
     allocate(i2f(numband), freq(numband))
@@ -238,6 +244,10 @@ contains
              bp(j)%nu(i) = bp(j)%nu0(i) + 1d9*delta(j)
              if (bp(j)%nu(i) <= 0.d0) bp(j)%tau(i) = 0.d0
           end do
+!!$          write(*,*) bp(j)%nu
+!!$          write(*,*) bp(j)%tau
+!!$          call mpi_finalize(i)
+!!$          stop
           
        else if (trim(bp_model) == 'multiplicative_shift') then
           
@@ -269,10 +279,16 @@ contains
           
           ! See Appendix E of Bennett et al. (2013) for details
           allocate(a2t(bp(j)%n), bnu_prime(bp(j)%n), bnu_prime_RJ(bp(j)%n), sz(bp(j)%n))
-          call compute_ant2thermo(bp(j)%nu, a2t)          
-          call compute_bnu_prime(bp(j)%nu, bnu_prime)
-          call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
-          sz = sz_thermo(bp(j)%nu)
+          do i = 1, bp(j)%n
+             a2t(i)          = compute_ant2thermo_single(bp(j)%nu(i))
+             bnu_prime(i)    = compute_bnu_prime_single(bp(j)%nu(i))
+             bnu_prime_RJ(i) = compute_bnu_prime_RJ_single(bp(j)%nu(i))
+             sz(i)           = sz_thermo_single(bp(j)%nu(i))
+          end do
+          !call compute_ant2thermo(bp(j)%nu, a2t)          
+          !call compute_bnu_prime(bp(j)%nu, bnu_prime)
+          !call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
+          !sz = sz_thermo(bp(j)%nu)
           if (bp(j)%a2t  <= 0.d0) bp(j)%a2t  = sum(bp(j)%tau) / sum(bp(j)%tau/a2t)
           if (bp(j)%a2sz <= 0.d0) bp(j)%a2sz = sum(bp(j)%tau) / sum(bp(j)%tau/a2t * sz) * 1.d-6
           if (bp(j)%f2t  <= 0.d0) bp(j)%f2t  = sum(bp(j)%tau/bp(j)%nu**2 * (bp(j)%nu_c/bp(j)%nu)**ind_iras) &
@@ -284,10 +300,16 @@ contains
 
           ! Multiply with normalization factor
           allocate(bnu_prime(bp(j)%n), bnu_prime_RJ(bp(j)%n), a2t(bp(j)%n), sz(bp(j)%n))
-          call compute_ant2thermo(bp(j)%nu, a2t)          
-          call compute_bnu_prime(bp(j)%nu, bnu_prime)
-          call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
-          sz = sz_thermo(bp(j)%nu)
+          do i = 1, bp(j)%n
+             a2t(i)          = compute_ant2thermo_single(bp(j)%nu(i))
+             bnu_prime(i)    = compute_bnu_prime_single(bp(j)%nu(i))
+             bnu_prime_RJ(i) = compute_bnu_prime_RJ_single(bp(j)%nu(i))
+             sz(i)           = sz_thermo_single(bp(j)%nu(i))
+          end do
+          !call compute_ant2thermo(bp(j)%nu, a2t)          
+          !call compute_bnu_prime(bp(j)%nu, bnu_prime)
+          !call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
+          !sz = sz_thermo(bp(j)%nu)
           if (bp(j)%a2t <= 0.d0) bp(j)%a2t = tsum(bp(j)%nu, bp(j)%tau/bp(j)%nu**2 * bnu_prime_RJ) / &
                & tsum(bp(j)%nu, bp(j)%tau/bp(j)%nu**2 * bnu_prime)
           if (bp(j)%a2sz <= 0.d0) bp(j)%a2sz = tsum(bp(j)%nu, bp(j)%tau/bp(j)%nu**2 * bnu_prime_RJ) / &
@@ -300,10 +322,16 @@ contains
        else if (trim(bp(j)%id) == 'HFI_cmb' .or. trim(bp(j)%id) == 'PSM_LFI') then
           
           allocate(bnu_prime(bp(j)%n), bnu_prime_RJ(bp(j)%n), a2t(bp(j)%n), sz(bp(j)%n))
-          call compute_ant2thermo(bp(j)%nu, a2t)          
-          call compute_bnu_prime(bp(j)%nu, bnu_prime)
-          call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
-          sz = sz_thermo(bp(j)%nu)
+          do i = 1, bp(j)%n
+             a2t(i)          = compute_ant2thermo_single(bp(j)%nu(i))
+             bnu_prime(i)    = compute_bnu_prime_single(bp(j)%nu(i))
+             bnu_prime_RJ(i) = compute_bnu_prime_RJ_single(bp(j)%nu(i))
+             sz(i)           = sz_thermo_single(bp(j)%nu(i))
+          end do
+          !call compute_ant2thermo(bp(j)%nu, a2t)          
+          !call compute_bnu_prime(bp(j)%nu, bnu_prime)
+          !call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
+          !sz = sz_thermo(bp(j)%nu)
           if (bp(j)%a2t <= 0.d0) bp(j)%a2t = tsum(bp(j)%nu, bp(j)%tau * bnu_prime_RJ) / &
                & tsum(bp(j)%nu, bp(j)%tau*bnu_prime)
           if (bp(j)%a2sz <= 0.d0) bp(j)%a2sz = tsum(bp(j)%nu, bp(j)%tau * bnu_prime_RJ) / &
@@ -316,10 +344,16 @@ contains
        else if (trim(bp(j)%id) == 'HFI_submm') then
 
           allocate(bnu_prime(bp(j)%n), bnu_prime_RJ(bp(j)%n), a2t(bp(j)%n), sz(bp(j)%n))
-          call compute_ant2thermo(bp(j)%nu, a2t)          
-          call compute_bnu_prime(bp(j)%nu, bnu_prime)
-          call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
-          sz = sz_thermo(bp(j)%nu)
+          do i = 1, bp(j)%n
+             a2t(i)          = compute_ant2thermo_single(bp(j)%nu(i))
+             bnu_prime(i)    = compute_bnu_prime_single(bp(j)%nu(i))
+             bnu_prime_RJ(i) = compute_bnu_prime_RJ_single(bp(j)%nu(i))
+             sz(i)           = sz_thermo_single(bp(j)%nu(i))
+          end do
+          !call compute_ant2thermo(bp(j)%nu, a2t)          
+          !call compute_bnu_prime(bp(j)%nu, bnu_prime)
+          !call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
+          !sz = sz_thermo(bp(j)%nu)
           if (bp(j)%a2t <= 0.d0) bp(j)%a2t = tsum(bp(j)%nu, bp(j)%tau * bnu_prime_RJ) / &
                & tsum(bp(j)%nu, bp(j)%tau*bnu_prime)
           if (bp(j)%a2sz <= 0.d0) bp(j)%a2sz = tsum(bp(j)%nu, bp(j)%tau * bnu_prime_RJ) / &
@@ -332,10 +366,16 @@ contains
        else if (trim(bp(j)%id) == 'DIRBE') then
 
           allocate(bnu_prime(bp(j)%n), bnu_prime_RJ(bp(j)%n), a2t(bp(j)%n), sz(bp(j)%n))
-          call compute_ant2thermo(bp(j)%nu, a2t)          
-          call compute_bnu_prime(bp(j)%nu, bnu_prime)
-          call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
-          sz = sz_thermo(bp(j)%nu)
+          do i = 1, bp(j)%n
+             a2t(i)          = compute_ant2thermo_single(bp(j)%nu(i))
+             bnu_prime(i)    = compute_bnu_prime_single(bp(j)%nu(i))
+             bnu_prime_RJ(i) = compute_bnu_prime_RJ_single(bp(j)%nu(i))
+             sz(i)           = sz_thermo_single(bp(j)%nu(i))
+          end do
+          !call compute_ant2thermo(bp(j)%nu, a2t)          
+          !call compute_bnu_prime(bp(j)%nu, bnu_prime)
+          !call compute_bnu_prime_RJ(bp(j)%nu, bnu_prime_RJ)
+          !sz = sz_thermo(bp(j)%nu)
           if (bp(j)%a2t <= 0.d0) bp(j)%a2t = tsum(bp(j)%nu, bp(j)%tau * bnu_prime_RJ) / &
                & tsum(bp(j)%nu, bp(j)%tau*bnu_prime)
           if (bp(j)%a2sz <= 0.d0) bp(j)%a2sz = tsum(bp(j)%nu, bp(j)%tau * bnu_prime_RJ) / &

@@ -514,10 +514,12 @@ contains
        call update_fg_pix_response_maps(fg_param_map)
        if (.not. all(fg_pix_spec_response == fg_pix_spec_response)) then
           do j = 1, num_fg_comp
-             do i = 0, map_size-1 
-                if (is_nan(fg_pix_spec_response(i,1,j))) then
-                   write(*,*) i, j, fg_pix_spec_response(i,1,j)
-                end if
+             do k = 1, nmaps
+                do i = 0, map_size-1 
+                   if (is_nan(fg_pix_spec_response(i,k,j))) then
+                      write(*,*) i, k, j, fg_pix_spec_response(i,k,j)
+                   end if
+                end do
              end do
           end do
           write(*,*) 'nan'
@@ -532,9 +534,8 @@ contains
     first_iteration = 1
     call initialize_chain_files(chain_dir, chain, num_gibbs_iter)
 
-!!$    call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
-!!$    call mpi_finalize(ierr)
-!!$    stop
+!    call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
+!    stop
 
     if (output_ml_map_and_covmat) then
        call compute_residuals(s_i, .false.)
@@ -1252,7 +1253,6 @@ contains
           do q = 1, numband
              k = i2f(q)
              s1 = get_effective_fg_spectrum(fg_components(j), k, fg_components(j)%priors(:,3))
-             write(*,*) 's1 = ', s1
              if (trim(bp(k)%unit) == 'uK_cmb') then
                 write(*,*) real(bp(k)%nu_c/1.d9,sp), s1 / bp(k)%a2t
                 write(58,*) bp(k)%nu_c/1.d9, s1 / bp(k)%a2t

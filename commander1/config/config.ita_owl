@@ -53,8 +53,9 @@ export MPCC := mpicc
 #export F90FLAGS := -O3 -traceback -vec_report0
 #export F90FLAGS := -O3 -traceback -vec_report0 -assume byterecl -heap-arrays 16384
 #export F90FLAGS := -g -C -traceback -assume byterecl -heap-arrays 16384 -traceback
-#export F90FLAGS := -g -C -traceback -vec_report0 -assume byterecl -heap-arrays 16384 -traceback
-export F90FLAGS := -O3 -traceback -assume byterecl -heap-arrays 16384 -fpe0
+#export F90FLAGS := -g -C -traceback -vec_report0 -assume byterecl -heap-arrays 16384 -traceback -fpe0
+export F90FLAGS := -O3 -traceback -assume byterecl -heap-arrays 16384 -traceback
+#export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx -fpe0
 
 # Fortran 77 compiler flags
 export FFLAGS := -O2
@@ -96,6 +97,7 @@ export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH) -L$(MKLPATH)  -lmkl_in
 
 
 # ================ Healpix linking ================
+#export HEALPIX := /mn/stornext/u3/hke/owl/local/src/Healpix_3.11
 export HEALPIX := /mn/stornext/u3/hke/owl/local/src/dagsshealpix
 export HEALPIX_INCLUDE := -I$(HEALPIX)/include
 export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
