@@ -154,6 +154,7 @@ contains
        end if
     end do
     deallocate(pixlist)
+    call QuickSort_int(constructor_mapinfo%rings)
     call QuickSort_int(constructor_mapinfo%pix)
 
     ! Select m's

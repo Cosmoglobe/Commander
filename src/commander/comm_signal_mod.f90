@@ -87,7 +87,7 @@ contains
     i   = 1
     ind_comp(i,:) = [1,0]
     c => compList
-    do while (associated(c))
+    do while (associated(c))       
        ind_comp(i,1) = ncr+1
        ind_comp(i,2) = c%ncr
        ind_comp(i,3) = c%nmaps
@@ -218,11 +218,13 @@ contains
     ! Initialize component parameters
     c   => compList
     do while (associated(c))
+
        if (.not. c%init_from_HDF) then
           c => c%next()
           cycle
        end if
        call update_status(status, "init_chain_"//trim(c%label))
+
        call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
        c => c%next()
     end do

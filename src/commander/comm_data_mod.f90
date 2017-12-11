@@ -46,7 +46,7 @@ contains
 
     integer(i4b)       :: i, j, n, m, nmaps, ierr, numband_tot
     real(dp)           :: t1, t2
-    character(len=512) :: dir
+    character(len=512) :: dir, mapfile
     class(comm_N), pointer  :: tmp
     class(comm_mapinfo), pointer :: info_smooth, info_postproc
     real(dp), allocatable, dimension(:)   :: nu
@@ -76,7 +76,9 @@ contains
        nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
-       data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_mapfile(i)), mask_misspix=mask_misspix)
+       call get_mapfile(cpar, i, mapfile)
+       !data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_mapfile(i)), mask_misspix=mask_misspix)
+       data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
 
 !!$       data(n)%res => comm_map(data(n)%map)
@@ -389,5 +391,31 @@ contains
     call map_out%Y
 
   end subroutine smooth_map
+
+  subroutine get_mapfile(cpar, band, mapfile)
+    implicit none
+    type(comm_params), intent(in)    :: cpar
+    integer(i4b),      intent(in)    :: band
+    character(len=*),  intent(out)   :: mapfile
+
+    integer(i4b)       :: i, n, unit
+    character(len=512) :: filename
+
+    filename = trim(adjustl(cpar%ds_mapfile(band)))
+    n        = len(trim(adjustl(filename)))
+    
+    if (filename(n-3:n) == 'fits') then
+       mapfile = filename
+    else if (filename(n-2:n) == 'txt') then
+       ! Assume filelist; pick the number given by mychain. 
+       unit = getlun()
+       open(unit, file=trim(filename), recl=1024)
+       do i = 1, cpar%mychain
+          read(unit,'(a)') mapfile
+       end do
+       close(unit)
+    end if
+
+  end subroutine get_mapfile
 
 end module comm_data_mod

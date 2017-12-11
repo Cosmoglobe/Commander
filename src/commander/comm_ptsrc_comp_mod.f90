@@ -459,6 +459,7 @@ contains
        
     allocate(theta(self%nsrc,self%nmaps,self%npar))
     call read_hdf(hdffile, trim(adjustl(path))//'/specind', theta)
+
     do i = 1, self%nsrc
        do j = 1, self%nmaps
           self%src(i)%theta(:,j) = theta(i,j,:) 
