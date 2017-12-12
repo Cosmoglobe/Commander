@@ -34,13 +34,13 @@
 # ================= Compilers ====================
 
 # Serial Fortran 90 compiler.  Default is "f90".
-export F90 := $(HPCP_FC)
+export F90 := ftn #$(HPCP_FC)
 
 # MPI Fortran 90 compiler.  Default is "mpif90".
-export MPF90 := $(HPCP_MPIFC)
+export MPF90 := ftn #$(HPCP_MPIFC)
 
 # MPI Fortran 77 compiler.  Default is "mpif77".
-export MPF77 := $(HPCP_MPIF77)
+export MPF77 := ftn # $(HPCP_MPIF77)
 
 # MPI C compiler.  Default is "mpicc".
 export MPCC := $(HPCP_MPICC)
@@ -61,11 +61,11 @@ export MPFCLIBS := $(HPCP_MPIFCLIBS) $(HPCP_FCLIBS)
 # line length limit.
 
 # Fortran 90 compiler flags
-export F90FLAGS := $(HPCP_FCFLAGS) $(HPCP_OMPFLAGS) -ffree-line-length-none
+export F90FLAGS := -fast -qopenmp -no-ipo
 #export F90FLAGS := -g -march=native -fPIC $(HPCP_OMPFLAGS) -ffree-line-length-none -fbounds-check -Wall -fbacktrace -finit-real=nan
 
 # Fortran 77 compiler flags
-export FFLAGS := $(HPCP_FFLAGS) $(HPCP_OMPFLAGS) -ffree-line-length-none
+export FFLAGS := $(HPCP_FFLAGS) $(HPCP_OMPFLAGS) 
 
 # C compiler flags.
 export CFLAGS := $(HPCP_CFLAGS) $(HPCP_OMPFLAGS)
@@ -74,7 +74,7 @@ export CFLAGS := $(HPCP_CFLAGS) $(HPCP_OMPFLAGS)
 export CXXFLAGS := $(HPCP_CXXFLAGS) $(HPCP_OMPFLAGS)
 
 # Extra flags used for linking
-export LDFLAGS := $(HPCP_OMPFLAGS) $(HPCP_LDFLAGS) $(HPCP_LIBS) -lstdc++
+export LDFLAGS := -qopenmp -lstdc++ -no-ipo -qopenmp
 
 
 # ============== Fortran Features ================
@@ -91,13 +91,25 @@ export LDFLAGS := $(HPCP_OMPFLAGS) $(HPCP_LDFLAGS) $(HPCP_LIBS) -lstdc++
 export CFITSIO_LINK := $(cfitsio_LIBS_FC)
 
 
+# =============== SHARP Linking ================
+
+# The include and linking commands for cfitsio.
+export SHARP_INCLUDE := 
+export SHARP_LINK := -L/global/homes/h/hke/local/src/libsharp/auto/lib -lsharp
+
 # =============== LAPACK Linking =================
 
-export LAPACK_LINK := $(lapack_LIBS_FC) $(blas_LIBS_FC)
+export LAPACK_LINK := -mkl
 
 
 # ================ Healpix linking ================
+HEALDIR=/global/homes/h/hke/local/src/dagsshealpix
+#export HEALPIX_INCLUDE := -I$(healpix_PREFIX)/include
+#export HEALPIX_LINK := $(healpix_LIBS_FC)
+export HEALPIX_INCLUDE := -I$(HEALDIR)/include
+export HEALPIX_LINK := $(HEALDIR)/lib/libhealpix.a
 
-export HEALPIX_INCLUDE := -I$(healpix_PREFIX)/include
-export HEALPIX_LINK := $(healpix_LIBS_FC)
-
+# =============== HDF ============================
+export HDF_LINK := -lhdf5_fortran -lhdf5 
+export HDF_LINK_CPP := -lhdf5_cpp -lhdf5 
+export HDF_INCLUDE := #-I/global/homes/h/hke/local/include

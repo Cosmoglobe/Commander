@@ -99,8 +99,8 @@ libcommander.a : $(COBJS)
 %.o : %.cpp
 	$(MPCXX) $(CXXCOMP) -c $< 
 
-%.f90 : %.f90.in
-	$(TEMPITA) < "$<" > "$@"
+#%.f90 : %.f90.in
+#	$(TEMPITA) < "$<" > "$@"
 
 clean :
 	@rm -f *.o *.mod *.MOD *.a *~ commander
