@@ -24,6 +24,7 @@ module comm_param_mod
      character(len=24)  :: operation
      integer(i4b)       :: verbosity, base_seed, numchain, num_smooth_scales
      integer(i4b)       :: num_gibbs_iter, num_ml_iter, init_samp
+     integer(i4b)       :: nskip_filelist
      character(len=512) :: chain_prefix, init_chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
@@ -223,6 +224,7 @@ contains
     call get_parameter(paramfile, 'BASE_SEED',                par_int=cpar%base_seed)
     call get_parameter(paramfile, 'NUMCHAIN',                 par_int=cpar%numchain)
     call get_parameter(paramfile, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
+    call get_parameter(paramfile, 'NSKIP_FILELIST',           par_int=cpar%nskip_filelist)
     call get_parameter(paramfile, 'NUM_ITER_WITH_ML_SEARCH',  par_int=cpar%num_ml_iter)
     call get_parameter(paramfile, 'CHAIN_PREFIX',             par_string=cpar%chain_prefix)
     call get_parameter(paramfile, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
