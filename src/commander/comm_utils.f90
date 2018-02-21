@@ -73,8 +73,8 @@ contains
     if (nmaps > 1) then
        if (sum(beam_in(:,2)) < 1.d0) then
           ! Default to temperature beam+polarization pixel window
-          beam(:,2) = beam(:,1)*pw(:,2)
-          beam(:,3) = beam(:,1)*pw(:,2)
+          beam(:,2) = beam_in(:,1)*pw(:,2)
+          beam(:,3) = beam_in(:,1)*pw(:,2)
        else
           ! Use polarized beam+polarization pixel window
           beam(:,2) = beam_in(:,2)*pw(:,2)

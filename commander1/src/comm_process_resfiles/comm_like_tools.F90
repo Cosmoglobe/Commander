@@ -2902,7 +2902,7 @@ contains
     real(dp)           :: cl_min, cl_max, rho
     logical(lgt)       :: exist, debug
     type(planck_rng)   :: handle
-    real(dp), allocatable, dimension(:)       :: cls, F, mu_x, P_tot
+    real(dp), allocatable, dimension(:)       :: cls, F, mu_x, P_tot, mu_sigma
     real(dp), allocatable, dimension(:,:,:,:) :: sigma
     real(dp), allocatable, dimension(:,:)     :: sigma_1D, cov_x, P
     real(dp), allocatable, dimension(:,:)     :: samples
@@ -2964,6 +2964,13 @@ contains
              sigma_1D(:,n) = sigma(:,1,j,k)
           end if
        end do
+    end do
+
+    ! Compute mean of sigma samples
+    allocate(mu_sigma(lmin:lmax))
+    do l = lmin, lmax
+       mu_sigma(l) = mean(sigma_1D(l,1:n))
+       write(*,*) l, real(sigma_1D(l,1:4),sp)
     end do
 
     ! Draw Monte Carlo samples
@@ -3091,7 +3098,7 @@ contains
     write(*,*) 'cov = ', real(cov_x,sp)
 
     ! Output compressed likelihood objects to file
-    call write_gauss_BR_datafile(gaussfile, lmin, lmax, cl2x, mu_x, cov_x)
+    call write_gauss_BR_datafile(gaussfile, lmin, lmax, cl2x, mu_x, cov_x, mu_sigma)
 
   end subroutine sigma2gauss
 

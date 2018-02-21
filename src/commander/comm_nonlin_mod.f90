@@ -10,6 +10,64 @@ module comm_nonlin_mod
 
 contains
 
+!!$  subroutine sample_mono_dipole_with_mask(cpar, iter, handle)
+!!$    implicit none
+!!$    type(comm_params),  intent(in)    :: cpar
+!!$    integer(i4b),       intent(in)    :: iter
+!!$    type(planck_rng),   intent(inout) :: handle    
+!!$
+!!$    integer(i4b) :: i
+!!$    class(comm_map),     pointer :: res
+!!$    class(comm_comp),    pointer :: c
+!!$    real(dp),          allocatable, dimension(:,:) :: m
+!!$
+!!$    ! Find monopole and dipole component
+!!$    c => compList
+!!$    do while (associated(c))
+!!$       if (trim(c%label) /= 'md') then
+!!$          c => c%next()
+!!$          cycle
+!!$       else
+!!$          exit
+!!$       end if
+!!$    end do
+!!$
+!!$    ! Estimate monopoles and dipoles for each frequency
+!!$    do i = 1, numband
+!!$       ! Compute residual
+!!$       res     => compute_residual(i)
+!!$       m       = c%getBand(i)
+!!$       res%map = res%map + m
+!!$
+!!$       call res%dealloc()
+!!$       nullify(res)
+!!$       deallocate(m)
+!!$    end do
+!!$    
+!!$
+!!$    nullify(c)
+!!$
+!!$
+!!$    ! Sample spectral parameters for each signal component
+!!$    allocate(status_fit(numband))
+!!$    c => compList
+!!$    do while (associated(c))
+!!$       if (c%npar == 0) then
+!!$          c => c%next()
+!!$          cycle
+!!$       end if
+!!$       if (all(c%p_gauss(2,:) == 0.d0)) then
+!!$          c => c%next()
+!!$          cycle
+!!$       end if
+!!$       
+!!$       do j = 1, c%npar
+!!$
+!!$          if (c%p_gauss(2,j) == 0.d0) cycle
+!!$
+!!$
+!!$  end subroutine sample_mono_dipole_with_mask
+
   subroutine sample_nonlin_params(cpar, iter, handle)
     implicit none
     type(comm_params),  intent(in)    :: cpar

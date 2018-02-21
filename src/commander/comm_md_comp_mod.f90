@@ -59,6 +59,7 @@ contains
     constructor%myid            = cpar%myid_chain
     constructor%comm            = cpar%comm_chain
     constructor%numprocs        = cpar%numprocs_chain
+    constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
     !constructor%ref_band = band
 
     ! Set up conversion factor between RJ and native component unit
@@ -81,10 +82,10 @@ contains
     constructor%lmax_ind = 0
     constructor%cltype   = 'binned'
     constructor%nmaps    = 1
-    !info          => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_amp, &
-    !     & constructor%nmaps, constructor%pol)
-    info          => comm_mapinfo(cpar%comm_chain, 128, constructor%lmax_amp, &
+    info          => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_amp, &
          & constructor%nmaps, constructor%pol)
+    !info          => comm_mapinfo(cpar%comm_chain, 128, constructor%lmax_amp, &
+    !     & constructor%nmaps, constructor%pol)
 
     ! Diffuse preconditioner variables
     call add_to_npre(1,constructor%nside,1,1)

@@ -53,7 +53,7 @@ module comm_gauss_br_mod
   type comm_gauss_br_data
      integer(i4b) :: lmin, lmax, nbin
      real(dp)     :: offset
-     real(dp), allocatable, dimension(:)     :: mu
+     real(dp), allocatable, dimension(:)     :: mu, mu_sigma
      real(dp), allocatable, dimension(:,:)   :: cov, prior
      real(dp), allocatable, dimension(:,:,:) :: cl2x
   end type comm_gauss_br_data
@@ -84,11 +84,12 @@ contains
     if (id < 1 .or. id > N_gauss) stop 'Error -- comm_gauss_br_mod: id out of range'
     
     ! Initialize Gaussianized BR object
-    if (allocated(comm_gauss_br(id)%mu))   deallocate(comm_gauss_br(id)%mu)
-    if (allocated(comm_gauss_br(id)%cov))  deallocate(comm_gauss_br(id)%cov)
-    if (allocated(comm_gauss_br(id)%cl2x)) deallocate(comm_gauss_br(id)%cl2x)
+    if (allocated(comm_gauss_br(id)%mu))       deallocate(comm_gauss_br(id)%mu)
+    if (allocated(comm_gauss_br(id)%mu_sigma)) deallocate(comm_gauss_br(id)%mu_sigma)
+    if (allocated(comm_gauss_br(id)%cov))      deallocate(comm_gauss_br(id)%cov)
+    if (allocated(comm_gauss_br(id)%cl2x))     deallocate(comm_gauss_br(id)%cl2x)
     call read_gauss_BR_datafile_int(gaussfile, lmin, lmax, comm_gauss_br(id)%mu, &
-         & comm_gauss_br(id)%cov, comm_gauss_br(id)%cl2x)
+         & comm_gauss_br(id)%cov, comm_gauss_br(id)%cl2x, comm_gauss_br(id)%mu_sigma)
     comm_gauss_br(id)%lmin        = lmin
     comm_gauss_br(id)%lmax        = lmax
     comm_gauss_br(id)%nbin        = size(comm_gauss_br(id)%cl2x,1)
@@ -131,15 +132,9 @@ contains
        end do
     end do
 
-    ! Compute offset for "chisq"-like normalization
+    ! Compute offset for "chisq"-like normalization, defined by lnL(mean(sigma_l)) = 0
     comm_gauss_br(id)%offset = 0.d0
-    do l = comm_gauss_br(id)%lmin, comm_gauss_br(id)%lmax
-       pos = minloc(abs(comm_gauss_br(id)%cl2x(:,l,2)))
-       cl  = comm_gauss_br(id)%cl2x(pos(1),l,1)
-       comm_gauss_br(id)%offset = comm_gauss_br(id)%offset + &
-            & log(splint_deriv_gauss_br(comm_gauss_br(id)%cl2x(:,l,1), &
-            & comm_gauss_br(id)%cl2x(:,l,2), comm_gauss_br(id)%cl2x(:,l,3), cl))
-    end do
+    comm_gauss_br(id)%offset = comm_gauss_br_compute_lnL(comm_gauss_br(id)%mu_sigma(2:lmax), handle)
     
   end subroutine comm_gauss_br_initialize_object
 
@@ -243,12 +238,12 @@ contains
   end function comm_gauss_br_getlun
   
 
-  subroutine read_gauss_BR_datafile_int(filename, lmin, lmax, mu, cov, cl2x)
+  subroutine read_gauss_BR_datafile_int(filename, lmin, lmax, mu, cov, cl2x, mu_sigma)
     implicit none
 
     character(len=*),                        intent(in)  :: filename
     integer(i4b),                            intent(in)  :: lmin, lmax
-    real(dp), allocatable, dimension(:),     intent(out) :: mu
+    real(dp), allocatable, dimension(:),     intent(out) :: mu, mu_sigma
     real(dp), allocatable, dimension(:,:),   intent(out) :: cov
     real(dp), allocatable, dimension(:,:,:), intent(out) :: cl2x
     
@@ -258,7 +253,7 @@ contains
     logical(lgt)         :: simple, extend, anyf, exist
     real(dp)             :: nullval
     character(len=80)    :: comment, errorline
-    real(dp), allocatable, dimension(:)     :: mu_in
+    real(dp), allocatable, dimension(:)     :: mu_in, mu_sigma_in
     real(dp), allocatable, dimension(:,:)   :: cov_in
     real(dp), allocatable, dimension(:,:,:) :: cl2x_in
 
@@ -279,7 +274,7 @@ contains
     call ftgkyj(unit, 'LMIN',  lmin_in, comment,status)
     call ftgkyj(unit, 'LMAX',  lmax_in, comment,status)
     call ftgkyj(unit, 'NBIN',  nbin,    comment,status)
-    allocate(cl2x_in(nbin,lmin_in:lmax_in,3), mu_in(lmin_in:lmax_in))
+    allocate(cl2x_in(nbin,lmin_in:lmax_in,3), mu_in(lmin_in:lmax_in), mu_sigma_in(lmin_in:lmax_in))
     allocate(cov_in(lmin_in:lmax_in,lmin_in:lmax_in))
     call ftgpvd(unit, group, fpixel, size(cl2x_in), nullval, cl2x_in, anyf, status)
 
@@ -290,6 +285,10 @@ contains
     ! Read covariance matrix
     call ftmahd(unit, 3, hdutype, status)
     call ftgpvd(unit, group, fpixel, size(cov_in), nullval, cov_in, anyf, status)
+
+    ! Read mean sigma vector
+    call ftmahd(unit, 4, hdutype, status)
+    call ftgpvd(unit, group, fpixel, size(mu_sigma_in), nullval, mu_sigma_in, anyf, status)
 
     ! Close file
     call ftclos(unit, status)
@@ -314,10 +313,11 @@ contains
     end if
 
     ! Copy relevant data into output data structures
-    allocate(cl2x(nbin,lmin:lmax,3), mu(lmin:lmax), cov(lmin:lmax,lmin:lmax))
-    cl2x = cl2x_in(:,lmin:lmax,:)
-    mu   = mu_in(lmin:lmax)
-    cov  = cov_in(lmin:lmax,lmin:lmax)
+    allocate(cl2x(nbin,lmin:lmax,3), mu(lmin:lmax), cov(lmin:lmax,lmin:lmax), mu_sigma(2:lmax))
+    cl2x     = cl2x_in(:,lmin:lmax,:)
+    mu       = mu_in(2:lmax)
+    cov      = cov_in(lmin:lmax,lmin:lmax)
+    mu_sigma = mu_sigma_in(2:lmax)
 
     deallocate(cl2x_in, mu_in, cov_in)
     

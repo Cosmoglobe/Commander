@@ -1331,7 +1331,7 @@ contains
           return
        end if
     end do
-    
+
     lnL = 0.d0
     do l = 1, numband
        !if (c_lnL%x%info%myid == 0) write(*,*) l, numband
@@ -1343,7 +1343,7 @@ contains
        ! Compute likelihood 
        lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
 
-       !if (c_lnL%x%info%myid == 0) write(*,*) l, s, lnL
+       !if (c_lnL%x%info%myid == 0) write(*,*) l, res_smooth(l)%p%map(k_lnL,p_lnL), s, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), lnL
 
 !!$       if (c_lnL%x%info%pix(k_lnL) == 534044) then
 !!$          write(*,fmt='(5f10.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,p_lnL)-a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
