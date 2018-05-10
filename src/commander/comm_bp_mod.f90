@@ -233,7 +233,7 @@ contains
 
     select case (trim(self%type))
     case ('delta')
-       SED2F = f(1)
+       SED2F = f(1) * self%a2t
     case ('LFI')
        SED2F = tsum(self%nu, self%tau * f)
     case ('HFI_cmb')
