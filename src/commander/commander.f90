@@ -5,6 +5,8 @@ program commander
   use comm_cr_mod
   use comm_chisq_mod
   use comm_output_mod
+  use comm_comp_mod
+  use comm_nonlin_mod
   implicit none
 
   ! *********************************************************************
@@ -29,16 +31,23 @@ program commander
   ! *                                                                   *
   ! *********************************************************************
 
-  integer(i4b)        :: iargc, ierr, iter, stat
+  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group
+  real(dp)            :: t1, t2
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle
+
+  type(comm_mapinfo), pointer :: info
+  type(comm_map), pointer :: m
+  class(comm_comp), pointer :: c1
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
   call read_comm_params(cpar)
   call initialize_mpi_struct(cpar, handle)
-  call init_status(status, 'comm_status.txt')
+  call validate_params(cpar)  
+  call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
+  status%active = .false.
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -61,9 +70,24 @@ program commander
   ! ************************************************
 
   call update_status(status, "init")
-  call initialize_bp_mod(cpar);          call update_status(status, "init_bp")
-  call initialize_data_mod(cpar);        call update_status(status, "init_data")
-  call initialize_signal_mod(cpar);      call update_status(status, "init_signal")
+  call initialize_bp_mod(cpar);            call update_status(status, "init_bp")
+  call initialize_data_mod(cpar, handle);  call update_status(status, "init_data")
+  call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
+  call initialize_from_chain(cpar);        call update_status(status, "init_from_chain")
+
+  if (cpar%output_input_model) then
+     if (cpar%myid == 0) write(*,*) 'Outputting input model to sample number 999999'
+     call output_FITS_sample(cpar, 999999, .false.)
+     call mpi_finalize(ierr)
+     stop
+  end if
+
+  ! Output SEDs for each component
+  if (cpar%output_debug_seds) then
+     if (cpar%myid == cpar%root) call dump_components('sed.dat')
+     call mpi_finalize(ierr)
+     stop
+  end if
   
   ! **************************************************************
   ! *                   Carry out computations                   *
@@ -74,14 +98,39 @@ program commander
   ! Initialize output structures
 
   ! Run Gibbs loop
-  do iter = 1, cpar%num_gibbs_iter
+  first_sample = 1
+!  if (trim(cpar%init_chain_prefix) == trim(cpar%chain_prefix)) 
+first_sample = 1 !cpar%init_samp+1
+  do iter = first_sample, cpar%num_gibbs_iter
 
-     ! Sample linear parameters with CG search
-     call sample_amps_by_CG(cpar, handle)
+     if (cpar%myid == 0) then
+        call wall_time(t1)
+        write(*,fmt='(a)') '---------------------------------------------------------------------'
+        write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
+     end if
 
-     ! Sample amplitude parameters with positivity prior
+     ! Sample linear parameters with CG search; loop over CG sample groups
+     if (cpar%sample_signal_amplitudes) then
+        do samp_group = 1, cpar%cg_num_samp_groups
+           if (cpar%myid == 0) then
+              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_samp_groups
+           end if
+           call sample_amps_by_CG(cpar, samp_group, handle)
+        end do
+     end if
 
-     ! Sample spectral indices
+     ! Output sample to disk
+     call output_FITS_sample(cpar, iter, .true.)
+
+     ! Sample partial-sky templates
+     !call sample_partialsky_tempamps(cpar, handle)
+
+     !call output_FITS_sample(cpar, 1000, .true.)
+
+     ! Sample non-linear parameters
+     do i = 1, cpar%num_ind_cycle
+        call sample_nonlin_params(cpar, iter, handle)
+     end do
 
      ! Sample instrumental parameters
 
@@ -89,8 +138,10 @@ program commander
 
      ! Compute goodness-of-fit statistics
      
-     ! Output sample to disk
-     call output_FITS_sample(cpar, iter)
+     if (cpar%myid == 0) then
+        call wall_time(t2)
+        write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+     end if
      
   end do
 

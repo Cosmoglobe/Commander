@@ -7,10 +7,15 @@ module comm_diffuse_comp_mod
   use comm_Cl_mod
   use math_tools
   use comm_cr_utils
+  use comm_cr_precond_mod
+  use comm_hdf_mod
+  use InvSamp_mod
+  use powell_mod
   implicit none
 
   private
-  public comm_diffuse_comp, precondDiff, precond_diff_comps
+  public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
+       & res_smooth, rms_smooth, print_precond_mat
   
   !**************************************************
   !            Diffuse component class
@@ -18,74 +23,97 @@ module comm_diffuse_comp_mod
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0
-     logical(lgt)       :: pol
-     integer(i4b)       :: lmax_amp, lmax_ind, lpiv
+     logical(lgt)       :: pol, output_mixmat, output_EB
+     integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod
+     real(dp)           :: cg_scale
      real(dp), allocatable, dimension(:,:) :: cls
      real(dp), allocatable, dimension(:,:) :: F_mean
 
      class(comm_map),               pointer     :: mask
-     class(comm_map),               pointer     :: x      ! Spatial parameters
-     class(comm_map),               pointer     :: inv_M  ! Preconditioner
-     class(comm_B),                 pointer     :: B_out  ! Output beam
-     class(comm_Cl),                pointer     :: Cl     ! Power spectrum
-     class(map_ptr),  dimension(:), allocatable :: theta  ! Spectral parameters
-     type(map_ptr),   dimension(:), allocatable :: F      ! Mixing matrix
-     type(F_int_ptr), dimension(:), allocatable :: F_int  ! SED integrator
+     class(comm_map),               pointer     :: procmask
+     class(comm_map),               pointer     :: indmask
+     class(comm_map),               pointer     :: x            ! Spatial parameters
+     class(comm_map),               pointer     :: x_smooth     ! Spatial parameters
+     class(comm_map),               pointer     :: mu           ! Spatial prior mean
+     class(comm_B),                 pointer     :: B_out        ! Output beam
+     class(comm_Cl),                pointer     :: Cl           ! Power spectrum
+     class(map_ptr),  dimension(:), allocatable :: theta        ! Spectral parameters
+     class(map_ptr),  dimension(:), allocatable :: theta_smooth ! Spectral parameters
+     type(map_ptr),   dimension(:), allocatable :: F            ! Mixing matrix
+     logical(lgt),    dimension(:), allocatable :: F_null       ! Don't allocate space for null mixmat's
+     type(F_int_ptr), dimension(:), allocatable :: F_int        ! SED integrator
    contains
      procedure :: initDiffuse
-     procedure :: updateMixmat
-!!$     procedure :: dumpHDF  => dumpDiffuseToHDF
-     procedure :: getBand     => evalDiffuseBand
-     procedure :: projectBand => projectDiffuseBand
-     procedure :: dumpFITS    => dumpDiffuseToFITS
-     procedure :: initPrecond 
+     procedure :: updateMixmat  => updateDiffuseMixmat
+!!$     procedure :: dumpHDF    => dumpDiffuseToHDF
+     procedure :: getBand       => evalDiffuseBand
+     procedure :: projectBand   => projectDiffuseBand
+     procedure :: dumpFITS      => dumpDiffuseToFITS
+     procedure :: initHDF       => initDiffuseHDF
+     procedure :: sampleSpecInd => sampleDiffuseSpecInd
   end type comm_diffuse_comp
 
   type diff_ptr
      class(comm_diffuse_comp), pointer :: p
   end type diff_ptr
   
-  type precondDiff
-     integer(i4b) :: lmax, nside, nmaps
-     real(dp)     :: Nscale
-     real(dp), allocatable, dimension(:,:,:,:) :: invM0 ! (npre,npre,0:nalm-1,nmaps)
-     real(dp), allocatable, dimension(:,:,:,:) :: invM  ! (npre,npre,0:nalm-1,nmaps)
-   contains
-     procedure :: update  => updateDiffPrecond
-  end type precondDiff
-
-  interface precondDiff
-     procedure constPreDiff
-  end interface precondDiff
-  
   integer(i4b) :: npre      =  0
   integer(i4b) :: lmax_pre  = -1
   integer(i4b) :: nside_pre = 1000000
   integer(i4b) :: nmaps_pre = -1
+  logical(lgt) :: recompute_diffuse_precond = .true.
+  logical(lgt) :: output_cg_eigenvals
+  logical(lgt), private :: only_pol
+  character(len=512) :: outdir, precond_type
   class(comm_mapinfo), pointer                   :: info_pre
   class(diff_ptr),     allocatable, dimension(:) :: diffComps
+
+  character(len=24), private :: operation
+
+  ! Variables for non-linear search
+  class(comm_diffuse_comp), pointer,       private :: c_lnL
+  integer(i4b),                            private :: k_lnL, p_lnL, id_lnL
+  real(dp),                                private :: a_lnL
+  real(dp), allocatable, dimension(:),     private :: theta_lnL        
+  logical(lgt),                            private :: apply_mixmat = .true.
+  type(map_ptr),        allocatable, dimension(:) :: res_smooth
+  type(comm_N_rms_ptr), allocatable, dimension(:) :: rms_smooth
   
 contains
 
-  subroutine initDiffuse(self, cpar, id)
+  subroutine initDiffuse(self, cpar, id, id_abs)
     implicit none
     class(comm_diffuse_comp)            :: self
     type(comm_params),       intent(in) :: cpar
-    integer(i4b),            intent(in) :: id
+    integer(i4b),            intent(in) :: id, id_abs
 
     integer(i4b) :: i
     type(comm_mapinfo), pointer :: info
     
-    call self%initComp(cpar, id)
+    call self%initComp(cpar, id, id_abs)
 
     ! Initialize variables specific to diffuse source type
-    self%pol      = cpar%cs_polarization(id)
-    self%nside    = cpar%cs_nside(id)
-    self%lmax_amp = cpar%cs_lmax_amp(id)
-    self%lmax_ind = cpar%cs_lmax_ind(id)
-    self%cltype   = cpar%cs_cltype(id)
-    self%nmaps    = 1; if (self%pol) self%nmaps = 3
-    info          => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
+    self%pol           = cpar%cs_polarization(id_abs)
+    self%nside         = cpar%cs_nside(id_abs)
+    self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
+    self%l_apod        = cpar%cs_l_apod(id_abs)
+    self%lmax_ind      = cpar%cs_lmax_ind(id_abs)
+    self%cltype        = cpar%cs_cltype(id_abs)
+    self%cg_scale      = cpar%cs_cg_scale(id_abs)
+    self%nmaps         = 1; if (self%pol) self%nmaps = 3
+    self%output_mixmat = cpar%output_mixmat
+    only_pol           = cpar%only_pol
+    output_cg_eigenvals = cpar%output_cg_eigenvals
+    outdir              = cpar%outdir
+    precond_type        = cpar%cg_precond
+    info               => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_amp, self%nmaps, self%pol)
+    if (self%pol) then
+       self%output_EB     = cpar%cs_output_EB(id_abs)
+    else
+       self%output_EB     = .false.
+    end if
+    operation          = cpar%operation
+       
 
     ! Diffuse preconditioner variables
     npre      = npre+1
@@ -94,46 +122,87 @@ contains
     nmaps_pre = max(nmaps_pre, self%nmaps)
 
     ! Initialize amplitude map
-    if (trim(cpar%cs_input_amp(id)) == 'zero' .or. trim(cpar%cs_input_amp(id)) == 'none') then
+    if (trim(cpar%cs_input_amp(id_abs)) == 'zero' .or. trim(cpar%cs_input_amp(id_abs)) == 'none') then
        self%x => comm_map(info)
     else
        ! Read map from FITS file, and convert to alms
-       self%x => comm_map(info, cpar%cs_input_amp(id))
+       self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
+       self%x%map = self%x%map / self%RJ2unit_
        call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
 
-    ! Initialize preconditioner structure
-    self%inv_M => comm_map(info)
+    ! Read processing mask
+    if (trim(cpar%ds_procmask) /= 'none') then
+       self%procmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+            & udgrade=.true.)
+    end if
+
+    ! Read processing mask
+    if (trim(cpar%cs_indmask(id_abs)) /= 'fullsky') then
+       self%indmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_indmask(id_abs)), &
+            & udgrade=.true.)
+    end if
+
+    ! Initialize prior mean
+    if (trim(cpar%cs_prior_amp(id_abs)) /= 'none') then
+       self%mu => comm_map(info, cpar%cs_prior_amp(id_abs))
+       call self%mu%YtW
+    end if
 
     ! Allocate mixing matrix
-    allocate(self%F(numband), self%F_mean(numband,self%nmaps))
+    call update_status(status, "init_pre_mix")
+    allocate(self%F(numband), self%F_mean(numband,self%nmaps), self%F_null(numband))
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-       self%F(i)%p => comm_map(info)
+       self%F(i)%p    => comm_map(info)
+       self%F_null(i) =  .false.
     end do
+    call update_status(status, "init_postmix")
 
     ! Initialize output beam
-    self%B_out => comm_B_bl(cpar, self%x%info, 0, fwhm=cpar%cs_fwhm(id))
+    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
+         & init_realspace=.false.)
 
     ! Initialize power spectrum
-    self%Cl => comm_Cl(cpar, self%x%info, id)
+    self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)
+
+    ! Initialize pointers for non-linear search
+    if (.not. allocated(res_smooth)) allocate(res_smooth(numband))
+    if (.not. allocated(rms_smooth)) allocate(rms_smooth(numband))
     
   end subroutine initDiffuse
 
-  function constPreDiff(comm, Nscale)
+  subroutine initDiffPrecond(comm)
     implicit none
     integer(i4b),                intent(in) :: comm
-    real(dp),                    intent(in) :: Nscale
-    class(precondDiff), pointer             :: constPreDiff
 
-    integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m
+    select case (trim(precond_type))
+    case ("diagonal")
+       call initDiffPrecond_diagonal(comm)
+    case ("pseudoinv")
+       call initDiffPrecond_pseudoinv(comm)
+    case default
+       call report_error("Preconditioner type not supported")
+    end select
+
+  end subroutine initDiffPrecond
+
+  subroutine initDiffPrecond_diagonal(comm)
+    implicit none
+    integer(i4b),                intent(in) :: comm
+
+    integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
+    real(dp)     :: t1, t2
+    integer(i4b), allocatable, dimension(:) :: ind
     class(comm_comp),         pointer :: c
     class(comm_diffuse_comp), pointer :: p1, p2
+    real(dp),     allocatable, dimension(:,:) :: mat
 
-    allocate(constPreDiff)
-
+    if (npre == 0) return
+    if (allocated(P_cr%invM_diff)) return
+    
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
        allocate(diffComps(npre))
@@ -149,85 +218,427 @@ contains
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
-
+    
     ! Build frequency-dependent part of preconditioner
-    allocate(constPreDiff%invM0(npre,npre,0:info_pre%nalm-1,info_pre%nmaps))
-    allocate(constPreDiff%invM(npre,npre,0:info_pre%nalm-1,info_pre%nmaps))
-    constPreDiff%invM0 = 0.d0
+    call wall_time(t1)
+    allocate(P_cr%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
+    allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
+       !!$OMP DO SCHEDULE(guided)
        do i1 = 0, info_pre%nalm-1
           call info_pre%i2lm(i1, l, m)
+          mat = 0.d0
           do q = 1, numband
              call data(q)%info%lm2i(l,m,i2)
              if (i2 == -1) cycle
              do k1 = 1, npre
                 p1 => diffComps(k1)%p
+                if (l > p1%lmax_amp) cycle
                 do k2 = 1, npre
                    p2 => diffComps(k2)%p
-                   constPreDiff%invM0(k1,k2,i1,j) = constPreDiff%invM0(k1,k2,i1,j) + &
-                        & data(q)%N%invN_diag%alm(i2,j) * &                         ! invN_{lm,lm}
-                        & data(q)%B%b_l(l,j)**2 * &                                 ! b_l^2
-                        & p1%F_mean(q,j) * p2%F_mean(q,j) ! F(c1)*F(c2)
+                   if (l > p2%lmax_amp) cycle
+                   mat(k1,k2) = mat(k1,k2) + &
+                        & data(q)%N%invN_diag%alm(i2,j) * &  ! invN_{lm,lm}
+                        & data(q)%B%b_l(l,j)**2 * &          ! b_l^2
+                        & p1%F_mean(q,j) * p2%F_mean(q,j)    ! F(c1)*F(c2)
                 end do
              end do
           end do
+
+          n = 0
+          allocate(P_cr%invM_diff(i1,j)%comp2ind(npre))
+          P_cr%invM_diff(i1,j)%comp2ind = -1
+          do k1 = 1, npre
+             if (mat(k1,k1) > 0.d0) then
+                n = n+1
+                ind(n) = k1
+                P_cr%invM_diff(i1,j)%comp2ind(k1) = n
+             end if
+          end do
+          P_cr%invM_diff(i1,j)%n = n
+          allocate(P_cr%invM_diff(i1,j)%ind(n))
+          allocate(P_cr%invM_diff(i1,j)%M0(n,n), P_cr%invM_diff(i1,j)%M(n,n))
+          P_cr%invM_diff(i1,j)%ind = ind(1:n)
+          P_cr%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
+       end do
+       !!$OMP END DO
+    end do
+    deallocate(ind, mat)
+    !!$OMP END PARALLEL
+    call wall_time(t2)
+
+  end subroutine initDiffPrecond_diagonal
+
+
+  subroutine initDiffPrecond_pseudoinv(comm)
+    implicit none
+    integer(i4b),                intent(in) :: comm
+
+    integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
+    real(dp)     :: t1, t2
+    integer(i4b), allocatable, dimension(:) :: ind
+    class(comm_comp),         pointer :: c
+    class(comm_diffuse_comp), pointer :: p1, p2
+    real(dp),     allocatable, dimension(:,:) :: mat
+
+    if (npre == 0) return
+    if (allocated(P_cr%invM_diff)) return
+    
+    if (.not. allocated(diffComps)) then
+       ! Set up an array of all the diffuse components
+       allocate(diffComps(npre))
+       c => compList
+       i =  1
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             diffComps(i)%p => c
+             i              =  i+1
+          end select
+          c => c%next()
+       end do
+       info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
+    end if
+    
+    ! Allocate space for pseudo-inverse of U
+    call wall_time(t1)
+    allocate(P_cr%invM_diff(0:lmax_pre,info_pre%nmaps))
+    do j = 1, info_pre%nmaps
+       do l = 0, lmax_pre
+          allocate(P_cr%invM_diff(l,j)%M(npre,numband+npre))
        end do
     end do
 
-  end function constPreDiff
+  end subroutine initDiffPrecond_pseudoinv
 
-  subroutine updateDiffPrecond(self)
+
+  subroutine updateDiffPrecond
     implicit none
-    class(precondDiff), intent(inout) :: self
 
-    integer(i4b) :: i, j, k1, k2
+    select case (trim(precond_type))
+    case ("diagonal")
+       call updateDiffPrecond_diagonal
+    case ("pseudoinv")
+       call updateDiffPrecond_pseudoinv
+    case default
+       call report_error("Preconditioner type not supported")
+    end select
+
+  end subroutine updateDiffPrecond
+
+  subroutine updateDiffPrecond_diagonal
+    implicit none
+
+    integer(i4b) :: i, j, k, k1, k2, l, m, n, ierr, unit, p, q
+    real(dp)     :: W_ref, t1, t2
+    logical(lgt), save :: first_call = .true.
+    integer(i4b), allocatable, dimension(:) :: ind
+    real(dp),     allocatable, dimension(:) :: W
+    real(dp),     allocatable, dimension(:) :: cond, W_min
+    real(dp),     allocatable, dimension(:,:) :: alm
+
+    if (npre == 0) return
+    if (.not. recompute_diffuse_precond) return
     
-    self%invM = self%invM0
-    
+    ! Initialize current preconditioner to F^t * B^t * invN * B * F
+    !self%invM    = self%invM0
+    do j = 1, info_pre%nmaps
+       do i = 0, info_pre%nalm-1
+          if (P_cr%invM_diff(i,j)%n > 0) P_cr%invM_diff(i,j)%M = P_cr%invM_diff(i,j)%M0
+       end do
+    end do
+
+!!$    if (info_pre%myid == 0) then
+!!$       n = self%invM_(0,1)%n
+!!$       allocate(W(n))
+!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
+!!$       write(*,*) 'W0 = ', real(W,sp)
+!!$       deallocate(W)
+!!$       write(*,*) 
+!!$       do i = 1, 3
+!!$          write(*,*) real(self%invM_(0,1)%M(i,:),sp)
+!!$       end do
+!!$       write(*,*)
+!!$    end if
+
     ! Right-multiply with sqrt(Cl)
+    call wall_time(t1)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
+       allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
+       !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
-          call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k2,k1,:,:))
+          do j = 1, info_pre%nmaps
+             do i = 0, info_pre%nalm-1
+                if (P_cr%invM_diff(i,j)%n == 0) cycle
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) then
+                   alm(i,j) = P_cr%invM_diff(i,j)%M(q,p)
+                else
+                   alm(i,j) = 0.d0
+                end if
+             end do
+          end do
+          !if (info_pre%myid == 0) write(*,*) 'a', k1, k2, alm(4,1)
+          call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
+          !if (info_pre%myid == 0) write(*,*) 'b', k1, k2, alm(4,1)
+          !call mpi_finalize(j)
+          !stop
+          do j = 1, info_pre%nmaps
+             do i = 0, info_pre%nalm-1
+                if (P_cr%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(q,p) = alm(i,j)
+             end do
+          end do
        end do
+       !$OMP END DO
+       deallocate(alm)
+       !$OMP END PARALLEL
     end do
 
     ! Left-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
+       allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
+       !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
-          call diffComps(k1)%p%Cl%sqrtS(alm=self%invM(k1,k2,:,:))
+          do j = 1, info_pre%nmaps
+             do i = 0, info_pre%nalm-1
+                if (P_cr%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) then
+                   alm(i,j) = P_cr%invM_diff(i,j)%M(p,q)
+                else
+                   alm(i,j) = 0.d0
+                end if
+             end do
+          end do
+!          if (info_pre%myid == 0) write(*,*) 'c', k1, k2, alm(4,1)
+          call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
+!          if (info_pre%myid == 0) write(*,*) 'd', k1, k2, alm(4,1)
+          do j = 1, info_pre%nmaps
+             do i = 0, info_pre%nalm-1
+                if (P_cr%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(p,q) = alm(i,j)
+             end do
+          end do
        end do
+       !$OMP END DO
+       deallocate(alm)
+       !$OMP END PARALLEL
     end do
+    !call wall_time(t2)
+    !write(*,*) 'sqrtS = ', t2-t1
+
+    ! Nullify temperature block if only polarization
+    if (only_pol) then
+       do i = 0, info_pre%nalm-1
+          if (P_cr%invM_diff(i,1)%n == 0) cycle                
+          P_cr%invM_diff(i,1)%M = 0.d0
+       end do
+    end if
+
+!!$    if (info_pre%myid == 0) then
+!!$       n = self%invM_(0,1)%n
+!!$       allocate(W(n))
+!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
+!!$       write(*,*) 'W1 = ', real(W,sp)
+!!$       deallocate(W)
+!!$       write(*,*) 
+!!$       do i = 1, 3
+!!$          write(*,*) real(self%invM_(0,1)%M(i,:),sp)
+!!$       end do
+!!$       write(*,*)
+!!$    end if
+
 
     ! Add unity 
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
-       self%invM(k1,k1,:,:) = self%invM(k1,k1,:,:) + 1.d0
+       !!$OMP PARALLEL PRIVATE(i,l,m,j,p)
+       !!$OMP DO SCHEDULE(guided)
+       do i = 0, info_pre%nalm-1
+          call info_pre%i2lm(i, l, m)
+          !if (info_pre%myid == 1) then
+          !write(*,*) info_pre%myid, i, l, m
+          !end if
+          if (l <= diffComps(k1)%p%lmax_amp) then
+             do j = 1, info_pre%nmaps
+                if (P_cr%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                if (p > 0) P_cr%invM_diff(i,j)%M(p,p) = P_cr%invM_diff(i,j)%M(p,p) + 1.d0
+             end do
+          end if
+       end do
+       !!$OMP END DO
+       !!$OMP END PARALLEL
     end do
 
-    ! Invert
+!!$    if (info_pre%myid == 0) then
+!!$       n = self%invM_(0,1)%n
+!!$       allocate(W(n))
+!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
+!!$       write(*,*) 'W2 = ', real(W,sp)
+!!$       deallocate(W)
+!!$    end if
+
+!!$    call mpi_finalize(i)
+!!$    stop
+
+    ! Print out worst condition number in first call
+    call wall_time(t1)
+    if (first_call .and. output_cg_eigenvals) then
+       allocate(cond(0:lmax_pre), W_min(0:lmax_pre))
+       cond  = 0.d0
+       W_min = 1.d30
+       do j = 1, nmaps_pre
+          do i = 0, info_pre%nalm-1
+             call info_pre%i2lm(i, l, m)
+             n = P_cr%invM_diff(i,j)%n
+             if (n > 0) then
+                allocate(W(n), ind(n))
+                call get_eigenvalues(P_cr%invM_diff(i,j)%M, W)
+                W_ref    = minval(abs(W))
+                cond(l)  = max(cond(l), maxval(abs(W/W_ref)))
+                W_min(l) = min(W_min(l), minval(W))
+                deallocate(W, ind)
+             end if
+          end do
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, cond,  lmax_pre+1, MPI_DOUBLE_PRECISION, MPI_MAX, info_pre%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, W_min, lmax_pre+1, MPI_DOUBLE_PRECISION, MPI_MIN, info_pre%comm, ierr)
+       if (info_pre%myid == 0) then
+          write(*,*) 'Precond -- largest condition number = ', real(maxval(cond),sp)
+          write(*,*) 'Precond -- smallest eigenvalue      = ', real(minval(W_min),sp)
+          unit = getlun()
+          open(unit, file=trim(outdir)//'/precond_eigenvals.dat', recl=1024)
+          do l = 0, lmax_pre
+             write(unit,fmt='(i8,2e16.8)') l, cond(l), W_min(l)
+          end do
+          close(unit)
+       end if
+
+       first_call = .false.
+       deallocate(cond, W_min)
+    end if
+    call wall_time(t2)
+    !write(*,*) 'eigen = ', t2-t1
+
+    ! Invert matrix
+    call wall_time(t1)
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          call invert_matrix_with_mask(self%invM(:,:,i,j))
+!!$          if (info_pre%myid == 0) then
+!!$             do k = 1, P_cr%invM_diff(i,j)%n
+!!$                write(*,*) real(P_cr%invM_diff(i,j)%M(k,:),sp)
+!!$             end do
+!!$          end if
+          if (P_cr%invM_diff(i,j)%n > 0) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
        end do
-    end do    
+    end do
+    call wall_time(t2)
+    !write(*,*) 'invert = ', t2-t1
 
-  end subroutine updateDiffPrecond
+    ! Disable preconditioner update
+    recompute_diffuse_precond = .false.
+       
+  end subroutine updateDiffPrecond_diagonal
+
+
+  subroutine updateDiffPrecond_pseudoinv
+    implicit none
+
+    integer(i4b) :: i, j, k, l, n, ierr, p, q
+    real(dp)     :: t1, t2, Cl
+    real(dp),     allocatable, dimension(:,:) :: mat
+
+    if (npre == 0) return
+    if (.not. recompute_diffuse_precond) return
+
+    ! Build pinv_U
+    call wall_time(t1)
+    allocate(mat(numband+npre,npre))
+    do j = 1, info_pre%nmaps
+       do l = 0, lmax_pre
+
+          ! Data section
+          mat = 0.d0
+          do q = 1, numband
+             if (l > data(q)%info%lmax) cycle
+             do k = 1, npre
+                if (l > diffComps(k)%p%lmax_amp) cycle
+                mat(q,k) = data(q)%N%alpha_nu(j) * &
+                          & data(q)%B%b_l(l,j) * &
+                          & diffComps(k)%p%F_mean(q,j)
+
+                if (trim(diffComps(k)%p%Cl%type) /= 'none') then
+                   mat(q,k) = mat(q,k)*sqrt(diffComps(k)%p%Cl%getCl(l,j))
+                end if
+             end do
+          end do
+
+          ! Prior section
+          do k = 1, npre
+             if (trim(diffComps(k)%p%Cl%type) == 'none' .or. l > diffComps(k)%p%lmax_amp) cycle
+             mat(numband+k,k) = 1.d0
+          end do
+
+          ! Store pseudo-inverse of U
+          call compute_pseudo_inverse(mat, P_cr%invM_diff(l,j)%M)
+          !P_cr%invM_diff(l,j)%M = transpose(mat)
+
+!!$          !if (info_pre%myid == 0 .and. l > 4498 .and. l < 4503) then
+!!$          if (info_pre%myid == 0) then
+!!$             write(*,*)
+!!$             do k = 1, numband+npre
+!!$                write(*,*) mat(k,:)
+!!$             end do
+!!$             write(*,*) shape(mat)
+!!$             do k = 1, npre
+!!$                write(*,*) P_cr%invM_diff(l,j)%M(k,:)
+!!$             end do
+!!$          end if
+
+       end do
+    end do
+    deallocate(mat)
+    call wall_time(t2)
+
+!!$    call mpi_finalize(k)
+!!$    stop
+
+    ! Disable preconditioner update
+    recompute_diffuse_precond = .false.
+
+  end subroutine updateDiffPrecond_pseudoinv
     
   
   ! Evaluate amplitude map in brightness temperature at reference frequency
-  subroutine updateMixmat(self, theta)
+  subroutine updateDiffuseMixmat(self, theta, beta)
     implicit none
     class(comm_diffuse_comp),                  intent(inout)           :: self
     class(comm_map),           dimension(:),   intent(in),    optional :: theta
+    real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
 
     integer(i4b) :: i, j, k, n, nmaps, ierr
     real(dp),        allocatable, dimension(:,:) :: theta_p
     real(dp),        allocatable, dimension(:)   :: nu, s, buffer
     class(comm_mapinfo),          pointer        :: info
     class(comm_map),              pointer        :: t, t0
+
+    if (trim(self%type) == 'md') return
     
+    call update_status(status, "mixupdate1 " // trim(self%label))
+
     ! Copy over alms from input structure, and compute pixel-space parameter maps
     if (present(theta)) then
        do i = 1, self%npar
@@ -236,29 +647,40 @@ contains
     end if
     
     ! Compute mixing matrix
-    allocate(theta_p(self%nmaps,self%npar))
+    allocate(theta_p(self%npar,self%nmaps))
     do i = 1, numband
 
+       ! Don't update null mixing matrices
+       if (self%F_null(i)) cycle
+
        ! Compute spectral parameters at the correct resolution for this channel
-       if (self%npar > 0) then
-          info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(1)%p%info%lmax, &
-               & data(i)%info%nmaps, data(i)%info%pol)
+        if (self%npar > 0) then
+           info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(1)%p%info%lmax, &
+                & data(i)%info%nmaps, data(i)%info%pol)
           t    => comm_map(info)
           nmaps            = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
-          t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
-          call t%Y
+          if (self%lmax_ind >= 0) then
+             t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
+             call t%Y_scalar
+          else
+             call self%theta(1)%p%udgrade(t)
+          end if
           nullify(info)
           do j = 2, self%npar
              info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
                   & self%theta(j)%p%info%lmax, data(i)%info%nmaps, data(i)%info%pol)
              t0    => comm_map(info)
              nmaps            = min(data(i)%info%nmaps, self%theta(j)%p%info%nmaps)
-             t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-             call t0%Y
+             if (self%lmax_ind >= 0) then
+                t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
+                call t0%Y_scalar
+             else
+                call self%theta(j)%p%udgrade(t0)
+             end if
              call t%add(t0)
              nullify(info)
           end do
-       end if
+        end if
        
        ! Loop over all pixels, computing mixing matrix for each
        do j = 0, self%F(i)%p%info%np-1
@@ -281,51 +703,84 @@ contains
           end if
 
           ! Temperature
-          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) * data(i)%RJ2data()
+          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) * data(i)%gain * self%cg_scale
 
           ! Polarization
           if (self%nmaps == 3) then
              ! Stokes Q
-             if (all(self%poltype < 2)) then
-                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1)
+             if (self%npar == 0) then
+                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) 
+             else if (all(self%poltype < 2)) then
+                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) 
              else
-                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) * self%RJ2unit()
+                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) * data(i)%gain * self%cg_scale
              end if
        
              ! Stokes U
-             if (all(self%poltype < 3)) then
-                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2)
+             if (self%npar == 0) then
+                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) 
+             else if (all(self%poltype < 3)) then
+                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) 
              else
-                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) * self%RJ2unit()
+                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) * data(i)%gain * self%cg_scale
              end if
           end if
           
        end do
 
        ! Compute mixing matrix average; for preconditioning only
+       allocate(buffer(self%nmaps))
        do j = 1, self%nmaps
           self%F_mean(i,j) = sum(self%F(i)%p%map(:,j))
        end do
-       call mpi_allreduce(MPI_IN_PLACE, self%F_mean(i,:), self%nmaps, &
+       call mpi_allreduce(self%F_mean(i,:), buffer, self%nmaps, &
             & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
-       self%F_mean(i,:) = self%F_mean(i,:) / self%F(i)%p%info%npix
+       self%F_mean(i,:) = buffer / self%F(i)%p%info%npix
+       deallocate(buffer)
 
+       if (self%npar > 0) then
+          call t%dealloc(clean_info=.true.)
+          call t0%dealloc(clean_info=.true.)
+          nullify(t)
+          nullify(t0)
+       end if
+    
     end do
-    nullify(t, t0)
+    deallocate(theta_p)
 
-  end subroutine updateMixmat
+    call update_status(status, "mixupdate2 " // trim(self%label))
 
-  function evalDiffuseBand(self, band, amp_in, pix)
+    ! Request preconditioner update
+    recompute_diffuse_precond = .true.
+
+  end subroutine updateDiffuseMixmat
+
+  function evalDiffuseBand(self, band, amp_in, pix, alm_out)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
+    logical(lgt),                                 intent(in),  optional :: alm_out
     real(dp),        dimension(:,:), allocatable                        :: evalDiffuseBand
 
     integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp
+    logical(lgt) :: alm_out_
+    real(dp)     :: t1, t2
     class(comm_mapinfo), pointer :: info
     class(comm_map),     pointer :: m
+
+    alm_out_ = .false.; if (present(alm_out)) alm_out_ = alm_out
+
+    if (self%F_null(band)) then
+       if (alm_out_) then
+          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+       else
+          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
+       end if
+       evalDiffuseBand = 0.d0
+       return
+    end if
 
     ! Initialize amplitude map
     nmaps =  min(data(band)%info%nmaps, self%nmaps)
@@ -344,37 +799,50 @@ contains
        end do
     end if
 
-    ! Scale to correct frequency through multiplication with mixing matrix
-    if (self%lmax_ind == 0) then
-       do i = 1, m%info%nmaps
-          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
-       end do
-    else
-       call m%Y
-       m%map = m%map * self%F(band)%p%map
+    if (apply_mixmat) then
+       ! Scale to correct frequency through multiplication with mixing matrix
+       if (self%lmax_ind == 0) then
+          do i = 1, m%info%nmaps
+             m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+          end do
+       else
+          call m%Y()
+          m%map = m%map * self%F(band)%p%map
+          call m%YtW()
+       end if
     end if
-
+       
     ! Convolve with band-specific beam
-    call data(band)%B%conv(alm_in=(self%lmax_ind==0), alm_out=.false., trans=.false., map=m)
+    call data(band)%B%conv(trans=.false., map=m)
+    if (.not. alm_out_) call m%Y()
 
-    ! Return pixelized map
-    allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
-    evalDiffuseBand = m%map
+    ! Return correct data product
+    if (alm_out_) then
+       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+       evalDiffuseBand = m%alm
+    else
+       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
+       evalDiffuseBand = m%map
+    end if
+       
 
     ! Clean up
-    deallocate(m, info)
+    call m%dealloc(clean_info=.true.)
+    nullify(info)
 
   end function evalDiffuseBand
 
   ! Return component projected from map
-  function projectDiffuseBand(self, band, map)
+  function projectDiffuseBand(self, band, map, alm_in)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
+    logical(lgt),                                 intent(in), optional  :: alm_in
     real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
 
     integer(i4b) :: i, nmaps
+    logical(lgt) :: alm_in_
     class(comm_mapinfo), pointer :: info
     class(comm_map),     pointer :: m, m_out
 
@@ -383,64 +851,62 @@ contains
          & self%x%info%nmaps, self%x%info%nmaps==3)
     m_out     => comm_map(info)
     m         => comm_map(map)
-
-    ! Convolve with band-specific beam
-    call data(band)%B%conv(alm_in=.false., alm_out=(self%lmax_ind==0), trans=.true., map=m)
+    alm_in_ = .false.; if (present(alm_in)) alm_in_ = alm_in
 
     ! Scale to correct frequency through multiplication with mixing matrix
-    if (self%lmax_ind == 0) then
-       call m%alm_equal(m_out)
-       do i = 1, nmaps
-          m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
-       end do
-       m_out%alm = m_out%alm * self%x%info%npix/(4.d0*pi) ! From beam convolution
+    if (self%F_null(band)) then
+       m_out%alm = 0.d0
     else
-       m_out%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
-       call m_out%Yt
+       ! Convolve with band-specific beam
+       if (.not. alm_in) call m%Yt()
+       call data(band)%B%conv(trans=.true., map=m)
+
+       if (self%lmax_ind == 0) then
+          call m%alm_equal(m_out)
+          do i = 1, nmaps
+             m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
+          end do
+       else
+          call m%Y()
+          m_out%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
+          call m_out%YtW()
+       end if
     end if
 
-    allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+    if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
     projectDiffuseBand = m_out%alm
 
-    deallocate(m, m_out, info)
-    
+    call m%dealloc()
+    call m_out%dealloc(clean_info=.true.)
+    nullify(info)
+
   end function projectDiffuseBand
 
-  ! Return component projected from map
-  subroutine initPrecond(self)
+  subroutine applyDiffPrecond(x)
     implicit none
-    class(comm_diffuse_comp), intent(inout) :: self
+    real(dp),           dimension(:), intent(inout) :: x
 
-    integer(i4b) :: i, j, k, l, m, ind
-    real(dp)     :: alm(self%inv_M%info%nmaps)
+    select case (trim(precond_type))
+    case ("diagonal")
+       call applyDiffPrecond_diagonal(x)
+    case ("pseudoinv")
+       call applyDiffPrecond_pseudoinv(x)
+    case default
+       call report_error("Preconditioner type not supported")
+    end select
 
-    self%inv_M%map = 0.d0
-    do j = 0, self%x%info%nalm-1
-       call self%x%info%i2lm(j,l,m)
-       ! Compute inv_M = sum_nu F^t * B^t * invN * B * F
-       do i = 1, numband
-          call data(i)%N%invN_diag%info%lm2i(l,m,k)
-          if (k > -1) then
-             alm = data(i)%N%invN_diag%alm(k,:) * data(i)%B%b_l(l,:)**2 * self%F_mean(i,:)**2
-             if (trim(self%cltype) /= 'none') then
-                ! inv_M = C^(1/2) * F^t * B^t * invN * B * F * C^(1/2)
-             end if
-             self%inv_M%alm(j,:) = self%inv_M%alm(j,:) + alm
-          end if
-       end do
-    end do
+  end subroutine applyDiffPrecond
 
-  end subroutine initPrecond
-
-  subroutine precond_diff_comps(P, x)
+  subroutine applyDiffPrecond_diagonal(x)
     implicit none
-    class(precondDiff),               intent(in)    :: P
     real(dp),           dimension(:), intent(inout) :: x
 
     integer(i4b)              :: i, j, k, l, m, nmaps
     real(dp), allocatable, dimension(:,:)   :: alm
     real(dp), allocatable, dimension(:,:,:) :: y
 
+    if (npre == 0) return
+    
     ! Reformat linear array into y(npre,nalm,nmaps) structure
     allocate(y(npre,0:info_pre%nalm-1,info_pre%nmaps))
     y = 0.d0
@@ -458,7 +924,10 @@ contains
     ! Multiply with preconditioner
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
+          !y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
+          if (P_cr%invM_diff(i,j)%n == 0) cycle
+          y(P_cr%invM_diff(i,j)%ind,i,j) = &
+               & matmul(P_cr%invM_diff(i,j)%M, y(P_cr%invM_diff(i,j)%ind,i,j))
        end do
     end do
 
@@ -478,43 +947,641 @@ contains
     
     deallocate(y)
 
-  end subroutine precond_diff_comps
+  end subroutine applyDiffPrecond_diagonal
+
+
+  subroutine applyDiffPrecond_pseudoinv(x)
+    implicit none
+    real(dp),           dimension(:), intent(inout) :: x
+
+    integer(i4b)              :: i, j, k, l, m, p, q, nmaps
+    real(dp), allocatable, dimension(:)     :: w
+    real(dp), allocatable, dimension(:,:)   :: alm
+    real(dp), allocatable, dimension(:,:,:) :: y, z
+    class(comm_map), pointer                :: invN_x
+
+    if (npre == 0) return
+    
+    ! Reformat linear array into y(npre,nalm,nmaps) structure
+    allocate(y(npre,0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(z(npre,0:info_pre%nalm-1,info_pre%nmaps))
+    y = 0.d0
+    do i = 1, npre
+       nmaps = diffComps(i)%p%x%info%nmaps
+       call cr_extract_comp(diffComps(i)%p%id, x, alm)
+       do j = 0, diffComps(i)%p%x%info%nalm-1
+          call diffComps(i)%p%x%info%i2lm(j, l, m)
+          call info_pre%lm2i(l, m, k)
+          y(i,k,1:nmaps) = alm(j,1:nmaps)
+       end do
+       deallocate(alm)
+    end do
+
+    ! Frequency-dependent terms
+    z = 0.d0
+    do k = 1, numband
+       invN_x => comm_map(data(k)%info)
+       nmaps  =  data(k)%info%nmaps
+       
+       ! Sum over (U^plus)^t
+       do i = 0, data(k)%info%nalm-1
+          call data(k)%info%i2lm(i, l, m)
+          if (l > info_pre%lmax) cycle
+          call info_pre%lm2i(l,m,j)
+          do q = 1, npre
+             do p = 1, nmaps
+                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr%invM_diff(l,p)%M(q,k) * y(q,j,p)
+             end do
+          end do
+       end do
+
+       ! Multiply by T
+       call invN_x%WY
+       call data(k)%N%N(invN_x)
+       call invN_x%YtW
+       do i = 1, nmaps
+          invN_x%alm(:,i) = invN_x%alm(:,i) * data(k)%N%alpha_nu(i)**2
+       end do
+
+       ! Sum over U^plus
+       do i = 0, data(k)%info%nalm-1
+          call data(k)%info%i2lm(i, l, m)
+          if (l > info_pre%lmax) cycle
+          call info_pre%lm2i(l,m,j)
+          do q = 1, npre
+             do p = 1, nmaps
+                z(q,j,p) = z(q,j,p) + P_cr%invM_diff(l,p)%M(q,k) * invN_x%alm(i,p)
+             end do
+          end do
+       end do
+
+       call invN_x%dealloc()
+    end do
+
+    ! Prior terms
+    allocate(w(npre))
+    do p = 1, info_pre%nmaps
+       do i = 0, info_pre%nalm-1
+          call info_pre%i2lm(i, l, m)
+          w        = y(:,i,p)
+          w        = matmul(transpose(P_cr%invM_diff(l,p)%M(1:npre,numband+1:numband+npre)),w)
+          w        = matmul(          P_cr%invM_diff(l,p)%M(1:npre,numband+1:numband+npre), w)
+          z(:,i,p) = z(:,i,p) + w
+       end do
+    end do
+    deallocate(w)
+
+    ! Reformat z(npre,nalm,nmaps) structure into linear array
+    do i = 1, npre
+       nmaps = diffComps(i)%p%x%info%nmaps
+       allocate(alm(0:diffComps(i)%p%x%info%nalm-1,nmaps))
+       alm = 0.d0
+       do j = 0, diffComps(i)%p%x%info%nalm-1
+          call diffComps(i)%p%x%info%i2lm(j, l, m)
+          call info_pre%lm2i(l, m, k)
+          alm(j,1:nmaps) = z(i,k,1:nmaps)
+       end do
+       call cr_insert_comp(diffComps(i)%p%id, .false., alm, x)
+       deallocate(alm)
+    end do
+    
+    deallocate(y, z)
+
+  end subroutine applyDiffPrecond_pseudoinv
+
+
   
   ! Dump current sample to HEALPix FITS file
-  subroutine dumpDiffuseToFITS(self, postfix, dir)
+  subroutine dumpDiffuseToFITS(self, iter, chainfile, output_hdf, postfix, dir)
     implicit none
-    character(len=*),                        intent(in)           :: postfix
     class(comm_diffuse_comp),                intent(in)           :: self
+    integer(i4b),                            intent(in)           :: iter
+    type(hdf_file),                          intent(in)           :: chainfile
+    logical(lgt),                            intent(in)           :: output_hdf
+    character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
-    integer(i4b)       :: i
-    character(len=512) :: filename
+    integer(i4b)       :: i, l, m, ierr, unit
+    real(dp)           :: vals(10)
+    logical(lgt)       :: exist, first_call = .true.
+    character(len=6)   :: itext
+    character(len=512) :: filename, path
     class(comm_map), pointer :: map
+    real(dp), allocatable, dimension(:,:) :: sigma_l
 
-    ! Write amplitude
-    map => comm_map(self%x)
-    call self%B_out%conv(alm_in=.true., alm_out=.false., trans=.false., map=map)
-   
-    filename = trim(self%label) // '_' // trim(postfix) // '.fits'
-    call map%Y
-    call map%writeFITS(trim(dir)//'/'//trim(filename))
-    deallocate(map)
+    if (trim(self%type) == 'md') then
+       filename = trim(dir)//'/md_' // trim(postfix) // '.dat'
+       vals = 0.d0
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          if (l == 0) then                 ! Monopole
+             vals(1)  = 1.d0/sqrt(4.d0*pi) * self%x%alm(i,1)             * self%RJ2unit_
+             vals(5)  = 1.d0/sqrt(4.d0*pi) * self%mu%alm(i,1)            * self%RJ2unit_
+             vals(9)  = 1.d0/sqrt(4.d0*pi) * sqrt(self%Cl%Dl(0,1))       * self%RJ2unit_
+          end if
+          if (l == 1 .and. m == -1) then   ! Y dipole
+             vals(3)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
+             vals(7)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
+          end if
+          if (l == 1 .and. m ==  0) then   ! Z dipole
+             vals(4)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
+             vals(8)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
+          end if
+          if (l == 1 .and. m ==  1) then   ! X dipole
+             vals(2)  = -1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
+             vals(6)  = -1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
+             vals(10) =  1.d0/sqrt(4.d0*pi/3.d0) * sqrt(self%Cl%Dl(1,1))  * self%RJ2unit_
+          end if
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, vals, 10, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       if (self%x%info%myid == 0) then
+          if (output_hdf) then
+             call int2string(iter, itext)
+             path = trim(adjustl(itext))//'/md/'//trim(adjustl(self%label))
+             call write_hdf(chainfile, trim(adjustl(path)), vals(1:4))
+          end if
+          
+          inquire(file=trim(filename), exist=exist)
+          unit = getlun()
+          if (first_call) then
+             open(unit, file=trim(filename), recl=1024)
+             write(unit,*) '# Band          M_def       X_def       Y_def'//&
+                  & '      Z_def     M_mean      X_mean      Y_mean      Z_mean'// &
+                  & '      M_rms       D_rms'
+             first_call = .false.
+          else
+             open(unit, file=trim(filename), recl=1024, position='append')
+          end if
+          write(unit,'(a12,10e12.3)') trim(self%label), vals
+          close(unit)
+       end if
+    else
 
-    ! Write spectral index maps
-    do i = 1, self%npar
-       filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
-            & trim(postfix) // '.fits'
-       call self%theta(i)%p%Y
-       call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-    end do
+       ! Write amplitude
+       map => comm_map(self%x)
+       map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
 
-    ! Write mixing matrices
-    do i = 1, numband
-       filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
-            & trim(postfix) // '.fits'
-       call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-    end do
-        
+       if (output_hdf) then
+          call int2string(iter, itext)
+          path = trim(adjustl(itext))//'/'//trim(adjustl(self%label))
+          if (self%x%info%myid == 0) call create_hdf_group(chainfile, trim(adjustl(path)))
+       end if
+
+       filename = trim(self%label) // '_' // trim(postfix) // '.fits'
+       call self%B_out%conv(trans=.false., map=map)
+       call map%Y
+       map%alm = self%x%alm * self%RJ2unit_ * self%cg_scale  ! Replace convolved with original alms
+
+       !call self%apply_proc_mask(map)
+
+       if (output_hdf) then
+          call map%writeFITS(trim(dir)//'/'//trim(filename), &
+               & hdffile=chainfile, hdfpath=trim(path)//'/amp_')
+       else
+          call map%writeFITS(trim(dir)//'/'//trim(filename))
+       end if
+       call map%dealloc()
+
+       if (self%output_EB) then
+          map => comm_map(self%x)
+          map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
+          
+          filename = trim(self%label) // '_' // trim(postfix) // '_TEB.fits'
+          call self%B_out%conv(trans=.false., map=map)
+          call map%Y_EB
+          !call self%apply_proc_mask(map)
+          call map%writeFITS(trim(dir)//'/'//trim(filename))
+          call map%dealloc()
+       end if
+       
+       allocate(sigma_l(0:self%x%info%lmax,self%x%info%nspec))
+       call self%x%getSigmaL(sigma_l)
+       sigma_l = sigma_l * self%RJ2unit()**2
+       if (self%x%info%myid == 0) then
+          filename = trim(dir)//'/sigma_l_'//trim(self%label) // '_' // trim(postfix) // '.dat'
+          call write_sigma_l(filename, sigma_l)
+          if (output_hdf) call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
+       end if
+       deallocate(sigma_l)
+
+       ! Write spectral index maps
+       do i = 1, self%npar
+          filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
+               & trim(postfix) // '.fits'
+          if (self%lmax_ind >= 0) call self%theta(i)%p%Y_scalar
+
+          if (output_hdf) then
+             call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename), &
+                  & hdffile=chainfile, hdfpath=trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
+                  & '_')
+          else
+             call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          end if
+       end do
+       
+       ! Write mixing matrices
+       if (self%output_mixmat) then
+          do i = 1, numband
+             if (self%F_null(i)) cycle
+             filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
+                  & trim(postfix) // '.fits'
+             call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          end do
+       end if
+    end if
+
   end subroutine dumpDiffuseToFITS
+
+  ! Dump current sample to HEALPix FITS file
+  subroutine initDiffuseHDF(self, cpar, hdffile, hdfpath)
+    implicit none
+    class(comm_diffuse_comp),  intent(inout) :: self
+    type(comm_params),         intent(in)    :: cpar    
+    type(hdf_file),            intent(in)    :: hdffile
+    character(len=*),          intent(in)    :: hdfpath
+
+    integer(i4b)       :: i, l, m
+    real(dp)           :: md(4)
+    character(len=512) :: path
+    
+    if (trim(self%type) == 'md') then
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'md/'//trim(adjustl(self%label)), md)
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          if (l == 0) then                 
+             self%x%alm(i,1) =  md(1) * sqrt(4.d0*pi)      / self%RJ2unit_  ! Monopole
+          else if (l == 1 .and. m == -1) then   
+             self%x%alm(i,1) =  md(3) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! Y dipole
+          else if (l == 1 .and. m ==  0) then   
+             self%x%alm(i,1) =  md(4) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! Z dipole
+          else if (l == 1 .and. m ==  1) then   
+             self%x%alm(i,1) = -md(2) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! X dipole
+          end if
+       end do
+    else
+       path = trim(adjustl(hdfpath))//trim(adjustl(self%label))
+       call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_')    ! Read amplitudes
+       self%x%alm = self%x%alm / (self%RJ2unit_ * self%cg_scale)
+       do i = 1, self%npar
+          call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
+               & '_')
+       end do       
+    end if
+
+    call self%updateMixmat
+
+  end subroutine initDiffuseHDF
   
+  subroutine add_to_npre(n, nside, lmax, nmaps)
+    implicit none
+    integer(i4b), intent(in) :: n, nside, lmax, nmaps
+    npre      = npre + n
+    nside_pre = min(lmax_pre, nside)
+    lmax_pre  = max(lmax_pre, lmax)
+    nmaps_pre = max(nmaps_pre, nmaps)
+  end subroutine add_to_npre
+
+  ! Sample spectral parameters
+  subroutine sampleDiffuseSpecInd(self, handle, id)
+    implicit none
+    class(comm_diffuse_comp),                intent(inout)        :: self
+    type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: id
+
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+    logical(lgt) :: ok
+    logical(lgt), save :: first_call = .true.
+    class(comm_comp), pointer :: c
+    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
+    real(dp),     allocatable, dimension(:,:) :: amp
+
+    delta_lnL_threshold = 25.d0
+    n                   = 101
+    n_ok                = 50
+    first_call          = .false.
+
+    if (trim(operation) == 'optimize') then
+
+       do p = 1, self%x_smooth%info%nmaps
+          do k = 0, self%x_smooth%info%np-1
+             p_lnL       = p
+             k_lnL       = k
+             !c_lnL       => self
+             id_lnL      = id
+             c           => compList     ! Extremely ugly hack...
+             do while (self%id /= c%id)
+                c => c%next()
+             end do
+             select type (c)
+             class is (comm_diffuse_comp)
+                c_lnL => c
+             end select
+             
+             ! Perform non-linear search
+             allocate(x(1), theta_lnL(self%npar))
+             a_lnL     = self%x_smooth%map(k,p)
+             x(1)      = max(min(self%theta(id)%p%map(k,p),c_lnL%p_uni(2,id_lnL)),c_lnL%p_uni(1,id_lnL))
+             do i = 1, c%npar
+                if (i == id) cycle
+                theta_lnL(i) = self%theta_smooth(i)%p%map(k,p)
+             end do
+             call powell(x, lnL_diffuse_multi, ierr)
+             if (ierr == 0) then
+                self%theta(id)%p%map(k,p) = x(1)
+             else
+                write(*,*) 'Warning: Spectral index Powell search did not converge'
+             end if
+             deallocate(x, theta_lnL)
+
+          end do
+       end do
+
+       ! Update mixing matrix
+       call self%updateMixmat
+       
+       ! Ask for CG preconditioner update
+       if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
+
+       return
+    end if
+
+  end subroutine sampleDiffuseSpecInd
+
+
+  function lnL_diffuse_multi(p)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:), intent(in), optional :: p
+    real(dp)                                     :: lnL_diffuse_multi
+    
+    integer(i4b) :: i, l, k, q, pix, ierr, flag
+    real(dp)     :: lnL, amp, s, a
+    real(dp), allocatable, dimension(:) :: theta
+
+    allocate(theta(c_lnL%npar))
+    theta         = theta_lnL
+    theta(id_lnL) = p(1)
+    
+    ! Check spectral index priors
+    do l = 1, c_lnL%npar
+       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
+          lnL_diffuse_multi = 1.d30
+          deallocate(theta)
+          return
+       end if
+    end do
+
+    lnL = 0.d0
+    do l = 1, numband
+       !if (c_lnL%x%info%myid == 0) write(*,*) l, numband
+       if (.not. associated(rms_smooth(l)%p)) cycle
+       
+       ! Compute predicted source amplitude for current band
+       s = a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       
+       ! Compute likelihood 
+       lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
+
+       !if (c_lnL%x%info%myid == 0) write(*,*) l, res_smooth(l)%p%map(k_lnL,p_lnL), s, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), lnL
+
+!!$       if (c_lnL%x%info%pix(k_lnL) == 534044) then
+!!$          write(*,fmt='(5f10.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,p_lnL)-a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
+!!$       end if
+
+    end do
+
+
+    !call mpi_finalize(i)
+    !stop
+
+    ! Apply index priors
+    do l = 1, c_lnL%npar
+       if (c_lnL%p_gauss(2,l) > 0.d0) then
+          lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+       end if
+    end do
+    
+    ! Return chi-square
+    lnL_diffuse_multi = -2.d0*lnL
+
+!!$    if (c_lnL%x%info%pix(k_lnL) == 534044) then
+!!$       write(*,*) 'lnL = ', lnL, theta(id_lnL)
+!!$       write(*,*)
+!!$    end if
+
+
+    deallocate(theta)
+
+  end function lnL_diffuse_multi
+
+
+
+
+!!$  ! Sample spectral parameters
+!!$  subroutine sampleDiffuseSpecInd(self, handle, id)
+!!$    implicit none
+!!$    class(comm_diffuse_comp),                intent(inout)        :: self
+!!$    type(planck_rng),                        intent(inout)        :: handle
+!!$    integer(i4b),                            intent(in)           :: id
+!!$
+!!$    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+!!$    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+!!$    logical(lgt) :: ok
+!!$    logical(lgt), save :: first_call = .true.
+!!$    class(comm_comp), pointer :: c
+!!$    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
+!!$    real(dp),     allocatable, dimension(:,:) :: amp
+!!$
+!!$    delta_lnL_threshold = 25.d0
+!!$    n                   = 101
+!!$    n_ok                = 50
+!!$    first_call          = .false.
+!!$
+!!$    if (trim(operation) == 'optimize') then
+!!$
+!!$       allocate(amps_lnL(0:data(6)%info%np-1,data(6)%info%nmaps,6:9))
+!!$       !allocate(amps_lnL(0:data(1)%info%np-1,data(1)%info%nmaps,numband))
+!!$       apply_mixmat = .false.
+!!$       do i = 6, 9
+!!$          amps_lnL(:,:,i) = self%getBand(i)
+!!$       end do
+!!$       apply_mixmat = .true.
+!!$
+!!$
+!!$       do p = 1, data(6)%info%nmaps
+!!$          do k = 0, data(6)%info%np-1
+!!$             p_lnL       = p
+!!$             k_lnL       = k
+!!$             c           => compList     ! Extremely ugly hack...
+!!$             do while (self%id /= c%id)
+!!$                c => c%next()
+!!$             end do
+!!$             select type (c)
+!!$             class is (comm_diffuse_comp)
+!!$                c_lnL => c
+!!$             end select
+!!$             
+!!$             ! Perform non-linear search
+!!$             if (self%p_gauss(2,1) == 0.d0 .and. self%p_gauss(2,2) > 0.d0) then
+!!$                ! Dust T
+!!$                allocate(x(1))
+!!$                x(1)         = self%theta(2)%p%map(k,p)
+!!$                a_old_lnL    = self%x%map(k,p)
+!!$                beta_old_lnL = self%theta(1)%p%map(k,p)
+!!$                call powell(x, lnL_diffuse_multi, ierr)
+!!$                self%theta(2)%p%map(k,p) = x(1)
+!!$                deallocate(x)
+!!$             end if
+!!$
+!!$             if (self%p_gauss(2,1) > 0.d0 .and. self%p_gauss(2,2) == 0.d0) then
+!!$                ! Dust T
+!!$                allocate(x(1))
+!!$                x(1)         = self%theta(1)%p%map(k,p)
+!!$                a_old_lnL    = self%x%map(k,p)
+!!$                T_old_lnL    = self%theta(2)%p%map(k,p)
+!!$                call powell(x, lnL_diffuse_multi, ierr)
+!!$                self%theta(1)%p%map(k,p) = x(1)
+!!$                deallocate(x)
+!!$             end if
+!!$
+!!$
+!!$             if (self%p_gauss(2,1) > 0.d0 .and. self%p_gauss(2,2) > 0.d0) then
+!!$                ! Dust beta and T
+!!$                allocate(x(2))
+!!$                x(1)         = self%theta(1)%p%map(k,p)
+!!$                x(2)         = self%theta(2)%p%map(k,p)
+!!$                a_old_lnL    = self%x%map(k,p)
+!!$                call powell(x, lnL_diffuse_multi, ierr)
+!!$                self%theta(1)%p%map(k,p) = x(1)
+!!$                self%theta(2)%p%map(k,p) = x(2)
+!!$                deallocate(x)
+!!$             end if
+!!$
+!!$
+!!$
+!!$
+!!$
+!!$          end do
+!!$       end do
+!!$
+!!$       ! Update mixing matrix
+!!$       call self%updateMixmat
+!!$       
+!!$       ! Ask for CG preconditioner update
+!!$       if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
+!!$
+!!$       deallocate(amps_lnL)
+!!$       return
+!!$    end if
+!!$
+!!$  end subroutine sampleDiffuseSpecInd
+!!$
+!!$
+!!$  function lnL_diffuse_multi(p)
+!!$    use healpix_types
+!!$    implicit none
+!!$    real(dp), dimension(:), intent(in), optional :: p
+!!$    real(dp)                                     :: lnL_diffuse_multi
+!!$    
+!!$    integer(i4b) :: i, l, k, q, pix, ierr, flag
+!!$    real(dp)     :: lnL, amp, s, a
+!!$    real(dp), allocatable, dimension(:) :: theta
+!!$    
+!!$    allocate(theta(c_lnL%npar))
+!!$    if (c_lnL%p_gauss(2,1) > 0.d0 .and. c_lnL%p_gauss(2,2) > 0.d0) then
+!!$       theta(1) = p(1)
+!!$       theta(2) = p(2)
+!!$    else if (c_lnL%p_gauss(2,1) > 0.d0 .and. c_lnL%p_gauss(2,2) == 0.d0) then
+!!$       theta(1) = p(1)
+!!$       theta(2) = T_old_lnL
+!!$    else if (c_lnL%p_gauss(2,1) == 0.d0 .and. c_lnL%p_gauss(2,2) > 0.d0) then
+!!$       theta(1) = beta_old_lnL
+!!$       theta(2) = p(1)
+!!$    end if
+!!$    
+!!$    ! Check spectral index priors
+!!$    do l = 1, c_lnL%npar
+!!$       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
+!!$          lnL_diffuse_multi = 1.d30
+!!$          deallocate(theta)
+!!$          return
+!!$       end if
+!!$    end do
+!!$    
+!!$    lnL = 0.d0
+!!$    do l = 6, 9
+!!$    !do l = 1, numband
+!!$       
+!!$       ! Compute mixing matrix
+!!$       s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+!!$       
+!!$       ! Compute predicted source amplitude for current band
+!!$       a = s * amps_lnL(k_lnL,p_lnL,l)
+!!$       
+!!$       ! Compute likelihood 
+!!$       lnL = lnL - 0.5d0 * (data(l)%res%map(k_lnL,p_lnL)-a)**2 / data(l)%N%rms_pix(k_lnL,p_lnL)**2
+!!$
+!!$    end do
+!!$    
+!!$    ! Apply index priors
+!!$    do l = 1, c_lnL%npar
+!!$       if (c_lnL%p_gauss(2,l) > 0.d0) then
+!!$          lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+!!$       end if
+!!$    end do
+!!$    
+!!$    ! Return chi-square
+!!$    lnL_diffuse_multi = -2.d0*lnL
+!!$
+!!$    deallocate(theta)
+!!$
+!!$  end function lnL_diffuse_multi
+
+  
+  subroutine print_precond_mat
+    implicit none
+
+    integer(i4b) :: l, m, i, j, p
+    real(dp), allocatable, dimension(:)   :: W
+    real(dp), allocatable, dimension(:,:) :: mat
+
+    if (info_pre%myid /= 0) return
+    p = 2
+
+    open(58,file=trim(outdir)//'/precond_W.dat',recl=1024)
+    if (trim(precond_type) == 'diagonal') then
+       do l = 0, info_pre%lmax
+          call info_pre%lm2i(l, 0, i)
+          write(*,*) 
+          write(*,*) l 
+          do j = 1, size(P_cr%invM_diff(i,p)%M(j,:),1)
+             write(*,*) real(P_cr%invM_diff(i,p)%M(j,:),sp)
+          end do
+          allocate(W(P_cr%invM_diff(i,p)%n))
+          call get_eigenvalues(P_cr%invM_diff(i,p)%M, W)
+          write(58,*) l, real(W,sp)
+          deallocate(W)
+       end do
+    else
+       allocate(mat(npre,npre))
+       do l = 0, info_pre%lmax
+          mat = matmul(P_cr%invM_diff(l,p)%M, transpose(P_cr%invM_diff(l,p)%M))
+          write(*,*) 
+          write(*,*) l 
+          do j = 1, npre
+             write(*,*) real(mat(j,:),sp)
+          end do
+          allocate(W(npre))
+          call get_eigenvalues(mat, W)
+          write(58,*) l, real(W,sp)
+          deallocate(W)
+       end do
+       deallocate(mat)
+    end if
+    close(58)
+
+
+  end subroutine print_precond_mat
+
 end module comm_diffuse_comp_mod

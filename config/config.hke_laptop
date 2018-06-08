@@ -97,7 +97,7 @@ export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio
 
 # The include and linking commands for cfitsio.
 export SHARP_INCLUDE := 
-export SHARP_LINK := -L$(LOCAL)/lib -lsharp
+export SHARP_LINK := -L/home/hke/local/src/libsharp/auto/lib -lsharp
 
 
 # =============== LAPACK Linking =================
@@ -116,3 +116,8 @@ export HEALPIX_INCLUDE := -I$(HEALDIR)/include
 export HEALPIX_LINK := $(HEALDIR)/lib/libhealpix.a
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod
 #export HEALPIX_LINK := -L/usit/titan/u1/hke/local/src/Healpix_2.10/src/f90/mod -lhealpix
+
+# =============== HDF ============================
+export HDF_LINK := -lhdf5_fortran -lhdf5 
+export HDF_LINK_CPP := -lhdf5_cpp -lhdf5 
+export HDF_INCLUDE := -I/usr/lib64/gfortran/modules

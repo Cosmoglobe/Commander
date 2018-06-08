@@ -16,20 +16,28 @@ module comm_B_mod
      type(spline_type), allocatable, dimension(:)   :: b_theta  ! {nmaps}
    contains
      ! Data procedures
-     procedure(matmulB),  deferred :: conv
+     procedure(matmulB),     deferred :: conv
+     procedure(matmulInvB),  deferred :: deconv
      procedure                     :: getBTheta
      procedure                     :: initBTheta
   end type comm_B
 
   abstract interface
-     subroutine matmulB(self, alm_in, alm_out, trans, map)
+     subroutine matmulB(self, trans, map)
        import comm_map, comm_B, dp, i4b, lgt
        implicit none
        class(comm_B),   intent(in)    :: self
-       logical(lgt),    intent(in)    :: alm_in, alm_out
        logical(lgt),    intent(in)    :: trans
        class(comm_map), intent(inout) :: map
      end subroutine matmulB
+
+     subroutine matmulInvB(self, trans, map)
+       import comm_map, comm_B, dp, i4b, lgt
+       implicit none
+       class(comm_B),   intent(in)    :: self
+       logical(lgt),    intent(in)    :: trans
+       class(comm_map), intent(inout) :: map
+     end subroutine matmulInvB
   end interface
 
   ! Local variables

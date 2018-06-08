@@ -49,17 +49,19 @@ contains
   end function compute_sz_thermo_array
   
 
-  function compute_ant2thermo_array(nu)
+  function compute_ant2thermo_array(nu) result(a2t)
     implicit none
     real(dp), dimension(:),        intent(in)  :: nu
-    real(dp), dimension(size(nu))              :: compute_ant2thermo_array
+    real(dp), dimension(size(nu))              :: a2t
 
     integer(i4b) :: i
     real(dp)     :: x
 
+    write(*,*) 'Do NOT use this function -- results in NaNs on some compilers/systems!'
+    stop
     do i = 1, size(nu)
        x = h*nu(i) / (k_B*T_CMB)
-       compute_ant2thermo_array(i) = (exp(x)-1.d0)**2 / (x**2 * exp(x))
+       a2t(i) = (exp(x)-1.d0)**2 / (x**2 * exp(x))
     end do
     
   end function compute_ant2thermo_array
@@ -202,10 +204,10 @@ contains
     first = 1
     last  = m
     if (threshold > 0.d0) then
-       do while (y(first) < threshold*maxval(y))
+       do while (y(first) < threshold*maxval(y(1:m)))
           first = first+1
        end do
-       do while (y(last) < threshold*maxval(y))
+       do while (y(last) < threshold*maxval(y(1:m)))
           last = last-1
        end do
     end if

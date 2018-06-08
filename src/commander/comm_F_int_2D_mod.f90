@@ -3,6 +3,7 @@ module comm_F_int_2D_mod
   use comm_comp_mod
   use comm_bp_mod
   use spline_2D_mod
+  use comm_utils
   implicit none
 
   private
@@ -33,32 +34,54 @@ contains
     class(comm_bp),       intent(in) :: bp
     class(comm_F_int_2D), pointer    :: constructor
 
-    integer(i4b) :: i, j, k, m
+    integer(i4b) :: i, j, k, m, ierr
+    real(dp)     :: t1, t2, t3, t4
     real(dp), allocatable, dimension(:)   :: s
-    real(dp), allocatable, dimension(:,:) :: F
+    real(dp), allocatable, dimension(:,:) :: F, Fp
     
     allocate(constructor)
 
-    m = bp%n
-    allocate(constructor%x(n), constructor%y(n), F(n,n), s(m))
+    call wall_time(t1)
 
-    ! Evaluate the bandpass integrated SED over all relevant parameters
+    m = bp%n
+    allocate(constructor%x(n), constructor%y(n), F(n,n), Fp(n,n), s(m))
+
     do i = 1, n
        constructor%x(i) = comp%p_uni(1,1) + (comp%p_uni(2,1)-comp%p_uni(1,1))/(n-1) * (i-1)
+       constructor%y(i) = comp%p_uni(1,2) + (comp%p_uni(2,2)-comp%p_uni(1,2))/(n-1) * (i-1)
+    end do
+
+    ! Evaluate the bandpass integrated SED over all relevant parameters
+    F = 0.d0
+    call wall_time(t3)
+    do i = 1+comp%myid, n, comp%numprocs
        do j = 1, n
-          constructor%y(j) = comp%p_uni(1,2) + (comp%p_uni(2,2)-comp%p_uni(1,2))/(n-1) * (j-1)
           do k = 1, m
              s(k) = comp%S(nu=bp%nu(k), theta=[constructor%x(i),constructor%y(j)])
           end do
           F(i,j) = bp%SED2F(s)
        end do
     end do
+    call wall_time(t4)
+    !if (comp%myid == 0) write(*,*) 'a = ', real(t4-t3,sp)
+    call wall_time(t3)
+    call mpi_allreduce(F, Fp,            n*n, MPI_DOUBLE_PRECISION, MPI_SUM, comp%comm, ierr)
+    call wall_time(t4)
+    !if (comp%myid == 0) write(*,*) 'b = ', real(t4-t3,sp)
 
     ! Precompute spline object
+    call wall_time(t3)
     allocate(constructor%coeff(4,4,n,n))
-    call splie2_full_precomp(constructor%x, constructor%y, F, constructor%coeff)
+    call splie2_full_precomp_mpi(comp%comm, constructor%x, constructor%y, Fp, constructor%coeff)
+    call wall_time(t4)
+    !if (comp%myid == 0) write(*,*) 'c = ', real(t4-t3,sp)
     
-    deallocate(F, s)
+    call wall_time(t2)
+    !if (comp%myid == 0) write(*,*) 'sum = ', sum(abs(constructor%coeff)), real(t2-t1,sp)
+    !call mpi_finalize(i)
+    !stop
+
+    deallocate(F, Fp, s)
     
   end function constructor
 

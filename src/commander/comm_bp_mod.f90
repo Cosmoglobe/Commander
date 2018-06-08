@@ -11,7 +11,7 @@ module comm_bp_mod
      character(len=512) :: type, model
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, co2t, a2sz
+     real(dp)           :: nu_c, a2t, f2t, a2sz
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta
    contains
      ! Data procedures
@@ -49,22 +49,23 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id)
+  function constructor(cpar, id, id_abs)
     implicit none
     type(comm_params),           intent(in) :: cpar
-    integer(i4b),                intent(in) :: id
+    integer(i4b),                intent(in) :: id, id_abs
     class(comm_bp),     pointer             :: constructor
 
+    integer(i4b)       :: i
     character(len=512) :: dir
     
     ! General parameters
     allocate(constructor)
     dir = trim(cpar%datadir) // '/'
 
-    constructor%nu_c = cpar%ds_nu_c(id)
+    constructor%nu_c = cpar%ds_nu_c(id_abs)
     
     ! Define special case parameters
-    constructor%type = cpar%ds_bptype(id)
+    constructor%type = cpar%ds_bptype(id_abs)
     select case (trim(constructor%type))
     case ('delta')
        constructor%threshold = 0.d0
@@ -87,64 +88,40 @@ contains
     ! Initialize raw bandpass
     if (trim(constructor%type) == 'delta') then
        allocate(constructor%nu0(1),constructor%tau0(1), constructor%nu(1), constructor%tau(1))
+       constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
     else
-       call read_bandpass(trim(dir)//cpar%ds_bpfile(id), constructor%threshold, &
+       call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), constructor%threshold, &
             & constructor%n, constructor%nu0, constructor%tau0)
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     end if
 
     ! Initialize fitting model
-    constructor%model = cpar%ds_bpmodel(id)
+    constructor%model = cpar%ds_bpmodel(id_abs)
     if (trim(constructor%model) == 'additive_shift') then
-       constructor%npar = 1.d0
+       constructor%npar = 1
        allocate(constructor%delta(constructor%npar))
-       constructor%delta = 1.d0
+       constructor%delta = 0.d0
     else if (trim(constructor%model) == 'powlaw_tilt') then
-       constructor%npar = 1.d0
+       constructor%npar = 1
        allocate(constructor%delta(constructor%npar))
-       constructor%delta = 1.d0
+       constructor%delta = 0.d0
     else
        call report_error('Error -- unsupported bandpass model = ' // trim(constructor%model))
     end if
 
+    ! Read default delta from instrument parameter file
+    call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
+         & 'delta', cpar%ds_label(id_abs), 0.d0, constructor%delta(1))
+
     ! Initialize active bandpass 
     call constructor%update_tau(constructor%delta)
-    constructor%co2t = cpar%ds_co2t(id)
 
   end function constructor
   
 
   
-  subroutine initialize_bandpass(MJysr_convention, T_CMB_in, bptype, bpname, bpmodel, nu_c, &
-       & a2t, f2t, a2sz, nu0, nu, tau0, tau)
-    implicit none
-    
-    character(len=*),                            intent(in)  :: MJysr_convention
-    character(len=*),                            intent(in)  :: bptype, bpname, bpmodel
-    real(dp),                                    intent(in)  :: nu_c, T_CMB_in
-    real(dp),                                    intent(out) :: a2t, f2t, a2sz
-    real(dp),         allocatable, dimension(:), intent(out) :: nu0, nu, tau0, tau
-
-    integer(i4b)        :: n
-    real(dp)            :: threshold, delta
-
-!!$    if (myid == 0) then
-!!$       open(unit,file=trim(chaindir)//'/unit_conversions.dat',recl=1024)
-!!$       write(unit,*) '# Band        Convention           Nu_c (GHz)      a2t [K_cmb/K_RJ]' // &
-!!$            & '      t2f [MJy/K_cmb]   co2t [uK_cmb / (K km/s)]   a2sz [y_sz/K_RJ]'
-!!$       do i = 1, numband
-!!$          q = i2f(i)
-!!$          write(unit,fmt='(a,a,a,a,f16.5,4e20.5)') bp(q)%label, ' ', bp(q)%id, ' ', &
-!!$               & bp(q)%nu_c/1.d9, bp(q)%a2t, 1.d0/bp(q)%f2t*1e6, bp(q)%co2t, bp(q)%a2sz * 1.d6
-!!$       end do
-!!$       close(unit)
-!!$    end if
-
-  end subroutine initialize_bandpass
-
-
   subroutine update_tau(self, delta)
     implicit none
 
@@ -179,10 +156,12 @@ contains
 
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
-    a            = comp_a2t(self%nu)          
-    bnu_prime    = comp_bnu_prime(self%nu)
-    bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)
-    sz           = comp_sz_thermo(self%nu)
+    do i = 1, n
+       a(i)            = comp_a2t(self%nu(i))          
+       bnu_prime(i)    = comp_bnu_prime(self%nu(i))
+       bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+       sz(i)           = comp_sz_thermo(self%nu(i))
+    end do
 
     select case (trim(self%type))
     case ('delta')
@@ -254,7 +233,7 @@ contains
 
     select case (trim(self%type))
     case ('delta')
-       SED2F = f(1)
+       SED2F = f(1) * self%a2t
     case ('LFI')
        SED2F = tsum(self%nu, self%tau * f)
     case ('HFI_cmb')

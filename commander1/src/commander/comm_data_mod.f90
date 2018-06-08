@@ -185,6 +185,7 @@ contains
     call mpi_bcast(sample_T_modes,      1,   MPI_LOGICAL,   root, comm_alms, ierr)    
     call mpi_bcast(enforce_zero_cl,     1,   MPI_LOGICAL,   root, comm_alms, ierr)    
     call mpi_bcast(maskfile,            len(maskfile),      MPI_CHARACTER, root, comm_alms, ierr)    
+    call mpi_bcast(maskfile_calib,      len(maskfile_calib), MPI_CHARACTER, root, comm_alms, ierr)    
     call mpi_bcast(operation,           len(operation),     MPI_CHARACTER, root, comm_alms, ierr)    
     call mpi_bcast(temp_amp_file,       len(temp_amp_file), MPI_CHARACTER, root, comm_alms, ierr)    
     call mpi_bcast(num_fg_temp,    1,   MPI_INTEGER,   root, comm_alms, ierr)    

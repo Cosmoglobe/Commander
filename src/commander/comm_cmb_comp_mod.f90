@@ -27,10 +27,10 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id)
+  function constructor(cpar, id, id_abs)
     implicit none
     type(comm_params),   intent(in) :: cpar
-    integer(i4b),        intent(in) :: id
+    integer(i4b),        intent(in) :: id, id_abs
     class(comm_cmb_comp), pointer   :: constructor
 
     integer(i4b) :: i
@@ -38,24 +38,21 @@ contains
     
     ! General parameters
     allocate(constructor)
-    call constructor%initDiffuse(cpar, id)
+    call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters
-    constructor%npar = 0
+    constructor%npar         = 0
 
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(numband))
     do i = 1, numband
-       f = comp_a2t(constructor%nu_ref) / data(i)%bp%a2t
-       constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp, f)
+       f = comp_a2t(constructor%nu_ref) / data(i)%bp%a2t * data(i)%RJ2data()
+       constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp, f_precomp=f)
     end do
     
     ! Initialize mixing matrix
     call constructor%updateMixmat
 
-    ! Initialize preconditioner
-    call constructor%initPrecond
-    
   end function constructor
 
   ! Definition:

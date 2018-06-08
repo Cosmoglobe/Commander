@@ -217,8 +217,8 @@ contains
 
     ! Set up pointer table to access maps
     do k = 1, nmaps
-       alm_ptr(k) = c_loc(alm(0, k))
-       map_ptr(k) = c_loc(map(0, k))
+       if (alm_info%n_local > 0)  alm_ptr(k) = c_loc(alm(0, k))
+       if (geom_info%n_local > 0) map_ptr(k) = c_loc(map(0, k))
     end do
 
     if (present(comm)) then

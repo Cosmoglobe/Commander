@@ -2,10 +2,11 @@ module comm_Cl_mod
   use comm_param_mod
   use comm_map_mod
   use math_tools
+  use comm_hdf_mod
   implicit none
 
   private
-  public comm_Cl
+  public comm_Cl, write_sigma_l
 
   integer(i4b), parameter :: TT = 1
   integer(i4b), parameter :: TE = 2
@@ -13,24 +14,25 @@ module comm_Cl_mod
   integer(i4b), parameter :: EE = 4
   integer(i4b), parameter :: EB = 5
   integer(i4b), parameter :: BB = 6
+  logical(lgt), private   :: only_pol
   
   type :: comm_Cl
      ! General parameters
      class(comm_mapinfo), pointer :: info
-     character(len=512)           :: type  ! {none, binned, power_law}
-     character(len=512)           :: label ! {none, binned, power_law}
+     character(len=512)           :: type  ! {none, binned, power_law, exp}
+     character(len=512)           :: label ! {none, binned, power_law, exp}
      character(len=512)           :: outdir
-     integer(i4b)                 :: lmax, nmaps, nspec
+     integer(i4b)                 :: lmax, nmaps, nspec, l_apod
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
      real(dp),         allocatable, dimension(:,:)   :: Dl
-     real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat
+     real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat, sqrtInvS_mat
 
      ! Bin parameters
      integer(i4b) :: nbin
      character(len=1), allocatable, dimension(:,:) :: stat
      integer(i4b), allocatable, dimension(:,:)     :: bins
      
-     ! Power law parameters
+     ! Power law/exponential parameters
      character(len=512) :: plfile
      integer(i4b)       :: iter = 0
      real(dp)           :: prior(2), lpiv
@@ -39,13 +41,17 @@ module comm_Cl_mod
      ! Data procedures
      procedure :: S        => matmulS
      procedure :: sqrtS    => matmulSqrtS
+     procedure :: sqrtInvS => matmulSqrtInvS
      procedure :: sampleCls
      procedure :: read_binfile
      procedure :: read_Cl_file
      procedure :: binCls
      procedure :: writeFITS
      procedure :: updatePowlaw
+     procedure :: updateExponential
+     procedure :: updateGaussian
      procedure :: updateS
+     procedure :: getCl
   end type comm_Cl
 
   interface comm_Cl
@@ -57,11 +63,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id)
+  function constructor(cpar, info, id, id_abs)
     implicit none
     type(comm_params),                  intent(in) :: cpar
     type(comm_mapinfo), target,         intent(in) :: info
-    integer(i4b),                       intent(in) :: id
+    integer(i4b),                       intent(in) :: id, id_abs
     class(comm_Cl),                     pointer    :: constructor
 
     integer(i4b)       :: l, nmaps
@@ -71,60 +77,131 @@ contains
     allocate(constructor)
     
     ! General parameters
-    constructor%type   = cpar%cs_cltype(id)
+    constructor%type   = cpar%cs_cltype(id_abs)
     if (trim(constructor%type) == 'none') return
     
     constructor%info   => info
-    constructor%label  = cpar%cs_label(id)
-    constructor%lmax   = cpar%cs_lmax_amp(id)
-    constructor%nmaps  = 1; if (cpar%cs_polarization(id)) constructor%nmaps = 3
-    constructor%nspec  = 1; if (cpar%cs_polarization(id)) constructor%nspec = 6
+    constructor%label  = cpar%cs_label(id_abs)
+    constructor%lmax   = cpar%cs_lmax_amp(id_abs)
+    constructor%l_apod = cpar%cs_l_apod(id_abs)
+    constructor%nmaps  = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
+    constructor%nspec  = 1; if (cpar%cs_polarization(id_abs)) constructor%nspec = 6
     constructor%outdir = cpar%outdir
     datadir            = cpar%datadir
     nmaps              = constructor%nmaps
+    only_pol           = cpar%only_pol
 
     allocate(constructor%Dl(0:constructor%lmax,constructor%nspec))
     allocate(constructor%sqrtS_mat(nmaps,nmaps,0:constructor%lmax))
+    allocate(constructor%sqrtInvS_mat(nmaps,nmaps,0:constructor%lmax))
     allocate(constructor%S_mat(nmaps,nmaps,0:constructor%lmax))
 
     if (trim(constructor%type) == 'binned') then
-       call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id)))
-       call constructor%read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id)))
+       call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
+       call constructor%read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id_abs)))
        call constructor%binCls
+       if (cpar%only_pol) then
+          constructor%stat(:,1:3) = '0'
+          constructor%Dl(:,TT)     = 0.d0
+          if (constructor%nspec == 6) constructor%Dl(:,[TE,TB]) = 0.d0
+       end if
     else if (trim(constructor%type) == 'power_law') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))
-       constructor%lpiv          = cpar%cs_lpivot(id)
-       constructor%prior         = cpar%cs_cl_prior(id,:)
-       constructor%poltype       = cpar%cs_cl_poltype(id)
-       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id,1:nmaps), cpar%cs_cl_beta_def(id,1:nmaps))
+       constructor%lpiv          = cpar%cs_lpivot(id_abs)
+       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
+       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
+       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+    else if (trim(constructor%type) == 'exp') then
+       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
+       constructor%lpiv          = cpar%cs_lpivot(id_abs)
+       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
+       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
+       call constructor%updateExponential(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+    else if (trim(constructor%type) == 'gauss') then
+       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
+       constructor%lpiv          = cpar%cs_lpivot(id_abs)
+       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
+       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
+       call constructor%updateGaussian(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
     else
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
+
+    !constructor%Dl = constructor%Dl / c%RJ2unit_    ! Define prior in output units
+
 
     call constructor%updateS
     
   end function constructor
 
 
-  subroutine updatePowlaw(self, amp, beta)
+  subroutine updatePowlaw(self, amp, beta, only_pol)
     implicit none
     class(comm_Cl),                intent(inout) :: self
     real(dp),       dimension(1:), intent(in)    :: amp, beta
+    logical(lgt),                  intent(in)    :: only_pol
 
-    integer(i4b) :: i, j, l
+    integer(i4b) :: i, j, l, i_min
     
     self%amp   = amp
     self%beta  = beta
     self%Dl    = 0.d0
-    do i = 1, self%nmaps
+    i_min      = 1; if (only_pol) i_min = 2
+    do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
-          self%Dl(l,j) = amp(i) * (l/self%lpiv)**beta(i) 
+          self%Dl(l,j) = amp(i) * (real(l,dp)/real(self%lpiv,dp))**beta(i) 
        end do
        self%Dl(0,j) = self%Dl(1,j)
     end do
 
   end subroutine updatePowlaw
+
+  subroutine updateExponential(self, amp, beta, only_pol)
+    implicit none
+    class(comm_Cl),                intent(inout) :: self
+    real(dp),       dimension(1:), intent(in)    :: amp, beta
+    logical(lgt),                  intent(in)    :: only_pol
+
+    integer(i4b) :: i, j, l, i_min
+    
+    self%amp   = amp
+    self%beta  = beta
+    self%Dl    = 0.d0
+    i_min      = 1; if (only_pol) i_min = 2
+    do i = i_min, self%nmaps
+       j = i*(1-i)/2 + (i-1)*self%nmaps + i
+       do l = 1, self%lmax
+          self%Dl(l,j) = amp(i) * exp(-beta(i)*(real(l,dp)/real(self%lpiv,dp))) 
+       end do
+       self%Dl(0,j) = self%Dl(1,j)
+    end do
+
+  end subroutine updateExponential
+
+  subroutine updateGaussian(self, amp, beta, only_pol)
+    implicit none
+    class(comm_Cl),                intent(inout) :: self
+    real(dp),       dimension(1:), intent(in)    :: amp, beta
+    logical(lgt),                  intent(in)    :: only_pol
+
+    integer(i4b) :: i, j, l, i_min
+    
+    self%amp   = amp
+    self%beta  = beta
+    self%Dl    = 0.d0
+    i_min      = 1; if (only_pol) i_min = 2
+    do i = i_min, self%nmaps
+       j = i*(1-i)/2 + (i-1)*self%nmaps + i
+       do l = 0, self%lmax
+          self%Dl(l,j) = amp(i) * exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+!          if (self%info%myid == 0) then
+!             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
+!          end if
+       end do
+    end do
+
+  end subroutine updateGaussian
 
   subroutine updateS(self)
     implicit none
@@ -133,8 +210,9 @@ contains
     integer(i4b) :: i, j, k, l
     logical(lgt) :: ok(self%nmaps)
 
-    self%sqrtS_mat = 0.d0
-    self%S_mat     = 0.d0
+    self%S_mat        = 0.d0
+    self%sqrtS_mat    = 0.d0
+    self%sqrtInvS_mat = 0.d0
     do l = 0, self%lmax
        do i = 1, self%nmaps
           do j = i, self%nmaps
@@ -148,8 +226,11 @@ contains
              if (.not. ok(i)) self%sqrtS_mat(i,j,l) = 1.d0
           end do
        end do
-       
+       self%sqrtInvS_mat(:,:,l) = self%sqrtS_mat(:,:,l)
+
        call compute_hermitian_root(self%sqrtS_mat(:,:,l), 0.5d0)
+!       if (self%info%myid == 0) write(*,*) l, self%sqrtS_mat(:,:,l), self%sqrtInvS_mat(:,:,l)
+       
        do i = 1, self%nmaps
           if (.not. ok(i)) then
              self%sqrtS_mat(i,:,l) = 0.d0
@@ -158,7 +239,18 @@ contains
        end do
        self%S_mat(:,:,l) = matmul(self%sqrtS_mat(:,:,l), self%sqrtS_mat(:,:,l))
        
+       call compute_hermitian_root(self%sqrtInvS_mat(:,:,l), -0.5d0)
+       do i = 1, self%nmaps
+          if (.not. ok(i)) then
+             self%sqrtInvS_mat(i,:,l) = 0.d0
+             self%sqrtInvS_mat(:,i,l) = 0.d0
+          end if
+       end do
+
     end do
+
+!!$    call mpi_finalize(i)
+!!$    stop
 
   end subroutine updateS
 
@@ -169,6 +261,7 @@ contains
 
     integer(i4b)       :: unit, l1, l2, n
     character(len=512) :: line
+    character(len=1), dimension(6) :: stat
 
     unit = getlun()
 
@@ -186,7 +279,7 @@ contains
 
     if (n == 0) call report_error("Error: Cl bin file " // trim(binfile) &
          & // " does not contain any valid entries")
-    
+
     self%nbin = n
     allocate(self%stat(n,6), self%bins(n,2))
     open(unit,file=trim(binfile))
@@ -198,53 +291,150 @@ contains
        read(line,*) l1, l2
        if (l1 <= self%lmax .and. l2 <= self%lmax .and. l1 >= 0 .and. l2 >= 0) then
           n = n+1
-          read(line,*) self%bins(n,1), self%bins(n,2), self%stat(n,:)
+          read(line,*) l1, l2, stat   !self%bins(n,1), self%bins(n,2), self%stat(n,:)
+          self%bins(n,1) = l1
+          self%bins(n,2) = l2
+          self%stat(n,:) = stat
        end if
     end do
 2   close(unit)
 
   end subroutine read_binfile
 
-  subroutine matmulS(self, map, alm)
+  subroutine matmulS(self, map, alm, info)
     implicit none
     class(comm_Cl),                    intent(in)              :: self
     class(comm_map),                   intent(inout), optional :: map
     real(dp),        dimension(0:,1:), intent(inout), optional :: alm
+    class(comm_mapinfo),               intent(in),    optional :: info
     integer(i4b) :: i, l
-    if (trim(self%type) == 'none') return
+    real(dp)     :: f_apod
+    if (trim(self%type) == 'none') then
+       if (only_pol) then
+          if (present(map)) then
+             map%alm(:,1) = 0.d0
+          else if (present(alm)) then
+             alm(:,1) = 0.d0
+          end if
+       end if
+       return
+    end if
 
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
-          map%alm(i,:) = matmul(self%S_mat(:,:,l), map%alm(i,:))
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          map%alm(i,:) = f_apod**2 * matmul(self%S_mat(:,:,l), map%alm(i,:))
        end do
     else if (present(alm)) then
-       do i = 0, self%info%nalm-1
-          l = self%info%lm(1,i)
-          alm(i,:) = matmul(self%S_mat(:,:,l), alm(i,:))
+       do i = 0, info%nalm-1
+          l = info%lm(1,i)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          if (l <= self%lmax) then
+             alm(i,:) = f_apod**2 * matmul(self%S_mat(:,:,l), alm(i,:))
+          else
+             alm(i,:) = 0.d0
+          end if
        end do
     end if
   end subroutine matmulS
 
-  subroutine matmulSqrtS(self, map, alm)
+  subroutine matmulSqrtS(self, map, alm, info)
     implicit none
     class(comm_Cl),                    intent(in)              :: self
     class(comm_map),                   intent(inout), optional :: map
     real(dp),        dimension(0:,1:), intent(inout), optional :: alm
+    class(comm_mapinfo),               intent(in),    optional :: info
     integer(i4b) :: i, l
-    if (trim(self%type) == 'none') return
+    real(dp)     :: f_apod
+    if (trim(self%type) == 'none') then
+       if (only_pol) then
+          if (present(map)) then
+             map%alm(:,1) = 0.d0
+          else if (present(alm)) then
+             alm(:,1) = 0.d0
+          end if
+       end if
+       return
+    end if
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
-          map%alm(i,:) = matmul(self%sqrtS_mat(:,:,l), map%alm(i,:))
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          map%alm(i,:) = f_apod * matmul(self%sqrtS_mat(:,:,l), map%alm(i,:))
        end do
     else if (present(alm)) then
-       do i = 0, self%info%nalm-1
-          l = self%info%lm(1,i)
-          alm(i,:) = matmul(self%sqrtS_mat(:,:,l), alm(i,:))
+       do i = 0, info%nalm-1
+          l = info%lm(1,i)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          if (l <= self%lmax) then
+             alm(i,:) = f_apod * matmul(self%sqrtS_mat(:,:,l), alm(i,:))
+          else
+             alm(i,:) = 0.d0
+          end if
+          !if (self%info%myid == 0 .and. i == 4) write(*,*) l, real(f_apod,sp), real(self%sqrtS_mat(:,:,l),sp),  real(alm(i,:),sp), self%Dl(l,:), trim(self%label)
        end do
     end if
   end subroutine matmulSqrtS
+
+  subroutine matmulSqrtInvS(self, map, alm, info)
+    implicit none
+    class(comm_Cl),                    intent(in)              :: self
+    class(comm_map),                   intent(inout), optional :: map
+    real(dp),        dimension(0:,1:), intent(inout), optional :: alm
+    class(comm_mapinfo),               intent(in),    optional :: info
+    integer(i4b) :: i, l
+    real(dp)     :: f_apod
+    if (trim(self%type) == 'none') then
+       if (only_pol) then
+          if (present(map)) then
+             map%alm(:,1) = 0.d0
+          else if (present(alm)) then
+             alm(:,1) = 0.d0
+          end if
+       end if
+       return
+    end if
+    if (present(map)) then
+       do i = 0, self%info%nalm-1
+          l = self%info%lm(1,i)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .false.)
+          map%alm(i,:) = f_apod * matmul(self%sqrtInvS_mat(:,:,l), map%alm(i,:))
+       end do
+    else if (present(alm)) then
+       do i = 0, info%nalm-1
+          l = info%lm(1,i)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .false.)
+          if (l <= self%lmax) then
+             alm(i,:) = f_apod * matmul(self%sqrtInvS_mat(:,:,l), alm(i,:))
+          else
+             alm(i,:) = 0.d0
+          end if
+       end do
+    end if
+  end subroutine matmulSqrtInvS
+
+  function get_Cl_apod(l, l_apod, lmax, positive)
+    implicit none
+    integer(i4b), intent(in) :: l, l_apod, lmax
+    logical(lgt), intent(in) :: positive
+    real(dp)                 :: get_Cl_apod
+    real(dp) :: alpha
+    if (l <= l_apod) then
+       get_Cl_apod = 1.d0
+    else if (l > lmax) then
+       get_Cl_apod = 0.d0
+    else
+       alpha = log(1d3)
+       get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod+1,dp)**2)
+    end if
+!!$    if (l > l_apod) then
+!!$       get_Cl_apod = 0.5d0*(1.d0 - cos(pi*real(lmax-l+1,dp)/real(lmax-l_apod,dp)))
+!!$    else
+!!$       get_Cl_apod = 1.d0
+!!$    end if
+    if (.not. positive .and. l <= lmax) get_Cl_apod = 1.d0 / get_Cl_apod
+  end function get_Cl_apod
 
   subroutine read_Cl_file(self, clfile)
     implicit none
@@ -274,7 +464,7 @@ contains
        end do
        deallocate(clin)
     else
-       ! Assume input file is in ASCII format with {l, TT, EE, BB, TE} ordering, and
+       ! Assume input file is in ASCII format with {l, TT, TE, EE, BB} ordering, and
        ! normalization is C_l * l(l+1)/2pi
        open(unit,file=trim(clfile))
        do while (.true.)
@@ -287,7 +477,8 @@ contains
                 self%Dl(l,TT) = Dl_TT 
              end if
           else
-             read(line,*) l, Dl_TT, Dl_EE, Dl_BB, Dl_TE
+             !write(*,*) trim(line)
+             read(line,*) l, Dl_TT, Dl_TE, Dl_EE, Dl_BB
              if (l <= self%lmax) then
                 self%Dl(l,TT) = Dl_TT 
                 self%Dl(l,TE) = Dl_TE 
@@ -314,7 +505,10 @@ contains
 
     do k = 1, self%nbin
        do j = 1, self%nspec
-          if (self%stat(k,j) == '0' .or. self%stat(k,j) == 'C') cycle
+          if (self%stat(k,j) == '0' .or. self%stat(k,j) == 'C') then
+             self%Dl(self%bins(k,1):self%bins(k,2),j) = 0.d0
+             cycle
+          end if
           val = 0.d0
           n   = 0.d0
           do l = self%bins(k,1), self%bins(k,2)
@@ -339,6 +533,8 @@ contains
        call sample_Cls_inverse_wishart(self, map)
     case ('power_law')
        call sample_Cls_powlaw(self, map)
+    case ('exp')
+       call sample_Cls_powlaw(self, map)
     end select
     
   end subroutine sampleCls
@@ -359,10 +555,12 @@ contains
     
   end subroutine sample_Cls_powlaw
 
-  subroutine writeFITS(self, chain, iter)
+  subroutine writeFITS(self, chain, iter, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(inout) :: self
     integer(i4b),     intent(in)    :: chain, iter
+    type(hdf_file),   intent(in), optional :: hdffile
+    character(len=*), intent(in), optional :: hdfpath
 
     character(len=4) :: ctext
     character(len=6) :: itext
@@ -377,21 +575,29 @@ contains
     case ('none')
        return
     case ('binned')
-       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
+       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext, hdffile=hdffile, hdfpath=hdfpath)
     case ('power_law')
        call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
-       call write_powlaw_to_FITS(self, 'c'//ctext)
+       call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
+    case ('exp')
+       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
+       call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
     end select
 
   end subroutine writeFITS
 
-  subroutine write_Dl_to_FITS(self, postfix)
+  subroutine write_Dl_to_FITS(self, postfix, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(in) :: self
     character(len=*), intent(in) :: postfix
-
+    type(hdf_file),   intent(in), optional :: hdffile
+    character(len=*), intent(in), optional :: hdfpath
+    
     integer(i4b) :: i, l, unit
     character(len=512) :: filename
+    real(dp), allocatable, dimension(:,:) :: sigmal
+
+    if (trim(self%outdir) == 'none') return
 
     unit = getlun()
     filename = trim(self%outdir) // '/cls_' // trim(self%label) // '_' // trim(postfix) // '.dat'
@@ -399,7 +605,7 @@ contains
     if (self%nspec == 1) then
        write(unit,*) '# Columns are {l, Dl_TT}'
     else
-       write(unit,*) '# Columns are {l, Dl_TT, Dl_EE, Dl_BB, Dl_TE, Dl_TB, Dl_EB}'
+       write(unit,*) '# Columns are {l, Dl_TT, Dl_TE, Dl_TB, Dl_EE, Dl_EB, Dl_BB}'
     end if
     do l = 0, self%lmax
        if (self%nspec == 1) then
@@ -410,16 +616,23 @@ contains
     end do
     close(unit)
 
+    if (present(hdffile)) call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl', self%Dl)       
+    
   end subroutine write_Dl_to_FITS
 
-  subroutine write_powlaw_to_FITS(self, postfix)
+  subroutine write_powlaw_to_FITS(self, postfix, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(inout) :: self
     character(len=*), intent(in)    :: postfix
+    type(hdf_file),   intent(in), optional :: hdffile
+    character(len=*), intent(in), optional :: hdfpath
 
     integer(i4b) :: unit
     character(len=512) :: filename
 
+    if (trim(self%outdir) == 'none') return
+
+    unit    = getlun()
     filename = trim(self%outdir) // '/cls_' // trim(self%label) // '_powlaw_' // &
          & trim(postfix) // '.dat' 
 
@@ -438,11 +651,61 @@ contains
     if (self%nspec == 1) then
        write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
     else
-       write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
+       write(unit,fmt='(i8,6e16.8)') self%iter, self%amp, self%beta
     end if
     close(unit)
+
+    if (present(hdffile)) then
+       call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
+       call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+    end if
     
   end subroutine write_powlaw_to_FITS
-  
+
+  subroutine write_sigma_l(filename, sigma_l)
+    implicit none
+    character(len=*),                   intent(in) :: filename
+    real(dp),         dimension(0:,1:), intent(in) :: sigma_l
+
+    integer(i4b) :: unit, l, lmax, nspec
+
+    lmax  = size(sigma_l,1)-1
+    nspec = size(sigma_l,2)
+
+    unit = getlun()
+    open(unit,file=trim(filename), recl=1024)
+    if (nspec == 1) then
+       write(unit,*) '# Columns are {l, Dl_TT}'
+    else
+       write(unit,*) '# Columns are {l, Dl_TT, Dl_TE, Dl_TB, Dl_EE, Dl_EB, Dl_BB}'
+    end if
+    do l = 0, lmax
+       if (nspec == 1) then
+          write(unit,fmt='(i6,e16.8)') l, sigma_l(l,:) * l*(l+1)/(2.d0*pi)
+       else
+          write(unit,fmt='(i6,6e16.8)') l, sigma_l(l,:) * l*(l+1)/(2.d0*pi)
+       end if
+    end do
+    close(unit)
+
+  end subroutine write_sigma_l
+
+  function getCl(self, l, p)
+    implicit none
+    class(comm_Cl),  intent(in) :: self    
+    integer(i4b),    intent(in) :: l, p
+    real(dp)                    :: getCl
+
+    integer(i4b) :: j
+
+    j = p*(1-p)/2 + (p-1)*self%nmaps + p
+    if (l == 0) then
+       getCl = self%Dl(l,j)
+    else
+       getCl = self%Dl(l,j) / (l*(l+1)/2.d0/pi)
+    end if
+    getCl = getCl * get_Cl_apod(l, self%l_apod, self%lmax, .true.)**2
+
+  end function getCl
   
 end module comm_Cl_mod

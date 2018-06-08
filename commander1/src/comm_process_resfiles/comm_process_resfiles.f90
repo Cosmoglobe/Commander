@@ -347,7 +347,7 @@ contains
     character(len=5)   :: pix_text
     character(len=1)   :: s_text(3) = ['T', 'Q', 'U']
     integer(i4b)       :: i, j, k, l, m, n, p, unit, nreal, ordering, chain, lmax, counter, nval
-    integer(i4b)       :: nside, npix, nmaps, comp, ncomp, burnin, numiter, numchain, seed, numcomp
+    integer(i4b)       :: nside, npix, nmaps, comp, ncomp, burnin, numiter, numchain, seed, numcomp, nmax
     real(dp)           :: sigma_reg(3)
     logical(lgt)       :: compute_covar
     type(planck_rng)   :: handle
@@ -409,6 +409,7 @@ contains
     numchain = iargc()-13
     npix     = 12*nside**2
     unit     = 58
+    nmax     = 10005000
 
     if (trim(filetype) == 'pix') then
        allocate(fg_amp(0:npix-1,nmaps,ncomp))
@@ -464,7 +465,7 @@ contains
              read(unit,end=48) fg_amp
              counter = counter+1
              n_per_chain(chain) = n_per_chain(chain) + 1
-             if (counter > burnin) then
+             if (counter > burnin .and. counter <= nmax) then
                 mean  = mean + fg_amp(:,:,comp)
                 nreal = nreal + 1
                 n_per_chain(chain) = n_per_chain(chain) + 1
@@ -472,7 +473,7 @@ contains
           else
              read(unit,end=48) alms
              counter = counter+1
-             if (counter > burnin) then
+             if (counter > burnin .and. counter <= nmax) then
                 alms_mean = alms_mean + alms
                 nreal = nreal+1
                 n_per_chain(chain) = n_per_chain(chain) + 1
@@ -516,11 +517,11 @@ contains
           do counter = 1, n_per_chain(chain)
              if (trim(filetype) == 'pix') then
                 read(unit,end=49) fg_amp
-                if (counter <= burnin) cycle
+                if (counter <= burnin .or. counter > nmax) cycle
                 map = fg_amp(:,:,comp)
              else
                 read(unit,end=49) alms
-                if (counter <= burnin) cycle
+                if (counter <= burnin .or. counter > nmax) cycle
                 alms_mean = alms
                 call convert_real_to_complex_alms_dp(alms_mean, alms_cmplx)
                 do k = 1, nmaps
@@ -549,12 +550,15 @@ contains
              end do
              
              ! Compute outer product 
+             !$OMP PARALLEL PRIVATE(i,j) 
+             !$OMP DO SCHEDULE(guided)                   
              do i = 1, n
                 do j = i, n
                    cov(j,i) = cov(j,i) + map_1D(i)*map_1D(j)
                 end do
              end do
-             
+             !$OMP END DO                                                                                      
+             !$OMP END PARALLEL             
           end do
 49        close(unit)
        end do

@@ -10,7 +10,7 @@ all: comm_process_resfiles comm_like_tools comm_like_sampler comm_like_tools_mpi
 comm_like_tools.o : comm_gauss_br_mod.o 
 
 comm_process_resfiles : $(COBJS) comm_process_resfiles.o
-	$(MPF90) -o comm_process_resfiles comm_process_resfiles.o $(COBJS) $(LINK) 
+	$(MPF90) -openmp -o comm_process_resfiles comm_process_resfiles.o $(COBJS) $(LINK) 
 
 comm_like_tools : $(COBJS) comm_like_tools.o
 	$(MPF90) -o comm_like_tools comm_like_tools.o $(COBJS) $(LINK) $(WMAP)
@@ -22,10 +22,10 @@ comm_like_sampler : $(COBJS) comm_like_sampler.o
 	$(MPF90) -o comm_like_sampler comm_like_sampler.o $(COBJS) $(LINK)
 
 %.o : %.F90
-	$(MPF90) $(F90COMP) -c $< $(WMAP) 
+	$(MPF90) $(F90COMP) -openmp -c $< $(WMAP) 
 
 %.o : %.f90
-	$(MPF90) $(F90COMP) -c $<
+	$(MPF90) $(F90COMP) -openmp -c $<
 
 clean :
 	@rm -f *.o *.mod *.MOD *.a *~ comm_process_resfiles comm_like_tools comm_like_sampler

@@ -94,5 +94,29 @@ contains
     end do
     
   end subroutine cr_extract_comp_2d
+
+  subroutine cr_mask(id, mask_flag, mask)
+    implicit none
+
+    integer(i4b),                  intent(in)    :: id
+    logical(lgt),                  intent(in)    :: mask_flag
+    real(dp),     dimension(1:),   intent(inout) :: mask
+
+    integer(i4b) :: i, n, pos, nmaps
+
+    pos   = ind_comp(id,1)
+    nmaps = ind_comp(id,3)
+    n     = ind_comp(id,2)/nmaps
+    do i = 1, nmaps
+       if (mask_flag) then
+          mask(pos:pos+n-1) = 1.d0
+       else
+          mask(pos:pos+n-1) = 0.d0
+       end if
+       pos        = pos + n
+    end do
+    
+  end subroutine cr_mask
+
   
 end module comm_cr_utils

@@ -3,31 +3,34 @@ module comm_map_mod
   use healpix_types
   use fitstools
   use pix_tools
+  use udgrade_nr
   use iso_c_binding, only : c_ptr, c_double
   use head_fits
+  use comm_hdf_mod
+  use extension
   implicit none
 
-  include "mpif.h"
+!  include "mpif.h"
       
   private
   public comm_map, comm_mapinfo, map_ptr
 
   type :: comm_mapinfo
      type(sharp_alm_info)  :: alm_info
-     type(sharp_geom_info) :: geom_info
+     type(sharp_geom_info) :: geom_info_T, geom_info_P
      logical(lgt) :: pol
      integer(i4b) :: comm, myid, nprocs
-     integer(i4b) :: nside, npix, nmaps, nring, np, lmax, nm, nalm
+     integer(i4b) :: nside, npix, nmaps, nspec, nring, np, lmax, nm, nalm
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
      integer(c_int), allocatable, dimension(:)   :: mind
      integer(c_int), allocatable, dimension(:,:) :: lm
      integer(c_int), allocatable, dimension(:)   :: pix
-     real(c_double), allocatable, dimension(:)   :: W
+     real(c_double), allocatable, dimension(:,:) :: W
    contains
      procedure     :: lm2i
      procedure     :: i2lm
-     final :: comm_mapinfo_finalize
+     procedure     :: dealloc => comm_mapinfo_finalize
   end type comm_mapinfo
 
   type :: comm_map
@@ -44,10 +47,21 @@ module comm_map_mod
      procedure     :: Y    => exec_sharp_Y
      procedure     :: Yt   => exec_sharp_Yt
      procedure     :: YtW  => exec_sharp_YtW
+     procedure     :: WY   => exec_sharp_WY
+     procedure     :: Y_EB => exec_sharp_Y_EB
+     procedure     :: Y_scalar    => exec_sharp_Y_scalar
+     procedure     :: Yt_scalar   => exec_sharp_Yt_scalar
+     procedure     :: YtW_scalar  => exec_sharp_YtW_scalar
      procedure     :: writeFITS
      procedure     :: readFITS
+     procedure     :: readHDF
      procedure     :: dealloc => deallocate_comm_map
      procedure     :: alm_equal
+     procedure     :: add_alm
+     procedure     :: udgrade
+     procedure     :: getSigmaL
+     procedure     :: getCrossSigmaL
+     procedure     :: smooth
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -81,8 +95,13 @@ contains
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
     integer(i4b) :: myid, nprocs, ierr
-    integer(i4b) :: l, m, i, j, iring, np, ind
+    integer(i4b) :: l, m, i, j, k, iring, np, ind 
+    real(dp)     :: nullval
+    logical(lgt) :: anynull
     integer(i4b), allocatable, dimension(:) :: pixlist
+    real(dp),     allocatable, dimension(:,:) :: weights
+    character(len=5)   :: nside_text
+    character(len=512) :: weight_file, healpixdir
 
     call mpi_comm_rank(comm, myid, ierr)
     call mpi_comm_size(comm, nprocs, ierr)
@@ -93,6 +112,7 @@ contains
     constructor_mapinfo%nprocs = nprocs
     constructor_mapinfo%nside  = nside
     constructor_mapinfo%nmaps  = nmaps
+    constructor_mapinfo%nspec  = nmaps*(nmaps+1)/2
     constructor_mapinfo%lmax   = lmax
     constructor_mapinfo%pol    = pol
     constructor_mapinfo%npix   = 12*nside**2
@@ -101,21 +121,41 @@ contains
     allocate(pixlist(0:4*nside-1))
     constructor_mapinfo%nring = 0
     constructor_mapinfo%np    = 0
-    do i = 1+myid, 4*nside-1, nprocs
+!    do i = 1+myid, 4*nside-1, nprocs
+!       call in_ring(nside, i, 0.d0, pi, pixlist, np)
+!       constructor_mapinfo%nring = constructor_mapinfo%nring + 1
+!       constructor_mapinfo%np    = constructor_mapinfo%np    + np
+!    end do
+    do i = 1+myid, 2*nside, nprocs
        call in_ring(nside, i, 0.d0, pi, pixlist, np)
        constructor_mapinfo%nring = constructor_mapinfo%nring + 1
        constructor_mapinfo%np    = constructor_mapinfo%np    + np
+       if (i < 2*nside) then ! Symmetric about equator
+          constructor_mapinfo%nring = constructor_mapinfo%nring + 1
+          constructor_mapinfo%np    = constructor_mapinfo%np    + np
+       end if
     end do
     allocate(constructor_mapinfo%rings(constructor_mapinfo%nring))
     allocate(constructor_mapinfo%pix(constructor_mapinfo%np))
     j = 1
-    do i = 1, constructor_mapinfo%nring
-       constructor_mapinfo%rings(i) = 1 + myid + (i-1)*nprocs
-       call in_ring(nside, constructor_mapinfo%rings(i), 0.d0, pi, pixlist, np)
+    k = 1
+    do i = 1+myid, 2*nside, nprocs
+       call in_ring(nside, i, 0.d0, pi, pixlist, np)
+       constructor_mapinfo%rings(k) = i
        constructor_mapinfo%pix(j:j+np-1) = pixlist(0:np-1)
+       k = k + 1
        j = j + np
+       if (i < 2*nside) then ! Symmetric about equator
+          call in_ring(nside, 4*nside-i, 0.d0, pi, pixlist, np)
+          constructor_mapinfo%rings(k) = 4*nside-i
+          constructor_mapinfo%pix(j:j+np-1) = pixlist(0:np-1)
+          k = k + 1
+          j = j + np
+       end if
     end do
     deallocate(pixlist)
+    call QuickSort_int(constructor_mapinfo%rings)
+    call QuickSort_int(constructor_mapinfo%pix)
 
     ! Select m's
     constructor_mapinfo%nm = 0
@@ -151,23 +191,39 @@ contains
        end if
     end do
     
-    ! Read ring weights
-    allocate(constructor_mapinfo%W(constructor_mapinfo%nring))
-    constructor_mapinfo%W = 1.d0
-
-    ! Create SHARP info structures
+    ! Read ring weights, and create SHARP info structures
     call sharp_make_mmajor_real_packed_alm_info(lmax, ms=constructor_mapinfo%ms, &
          & alm_info=constructor_mapinfo%alm_info)
-    call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
-         & geom_info=constructor_mapinfo%geom_info)
-    
+!!$    allocate(constructor_mapinfo%W(constructor_mapinfo%nring/2,1))
+!!$    constructor_mapinfo%W = 1.d0
+    call getEnvironment('HEALPIX', healpixdir) 
+    call int2string(nside, nside_text)
+    weight_file = trim(healpixdir)//'/data/weight_ring_n' // nside_text // '.fits'
+    if (nmaps == 1) then
+       allocate(constructor_mapinfo%W(2*nside,1))
+       call read_dbintab(weight_file, constructor_mapinfo%W, 2*nside, 1, nullval, anynull)
+       constructor_mapinfo%W = constructor_mapinfo%W + 1.d0
+       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
+            & weight=constructor_mapinfo%W(:,1), geom_info=constructor_mapinfo%geom_info_T)
+    else
+       allocate(constructor_mapinfo%W(2*nside,2))
+       call read_dbintab(weight_file, constructor_mapinfo%W, 2*nside, 2, nullval, anynull)
+       constructor_mapinfo%W(:,:) = constructor_mapinfo%W + 1.d0
+       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
+            & weight=constructor_mapinfo%W(:,1), geom_info=constructor_mapinfo%geom_info_T)
+       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
+            & weight=constructor_mapinfo%W(:,2), geom_info=constructor_mapinfo%geom_info_P)
+    end if
+
   end function constructor_mapinfo
 
-  function constructor_map(info, filename)
+  function constructor_map(info, filename, mask_misspix, udgrade)
     implicit none
-    class(comm_mapinfo),           intent(in), target   :: info
-    character(len=*),              intent(in), optional :: filename
-    class(comm_map),     pointer                        :: constructor_map
+    class(comm_mapinfo),                              intent(in),  target   :: info
+    character(len=*),                                 intent(in),  optional :: filename
+    logical(lgt),                                     intent(in),  optional :: udgrade
+    real(dp),            allocatable, dimension(:,:), intent(out), optional :: mask_misspix
+    class(comm_map),     pointer                                            :: constructor_map
 
     allocate(constructor_map)
     constructor_map%info => info
@@ -175,7 +231,12 @@ contains
     allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
 
     if (present(filename)) then
-       call constructor_map%readFITS(filename)
+       if (present(mask_misspix)) then
+          allocate(mask_misspix(0:info%np-1,info%nmaps))
+          call constructor_map%readFITS(filename, mask=mask_misspix, udgrade=udgrade)
+       else
+          call constructor_map%readFITS(filename, udgrade=udgrade)
+       end if
     else
        constructor_map%map = 0.d0
     end if
@@ -197,25 +258,48 @@ contains
     
   end function constructor_clone
 
-  subroutine deallocate_comm_map(self)
+  subroutine deallocate_comm_map(self, clean_info)
     implicit none
 
-    class(comm_map), intent(inout) :: self
+    class(comm_map), intent(inout)          :: self
+    logical(lgt),    intent(in),   optional :: clean_info
+    class(comm_map), pointer :: link
 
+    logical(lgt) :: clean_info_
+
+    clean_info_ = .false.; if (present(clean_info)) clean_info_ = clean_info
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
+    if (clean_info_ .and. associated(self%info)) call self%info%dealloc()
     nullify(self%info)
+
+    if (associated(self%nextLink)) then
+       ! Deallocate all links
+       link => self%nextLink
+       do while (associated(link))
+          if (allocated(link%map)) deallocate(link%map)
+          if (allocated(link%alm)) deallocate(link%alm)
+          if (clean_info_ .and. associated(link%info)) call link%info%dealloc()
+          nullify(link%info)
+          link => link%nextLink
+       end do
+       nullify(self%nextLink)
+    end if
 
   end subroutine deallocate_comm_map
 
   subroutine comm_mapinfo_finalize(self)
     implicit none
 
-    type(comm_mapinfo) :: self
-
-    call sharp_destroy_alm_info(self%alm_info)
-    call sharp_destroy_geom_info(self%geom_info)
+    class(comm_mapinfo) :: self
     
+    if (allocated(self%rings)) then
+       deallocate(self%rings, self%ms, self%mind, self%lm, self%pix, self%W)
+       call sharp_destroy_alm_info(self%alm_info)
+       call sharp_destroy_geom_info(self%geom_info_T)
+       if (self%nmaps == 3) call sharp_destroy_geom_info(self%geom_info_P)
+    end if
+
   end subroutine comm_mapinfo_finalize
   
   !**************************************************
@@ -230,18 +314,71 @@ contains
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-!          call sharp_execute(SHARP_Y, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-!               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
-          self%map(:,2:3) = 0.d0
+          call sharp_execute(SHARP_Y, 2, 2, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
     else
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)       
+            & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
     
   end subroutine exec_sharp_Y
+
+  subroutine exec_sharp_WY(self)
+    implicit none
+
+    class(comm_map), intent(inout)          :: self
+
+    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
+    if (self%info%pol) then
+       call sharp_execute(SHARP_WY, 0, 1, self%alm(:,1:1), self%info%alm_info, &
+            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
+       if (self%info%nmaps == 3) then
+          call sharp_execute(SHARP_WY, 2, 2, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
+       end if
+    else
+       call sharp_execute(SHARP_WY, 0, self%info%nmaps, self%alm, self%info%alm_info, &
+            & self%map, self%info%geom_info_T, comm=self%info%comm)       
+    end if
+    
+  end subroutine exec_sharp_WY
+
+  subroutine exec_sharp_Y_scalar(self)
+    implicit none
+
+    class(comm_map), intent(inout)          :: self
+    integer(i4b) :: i
+
+    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
+    do i = 1, self%info%nmaps
+       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
+            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
+    end do
+    
+  end subroutine exec_sharp_Y_scalar
+  
+  subroutine exec_sharp_Y_EB(self)
+    implicit none
+
+    class(comm_map), intent(inout)          :: self
+
+    integer(i4b) :: i
+    type(comm_mapinfo), pointer :: info
+    
+    info => comm_mapinfo(self%info%comm, self%info%nside, self%info%lmax, self%info%nmaps, .false.)
+
+    if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
+    do i = 1, self%info%nmaps
+       call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
+            & self%map(:,i:i), info%geom_info_T, comm=info%comm)
+    end do
+
+    deallocate(info)
+    
+  end subroutine exec_sharp_Y_EB
 
   subroutine exec_sharp_Yt(self)
     implicit none
@@ -251,19 +388,32 @@ contains
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-          !call sharp_execute(SHARP_Yt, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-          !     & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
-          self%alm(:,2:3) = 0.d0
+          call sharp_execute(SHARP_Yt, 2, 2, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
        
     else
        call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)       
+            & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
     
   end subroutine exec_sharp_Yt
+
+  subroutine exec_sharp_Yt_scalar(self)
+    implicit none
+
+    class(comm_map), intent(inout) :: self
+    integer(i4b) :: i
+
+    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
+    do i = 1, self%info%nmaps
+       call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,i:i), self%info%alm_info, &
+            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
+    end do
+    
+  end subroutine exec_sharp_Yt_scalar
 
   subroutine exec_sharp_YtW(self)
     implicit none
@@ -273,34 +423,52 @@ contains
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
-            & self%map(:,1:1), self%info%geom_info, comm=self%info%comm)
+            & self%map(:,1:1), self%info%geom_info_T, comm=self%info%comm)
        if (self%info%nmaps == 3) then
-!          call sharp_execute(SHARP_YtW, 2, 1, self%alm(:,2:3), self%info%alm_info, &
-!               & self%map(:,2:3), self%info%geom_info, comm=self%info%comm)
-          self%alm(:,2:3) = 0.d0
+          call sharp_execute(SHARP_YtW, 2, 2, self%alm(:,2:3), self%info%alm_info, &
+               & self%map(:,2:3), self%info%geom_info_P, comm=self%info%comm)
        end if
     else
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
-            & self%map, self%info%geom_info, comm=self%info%comm)
+            & self%map, self%info%geom_info_T, comm=self%info%comm)
     end if
     
   end subroutine exec_sharp_YtW
+
+
+  subroutine exec_sharp_YtW_scalar(self)
+    implicit none
+
+    class(comm_map), intent(inout) :: self
+    integer(i4b) :: i
+
+    if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
+    do i = 1, self%info%nmaps
+       call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,i:i), self%info%alm_info, &
+            & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
+    end do
+    
+  end subroutine exec_sharp_YtW_scalar
   
   !**************************************************
   !                   IO routines
   !**************************************************
 
-  subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile)
+  subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile, &
+       & hdffile, hdfpath)
     implicit none
 
     class(comm_map),  intent(in) :: self
     character(len=*), intent(in) :: filename
     character(len=*), intent(in), optional :: comptype, unit, spectrumfile, ttype
     real(dp),         intent(in), optional :: nu_ref
+    type(hdf_file),   intent(in), optional :: hdffile
+    character(len=*), intent(in), optional :: hdfpath
 
-    integer(i4b) :: i, nmaps, npix, np, ierr
-    real(dp),     allocatable, dimension(:,:) :: map, buffer
+    integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr
+    real(dp),     allocatable, dimension(:,:) :: map, alm, buffer
     integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
     
     ! Only the root actually writes to disk; data are distributed via MPI
@@ -321,6 +489,37 @@ contains
           deallocate(buffer)
        end do
        call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+
+       if (present(hdffile)) then
+          allocate(alm(0:(self%info%lmax+1)**2-1,self%info%nmaps))
+          do j = 0, self%info%nalm-1
+             l   = self%info%lm(1,j)
+             m   = self%info%lm(2,j)
+             ind = l**2 + l + m
+             alm(ind,:) = self%alm(j,:)
+          end do
+          do i = 1, self%info%nprocs-1
+             call mpi_recv(nlm,      1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(lm(2,0:nlm-1))
+             call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(buffer(0:nlm-1,nmaps))
+             call mpi_recv(buffer, size(buffer), &
+                  & MPI_DOUBLE_PRECISION, i, 98, self%info%comm, mpistat, ierr)
+             do j = 0, nlm-1
+                l   = lm(1,j)
+                m   = lm(2,j)
+                ind = l**2 + l + m                
+                alm(ind,:) = buffer(j,:)
+             end do
+             deallocate(lm, buffer)
+          end do
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   alm)
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),   map)
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
+          deallocate(alm)
+       end if
+
        deallocate(p, map)
 
     else
@@ -328,18 +527,27 @@ contains
        call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
        call mpi_send(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
             & self%info%comm, ierr)
+
+       if (present(hdffile)) then
+          call mpi_send(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%info%lm,   size(self%info%lm), MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%alm,       size(self%alm),     MPI_DOUBLE_PRECISION, 0, 98, &
+               & self%info%comm, ierr)
+       end if
     end if
     
   end subroutine writeFITS
   
-  subroutine readFITS(self, filename)
+  subroutine readFITS(self, filename, mask, udgrade)
     implicit none
 
-    class(comm_map),  intent(inout) :: self
-    character(len=*), intent(in)    :: filename
+    class(comm_map),                    intent(inout) :: self
+    real(dp),         dimension(0:,1:), intent(out), optional :: mask
+    logical(lgt),                       intent(in),  optional :: udgrade
+    character(len=*),                   intent(in)    :: filename
 
-    integer(i4b) :: i, np, npix, ordering, nside, nmaps, ierr
-    real(dp),     allocatable, dimension(:,:) :: map
+    integer(i4b) :: i, j, np, npix, ordering, nside, nmaps, ierr, badpix
+    real(dp),     allocatable, dimension(:,:) :: map, buffer, map_in
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
@@ -350,7 +558,7 @@ contains
        call mpi_finalize(ierr)
        stop
     end if
-    if (nside /= self%info%nside) then
+    if (nside /= self%info%nside .and. .not. (present(udgrade))) then
        if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename)
        call mpi_finalize(ierr)
        stop
@@ -361,7 +569,26 @@ contains
 
        ! Read map and convert to RING format if necessary
        allocate(map(0:self%info%npix-1,self%info%nmaps))
-       call input_map(filename, map, self%info%npix, self%info%nmaps)
+       if (present(udgrade)) then
+          allocate(map_in(0:npix-1,nmaps))
+          call input_map(filename, map_in, npix, nmaps)
+          if (ordering == 1) then
+             call udgrade_ring(map_in, nside, map, nside_out=self%info%nside)
+          else
+             call udgrade_nest(map_in, nside, map, nside_out=self%info%nside)
+          end if
+          deallocate(map_in)
+       else
+          call input_map(filename, map, self%info%npix, self%info%nmaps)
+       end if
+
+       if (present(mask)) then
+          badpix = count(abs(map+1.6375d30) < 1d25 .or. map > 1.d30)
+          if (badpix > 0) then
+             write(*,fmt='(a,i8)') '   Number of bad pixels = ', badpix
+          end if
+       end if
+       
        if (ordering == 2) then
           do i = 1, self%info%nmaps
              call convert_nest2ring(self%info%nside, map(:,i))
@@ -374,8 +601,12 @@ contains
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
-          call mpi_send(map(p(1:np),:), np*self%info%nmaps, MPI_DOUBLE_PRECISION, i, 98, &
+          allocate(buffer(np,self%info%nmaps))
+          buffer = map(p(1:np),:)
+          call mpi_send(buffer, np*self%info%nmaps, MPI_DOUBLE_PRECISION, i, 98, &
                & self%info%comm, ierr)
+          map(p(1:np),:) = buffer
+          deallocate(buffer)
        end do
        deallocate(p, map)
     else
@@ -384,8 +615,59 @@ contains
        call mpi_recv(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
             &  self%info%comm, mpistat, ierr)
     end if
+
+    if (present(mask)) then
+       do j = 1, self%info%nmaps
+          do i = 0, self%info%np-1
+             if (abs(self%map(i,j)+1.6375d30) < 1d25 .or. self%map(i,j) == 0.d0 .or. self%map(i,j) > 1.d30) then
+                mask(i,j) = 0.d0
+             else
+                mask(i,j) = 1.d0
+             end if
+          end do
+       end do
+    end if
     
   end subroutine readFITS
+
+  subroutine readHDF(self, hdffile, hdfpath)
+    implicit none
+
+    class(comm_map),  intent(inout) :: self
+    type(hdf_file),   intent(in)    :: hdffile
+    character(len=*), intent(in)    :: hdfpath
+
+    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
+    real(dp),     allocatable, dimension(:,:) :: alms, map
+    integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+
+    lmax  = self%info%lmax
+    npix  = self%info%npix
+    nmaps = self%info%nmaps
+    nalm  = (lmax+1)**2
+
+    ! Only the root actually reads from disk; data are distributed via MPI
+    allocate(alms(0:nalm-1,nmaps))
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath))//'alm', alms)
+    call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    do i = 0, self%info%nalm-1
+       call self%info%i2lm(i, l, m)
+       j = l**2 + l + m
+       self%alm(i,:) = alms(j,:)
+    end do
+    deallocate(alms)
+
+    ! Only the root actually reads from disk; data are distributed via MPI
+    allocate(map(0:npix-1,nmaps))
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath))//'map', map)
+    call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    do i = 1, nmaps
+       self%map(:,i) = map(self%info%pix,i)
+    end do
+    deallocate(map)
+    
+  end subroutine readHDF
 
   subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
     implicit none
@@ -474,7 +756,59 @@ contains
 
   end subroutine write_map
 
-  
+  ! Note: Allocates a full-size internal map. Should not be used extensively.
+  subroutine udgrade(self, map_out)
+    implicit none
+    class(comm_map), intent(in)    :: self
+    class(comm_map), intent(inout) :: map_out
+
+    integer(i4b) :: i, j, ierr
+    real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer
+
+    if (self%info%nside == map_out%info%nside) then
+       map_out%map = self%map
+       return
+    end if
+
+    allocate(m_in(0:self%info%npix-1,self%info%nmaps))
+    allocate(m_out(0:map_out%info%npix-1,map_out%info%nmaps))
+    allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
+    m_in                  = 0.d0
+    m_in(self%info%pix,:) = self%map
+    call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
+    call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+    map_out%map = buffer(map_out%info%pix,:)
+    deallocate(m_in, m_out, buffer)
+
+  end subroutine udgrade
+
+
+  subroutine smooth(self, fwhm)
+    implicit none
+    class(comm_map), intent(inout)    :: self
+    real(dp),        intent(in)       :: fwhm
+
+    integer(i4b) :: i, j, l, m
+    real(dp)     :: sigma, bl, fact_pol
+    real(dp), allocatable, dimension(:,:) :: m_in, m_out
+
+    if (fwhm <= 0.d0) return
+
+    call self%YtW
+    sigma    = fwhm * pi/180.d0/60.d0 / sqrt(8.d0*log(2.d0))
+    fact_pol = exp(2.d0*sigma**2)
+    do i = 0, self%info%nalm-1
+       call self%info%i2lm(i,l,m)
+       do j = 1, self%info%nmaps
+          bl = exp(-0.5*l*(l+1)*sigma**2)
+          if (j > 1) bl = bl * fact_pol
+          self%alm(i,j) = self%alm(i,j) * bl
+       end do
+    end do
+    call self%Y    
+
+  end subroutine smooth
+
   !**************************************************
   !                   Utility routines
   !**************************************************
@@ -497,6 +831,25 @@ contains
     end do
 
   end subroutine alm_equal
+
+  subroutine add_alm(self, alm, info)
+    implicit none
+    class(comm_map),                       intent(inout) :: self
+    real(dp),            dimension(0:,1:), intent(in)    :: alm
+    class(comm_mapinfo),                   intent(in)    :: info
+
+    integer(i4b) :: i, j, l, m, q
+
+    do i = 0, info%nalm-1
+       call info%i2lm(i,l,m)
+       call self%info%lm2i(l,m,j)
+       if (j == -1) cycle
+       do q = 1, min(self%info%nmaps, info%nmaps)
+          self%alm(j,q) = self%alm(j,q) + alm(i,q)
+       end do
+    end do
+
+  end subroutine add_alm
   
   subroutine lm2i(self, l, m, i)
     implicit none
@@ -559,12 +912,81 @@ contains
 
     class(comm_map), pointer :: c
     
-    c => self%nextLink
-    do while (associated(c%nextLink))
-       c => c%nextLink
-    end do
-    link%prevLink => c
-    c%nextLink    => link
+    if (associated(self%nextLink)) then
+       c => self%nextLink
+       do while (associated(c%nextLink))
+          c => c%nextLink
+       end do
+       !link%prevLink => c
+       c%nextLink    => link
+    else
+       !link%prevLink => self
+       self%nextLink => link
+    end if
+
   end subroutine add
+
+  subroutine getSigmaL(self, sigma_l)
+    implicit none
+    class(comm_map),                   intent(in)  :: self
+    real(dp),        dimension(0:,1:), intent(out) :: sigma_l
+
+    integer(i4b) :: l, m, i, j, k, ind, nspec, lmax, nmaps, ierr
+
+    lmax  = self%info%lmax
+    nmaps = self%info%nmaps
+    nspec = nmaps*(nmaps+1)/2
+    sigma_l = 0.d0
+    do ind = 0, self%info%nalm-1
+       call self%info%i2lm(ind,l,m)
+       k   = 1
+       do i = 1, nmaps
+          do j = i, nmaps
+             sigma_l(l,k) = sigma_l(l,k) + self%alm(ind,i)*self%alm(ind,j)
+             k            = k+1
+          end do
+       end do
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, sigma_l, size(sigma_l), MPI_DOUBLE_PRECISION, &
+         & MPI_SUM, self%info%comm, ierr)
+
+    do l = 0, lmax
+       sigma_l(l,:) = sigma_l(l,:) / real(2*l+1,dp)
+    end do
+
+  end subroutine getSigmaL
+
+  subroutine getCrossSigmaL(self, map2, sigma_l)
+    implicit none
+    class(comm_map),                   intent(in)  :: self, map2
+    real(dp),        dimension(0:,1:), intent(out) :: sigma_l
+
+    integer(i4b) :: l, m, i, j, k, ind, ind2, nspec, lmax, nmaps, ierr
+
+    lmax  = self%info%lmax
+    nmaps = self%info%nmaps
+    nspec = nmaps*(nmaps+1)/2
+    sigma_l = 0.d0
+    do ind = 0, self%info%nalm-1
+       call self%info%i2lm(ind,l,m)
+       call map2%info%lm2i(l,m,ind2)
+       k   = 1
+       do i = 1, nmaps
+          do j = i, nmaps
+             sigma_l(l,k) = sigma_l(l,k) + self%alm(ind,i)*map2%alm(ind2,j)
+             k            = k+1
+          end do
+       end do
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, sigma_l, size(sigma_l), MPI_DOUBLE_PRECISION, &
+         & MPI_SUM, self%info%comm, ierr)
+
+    do l = 0, lmax
+       sigma_l(l,:) = sigma_l(l,:) / real(2*l+1,dp)
+    end do
+
+  end subroutine getCrossSigmaL
   
 end module comm_map_mod

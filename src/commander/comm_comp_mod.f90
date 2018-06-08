@@ -4,10 +4,12 @@ module comm_comp_mod
   use comm_bp_mod
   use comm_map_mod
   use comm_cr_utils
+  use comm_data_mod
+  use comm_hdf_mod
   implicit none
 
   private
-  public  :: comm_comp, ncomp, compList, dumpCompMaps
+  public  :: comm_comp, ncomp, compList!, dumpCompMaps
   
   !**************************************************
   !        Generic component class definition
@@ -18,15 +20,18 @@ module comm_comp_mod
      class(comm_comp), pointer :: prevLink => null()
 
      ! Data variables
-     logical(lgt)       :: active
-     integer(i4b)       :: npar, ncr, id, nmaps
-     character(len=512) :: label, class, type, unit
+     logical(lgt)       :: active, init_from_HDF
+     integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_samp_group
+     character(len=512) :: label, class, type, unit, operation
      real(dp)           :: nu_ref, RJ2unit_
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
      real(dp),           allocatable, dimension(:)   :: theta_def
      real(dp),           allocatable, dimension(:,:) :: p_gauss
      real(dp),           allocatable, dimension(:,:) :: p_uni
+     integer(i4b),       allocatable, dimension(:)   :: smooth_scale
+     real(dp),           allocatable, dimension(:)   :: nu_min_ind
+     real(dp),           allocatable, dimension(:)   :: nu_max_ind
 
    contains
      ! Linked list procedures
@@ -36,14 +41,17 @@ module comm_comp_mod
      procedure :: add     ! add new link at the end
 
      ! Data procedures
-     procedure                        :: initComp
-     procedure(evalSED),     deferred :: S
-     procedure(evalBand),    deferred :: getBand
-     procedure(projectBand), deferred :: projectBand
-     procedure                       :: dumpSED
-!     procedure(dumpHDF),    deferred :: dumpHDF
-     procedure(dumpFITS),    deferred :: dumpFITS
-     procedure                        :: RJ2unit
+     procedure                          :: initComp
+     procedure(evalSED),       deferred :: S
+     procedure(evalBand),      deferred :: getBand
+     procedure(projectBand),   deferred :: projectBand
+     procedure                          :: dumpSED
+     procedure(dumpFITS),      deferred :: dumpFITS
+     procedure(initHDF),       deferred :: initHDF
+     procedure                          :: RJ2unit
+     procedure(sampleSpecInd), deferred :: sampleSpecInd
+     procedure                          :: CG_mask
+     procedure(updateMixmat),  deferred :: updateMixmat
   end type comm_comp
 
   abstract interface
@@ -58,21 +66,23 @@ module comm_comp_mod
      end function evalSED
 
      ! Return effective signal at given frequency band
-     function evalBand(self, band, amp_in, pix)
-       import i4b, dp, comm_comp
+     function evalBand(self, band, amp_in, pix, alm_out)
+       import i4b, dp, comm_comp, lgt
        class(comm_comp),                             intent(in)            :: self
        integer(i4b),                                 intent(in)            :: band
        integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
        real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
+       logical(lgt),                                 intent(in),  optional :: alm_out
        real(dp),        dimension(:,:), allocatable                        :: evalBand
      end function evalBand
 
      ! Return component projected from map
-     function projectBand(self, band, map)
-       import i4b, dp, comm_comp, comm_map
+     function projectBand(self, band, map, alm_in)
+       import i4b, dp, comm_comp, comm_map, lgt
        class(comm_comp),                             intent(in)            :: self
        integer(i4b),                                 intent(in)            :: band
        class(comm_map),                              intent(in)            :: map
+       logical(lgt),                                 intent(in), optional  :: alm_in
        real(dp),        dimension(:,:), allocatable                        :: projectBand
      end function projectBand
 
@@ -114,12 +124,41 @@ module comm_comp_mod
 !!$     end subroutine dumpHDF
 !!$
      ! Dump current sample to HEALPix FITS file
-     subroutine dumpFITS(self, postfix, dir)
-       import comm_comp
+     subroutine dumpFITS(self, iter, chainfile, output_hdf, postfix, dir)
+       import comm_comp, i4b, hdf_file, lgt
        class(comm_comp),                        intent(in)           :: self
+       integer(i4b),                            intent(in)           :: iter
+       type(hdf_file),                          intent(in)           :: chainfile
+       logical(lgt),                            intent(in)           :: output_hdf
        character(len=*),                        intent(in)           :: postfix
        character(len=*),                        intent(in)           :: dir
      end subroutine dumpFITS
+
+     ! Initialize from HDF chain file
+     subroutine initHDF(self, cpar, hdffile, hdfpath)
+       import comm_comp, comm_params, hdf_file
+       class(comm_comp),                        intent(inout)        :: self
+       type(comm_params),                       intent(in)           :: cpar
+       type(hdf_file),                          intent(in)           :: hdffile
+       character(len=*),                        intent(in)           :: hdfpath
+     end subroutine initHDF
+
+     ! Sample spectral parameters
+     subroutine sampleSpecInd(self, handle, id)
+       import comm_comp, planck_rng, i4b
+       class(comm_comp),                        intent(inout)        :: self
+       type(planck_rng),                        intent(inout)        :: handle
+       integer(i4b),                            intent(in)           :: id
+     end subroutine sampleSpecInd
+
+     ! Update mixing matrices
+     subroutine updateMixmat(self, theta, beta)
+       import comm_comp, comm_map, dp
+       class(comm_comp),                        intent(inout)        :: self
+       class(comm_map), dimension(:),           intent(in), optional :: theta
+       real(dp),        dimension(:,:,:),       intent(in), optional :: beta
+     end subroutine updateMixmat
+       
   end interface
 
   !**************************************************
@@ -137,19 +176,25 @@ module comm_comp_mod
   
 contains
 
-  subroutine initComp(self, cpar, id)
+  subroutine initComp(self, cpar, id, id_abs)
     implicit none
     class(comm_comp)               :: self
     type(comm_params),  intent(in) :: cpar
-    integer(i4b),       intent(in) :: id
+    integer(i4b),       intent(in) :: id, id_abs
 
-    self%id      = id
-    self%active  = cpar%cs_include(id)
-    self%label   = cpar%cs_label(id)
-    self%type    = cpar%cs_type(id)
-    self%class   = cpar%cs_class(id)
-    self%unit    = cpar%cs_unit(id)
-    self%nu_ref  = cpar%cs_nu_ref(id)
+    self%id              = id
+    self%active          = cpar%cs_include(id_abs)
+    self%label           = cpar%cs_label(id_abs)
+    self%type            = cpar%cs_type(id_abs)
+    self%class           = cpar%cs_class(id_abs)
+    self%unit            = cpar%cs_unit(id_abs)
+    self%nu_ref          = cpar%cs_nu_ref(id_abs)
+    self%myid            = cpar%myid_chain    
+    self%comm            = cpar%comm_chain
+    self%numprocs        = cpar%numprocs_chain
+    self%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
+    self%init_from_HDF   = cpar%cs_initHDF(id_abs)
+    self%operation       = cpar%operation
 
     ! Set up conversion factor between RJ and native component unit
     select case (trim(self%unit))
@@ -176,30 +221,42 @@ contains
     integer(i4b),     intent(in) :: unit
 
     integer(i4b) :: i
-    real(dp)     :: nu, dnu
+    real(dp)     :: nu, dnu, S
 
-    nu = nu_dump(1)
-    dnu = (nu_dump(2)/nu_dump(1))**(1.d0/(n_dump-1))
-    do i = 1, n_dump
-       write(unit,*) nu*1d-9, self%S(nu, theta=self%theta_def(1:self%npar))
-       nu = nu*dnu
-    end do
+    if (trim(self%type) == 'line') then
+       do i = 1, numband
+          S = self%S(band=i, theta=self%theta_def(1:self%npar))
+          if (S /= 0.d0) write(unit,*) data(i)%bp%nu_c*1d-9, S
+       end do
+    else
+       nu = nu_dump(1)
+       dnu = (nu_dump(2)/nu_dump(1))**(1.d0/(n_dump-1))
+       do i = 1, n_dump
+          if (self%npar > 0) then
+             S = self%S(nu, theta=self%theta_def(1:self%npar))
+          else
+             S = self%S(nu)
+          end if
+          if (S /= 0.d0) write(unit,*) nu*1d-9, S
+          nu = nu*dnu
+       end do
+    end if
     
   end subroutine dumpSED
 
-  subroutine dumpCompMaps(postfix, dir)
-    implicit none
-    character(len=*), intent(in) :: postfix, dir
-
-    class(comm_comp), pointer :: c
-
-    c => compList
-    do while (associated(c))
-       call c%dumpFITS(postfix, dir)
-       c => c%next()
-    end do
-    
-  end subroutine dumpCompMaps
+!!$  subroutine dumpCompMaps(postfix, dir)
+!!$    implicit none
+!!$    character(len=*), intent(in) :: postfix, dir
+!!$
+!!$    class(comm_comp), pointer :: c
+!!$
+!!$    c => compList
+!!$    do while (associated(c))
+!!$       call c%dumpFITS(postfix, dir)
+!!$       c => c%next()
+!!$    end do
+!!$    
+!!$  end subroutine dumpCompMaps
 
   function RJ2unit(self, bp)
     implicit none
@@ -219,6 +276,17 @@ contains
     end if
     
   end function RJ2unit
+
+  subroutine CG_mask(self, samp_group, mask)
+    implicit none
+
+    class(comm_comp),               intent(in)    :: self
+    integer(i4b),                   intent(in)    :: samp_group
+    real(dp),         dimension(:), intent(inout) :: mask
+
+    call cr_mask(self%id, samp_group==self%cg_samp_group, mask)
+
+  end subroutine CG_mask
   
   function next(self)
     class(comm_comp) :: self

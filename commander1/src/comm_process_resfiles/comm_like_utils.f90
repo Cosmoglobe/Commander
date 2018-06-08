@@ -1422,13 +1422,13 @@ contains
   end subroutine read_lowl_datafile
 
 
-  subroutine write_gauss_BR_datafile(filename, lmin, lmax, cl2x, mu, sigma)
+  subroutine write_gauss_BR_datafile(filename, lmin, lmax, cl2x, mu, sigma, mu_sigma)
     implicit none
 
     character(len=*),                 intent(in) :: filename
     integer(i4b),                     intent(in) :: lmin, lmax
     real(dp), dimension(lmin:,1:,1:), intent(in) :: cl2x
-    real(dp), dimension(lmin:),       intent(in) :: mu
+    real(dp), dimension(lmin:),       intent(in) :: mu, mu_sigma
     real(dp), dimension(lmin:,lmin:), intent(in) :: sigma
     
     integer(i4b)         :: nmaps, n_d, n_h, n, m, unit, nbin
@@ -1497,6 +1497,16 @@ contains
     call ftphpr(unit, simple, bitpix, naxis, naxes(1:2), 0, 1, extend, status)
     call ftpprd(unit, group, fpixel, nelements, sigma, status)
 
+    ! -----------------------------------------
+    ! Write mean sigma vector
+    ! -----------------------------------------
+    naxis     = 1
+    naxes(1)  = lmax-lmin+1
+    nelements = naxes(1)
+    call ftcrhd(unit, status)
+    call ftphpr(unit, simple, bitpix, naxis, naxes(1:1), 0, 1, extend, status)
+    call ftpprd(unit, group, fpixel, nelements, mu_sigma, status)
+
     ! Write the current date
     call ftpdat(unit,status)
     
@@ -1515,12 +1525,12 @@ contains
     
   end subroutine write_gauss_BR_datafile
 
-  subroutine read_gauss_BR_datafile(filename, lmin, lmax, mu, cov, cl2x)
+  subroutine read_gauss_BR_datafile(filename, lmin, lmax, mu, cov, cl2x, mu_sigma)
     implicit none
 
     character(len=*),                        intent(in)  :: filename
     integer(i4b),                            intent(in)  :: lmin, lmax
-    real(dp), allocatable, dimension(:),     intent(out) :: mu
+    real(dp), allocatable, dimension(:),     intent(out) :: mu, mu_sigma
     real(dp), allocatable, dimension(:,:),   intent(out) :: cov
     real(dp), allocatable, dimension(:,:,:), intent(out) :: cl2x
     
@@ -1530,7 +1540,7 @@ contains
     logical(lgt)         :: simple, extend, anyf, exist
     real(dp)             :: nullval
     character(len=80)    :: comment, errorline
-    real(dp), allocatable, dimension(:)     :: mu_in
+    real(dp), allocatable, dimension(:)     :: mu_in, sigma_in
     real(dp), allocatable, dimension(:,:)   :: cov_in
     real(dp), allocatable, dimension(:,:,:) :: cl2x_in
 
@@ -1551,7 +1561,7 @@ contains
     call ftgkyj(unit, 'LMIN',  lmin_in, comment,status)
     call ftgkyj(unit, 'LMAX',  lmax_in, comment,status)
     call ftgkyj(unit, 'NBIN',  nbin,    comment,status)
-    allocate(cl2x_in(nbin,lmin_in:lmax_in,3), mu_in(lmin_in:lmax_in))
+    allocate(cl2x_in(nbin,lmin_in:lmax_in,3), mu_in(lmin_in:lmax_in), sigma_in(lmin_in:lmax_in))
     call ftgpvd(unit, group, fpixel, size(cl2x_in), nullval, cl2x_in, anyf, status)
 
     ! Read mean vector
@@ -1561,6 +1571,10 @@ contains
     ! Read covariance matrix
     call ftmahd(unit, 3, hdutype, status)
     call ftgpvd(unit, group, fpixel, size(cov_in), nullval, cov_in, anyf, status)
+
+    ! Read mean vector
+    call ftmahd(unit, 4, hdutype, status)
+    call ftgpvd(unit, group, fpixel, size(sigma_in), nullval, sigma_in, anyf, status)
 
     ! Close file
     call ftclos(unit, status)
@@ -1585,10 +1599,11 @@ contains
     end if
 
     ! Copy relevant data into output data structures
-    allocate(cl2x(lmin:lmax,nbin,3), mu(lmin:lmax), cov(lmin:lmax,lmin:lmax))
-    cl2x = cl2x_in(lmin:lmax,:,:)
-    mu   = mu_in(lmin:lmax)
-    cov  = cov_in(lmin:lmax,lmin:lmax)
+    allocate(cl2x(lmin:lmax,nbin,3), mu(lmin:lmax), cov(lmin:lmax,lmin:lmax), mu_sigma(lmin:lmax))
+    cl2x     = cl2x_in(lmin:lmax,:,:)
+    mu       = mu_in(lmin:lmax)
+    cov      = cov_in(lmin:lmax,lmin:lmax)
+    mu_sigma = sigma_in(lmin:lmax)
 
     deallocate(cl2x_in, mu_in, cov_in)
     

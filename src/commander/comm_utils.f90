@@ -9,6 +9,7 @@ module comm_utils
   use comm_system_mod
   use comm_defs
   use sort_utils
+  use spline_1D_mod
   implicit none
 
   include "mpif.h"
@@ -72,8 +73,8 @@ contains
     if (nmaps > 1) then
        if (sum(beam_in(:,2)) < 1.d0) then
           ! Default to temperature beam+polarization pixel window
-          beam(:,2) = beam(:,1)*pw(:,2)
-          beam(:,3) = beam(:,1)*pw(:,2)
+          beam(:,2) = beam_in(:,1)*pw(:,2)
+          beam(:,3) = beam_in(:,1)*pw(:,2)
        else
           ! Use polarized beam+polarization pixel window
           beam(:,2) = beam_in(:,2)*pw(:,2)
@@ -584,5 +585,193 @@ contains
 
   end function mpi_dot_product
 
+
+
+  ! Routine for reading a spectrum file
+  subroutine read_spectrum(filename, spectrum)
+    implicit none
+
+    character(len=*),                               intent(in)  :: filename
+    real(dp),           allocatable, dimension(:,:)             :: spectrum
+
+    real(dp)            :: S_ref
+    integer(i4b)        :: i, j, numpoint, unit, first, last
+    character(len=128)  :: nu, val, string
+
+    unit = getlun()
+    open(unit, file=trim(filename))
+
+    ! Find the number of entries
+    numpoint = 0
+    do while (.true.)
+       read(unit,*,end=1) string
+
+       if (string(1:1)=='#') cycle
+
+       backspace(unit)
+       read(unit,*,end=1) nu, val
+       numpoint = numpoint + 1
+    end do
+1   close(unit)
+
+    if (numpoint == 0) then
+       write(*,*) 'No valid data entries in spectrum file ', trim(filename)
+       stop
+    end if
+
+    allocate(spectrum(numpoint,2))
+    i = 0
+    open(unit, file=trim(filename))
+    do while (.true.)
+       read(unit,*,end=2) string
+
+       if (string(1:1)=='#') cycle
+
+       backspace(unit)
+       read(unit,*,end=1) nu, val
+       i = i+1
+
+       read(nu,*)  spectrum(i,1)
+       read(val,*) spectrum(i,2)
+
+       do j = 1, i-1
+          if (spectrum(i,1) == spectrum(j,1)) then
+             write(*,*) 'ERROR: Spectrum file ', trim(filename), ' contains double entries; j = ', j, ', spectrum = ', spectrum(i,1)
+             stop
+          end if
+       end do
+  
+    end do
+2   close(unit)
+
+    ! Convert from GHz to Hz
+    spectrum(:,1) = spectrum(:,1) * 1.d9
+
+  end subroutine read_spectrum
+
+  subroutine read_instrument_file(filename, field, label, default, val)
+    implicit none
+    character(len=*), intent(in)  :: filename, field, label
+    real(dp),         intent(in)  :: default
+    real(dp),         intent(out) :: val
+    
+    integer(i4b)        :: unit, i, j
+    character(len=512)  :: band
+    character(len=1024) :: line
+    real(dp)            :: vals(2)
+    logical(lgt)        :: ok
+
+    val = default
+    inquire(file=trim(filename), exist=ok)
+    if (ok) then
+       unit = getlun()
+       open(unit, file=trim(filename), recl=1024)
+       do while (.true.)
+          read(unit,'(a)',end=99) line
+          line = trim(adjustl(line))
+          if (line(1:1) == '#') cycle
+          read(line,*) band, vals
+          if (trim(band) == trim(label)) then
+             if (trim(field) == 'gain') then
+                val = vals(1)
+             else if (trim(field) == 'delta') then
+                val = vals(2)
+             else
+                call report_error('Unsupported instrument field = '//trim(field))
+             end if
+             goto 99
+          end if
+       end do
+99     close(unit)
+    end if
+
+  end subroutine read_instrument_file
+
+  subroutine assert(condition, error_message)
+    implicit none
+    logical(lgt) :: condition
+    character(len=*) :: error_message
+    if(condition) return
+    write(*,fmt="(a)") error_message
+    stop
+  end subroutine
+
+
+  subroutine compute_radial_beam(nmaps, bl, br)
+    implicit none
+    integer(i4b),                                     intent(in)  :: nmaps
+    real(dp),                       dimension(0:,1:), intent(in)  :: bl
+    type(spline_type), allocatable, dimension(:),     intent(out) :: br
+
+    integer(i4b)  :: i, j, k, m, n, l, lmax
+    real(dp)      :: theta_max, threshold
+    real(dp), allocatable, dimension(:)   :: x, pl
+    real(dp), allocatable, dimension(:,:) :: y
+    
+    n         = 1000
+    lmax      = size(bl,1)-1
+    threshold = 1.d-6
+
+    ! Find typical size
+    l    = 0
+    do while (bl(l,1) > 0.5d0)
+       l = l+1
+       if (l == lmax) call report_error('Error: Beam has not fallen off to 0.5 by lmax')
+    end do
+    theta_max = pi/l * 10.d0
+    
+    ! Compute radial beams
+    allocate(x(n), y(n,nmaps), pl(0:lmax))
+    do i = 1, n
+       x(i) = theta_max/(n-1) * real(i-1,dp)
+       call comp_normalised_Plm(lmax, 0, x(i), pl)
+       do j = 1, nmaps
+          y(i,j) = 0.d0
+          do l = 0, lmax
+             y(i,j) = y(i,j) + bl(l,j)*pl(l)/sqrt(4.d0*pi/real(2*l+1,dp))
+          end do
+       end do
+    end do
+
+    ! Spline significant part of beam profile
+    allocate(br(nmaps))
+    do j = 1, nmaps
+       y(:,j) = y(:,j) / maxval(y(:,j))
+       m      = 0
+       do while (y(m+1,j) > threshold .and. m < n)
+          m = m+1
+       end do
+       call spline(br(j), x(1:m), y(1:m,j))
+    end do
+
+    deallocate(x, y, pl)
+    
+  end subroutine compute_radial_beam
+
+  function rand_trunc_gauss(rng_handle, mu, mu_, sigma)
+    implicit none
+
+    real(dp),         intent(in)    :: mu, mu_, sigma
+    type(planck_rng), intent(inout) :: rng_handle
+    real(dp)                        :: rand_trunc_gauss
+
+    integer(i4b) :: n
+    real(dp) :: eta, alpha, z, rho, u, mu0
+    logical(lgt) :: ok
+
+    mu0   = (mu_ - mu)/sigma
+    alpha = 0.5d0 * (mu0 + sqrt(mu0**2 + 4.d0))
+    do while (.true.)
+       z   = -log(rand_uni(rng_handle)) / alpha + mu0
+       rho = exp(-0.5d0 * (z-alpha)**2)
+       if (rand_uni(rng_handle) < rho) then
+          rand_trunc_gauss = sigma*z + mu
+          exit
+       end if
+    end do
+
+  end function rand_trunc_gauss
+  
+  
   
 end module comm_utils

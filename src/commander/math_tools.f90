@@ -197,6 +197,106 @@ contains
 
   end subroutine invert_matrix_sp
 
+  subroutine compute_pseudo_inverse(A, Across)
+    implicit none
+    real(dp), dimension(:,:), intent(in)  :: A
+    real(dp), dimension(:,:), intent(out) :: Across
+
+    integer(i4b) :: i, m, n, lwork, info, q
+    real(dp)     :: threshold
+    real(dp),     allocatable, dimension(:)   :: work, S
+    real(dp),     allocatable, dimension(:,:) :: Atmp, U, Vt
+    
+    threshold = 1d-12
+    m = size(A,1)
+    n = size(A,2)
+    lwork = 2*max(1,3*min(m,n)+max(m,n),5*min(m,n))
+
+    ! Compute SVD factorization
+    allocate(Atmp(m,n), work(lwork), S(min(m,n)), U(m,m), Vt(n,n))
+    Atmp = A
+    call DGESVD('A', 'A', m, n, Atmp, m, S, U, m, VT, n, work, lwork, info)
+    if (info /= 0) write(*,*) 'Error DGESVD = ', info
+
+    ! Invert S
+    do i = min(m,n), 1, -1
+       if (abs(S(i)) > threshold*abs(S(1))) then
+          !write(*,*) S(i), threshold, S(1)
+          S(i) = 1.d0/S(i)
+       else
+          S(i) = 0.d0
+       end if
+    end do
+
+    ! Multiply S^+ with Vt
+    do i = 1, min(m,n)
+       Vt(i,:) = S(i)*Vt(i,:)
+    end do
+
+    Across = matmul(transpose(Vt), transpose(U))
+
+    deallocate(Atmp, work, S, U, Vt)
+
+  end subroutine compute_pseudo_inverse
+
+  subroutine compute_pseudo_inverse2(A, Across)
+    implicit none
+    real(dp), dimension(:,:), intent(in)  :: A
+    real(dp), dimension(:,:), intent(out) :: Across
+
+    integer(i4b) :: i, m, n, lwork, info, q
+    logical(lgt), allocatable, dimension(:)   :: mask
+    real(dp),     allocatable, dimension(:)   :: tau, work
+    real(dp),     allocatable, dimension(:,:) :: Atmp, R
+    
+    m = size(A,1)
+    n = size(A,2)
+    lwork = n
+
+    ! Compute QR factorization
+    allocate(Atmp(m,n), tau(m), work(lwork), R(n,n), mask(n))
+    Atmp = A
+    call DGEQRF(m, n, Atmp, m, tau, work, lwork, info)
+    if (info /= 0) write(*,*) 'Error DGEQRF = ', info
+
+    ! Extract R
+    R = 0.d0
+    do i = 1, n
+       R(1:i,i) = Atmp(1:i,i)
+    end do
+
+    ! Find non-zero elements
+    mask = .true.
+    do i = 1, n
+       if (R(i,i) == 0.d0) then
+          mask(i) = .false.
+          R(i,:)  = 0.d0
+          R(:,i)  = 0.d0
+          R(i,i)  = 1.d0
+       end if
+    end do
+
+    ! Solve for y = R*Across
+    Across = transpose(A)
+    call DTRTRS('U', 'T', 'N', n, m, R, n, Across, n, info)
+    if (info /= 0) write(*,*) 'Error DTRTRS 1 = ', info
+
+    ! Solve for Across
+    call DTRTRS('U', 'N', 'N', n, m, R, n, Across, n, info)
+    if (info /= 0) write(*,*) 'Error DTRTRS 2 = ', info
+
+    ! Nullify masked rows and columns
+    do i = 1, n
+       if (.not. mask(i)) then
+          Across(i,:) = 0.d0
+          Across(:,i) = 0.d0
+       end if
+    end do
+
+    deallocate(Atmp, tau, work, R, mask)
+
+  end subroutine compute_pseudo_inverse2
+
 
   subroutine invert_matrix_with_mask_dpc(matrix)
     implicit none
@@ -275,7 +375,7 @@ contains
           matrix(i,i) = 1.d0
        end if
     end do
-
+    
     call DGETRF(n, n, matrix, lda, ipiv, info)
     if (info /= 0) then
        write(*,*) 'DGETRF: LU factorization failed. Info = ', info

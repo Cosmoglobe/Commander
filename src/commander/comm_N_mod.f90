@@ -11,31 +11,40 @@ module comm_N_mod
      character(len=512)       :: type
      integer(i4b)             :: nside, nmaps, np
      logical(lgt)             :: pol
+     real(dp), allocatable, dimension(:) :: alpha_nu ! (T,Q,U)
      class(comm_map), pointer :: invN_diag
    contains
      ! Data procedures
      procedure(matmulInvN),     deferred :: invN
+     procedure(matmulN),        deferred :: N
      procedure(matmulSqrtInvN), deferred :: sqrtInvN
      procedure(returnRMS),      deferred :: rms
+     procedure(returnRMSpix),   deferred :: rms_pix
   end type comm_N
 
   abstract interface
      ! Return map_out = invN * map
-     subroutine matmulInvN(self, map, Nscale)
+     subroutine matmulInvN(self, map)
        import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
-       real(dp),        intent(in),   optional :: Nscale
      end subroutine matmulInvN
 
-     ! Return map_out = sqrtInvN * map
-     subroutine matmulSqrtInvN(self, map, Nscale)
+     ! Return map_out = N * map
+     subroutine matmulN(self, map)
        import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
-       real(dp),        intent(in),   optional :: Nscale
+     end subroutine matmulN
+
+     ! Return map_out = sqrtInvN * map
+     subroutine matmulSqrtInvN(self, map)
+       import comm_map, comm_N, dp, i4b
+       implicit none
+       class(comm_N),   intent(in)             :: self
+       class(comm_map), intent(inout)          :: map
      end subroutine matmulSqrtInvN
 
      ! Return rms map
@@ -45,34 +54,76 @@ module comm_N_mod
        class(comm_N),   intent(in)    :: self
        class(comm_map), intent(inout) :: res
      end subroutine returnRMS
+
+     ! Return rms map
+     function returnRMSpix(self, pix, pol)
+       import i4b, comm_N, dp
+       implicit none
+       class(comm_N),   intent(in)    :: self
+       integer(i4b),    intent(in)    :: pix, pol
+       real(dp)                       :: returnRMSpix
+     end function returnRMSpix
   end interface
 
 contains
 
-  subroutine compute_invN_lm(invN_diag)
+  subroutine compute_invN_lm(cache, invN_diag)
     implicit none
 
-    class(comm_map), intent(inout) :: invN_diag
+    character(len=*), intent(in)    :: cache
+    class(comm_map),  intent(inout) :: invN_diag
 
-    real(dp)     :: l0min, l0max, l1min, l1max, npix
-    integer(i4b) :: i, j, k, l, m, lp, l2, ier, twolmaxp2, pos, lmax
+    real(dp)     :: l0min, l0max, l1min, l1max, npix, checksum, t1, t2
+    integer(i4b) :: i, j, k, l, m, lp, l2, ier, twolmaxp2, pos, lmax, unit
+    logical(lgt) :: exist, ok
     complex(dpc) :: val(invN_diag%info%nmaps)
     real(dp), allocatable, dimension(:)   :: threej_symbols, threej_symbols_m0
     real(dp), allocatable, dimension(:,:) :: N_lm, a_l0
+
+    ! Check if we are all ready to read precomputed structure
+    unit = getlun()
+    inquire(file=trim(cache), exist=exist)
+    if (exist) then
+       open(unit, file=trim(cache), form='unformatted')
+       read(unit) checksum
+       if (checksum > 0.d0) then
+          exist = abs(sum(abs(invN_diag%map))-checksum)/abs(checksum) < 1d-6
+       else 
+          exist = sum(abs(invN_diag%map)) == 0.d0
+       end if
+       close(unit)
+    end if
+    call mpi_allreduce(MPI_IN_PLACE, exist, 1, MPI_LOGICAL, MPI_LAND, invN_diag%info%comm, ier)
+
+    ! If all agree, read from disk. If not, recompute from scratch
+    if (exist) then
+       open(unit, file=trim(cache), form='unformatted')
+       read(unit) checksum
+       read(unit) invN_diag%alm
+       close(unit)
+       return
+    end if
 
     lmax      = invN_diag%info%lmax
     twolmaxp2 = 2*lmax+2
     npix      = real(invN_diag%info%npix,dp)
 
-    allocate(threej_symbols(twolmaxp2))
-    allocate(threej_symbols_m0(twolmaxp2))
     allocate(N_lm(0:invN_diag%info%nalm-1,invN_diag%info%nmaps))
     allocate(a_l0(0:lmax,invN_diag%info%nmaps))
-    call invN_diag%YtW
-    if (invN_diag%info%myid == 0) a_l0 = invN_diag%alm(0:lmax,:)
+    call invN_diag%YtW_scalar
+
+    if (invN_diag%info%myid == 0) then
+       ! Seriously ugly hack. Should figure out how to compute N_{lm,l'm'} properly
+       ! for polarization
+       a_l0(:,:) = invN_diag%alm(0:lmax,:)
+    end if
     call mpi_bcast(a_l0, size(a_l0), MPI_DOUBLE_PRECISION, 0, invN_diag%info%comm, ier)
-    
-    pos = 0
+
+    call wall_time(t1)
+    !$OMP PARALLEL PRIVATE(pos,j,m,l,threej_symbols_m0,threej_symbols,ier,val,l2,lp,l0min,l0max,l1min,l1max)
+    allocate(threej_symbols(twolmaxp2))
+    allocate(threej_symbols_m0(twolmaxp2))
+    !$OMP DO SCHEDULE(guided)
     do j = 1, invN_diag%info%nm
        m = invN_diag%info%ms(j)
        do l = m, lmax
@@ -93,20 +144,32 @@ contains
           val = val * (2*l+1) / sqrt(4.d0*pi) * npix / (4.d0*pi)
           if (mod(m,2)/=0) val = -val
 
+          call invN_diag%info%lm2i(l,m,pos)
           if (m == 0) then
              N_lm(pos,:)   = real(val,dp)
-             pos           = pos+1
           else
              N_lm(pos,:)   = real(val,dp)
              N_lm(pos+1,:) = real(val,dp)
-             pos               = pos+2
           end if
        end do
     end do
+    !$OMP END DO
+    deallocate(threej_symbols, threej_symbols_m0)
+    !$OMP END PARALLEL
+    call wall_time(t2)
 
     invN_diag%alm = N_lm
+    !write(*,*) sum(abs(invN_diag%alm))
 
-    deallocate(N_lm, threej_symbols, threej_symbols_m0, a_l0)
+    ! Write cache file to disk
+    if (.true.) then
+       open(unit, file=trim(cache), form='unformatted')
+       write(unit) sum(abs(invN_diag%map))    ! Check-sum
+       write(unit) invN_diag%alm
+       close(unit)
+    end if
+
+    deallocate(N_lm, a_l0)
     
   end subroutine compute_invN_lm
   
