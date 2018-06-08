@@ -1430,16 +1430,16 @@ contains
 
 !!$    alpha = alpha_flat
 !!$    gamma  = gamma_flat
-!!$    x      = h / (k_B*T_d)
+    x      = h / (k_B*T_d)
 !!$    if (nu >= nu_flat) then
-!!$       compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)
+       compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)
 !!$    else
 !!$       compute_one_comp_dust_spectrum = &
 !!$            & ((exp(x*nu_ref)-1.d0) / (exp(x*nu_flat)-1.d0) * (nu_flat/nu_ref)**(beta+1.d0)) * &
 !!$            & ((exp(x*nu_flat)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_flat)**(beta+1.d0+alpha*T_d+gamma*T_d**2))
 !!$    end if
 !!$
-!!$    return
+    return
 
     n_beta = 1; beta_min = beta; beta_max = beta; dbeta = 0.d0; beta_rms = 1.d0
     n_T    = 1; T_min    = T_d;  T_max    = T_d;  dT    = 0.d0; T_rms    = 1.d0 
