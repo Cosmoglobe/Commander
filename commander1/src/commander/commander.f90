@@ -514,10 +514,12 @@ contains
        call update_fg_pix_response_maps(fg_param_map)
        if (.not. all(fg_pix_spec_response == fg_pix_spec_response)) then
           do j = 1, num_fg_comp
-             do i = 0, map_size-1 
-                if (is_nan(fg_pix_spec_response(i,1,j))) then
-                   write(*,*) i, j, fg_pix_spec_response(i,1,j)
-                end if
+             do k = 1, nmaps
+                do i = 0, map_size-1 
+                   if (is_nan(fg_pix_spec_response(i,k,j))) then
+                      write(*,*) i, k, j, fg_pix_spec_response(i,k,j)
+                   end if
+                end do
              end do
           end do
           write(*,*) 'nan'
@@ -606,6 +608,7 @@ contains
 
              ! Enforce zero CMB monopole and dipole if requested; transfer CMB offsets to template coefficients
           if (.not. enforce_zero_cl .and. sample_fg_pix) call set_pix_cmb_equal_to_Cl_cmb(s_i)
+          call set_exclude_fg_amp(.false.)
        end if
 
 !!$       write(*,*) 'b2'
