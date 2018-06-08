@@ -22,7 +22,7 @@ module comm_chisq_mod
   integer(i4b), allocatable, dimension(:,:), private :: g_l
 
   real(dp),     allocatable, dimension(:,:)       :: g_gauss
-  real(dp),     allocatable, dimension(:,:)       :: procmask
+  real(dp),     allocatable, dimension(:,:)       :: procmask, procmask_full
 
 contains
 
@@ -56,15 +56,15 @@ contains
     call get_parameter(paramfile, 'NUM_BP_MCMC_SUBSTEPS',   par_int=num_bp_step)
     call get_parameter(paramfile, 'PROCESSING_MASK',        par_string=procmaskfile)
 
-    allocate(procmask(0:map_size-1,nmaps), mask_in(0:npix-1,nmaps))
-    call read_map(procmaskfile, mask_in)
-    where (procmask > 0.5)
-       procmask = 1.d0
+    allocate(procmask(0:map_size-1,nmaps), procmask_full(0:npix-1,nmaps))
+    call read_map(procmaskfile, procmask_full)
+    where (procmask_full > 0.5)
+       procmask_full = 1.d0
     elsewhere
-       procmask = 0.d0
+       procmask_full = 0.d0
     end where
-    procmask = mask_in(pixels,:)
-    deallocate(mask_in)
+    procmask = procmask_full(pixels,:)
+    !deallocate(mask_in)
 
     allocate(g_gauss(numband,2), g_l(numband,2))
     if (apply_gain_corr) then
@@ -304,9 +304,9 @@ contains
        outmap = 0.d0
        do i = 1, nmaps
           if (i == 1) then
-             outmap(pixels,i) = residual(:,i) / (cmbmap(:,i)-monopole)
+             !outmap(pixels,i) = residual(:,i) / (cmbmap(:,i)-monopole)
           else
-             outmap(pixels,i) = residual(:,i) / cmbmap(:,i)
+             !outmap(pixels,i) = residual(:,i) / cmbmap(:,i)
           end if
        end do
        filename = trim(chain_dir) // '/frac_residual_' // trim(bp(map_id)%label) // '_c' // chain_text &
@@ -325,7 +325,7 @@ contains
     call mpi_reduce(my_chisq_map, chisq_map_tot, size(my_chisq_map), MPI_DOUBLE_PRECISION, &
          & MPI_SUM, root, comm_chain, ierr)
     if (myid_chain == root .and. present(chisq_map))   chisq_map = chisq_map_tot
-    if (myid_chain == root .and. output_chisq_fullsky) chisq_fullsky = sum(chisq_map_tot*procmask)
+    if (myid_chain == root .and. output_chisq_fullsky) chisq_fullsky = sum(chisq_map_tot*procmask_full)
 
     ! Output high-latitude value, if requested
     if (output_chisq_highlat) then
