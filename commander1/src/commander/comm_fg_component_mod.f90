@@ -1194,7 +1194,7 @@ contains
     else if (trim(fg_comp%type) == 'sz') then
        get_ideal_fg_spectrum = sz_thermo_single(nu) / compute_ant2thermo_single(nu)
     else if (trim(fg_comp%type) == 'freefree') then
-       get_ideal_fg_spectrum = compute_freefree_spectrum(nu, fg_comp%nu_ref, p(1), fg_comp%p_rms) 
+       get_ideal_fg_spectrum = compute_freefree_spectrum(nu, fg_comp%nu_ref, p(1)) 
     else if (trim(fg_comp%type) == 'AME_freq_shift') then                         
        get_ideal_fg_spectrum = compute_AME_freq_shift_spectrum(nu, fg_comp%nu_ref, p(1), &
             & fg_comp%nu_peak, fg_comp%S_nu_ref, fg_comp%p_rms)
@@ -1292,37 +1292,17 @@ contains
 
   end function compute_power_law_break_spectrum
 
-  function compute_freefree_spectrum(nu, nu_ref, T_e, rms)
+  function compute_freefree_spectrum(nu, nu_ref, T_e)
     implicit none
 
     real(dp),               intent(in) :: nu, nu_ref, T_e
-    real(dp), dimension(:), intent(in) :: rms
     real(dp)                           :: compute_freefree_spectrum
 
-    integer(i4b) :: n_T, i
-    real(dp)     :: S, S_ref, w, w_tot, Tp, T_min, T_max, dT, T_rms
+    real(dp)     :: S, S_ref
 
-    n_T = 1; T_min = T_e; T_max = T_e; dT = 0.d0; T_rms = 1.d0
-    if (rms(1) > 0.d0) then
-       n_T   = N_RMS_MARG
-       T_min = max(T_e - 3.d0*rms(1), 1000.d0)
-       T_max = T_e + 3.d0*rms(1)
-       dT    = (T_max - T_min) / (n_T-1)
-       T_rms = rms(1)
-    end if
-
-    compute_freefree_spectrum = 0.d0
-    w_tot                     = 0.d0
-    do i = 1, n_T
-       Tp    = T_min + (i-1)*dT
-       w     = exp(-0.5d0*((Tp-T_e)/T_rms)**2)
-       w_tot = w_tot + w
-       S     = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu    /1.d9 * (Tp/1.d4)**(-1.5d0))) + 2.71828d0)
-       S_ref = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu_ref/1.d9 * (Tp/1.d4)**(-1.5d0))) + 2.71828d0)
-       compute_freefree_spectrum = compute_freefree_spectrum + w * S/S_ref * exp(-h*(nu-nu_ref)/k_b/Tp) * &
-            & (nu/nu_ref)**(-2)
-    end do
-    compute_freefree_spectrum = compute_freefree_spectrum / w_tot
+    S     = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu    /1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
+    S_ref = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu_ref/1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
+    compute_freefree_spectrum = S/S_ref * exp(-h*(nu-nu_ref)/k_b/T_e) * (nu/nu_ref)**(-2)
 
   end function compute_freefree_spectrum
 
@@ -1339,6 +1319,12 @@ contains
 !       compute_freefree_EM_spectrum = 0.d0
 !       return
 !    end if
+
+!    compute_freefree_EM_spectrum    = 0.83d0 * exp(log_EM) * &
+!         & (1.d0 + 0.23d0*log(T_e/8000.d0) - 0.15d0 * log(nu/53.d9)) / (nu/53d9)**2 / sqrt(T_e/8000.d0)
+
+!    return
+
 
     EM   = exp(log_EM)
     Z_i  = 1.d0
@@ -1725,7 +1711,7 @@ contains
                    nu = bp(l)%nu(j)
                    if (trim(fg_components(i)%type) == 'freefree') then
                       s(j) = compute_freefree_spectrum(nu, fg_components(i)%nu_ref, &
-                           & fg_components(i)%par(k,1), fg_components(i)%p_rms) 
+                           & fg_components(i)%par(k,1)) 
                    else if (trim(fg_components(i)%type) == 'AME_freq_shift') then                         
                       s(j) = compute_AME_freq_shift_spectrum(nu, fg_components(i)%nu_ref, &
                            & fg_components(i)%par(k,1), fg_components(i)%nu_peak, fg_components(i)%S_nu_ref, &
