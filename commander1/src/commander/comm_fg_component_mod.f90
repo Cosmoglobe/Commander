@@ -1511,13 +1511,24 @@ contains
 
     integer(i4b) :: n_beta, n_T, i, j
     real(dp)     :: w, w_tot, betap, Tp, beta_min, beta_max, dbeta, T_min, T_max, dT, beta_rms, T_rms, f, S, x
-    real(dp)     :: alpha, gamma
+    real(dp)     :: alpha, gamma, delta, nu_steep
 
 !!$    alpha = alpha_flat
 !!$    gamma  = gamma_flat
     x      = h / (k_B*T_d)
 !!$    if (nu >= nu_flat) then
+
+!    compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)
+!    return
+
+    nu_steep = nu_flat !100.d9
+    delta    = -frac_flat !0.2d0 ! Index steepening
+    if (nu > nu_steep) then
        compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)
+    else
+       compute_one_comp_dust_spectrum = (exp(x*nu_steep)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_steep)**(beta+1.d0+delta) * &
+            (exp(x*nu_ref)-1.d0) / (exp(x*nu_steep)-1.d0) * (nu_steep/nu_ref)**(beta+1.d0)
+    end if
 !!$    else
 !!$       compute_one_comp_dust_spectrum = &
 !!$            & ((exp(x*nu_ref)-1.d0) / (exp(x*nu_flat)-1.d0) * (nu_flat/nu_ref)**(beta+1.d0)) * &
