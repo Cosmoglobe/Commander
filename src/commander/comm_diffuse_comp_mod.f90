@@ -665,6 +665,7 @@ contains
           else
              call self%theta(1)%p%udgrade(t)
           end if
+
           nullify(info)
           do j = 2, self%npar
              info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
@@ -1225,6 +1226,7 @@ contains
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                & '_')
+          if (self%lmax_ind >= 0) call self%theta(i)%p%YtW_scalar
        end do       
     end if
 
@@ -1236,7 +1238,7 @@ contains
     implicit none
     integer(i4b), intent(in) :: n, nside, lmax, nmaps
     npre      = npre + n
-    nside_pre = min(lmax_pre, nside)
+    nside_pre = min(nside_pre, nside)
     lmax_pre  = max(lmax_pre, lmax)
     nmaps_pre = max(nmaps_pre, nmaps)
   end subroutine add_to_npre
@@ -1286,11 +1288,13 @@ contains
                 if (i == id) cycle
                 theta_lnL(i) = self%theta_smooth(i)%p%map(k,p)
              end do
+!             write(*,*) 'a', k, real(x(1),sp), real(theta_lnL(i),sp)
              call powell(x, lnL_diffuse_multi, ierr)
+!             write(*,*) 'b', k, real(x(1),sp), real(theta_lnL(i),sp)
              if (ierr == 0) then
                 self%theta(id)%p%map(k,p) = x(1)
              else
-                write(*,*) 'Warning: Spectral index Powell search did not converge'
+                write(*,*) 'Warning: Spectral index Powell search did not converge', p, k
              end if
              deallocate(x, theta_lnL)
 

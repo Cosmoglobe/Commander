@@ -82,10 +82,10 @@ contains
     constructor%lmax_ind = 0
     constructor%cltype   = 'binned'
     constructor%nmaps    = 1
-    info          => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_amp, &
-         & constructor%nmaps, constructor%pol)
-    !info          => comm_mapinfo(cpar%comm_chain, 128, constructor%lmax_amp, &
+    !info          => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_amp, &
     !     & constructor%nmaps, constructor%pol)
+    info          => comm_mapinfo(cpar%comm_chain, 128, constructor%lmax_amp, &
+         & constructor%nmaps, constructor%pol)
 
     ! Diffuse preconditioner variables
     call add_to_npre(1,constructor%nside,1,1)
@@ -118,9 +118,9 @@ contains
     ! Allocate mixing matrix
     allocate(constructor%F(numband), constructor%F_mean(numband,constructor%nmaps), constructor%F_null(numband))
     do i = 1, numband
-       info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
-            & constructor%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
        if (i == band) then
+          info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
+               & constructor%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
           constructor%F(i)%p      => comm_map(info)
           constructor%F_null(i)   = .false.
           constructor%F(i)%p%map  = constructor%RJ2unit_
