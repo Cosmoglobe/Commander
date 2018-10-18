@@ -16,6 +16,11 @@ module comm_map_mod
   public comm_map, comm_mapinfo, map_ptr
 
   type :: comm_mapinfo
+     ! Linked list variables
+     class(comm_mapinfo), pointer :: nextLink => null()
+     class(comm_mapinfo), pointer :: prevLink => null()
+
+     ! Data variables
      type(sharp_alm_info)  :: alm_info
      type(sharp_geom_info) :: geom_info_T, geom_info_P
      logical(lgt) :: pol
@@ -83,6 +88,9 @@ module comm_map_mod
      procedure constructor_map, constructor_clone
   end interface comm_map
 
+  ! Library of mapinfos; resident in memory during the analysis
+  class(comm_mapinfo), pointer, private :: mapinfos
+
 contains
 
   !**************************************************
@@ -102,118 +110,137 @@ contains
     real(dp),     allocatable, dimension(:,:) :: weights
     character(len=5)   :: nside_text
     character(len=512) :: weight_file, healpixdir
+    class(comm_mapinfo), pointer :: p, p_prev, p_new
 
+    ! Check if requested mapinfo already exists in library; if so return a link to that object
+    p => mapinfos
+    do while (associated(p)) 
+       if (p%nside == nside .and. p%lmax == lmax .and. p%nmaps == nmaps .and. p%pol == pol) then
+          constructor_mapinfo => p
+          return
+       else
+          p_prev => p
+          p      => p%nextLink
+       end if
+    end do
+
+    ! Set up new mapinfo object
     call mpi_comm_rank(comm, myid, ierr)
     call mpi_comm_size(comm, nprocs, ierr)
 
-    allocate(constructor_mapinfo)
-    constructor_mapinfo%comm   = comm
-    constructor_mapinfo%myid   = myid
-    constructor_mapinfo%nprocs = nprocs
-    constructor_mapinfo%nside  = nside
-    constructor_mapinfo%nmaps  = nmaps
-    constructor_mapinfo%nspec  = nmaps*(nmaps+1)/2
-    constructor_mapinfo%lmax   = lmax
-    constructor_mapinfo%pol    = pol
-    constructor_mapinfo%npix   = 12*nside**2
+    allocate(p_new)
+    p_new%comm   = comm
+    p_new%myid   = myid
+    p_new%nprocs = nprocs
+    p_new%nside  = nside
+    p_new%nmaps  = nmaps
+    p_new%nspec  = nmaps*(nmaps+1)/2
+    p_new%lmax   = lmax
+    p_new%pol    = pol
+    p_new%npix   = 12*nside**2
 
     ! Select rings and pixels
     allocate(pixlist(0:4*nside-1))
-    constructor_mapinfo%nring = 0
-    constructor_mapinfo%np    = 0
-!    do i = 1+myid, 4*nside-1, nprocs
-!       call in_ring(nside, i, 0.d0, pi, pixlist, np)
-!       constructor_mapinfo%nring = constructor_mapinfo%nring + 1
-!       constructor_mapinfo%np    = constructor_mapinfo%np    + np
-!    end do
+    p_new%nring = 0
+    p_new%np    = 0
     do i = 1+myid, 2*nside, nprocs
        call in_ring(nside, i, 0.d0, pi, pixlist, np)
-       constructor_mapinfo%nring = constructor_mapinfo%nring + 1
-       constructor_mapinfo%np    = constructor_mapinfo%np    + np
+       p_new%nring = p_new%nring + 1
+       p_new%np    = p_new%np    + np
        if (i < 2*nside) then ! Symmetric about equator
-          constructor_mapinfo%nring = constructor_mapinfo%nring + 1
-          constructor_mapinfo%np    = constructor_mapinfo%np    + np
+          p_new%nring = p_new%nring + 1
+          p_new%np    = p_new%np    + np
        end if
     end do
-    allocate(constructor_mapinfo%rings(constructor_mapinfo%nring))
-    allocate(constructor_mapinfo%pix(constructor_mapinfo%np))
+    allocate(p_new%rings(p_new%nring))
+    allocate(p_new%pix(p_new%np))
     j = 1
     k = 1
     do i = 1+myid, 2*nside, nprocs
        call in_ring(nside, i, 0.d0, pi, pixlist, np)
-       constructor_mapinfo%rings(k) = i
-       constructor_mapinfo%pix(j:j+np-1) = pixlist(0:np-1)
+       p_new%rings(k) = i
+       p_new%pix(j:j+np-1) = pixlist(0:np-1)
        k = k + 1
        j = j + np
        if (i < 2*nside) then ! Symmetric about equator
           call in_ring(nside, 4*nside-i, 0.d0, pi, pixlist, np)
-          constructor_mapinfo%rings(k) = 4*nside-i
-          constructor_mapinfo%pix(j:j+np-1) = pixlist(0:np-1)
+          p_new%rings(k) = 4*nside-i
+          p_new%pix(j:j+np-1) = pixlist(0:np-1)
           k = k + 1
           j = j + np
        end if
     end do
     deallocate(pixlist)
-    call QuickSort_int(constructor_mapinfo%rings)
-    call QuickSort_int(constructor_mapinfo%pix)
+    call QuickSort_int(p_new%rings)
+    call QuickSort_int(p_new%pix)
 
     ! Select m's
-    constructor_mapinfo%nm = 0
+    p_new%nm = 0
     do m = myid, lmax, nprocs
-       constructor_mapinfo%nm   = constructor_mapinfo%nm   + 1
+       p_new%nm   = p_new%nm   + 1
        if (m == 0) then
-          constructor_mapinfo%nalm = constructor_mapinfo%nalm + lmax+1
+          p_new%nalm = p_new%nalm + lmax+1
        else
-          constructor_mapinfo%nalm = constructor_mapinfo%nalm + 2*(lmax-m+1)
+          p_new%nalm = p_new%nalm + 2*(lmax-m+1)
        end if
     end do
-    allocate(constructor_mapinfo%ms(constructor_mapinfo%nm))
-    allocate(constructor_mapinfo%mind(0:constructor_mapinfo%lmax))
-    allocate(constructor_mapinfo%lm(2,0:constructor_mapinfo%nalm-1))
+    allocate(p_new%ms(p_new%nm))
+    allocate(p_new%mind(0:p_new%lmax))
+    allocate(p_new%lm(2,0:p_new%nalm-1))
     ind = 0
-    constructor_mapinfo%mind = -1
-    do i = 1, constructor_mapinfo%nm
+    p_new%mind = -1
+    do i = 1, p_new%nm
        m                           = myid + (i-1)*nprocs
-       constructor_mapinfo%ms(i)   = m
-       constructor_mapinfo%mind(m) = ind
+       p_new%ms(i)   = m
+       p_new%mind(m) = ind
        if (m == 0) then
           do l = m, lmax
-             constructor_mapinfo%lm(:,ind) = [l,m]
+             p_new%lm(:,ind) = [l,m]
              ind                           = ind+1
           end do
        else
           do l = m, lmax
-             constructor_mapinfo%lm(:,ind) = [l,+m]
+             p_new%lm(:,ind) = [l,+m]
              ind                           = ind+1
-             constructor_mapinfo%lm(:,ind) = [l,-m]
+             p_new%lm(:,ind) = [l,-m]
              ind                           = ind+1
           end do
        end if
     end do
     
     ! Read ring weights, and create SHARP info structures
-    call sharp_make_mmajor_real_packed_alm_info(lmax, ms=constructor_mapinfo%ms, &
-         & alm_info=constructor_mapinfo%alm_info)
-!!$    allocate(constructor_mapinfo%W(constructor_mapinfo%nring/2,1))
-!!$    constructor_mapinfo%W = 1.d0
+    call sharp_make_mmajor_real_packed_alm_info(lmax, ms=p_new%ms, &
+         & alm_info=p_new%alm_info)
     call getEnvironment('HEALPIX', healpixdir) 
     call int2string(nside, nside_text)
     weight_file = trim(healpixdir)//'/data/weight_ring_n' // nside_text // '.fits'
     if (nmaps == 1) then
-       allocate(constructor_mapinfo%W(2*nside,1))
-       call read_dbintab(weight_file, constructor_mapinfo%W, 2*nside, 1, nullval, anynull)
-       constructor_mapinfo%W = constructor_mapinfo%W + 1.d0
-       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
-            & weight=constructor_mapinfo%W(:,1), geom_info=constructor_mapinfo%geom_info_T)
+       allocate(p_new%W(2*nside,1))
+       call read_dbintab(weight_file, p_new%W, 2*nside, 1, nullval, anynull)
+       p_new%W = p_new%W + 1.d0
+       call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
+            & weight=p_new%W(:,1), geom_info=p_new%geom_info_T)
     else
-       allocate(constructor_mapinfo%W(2*nside,2))
-       call read_dbintab(weight_file, constructor_mapinfo%W, 2*nside, 2, nullval, anynull)
-       constructor_mapinfo%W(:,:) = constructor_mapinfo%W + 1.d0
-       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
-            & weight=constructor_mapinfo%W(:,1), geom_info=constructor_mapinfo%geom_info_T)
-       call sharp_make_healpix_geom_info(nside, rings=constructor_mapinfo%rings, &
-            & weight=constructor_mapinfo%W(:,2), geom_info=constructor_mapinfo%geom_info_P)
+       allocate(p_new%W(2*nside,2))
+       call read_dbintab(weight_file, p_new%W, 2*nside, 2, nullval, anynull)
+       p_new%W(:,:) = p_new%W + 1.d0
+       call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
+            & weight=p_new%W(:,1), geom_info=p_new%geom_info_T)
+       call sharp_make_healpix_geom_info(nside, rings=p_new%rings, &
+            & weight=p_new%W(:,2), geom_info=p_new%geom_info_P)
     end if
+
+    ! Set up new object, and add to list
+    p => mapinfos
+    if (.not. associated(p)) then
+       mapinfos => p_new
+    else
+       do while (associated(p%nextLink)) 
+          p => p%nextLink
+       end do
+       p%nextLink => p_new
+    end if
+    constructor_mapinfo => p_new
 
   end function constructor_mapinfo
 
@@ -267,7 +294,7 @@ contains
 
     logical(lgt) :: clean_info_
 
-    clean_info_ = .false.; if (present(clean_info)) clean_info_ = clean_info
+    clean_info_ = .false. !; if (present(clean_info)) clean_info_ = clean_info ! Never clean info with new library
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
     if (clean_info_ .and. associated(self%info)) call self%info%dealloc()

@@ -57,7 +57,8 @@ module comm_Cl_mod
   interface comm_Cl
      procedure constructor
   end interface comm_Cl
-  
+
+
 contains
 
   !**************************************************

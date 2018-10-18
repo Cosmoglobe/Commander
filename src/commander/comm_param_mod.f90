@@ -111,6 +111,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_binfile
      integer(i4b),       allocatable, dimension(:)     :: cs_lpivot
      character(len=512), allocatable, dimension(:)     :: cs_mask
+     real(dp),           allocatable, dimension(:)     :: cs_latmask
      character(len=512), allocatable, dimension(:)     :: cs_indmask
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
@@ -364,6 +365,7 @@ contains
 
     integer(i4b)     :: i, n
     character(len=2) :: itext
+    character(len=512) :: maskfile
     
     call get_parameter(paramfile, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
     call get_parameter(paramfile, 'INIT_INSTRUMENT_FROM_HDF', par_lgt=cpar%cs_init_inst_hdf)
@@ -376,6 +378,7 @@ contains
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
+    allocate(cpar%cs_latmask(n))
     allocate(cpar%cs_indmask(n), cpar%cs_amp_rms_scale(n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
@@ -433,6 +436,14 @@ contains
              cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(i)**2
           end if
           call get_parameter(paramfile, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
+          maskfile = adjustl(trim(cpar%cs_mask(i)))
+          if (maskfile(1:4) == '|b|<') then
+             read(maskfile(5:),*) cpar%cs_latmask(i)
+             cpar%cs_latmask(i) = cpar%cs_latmask(i) * DEG2RAD
+          else
+             cpar%cs_latmask(i) = -1.d0
+          end if
+
           cpar%cs_indmask(i) = 'fullsky'
 
           select case (trim(cpar%cs_type(i)))
@@ -1090,7 +1101,7 @@ contains
 
     integer(i4b) :: i, j
     logical(lgt) :: exist
-    character(len=512) :: datadir, chaindir, filename
+    character(len=512) :: datadir, chaindir, filename, maskname
 
     datadir  = trim(cpar%datadir) // '/'
     chaindir = trim(cpar%outdir) // '/'
@@ -1137,7 +1148,7 @@ contains
              call validate_file(trim(datadir)//trim(cpar%cs_binfile(i)))
              call validate_file(trim(datadir)//trim(cpar%cs_clfile(i)))             
           end if
-          if (trim(cpar%cs_mask(i)) /= 'fullsky') &
+          if (trim(cpar%cs_mask(i)) /= 'fullsky' .and. cpar%cs_latmask(i) < 0.d0) &
                call validate_file(trim(datadir)//trim(cpar%cs_mask(i)))          
           if (trim(cpar%cs_indmask(i)) /= 'fullsky') &
                call validate_file(trim(datadir)//trim(cpar%cs_indmask(i)))          

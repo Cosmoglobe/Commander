@@ -89,6 +89,7 @@ contains
           call wall_time(t3)
           map => compute_residual(i)
           !call data(i)%apply_proc_mask(map)
+          !map%map = map%map * data(i)%mask%map ! Apply frequency mask to current residual
           if (cpar%output_residuals) then
              call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'// &
                   & trim(postfix)//'.fits')

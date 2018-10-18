@@ -1134,8 +1134,9 @@ contains
     
   end subroutine initPtsrcPrecond
 
-  subroutine updatePtsrcPrecond
+  subroutine updatePtsrcPrecond(samp_group)
     implicit none
+    integer(i4b), intent(in) :: samp_group
 
     call initPtsrcPrecond(comm_pre)
        

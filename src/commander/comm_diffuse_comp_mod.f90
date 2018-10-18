@@ -25,7 +25,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: nside, nx, x0
      logical(lgt)       :: pol, output_mixmat, output_EB
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod
-     real(dp)           :: cg_scale
+     real(dp)           :: cg_scale, latmask
      real(dp), allocatable, dimension(:,:) :: cls
      real(dp), allocatable, dimension(:,:) :: F_mean
 
@@ -102,6 +102,7 @@ contains
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
     self%output_mixmat = cpar%output_mixmat
+    self%latmask       = cpar%cs_latmask(id_abs)
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
     outdir              = cpar%outdir
@@ -131,6 +132,12 @@ contains
        call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
+
+    ! Read component mask
+    if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
+       self%mask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_mask(id_abs)), &
+            & udgrade=.true.)
+    end if
 
     ! Read processing mask
     if (trim(cpar%ds_procmask) /= 'none') then
@@ -313,22 +320,26 @@ contains
   end subroutine initDiffPrecond_pseudoinv
 
 
-  subroutine updateDiffPrecond
+  subroutine updateDiffPrecond(samp_group, force_update)
     implicit none
+    integer(i4b), intent(in) :: samp_group
+    logical(lgt), intent(in) :: force_update
 
     select case (trim(precond_type))
     case ("diagonal")
-       call updateDiffPrecond_diagonal
+       call updateDiffPrecond_diagonal(samp_group, force_update)
     case ("pseudoinv")
-       call updateDiffPrecond_pseudoinv
+       call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
        call report_error("Preconditioner type not supported")
     end select
 
   end subroutine updateDiffPrecond
 
-  subroutine updateDiffPrecond_diagonal
+  subroutine updateDiffPrecond_diagonal(samp_group, force_update)
     implicit none
+    integer(i4b), intent(in) :: samp_group
+    logical(lgt), intent(in) :: force_update
 
     integer(i4b) :: i, j, k, k1, k2, l, m, n, ierr, unit, p, q
     real(dp)     :: W_ref, t1, t2
@@ -339,7 +350,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: alm
 
     if (npre == 0) return
-    if (.not. recompute_diffuse_precond) return
+    if (.not. recompute_diffuse_precond .and. .not. force_update) return
     
     ! Initialize current preconditioner to F^t * B^t * invN * B * F
     !self%invM    = self%invM0
@@ -533,6 +544,22 @@ contains
     call wall_time(t2)
     !write(*,*) 'eigen = ', t2-t1
 
+    ! Nullify elements that are not involved in current sample group
+    do j = 1, info_pre%nmaps
+       do i = 0, info_pre%nalm-1
+          if (P_cr%invM_diff(i,j)%n == 0) cycle                
+          do k1 = 1, npre
+             if (diffComps(k1)%p%cg_samp_group == samp_group) cycle
+             do k2 = 1, npre
+                if (diffComps(k2)%p%cg_samp_group == samp_group) cycle
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                P_cr%invM_diff(i,j)%M(p,q) = 0.d0
+             end do
+          end do
+       end do
+    end do
+
     ! Invert matrix
     call wall_time(t1)
     do j = 1, nmaps_pre
@@ -542,7 +569,9 @@ contains
 !!$                write(*,*) real(P_cr%invM_diff(i,j)%M(k,:),sp)
 !!$             end do
 !!$          end if
-          if (P_cr%invM_diff(i,j)%n > 0) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
+          if (P_cr%invM_diff(i,j)%n > 0) then
+             if (any(P_cr%invM_diff(i,j)%M /= 0.d0)) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
+          end if
        end do
     end do
     call wall_time(t2)
@@ -554,15 +583,17 @@ contains
   end subroutine updateDiffPrecond_diagonal
 
 
-  subroutine updateDiffPrecond_pseudoinv
+  subroutine updateDiffPrecond_pseudoinv(samp_group, force_update)
     implicit none
+    integer(i4b), intent(in) :: samp_group
+    logical(lgt), intent(in) :: force_update
 
     integer(i4b) :: i, j, k, l, n, ierr, p, q
     real(dp)     :: t1, t2, Cl
     real(dp),     allocatable, dimension(:,:) :: mat
 
     if (npre == 0) return
-    if (.not. recompute_diffuse_precond) return
+    if (.not. recompute_diffuse_precond .and. .not. force_update) return
 
     ! Build pinv_U
     call wall_time(t1)
@@ -576,6 +607,7 @@ contains
              if (l > data(q)%info%lmax) cycle
              do k = 1, npre
                 if (l > diffComps(k)%p%lmax_amp) cycle
+                if (diffComps(k)%p%cg_samp_group /= samp_group) cycle
                 mat(q,k) = data(q)%N%alpha_nu(j) * &
                           & data(q)%B%b_l(l,j) * &
                           & diffComps(k)%p%F_mean(q,j)
@@ -588,7 +620,8 @@ contains
 
           ! Prior section
           do k = 1, npre
-             if (trim(diffComps(k)%p%Cl%type) == 'none' .or. l > diffComps(k)%p%lmax_amp) cycle
+             if (trim(diffComps(k)%p%Cl%type) == 'none' .or. l > diffComps(k)%p%lmax_amp .or. &
+                  & diffComps(k)%p%cg_samp_group /= samp_group) cycle
              mat(numband+k,k) = 1.d0
           end do
 
@@ -630,6 +663,7 @@ contains
     real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
 
     integer(i4b) :: i, j, k, n, nmaps, ierr
+    real(dp)     :: lat, lon
     real(dp),        allocatable, dimension(:,:) :: theta_p
     real(dp),        allocatable, dimension(:)   :: nu, s, buffer
     class(comm_mapinfo),          pointer        :: info
@@ -685,6 +719,15 @@ contains
        
        ! Loop over all pixels, computing mixing matrix for each
        do j = 0, self%F(i)%p%info%np-1
+          if (self%latmask >= 0.d0) then
+             call pix2ang_ring(data(i)%info%nside, data(i)%info%pix(j+1), lat, lon)
+             lat = 0.5d0*pi-lat
+             if (abs(lat) < self%latmask) then
+                self%F(i)%p%map(j,:) = 0.d0
+                cycle
+             end if
+          end if
+
           if (self%npar > 0) then
              ! Collect all parameters
              t0 => t
@@ -802,7 +845,7 @@ contains
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-       if (self%lmax_ind == 0) then
+       if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
           end do
@@ -862,7 +905,7 @@ contains
        if (.not. alm_in) call m%Yt()
        call data(band)%B%conv(trans=.true., map=m)
 
-       if (self%lmax_ind == 0) then
+       if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
           call m%alm_equal(m_out)
           do i = 1, nmaps
              m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
@@ -1250,56 +1293,62 @@ contains
     type(planck_rng),                        intent(inout)        :: handle
     integer(i4b),                            intent(in)           :: id
 
-    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag, npar, np, nmaps
     real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+    real(dp)     :: x(1), theta_min, theta_max
     logical(lgt) :: ok
     logical(lgt), save :: first_call = .true.
     class(comm_comp), pointer :: c
-    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
-    real(dp),     allocatable, dimension(:,:) :: amp
+    real(dp),     allocatable, dimension(:)   :: lnL, P_tot, F, theta, a_curr
+    real(dp),     allocatable, dimension(:,:) :: amp, buffer
 
     delta_lnL_threshold = 25.d0
     n                   = 101
     n_ok                = 50
     first_call          = .false.
 
-    if (trim(operation) == 'optimize') then
+    !c_lnL       => self
+    id_lnL      = id
+    c           => compList     ! Extremely ugly hack...
+    do while (self%id /= c%id)
+       c => c%next()
+    end do
+    select type (c)
+    class is (comm_diffuse_comp)
+       c_lnL => c
+    end select
 
-       do p = 1, self%x_smooth%info%nmaps
-          do k = 0, self%x_smooth%info%np-1
-             p_lnL       = p
-             k_lnL       = k
-             !c_lnL       => self
-             id_lnL      = id
-             c           => compList     ! Extremely ugly hack...
-             do while (self%id /= c%id)
-                c => c%next()
-             end do
-             select type (c)
-             class is (comm_diffuse_comp)
-                c_lnL => c
-             end select
-             
+    npar      = c%npar
+    np        = self%x_smooth%info%np
+    nmaps     = self%x_smooth%info%nmaps
+    theta_min = c_lnL%p_uni(1,id_lnL)
+    theta_max = c_lnL%p_uni(2,id_lnL)
+    allocate(theta_lnL(npar))
+
+    if (trim(operation) == 'optimize') then
+       allocate(buffer(0:self%x_smooth%info%np-1,self%x_smooth%info%nmaps))
+       buffer = max(min(self%theta(id)%p%map,theta_max),theta_min)
+       do p = 1, nmaps
+          p_lnL       = p
+          !!$OMP PARALLEL DEFAULT(shared) PRIVATE(k,k_lnL,x,theta_lnL,a_lnL,i,ierr)
+          !!$OMP DO SCHEDULE(guided)
+          do k = 0, np-1
              ! Perform non-linear search
-             allocate(x(1), theta_lnL(self%npar))
+             k_lnL     = k
              a_lnL     = self%x_smooth%map(k,p)
-             x(1)      = max(min(self%theta(id)%p%map(k,p),c_lnL%p_uni(2,id_lnL)),c_lnL%p_uni(1,id_lnL))
-             do i = 1, c%npar
+             x(1)      = buffer(k,p)
+             do i = 1, npar
                 if (i == id) cycle
                 theta_lnL(i) = self%theta_smooth(i)%p%map(k,p)
              end do
-!             write(*,*) 'a', k, real(x(1),sp), real(theta_lnL(i),sp)
              call powell(x, lnL_diffuse_multi, ierr)
-!             write(*,*) 'b', k, real(x(1),sp), real(theta_lnL(i),sp)
-             if (ierr == 0) then
-                self%theta(id)%p%map(k,p) = x(1)
-             else
-                write(*,*) 'Warning: Spectral index Powell search did not converge', p, k
-             end if
-             deallocate(x, theta_lnL)
+             if (ierr == 0) buffer(k,p) = x(1)
 
           end do
+          !!$OMP END DO
+          !!$OMP END PARALLEL
        end do
+       self%theta(id)%p%map = buffer
 
        ! Update mixing matrix
        call self%updateMixmat
@@ -1307,8 +1356,9 @@ contains
        ! Ask for CG preconditioner update
        if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
 
-       return
     end if
+
+    deallocate(buffer, theta_lnL)
 
   end subroutine sampleDiffuseSpecInd
 

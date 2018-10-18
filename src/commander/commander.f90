@@ -47,8 +47,8 @@ program commander
   call initialize_mpi_struct(cpar, handle)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
-  status%active = .false.
-  
+  status%active = cpar%myid <= 1
+
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
      call mpi_finalize(ierr)
@@ -99,8 +99,6 @@ program commander
 
   ! Run Gibbs loop
   first_sample = 1
-!  if (trim(cpar%init_chain_prefix) == trim(cpar%chain_prefix)) 
-first_sample = 1 !cpar%init_samp+1
   do iter = first_sample, cpar%num_gibbs_iter
 
      if (cpar%myid == 0) then
@@ -135,6 +133,7 @@ first_sample = 1 !cpar%init_samp+1
      ! Sample instrumental parameters
 
      ! Sample power spectra
+     
 
      ! Compute goodness-of-fit statistics
      

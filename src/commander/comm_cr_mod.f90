@@ -34,6 +34,7 @@ contains
     integer(i4b),                     intent(out)   :: stat
 
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
+    integer(i4b), save :: samp_group_prev
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
     real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev
     real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s, x_out
@@ -52,7 +53,8 @@ contains
     ! Update preconditioner
     call wall_time(t1)
     call update_status(status, "cr2")
-    call update_precond
+    call update_precond(samp_group, samp_group /= samp_group_prev)
+    samp_group_prev = samp_group
     call update_status(status, "cr3")
     call wall_time(t2)
     if (cpar%myid == root .and. cpar%verbosity > 2) then
@@ -264,8 +266,11 @@ contains
                   & real(val_convergence,sp), ', tol = ', real(lim_convergence,sp), &
                   & ', time = ', real(t2-t1,sp)
           else if (trim(cpar%cg_conv_crit) == 'chisq') then
-             write(*,fmt='(a,i5,a,e13.5,a,f7.4,a,f8.2)') '  CG iter. ', i, ' -- chisq = ', &
-                  & real(chisq,sp), ', delta = ', real(val_convergence,sp), &
+!             write(*,fmt='(a,i5,a,e13.5,a,f7.4,a,f8.2)') '  CG iter. ', i, ' -- chisq = ', &
+!                  & real(chisq,sp), ', delta = ', real(val_convergence,sp), &
+!                  & ', time = ', real(t2-t1,sp)
+             write(*,*) '  CG iter. ', i, ' -- chisq = ', &
+                  & chisq, ', delta = ', val_convergence, &
                   & ', time = ', real(t2-t1,sp)
           end if
        end if
@@ -858,12 +863,14 @@ contains
     
   end function cr_invM
 
-  subroutine update_precond
+  subroutine update_precond(samp_group, force_update)
     implicit none
+    integer(i4b), intent(in) :: samp_group
+    logical(lgt), intent(in) :: force_update
 
-    call updateDiffPrecond
-    call updatePtsrcPrecond
-    call updateTemplatePrecond
+    call updateDiffPrecond(samp_group, force_update)
+    call updatePtsrcPrecond(samp_group)
+    call updateTemplatePrecond(samp_group)
 
   end subroutine update_precond
   
