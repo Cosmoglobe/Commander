@@ -80,11 +80,11 @@ contains
        call wall_time(t1)
        call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), regnoise)
        call wall_time(t2)
-       if (info%myid == 0) write(*,*) 'uniformize = ', t2-t1
+!       if (info%myid == 0) write(*,*) 'uniformize = ', t2-t1
        call wall_time(t1)
        constructor%siN%map = constructor%siN%map * mask%map ! Apply mask
        call wall_time(t2)
-       if (info%myid == 0) write(*,*) 'apply_mask = ', t2-t1
+!       if (info%myid == 0) write(*,*) 'apply_mask = ', t2-t1
        if (present(procmask)) then
           where (procmask%map < 0.5d0)
              constructor%siN%map = constructor%siN%map * 20.d0 ! Boost noise by 20 in processing mask
@@ -99,7 +99,7 @@ contains
        call wall_time(t1)
        constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
        call wall_time(t2)
-       if (info%myid == 0) write(*,*) 'read = ', t2-t1
+!       if (info%myid == 0) write(*,*) 'read = ', t2-t1
     end if
     call wall_time(t1)
     where (constructor%siN%map > 0.d0) 
@@ -108,7 +108,7 @@ contains
        constructor%siN%map = 0.d0
     end where
     call wall_time(t2)
-    if (info%myid == 0) write(*,*) 'siN = ', t2-t1
+!    if (info%myid == 0) write(*,*) 'siN = ', t2-t1
 
     ! Set siN to its mean; useful for debugging purposes
     if (cpar%set_noise_to_mean) then
@@ -160,7 +160,7 @@ contains
        end if
     end if
     call wall_time(t2)
-    if (info%myid == 0) write(*,*) 'precond = ', t2-t1
+!    if (info%myid == 0) write(*,*) 'precond = ', t2-t1
 
   end function constructor
 

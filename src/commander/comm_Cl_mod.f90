@@ -420,21 +420,25 @@ contains
     integer(i4b), intent(in) :: l, l_apod, lmax
     logical(lgt), intent(in) :: positive
     real(dp)                 :: get_Cl_apod
-    real(dp) :: alpha
-    if (l <= l_apod) then
-       get_Cl_apod = 1.d0
-    else if (l > lmax) then
-       get_Cl_apod = 0.d0
+    real(dp), parameter :: alpha = log(1d3)
+    if (l_apod > 0) then
+       if (l <= l_apod) then
+          get_Cl_apod = 1.d0
+       else if (l > lmax) then
+          get_Cl_apod = 0.d0
+       else
+          get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod+1,dp)**2)
+       end if
     else
-       alpha = log(1d3)
-       get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod+1,dp)**2)
+       if (l >= abs(l_apod)) then
+          get_Cl_apod = 1.d0
+       else if (l == 0 .or. l > lmax) then
+          get_Cl_apod = 0.d0
+       else
+          get_Cl_apod = exp(-alpha * (abs(l_apod)-l)**2 / real(abs(l_apod)-1,dp)**2)
+       end if
     end if
-!!$    if (l > l_apod) then
-!!$       get_Cl_apod = 0.5d0*(1.d0 - cos(pi*real(lmax-l+1,dp)/real(lmax-l_apod,dp)))
-!!$    else
-!!$       get_Cl_apod = 1.d0
-!!$    end if
-    if (.not. positive .and. l <= lmax) get_Cl_apod = 1.d0 / get_Cl_apod
+    if (.not. positive .and. get_Cl_apod /= 0.d0) get_Cl_apod = 1.d0 / get_Cl_apod
   end function get_Cl_apod
 
   subroutine read_Cl_file(self, clfile)

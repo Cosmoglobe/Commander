@@ -118,7 +118,9 @@ contains
     end do
     
     ! Initialize mixing matrix
-    call constructor%updateMixmat
+    if (cpar%init_samp < 0 .or. trim(cpar%init_chain_prefix) == 'none' &
+         & .or. .not. constructor%init_from_HDF) &
+         & call constructor%updateMixmat
 
     deallocate(label, mu, sigma, line2RJ, poltype)
 

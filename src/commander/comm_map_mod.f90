@@ -8,6 +8,7 @@ module comm_map_mod
   use head_fits
   use comm_hdf_mod
   use extension
+  use comm_param_mod
   implicit none
 
 !  include "mpif.h"
@@ -504,6 +505,7 @@ contains
     if (self%info%myid == 0) then
 
        ! Distribute to other nodes
+       call update_status(status, "fits1")
        allocate(p(npix), map(0:npix-1,nmaps))
        map(self%info%pix,:) = self%map
        do i = 1, self%info%nprocs-1
@@ -515,7 +517,9 @@ contains
           map(p(1:np),:) = buffer(1:np,:)
           deallocate(buffer)
        end do
+       call update_status(status, "fits2")
        call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+              call update_status(status, "fits3")
 
        if (present(hdffile)) then
           allocate(alm(0:(self%info%lmax+1)**2-1,self%info%nmaps))
@@ -540,10 +544,12 @@ contains
              end do
              deallocate(lm, buffer)
           end do
+          call update_status(status, "fits4")
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   alm)
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),   map)
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
+          call update_status(status, "fits5")
           deallocate(alm)
        end if
 

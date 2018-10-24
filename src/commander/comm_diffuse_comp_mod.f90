@@ -65,6 +65,7 @@ module comm_diffuse_comp_mod
   logical(lgt) :: output_cg_eigenvals
   logical(lgt), private :: only_pol
   character(len=512) :: outdir, precond_type
+  integer(i4b),        allocatable, dimension(:) :: ind_pre
   class(comm_mapinfo), pointer                   :: info_pre
   class(diff_ptr),     allocatable, dimension(:) :: diffComps
 
@@ -646,6 +647,23 @@ contains
     deallocate(mat)
     call wall_time(t2)
 
+    ! Set up array of active components
+    if (allocated(ind_pre)) deallocate(ind_pre)
+    n = 0
+    do k = 1, npre
+       if (diffComps(k)%p%cg_samp_group == samp_group) n = n+1
+    end do
+    if (n > 0) then
+       allocate(ind_pre(n))
+       i = 0
+       do k = 1, npre
+          if (diffComps(k)%p%cg_samp_group == samp_group) then
+             i = i+1
+             ind_pre(i) = k
+          end if
+       end do
+    end if
+
 !!$    call mpi_finalize(k)
 !!$    stop
 
@@ -663,11 +681,13 @@ contains
     real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
 
     integer(i4b) :: i, j, k, n, nmaps, ierr
-    real(dp)     :: lat, lon
-    real(dp),        allocatable, dimension(:,:) :: theta_p
-    real(dp),        allocatable, dimension(:)   :: nu, s, buffer
-    class(comm_mapinfo),          pointer        :: info
-    class(comm_map),              pointer        :: t, t0
+    real(dp)     :: lat, lon, t1, t2
+    logical(lgt) :: precomp 
+    real(dp),        allocatable, dimension(:,:,:) :: theta_p
+    real(dp),        allocatable, dimension(:)     :: nu, s, buffer
+    class(comm_mapinfo),          pointer          :: info
+    class(comm_map),              pointer          :: t, t0
+    class(map_ptr),  allocatable, dimension(:)     :: theta_prev
 
     if (trim(self%type) == 'md') return
     
@@ -681,43 +701,50 @@ contains
     end if
     
     ! Compute mixing matrix
-    allocate(theta_p(self%npar,self%nmaps))
+    allocate(theta_prev(self%npar))
+    do j = 1, self%npar
+       nullify(theta_prev(j)%p)
+    end do
+
     do i = 1, numband
 
        ! Don't update null mixing matrices
        if (self%F_null(i)) cycle
 
        ! Compute spectral parameters at the correct resolution for this channel
-        if (self%npar > 0) then
-           info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(1)%p%info%lmax, &
-                & data(i)%info%nmaps, data(i)%info%pol)
-          t    => comm_map(info)
-          nmaps            = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
-          if (self%lmax_ind >= 0) then
-             t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
-             call t%Y_scalar
-          else
-             call self%theta(1)%p%udgrade(t)
-          end if
-
-          nullify(info)
-          do j = 2, self%npar
-             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
-                  & self%theta(j)%p%info%lmax, data(i)%info%nmaps, data(i)%info%pol)
-             t0    => comm_map(info)
-             nmaps            = min(data(i)%info%nmaps, self%theta(j)%p%info%nmaps)
-             if (self%lmax_ind >= 0) then
-                t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-                call t0%Y_scalar
-             else
-                call self%theta(j)%p%udgrade(t0)
+       if (self%npar > 0) then
+          nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
+          allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
+          
+          do j = 1, self%npar
+             if (associated(theta_prev(j)%p)) then
+                if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
+                     & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
+                     & nmaps == theta_prev(j)%p%info%nmaps .and. &
+                     & data(i)%info%pol == theta_prev(j)%p%info%pol) then
+                   theta_p(:,:,j) = theta_prev(j)%p%map
+                   cycle
+                end if
              end if
-             call t%add(t0)
-             nullify(info)
+             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
+             t    => comm_map(info)
+             if (self%lmax_ind >= 0) then
+                t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
+                call t%Y_scalar
+             else
+                call wall_time(t1)
+                call self%theta(j)%p%udgrade(t)
+                call wall_time(t2)
+                !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
+             end if
+             theta_p(:,:,j) = t%map
+             theta_prev(j)%p => t
           end do
-        end if
+       end if
        
        ! Loop over all pixels, computing mixing matrix for each
+       !allocate(theta_p(self%npar,self%nmaps))
+       call wall_time(t1)
        do j = 0, self%F(i)%p%info%np-1
           if (self%latmask >= 0.d0) then
              call pix2ang_ring(data(i)%info%nside, data(i)%info%pix(j+1), lat, lon)
@@ -728,26 +755,30 @@ contains
              end if
           end if
 
-          if (self%npar > 0) then
-             ! Collect all parameters
-             t0 => t
-             theta_p(1,:) = t0%map(j,:)
-             do k = 2, self%npar
-                t0 => t0%next()
-                theta_p(k,:) = t0%map(j,:)
-             end do
-
-             ! Check polarization type
-             if (self%nmaps == 3) then
-                do k = 1, self%npar
-                   if (self%poltype(k) < 2) theta_p(k,2) = theta_p(k,1)
-                   if (self%poltype(k) < 3) theta_p(k,3) = theta_p(k,2)
-                end do
-             end if
-          end if
+!!$          if (self%npar > 0) then
+!!$             ! Collect all parameters
+!!$             t0 => t
+!!$             theta_p(1,:) = t0%map(j,:)
+!!$             do k = 2, self%npar
+!!$                t0 => t0%next()
+!!$                theta_p(k,:) = t0%map(j,:)
+!!$             end do
+!!$
+!!$             ! Check polarization type
+!!$             if (self%nmaps == 3) then
+!!$                do k = 1, self%npar
+!!$                   if (self%poltype(k) < 2) theta_p(k,2) = theta_p(k,1)
+!!$                   if (self%poltype(k) < 3) theta_p(k,3) = theta_p(k,2)
+!!$                end do
+!!$             end if
+!!$          end if
 
           ! Temperature
-          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) * data(i)%gain * self%cg_scale
+          if (self%npar > 0) then
+             self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
+          else
+             self%F(i)%p%map(j,1) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+          end if
 
           ! Polarization
           if (self%nmaps == 3) then
@@ -757,7 +788,11 @@ contains
              else if (all(self%poltype < 2)) then
                 self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) 
              else
-                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) * data(i)%gain * self%cg_scale
+                if (self%npar > 0) then
+                   self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale
+                else
+                   self%F(i)%p%map(j,2) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                end if
              end if
        
              ! Stokes U
@@ -766,12 +801,19 @@ contains
              else if (all(self%poltype < 3)) then
                 self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) 
              else
-                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) * data(i)%gain * self%cg_scale
+                if (self%npar > 0) then
+                   self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale
+                else
+                   self%F(i)%p%map(j,3) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                end if
              end if
           end if
           
        end do
-
+       if (allocated(theta_p)) deallocate(theta_p)
+       call wall_time(t2)
+       !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
+                
        ! Compute mixing matrix average; for preconditioning only
        allocate(buffer(self%nmaps))
        do j = 1, self%nmaps
@@ -782,15 +824,15 @@ contains
        self%F_mean(i,:) = buffer / self%F(i)%p%info%npix
        deallocate(buffer)
 
-       if (self%npar > 0) then
-          call t%dealloc(clean_info=.true.)
-          call t0%dealloc(clean_info=.true.)
-          nullify(t)
-          nullify(t0)
-       end if
+!!$       if (self%npar > 0) then
+!!$          call t%dealloc(clean_info=.true.)
+!!$          call t0%dealloc(clean_info=.true.)
+!!$          nullify(t)
+!!$          nullify(t0)
+!!$       end if
     
     end do
-    deallocate(theta_p)
+    deallocate(theta_prev)
 
     call update_status(status, "mixupdate2 " // trim(self%label))
 
@@ -798,6 +840,7 @@ contains
     recompute_diffuse_precond = .true.
 
   end subroutine updateDiffuseMixmat
+
 
   function evalDiffuseBand(self, band, amp_in, pix, alm_out)
     implicit none
@@ -968,7 +1011,6 @@ contains
     ! Multiply with preconditioner
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          !y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
           if (P_cr%invM_diff(i,j)%n == 0) cycle
           y(P_cr%invM_diff(i,j)%ind,i,j) = &
                & matmul(P_cr%invM_diff(i,j)%M, y(P_cr%invM_diff(i,j)%ind,i,j))
@@ -998,23 +1040,27 @@ contains
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
 
-    integer(i4b)              :: i, j, k, l, m, p, q, nmaps
+    integer(i4b)              :: i, ii, j, k, l, m, p, q, qq, nmaps, npre_int
     real(dp), allocatable, dimension(:)     :: w
     real(dp), allocatable, dimension(:,:)   :: alm
     real(dp), allocatable, dimension(:,:,:) :: y, z
     class(comm_map), pointer                :: invN_x
 
-    if (npre == 0) return
+    if (.not. allocated(ind_pre)) return
+
+    npre_int = size(ind_pre)
+    if (npre_int <= 0) return
     
     ! Reformat linear array into y(npre,nalm,nmaps) structure
-    allocate(y(npre,0:info_pre%nalm-1,info_pre%nmaps))
-    allocate(z(npre,0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(y(npre_int,0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(z(npre_int,0:info_pre%nalm-1,info_pre%nmaps))
     y = 0.d0
-    do i = 1, npre
-       nmaps = diffComps(i)%p%x%info%nmaps
-       call cr_extract_comp(diffComps(i)%p%id, x, alm)
-       do j = 0, diffComps(i)%p%x%info%nalm-1
-          call diffComps(i)%p%x%info%i2lm(j, l, m)
+    do i = 1, npre_int
+       ii = ind_pre(i)
+       nmaps = diffComps(ii)%p%x%info%nmaps
+       call cr_extract_comp(diffComps(ii)%p%id, x, alm)
+       do j = 0, diffComps(ii)%p%x%info%nalm-1
+          call diffComps(ii)%p%x%info%i2lm(j, l, m)
           call info_pre%lm2i(l, m, k)
           y(i,k,1:nmaps) = alm(j,1:nmaps)
        end do
@@ -1028,16 +1074,21 @@ contains
        nmaps  =  data(k)%info%nmaps
        
        ! Sum over (U^plus)^t
+       !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,m,j,q,qq,p)
+       !!$OMP DO SCHEDULE(guided)
        do i = 0, data(k)%info%nalm-1
           call data(k)%info%i2lm(i, l, m)
           if (l > info_pre%lmax) cycle
           call info_pre%lm2i(l,m,j)
-          do q = 1, npre
+          do q = 1, npre_int
+             qq = ind_pre(q)
              do p = 1, nmaps
-                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr%invM_diff(l,p)%M(q,k) * y(q,j,p)
+                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr%invM_diff(l,p)%M(qq,k) * y(q,j,p)
              end do
           end do
        end do
+       !!$OMP END DO
+       !!$OMP END PARALLEL
 
        ! Multiply by T
        call invN_x%WY
@@ -1048,44 +1099,54 @@ contains
        end do
 
        ! Sum over U^plus
+       !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,m,j,q,qq,p)
+       !!$OMP DO SCHEDULE(guided)
        do i = 0, data(k)%info%nalm-1
           call data(k)%info%i2lm(i, l, m)
           if (l > info_pre%lmax) cycle
           call info_pre%lm2i(l,m,j)
-          do q = 1, npre
+          do q = 1, npre_int
+             qq = ind_pre(q)
              do p = 1, nmaps
-                z(q,j,p) = z(q,j,p) + P_cr%invM_diff(l,p)%M(q,k) * invN_x%alm(i,p)
+                z(q,j,p) = z(q,j,p) + P_cr%invM_diff(l,p)%M(qq,k) * invN_x%alm(i,p)
              end do
           end do
        end do
+       !!$OMP END DO
+       !!$OMP END PARALLEL
 
        call invN_x%dealloc()
     end do
 
     ! Prior terms
-    allocate(w(npre))
-    do p = 1, info_pre%nmaps
-       do i = 0, info_pre%nalm-1
+    !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,m,w)
+    !!$OMP DO SCHEDULE(guided)
+    allocate(w(npre_int))
+    do i = 0, info_pre%nalm-1
+       do p = 1, info_pre%nmaps
           call info_pre%i2lm(i, l, m)
           w        = y(:,i,p)
-          w        = matmul(transpose(P_cr%invM_diff(l,p)%M(1:npre,numband+1:numband+npre)),w)
-          w        = matmul(          P_cr%invM_diff(l,p)%M(1:npre,numband+1:numband+npre), w)
+          w        = matmul(transpose(P_cr%invM_diff(l,p)%M(ind_pre,numband+1:numband+npre)),w)
+          w        = matmul(          P_cr%invM_diff(l,p)%M(ind_pre,numband+1:numband+npre), w)
           z(:,i,p) = z(:,i,p) + w
        end do
     end do
     deallocate(w)
+    !!$OMP END DO
+    !!$OMP END PARALLEL
 
     ! Reformat z(npre,nalm,nmaps) structure into linear array
-    do i = 1, npre
-       nmaps = diffComps(i)%p%x%info%nmaps
-       allocate(alm(0:diffComps(i)%p%x%info%nalm-1,nmaps))
+    do i = 1, npre_int
+       ii = ind_pre(i)
+       nmaps = diffComps(ii)%p%x%info%nmaps
+       allocate(alm(0:diffComps(ii)%p%x%info%nalm-1,nmaps))
        alm = 0.d0
-       do j = 0, diffComps(i)%p%x%info%nalm-1
-          call diffComps(i)%p%x%info%i2lm(j, l, m)
+       do j = 0, diffComps(ii)%p%x%info%nalm-1
+          call diffComps(ii)%p%x%info%i2lm(j, l, m)
           call info_pre%lm2i(l, m, k)
           alm(j,1:nmaps) = z(i,k,1:nmaps)
        end do
-       call cr_insert_comp(diffComps(i)%p%id, .false., alm, x)
+       call cr_insert_comp(diffComps(ii)%p%id, .false., alm, x)
        deallocate(alm)
     end do
     
@@ -1161,9 +1222,13 @@ contains
        end if
     else
 
+       call update_status(status, "writeFITS_1")
+
        ! Write amplitude
        map => comm_map(self%x)
        map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
+
+       call update_status(status, "writeFITS_2")
 
        if (output_hdf) then
           call int2string(iter, itext)
@@ -1171,10 +1236,13 @@ contains
           if (self%x%info%myid == 0) call create_hdf_group(chainfile, trim(adjustl(path)))
        end if
 
+       call update_status(status, "writeFITS_3")
+
        filename = trim(self%label) // '_' // trim(postfix) // '.fits'
        call self%B_out%conv(trans=.false., map=map)
        call map%Y
        map%alm = self%x%alm * self%RJ2unit_ * self%cg_scale  ! Replace convolved with original alms
+       call update_status(status, "writeFITS_4")
 
        !call self%apply_proc_mask(map)
 
@@ -1185,6 +1253,7 @@ contains
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if
        call map%dealloc()
+       call update_status(status, "writeFITS_5")
 
        if (self%output_EB) then
           map => comm_map(self%x)
@@ -1197,6 +1266,7 @@ contains
           call map%writeFITS(trim(dir)//'/'//trim(filename))
           call map%dealloc()
        end if
+       call update_status(status, "writeFITS_6")
        
        allocate(sigma_l(0:self%x%info%lmax,self%x%info%nspec))
        call self%x%getSigmaL(sigma_l)
@@ -1207,6 +1277,7 @@ contains
           if (output_hdf) call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
        end if
        deallocate(sigma_l)
+       call update_status(status, "writeFITS_7")
 
        ! Write spectral index maps
        do i = 1, self%npar
@@ -1222,6 +1293,7 @@ contains
              call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
           end if
        end do
+       call update_status(status, "writeFITS_8")
        
        ! Write mixing matrices
        if (self%output_mixmat) then
@@ -1232,6 +1304,7 @@ contains
              call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
           end do
        end if
+       call update_status(status, "writeFITS_9")
     end if
 
   end subroutine dumpDiffuseToFITS

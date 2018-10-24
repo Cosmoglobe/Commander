@@ -152,9 +152,12 @@ contains
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
     call update_status(status, "cr5")
     d  = cr_invM(r)
+    call update_status(status, "cr6")
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
+    call update_status(status, "cr7")
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(b))
+    call update_status(status, "cr8")
 
     ! Set up convergence criterion
     if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
@@ -169,6 +172,8 @@ contains
     end if
     do i = 1, maxiter
        call wall_time(t1)
+
+       call update_status(status, "cg1")
        
        ! Check convergence
        if (mod(i,cpar%cg_check_conv_freq) == 0) then
@@ -183,7 +188,9 @@ contains
                & (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0) .and. &
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
        end if
-          
+       
+       call update_status(status, "cg2")
+   
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
        q     = cr_matmulA(d, samp_group)
@@ -197,6 +204,7 @@ contains
           r = r - alpha*q
        end if
 
+       call update_status(status, "cg3")
        call wall_time(t3)
        s         = cr_invM(r)
        call wall_time(t4)
@@ -205,6 +213,7 @@ contains
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
+       call update_status(status, "cg4")
 
        if (cpar%output_cg_freq > 0) then
           if (mod(i,cpar%output_cg_freq) == 0) then
@@ -253,6 +262,7 @@ contains
              call cr_x2amp(samp_group, x)
           end if
        end if
+       call update_status(status, "cg5")
 
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
@@ -274,6 +284,8 @@ contains
                   & ', time = ', real(t2-t1,sp)
           end if
        end if
+
+       call update_status(status, "cg6")
 
     end do
 
