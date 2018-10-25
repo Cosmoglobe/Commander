@@ -47,7 +47,7 @@ program commander
   call initialize_mpi_struct(cpar, handle)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
-  status%active = cpar%myid <= 1
+  status%active = cpar%myid <= 0
 
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
