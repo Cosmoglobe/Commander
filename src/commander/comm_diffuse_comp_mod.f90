@@ -861,7 +861,7 @@ contains
 
     if (self%F_null(band)) then
        if (alm_out_) then
-          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
        else
           if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
        end if
@@ -871,20 +871,21 @@ contains
 
     ! Initialize amplitude map
     nmaps =  min(data(band)%info%nmaps, self%nmaps)
-    info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, self%lmax_amp, &
-         & data(band)%info%nmaps, data(band)%info%pol)
+    info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, data(band)%info%lmax, nmaps, nmaps==3)
     m     => comm_map(info)
     if (present(amp_in)) then
-       m%alm(:,1:nmaps) = amp_in
+       m%alm(:,1:nmaps) = amp_in(:,1:nmaps)
+       !m%alm(:,1:nmaps) = amp_in
     else
-       m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
+       call self%x%alm_equal(m)
+       !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
-    if (self%lmax_amp > data(band)%map%info%lmax) then
-       ! Nullify elements above band-specific lmax to avoid aliasing during projection
-       do i = 0, m%info%nalm-1
-          if (m%info%lm(1,i) > data(band)%info%lmax) m%alm(i,:) = 0.d0
-       end do
-    end if
+!!$    if (self%lmax_amp > data(band)%map%info%lmax) then
+!!$       ! Nullify elements above band-specific lmax to avoid aliasing during projection
+!!$       do i = 0, m%info%nalm-1
+!!$          if (m%info%lm(1,i) > data(band)%info%lmax) m%alm(i,:) = 0.d0
+!!$       end do
+!!$    end if
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
@@ -905,11 +906,14 @@ contains
 
     ! Return correct data product
     if (alm_out_) then
-       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
-       evalDiffuseBand = m%alm
+       !if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
+       if (nmaps /= data(band)%info%nmaps) evalDiffuseBand = 0.d0
+       evalDiffuseBand(:,1:nmaps) = m%alm(:,1:nmaps)
     else
        if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
-       evalDiffuseBand = m%map
+       if (nmaps /= data(band)%info%nmaps) evalDiffuseBand = 0.d0
+       evalDiffuseBand(:,1:nmaps) = m%map(:,1:nmaps)
     end if
        
 

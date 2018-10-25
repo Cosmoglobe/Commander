@@ -664,13 +664,16 @@ contains
     real(dp),        allocatable, dimension(:,:) :: alm, m, pamp
 
     ! Initialize output array
+    call update_status(status, "A1")
     allocate(y(ncr), sqrtS_x(ncr))
     y = 0.d0
     myid = data(1)%map%info%myid
 
     ! Multiply with sqrt(S)
     call wall_time(t1)
+    call update_status(status, "A2")
     sqrtS_x = x
+    call update_status(status, "A3")
     c       => compList
     do while (associated(c))
        if (c%cg_samp_group /= samp_group) then
@@ -682,7 +685,9 @@ contains
           if (trim(c%cltype) /= 'none') then
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
              call cr_extract_comp(c%id, sqrtS_x, alm)
+             call update_status(status, "A4")
              call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)
+             call update_status(status, "A5")
              call cr_insert_comp(c%id, .false., alm, sqrtS_x)
              deallocate(alm)
           end if
@@ -717,7 +722,7 @@ contains
        ! Compute component-summed map, ie., column-wise matrix elements
        call wall_time(t1)
        map  => comm_map(data(i)%info)   ! For diffuse components
-       pmap => comm_map(data(i)%info)   ! For point-source components
+       pmap => comm_map(data(i)%info)   ! For point-source components and alm-buffer for diffuse components
        c   => compList
        do while (associated(c))
           if (c%cg_samp_group /= samp_group) then
@@ -727,9 +732,15 @@ contains
           select type (c)
           class is (comm_diffuse_comp)
              call cr_extract_comp(c%id, sqrtS_x, alm)
-             allocate(m(0:c%x%info%nalm-1,c%x%info%nmaps))
-             m = c%getBand(i, amp_in=alm, alm_out=.true.)
-             call map%add_alm(m, c%x%info)
+             call pmap%set_alm(alm,c%x%info)
+             allocate(m(0:data(i)%info%nalm-1,data(i)%info%nmaps))
+             !allocate(m(0:c%x%info%nalm-1,c%x%info%nmaps))
+             call update_status(status, "A6")
+             m = c%getBand(i, amp_in=pmap%alm, alm_out=.true.)
+             call update_status(status, "A7")
+             map%alm = map%alm + m
+             !call map%add_alm(m, c%x%info)
+             call update_status(status, "A8")
              deallocate(alm, m)
           class is (comm_ptsrc_comp)
              call cr_extract_comp(c%id, sqrtS_x, pamp)
@@ -746,8 +757,11 @@ contains
           end select
           c => c%next()
        end do
+       call update_status(status, "A9")
        call map%Y()                    ! Diffuse components
+       call update_status(status, "A10")
        map%map = map%map + pmap%map    ! Add compact objects
+       call update_status(status, "A11")
        !write(*,*) 'c', sum(abs(pmap%map))
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
@@ -756,12 +770,14 @@ contains
        call wall_time(t1)
        call data(i)%N%InvN(map)
        call wall_time(t2)
+       call update_status(status, "A12")
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'invN time = ', real(t2-t1,sp)
 
        ! Project summed map into components, ie., row-wise matrix elements
        call wall_time(t1)
        c   => compList
        call map%Yt()             ! Prepare for diffuse components
+       call update_status(status, "A13")
        do while (associated(c))
           if (c%cg_samp_group /= samp_group) then
              c => c%next()
@@ -770,7 +786,9 @@ contains
           select type (c)
           class is (comm_diffuse_comp)
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+             call update_status(status, "A14")
              alm = c%projectBand(i, map, alm_in=.true.)
+             call update_status(status, "A15")
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
           class is (comm_ptsrc_comp)
@@ -792,6 +810,7 @@ contains
        call map%dealloc()
        call pmap%dealloc()
     end do
+    call update_status(status, "A16")
 
     ! Add prior term and multiply with sqrt(S) for relevant components
     call wall_time(t1)
@@ -807,7 +826,9 @@ contains
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
              ! Multiply with sqrt(Cl)
              call cr_extract_comp(c%id, y, alm)
+             call update_status(status, "A17")
              call c%Cl%sqrtS(alm=alm, info=c%x%info)
+             call update_status(status, "A18")
              call cr_insert_comp(c%id, .false., alm, y)
              ! Add (unity) prior term
              call cr_extract_comp(c%id, x, alm)
@@ -851,7 +872,9 @@ contains
 
     ! Return result and clean up
     call wall_time(t1)
+    call update_status(status, "A19")
     cr_matmulA = y
+    call update_status(status, "A20")
     deallocate(y, sqrtS_x)
     call wall_time(t2)
     !    write(*,*) 'f', t2-t1

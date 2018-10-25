@@ -86,9 +86,10 @@ contains
 
        select type (c)
        class is (comm_diffuse_comp)
-          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
+          allocate(alm(0:data(band)%info%nalm-1,data(band)%info%nmaps))          
           alm     = c%getBand(band, alm_out=.true.)
-          call res%add_alm(alm, c%x%info)
+          res%alm = res%alm + alm
+          !call res%add_alm(alm, c%x%info)
           deallocate(alm)
           nonzero = .true.
        class is (comm_ptsrc_comp)

@@ -64,6 +64,7 @@ module comm_map_mod
      procedure     :: dealloc => deallocate_comm_map
      procedure     :: alm_equal
      procedure     :: add_alm
+     procedure     :: set_alm
      procedure     :: udgrade
      procedure     :: getSigmaL
      procedure     :: getCrossSigmaL
@@ -883,6 +884,25 @@ contains
     end do
 
   end subroutine add_alm
+
+  subroutine set_alm(self, alm, info)
+    implicit none
+    class(comm_map),                       intent(inout) :: self
+    real(dp),            dimension(0:,1:), intent(in)    :: alm
+    class(comm_mapinfo),                   intent(in)    :: info
+
+    integer(i4b) :: i, j, l, m, q
+
+    do i = 0, info%nalm-1
+       call info%i2lm(i,l,m)
+       call self%info%lm2i(l,m,j)
+       if (j == -1) cycle
+       do q = 1, min(self%info%nmaps, info%nmaps)
+          self%alm(j,q) = alm(i,q)
+       end do
+    end do
+
+  end subroutine set_alm
   
   subroutine lm2i(self, l, m, i)
     implicit none
