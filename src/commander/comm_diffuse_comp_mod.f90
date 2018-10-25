@@ -934,42 +934,47 @@ contains
 
     integer(i4b) :: i, nmaps
     logical(lgt) :: alm_in_
-    class(comm_mapinfo), pointer :: info
+    class(comm_mapinfo), pointer :: info_in, info_out
     class(comm_map),     pointer :: m, m_out
 
+    if (self%F_null(band)) then
+       if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+       projectDiffuseBand = 0.d0
+       return
+    end if
+
     nmaps     =  min(self%x%info%nmaps, map%info%nmaps)
-    info      => comm_mapinfo(self%x%info%comm, map%info%nside, self%lmax_amp, &
-         & self%x%info%nmaps, self%x%info%nmaps==3)
-    m_out     => comm_map(info)
-    m         => comm_map(map)
+    info_in   => comm_mapinfo(self%x%info%comm, map%info%nside, map%info%lmax, nmaps, nmaps==3)
+    info_out  => comm_mapinfo(self%x%info%comm, map%info%nside, self%lmax_amp, nmaps, nmaps==3)
+    m         => comm_map(info_in)
+    m_out     => comm_map(info_out)
     alm_in_ = .false.; if (present(alm_in)) alm_in_ = alm_in
 
-    ! Scale to correct frequency through multiplication with mixing matrix
-    if (self%F_null(band)) then
-       m_out%alm = 0.d0
+    ! Convolve with band-specific beam
+    if (alm_in) then
+       m%alm = map%alm(:,1:nmaps)
     else
-       ! Convolve with band-specific beam
-       if (.not. alm_in) call m%Yt()
-       call data(band)%B%conv(trans=.true., map=m)
-
-       if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
-          call m%alm_equal(m_out)
-          do i = 1, nmaps
-             m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
-          end do
-       else
-          call m%Y()
-          m_out%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
-          call m_out%YtW()
-       end if
+       m%map = map%map(:,1:nmaps)
+       call m%Yt()
     end if
+    call data(band)%B%conv(trans=.true., map=m)
+    
+    if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
+       do i = 1, nmaps
+          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+       end do
+    else
+       call m%Y()
+       m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
+       call m%YtW()
+    end if
+    call m%alm_equal(m_out)
 
     if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
     projectDiffuseBand = m_out%alm
 
     call m%dealloc()
-    call m_out%dealloc(clean_info=.true.)
-    nullify(info)
+    call m_out%dealloc()
 
   end function projectDiffuseBand
 
@@ -1145,19 +1150,15 @@ contains
           w2       = 0.d0
           do j = 1, npre_int
              do k = 1, npre_int
-                w2(j) = w2(j) + P_cr%invM_diff(l,p)%M(ind_pre(k),numband+ind_pre(j))*w(j)
+                w2(j) = w2(j) + P_cr%invM_diff(l,p)%M(ind_pre(k),numband+ind_pre(j))*w(k)
              end do
           end do
           w       = 0.d0
           do j = 1, npre_int
              do k = 1, npre_int
-                w(j) = w(j) + P_cr%invM_diff(l,p)%M(ind_pre(j),numband+ind_pre(k))*w2(j)
+                w(j) = w(j) + P_cr%invM_diff(l,p)%M(ind_pre(j),numband+ind_pre(k))*w2(k)
              end do
           end do
-          !call dgemv('t', npre_int, npre_int, 1.d0, P_cr%invM_diff(l,p)%M(ind_pre,numband+ind_pre), npre_int, w, 1, 0.d0, w, 1)
-          !w        = matmul(transpose(P_cr%invM_diff(l,p)%M(ind_pre,numband+ind_pre)),w)
-          !call dgemv('n', npre_int, npre_int, 1.d0, P_cr%invM_diff(l,p)%M(ind_pre,numband+ind_pre), npre_int, w, 1, 0.d0, w, 1)
-          !w        = matmul(          P_cr%invM_diff(l,p)%M(ind_pre,numband+ind_pre), w)
           z(:,i,p) = z(:,i,p) + w
        end do
     end do
