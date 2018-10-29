@@ -32,7 +32,7 @@ program commander
   ! *********************************************************************
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group
-  real(dp)            :: t1, t2
+  real(dp)            :: t0, t1, t2, t3
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle
 
@@ -43,16 +43,36 @@ program commander
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
+  call wall_time(t0)
+  call mpi_init(ierr)
+  call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
+  call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+  cpar%root = 0
+    
+  
+  if (cpar%myid == cpar%root) then
+     call wall_time(t1)
+  end if
+
   call read_comm_params(cpar)
+
+  if (cpar%myid == cpar%root) then
+     call wall_time(t3)
+  end if
+  
   call initialize_mpi_struct(cpar, handle)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
-  status%active = cpar%myid <= 0
-
+  status%active = .false.
+  
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
      call mpi_finalize(ierr)
      stop
+  end if
+
+  if (cpar%myid == cpar%root) then
+     call wall_time(t2)
   end if
 
   ! Output a little information to notify the user that something is happening
@@ -63,11 +83,20 @@ program commander
      write(*,*) '   Number of chains                       = ', cpar%numchain
      write(*,*) '   Number of processors in first chain    = ', cpar%numprocs_chain
      write(*,*) ''
+     write(*,fmt='(a,f12.3,a)') '   Time to initialize run = ', t2-t0, ' sec'
+     write(*,fmt='(a,f12.3,a)') '   Time to read in parameters = ', t3-t1, ' sec'
+     write(*,*) ''
+
   end if
 
   ! ************************************************
   ! *               Initialize modules             *
   ! ************************************************
+
+  if (cpar%myid == cpar%root) then
+     call wall_time(t1)
+  end if
+
 
   call update_status(status, "init")
   call initialize_bp_mod(cpar);            call update_status(status, "init_bp")
@@ -89,12 +118,19 @@ program commander
      stop
   end if
   
+  if (cpar%myid == cpar%root) then
+     call wall_time(t2)
+  end if
+  
   ! **************************************************************
   ! *                   Carry out computations                   *
   ! **************************************************************
 
-  if (cpar%myid == cpar%root .and. cpar%verbosity > 0) write(*,*) '     Starting Gibbs sampling'
-
+  if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
+     write(*,*) ''
+     write(*,fmt='(a,f12.3,a)') '   Time to read data = ', t2-t1, ' sec'
+     write(*,*) '   Starting Gibbs sampling'
+  end if
   ! Initialize output structures
 
   ! Run Gibbs loop
