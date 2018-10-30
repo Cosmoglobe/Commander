@@ -53,8 +53,8 @@ export MPCC := mpiicc
 #export F90FLAGS := -O3 -traceback 
 #
 #export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384  #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
-#export F90FLAGS := -g -C -traceback -qopenmp -check all,noarg_temp_created -fpe0 
-export F90FLAGS := -O3 -traceback -xhost -qopenmp -parallel -qopt-report=3 
+#export F90FLAGS := -g -C -traceback -qopenmp -check all,noarg_temp_created -fpe0 -parallel
+export F90FLAGS := -O3 -traceback -qopenmp -qopt-report=5 -parallel
 #export F90FLAGS := -fast -traceback -qopenmp
 
 # Fortran 77 compiler flags

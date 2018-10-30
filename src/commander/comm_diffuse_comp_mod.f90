@@ -755,6 +755,10 @@ contains
              end if
           end if
 
+!          if (self%lmax_ind == 0) then
+!             cycle
+!          end if
+
 !!$          if (self%npar > 0) then
 !!$             ! Collect all parameters
 !!$             t0 => t
