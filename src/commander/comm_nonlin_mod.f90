@@ -175,8 +175,8 @@ contains
                    end select
                 else if (status_fit(i) == 2) then
                    ! Fit is done with downgraded data
-                   info  => comm_mapinfo(data(i)%res%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
-                        & data(i)%res%info%nmaps, data(i)%res%info%pol)
+                   info  => comm_mapinfo(data(i)%res%info%comm, cpar%nside_smooth(smooth_scale), &
+                        & cpar%lmax_smooth(smooth_scale), data(i)%res%info%nmaps, data(i)%res%info%pol)
                    call smooth_map(info, .false., data(i)%B%b_l, data(i)%res, &
                         & data(i)%B_smooth(smooth_scale)%p%b_l, res_smooth(i)%p)
                    rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
@@ -202,7 +202,7 @@ contains
                      & data(id_native)%B%b_l, c%x_smooth)
              else if (status_amp == 2) then
                 ! Smooth to the common FWHM
-                info  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+                info  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(smooth_scale), cpar%lmax_smooth(smooth_scale), &
                      & c%x%info%nmaps, c%x%info%pol)
                 call smooth_map(info, .true., &
                      & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%x, &  
