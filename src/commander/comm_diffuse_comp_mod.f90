@@ -74,7 +74,7 @@ module comm_diffuse_comp_mod
   ! Variables for non-linear search
   class(comm_diffuse_comp), pointer,       private :: c_lnL
   integer(i4b),                            private :: k_lnL, p_lnL, id_lnL
-  real(dp),                                private :: a_lnL
+  real(dp), allocatable, dimension(:),     private :: a_lnL
   real(dp), allocatable, dimension(:),     private :: theta_lnL        
   logical(lgt),                            private :: apply_mixmat = .true.
   type(map_ptr),        allocatable, dimension(:) :: res_smooth
@@ -717,7 +717,7 @@ contains
           allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
           
           do j = 1, self%npar
-             if (associated(theta_prev(j)%p)) then
+             if (.false. .and. associated(theta_prev(j)%p)) then
                 if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
                      & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
                      & nmaps == theta_prev(j)%p%info%nmaps .and. &
@@ -1435,30 +1435,44 @@ contains
     nmaps     = self%x_smooth%info%nmaps
     theta_min = c_lnL%p_uni(1,id_lnL)
     theta_max = c_lnL%p_uni(2,id_lnL)
-    allocate(theta_lnL(npar))
+    allocate(theta_lnL(npar),a_lnL(self%nmaps))
 
     if (trim(operation) == 'optimize') then
        allocate(buffer(0:self%x_smooth%info%np-1,self%x_smooth%info%nmaps))
        buffer = max(min(self%theta(id)%p%map,theta_max),theta_min)
        do p = 1, nmaps
-          p_lnL       = p
-          !!$OMP PARALLEL DEFAULT(shared) PRIVATE(k,k_lnL,x,theta_lnL,a_lnL,i,ierr)
-          !!$OMP DO SCHEDULE(guided)
+          if (self%poltype(id) > 1 .and. only_pol .and. p == 1) cycle
+          if (p > self%poltype(id)) cycle
+          p_lnL = p
+          !!!$OMP PARALLEL DEFAULT(shared) PRIVATE(k,k_lnL,x,theta_lnL,a_lnL,i,ierr)
+          !!!$OMP DO SCHEDULE(guided)
           do k = 0, np-1
              ! Perform non-linear search
              k_lnL     = k
-             a_lnL     = self%x_smooth%map(k,p)
              x(1)      = buffer(k,p)
+             a_lnL     = self%x_smooth%map(k,:)
              do i = 1, npar
                 if (i == id) cycle
                 theta_lnL(i) = self%theta_smooth(i)%p%map(k,p)
              end do
              call powell(x, lnL_diffuse_multi, ierr)
-             if (ierr == 0) buffer(k,p) = x(1)
+             if (ierr == 0) then
+                if (self%poltype(id) == 1) then
+                   buffer(k,:) = x(1)
+                else if (self%poltype(id) == 2) then
+                   if (p == 1) then
+                      buffer(k,1)   = x(1)
+                   else
+                      buffer(k,2:3) = x(1)
+                   end if
+                else if (self%poltype(id) == 3) then
+                   buffer(k,p) = x(1)
+                end if
+             end if
 
           end do
-          !!$OMP END DO
-          !!$OMP END PARALLEL
+          !!!$OMP END DO
+          !!!$OMP END PARALLEL
        end do
        self%theta(id)%p%map = buffer
 
@@ -1470,7 +1484,7 @@ contains
 
     end if
 
-    deallocate(buffer, theta_lnL)
+    deallocate(buffer, theta_lnL, a_lnL)
 
   end subroutine sampleDiffuseSpecInd
 
@@ -1481,7 +1495,7 @@ contains
     real(dp), dimension(:), intent(in), optional :: p
     real(dp)                                     :: lnL_diffuse_multi
     
-    integer(i4b) :: i, l, k, q, pix, ierr, flag
+    integer(i4b) :: i, l, k, q, pix, ierr, flag, p_min, p_max
     real(dp)     :: lnL, amp, s, a
     real(dp), allocatable, dimension(:) :: theta
 
@@ -1498,28 +1512,54 @@ contains
        end if
     end do
 
+    ! Choose which polarization fields to include
+    if (c_lnL%poltype(id_lnL) == 1) then
+       p_min = 1; p_max = c_lnL%nmaps
+       if (only_pol) p_min = 2
+    else if (c_lnL%poltype(id_lnL) == 2) then
+       if (p_lnL == 1) then
+          p_min = 1; p_max = 1
+       else
+          p_min = 2; p_max = c_lnL%nmaps
+       end if
+    else if (c_lnL%poltype(id_lnL) == 3) then
+       p_min = p_lnL
+       p_max = p_lnL
+    end if
+
+!!$    if (c_lnL%x%info%pix(k_lnL) == 10000) then
+!!$       write(*,*)
+!!$       write(*,*) 'Theta = ', p(1)
+!!$       write(*,*) 'amp   = ', a_lnL(2:3)
+!!$       write(*,*) 'p     = ', p_lnL, p_min, p_max
+!!$    end if
+
+
     lnL = 0.d0
-    do l = 1, numband
+    do k = p_min, p_max
+
+       do l = 1, numband
        !if (c_lnL%x%info%myid == 0) write(*,*) l, numband
-       if (.not. associated(rms_smooth(l)%p)) cycle
-       
+          if (.not. associated(rms_smooth(l)%p)) cycle
+          if (k > data(l)%info%nmaps) cycle
+          
        ! Compute predicted source amplitude for current band
-       s = a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
-       
-       ! Compute likelihood 
-       lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
+          s = a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+          
+          ! Compute likelihood 
+          lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
 
-       !if (c_lnL%x%info%myid == 0) write(*,*) l, res_smooth(l)%p%map(k_lnL,p_lnL), s, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), lnL
+          !if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
 
-!!$       if (c_lnL%x%info%pix(k_lnL) == 534044) then
-!!$          write(*,fmt='(5f10.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,p_lnL)-a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
+!!$       if (c_lnL%x%info%pix(k_lnL) == 10000) then
+!!$          write(*,fmt='(5f10.3,f16.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,k), s, res_smooth(l)%p%map(k_lnL,k)-a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,k), (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
 !!$       end if
 
+       end do
     end do
 
-
-    !call mpi_finalize(i)
-    !stop
+!!$    call mpi_finalize(i)
+!!$    stop
 
     ! Apply index priors
     do l = 1, c_lnL%npar
@@ -1530,6 +1570,10 @@ contains
     
     ! Return chi-square
     lnL_diffuse_multi = -2.d0*lnL
+
+!!$    if (c_lnL%x%info%pix(k_lnL) == 10000) then
+!!$       write(*,*) 'lnL = ', lnL_diffuse_multi
+!!$    end if
 
 !!$    if (c_lnL%x%info%pix(k_lnL) == 534044) then
 !!$       write(*,*) 'lnL = ', lnL, theta(id_lnL)
