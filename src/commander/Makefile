@@ -50,7 +50,8 @@ comm_signal_mod.o :        comm_powlaw_comp_mod.o comm_cmb_comp_mod.o \
                            comm_freefree_comp_mod.o comm_line_comp_mod.o \
                            comm_md_comp_mod.o comm_template_comp_mod.o \
                            comm_cr_mod.o comm_physdust_comp_mod.o
-comm_nonlin_mod.o :        comm_data_mod.o comm_comp_mod.o comm_chisq_mod.o comm_gain_mod.o
+comm_nonlin_mod.o :        comm_data_mod.o comm_comp_mod.o comm_chisq_mod.o \
+                           comm_gain_mod.o comm_output_mod.o
 comm_gain_mod.o :          comm_data_mod.o comm_comp_mod.o comm_chisq_mod.o
 comm_N_mod.o :             comm_param_mod.o
 comm_N_rms_mod.o :         comm_N_mod.o
