@@ -738,7 +738,9 @@ contains
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = t%map
-             theta_prev(j)%p => t
+             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
+             theta_prev(j)%p => comm_map(t)
+             call t%dealloc()
           end do
        end if
        
@@ -835,6 +837,9 @@ contains
 !!$          nullify(t0)
 !!$       end if
     
+    end do
+    do j = 1, self%npar
+       if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
     end do
     deallocate(theta_prev)
 
@@ -1435,7 +1440,6 @@ contains
     nmaps     = self%x_smooth%info%nmaps
     theta_min = c_lnL%p_uni(1,id_lnL)
     theta_max = c_lnL%p_uni(2,id_lnL)
-    allocate(theta_lnL(npar),a_lnL(self%nmaps))
 
     if (trim(operation) == 'optimize') then
        allocate(buffer(0:self%x_smooth%info%np-1,self%x_smooth%info%nmaps))
@@ -1444,8 +1448,10 @@ contains
           if (self%poltype(id) > 1 .and. only_pol .and. p == 1) cycle
           if (p > self%poltype(id)) cycle
           p_lnL = p
-          !!!$OMP PARALLEL DEFAULT(shared) PRIVATE(k,k_lnL,x,theta_lnL,a_lnL,i,ierr)
-          !!!$OMP DO SCHEDULE(guided)
+          !!$OMP PARALLEL DEFAULT(shared) PRIVATE(k,k_lnL,x,theta_lnL,a_lnL,i,ierr)
+          allocate(theta_lnL(npar),a_lnL(self%nmaps))
+
+          !!$OMP DO SCHEDULE(guided)
           do k = 0, np-1
              ! Perform non-linear search
              k_lnL     = k
@@ -1472,6 +1478,7 @@ contains
 
           end do
           !!!$OMP END DO
+          deallocate(theta_lnl, a_lnl)
           !!!$OMP END PARALLEL
        end do
        self%theta(id)%p%map = buffer
@@ -1484,7 +1491,7 @@ contains
 
     end if
 
-    deallocate(buffer, theta_lnL, a_lnL)
+    deallocate(buffer)
 
   end subroutine sampleDiffuseSpecInd
 
