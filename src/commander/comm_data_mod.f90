@@ -392,6 +392,49 @@ contains
 
   end subroutine smooth_map
 
+  subroutine smooth_map_scalar(info, alms_in, bl_in, map_in, bl_out, map_out)
+    implicit none
+    class(comm_mapinfo),                      intent(in),   target :: info
+    logical(lgt),                             intent(in)           :: alms_in
+    real(dp),            dimension(0:,1:),    intent(in)           :: bl_in, bl_out
+    class(comm_map),                          intent(inout)        :: map_in
+    class(comm_map),                          intent(out), pointer :: map_out
+
+    integer(i4b) :: i, j, l, lmax, nmaps
+
+    map_out => comm_map(info)
+
+    if (.not. alms_in) then
+       !map_out%map = map_in%map
+       call map_in%udgrade(map_out)
+       call map_out%YtW_scalar
+    else
+       call map_in%alm_equal(map_out)
+    end if
+
+
+    ! Deconvolve old beam, and convolve with new beam
+    lmax  = min(size(bl_in,1)-1, size(bl_out,1)-1)
+    do i = 0, info%nalm-1
+       l = info%lm(1,i)
+       if (l > lmax) then
+          map_out%alm(i,:) = 0.d0
+          cycle
+       end if
+       do j = 1, map_out%info%nmaps
+          if (bl_in(l,j) > 1.d-12) then
+             map_out%alm(i,j) = map_out%alm(i,j) * bl_out(l,1) / bl_in(l,1)
+          else
+             map_out%alm(i,j) = 0.d0
+          end if
+       end do
+    end do    
+
+    ! Recompose map
+    call map_out%Y_scalar
+    
+  end subroutine smooth_map_scalar
+
   subroutine get_mapfile(cpar, band, mapfile)
     implicit none
     type(comm_params), intent(in)    :: cpar
