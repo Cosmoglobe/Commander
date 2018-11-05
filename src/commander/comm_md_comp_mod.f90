@@ -195,13 +195,14 @@ contains
     integer(i4b)        :: i, unit
     real(dp)            :: mu(4), rms(2), def(4)
     character(len=1024) :: line, label
+    character(len=256)  :: dir
     class(comm_comp), pointer :: c
 
     unit  = getlun()
-
+    dir = trim(cpar%datadir)//'/'
     ! Find number of lines
     n = 0
-    open(unit, file=trim(cpar%cs_SED_template(1,id_abs)), recl=1024)
+    open(unit, file=trim(dir)//trim(cpar%cs_SED_template(1,id_abs)), recl=1024)
     do while (.true.)
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))
