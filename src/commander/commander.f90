@@ -50,30 +50,21 @@ program commander
   cpar%root = 0
     
   
-  if (cpar%myid == cpar%root) then
-     call wall_time(t1)
-  end if
-
+  if (cpar%myid == cpar%root) call wall_time(t1)
   call read_comm_params(cpar)
-
-  if (cpar%myid == cpar%root) then
-     call wall_time(t3)
-  end if
+  if (cpar%myid == cpar%root) call wall_time(t3)
   
   call initialize_mpi_struct(cpar, handle)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
-  status%active = .false.
+  status%active = cpar%myid == 0 !.false.
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
      call mpi_finalize(ierr)
      stop
   end if
-
-  if (cpar%myid == cpar%root) then
-     call wall_time(t2)
-  end if
+  if (cpar%myid == cpar%root) call wall_time(t2)
 
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
@@ -93,10 +84,7 @@ program commander
   ! *               Initialize modules             *
   ! ************************************************
 
-  if (cpar%myid == cpar%root) then
-     call wall_time(t1)
-  end if
-
+  if (cpar%myid == cpar%root) call wall_time(t1)
 
   call update_status(status, "init")
   call initialize_bp_mod(cpar);            call update_status(status, "init_bp")
@@ -118,9 +106,7 @@ program commander
      stop
   end if
   
-  if (cpar%myid == cpar%root) then
-     call wall_time(t2)
-  end if
+  if (cpar%myid == cpar%root) call wall_time(t2)
   
   ! **************************************************************
   ! *                   Carry out computations                   *
@@ -147,7 +133,8 @@ program commander
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_samp_groups
            if (cpar%myid == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_samp_groups
+              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
+                   & samp_group, ' of ', cpar%cg_num_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle)
         end do
