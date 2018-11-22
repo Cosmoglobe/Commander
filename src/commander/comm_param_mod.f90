@@ -1022,16 +1022,16 @@ contains
     if (trim(cpar%cs_inst_parfile) /= 'none') &
          & call validate_file(trim(datadir)//trim(cpar%cs_inst_parfile))   ! Instrument data base
     if (trim(cpar%ds_sourcemask) /= 'none') &
-         & call validate_file(trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask))   ! Source mask
+         & call validate_file(trim(datadir)//trim(cpar%ds_sourcemask))   ! Source mask
     if (trim(cpar%ds_procmask) /= 'none') &
-         & call validate_file(trim(cpar%datadir)//'/'//trim(cpar%ds_procmask))   ! Source mask
+         & call validate_file(trim(datadir)//trim(cpar%ds_procmask))   ! Source mask
 
     ! Check component files
     do i = 1, cpar%cs_ncomp_tot
        if (.not. cpar%cs_include(i)) cycle
 
        if (trim(cpar%cs_type(i)) == 'md') then
-          call validate_file(trim(cpar%cs_SED_template(1,i)))
+          call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           if (trim(cpar%cs_input_amp(i)) /= 'none') &
                call validate_file(trim(datadir)//trim(cpar%cs_input_amp(i)))
