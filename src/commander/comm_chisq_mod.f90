@@ -144,9 +144,10 @@ contains
           out%map = 0.d0
           select type (c)
           class is (comm_diffuse_comp)
-             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
+             allocate(alm(0:data(i)%info%nalm-1,data(i)%info%nmaps))          
              alm     = c%getBand(i, alm_out=.true.)
-             call out%add_alm(alm, c%x%info)
+             out%alm = out%alm + alm
+             !call out%add_alm(alm, c%x%info)
              call out%Y()
              deallocate(alm)
           class is (comm_ptsrc_comp)
