@@ -77,6 +77,8 @@ contains
        constructor%nside   = info%nside
        constructor%np      = info%np
        constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
+       !if (info%myid == 0) write(*,*) 'scaling the noise by a factor of 10'
+       !constructor%siN%map = constructor%siN%map * 10
        call wall_time(t1)
        call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), regnoise)
        call wall_time(t2)
