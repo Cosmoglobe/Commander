@@ -1462,6 +1462,7 @@ contains
                 theta_lnL(i) = self%theta_smooth(i)%p%map(k,p)
              end do
              call powell(x, lnL_diffuse_multi, ierr)
+             !write(*,*) k, x, ierr
              if (ierr == 0) then
                 if (self%poltype(id) == 1) then
                    buffer(k,:) = x(1)
@@ -1489,9 +1490,10 @@ contains
        ! Ask for CG preconditioner update
        if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
 
+       deallocate(buffer)
+
     end if
 
-    deallocate(buffer)
 
   end subroutine sampleDiffuseSpecInd
 
@@ -1556,7 +1558,7 @@ contains
           ! Compute likelihood 
           lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
 
-          !if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
+!          if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(1.d0/rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
 
 !!$       if (c_lnL%x%info%pix(k_lnL) == 10000) then
 !!$          write(*,fmt='(5f10.3,f16.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,k), s, res_smooth(l)%p%map(k_lnL,k)-a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,k), (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
@@ -1568,15 +1570,22 @@ contains
 !!$    call mpi_finalize(i)
 !!$    stop
 
+!    if (c_lnL%x%info%myid == 0) write(*,*)
+!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
+
     ! Apply index priors
     do l = 1, c_lnL%npar
        if (c_lnL%p_gauss(2,l) > 0.d0) then
           lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
        end if
     end do
+
+!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
     
     ! Return chi-square
     lnL_diffuse_multi = -2.d0*lnL
+
+!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL_diffuse_multi
 
 !!$    if (c_lnL%x%info%pix(k_lnL) == 10000) then
 !!$       write(*,*) 'lnL = ', lnL_diffuse_multi
