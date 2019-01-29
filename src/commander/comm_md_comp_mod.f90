@@ -70,6 +70,8 @@ contains
        constructor%RJ2unit_ = data(band)%bp%a2t / data(band)%bp%f2t
     case ('uK_RJ') 
        constructor%RJ2unit_ = 1.d0
+    case ('K km/s') 
+       constructor%RJ2unit_ = 1.d0
     case default
        call report_error('Unsupported unit: ' // trim(constructor%unit))
     end select

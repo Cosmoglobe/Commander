@@ -89,6 +89,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_gain_apodmask
      character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
+     character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -347,6 +348,8 @@ contains
     allocate(cpar%ds_sample_gain(n), cpar%ds_gain_calib_comp(n), cpar%ds_gain_lmax(n))
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
+    allocate(cpar%ds_component_sensitivity(n))
+
     do i = 1, n
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'INCLUDE_BAND'//itext,         par_lgt=cpar%ds_active(i))
@@ -379,6 +382,8 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_GAIN_APOD_FWHM'//itext,  par_string=cpar%ds_gain_fwhm(i))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_GAIN'//itext,    par_dp=cpar%ds_defaults(i,GAIN))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_NOISEAMP'//itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
+       call get_parameter_hashtable(htbl, 'BAND_COMPONENT_SENSITIVITY'//itext, par_string=cpar%ds_component_sensitivity(i))
+
        do j = 1, cpar%num_smooth_scales
           call int2string(j, jtext)          
           call get_parameter_hashtable(htbl, 'BAND_NOISE_RMS'//itext//'_SMOOTH'//jtext, &

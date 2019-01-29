@@ -6,7 +6,6 @@ module comm_nonlin_mod
   use comm_gain_mod
   use comm_line_comp_mod
   use comm_diffuse_comp_mod
-  use comm_output_mod
   implicit none
 
 contains
@@ -176,8 +175,8 @@ contains
                    end select
                 else if (status_fit(i) == 2) then
                    ! Fit is done with downgraded data
-                   info  => comm_mapinfo(data(i)%res%info%comm, cpar%nside_smooth(smooth_scale), &
-                        & cpar%lmax_smooth(smooth_scale), data(i)%res%info%nmaps, data(i)%res%info%pol)
+                   info  => comm_mapinfo(data(i)%res%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+                        & data(i)%res%info%nmaps, data(i)%res%info%pol)
                    call smooth_map(info, .false., data(i)%B%b_l, data(i)%res, &
                         & data(i)%B_smooth(smooth_scale)%p%b_l, res_smooth(i)%p)
                    rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
@@ -203,7 +202,7 @@ contains
                      & data(id_native)%B%b_l, c%x_smooth)
              else if (status_amp == 2) then
                 ! Smooth to the common FWHM
-                info  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(smooth_scale), cpar%lmax_smooth(smooth_scale), &
+                info  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
                      & c%x%info%nmaps, c%x%info%pol)
                 call smooth_map(info, .true., &
                      & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%x, &  
@@ -223,29 +222,22 @@ contains
                 if (status_amp == 1) then ! Native resolution
                    info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
                         & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
-                   call smooth_map_scalar(info, .false., &
+                   call smooth_map(info, .false., &
                         & data(id_native)%B%b_l*0.d0+1.d0, c%theta(k)%p, &  
                         & data(id_native)%B%b_l,           c%theta_smooth(k)%p)
                 else if (status_amp == 2) then ! Common FWHM resolution
                    info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
                         & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
-                   call smooth_map_scalar(info, .false., &
+                   call smooth_map(info, .false., &
                         & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
                         & data(1)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
-!!$                   call c%theta(k)%p%writeFITS('foer.fits')
-!!$                   call c%theta_smooth(k)%p%writeFITS('etter.fits')
-!!$                   call mpi_finalize(i)
-!!$                   stop
                 end if
-                c%theta_smooth(k)%p%map = min(max(c%theta_smooth(k)%p%map,c%p_uni(1,k)),c%p_uni(2,k))
              end do
 
           end select
 
           ! Sample spectral parameters
           call c%sampleSpecInd(handle, j)
-
-          !call output_FITS_sample(cpar, iter, .true.)
 
           ! Clean up temporary data structures
           select type (c)
@@ -260,7 +252,7 @@ contains
                 if (k == j) cycle
                 if (allocated(c%theta_smooth)) then
                    if (associated(c%theta_smooth(k)%p)) then
-                      call c%theta_smooth(k)%p%dealloc()
+                      call c%theta_smooth(k)%p%dealloc(clean_info=.true.)
                    end if
                 end if
              end do
@@ -268,7 +260,7 @@ contains
              do i = 1, numband
                 if (.not. associated(rms_smooth(i)%p)) cycle
                 if (status_fit(i) == 2) then
-                   call res_smooth(i)%p%dealloc()
+                   call res_smooth(i)%p%dealloc(clean_info=.true.)
                 end if
                 nullify(res_smooth(i)%p)
              end do
@@ -280,21 +272,18 @@ contains
                    allocate(c%theta_smooth(c%npar))
                    info  => comm_mapinfo(c%theta(j)%p%info%comm, cpar%nside_smooth(smooth_scale), &
                         & cpar%lmax_smooth(smooth_scale), c%theta(j)%p%info%nmaps, c%theta(j)%p%info%pol)
-                   call smooth_map_scalar(info, .false., &
+                   call smooth_map(info, .false., &
                         & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(j)%p, &  
                         & data(1)%B_postproc(smooth_scale)%p%b_l,           c%theta_smooth(j)%p)
-                   c%theta_smooth(j)%p%map = min(max(c%theta_smooth(j)%p%map,c%p_uni(1,j)),c%p_uni(2,j))
                    c%theta(j)%p%map = c%theta_smooth(j)%p%map
                    call c%theta_smooth(j)%p%dealloc(clean_info=.true.)
                    deallocate(c%theta_smooth)
-                   call c%updateMixmat
                 end if
              end if
 
              call update_status(status, "nonlin stop " // trim(c%label)// ' ' // trim(c%indlabel(j)))
 
           end select
-          !call output_FITS_sample(cpar, iter, .true.)
 
           ! Subtract updated component from residual
           if (trim(c%class) /= 'ptsrc') then
