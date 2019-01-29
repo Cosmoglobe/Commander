@@ -1,0 +1,1009 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: powell_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (powell_mod._) [1/6=16.7%] powell_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+powell_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [powell_mod._] powell_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: POWELL_MOD::F1LIN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (POWELL_MOD::F1LIN) [2/6=33.3%] powell_mod.f90(9,12)
+  -> EXTERN: (26,5) for_alloc_allocatable
+  -> EXTERN: (26,5) for_check_mult_overflow64
+  -> EXTERN: (28,5) for_realloc_lhs
+  -> INDIRECT-: (30,13)  powell_mod_mp_f1lin_$FUNC_V$fb.0.2
+     [[ Callee not marked with inlining directive  <1>]]
+  -> EXTERN: (32,5) for_dealloc_allocatable
+  -> EXTERN: (34,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at powell_mod.f90(28,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference XT(:) has aligned access
+   remark #15389: vectorization support: reference p(:) has unaligned access
+   remark #15389: vectorization support: reference xi(:) has unaligned access   [ powell_mod.f90(28,14) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.200
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 5.000 
+   remark #15478: estimated potential speedup: 1.770 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(28,5)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15388: vectorization support: reference XT(:) has aligned access
+   remark #15389: vectorization support: reference p(:) has unaligned access
+   remark #15389: vectorization support: reference xi(:) has unaligned access   [ powell_mod.f90(28,14) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.125
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(28,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference XT(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <p(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <xi(:)>, stride is unknown to compiler   [ powell_mod.f90(28,14) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.042
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 6.000 
+   remark #15478: estimated potential speedup: 1.480 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(28,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+powell_mod.f90(24,45):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+powell_mod.f90(9,12):remark #34051: REGISTER ALLOCATION : [powell_mod_mp_f1lin_] powell_mod.f90:9
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   23[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm8]
+        
+    Routine temporaries
+        Total         :     214
+            Global    :      40
+            Local     :     174
+        Regenerable   :      23
+        Spilled       :       7
+        
+    Routine stack
+        Variables     :     224 bytes*
+            Reads     :       8 [8.00e+00 ~ 1.9%]
+            Writes    :      29 [2.90e+01 ~ 6.7%]
+        Spills        :      16 bytes*
+            Reads     :       5 [2.80e+00 ~ 0.7%]
+            Writes    :       2 [2.00e+00 ~ 0.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: POWELL_MOD::BRENT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (POWELL_MOD::BRENT) [3/6=50.0%] powell_mod.f90(186,14)
+  -> (223,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (275,13) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> EXTERN: (306,8) for_write_seq_lis
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at powell_mod.f90(301,5)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+   remark #17102: loop was not parallelized: not a parallelization candidate
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+powell_mod.f90(186,14):remark #34051: REGISTER ALLOCATION : [powell_mod_mp_brent_] powell_mod.f90:186
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   28[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     113
+            Global    :      45
+            Local     :      68
+        Regenerable   :      30
+        Spilled       :      17
+        
+    Routine stack
+        Variables     :      96 bytes*
+            Reads     :       4 [5.53e+00 ~ 1.8%]
+            Writes    :       7 [5.19e+00 ~ 1.7%]
+        Spills        :      96 bytes*
+            Reads     :      31 [3.07e+01 ~ 9.9%]
+            Writes    :      28 [2.96e+01 ~ 9.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: POWELL_MOD::MNBRAK
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (POWELL_MOD::MNBRAK) [4/6=66.7%] powell_mod.f90(313,14)
+  -> (337,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (338,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (351,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> EXTERN: (361,14) for_write_seq_lis
+  -> EXTERN: (362,14) for_stop_core
+  -> (372,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (385,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (388,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (396,19) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (401,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (404,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+     [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at powell_mod.f90(353,5)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+powell_mod.f90(313,14):remark #34051: REGISTER ALLOCATION : [powell_mod_mp_mnbrak_] powell_mod.f90:313
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     138
+            Global    :      45
+            Local     :      93
+        Regenerable   :      54
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :      88 bytes*
+            Reads     :       3 [2.14e+00 ~ 0.7%]
+            Writes    :       7 [6.59e+00 ~ 2.3%]
+        Spills        :      64 bytes*
+            Reads     :      13 [1.98e+01 ~ 6.9%]
+            Writes    :      15 [1.74e+01 ~ 6.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: POWELL_MOD::POWELL
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (POWELL_MOD::POWELL) [5/6=83.3%] powell_mod.f90(37,14)
+  -> EXTERN: (65,5) for_alloc_allocatable
+  -> EXTERN: (65,5) for_check_mult_overflow64
+  -> EXTERN: (66,5) for_alloc_allocatable
+  -> EXTERN: (66,5) for_check_mult_overflow64
+  -> EXTERN: (67,5) for_alloc_allocatable
+  -> EXTERN: (67,5) for_check_mult_overflow64
+  -> EXTERN: (68,5) for_alloc_allocatable
+  -> EXTERN: (68,5) for_check_mult_overflow64
+  -> EXTERN: (74,5) for_realloc_lhs
+  -> INDIRECT-: (75,12)  powell_mod_mp_powell_$FUNC_V$182.0.3
+     [[ Callee not marked with inlining directive  <1>]]
+  -> EXTERN: (85,11) for_realloc_lhs
+  -> INLINE: (87,16) POWELL_MOD::LINMIN (isz = 468) (sz = 485)
+    -> (170,10) POWELL_MOD::MNBRAK (isz = 315) (sz = 338)
+       [[ Inlining inhibited by overrideable criterion  <3>]]
+    -> (174,10) POWELL_MOD::BRENT (isz = 241) (sz = 264)
+       [[ Inlining would exceed -inline-max-size value (264>253) <2>]]
+  -> INDIRECT-: (114,15)  powell_mod_mp_powell_$FUNC_V$182.0.3
+     [[ Callee not marked with inlining directive  <1>]]
+  -> INLINE: (121,19) POWELL_MOD::LINMIN (isz = 468) (sz = 485)
+    -> INLINE: (170,10) POWELL_MOD::MNBRAK (isz = 315) (sz = 338)
+      -> (337,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+      -> (338,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+      -> (351,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+      -> EXTERN: (361,14) for_write_seq_lis
+      -> EXTERN: (362,14) for_stop_core
+      -> (372,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+      -> (385,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+      -> (388,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+      -> (396,19) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+      -> (401,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+      -> (404,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+         [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> (174,10) POWELL_MOD::BRENT (isz = 241) (sz = 264)
+       [[ Inlining would exceed -inline-max-size value (264>253) <2>]]
+  -> EXTERN: (135,5) for_dealloc_allocatable
+  -> EXTERN: (136,5) for_dealloc_allocatable
+  -> EXTERN: (137,5) for_dealloc_allocatable
+  -> EXTERN: (138,5) for_dealloc_allocatable
+  -> EXTERN: (140,3) for_dealloc_allocatable
+  -> EXTERN: (140,3) for_dealloc_allocatable
+  -> EXTERN: (140,3) for_dealloc_allocatable
+  -> EXTERN: (140,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at powell_mod.f90(69,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at powell_mod.f90(69,5)
+      remark #25408: memset generated
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between XI(:,:) (69:5) and XI(:,:) (69:5)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between XI(:,:) (69:5) and XI(:,:) (69:5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+      remark #25015: Estimate of max trip count of loop=1
+
+      LOOP BEGIN at powell_mod.f90(69,5)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15389: vectorization support: reference XI(:,:) has unaligned access
+         remark #15381: vectorization support: unaligned access used inside loop body
+         remark #15305: vectorization support: vector length 2
+         remark #15399: vectorization support: unroll factor set to 2
+         remark #15309: vectorization support: normalized vectorization overhead 0.300
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15451: unmasked unaligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 2.500 
+         remark #15478: estimated potential speedup: 1.450 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=3
+      LOOP END
+
+      LOOP BEGIN at powell_mod.f90(69,5)
+      <Remainder loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=12
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(70,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <XI(i,i)>, stride is unknown to compiler   [ powell_mod.f90(71,8) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 1.320 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(70,5)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(74,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference PT(:) has aligned access
+   remark #15389: vectorization support: reference p(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.750
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.000 
+   remark #15478: estimated potential speedup: 1.990 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(74,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(74,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference PT(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <p(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(74,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(84,8)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between XI_V%XI_V(0) (85:11) and at (85:11)
+   remark #17106: parallel dependence: assumed FLOW dependence between at (85:11) and XI_V%XI_V(0) (85:11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at powell_mod.f90(85,11)
+      remark #25399: memcopy generated
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between XIT(:) (85:11) and XIT(:) (85:11)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between XIT(:) (85:11) and XIT(:) (85:11)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at powell_mod.f90(85,11)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15388: vectorization support: reference XIT(:) has aligned access
+         remark #15389: vectorization support: reference XI(:,j) has unaligned access
+         remark #15381: vectorization support: unaligned access used inside loop body
+         remark #15305: vectorization support: vector length 2
+         remark #15309: vectorization support: normalized vectorization overhead 0.750
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15449: unmasked aligned unit stride stores: 1 
+         remark #15450: unmasked unaligned unit stride loads: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 2.000 
+         remark #15478: estimated potential speedup: 1.770 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=6
+      LOOP END
+
+      LOOP BEGIN at powell_mod.f90(85,11)
+      <Remainder loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=12
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at powell_mod.f90(179,5) inlined into powell_mod.f90(87,16)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15329: vectorization support: non-unit strided store was emulated for the variable <XIT(:)>, stride is unknown to compiler
+      remark #15328: vectorization support: non-unit strided load was emulated for the variable <XIT(:)>, stride is unknown to compiler
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.136
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15452: unmasked strided loads: 1 
+      remark #15453: unmasked strided stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 6 
+      remark #15477: vector cost: 5.500 
+      remark #15478: estimated potential speedup: 1.080 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at powell_mod.f90(179,5) inlined into powell_mod.f90(87,16)
+   <Remainder loop for vectorization>
+   LOOP END
+
+   LOOP BEGIN at powell_mod.f90(180,5) inlined into powell_mod.f90(87,16)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #15329: vectorization support: non-unit strided store was emulated for the variable <p(:)>, stride is unknown to compiler
+      remark #15328: vectorization support: non-unit strided load was emulated for the variable <p(:)>, stride is unknown to compiler
+      remark #15328: vectorization support: non-unit strided load was emulated for the variable <XIT(:)>, stride is unknown to compiler
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.083
+      remark #15452: unmasked strided loads: 2 
+      remark #15453: unmasked strided stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 6 
+      remark #15477: vector cost: 6.000 
+      remark #15478: estimated potential speedup: 0.990 
+      remark #15488: --- end vector cost summary ---
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at powell_mod.f90(180,5) inlined into powell_mod.f90(87,16)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(109,30)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #25427: Loop Statements Reordered
+   remark #15389: vectorization support: reference XIT(j) has unaligned access   [ powell_mod.f90(110,11) ]
+   remark #15389: vectorization support: reference p(j) has unaligned access   [ powell_mod.f90(110,20) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(110,27) ]
+   remark #15388: vectorization support: reference PTT(j) has aligned access   [ powell_mod.f90(109,11) ]
+   remark #15389: vectorization support: reference p(j) has unaligned access   [ powell_mod.f90(109,25) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(109,32) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(111,11) ]
+   remark #15389: vectorization support: reference p(j) has unaligned access   [ powell_mod.f90(111,11) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.136
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15451: unmasked unaligned unit stride stores: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 19 
+   remark #15477: vector cost: 11.000 
+   remark #15478: estimated potential speedup: 1.700 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(109,30)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15389: vectorization support: reference XIT(j) has unaligned access   [ powell_mod.f90(110,11) ]
+   remark #15389: vectorization support: reference p(j) has unaligned access   [ powell_mod.f90(110,20) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(110,27) ]
+   remark #15388: vectorization support: reference PTT(j) has aligned access   [ powell_mod.f90(109,11) ]
+   remark #15389: vectorization support: reference p(j) has unaligned access   [ powell_mod.f90(109,25) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(109,32) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(111,11) ]
+   remark #15389: vectorization support: reference p(j) has unaligned access   [ powell_mod.f90(111,11) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.756
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(109,30)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #25427: Loop Statements Reordered
+   remark #15389: vectorization support: reference XIT(j) has unaligned access   [ powell_mod.f90(110,11) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(110,27) ]
+   remark #15388: vectorization support: reference PTT(j) has aligned access   [ powell_mod.f90(109,11) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(109,32) ]
+   remark #15389: vectorization support: reference PT(j) has unaligned access   [ powell_mod.f90(111,11) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <p(j)>, stride is unknown to compiler   [ powell_mod.f90(110,20) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <p(j)>, stride is unknown to compiler   [ powell_mod.f90(109,25) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <p(j)>, stride is unknown to compiler   [ powell_mod.f90(111,11) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.083
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15451: unmasked unaligned unit stride stores: 2 
+   remark #15452: unmasked strided loads: 3 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 19 
+   remark #15477: vector cost: 13.500 
+   remark #15478: estimated potential speedup: 1.390 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(109,30)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(353,5) inlined into powell_mod.f90(121,19)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5) inlined into powell_mod.f90(121,19)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference XIT(:) has aligned access
+   remark #15388: vectorization support: reference XIT(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.083
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 1.960 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5) inlined into powell_mod.f90(121,19)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15388: vectorization support: reference XIT(:) has aligned access
+   remark #15388: vectorization support: reference XIT(:) has aligned access
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.200
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5) inlined into powell_mod.f90(121,19)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <XIT(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <XIT(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.136
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15452: unmasked strided loads: 1 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 5.500 
+   remark #15478: estimated potential speedup: 1.080 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5) inlined into powell_mod.f90(121,19)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5) inlined into powell_mod.f90(121,19)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference p(:) has unaligned access
+   remark #15389: vectorization support: reference p(:) has unaligned access
+   remark #15388: vectorization support: reference XIT(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.188
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15451: unmasked unaligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 4.000 
+   remark #15478: estimated potential speedup: 1.480 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5) inlined into powell_mod.f90(121,19)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5) inlined into powell_mod.f90(121,19)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <p(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <p(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <XIT(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.083
+   remark #15452: unmasked strided loads: 2 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 6.000 
+   remark #15478: estimated potential speedup: 0.990 
+   remark #15488: --- end vector cost summary ---
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5) inlined into powell_mod.f90(121,19)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(123,14)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(123,14)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference XI(j,ibig-1) has aligned access   [ powell_mod.f90(124,17) ]
+   remark #15388: vectorization support: reference XI(j,n-1) has aligned access   [ powell_mod.f90(124,17) ]
+   remark #15388: vectorization support: reference XI(j,n-1) has aligned access   [ powell_mod.f90(125,17) ]
+   remark #15389: vectorization support: reference XIT(j) has unaligned access   [ powell_mod.f90(125,17) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 2.429
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 2 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 7 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.950 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(123,14)
+<Alternate Alignment Vectorized Loop>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(123,14)
+<Remainder loop for vectorization>
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at powell_mod.f90(78,5)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+   remark #17102: loop was not parallelized: not a parallelization candidate
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+powell_mod.f90(55,56):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+powell_mod.f90(55,51):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+powell_mod.f90(55,47):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+powell_mod.f90(56,47):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+powell_mod.f90(69,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+powell_mod.f90(69,5):remark #34026: call to memset implemented as a call to optimized library version
+powell_mod.f90(85,11):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+powell_mod.f90(85,11):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+powell_mod.f90(85,11):remark #34026: call to memcpy implemented as a call to optimized library version
+powell_mod.f90(37,14):remark #34051: REGISTER ALLOCATION : [powell_mod_mp_powell_] powell_mod.f90:37
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :    1058
+            Global    :     233
+            Local     :     825
+        Regenerable   :     103
+        Spilled       :      28
+        
+    Routine stack
+        Variables     :     608 bytes*
+            Reads     :     100 [8.79e+01 ~ 2.6%]
+            Writes    :     106 [1.46e+02 ~ 4.3%]
+        Spills        :     168 bytes*
+            Reads     :      75 [3.67e+01 ~ 1.1%]
+            Writes    :      53 [6.95e+01 ~ 2.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: POWELL_MOD::LINMIN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (POWELL_MOD::LINMIN) [6/6=100.0%] powell_mod.f90(143,14)
+  -> INLINE: (170,10) POWELL_MOD::MNBRAK (isz = 315) (sz = 338)
+    -> (337,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> (338,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> (351,10) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> EXTERN: (361,14) for_write_seq_lis
+    -> EXTERN: (362,14) for_stop_core
+    -> (372,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> (385,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> (388,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> (396,19) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> (401,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+    -> (404,16) POWELL_MOD::F1LIN (isz = 297) (sz = 308)
+       [[ Inlining would exceed -inline-max-size value (308>230) <2>]]
+  -> (174,10) POWELL_MOD::BRENT (isz = 241) (sz = 264)
+     [[ Inlining would exceed -inline-max-size value (264>253) <2>]]
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at powell_mod.f90(353,5) inlined into powell_mod.f90(170,10)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference xi(:) has aligned access
+   remark #15388: vectorization support: reference xi(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.500
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 1.940 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <xi(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <xi(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.136
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15452: unmasked strided loads: 1 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 5.500 
+   remark #15478: estimated potential speedup: 1.080 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(179,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference p(:) has aligned access
+   remark #15388: vectorization support: reference p(:) has aligned access
+   remark #15388: vectorization support: reference xi(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.700
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 2.310 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <p(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <p(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <xi(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.083
+   remark #15452: unmasked strided loads: 2 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 6.000 
+   remark #15478: estimated potential speedup: 0.990 
+   remark #15488: --- end vector cost summary ---
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at powell_mod.f90(180,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+powell_mod.f90(143,14):remark #34051: REGISTER ALLOCATION : [powell_mod_mp_linmin_] powell_mod.f90:143
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   25[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm10]
+        
+    Routine temporaries
+        Total         :     255
+            Global    :      72
+            Local     :     183
+        Regenerable   :      43
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :     128 bytes*
+            Reads     :      16 [1.18e+01 ~ 2.8%]
+            Writes    :      18 [1.68e+01 ~ 4.0%]
+        Spills        :      64 bytes*
+            Reads     :      17 [2.56e+01 ~ 6.2%]
+            Writes    :      16 [2.08e+01 ~ 5.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The compiler's heuristics indicate that the subprogram is not profitable to 
+    inline.  Override this decision by adding "!DIR$ATTRIBUTES FORCEINLINE" 
+    to the declaration of the called subprogram, or add "!DIR$ FORCEINLINE" 
+    before the call site.
+
+<2> The subprogram is larger than the inliner would normally inline.  Use the
+    option -inline-max-size to increase the size of any subprogram that would
+    normally be inlined, add "!DIR$ATTRIBUTES FORCEINLINE" to the
+    declaration of the called function, or add "!DIR$ FORCEINLINE" before
+    the call site.
+
+<3> The compiler's heuristics predict that it is not profitable to inline the
+    call.  Add "!DIR$ATTRIBUTES FORCEINLINE" to the declaration of the called 
+    subprogram, or add "!DIR$ FORCEINLINE" before the call site.
+

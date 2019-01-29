@@ -682,7 +682,7 @@ contains
 
     integer(i4b) :: i, j, k, n, nmaps, ierr
     real(dp)     :: lat, lon, t1, t2
-    logical(lgt) :: precomp 
+    logical(lgt) :: precomp, mixmatnull ! NEW
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
     real(dp),        allocatable, dimension(:)     :: nu, s, buffer
     class(comm_mapinfo),          pointer          :: info
@@ -743,7 +743,8 @@ contains
              call t%dealloc()
           end do
        end if
-       
+           
+
        ! Loop over all pixels, computing mixing matrix for each
        !allocate(theta_p(self%npar,self%nmaps))
        call wall_time(t1)
@@ -779,11 +780,32 @@ contains
 !!$             end if
 !!$          end if
 
+          ! NEW ! Check band sensitivity before mixing matrix update
+          ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
+          if (data(i)%comp_sens == "broadband") then
+             ! If broadband, calculate mixing matrix
+             mixmatnull = .false.
+          else
+             ! If component sensitivity, only calculate mixmat on that component.
+             mixmatnull = .true.
+             if (data(i)%comp_sens == self%label) then
+                mixmatnull = .false.
+             end if
+          end if
+
           ! Temperature
           if (self%npar > 0) then
-             self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
+             if (mixmatnull == .true.) then
+                self%F(i)%p%map(j,1) = 0.0
+             else
+                self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
+             end if
           else
-             self%F(i)%p%map(j,1) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+             if (mixmatnull == .true.) then 
+                self%F(i)%p%map(j,1) = 0.0
+             else
+                self%F(i)%p%map(j,1) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+             end if
           end if
 
           ! Polarization
@@ -816,6 +838,7 @@ contains
           end if
           
        end do
+
        if (allocated(theta_p)) deallocate(theta_p)
        call wall_time(t2)
        !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1

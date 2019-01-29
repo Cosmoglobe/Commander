@@ -1,0 +1,874 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_line_comp_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_line_comp_mod._) [1/5=20.0%] comm_line_comp_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_line_comp_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_line_comp_mod._] comm_line_comp_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_LINE_COMP_MOD::CONSTRUCTOR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_LINE_COMP_MOD::CONSTRUCTOR) [2/5=40.0%] comm_line_comp_mod.f90(35,12)
+  -> EXTERN: (50,5) for_allocate
+  -> INDIRECT-: (51,10)  (*((P64*) *((P64*) (comm_line_comp_mod_mp_constructor_$CONSTRUCTOR_V$296f.0.2 + 56(SI64)))))[16(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (54,10) __resetsp_inlined
+  -> (54,10) COMM_LINE_COMP_MOD::READ_LINE_TEMPLATE (isz = 829) (sz = 848)
+     [[ Inlining inhibited by overrideable criterion  <2>]]
+  -> EXTERN: (54,10) __getsp_inlined
+  -> EXTERN: (54,29) for_trim
+  -> EXTERN: (54,52) for_concat
+  -> EXTERN: (54,52) _alloca
+  -> EXTERN: (54,54) for_trim
+  -> EXTERN: (62,15) for_trim
+  -> EXTERN: (62,30) for_cpstr
+  -> EXTERN: (62,33) for_trim
+  -> EXTERN: (64,12) for_trim
+  -> EXTERN: (64,32) for_cpstr
+  -> EXTERN: (64,35) for_trim
+  -> EXTERN: (66,26) REPORT_ERROR
+  -> EXTERN: (68,5) for_alloc_allocatable
+  -> EXTERN: (68,5) for_check_mult_overflow64
+  -> EXTERN: (70,5) for_alloc_allocatable
+  -> EXTERN: (70,5) for_check_mult_overflow64
+  -> EXTERN: (70,5) for_alloc_allocatable
+  -> EXTERN: (70,5) for_check_mult_overflow64
+  -> EXTERN: (70,5) for_alloc_allocatable
+  -> EXTERN: (70,5) for_check_mult_overflow64
+  -> EXTERN: (71,5) for_alloc_allocatable
+  -> EXTERN: (71,5) for_check_mult_overflow64
+  -> EXTERN: (71,5) for_alloc_allocatable
+  -> EXTERN: (71,5) for_check_mult_overflow64
+  -> EXTERN: (71,5) for_alloc_allocatable
+  -> EXTERN: (71,5) for_check_mult_overflow64
+  -> EXTERN: (75,15) for_trim
+  -> EXTERN: (75,30) for_cpstr
+  -> EXTERN: (75,33) for_trim
+  -> EXTERN: (84,14) memcpy
+  -> EXTERN: (89,12) for_trim
+  -> EXTERN: (89,32) for_cpstr
+  -> EXTERN: (89,35) for_trim
+  -> EXTERN: (96,13) COMM_MAP_MOD^CONSTRUCTOR_MAPINFO
+  -> EXTERN: (99,5) for_alloc_allocatable
+  -> EXTERN: (99,5) for_check_mult_overflow64
+  -> EXTERN: (101,38) COMM_MAP_MOD^CONSTRUCTOR_MAP
+  -> EXTERN: (102,8) __getsp_inlined
+  -> EXTERN: (102,8) _alloca
+  -> EXTERN: (102,8) for_realloc_lhs
+  -> EXTERN: (102,8) __resetsp_inlined
+  -> INDIRECT-: (103,39)  (*((P64*) *((P64*) (&((MAP_PTR$P$27_V$c71 *)(comm_line_comp_mod_mp_constructor_$CONSTRUCTOR_V$296f.0.2->QNCAtemplate.dim31_dv_template.addr_a0_V$2a08.0.2)->COMM_LINE_COMP_MOD$.btCOMM_LINE_COMP$COMM_DIFFUSE_COMP$43_V$10ce)[(EXPR_CONV.SI32.SI64(comm_line_comp_mod_mp_constructor_$I_V$297b.0.2)), l:((comm_line_comp_mod_mp_constructor_$CONSTRUCTOR_V$296f.0.2->QNCAtemplate.dim31_dv_template.addr_a0_V$2a08.0.2)->COMM_LINE_COMP_MOD$.btCOMM_LINE_COMP$COMM_DIFFUSE_COMP$43_V$10d7)[0(SI32), l:0(SI64)]] + 56(SI64)))))[8(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (108,5) for_alloc_allocatable
+  -> EXTERN: (108,5) for_check_mult_overflow64
+  -> EXTERN: (112,37) COMM_F_LINE_MOD^CONSTRUCTOR
+  -> EXTERN: (113,69) RJ2DATA
+  -> EXTERN: (116,37) COMM_F_LINE_MOD^CONSTRUCTOR
+  -> EXTERN: (121,33) for_trim
+  -> EXTERN: (121,62) for_cpstr
+  -> INDIRECT-: (123,12)  (*((P64*) *((P64*) (comm_line_comp_mod_mp_constructor_$CONSTRUCTOR_V$296f.0.2 + 56(SI64)))))[15(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (125,5) for_dealloc_allocatable
+  -> EXTERN: (125,5) for_dealloc_allocatable
+  -> EXTERN: (125,5) for_dealloc_allocatable
+  -> EXTERN: (125,5) for_dealloc_allocatable
+  -> EXTERN: (125,5) for_dealloc_allocatable
+  -> EXTERN: (127,3) for_dealloc_allocatable
+  -> EXTERN: (127,3) for_dealloc_allocatable
+  -> EXTERN: (127,3) for_dealloc_allocatable
+  -> EXTERN: (127,3) for_dealloc_allocatable
+  -> EXTERN: (127,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_line_comp_mod.f90(60,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between j (61:8) and j (61:8)
+   remark #17106: parallel dependence: assumed FLOW dependence between at (62:15) and at (62:30)
+   remark #17106: parallel dependence: assumed ANTI dependence between at (62:30) and at (62:15)
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_line_comp_mod.f90(62,15) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_line_comp_mod.f90(62,33) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_line_comp_mod.f90(64,12) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_line_comp_mod.f90(64,35) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between at (62:15) and at (62:30)
+   remark #15346: vector dependence: assumed ANTI dependence between at (62:30) and at (62:15)
+
+   LOOP BEGIN at comm_line_comp_mod.f90(61,8)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(73,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between j (74:8) and j (74:8)
+   remark #17106: parallel dependence: assumed FLOW dependence between at (75:15) and at (75:30)
+   remark #17106: parallel dependence: assumed ANTI dependence between at (75:30) and at (75:15)
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_line_comp_mod.f90(75,15) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_line_comp_mod.f90(75,33) ]
+   remark #15382: vectorization support: call to function memcpy cannot be vectorized   [ comm_line_comp_mod.f90(84,14) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_line_comp_mod.f90(89,12) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_line_comp_mod.f90(89,35) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between at (75:15) and at (75:30)
+   remark #15346: vector dependence: assumed ANTI dependence between at (75:30) and at (75:15)
+
+   LOOP BEGIN at comm_line_comp_mod.f90(74,8)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(101,8)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between constructor (101:20) and constructor(i) (101:8)
+   remark #17106: parallel dependence: assumed FLOW dependence between constructor(i) (101:8) and constructor (101:20)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_line_comp_mod.f90(102,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at comm_line_comp_mod.f90(102,8)
+      <Peeled loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=1
+      LOOP END
+
+      LOOP BEGIN at comm_line_comp_mod.f90(102,8)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15388: vectorization support: reference at (102:8) has aligned access
+         remark #15305: vectorization support: vector length 2
+         remark #15399: vectorization support: unroll factor set to 4
+         remark #15309: vectorization support: normalized vectorization overhead 1.000
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15449: unmasked aligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 1.500 
+         remark #15478: estimated potential speedup: 2.540 
+         remark #15488: --- end vector cost summary ---
+      LOOP END
+
+      LOOP BEGIN at comm_line_comp_mod.f90(102,8)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(102,8)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+
+      LOOP BEGIN at comm_line_comp_mod.f90(102,8)
+         remark #17102: loop was not parallelized: not a parallelization candidate
+         remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+         remark #25478: While Loop Unrolled by 2  
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(110,5)
+   remark #25096: Loop Interchange not done due to: Imperfect Loop Nest (Either at Source or due to other Compiler Transformations)
+   remark #25451: Advice: Loop Interchange, if possible, might help loopnest. Suggested Permutation : ( 1 2 ) --> ( 2 1 ) 
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between constructor (111:12) and constructor(i) (116:11)
+   remark #17106: parallel dependence: assumed FLOW dependence between constructor(i) (116:11) and constructor (111:12)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_line_comp_mod.f90(111,12)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(111,12)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15305: vectorization support: vector length 4
+      remark #15309: vectorization support: normalized vectorization overhead 2.933
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 19 
+      remark #15477: vector cost: 3.750 
+      remark #15478: estimated potential speedup: 4.630 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(111,12)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_line_comp_mod.f90(46,54):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_line_comp_mod.f90(45,58):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_line_comp_mod.f90(45,54):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_line_comp_mod.f90(44,54):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_line_comp_mod.f90(45,65):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_line_comp_mod.f90(50,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_line_comp_mod.f90(50,5):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_line_comp_mod.f90(84,14):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_line_comp_mod.f90(84,14):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_line_comp_mod.f90(84,14):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_line_comp_mod.f90(35,12):remark #34051: REGISTER ALLOCATION : [comm_line_comp_mod_mp_constructor_] comm_line_comp_mod.f90:35
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   22[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :    1541
+            Global    :     186
+            Local     :    1355
+        Regenerable   :     192
+        Spilled       :      31
+        
+    Routine stack
+        Variables     :    6992 bytes*
+            Reads     :      82 [3.49e+02 ~ 3.1%]
+            Writes    :     127 [3.85e+02 ~ 3.5%]
+        Spills        :     208 bytes*
+            Reads     :      40 [1.37e+02 ~ 1.2%]
+            Writes    :      34 [9.45e+01 ~ 0.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_LINE_COMP_MOD::READ_LINE_TEMPLATE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_LINE_COMP_MOD::READ_LINE_TEMPLATE) [3/5=60.0%] comm_line_comp_mod.f90(155,14)
+  -> EXTERN: (155,50) for_deallocate
+  -> EXTERN: (155,57) for_deallocate
+  -> EXTERN: (155,61) for_deallocate
+  -> EXTERN: (155,68) for_deallocate
+  -> EXTERN: (155,77) for_deallocate
+  -> EXTERN: (166,13) GETLUN
+  -> EXTERN: (170,5) __resetsp_inlined
+  -> EXTERN: (170,5) for_open
+  -> EXTERN: (170,5) __getsp_inlined
+  -> EXTERN: (170,21) for_trim
+  -> EXTERN: (170,26) _alloca
+  -> EXTERN: (172,8) for_read_seq_fmt
+  -> EXTERN: (173,8) for_cpystr
+  -> EXTERN: (173,15) for_trim
+  -> EXTERN: (173,20) for_adjustl
+  -> EXTERN: (177,11) for_close
+  -> EXTERN: (179,5) for_alloc_allocatable
+  -> EXTERN: (179,5) for_check_mult_overflow64
+  -> EXTERN: (179,5) for_alloc_allocatable
+  -> EXTERN: (179,5) for_check_mult_overflow64
+  -> EXTERN: (179,5) for_alloc_allocatable
+  -> EXTERN: (179,5) for_check_mult_overflow64
+  -> EXTERN: (179,5) for_alloc_allocatable
+  -> EXTERN: (179,5) for_check_mult_overflow64
+  -> EXTERN: (179,5) for_alloc_allocatable
+  -> EXTERN: (179,5) for_check_mult_overflow64
+  -> EXTERN: (180,5) __resetsp_inlined
+  -> EXTERN: (180,5) for_open
+  -> EXTERN: (180,5) __getsp_inlined
+  -> EXTERN: (180,21) for_trim
+  -> EXTERN: (180,26) _alloca
+  -> EXTERN: (183,8) for_read_seq_fmt
+  -> EXTERN: (184,8) for_cpystr
+  -> EXTERN: (184,15) for_trim
+  -> EXTERN: (184,20) for_adjustl
+  -> EXTERN: (187,8) for_read_int_lis_xmit
+  -> EXTERN: (187,8) for_read_int_lis_xmit
+  -> EXTERN: (187,8) for_read_int_lis_xmit
+  -> EXTERN: (187,8) for_read_int_lis_xmit
+  -> EXTERN: (187,8) for_read_int_lis
+  -> EXTERN: (189,11) for_close
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_line_comp_mod.f90(170,5)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(181,5)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_line_comp_mod.f90(155,14):remark #34051: REGISTER ALLOCATION : [comm_line_comp_mod_mp_read_line_template_] comm_line_comp_mod.f90:155
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   14[ rax rdx rcx rbx rsi rdi r8-r15]
+        
+    Routine temporaries
+        Total         :     467
+            Global    :      70
+            Local     :     397
+        Regenerable   :     150
+        Spilled       :      15
+        
+    Routine stack
+        Variables     :    5424 bytes*
+            Reads     :       7 [1.30e+01 ~ 1.5%]
+            Writes    :      32 [7.00e+01 ~ 8.1%]
+        Spills        :      80 bytes*
+            Reads     :      20 [2.31e+01 ~ 2.7%]
+            Writes    :      10 [9.03e+00 ~ 1.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_LINE_COMP_MOD::EVALSED
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_LINE_COMP_MOD::EVALSED) [4/5=80.0%] comm_line_comp_mod.f90(131,12)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_line_comp_mod.f90(143,8)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=3
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(143,8)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #15305: vectorization support: vector length 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.448
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 19 
+   remark #15477: vector cost: 7.250 
+   remark #15478: estimated potential speedup: 2.550 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(143,8)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_line_comp_mod.f90(131,12):remark #34051: REGISTER ALLOCATION : [comm_line_comp_mod_mp_evalsed_] comm_line_comp_mod.f90:131
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   13[ rax rdx rcx rbx rsi rdi r8-r12 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      23
+            Local     :      35
+        Regenerable   :       0
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_LINE_COMP_MOD::SAMPLELINERATIOS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_LINE_COMP_MOD::SAMPLELINERATIOS) [5/5=100.0%] comm_line_comp_mod.f90(194,14)
+  -> EXTERN: (211,16) REPORT_ERROR
+  -> EXTERN: (219,21) COMM_MAP_MOD^CONSTRUCTOR_MAP
+  -> EXTERN: (220,21) COMM_MAP_MOD^CONSTRUCTOR_MAP
+  -> EXTERN: (221,5) for_dealloc_allocatable
+  -> EXTERN: (221,5) for_realloc_lhs
+  -> INDIRECT-: (221,21)  (*((P64*) *((P64*) (comm_line_comp_mod_mp_samplelineratios_$SELF_V$3681.0.5 + 56(SI64)))))[7(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (222,5) for_realloc_lhs
+  -> EXTERN: (222,5) for_dealloc_allocatable
+  -> INDIRECT-: (223,10)  (*((P64*) *((P64*) (&((COMM_DATA_SET$N$40_V$11ca *)comm_data_mod_mp_data__V$2962)[(EXPR_CONV.SI32.SI64(comm_line_comp_mod_mp_samplelineratios_$BAND_V$36c2.0.5)), l:comm_data_mod_mp_data__V$296b[0(SI32), l:0(SI64)]] + 56(SI64)))))[1(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (239,10) mpi_allreduce_
+  -> EXTERN: (240,10) mpi_allreduce_
+  -> INDIRECT-: (242,10)  (*((P64*) comm_line_comp_mod_mp_samplelineratios_$AMP$52_V$36a0.0.5))[12(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> INDIRECT-: (243,10)  (*((P64*) comm_line_comp_mod_mp_samplelineratios_$INVN_AMP$53_V$36b2.0.5))[12(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (257,74) RAND_UNI
+  -> EXTERN: (274,12) for_trim
+  -> EXTERN: (274,33) for_cpstr
+  -> EXTERN: (285,23) RAND_TRUNC_GAUSS
+  -> EXTERN: (287,31) RAND_TRUNC_GAUSS
+  -> EXTERN: (289,36) RAND_GAUSS
+  -> EXTERN: (294,8) for_write_seq_lis
+  -> EXTERN: (294,8) for_write_seq_lis_xmit
+  -> EXTERN: (294,8) for_write_seq_lis_xmit
+  -> EXTERN: (294,8) for_write_seq_lis_xmit
+  -> EXTERN: (298,10) mpi_bcast_
+  -> EXTERN: (301,8) for_realloc_lhs
+  -> EXTERN: (302,8) for_realloc_lhs
+  -> EXTERN: (305,11) for_realloc_lhs
+  -> INDIRECT-: (316,10)  (*((P64*) *((P64*) (comm_line_comp_mod_mp_samplelineratios_$SELF_V$3681.0.5 + 56(SI64)))))[15(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_line_comp_mod.f90(221,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between AMP(:,:) (221:5) and at (221:5)
+   remark #17106: parallel dependence: assumed ANTI dependence between at (221:5) and AMP(:,:) (221:5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between AMP(:,:) (221:5) and at (221:5)
+   remark #15346: vector dependence: assumed ANTI dependence between at (221:5) and AMP(:,:) (221:5)
+
+   LOOP BEGIN at comm_line_comp_mod.f90(221,5)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed FLOW dependence between AMP(:,:) (221:5) and at (221:5)
+      remark #17106: parallel dependence: assumed ANTI dependence between at (221:5) and AMP(:,:) (221:5)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed FLOW dependence between AMP(:,:) (221:5) and at (221:5)
+      remark #15346: vector dependence: assumed ANTI dependence between at (221:5) and AMP(:,:) (221:5)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(221,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(221,5)
+<Multiversioned v2>
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between AMP(:,:) (221:5) and at (221:5)
+   remark #17106: parallel dependence: assumed ANTI dependence between at (221:5) and AMP(:,:) (221:5)
+   remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+
+   LOOP BEGIN at comm_line_comp_mod.f90(221,5)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed FLOW dependence between AMP(:,:) (221:5) and at (221:5)
+      remark #17106: parallel dependence: assumed ANTI dependence between at (221:5) and AMP(:,:) (221:5)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed FLOW dependence between AMP(:,:) (221:5) and at (221:5)
+      remark #15346: vector dependence: assumed ANTI dependence between at (221:5) and AMP(:,:) (221:5)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(221,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(222,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between AMP (222:5) and INVN(:,:) (222:5)
+   remark #17106: parallel dependence: assumed FLOW dependence between INVN(:,:) (222:5) and AMP (222:5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed ANTI dependence between AMP (222:5) and INVN(:,:) (222:5)
+   remark #15346: vector dependence: assumed FLOW dependence between INVN(:,:) (222:5) and AMP (222:5)
+
+   LOOP BEGIN at comm_line_comp_mod.f90(222,5)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed ANTI dependence between AMP (222:5) and INVN(:,:) (222:5)
+      remark #17106: parallel dependence: assumed FLOW dependence between INVN(:,:) (222:5) and AMP (222:5)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed ANTI dependence between AMP (222:5) and INVN(:,:) (222:5)
+      remark #15346: vector dependence: assumed FLOW dependence between INVN(:,:) (222:5) and AMP (222:5)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(222,5)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(233,12)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_line_comp_mod.f90(233,12)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(233,12)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15389: vectorization support: reference AMP(:,:) has unaligned access   [ comm_line_comp_mod.f90(233,29) ]
+      remark #15388: vectorization support: reference MASK(:,:) has aligned access
+      remark #15388: vectorization support: reference INVN(:,:) has aligned access
+      remark #15381: vectorization support: unaligned access used inside loop body
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.750
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 2 
+      remark #15450: unmasked unaligned unit stride loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 11 
+      remark #15477: vector cost: 6.000 
+      remark #15478: estimated potential speedup: 1.770 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(233,12)
+   <Alternate Alignment Vectorized Loop>
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(233,12)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(234,12)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_line_comp_mod.f90(234,12)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(234,12)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15389: vectorization support: reference data_(band,:,:) has unaligned access   [ comm_line_comp_mod.f90(234,29) ]
+      remark #15388: vectorization support: reference MASK(:,:) has aligned access
+      remark #15388: vectorization support: reference INVN(:,:) has aligned access
+      remark #15381: vectorization support: unaligned access used inside loop body
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.750
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 2 
+      remark #15450: unmasked unaligned unit stride loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 11 
+      remark #15477: vector cost: 6.000 
+      remark #15478: estimated potential speedup: 1.770 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(234,12)
+   <Alternate Alignment Vectorized Loop>
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(234,12)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(236,12)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_line_comp_mod.f90(236,12)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(236,12)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference AMP(:,:) has aligned access
+      remark #15388: vectorization support: reference INVN(:,:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 1.031
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 2 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 8 
+      remark #15477: vector cost: 4.000 
+      remark #15478: estimated potential speedup: 1.920 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(236,12)
+   <Alternate Alignment Vectorized Loop>
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(236,12)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(237,12)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_line_comp_mod.f90(237,12)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(237,12)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference data_(band,:,:) has aligned access
+      remark #15388: vectorization support: reference INVN(:,:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 1.094
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 2 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 8 
+      remark #15477: vector cost: 4.000 
+      remark #15478: estimated potential speedup: 1.910 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(237,12)
+   <Alternate Alignment Vectorized Loop>
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(237,12)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(283,11)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(301,8)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ comm_line_comp_mod.f90(301,8) ]
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between at (301:8) and self(:,:) (301:8)
+   remark #17106: parallel dependence: assumed FLOW dependence between self(:,:) (301:8) and at (301:8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed ANTI dependence between at (301:8) and self(:,:) (301:8)
+   remark #15346: vector dependence: assumed FLOW dependence between self(:,:) (301:8) and at (301:8)
+
+   LOOP BEGIN at comm_line_comp_mod.f90(301,8)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed ANTI dependence between at (301:8) and self(:,:) (301:8)
+      remark #17106: parallel dependence: assumed FLOW dependence between self(:,:) (301:8) and at (301:8)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed ANTI dependence between at (301:8) and self(:,:) (301:8)
+      remark #15346: vector dependence: assumed FLOW dependence between self(:,:) (301:8) and at (301:8)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(301,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(302,8)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ comm_line_comp_mod.f90(302,8) ]
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between at (302:8) and self(:,:) (302:8)
+   remark #17106: parallel dependence: assumed FLOW dependence between self(:,:) (302:8) and at (302:8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed ANTI dependence between at (302:8) and self(:,:) (302:8)
+   remark #15346: vector dependence: assumed FLOW dependence between self(:,:) (302:8) and at (302:8)
+
+   LOOP BEGIN at comm_line_comp_mod.f90(302,8)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed ANTI dependence between at (302:8) and self(:,:) (302:8)
+      remark #17106: parallel dependence: assumed FLOW dependence between self(:,:) (302:8) and at (302:8)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed ANTI dependence between at (302:8) and self(:,:) (302:8)
+      remark #15346: vector dependence: assumed FLOW dependence between self(:,:) (302:8) and at (302:8)
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(302,8)
+   <Remainder>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(303,8)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between self(i) (305:11) and at (307:14)
+   remark #17106: parallel dependence: assumed FLOW dependence between at (307:14) and self(i) (305:11)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at comm_line_comp_mod.f90(305,11)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed ANTI dependence between at (305:11) and at (305:11)
+      remark #17106: parallel dependence: assumed FLOW dependence between at (305:11) and at (305:11)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed ANTI dependence between at (305:11) and at (305:11)
+      remark #15346: vector dependence: assumed FLOW dependence between at (305:11) and at (305:11)
+
+      LOOP BEGIN at comm_line_comp_mod.f90(305,11)
+         remark #17104: loop was not parallelized: existence of parallel dependence
+         remark #17106: parallel dependence: assumed FLOW dependence between at (305:11) and at (305:11)
+         remark #17106: parallel dependence: assumed ANTI dependence between at (305:11) and at (305:11)
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization
+         remark #15346: vector dependence: assumed FLOW dependence between at (305:11) and at (305:11)
+         remark #15346: vector dependence: assumed ANTI dependence between at (305:11) and at (305:11)
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at comm_line_comp_mod.f90(307,14)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+      remark #25456: Number of Array Refs Scalar Replaced In Loop: 3
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(311,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+
+   LOOP BEGIN at comm_line_comp_mod.f90(311,8)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+      remark #25478: While Loop Unrolled by 2  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_line_comp_mod.f90(313,11)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+   remark #25478: While Loop Unrolled by 2  
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_line_comp_mod.f90(213,11):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_line_comp_mod.f90(213,11):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+comm_line_comp_mod.f90(194,14):remark #34051: REGISTER ALLOCATION : [comm_line_comp_mod_mp_samplelineratios_] comm_line_comp_mod.f90:194
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   26[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm11]
+        
+    Routine temporaries
+        Total         :    1152
+            Global    :     288
+            Local     :     864
+        Regenerable   :     123
+        Spilled       :      49
+        
+    Routine stack
+        Variables     :    1800 bytes*
+            Reads     :      73 [7.08e+01 ~ 1.2%]
+            Writes    :     138 [1.07e+02 ~ 1.8%]
+        Spills        :     336 bytes*
+            Reads     :      93 [1.07e+02 ~ 1.8%]
+            Writes    :      67 [3.68e+01 ~ 0.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The indirectly called subprogram must be resolved to its targets before it 
+can be inlined.  Consider compiling with -ipo or -prof-gen followed by 
+-prof-use.
+
+<2> The compiler's heuristics predict that it is not profitable to inline the
+    call.  Add "!DIR$ATTRIBUTES FORCEINLINE" to the declaration of the called 
+    subprogram, or add "!DIR$ FORCEINLINE" before the call site.
+

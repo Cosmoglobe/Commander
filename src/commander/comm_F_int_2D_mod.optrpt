@@ -1,0 +1,286 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_f_int_2d_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_f_int_2d_mod._) [1/3=33.3%] comm_F_int_2D_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_F_int_2D_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_f_int_2d_mod._] comm_F_int_2D_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_F_INT_2D_MOD::CONSTRUCTOR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_F_INT_2D_MOD::CONSTRUCTOR) [2/3=66.7%] comm_F_int_2D_mod.f90(31,12)
+  -> EXTERN: (42,5) for_allocate
+  -> EXTERN: (44,10) wall_time_
+  -> EXTERN: (47,5) for_alloc_allocatable
+  -> EXTERN: (47,5) for_check_mult_overflow64
+  -> EXTERN: (47,5) for_alloc_allocatable
+  -> EXTERN: (47,5) for_check_mult_overflow64
+  -> EXTERN: (47,5) for_alloc_allocatable
+  -> EXTERN: (47,5) for_check_mult_overflow64
+  -> EXTERN: (47,5) for_alloc_allocatable
+  -> EXTERN: (47,5) for_check_mult_overflow64
+  -> EXTERN: (47,5) for_alloc_allocatable
+  -> EXTERN: (47,5) for_check_mult_overflow64
+  -> EXTERN: (56,10) wall_time_
+  -> INDIRECT-: (60,21)  (*((P64*) *((P64*) (comm_f_int_2d_mod_mp_constructor_$COMP_V$127e.0.2 + 56(SI64)))))[6(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> INDIRECT-: (62,20)  (*((P64*) *((P64*) (comm_f_int_2d_mod_mp_constructor_$BP_V$127f.0.2 + 56(SI64)))))[2(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (65,10) wall_time_
+  -> EXTERN: (67,10) wall_time_
+  -> EXTERN: (68,10) mpi_allreduce_
+  -> EXTERN: (69,10) wall_time_
+  -> EXTERN: (73,10) wall_time_
+  -> EXTERN: (74,5) for_alloc_allocatable
+  -> EXTERN: (74,5) for_check_mult_overflow64
+  -> EXTERN: (75,10) SPLIE2_FULL_PRECOMP_MPI
+  -> EXTERN: (76,10) wall_time_
+  -> EXTERN: (79,10) wall_time_
+  -> EXTERN: (84,5) for_dealloc_allocatable
+  -> EXTERN: (84,5) for_dealloc_allocatable
+  -> EXTERN: (84,5) for_dealloc_allocatable
+  -> EXTERN: (86,3) for_dealloc_allocatable
+  -> EXTERN: (86,3) for_dealloc_allocatable
+  -> EXTERN: (86,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_F_int_2D_mod.f90(50,62)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between constructor(i) (50:8) and comp(1,2) (51:8)
+   remark #17106: parallel dependence: assumed ANTI dependence between comp(1,2) (51:8) and constructor(i) (50:8)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between constructor(i) (50:8) and comp(1,2) (51:8)
+   remark #15346: vector dependence: assumed ANTI dependence between comp(1,2) (51:8) and constructor(i) (50:8)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_F_int_2D_mod.f90(50,62)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at comm_F_int_2D_mod.f90(55,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_F_int_2D_mod.f90(55,5)
+      remark #25408: memset generated
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between F(:,:) (55:5) and F(:,:) (55:5)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between F(:,:) (55:5) and F(:,:) (55:5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+      remark #25015: Estimate of max trip count of loop=1
+
+      LOOP BEGIN at comm_F_int_2D_mod.f90(55,5)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15389: vectorization support: reference F(:,:) has unaligned access
+         remark #15381: vectorization support: unaligned access used inside loop body
+         remark #15305: vectorization support: vector length 2
+         remark #15399: vectorization support: unroll factor set to 2
+         remark #15309: vectorization support: normalized vectorization overhead 0.300
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15451: unmasked unaligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 2.500 
+         remark #15478: estimated potential speedup: 1.450 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=3
+      LOOP END
+
+      LOOP BEGIN at comm_F_int_2D_mod.f90(55,5)
+      <Remainder loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=12
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_F_int_2D_mod.f90(57,5)
+   remark #25096: Loop Interchange not done due to: Imperfect Loop Nest (Either at Source or due to other Compiler Transformations)
+   remark #25451: Advice: Loop Interchange, if possible, might help loopnest. Suggested Permutation : ( 1 2 3 ) --> ( 2 3 1 ) 
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between at (60:21) and at (60:21)
+   remark #17106: parallel dependence: assumed ANTI dependence between at (60:21) and at (60:21)
+   remark #15382: vectorization support: call to function (Indirect call) cannot be vectorized   [ comm_F_int_2D_mod.f90(60,21) ]
+   remark #15382: vectorization support: call to function (Indirect call) cannot be vectorized   [ comm_F_int_2D_mod.f90(62,20) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between at (60:21) and at (60:21)
+   remark #15346: vector dependence: assumed ANTI dependence between at (60:21) and at (60:21)
+
+   LOOP BEGIN at comm_F_int_2D_mod.f90(58,8)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed FLOW dependence between at (60:21) and at (60:21)
+      remark #17106: parallel dependence: assumed ANTI dependence between at (60:21) and at (60:21)
+      remark #15382: vectorization support: call to function (Indirect call) cannot be vectorized   [ comm_F_int_2D_mod.f90(60,21) ]
+      remark #15382: vectorization support: call to function (Indirect call) cannot be vectorized   [ comm_F_int_2D_mod.f90(62,20) ]
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed FLOW dependence between at (60:21) and at (60:21)
+      remark #15346: vector dependence: assumed ANTI dependence between at (60:21) and at (60:21)
+
+      LOOP BEGIN at comm_F_int_2D_mod.f90(59,11)
+         remark #17104: loop was not parallelized: existence of parallel dependence
+         remark #17106: parallel dependence: assumed FLOW dependence between at (60:21) and at (60:21)
+         remark #17106: parallel dependence: assumed ANTI dependence between at (60:21) and at (60:21)
+         remark #15382: vectorization support: call to function (Indirect call) cannot be vectorized   [ comm_F_int_2D_mod.f90(60,21) ]
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization
+         remark #15346: vector dependence: assumed FLOW dependence between at (60:21) and at (60:21)
+         remark #15346: vector dependence: assumed ANTI dependence between at (60:21) and at (60:21)
+      LOOP END
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_F_int_2D_mod.f90(40,49):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_F_int_2D_mod.f90(40,46):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_F_int_2D_mod.f90(39,46):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_F_int_2D_mod.f90(42,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_F_int_2D_mod.f90(42,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (1, 0)
+comm_F_int_2D_mod.f90(55,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_F_int_2D_mod.f90(55,5):remark #34026: call to memset implemented as a call to optimized library version
+comm_F_int_2D_mod.f90(31,12):remark #34051: REGISTER ALLOCATION : [comm_f_int_2d_mod_mp_constructor_] comm_F_int_2D_mod.f90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   25[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm10]
+        
+    Routine temporaries
+        Total         :     682
+            Global    :      93
+            Local     :     589
+        Regenerable   :      84
+        Spilled       :      28
+        
+    Routine stack
+        Variables     :     440 bytes*
+            Reads     :      28 [3.51e+02 ~ 4.1%]
+            Writes    :      64 [1.44e+03 ~ 16.9%]
+        Spills        :     184 bytes*
+            Reads     :      38 [7.61e+02 ~ 9.0%]
+            Writes    :      28 [1.08e+02 ~ 1.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_F_INT_2D_MOD::EVALINTF
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_F_INT_2D_MOD::EVALINTF) [3/3=100.0%] comm_F_int_2D_mod.f90(90,12)
+  -> EXTERN: (94,16) SPLIN2_FULL_PRECOMP
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_F_int_2D_mod.f90(90,12):remark #34051: REGISTER ALLOCATION : [comm_f_int_2d_mod_mp_evalintf_] comm_F_int_2D_mod.f90:90
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    6[ rax rdx rcx rsi rdi r8]
+        
+    Routine temporaries
+        Total         :      22
+            Global    :       0
+            Local     :      22
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The indirectly called subprogram must be resolved to its targets before it 
+can be inlined.  Consider compiling with -ipo or -prof-gen followed by 
+-prof-use.
+

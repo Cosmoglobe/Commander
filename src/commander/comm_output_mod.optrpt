@@ -1,0 +1,471 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_output_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_output_mod._) [1/3=33.3%] comm_output_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_output_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_output_mod._] comm_output_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_OUTPUT_MOD::OUTPUT_FITS_SAMPLE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_OUTPUT_MOD::OUTPUT_FITS_SAMPLE) [2/3=66.7%] comm_output_mod.f90(10,14)
+  -> EXTERN: (30,10) UPDATE_STATUS
+  -> EXTERN: (32,10) INT2STRING
+  -> EXTERN: (33,10) INT2STRING
+  -> EXTERN: (34,5) for_concat
+  -> EXTERN: (35,5) for_concat
+  -> EXTERN: (35,17) for_trim
+  -> EXTERN: (35,22) for_adjustl
+  -> EXTERN: (35,54) for_trim
+  -> EXTERN: (35,59) for_adjustl
+  -> EXTERN: (36,20) for_trim
+  -> EXTERN: (36,25) for_adjustl
+  -> EXTERN: (40,12) for_trim
+  -> EXTERN: (40,41) for_cpstr
+  -> EXTERN: (40,44) for_trim
+  -> EXTERN: (41,19) for_inquire
+  -> EXTERN: (41,24) for_trim
+  -> EXTERN: (42,22) RM
+  -> EXTERN: (42,30) for_trim
+  -> EXTERN: (44,16) for_inquire
+  -> EXTERN: (44,21) for_trim
+  -> EXTERN: (46,16) OPEN_HDF_FILE
+  -> EXTERN: (47,16) CLOSE_HDF_FILE
+  -> EXTERN: (52,13) OPEN_HDF_FILE
+  -> EXTERN: (54,13) H5ESET_AUTO_F
+  -> EXTERN: (55,13) H5OGET_INFO_BY_NAME_F
+  -> EXTERN: (55,52) for_trim
+  -> EXTERN: (55,57) for_adjustl
+  -> EXTERN: (56,25) H5GUNLINK_F
+  -> EXTERN: (56,59) for_trim
+  -> EXTERN: (56,64) for_adjustl
+  -> EXTERN: (57,13) CREATE_HDF_GROUP
+  -> EXTERN: (57,36) for_trim
+  -> EXTERN: (57,41) for_adjustl
+  -> EXTERN: (58,13) __getsp_inlined
+  -> EXTERN: (58,13) CREATE_HDF_GROUP
+  -> EXTERN: (58,13) __resetsp_inlined
+  -> EXTERN: (58,36) for_trim
+  -> EXTERN: (58,41) for_adjustl
+  -> EXTERN: (58,56) _alloca
+  -> EXTERN: (58,56) for_concat
+  -> EXTERN: (60,10) UPDATE_STATUS
+  -> EXTERN: (63,10) __resetsp_inlined
+  -> (63,10) COMM_OUTPUT_MOD::OUTPUT_INST_PARAMS (isz = 465) (sz = 482)
+     [[ Inlining inhibited by overrideable criterion  <1>]]
+  -> EXTERN: (63,10) __getsp_inlined
+  -> EXTERN: (64,12) for_trim
+  -> EXTERN: (64,44) for_trim
+  -> EXTERN: (64,57) for_concat
+  -> EXTERN: (64,57) _alloca
+  -> EXTERN: (66,10) UPDATE_STATUS
+  -> EXTERN: (70,10) wall_time_
+  -> INDIRECT-: (72,13)  (*((P64*) comm_output_mod_mp_output_fits_sample_$C$57_V$366e.0.2))[10(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (73,21) strcmp
+  -> EXTERN: (76,14) for_concat
+  -> EXTERN: (76,24) for_trim
+  -> EXTERN: (76,29) for_adjustl
+  -> EXTERN: (76,51) for_trim
+  -> EXTERN: (76,56) for_adjustl
+  -> INDIRECT-: (77,19)  (*((P64*) *((P64*) (&comm_output_mod_mp_output_fits_sample_$C$_453$64_V$3741.0.2->COMM_DIFFUSE_COMP$CL$36_V$d66 + 56(SI64)))))[8(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> INDIRECT-: (79,19)  (*((P64*) *((P64*) (&comm_output_mod_mp_output_fits_sample_$C$_453$64_V$3741.0.2->COMM_DIFFUSE_COMP$CL$36_V$d66 + 56(SI64)))))[8(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (82,13) __getsp_inlined
+  -> EXTERN: (82,13) UPDATE_STATUS
+  -> EXTERN: (82,13) __resetsp_inlined
+  -> EXTERN: (82,44) _alloca
+  -> EXTERN: (82,44) for_concat
+  -> EXTERN: (82,46) for_trim
+  -> INDIRECT-: (83,13)  (*((P64*) comm_output_mod_mp_output_fits_sample_$C$57_V$366e.0.2))[1(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (91,24) CONSTRUCTOR_MAPINFO
+  -> EXTERN: (92,24) CONSTRUCTOR_MAP
+  -> EXTERN: (95,16) wall_time_
+  -> EXTERN: (96,18) COMPUTE_RESIDUAL
+  -> EXTERN: (97,16) __resetsp_inlined
+  -> EXTERN: (97,16) UPDATE_STATUS
+  -> EXTERN: (97,16) __getsp_inlined
+  -> EXTERN: (97,52) for_concat
+  -> EXTERN: (97,52) _alloca
+  -> EXTERN: (97,54) for_trim
+  -> INDIRECT-: (101,19)  (*((P64*) comm_output_mod_mp_output_fits_sample_$MAP$63_V$36de.0.2))[9(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (101,19) __resetsp_inlined
+  -> EXTERN: (101,19) __getsp_inlined
+  -> EXTERN: (101,33) for_trim
+  -> EXTERN: (101,61) for_trim
+  -> EXTERN: (102,21) for_trim
+  -> EXTERN: (102,34) _alloca
+  -> EXTERN: (102,34) for_concat
+  -> EXTERN: (103,19) wall_time_
+  -> EXTERN: (105,16) __resetsp_inlined
+  -> EXTERN: (105,16) UPDATE_STATUS
+  -> EXTERN: (105,16) __getsp_inlined
+  -> EXTERN: (105,52) for_concat
+  -> EXTERN: (105,52) _alloca
+  -> EXTERN: (105,54) for_trim
+  -> INDIRECT-: (107,19)  (*((P64*) *((P64*) (&((COMM_DATA_SET$N$24_V$1343 *)comm_data_mod_mp_data__V$3637)[(EXPR_CONV.SI32.SI64(comm_output_mod_mp_output_fits_sample_$I_V$36ce.0.2)), l:comm_data_mod_mp_data__V$3640[0(SI32), l:0(SI64)]] + 56(SI64)))))[3(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (108,14) for_realloc_lhs
+  -> EXTERN: (110,27) CONSTRUCTOR_MAP
+  -> INDIRECT-: (111,19)  (*((P64*) comm_output_mod_mp_output_fits_sample_$MAP$63_V$36de.0.2))[16(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (112,14) for_realloc_lhs
+  -> INDIRECT-: (113,19)  (*((P64*) comm_output_mod_mp_output_fits_sample_$CHISQ_SUB$59_V$3692.0.2))[12(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> INDIRECT-: (115,16)  (*((P64*) comm_output_mod_mp_output_fits_sample_$MAP$63_V$36de.0.2))[12(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (116,16) UPDATE_STATUS
+  -> EXTERN: (116,16) __getsp_inlined
+  -> EXTERN: (116,16) __resetsp_inlined
+  -> EXTERN: (116,52) for_concat
+  -> EXTERN: (116,52) _alloca
+  -> EXTERN: (116,54) for_trim
+  -> EXTERN: (120,16) mpi_reduce_
+  -> EXTERN: (121,16) __resetsp_inlined
+  -> INDIRECT-: (121,16)  (*((P64*) comm_output_mod_mp_output_fits_sample_$CHISQ_MAP$60_V$36a4.0.2))[9(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (121,16) __getsp_inlined
+  -> EXTERN: (121,36) for_trim
+  -> EXTERN: (121,67) for_trim
+  -> EXTERN: (121,81) for_concat
+  -> EXTERN: (121,81) _alloca
+  -> EXTERN: (122,39) for_write_seq_fmt
+  -> EXTERN: (122,39) for_write_seq_fmt_xmit
+  -> EXTERN: (122,39) for_write_seq_fmt_xmit
+  -> EXTERN: (122,39) for_write_seq_fmt_xmit
+  -> INDIRECT-: (124,16)  (*((P64*) comm_output_mod_mp_output_fits_sample_$CHISQ_MAP$60_V$36a4.0.2))[12(SI64)]
+     [[ Unable to inline indirect callsite  <2>]]
+  -> EXTERN: (126,13) UPDATE_STATUS
+  -> EXTERN: (130,35) OUTPUT_SIGNALS_PER_BAND
+  -> EXTERN: (131,10) UPDATE_STATUS
+  -> EXTERN: (133,48) CLOSE_HDF_FILE
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_output_mod.f90(133,25)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at comm_output_mod.f90(73,21)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_output_mod.f90(94,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_output_mod.f90(108,14)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed ANTI dependence between at (108:14) and at (108:14)
+      remark #17106: parallel dependence: assumed FLOW dependence between at (108:14) and at (108:14)
+      remark #17106: parallel dependence: assumed ANTI dependence between at (108:14) and at (108:14)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at comm_output_mod.f90(108,14)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15389: vectorization support: reference MAP(:,:) has unaligned access   [ comm_output_mod.f90(108,31) ]
+         remark #15389: vectorization support: reference MAP(:,:) has unaligned access
+         remark #15381: vectorization support: unaligned access used inside loop body
+         remark #15305: vectorization support: vector length 2
+         remark #15399: vectorization support: unroll factor set to 4
+         remark #15309: vectorization support: normalized vectorization overhead 0.179
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15450: unmasked unaligned unit stride loads: 1 
+         remark #15451: unmasked unaligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 11 
+         remark #15477: vector cost: 7.000 
+         remark #15478: estimated potential speedup: 1.550 
+         remark #15488: --- end vector cost summary ---
+      LOOP END
+
+      LOOP BEGIN at comm_output_mod.f90(108,14)
+      <Remainder loop for vectorization>
+         remark #15389: vectorization support: reference MAP(:,:) has unaligned access   [ comm_output_mod.f90(108,31) ]
+         remark #15389: vectorization support: reference MAP(:,:) has unaligned access
+         remark #15381: vectorization support: unaligned access used inside loop body
+         remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+         remark #15305: vectorization support: vector length 2
+         remark #15309: vectorization support: normalized vectorization overhead 1.111
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at comm_output_mod.f90(112,14)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed ANTI dependence between CHISQ (112:14) and CHISQ(:,:) (112:14)
+      remark #17106: parallel dependence: assumed FLOW dependence between CHISQ(:,:) (112:14) and CHISQ (112:14)
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed ANTI dependence between CHISQ (112:14) and CHISQ(:,:) (112:14)
+      remark #15346: vector dependence: assumed FLOW dependence between CHISQ(:,:) (112:14) and CHISQ (112:14)
+
+      LOOP BEGIN at comm_output_mod.f90(112,14)
+         remark #17104: loop was not parallelized: existence of parallel dependence
+         remark #17106: parallel dependence: assumed ANTI dependence between CHISQ (112:14) and CHISQ(:,:) (112:14)
+         remark #17106: parallel dependence: assumed FLOW dependence between CHISQ(:,:) (112:14) and CHISQ (112:14)
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization
+         remark #15346: vector dependence: assumed ANTI dependence between CHISQ (112:14) and CHISQ(:,:) (112:14)
+         remark #15346: vector dependence: assumed FLOW dependence between CHISQ(:,:) (112:14) and CHISQ (112:14)
+         remark #25439: unrolled with remainder by 2  
+      LOOP END
+
+      LOOP BEGIN at comm_output_mod.f90(112,14)
+      <Remainder>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_output_mod.f90(120,27)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+
+   LOOP BEGIN at comm_output_mod.f90(120,27)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+      remark #25478: While Loop Unrolled by 2  
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_output_mod.f90(69,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_output_mod.f90(69,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (8, 0), and destination (alignment, offset): (16, 0)
+comm_output_mod.f90(73,21):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (16, 0), and destination (alignment, offset): (16, 0)
+comm_output_mod.f90(10,14):remark #34051: REGISTER ALLOCATION : [comm_output_mod_mp_output_fits_sample_] comm_output_mod.f90:10
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     954
+            Global    :     230
+            Local     :     724
+        Regenerable   :     422
+        Spilled       :      26
+        
+    Routine stack
+        Variables     :   16578 bytes*
+            Reads     :     108 [1.92e+02 ~ 6.6%]
+            Writes    :     261 [3.24e+02 ~ 11.1%]
+        Spills        :     168 bytes*
+            Reads     :      38 [8.18e+01 ~ 2.8%]
+            Writes    :      23 [2.27e+01 ~ 0.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_OUTPUT_MOD::OUTPUT_INST_PARAMS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_OUTPUT_MOD::OUTPUT_INST_PARAMS) [3/3=100.0%] comm_output_mod.f90(136,14)
+  -> EXTERN: (149,13) CREATE_HDF_GROUP
+  -> EXTERN: (149,13) __resetsp_inlined
+  -> EXTERN: (149,13) __getsp_inlined
+  -> EXTERN: (149,41) for_trim
+  -> EXTERN: (149,46) for_adjustl
+  -> EXTERN: (149,46) _alloca
+  -> EXTERN: (149,54) _alloca
+  -> EXTERN: (149,60) _alloca
+  -> EXTERN: (149,60) for_concat
+  -> EXTERN: (150,13) __getsp_inlined
+  -> EXTERN: (150,13) CREATE_HDF_GROUP
+  -> EXTERN: (150,13) __resetsp_inlined
+  -> EXTERN: (150,41) for_trim
+  -> EXTERN: (150,46) for_adjustl
+  -> EXTERN: (150,46) _alloca
+  -> EXTERN: (150,54) _alloca
+  -> EXTERN: (150,60) _alloca
+  -> EXTERN: (150,60) for_concat
+  -> EXTERN: (153,12) GETLUN
+  -> EXTERN: (154,5) __resetsp_inlined
+  -> EXTERN: (154,5) for_open
+  -> EXTERN: (154,5) __getsp_inlined
+  -> EXTERN: (154,21) for_trim
+  -> EXTERN: (154,26) _alloca
+  -> EXTERN: (155,5) for_write_seq_lis
+  -> EXTERN: (157,8) for_write_seq_fmt
+  -> EXTERN: (157,8) for_write_seq_fmt_xmit
+  -> EXTERN: (157,8) for_write_seq_fmt_xmit
+  -> EXTERN: (157,8) __resetsp_inlined
+  -> EXTERN: (157,8) __getsp_inlined
+  -> EXTERN: (157,40) for_adjustl
+  -> EXTERN: (157,48) for_trim
+  -> EXTERN: (157,48) _alloca
+  -> EXTERN: (159,16) __resetsp_inlined
+  -> EXTERN: (159,16) WRITE_HDF_0D_DP
+  -> EXTERN: (159,16) __getsp_inlined
+  -> EXTERN: (159,37) for_trim
+  -> EXTERN: (159,42) _alloca
+  -> EXTERN: (159,42) for_adjustl
+  -> EXTERN: (159,50) _alloca
+  -> EXTERN: (159,66) for_concat
+  -> EXTERN: (159,66) _alloca
+  -> EXTERN: (159,68) for_trim
+  -> EXTERN: (159,73) for_adjustl
+  -> EXTERN: (161,16) WRITE_HDF_1D_DP
+  -> EXTERN: (161,16) __getsp_inlined
+  -> EXTERN: (161,16) __resetsp_inlined
+  -> EXTERN: (161,37) for_trim
+  -> EXTERN: (161,42) _alloca
+  -> EXTERN: (161,42) for_adjustl
+  -> EXTERN: (161,50) _alloca
+  -> EXTERN: (161,70) for_concat
+  -> EXTERN: (161,70) _alloca
+  -> EXTERN: (161,72) for_trim
+  -> EXTERN: (161,77) for_adjustl
+  -> EXTERN: (165,11) for_close
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_output_mod.f90(156,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (157:48) and at (157:40)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (157:40) and at (157:48)
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_output_mod.f90(157,48) ]
+   remark #15382: vectorization support: call to function for_adjustl cannot be vectorized   [ comm_output_mod.f90(157,40) ]
+   remark #15382: vectorization support: call to function for_write_seq_fmt cannot be vectorized   [ comm_output_mod.f90(157,8) ]
+   remark #15382: vectorization support: call to function for_write_seq_fmt_xmit cannot be vectorized   [ comm_output_mod.f90(157,8) ]
+   remark #15382: vectorization support: call to function for_write_seq_fmt_xmit cannot be vectorized   [ comm_output_mod.f90(157,8) ]
+   remark #15382: vectorization support: call to function for_adjustl cannot be vectorized   [ comm_output_mod.f90(159,42) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_output_mod.f90(159,37) ]
+   remark #15382: vectorization support: call to function for_adjustl cannot be vectorized   [ comm_output_mod.f90(159,73) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_output_mod.f90(159,68) ]
+   remark #15382: vectorization support: call to function for_concat cannot be vectorized   [ comm_output_mod.f90(159,66) ]
+   remark #15382: vectorization support: call to function WRITE_HDF_0D_DP cannot be vectorized   [ comm_output_mod.f90(159,16) ]
+   remark #15382: vectorization support: call to function for_adjustl cannot be vectorized   [ comm_output_mod.f90(161,42) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_output_mod.f90(161,37) ]
+   remark #15382: vectorization support: call to function for_adjustl cannot be vectorized   [ comm_output_mod.f90(161,77) ]
+   remark #15382: vectorization support: call to function for_trim cannot be vectorized   [ comm_output_mod.f90(161,72) ]
+   remark #15382: vectorization support: call to function for_concat cannot be vectorized   [ comm_output_mod.f90(161,70) ]
+   remark #15382: vectorization support: call to function WRITE_HDF_1D_DP cannot be vectorized   [ comm_output_mod.f90(161,16) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (157:48) and at (157:40)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (157:40) and at (157:48)
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_output_mod.f90(136,14):remark #34051: REGISTER ALLOCATION : [comm_output_mod_mp_output_inst_params_] comm_output_mod.f90:136
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rbx rsi rdi r8-r9 r12-r15]
+        
+    Routine temporaries
+        Total         :     276
+            Global    :      91
+            Local     :     185
+        Regenerable   :      80
+        Spilled       :      15
+        
+    Routine stack
+        Variables     :    2872 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      35 [2.66e+01 ~ 9.9%]
+        Spills        :      80 bytes*
+            Reads     :      24 [1.60e+01 ~ 6.0%]
+            Writes    :      10 [4.49e+00 ~ 1.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The compiler's heuristics predict that it is not profitable to inline the
+    call.  Add "!DIR$ATTRIBUTES FORCEINLINE" to the declaration of the called 
+    subprogram, or add "!DIR$ FORCEINLINE" before the call site.
+
+<2> The indirectly called subprogram must be resolved to its targets before it 
+can be inlined.  Consider compiling with -ipo or -prof-gen followed by 
+-prof-use.
+

@@ -1,0 +1,625 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_cr_utils._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_cr_utils._) [1/6=16.7%] comm_cr_utils.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_cr_utils.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_cr_utils._] comm_cr_utils.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_CR_UTILS::CR_INSERT_COMP_1D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_CR_UTILS::CR_INSERT_COMP_1D) [2/6=33.3%] comm_cr_utils.f90(18,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_cr_utils.f90(31,8)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(31,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x_out(:) has aligned access
+   remark #15388: vectorization support: reference x_out(:) has aligned access
+   remark #15388: vectorization support: reference x_in(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.700
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 2.310 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(31,8)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(31,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(31,8)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <x_out(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_out(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_in(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.083
+   remark #15452: unmasked strided loads: 2 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 6.000 
+   remark #15478: estimated potential speedup: 0.990 
+   remark #15488: --- end vector cost summary ---
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(31,8)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(33,8)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(33,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x_out(:) has aligned access
+   remark #15388: vectorization support: reference x_in(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 4.667
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.550 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(33,8)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(33,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(33,8)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <x_out(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_in(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15452: unmasked strided loads: 1 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 4.000 
+   remark #15478: estimated potential speedup: 1.000 
+   remark #15488: --- end vector cost summary ---
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(33,8)
+<Remainder, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_cr_utils.f90(18,14):remark #34051: REGISTER ALLOCATION : [comm_cr_utils_mp_cr_insert_comp_1d_] comm_cr_utils.f90:18
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     124
+            Global    :      45
+            Local     :      79
+        Regenerable   :       1
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       1 [2.70e-01 ~ 0.2%]
+            Writes    :       1 [2.70e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_CR_UTILS::CR_INSERT_COMP_2D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_CR_UTILS::CR_INSERT_COMP_2D) [3/6=50.0%] comm_cr_utils.f90(38,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_cr_utils.f90(50,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between x_out(:) (52:11) and x_out(:) (54:11)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between x_out(:) (54:11) and x_out(:) (52:11)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed OUTPUT dependence between x_out(:) (52:11) and x_out(:) (54:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between x_out(:) (54:11) and x_out(:) (52:11)
+
+   LOOP BEGIN at comm_cr_utils.f90(52,11)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #15329: vectorization support: non-unit strided store was emulated for the variable <x_out(:)>, stride is unknown to compiler
+      remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_out(:)>, stride is unknown to compiler
+      remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_in(:,i)>, stride is unknown to compiler
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.083
+      remark #15452: unmasked strided loads: 2 
+      remark #15453: unmasked strided stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 6 
+      remark #15477: vector cost: 6.000 
+      remark #15478: estimated potential speedup: 0.990 
+      remark #15488: --- end vector cost summary ---
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(52,11)
+   <Remainder>
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(54,11)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #15329: vectorization support: non-unit strided store was emulated for the variable <x_out(:)>, stride is unknown to compiler
+      remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_in(:,i)>, stride is unknown to compiler
+      remark #15305: vectorization support: vector length 2
+      remark #15452: unmasked strided loads: 1 
+      remark #15453: unmasked strided stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 4.000 
+      remark #15478: estimated potential speedup: 1.000 
+      remark #15488: --- end vector cost summary ---
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(54,11)
+   <Remainder>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_cr_utils.f90(38,14):remark #34051: REGISTER ALLOCATION : [comm_cr_utils_mp_cr_insert_comp_2d_] comm_cr_utils.f90:38
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      92
+            Global    :      49
+            Local     :      43
+        Regenerable   :       1
+        Spilled       :      26
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :     128 bytes*
+            Reads     :      26 [8.31e+01 ~ 17.1%]
+            Writes    :      19 [3.43e+01 ~ 7.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_CR_UTILS::CR_EXTRACT_COMP_1D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_CR_UTILS::CR_EXTRACT_COMP_1D) [4/6=66.7%] comm_cr_utils.f90(62,14)
+  -> EXTERN: (62,43) for_deallocate
+  -> EXTERN: (73,5) for_alloc_allocatable
+  -> EXTERN: (73,5) for_check_mult_overflow64
+  -> EXTERN: (74,5) for_realloc_lhs
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_cr_utils.f90(74,5)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(74,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x_out(:) has aligned access
+   remark #15388: vectorization support: reference x_in(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 4.667
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.550 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(74,5)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(74,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(74,5)
+<Peeled loop for vectorization, Multiversioned v2>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(74,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x_out(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_in(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 2.000
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(74,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_cr_utils.f90(62,14):remark #34051: REGISTER ALLOCATION : [comm_cr_utils_mp_cr_extract_comp_1d_] comm_cr_utils.f90:62
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     131
+            Global    :      34
+            Local     :      97
+        Regenerable   :      14
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :      80 bytes*
+            Reads     :       1 [1.00e+00 ~ 0.4%]
+            Writes    :       8 [8.00e+00 ~ 3.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_CR_UTILS::CR_EXTRACT_COMP_2D
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_CR_UTILS::CR_EXTRACT_COMP_2D) [5/6=83.3%] comm_cr_utils.f90(78,14)
+  -> EXTERN: (78,43) for_deallocate
+  -> EXTERN: (90,5) for_alloc_allocatable
+  -> EXTERN: (90,5) for_check_mult_overflow64
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_cr_utils.f90(91,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_cr_utils.f90(92,8)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(92,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference x_out(:,i) has aligned access
+      remark #15388: vectorization support: reference x_in(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 4.667
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.550 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(92,8)
+   <Alternate Alignment Vectorized Loop>
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(92,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_cr_utils.f90(91,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_cr_utils.f90(92,8)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(92,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference x_out(:,i) has aligned access
+      remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_in(:)>, stride is unknown to compiler
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 2.000
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15452: unmasked strided loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 2.500 
+      remark #15478: estimated potential speedup: 1.570 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(92,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_cr_utils.f90(78,14):remark #34051: REGISTER ALLOCATION : [comm_cr_utils_mp_cr_extract_comp_2d_] comm_cr_utils.f90:78
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     136
+            Global    :      37
+            Local     :      99
+        Regenerable   :      11
+        Spilled       :       8
+        
+    Routine stack
+        Variables     :       8 bytes*
+            Reads     :       1 [1.00e+00 ~ 0.1%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      24 bytes*
+            Reads     :       4 [7.38e+00 ~ 0.8%]
+            Writes    :       4 [5.42e+00 ~ 0.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_CR_UTILS::CR_MASK
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_CR_UTILS::CR_MASK) [6/6=100.0%] comm_cr_utils.f90(98,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_cr_utils.f90(110,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between mask(:) (112:11) and mask(:) (114:11)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between mask(:) (114:11) and mask(:) (112:11)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_cr_utils.f90(112,11)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15329: vectorization support: non-unit strided store was emulated for the variable <mask(:)>, stride is unknown to compiler
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15453: unmasked strided stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 3.000 
+      remark #15478: estimated potential speedup: 1.320 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(112,11)
+   <Remainder loop for vectorization>
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(114,11)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15329: vectorization support: non-unit strided store was emulated for the variable <mask(:)>, stride is unknown to compiler
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15453: unmasked strided stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 3.000 
+      remark #15478: estimated potential speedup: 1.320 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_cr_utils.f90(114,11)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_cr_utils.f90(98,14):remark #34051: REGISTER ALLOCATION : [comm_cr_utils_mp_cr_mask_] comm_cr_utils.f90:98
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      91
+            Global    :      36
+            Local     :      55
+        Regenerable   :       4
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      56 bytes*
+            Reads     :      11 [2.25e+01 ~ 2.2%]
+            Writes    :       9 [1.47e+01 ~ 1.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
