@@ -333,18 +333,18 @@ contains
     
     alpha = 1.d0
 
-    if (trim(noise_format) /= 'rms') then
-       write(*,*) 'ERROR -- MUST BE FIXED!!'
-       alpha = 0.05d0
-       par = par_map(region%pix(1,1),region%pix(1,2),p) 
-       chisq_in = (par+3.1d0)**2 / 0.3d0**3
-       par = par + alpha * rand_gauss(handle)
-       chisq_out = (par+3.1d0)**2 / 0.3d0**3
-       do i = 1, region%n
-          par_map(region%pix(i,1),region%pix(i,2),p) = par
-       end do
-       return
-    end if
+!!$    if (trim(noise_format) /= 'rms') then
+!!$       write(*,*) 'ERROR -- MUST BE FIXED!!'
+!!$       alpha = 0.05d0
+!!$       par = par_map(region%pix(1,1),region%pix(1,2),p) 
+!!$       chisq_in = (par+3.1d0)**2 / 0.3d0**3
+!!$       par = par + alpha * rand_gauss(handle)
+!!$       chisq_out = (par+3.1d0)**2 / 0.3d0**3
+!!$       do i = 1, region%n
+!!$          par_map(region%pix(i,1),region%pix(i,2),p) = par
+!!$       end do
+!!$       return
+!!$    end if
 
 
     ! Prepare reduced data set
@@ -488,6 +488,7 @@ contains
                 ! Draw an actual sample
                 par = sample_InvSamp(handle, x_init, lnL_specind_ARS, fg_components(comp)%priors(p_local,1:2), &
                      & status=status)
+
              end if
                 
              if (status /= 0) then
@@ -704,11 +705,12 @@ contains
              df(i,j) = -amp_reg(i) * get_effective_deriv_fg_spectrum(fg_components(comp_reg), &
                   & j, p_local_reg, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)) * w_reg(i)
           end if
+          write(*,*) i, j, lnL
           !write(*,*) 'a', real(f,sp), real(amp_reg(i),sp), real(par(1:n),sp)
 !!$          if (pix_reg(i,1) == 22946) then
-!!$             write(*,fmt='(i6,7e16.8)') j, x, par(p_local_reg), d_reg(i,j), amp_reg(i), &
-!!$                  & get_effective_fg_spectrum(fg_components(comp_reg), &
-!!$                  & j, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)), w_reg(i), lnL
+!             write(*,fmt='(i6,7e16.8)') j, x, par(p_local_reg), d_reg(i,j), amp_reg(i), &
+!                  & get_effective_fg_spectrum(fg_components(comp_reg), &
+!x                  & j, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)), w_reg(i), lnL
 !!$          end if
        end do
     end do
