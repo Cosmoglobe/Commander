@@ -45,6 +45,7 @@ module comm_fg_component_mod
      logical(lgt)                                  :: apply_jeffreys_prior
      logical(lgt)                                  :: output_freq_comp_maps
      logical(lgt)                                  :: enforce_positive_amplitude
+     logical(lgt)                                  :: sample_amplitudes
      real(dp)                                      :: nu_ref, C_def
      integer(i4b), allocatable, dimension(:)       :: co_band
      real(dp), allocatable, dimension(:,:)         :: par
@@ -138,7 +139,7 @@ contains
     ! Read foreground parameters
     num_fg_par = 0
     do i = 1, num_fg_comp
-
+       
        call int2string(i, i_text)
 
        fg_components(i)%fg_id = i
@@ -164,6 +165,9 @@ contains
 
        paramname = 'ENFORCE_POSITIVE_AMPLITUDE' // i_text
        call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%enforce_positive_amplitude)       
+
+       paramname = 'SAMPLE_AMPLITUDES' // i_text
+       call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%sample_amplitudes)
 
        paramname = 'COMPONENT_MASK' // i_text
        call get_parameter(paramfile, paramname, par_string=maskname)
