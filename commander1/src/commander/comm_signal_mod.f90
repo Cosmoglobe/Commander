@@ -63,8 +63,8 @@ contains
 
     integer(i4b) :: ncomp, nmaps
     type(genvec) :: rhs
-    real(dp), allocatable, dimension(:,:) :: alms
-
+    real(dp), allocatable, dimension(:,:) :: alm
+    
     call allocate_genvec(rhs)
     call compute_rhs_product(.true., .true., .true., rhs)
 !    write(*,*) 'sum = ', sum(abs(rhs%fg_amp))
@@ -78,7 +78,7 @@ contains
        stop
     end if
     call deallocate_genvec(rhs)
-
+    
   end subroutine sample_signal_component
 
 

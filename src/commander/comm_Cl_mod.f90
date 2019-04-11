@@ -105,7 +105,7 @@ contains
     case ('MJy/sr') 
        constructor%RJ2unit = comp_bnu_prime_RJ(constructor%nu_ref) * 1e14
     case ('K km/s') 
-       constructor%RJ2unit = -1.d30
+       constructor%RJ2unit = 1.d0
     case ('y_SZ') 
        constructor%RJ2unit = 2.d0*constructor%nu_ref**2*k_b/c**2 / &
                & (comp_bnu_prime(constructor%nu_ref) * comp_sz_thermo(constructor%nu_ref))
