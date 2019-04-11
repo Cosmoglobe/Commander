@@ -1,0 +1,2293 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: spline_1d_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (spline_1d_mod._) [1/14=7.1%] spline_1D_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [spline_1d_mod._] spline_1D_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SPLINE_PLAIN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SPLINE_PLAIN) [2/14=14.3%] spline_1D_mod.f90(89,14)
+  -> EXTERN: (100,5) for_alloc_allocatable
+  -> EXTERN: (100,5) for_check_mult_overflow64
+  -> EXTERN: (100,5) for_alloc_allocatable
+  -> EXTERN: (100,5) for_check_mult_overflow64
+  -> EXTERN: (100,5) for_alloc_allocatable
+  -> EXTERN: (100,5) for_check_mult_overflow64
+  -> EXTERN: (100,5) for_alloc_allocatable
+  -> EXTERN: (100,5) for_check_mult_overflow64
+  -> EXTERN: (104,5) __resetsp_inlined
+  -> EXTERN: (104,5) _alloca
+  -> EXTERN: (104,5) __getsp_inlined
+  -> EXTERN: (126,10) TRIDAG
+  -> EXTERN: (128,5) for_dealloc_allocatable
+  -> EXTERN: (128,5) for_dealloc_allocatable
+  -> EXTERN: (128,5) for_dealloc_allocatable
+  -> EXTERN: (128,5) for_dealloc_allocatable
+  -> EXTERN: (129,3) for_dealloc_allocatable
+  -> EXTERN: (129,3) for_dealloc_allocatable
+  -> EXTERN: (129,3) for_dealloc_allocatable
+  -> EXTERN: (129,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at spline_1D_mod.f90(102,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference C(:) has aligned access
+   remark #15389: vectorization support: reference x(:) has unaligned access
+   remark #15389: vectorization support: reference x(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.214
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.680 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(102,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(102,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference C(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 4.500 
+   remark #15478: estimated potential speedup: 1.320 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(102,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(103,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference R(:) has aligned access
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15388: vectorization support: reference C(:) has aligned access   [ spline_1D_mod.f90(103,29) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.036
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 35 
+   remark #15477: vector cost: 21.000 
+   remark #15478: estimated potential speedup: 1.650 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(103,5)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15388: vectorization support: reference R(:) has aligned access
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15388: vectorization support: reference C(:) has aligned access   [ spline_1D_mod.f90(103,29) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.320
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(103,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(103,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference R(:) has aligned access
+   remark #15388: vectorization support: reference C(:) has aligned access   [ spline_1D_mod.f90(103,29) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 35 
+   remark #15477: vector cost: 22.000 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(103,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(104,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (104:5) has aligned access
+   remark #15389: vectorization support: reference R(:) has unaligned access
+   remark #15388: vectorization support: reference R(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 1.970 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(104,5)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (104:5) has aligned access
+   remark #15389: vectorization support: reference R(:) has unaligned access
+   remark #15388: vectorization support: reference R(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.833
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(104,5)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between R(:) (104:5) and R(:) (104:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between R(:) (104:5) and R(:) (104:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+   remark #25015: Estimate of max trip count of loop=1
+
+   LOOP BEGIN at spline_1D_mod.f90(104,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference R(:) has aligned access
+      remark #15389: vectorization support: reference at (104:5) has unaligned access
+      remark #15381: vectorization support: unaligned access used inside loop body
+      remark #15305: vectorization support: vector length 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15450: unmasked unaligned unit stride loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 2.500 
+      remark #15478: estimated potential speedup: 1.450 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(104,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(104,5)
+   <Peeled loop for vectorization>
+      remark #25436: completely unrolled by 1  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(105,5)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between A(:) (105:5) and A(:) (105:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between A(:) (105:5) and A(:) (105:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(105,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference A(:) has aligned access
+      remark #15389: vectorization support: reference C(:) has unaligned access
+      remark #15381: vectorization support: unaligned access used inside loop body
+      remark #15305: vectorization support: vector length 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15450: unmasked unaligned unit stride loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 2.500 
+      remark #15478: estimated potential speedup: 1.450 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(105,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(105,5)
+   <Peeled loop for vectorization>
+      remark #25436: completely unrolled by 1  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(106,5)
+<Peeled loop for vectorization>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(106,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference B(:) has aligned access
+   remark #15388: vectorization support: reference C(:) has aligned access
+   remark #15388: vectorization support: reference A(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 6.000 
+   remark #15478: estimated potential speedup: 1.490 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(106,5)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference B(:) has aligned access
+   remark #15388: vectorization support: reference C(:) has aligned access
+   remark #15388: vectorization support: reference A(:) has aligned access
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.714
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(102,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(102,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(102,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(102,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(103,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(103,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(103,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(103,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(103,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(104,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(104,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(104,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(104,5):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(97,53):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(97,50):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(97,47):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(97,44):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(104,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(104,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(104,5):remark #34026: call to memcpy implemented as a call to optimized library version
+spline_1D_mod.f90(105,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(105,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(105,5):remark #34026: call to memcpy implemented as a call to optimized library version
+spline_1D_mod.f90(89,14):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_spline_plain_] spline_1D_mod.f90:89
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   23[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm8]
+        
+    Routine temporaries
+        Total         :     678
+            Global    :     101
+            Local     :     577
+        Regenerable   :      65
+        Spilled       :      14
+        
+    Routine stack
+        Variables     :     680 bytes*
+            Reads     :      28 [2.39e+01 ~ 1.6%]
+            Writes    :     100 [1.00e+02 ~ 6.6%]
+        Spills        :      72 bytes*
+            Reads     :      15 [1.07e+01 ~ 0.7%]
+            Writes    :      10 [1.00e+01 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SPLINE_SIMPLE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SPLINE_SIMPLE) [3/14=21.4%] spline_1D_mod.f90(33,14)
+  -> INLINE: (39,10) SPLINE_1D_MOD::FREE_SPLINE (isz = 201) (sz = 206)
+    -> EXTERN: (83,25) for_dealloc_allocatable
+    -> EXTERN: (84,25) for_dealloc_allocatable
+    -> EXTERN: (85,25) for_dealloc_allocatable
+  -> EXTERN: (46,5) for_alloc_allocatable
+  -> EXTERN: (46,5) for_check_mult_overflow64
+  -> EXTERN: (46,5) for_alloc_allocatable
+  -> EXTERN: (46,5) for_check_mult_overflow64
+  -> EXTERN: (46,5) for_alloc_allocatable
+  -> EXTERN: (46,5) for_check_mult_overflow64
+  -> EXTERN: (47,5) for_realloc_lhs
+  -> EXTERN: (48,5) for_realloc_lhs
+  -> (49,24) SPLINE_1D_MOD::SPLINE_PLAIN (isz = 1172) (sz = 1185)
+     [[ Inlining would exceed -inline-max-size value (1185>253) <1>]]
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at spline_1D_mod.f90(40,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference s%BOUNDARY(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15427: loop was completely unrolled
+   remark #15309: vectorization support: normalized vectorization overhead 0.600
+   remark #15451: unmasked unaligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.000 
+   remark #15488: --- end vector cost summary ---
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(43,27)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference s%BOUNDARY(:) has unaligned access
+   remark #15389: vectorization support: reference boundary(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15427: loop was completely unrolled
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15451: unmasked unaligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 0.660 
+   remark #15488: --- end vector cost summary ---
+   remark #25436: completely unrolled by 2  
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(47,5)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(47,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s(:) has aligned access
+   remark #15388: vectorization support: reference x(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 4.667
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.550 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(47,5)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(47,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(47,5)
+<Peeled loop for vectorization, Multiversioned v2>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(47,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 2.000
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(47,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(48,5)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(48,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s(:) has aligned access
+   remark #15388: vectorization support: reference y(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 4.667
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.550 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(48,5)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(48,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(48,5)
+<Peeled loop for vectorization, Multiversioned v2>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(48,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 2.000
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(48,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(33,14):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_spline_simple_] spline_1D_mod.f90:33
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   15[ rax rdx rcx rbx rsi rdi r8-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     359
+            Global    :      60
+            Local     :     299
+        Regenerable   :      25
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :      24 bytes*
+            Reads     :       3 [3.00e+00 ~ 0.6%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      40 bytes*
+            Reads     :      10 [1.57e+00 ~ 0.3%]
+            Writes    :       9 [1.27e+00 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SPLINT_SIMPLE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SPLINT_SIMPLE) [4/14=28.6%] spline_1D_mod.f90(52,12)
+  -> EXTERN: (59,22) LOCATE_DP
+  -> INLINE: (63,12) SPLINE_1D_MOD::SPLINT_UNIFORM_GRID (isz = 110) (sz = 121)
+    -> EXTERN: (172,54) __powr8i4
+    -> EXTERN: (172,74) __powr8i4
+  -> INLINE: (65,12) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+    -> EXTERN: (143,19) LOCATE_DP
+    -> EXTERN: (150,47) __powr8i4
+    -> EXTERN: (150,67) __powr8i4
+
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(52,12):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_splint_simple_] spline_1D_mod.f90:52
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   20[ rax rdx rcx rsi rdi r8-r12 r14-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :     149
+            Global    :      14
+            Local     :     135
+        Regenerable   :       5
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SPLINT_SIMPLE_MULTI
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SPLINT_SIMPLE_MULTI) [5/14=35.7%] spline_1D_mod.f90(69,14)
+  -> INLINE: (76,15) SPLINE_1D_MOD::SPLINT_SIMPLE (isz = 303) (sz = 310)
+    -> EXTERN: (59,22) LOCATE_DP
+    -> INLINE: (63,12) SPLINE_1D_MOD::SPLINT_UNIFORM_GRID (isz = 110) (sz = 121)
+      -> EXTERN: (172,54) __powr8i4
+      -> EXTERN: (172,74) __powr8i4
+    -> INLINE: (65,12) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+      -> EXTERN: (143,19) LOCATE_DP
+      -> EXTERN: (150,47) __powr8i4
+      -> EXTERN: (150,67) __powr8i4
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at spline_1D_mod.f90(75,5)
+<Predicate Optimized v1>
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #25422: Invariant Condition at line 58 hoisted out of this loop
+   remark #15382: vectorization support: call to function LOCATE_DP cannot be vectorized   [ spline_1D_mod.f90(59,22) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(75,5)
+<Predicate Optimized v3>
+   remark #25422: Invariant Condition at line 62 hoisted out of this loop
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed ANTI dependence between at (165:5) and y(i) (76:8)
+   remark #15346: vector dependence: assumed FLOW dependence between y(i) (76:8) and at (165:5)
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(75,5)
+<Predicate Optimized v4>
+   remark #15382: vectorization support: call to function LOCATE_DP cannot be vectorized   [ spline_1D_mod.f90(143,19) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(69,14):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_splint_simple_multi_] spline_1D_mod.f90:69
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     166
+            Global    :      45
+            Local     :     121
+        Regenerable   :       5
+        Spilled       :      13
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      64 bytes*
+            Reads     :      16 [5.08e+01 ~ 9.3%]
+            Writes    :      10 [7.20e+00 ~ 1.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::FREE_SPLINE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::FREE_SPLINE) [6/14=42.9%] spline_1D_mod.f90(80,14)
+  -> EXTERN: (83,25) for_dealloc_allocatable
+  -> EXTERN: (84,25) for_dealloc_allocatable
+  -> EXTERN: (85,25) for_dealloc_allocatable
+
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(80,14):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_free_spline_] spline_1D_mod.f90:80
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rbx rsi rdi r15]
+        
+    Routine temporaries
+        Total         :     113
+            Global    :      13
+            Local     :     100
+        Regenerable   :       6
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SPLINT_PLAIN
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SPLINT_PLAIN) [7/14=50.0%] spline_1D_mod.f90(131,12)
+  -> EXTERN: (143,19) LOCATE_DP
+  -> EXTERN: (150,47) __powr8i4
+  -> EXTERN: (150,67) __powr8i4
+
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(131,12):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_splint_plain_] spline_1D_mod.f90:131
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8 r12-r15 zmm0-zmm6]
+        
+    Routine temporaries
+        Total         :      70
+            Global    :      13
+            Local     :      57
+        Regenerable   :       2
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SPLINT_UNIFORM_GRID
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SPLINT_UNIFORM_GRID) [8/14=57.1%] spline_1D_mod.f90(155,12)
+  -> EXTERN: (172,54) __powr8i4
+  -> EXTERN: (172,74) __powr8i4
+
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(155,12):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_splint_uniform_grid_] spline_1D_mod.f90:155
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rsi rdi r8-r11 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :      71
+            Global    :       0
+            Local     :      71
+        Regenerable   :       2
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SPLINT_DERIV
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SPLINT_DERIV) [9/14=64.3%] spline_1D_mod.f90(177,12)
+  -> EXTERN: (189,19) LOCATE_DP
+
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(177,12):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_splint_deriv_] spline_1D_mod.f90:177
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8 r12-r15 zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :      71
+            Global    :      13
+            Local     :      58
+        Regenerable   :       5
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SPLINT_DERIV_ALL_NODES
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SPLINT_DERIV_ALL_NODES) [10/14=71.4%] spline_1D_mod.f90(201,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at spline_1D_mod.f90(211,73)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(211,73)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference deriv(i) has aligned access   [ spline_1D_mod.f90(211,8) ]
+   remark #15389: vectorization support: reference ya(i+1) has unaligned access   [ spline_1D_mod.f90(211,20) ]
+   remark #15389: vectorization support: reference ya(i) has unaligned access   [ spline_1D_mod.f90(211,28) ]
+   remark #15388: vectorization support: reference xa(i+1) has aligned access   [ spline_1D_mod.f90(211,38) ]
+   remark #15389: vectorization support: reference xa(i) has unaligned access   [ spline_1D_mod.f90(211,46) ]
+   remark #15388: vectorization support: reference xa(i+1) has aligned access   [ spline_1D_mod.f90(211,56) ]
+   remark #15389: vectorization support: reference xa(i) has unaligned access   [ spline_1D_mod.f90(211,64) ]
+   remark #15389: vectorization support: reference y2a(i) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.070
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 4 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 70 
+   remark #15477: vector cost: 41.000 
+   remark #15478: estimated potential speedup: 1.680 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(211,73)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(211,73)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15389: vectorization support: reference deriv(i) has unaligned access   [ spline_1D_mod.f90(211,8) ]
+   remark #15389: vectorization support: reference ya(i+1) has unaligned access   [ spline_1D_mod.f90(211,20) ]
+   remark #15389: vectorization support: reference ya(i) has unaligned access   [ spline_1D_mod.f90(211,28) ]
+   remark #15388: vectorization support: reference xa(i+1) has aligned access   [ spline_1D_mod.f90(211,38) ]
+   remark #15389: vectorization support: reference xa(i) has unaligned access   [ spline_1D_mod.f90(211,46) ]
+   remark #15388: vectorization support: reference xa(i+1) has aligned access   [ spline_1D_mod.f90(211,56) ]
+   remark #15389: vectorization support: reference xa(i) has unaligned access   [ spline_1D_mod.f90(211,64) ]
+   remark #15389: vectorization support: reference y2a(i) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.218
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(211,73)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(211,73)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <deriv(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(211,8) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <ya(i+1)>, stride is unknown to compiler   [ spline_1D_mod.f90(211,20) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <ya(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(211,28) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <xa(i+1)>, stride is unknown to compiler   [ spline_1D_mod.f90(211,38) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <xa(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(211,46) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <xa(i+1)>, stride is unknown to compiler   [ spline_1D_mod.f90(211,56) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <xa(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(211,64) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y2a(i)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15452: unmasked strided loads: 7 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 70 
+   remark #15477: vector cost: 47.500 
+   remark #15478: estimated potential speedup: 1.460 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(211,73)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,20):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(211,38):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(201,14):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_splint_deriv_all_nodes_] spline_1D_mod.f90:201
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     347
+            Global    :      46
+            Local     :     301
+        Regenerable   :       4
+        Spilled       :      18
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      80 bytes*
+            Reads     :      16 [1.23e+01 ~ 1.3%]
+            Writes    :      14 [6.85e+00 ~ 0.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::SMOOTH_SPLINE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::SMOOTH_SPLINE) [11/14=78.6%] spline_1D_mod.f90(218,14)
+  -> EXTERN: (236,5) for_alloc_allocatable
+  -> EXTERN: (236,5) for_check_mult_overflow64
+  -> EXTERN: (237,5) for_alloc_allocatable
+  -> EXTERN: (237,5) for_check_mult_overflow64
+  -> EXTERN: (238,5) for_alloc_allocatable
+  -> EXTERN: (238,5) for_check_mult_overflow64
+  -> EXTERN: (239,5) for_alloc_allocatable
+  -> EXTERN: (239,5) for_check_mult_overflow64
+  -> EXTERN: (240,5) for_alloc_allocatable
+  -> EXTERN: (240,5) for_check_mult_overflow64
+  -> EXTERN: (241,5) for_alloc_allocatable
+  -> EXTERN: (241,5) for_check_mult_overflow64
+  -> EXTERN: (242,5) for_alloc_allocatable
+  -> EXTERN: (242,5) for_check_mult_overflow64
+  -> EXTERN: (243,5) for_alloc_allocatable
+  -> EXTERN: (243,5) for_check_mult_overflow64
+  -> EXTERN: (259,9) for_trim
+  -> EXTERN: (259,14) _alloca
+  -> EXTERN: (259,22) __resetsp_inlined
+  -> EXTERN: (259,22) for_cpstr
+  -> EXTERN: (259,22) __getsp_inlined
+  -> EXTERN: (267,14) for_realloc_lhs
+  -> EXTERN: (284,14) for_trim
+  -> EXTERN: (284,19) _alloca
+  -> EXTERN: (284,27) __resetsp_inlined
+  -> EXTERN: (284,27) for_cpstr
+  -> EXTERN: (284,27) __getsp_inlined
+  -> EXTERN: (289,14) for_trim
+  -> EXTERN: (289,19) _alloca
+  -> EXTERN: (289,27) __resetsp_inlined
+  -> EXTERN: (289,27) for_cpstr
+  -> EXTERN: (289,27) __getsp_inlined
+  -> EXTERN: (295,21) exp
+  -> EXTERN: (299,8) __resetsp_inlined
+  -> EXTERN: (299,8) for_write_seq_lis_xmit
+  -> EXTERN: (299,8) for_write_seq_lis
+  -> EXTERN: (299,8) __getsp_inlined
+  -> EXTERN: (299,65) for_trim
+  -> EXTERN: (299,70) _alloca
+  -> EXTERN: (300,8) for_stop_core
+  -> EXTERN: (361,10) dpbtrf_
+  -> EXTERN: (364,8) for_write_seq_lis
+  -> EXTERN: (364,8) for_write_seq_lis_xmit
+  -> EXTERN: (366,8) for_open
+  -> EXTERN: (368,11) for_write_seq_lis_xmit
+  -> EXTERN: (368,11) for_write_seq_lis_xmit
+  -> EXTERN: (368,11) for_write_seq_lis
+  -> EXTERN: (370,14) for_close
+  -> EXTERN: (371,8) for_stop_core
+  -> EXTERN: (375,10) dpbtrs_
+  -> EXTERN: (397,5) for_dealloc_allocatable
+  -> EXTERN: (398,5) for_dealloc_allocatable
+  -> EXTERN: (399,5) for_dealloc_allocatable
+  -> EXTERN: (400,5) for_dealloc_allocatable
+  -> EXTERN: (401,5) for_dealloc_allocatable
+  -> EXTERN: (402,5) for_dealloc_allocatable
+  -> EXTERN: (403,5) for_dealloc_allocatable
+  -> EXTERN: (405,3) for_dealloc_allocatable
+  -> EXTERN: (405,3) for_dealloc_allocatable
+  -> EXTERN: (405,3) for_dealloc_allocatable
+  -> EXTERN: (405,3) for_dealloc_allocatable
+  -> EXTERN: (405,3) for_dealloc_allocatable
+  -> EXTERN: (405,3) for_dealloc_allocatable
+  -> EXTERN: (405,3) for_dealloc_allocatable
+  -> EXTERN: (405,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at spline_1D_mod.f90(246,5)
+   remark #25408: memset generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between H(:) (246:5) and H(:) (246:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between H(:) (246:5) and H(:) (246:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(246,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference H(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.660 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(246,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(247,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference H(i) has aligned access   [ spline_1D_mod.f90(248,8) ]
+   remark #15389: vectorization support: reference x(i+1) has unaligned access   [ spline_1D_mod.f90(248,15) ]
+   remark #15389: vectorization support: reference x(i) has unaligned access   [ spline_1D_mod.f90(248,22) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.214
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.680 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(247,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(247,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference H(i) has aligned access   [ spline_1D_mod.f90(248,8) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x(i+1)>, stride is unknown to compiler   [ spline_1D_mod.f90(248,15) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(248,22) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 4.500 
+   remark #15478: estimated potential speedup: 1.320 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(247,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(252,5)
+   remark #25408: memset generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between QTY(:) (252:5) and QTY(:) (252:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between QTY(:) (252:5) and QTY(:) (252:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(252,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference QTY(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.660 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(252,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(253,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference QTY(i) has aligned access   [ spline_1D_mod.f90(254,8) ]
+   remark #15389: vectorization support: reference y(i+1) has unaligned access   [ spline_1D_mod.f90(254,18) ]
+   remark #15389: vectorization support: reference y(i) has unaligned access   [ spline_1D_mod.f90(254,25) ]
+   remark #15389: vectorization support: reference H(i) has unaligned access   [ spline_1D_mod.f90(254,33) ]
+   remark #15389: vectorization support: reference y(i) has unaligned access   [ spline_1D_mod.f90(254,41) ]
+   remark #15389: vectorization support: reference y(i-1) has unaligned access   [ spline_1D_mod.f90(254,46) ]
+   remark #15388: vectorization support: reference H(i-1) has aligned access   [ spline_1D_mod.f90(254,56) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.029
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 4 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 65 
+   remark #15477: vector cost: 38.500 
+   remark #15478: estimated potential speedup: 1.670 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(253,5)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15388: vectorization support: reference QTY(i) has aligned access   [ spline_1D_mod.f90(254,8) ]
+   remark #15389: vectorization support: reference y(i+1) has unaligned access   [ spline_1D_mod.f90(254,18) ]
+   remark #15389: vectorization support: reference y(i) has unaligned access   [ spline_1D_mod.f90(254,25) ]
+   remark #15389: vectorization support: reference H(i) has unaligned access   [ spline_1D_mod.f90(254,33) ]
+   remark #15389: vectorization support: reference y(i) has unaligned access   [ spline_1D_mod.f90(254,41) ]
+   remark #15389: vectorization support: reference y(i-1) has unaligned access   [ spline_1D_mod.f90(254,46) ]
+   remark #15388: vectorization support: reference H(i-1) has aligned access   [ spline_1D_mod.f90(254,56) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.239
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(253,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(253,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference QTY(i) has aligned access   [ spline_1D_mod.f90(254,8) ]
+   remark #15389: vectorization support: reference H(i) has unaligned access   [ spline_1D_mod.f90(254,33) ]
+   remark #15388: vectorization support: reference H(i-1) has aligned access   [ spline_1D_mod.f90(254,56) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(i+1)>, stride is unknown to compiler   [ spline_1D_mod.f90(254,18) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(254,25) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(254,41) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(i-1)>, stride is unknown to compiler   [ spline_1D_mod.f90(254,46) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15452: unmasked strided loads: 4 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 65 
+   remark #15477: vector cost: 41.000 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(253,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(265,8)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between W (267:14) and w (267:14)
+   remark #17106: parallel dependence: assumed FLOW dependence between w (267:14) and W (267:14)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(267,14)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15389: vectorization support: reference W(:) has unaligned access
+      remark #15381: vectorization support: unaligned access used inside loop body
+      remark #15328: vectorization support: non-unit strided load was emulated for the variable <variance(:)>, stride is unknown to compiler
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.194
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15451: unmasked unaligned unit stride stores: 1 
+      remark #15452: unmasked strided loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 5 
+      remark #15477: vector cost: 4.500 
+      remark #15478: estimated potential speedup: 1.100 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(267,14)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(285,8)
+   remark #25408: memset generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between W(:) (285:8) and W(:) (285:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between W(:) (285:8) and W(:) (285:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(285,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference W(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.660 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(285,8)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(286,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference W(i) has aligned access   [ spline_1D_mod.f90(287,11) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.600 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(286,8)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference W(i) has aligned access   [ spline_1D_mod.f90(287,11) ]
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 2.000
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(290,8)
+   remark #25408: memset generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between W(:) (290:8) and W(:) (290:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between W(:) (290:8) and W(:) (290:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(290,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference W(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.660 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(290,8)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(291,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference W(i) has aligned access   [ spline_1D_mod.f90(293,14) ]
+   remark #15388: vectorization support: reference W(i) has aligned access   [ spline_1D_mod.f90(295,14) ]
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <variance(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(292,15) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <variance(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(294,20) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <variance(i)>, stride is unknown to compiler   [ spline_1D_mod.f90(295,27) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.010
+   remark #15452: unmasked strided loads: 3 
+   remark #15457: masked unaligned unit stride stores: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 82 
+   remark #15477: vector cost: 97.000 
+   remark #15478: estimated potential speedup: 0.840 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(307,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+   remark #25015: Estimate of max trip count of loop=3
+
+   LOOP BEGIN at spline_1D_mod.f90(307,5)
+      remark #25408: memset generated
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between Q(:,:) (307:5) and Q(:,:) (307:5)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between Q(:,:) (307:5) and Q(:,:) (307:5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+      remark #25015: Estimate of max trip count of loop=1
+
+      LOOP BEGIN at spline_1D_mod.f90(307,5)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15389: vectorization support: reference Q(:,:) has unaligned access
+         remark #15381: vectorization support: unaligned access used inside loop body
+         remark #15305: vectorization support: vector length 2
+         remark #15399: vectorization support: unroll factor set to 2
+         remark #15309: vectorization support: normalized vectorization overhead 0.300
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15451: unmasked unaligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 2.500 
+         remark #15478: estimated potential speedup: 1.450 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=3
+      LOOP END
+
+      LOOP BEGIN at spline_1D_mod.f90(307,5)
+      <Remainder loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=12
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(308,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference Q(j,-1) has unaligned access   [ spline_1D_mod.f90(309,8) ]
+   remark #15388: vectorization support: reference H(j-1) has aligned access   [ spline_1D_mod.f90(309,26) ]
+   remark #15389: vectorization support: reference Q(j,0) has unaligned access   [ spline_1D_mod.f90(310,8) ]
+   remark #15388: vectorization support: reference H(j-1) has aligned access   [ spline_1D_mod.f90(310,26) ]
+   remark #15389: vectorization support: reference H(j) has unaligned access   [ spline_1D_mod.f90(310,42) ]
+   remark #15389: vectorization support: reference Q(j,1) has unaligned access   [ spline_1D_mod.f90(311,8) ]
+   remark #15389: vectorization support: reference H(j) has unaligned access   [ spline_1D_mod.f90(311,26) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.010
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15451: unmasked unaligned unit stride stores: 3 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 121 
+   remark #15477: vector cost: 73.500 
+   remark #15478: estimated potential speedup: 1.630 
+   remark #15486: divides: 4 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(308,5)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference Q(j,-1) has unaligned access   [ spline_1D_mod.f90(309,8) ]
+   remark #15388: vectorization support: reference H(j-1) has aligned access   [ spline_1D_mod.f90(309,26) ]
+   remark #15389: vectorization support: reference Q(j,0) has unaligned access   [ spline_1D_mod.f90(310,8) ]
+   remark #15388: vectorization support: reference H(j-1) has aligned access   [ spline_1D_mod.f90(310,26) ]
+   remark #15389: vectorization support: reference H(j) has unaligned access   [ spline_1D_mod.f90(310,42) ]
+   remark #15389: vectorization support: reference Q(j,1) has unaligned access   [ spline_1D_mod.f90(311,8) ]
+   remark #15389: vectorization support: reference H(j) has unaligned access   [ spline_1D_mod.f90(311,26) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.099
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(308,5)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(315,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+   remark #25015: Estimate of max trip count of loop=3
+
+   LOOP BEGIN at spline_1D_mod.f90(315,5)
+      remark #25408: memset generated
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between QTQ(:,:) (315:5) and QTQ(:,:) (315:5)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between QTQ(:,:) (315:5) and QTQ(:,:) (315:5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+      remark #25015: Estimate of max trip count of loop=1
+
+      LOOP BEGIN at spline_1D_mod.f90(315,5)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15389: vectorization support: reference QTQ(:,:) has unaligned access
+         remark #15381: vectorization support: unaligned access used inside loop body
+         remark #15305: vectorization support: vector length 2
+         remark #15399: vectorization support: unroll factor set to 2
+         remark #15309: vectorization support: normalized vectorization overhead 0.300
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15451: unmasked unaligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 2.500 
+         remark #15478: estimated potential speedup: 1.450 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=3
+      LOOP END
+
+      LOOP BEGIN at spline_1D_mod.f90(315,5)
+      <Remainder loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=12
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(316,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between q_col(:) (319:8) and q_col(:) (334:22)
+   remark #17106: parallel dependence: assumed ANTI dependence between q_col(:) (334:22) and q_col(:) (319:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(319,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference q_col(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 1.710 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(325,8)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed FLOW dependence between q_row(:) (329:11) and q_row(:) (334:22)
+      remark #17106: parallel dependence: assumed ANTI dependence between q_row(:) (334:22) and q_row(:) (329:11)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+      remark #25015: Estimate of max trip count of loop=3
+
+      LOOP BEGIN at spline_1D_mod.f90(329,11)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15388: vectorization support: reference q_row(:) has aligned access
+         remark #15305: vectorization support: vector length 2
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15449: unmasked aligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 1.500 
+         remark #15478: estimated potential speedup: 1.710 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=1
+      LOOP END
+
+      LOOP BEGIN at spline_1D_mod.f90(334,22)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15388: vectorization support: reference q_row(:) has aligned access
+         remark #15388: vectorization support: reference q_col(:) has aligned access
+         remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+         remark #15305: vectorization support: vector length 2
+         remark #15309: vectorization support: normalized vectorization overhead 2.375
+         remark #15448: unmasked aligned unit stride loads: 2 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 8 
+         remark #15477: vector cost: 4.000 
+         remark #15478: estimated potential speedup: 0.680 
+         remark #15488: --- end vector cost summary ---
+         remark #25436: completely unrolled by 3  
+      LOOP END
+
+      LOOP BEGIN at spline_1D_mod.f90(329,11)
+      <Remainder loop for vectorization>
+         remark #25436: completely unrolled by 1  
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(319,8)
+   <Remainder loop for vectorization>
+      remark #25436: completely unrolled by 1  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(340,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+   remark #25015: Estimate of max trip count of loop=3
+
+   LOOP BEGIN at spline_1D_mod.f90(340,5)
+      remark #25408: memset generated
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between R(:,:) (340:5) and R(:,:) (340:5)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between R(:,:) (340:5) and R(:,:) (340:5)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+      remark #25015: Estimate of max trip count of loop=1
+
+      LOOP BEGIN at spline_1D_mod.f90(340,5)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15389: vectorization support: reference R(:,:) has unaligned access
+         remark #15381: vectorization support: unaligned access used inside loop body
+         remark #15305: vectorization support: vector length 2
+         remark #15399: vectorization support: unroll factor set to 2
+         remark #15309: vectorization support: normalized vectorization overhead 0.300
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15451: unmasked unaligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 2.500 
+         remark #15478: estimated potential speedup: 1.450 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=3
+      LOOP END
+
+      LOOP BEGIN at spline_1D_mod.f90(340,5)
+      <Remainder loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=12
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Peeled loop for vectorization, Distributed chunk1>
+   remark #25436: completely unrolled by 1  
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Distributed chunk1>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #25426: Loop Distributed (2 way) 
+   remark #15388: vectorization support: reference R(i,0) has aligned access   [ spline_1D_mod.f90(342,8) ]
+   remark #15389: vectorization support: reference H(i-1) has unaligned access   [ spline_1D_mod.f90(342,18) ]
+   remark #15388: vectorization support: reference H(i) has aligned access   [ spline_1D_mod.f90(342,27) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15301: PARTIAL LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 33 
+   remark #15477: vector cost: 20.000 
+   remark #15478: estimated potential speedup: 1.630 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Remainder loop for vectorization, Distributed chunk1>
+   remark #15388: vectorization support: reference R(i,0) has aligned access   [ spline_1D_mod.f90(342,8) ]
+   remark #15389: vectorization support: reference H(i-1) has unaligned access   [ spline_1D_mod.f90(342,18) ]
+   remark #15388: vectorization support: reference H(i) has aligned access   [ spline_1D_mod.f90(342,27) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.227
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Remainder loop for vectorization, Distributed chunk1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Peeled loop for vectorization, Distributed chunk2>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Distributed chunk2>
+   remark #25259: Invariant Condition eliminated(Loop at level 1 peeled last iter) at line 343
+   remark #25261: Invariant Condition eliminated(Proven True) at line 343
+   remark #15388: vectorization support: reference R(i,1) has aligned access   [ spline_1D_mod.f90(343,22) ]
+   remark #15388: vectorization support: reference H(i) has aligned access   [ spline_1D_mod.f90(343,31) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.100
+   remark #15301: PARTIAL LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 30 
+   remark #15477: vector cost: 17.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Alternate Alignment Vectorized Loop, Distributed chunk2>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Remainder loop for vectorization, Distributed chunk2>
+   remark #15388: vectorization support: reference R(i,1) has aligned access   [ spline_1D_mod.f90(343,22) ]
+   remark #15389: vectorization support: reference H(i) has unaligned access   [ spline_1D_mod.f90(343,31) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.325
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(341,5)
+<Remainder loop for vectorization, Distributed chunk2>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(348,5)
+   remark #25420: Collapsed with loop at line 348 
+   remark #25408: memset generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between M(:,:) (348:5) and M(:,:) (348:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between M(:,:) (348:5) and M(:,:) (348:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(348,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference M(:,:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.660 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(348,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(348,5)
+      remark #25421: Loop eliminated in Collapsing 
+
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(350,8)
+   remark #25444: Loopnest Interchanged: ( 1 2 ) --> ( 2 1 )
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference M(j,i) has unaligned access   [ spline_1D_mod.f90(351,11) ]
+   remark #15381: vectorization support: unaligned access used inside loop body   [ spline_1D_mod.f90(350,8) ]
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override    [ spline_1D_mod.f90(350,8) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <R(i,j)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <QTQ(i,j)>, stride is unknown to compiler   [ spline_1D_mod.f90(351,37) ]
+   remark #15305: vectorization support: vector length 2   [ spline_1D_mod.f90(350,8) ]
+   remark #15309: vectorization support: normalized vectorization overhead 0.333   [ spline_1D_mod.f90(350,8) ]
+   remark #15451: unmasked unaligned unit stride stores: 1    [ spline_1D_mod.f90(350,8) ]
+   remark #15452: unmasked strided loads: 2    [ spline_1D_mod.f90(350,8) ]
+   remark #15475: --- begin vector cost summary ---   [ spline_1D_mod.f90(350,8) ]
+   remark #15476: scalar cost: 9    [ spline_1D_mod.f90(350,8) ]
+   remark #15477: vector cost: 7.500    [ spline_1D_mod.f90(350,8) ]
+   remark #15478: estimated potential speedup: 0.930    [ spline_1D_mod.f90(350,8) ]
+   remark #15488: --- end vector cost summary ---   [ spline_1D_mod.f90(350,8) ]
+   remark #25015: Estimate of max trip count of loop=3
+
+   LOOP BEGIN at spline_1D_mod.f90(351,20)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15389: vectorization support: reference R(i,j) has unaligned access
+      remark #15389: vectorization support: reference QTQ(i,j) has unaligned access   [ spline_1D_mod.f90(351,37) ]
+      remark #15381: vectorization support: unaligned access used inside loop body
+      remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+      remark #15329: vectorization support: non-unit strided store was emulated for the variable <M(j,i)>, stride is 3   [ spline_1D_mod.f90(351,11) ]
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 0.615
+      remark #15450: unmasked unaligned unit stride loads: 2 
+      remark #15453: unmasked strided stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 9 
+      remark #15477: vector cost: 6.500 
+      remark #15478: estimated potential speedup: 0.900 
+      remark #15488: --- end vector cost summary ---
+      remark #25439: unrolled with remainder by 2  
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(351,20)
+   <Remainder>
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(367,8)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (368:11) and at (368:11)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (368:11) and at (368:11)
+   remark #15382: vectorization support: call to function for_write_seq_lis cannot be vectorized   [ spline_1D_mod.f90(368,11) ]
+   remark #15382: vectorization support: call to function for_write_seq_lis_xmit cannot be vectorized   [ spline_1D_mod.f90(368,11) ]
+   remark #15382: vectorization support: call to function for_write_seq_lis_xmit cannot be vectorized   [ spline_1D_mod.f90(368,11) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (368:11) and at (368:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (368:11) and at (368:11)
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(377,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference y2(:) has aligned access
+   remark #15388: vectorization support: reference QTY(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.333
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.640 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(377,5)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(377,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(377,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference QTY(:) has aligned access
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <y2(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 1.330 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(377,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(382,5)
+   remark #25408: memset generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between WQY2(:) (382:5) and WQY2(:) (382:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between WQY2(:) (382:5) and WQY2(:) (382:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at spline_1D_mod.f90(382,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference WQY2(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.660 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at spline_1D_mod.f90(382,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(392,23)
+   remark #25096: Loop Interchange not done due to: Imperfect Loop Nest (Either at Source or due to other Compiler Transformations)
+   remark #25451: Advice: Loop Interchange, if possible, might help loopnest. Suggested Permutation : ( 1 2 ) --> ( 2 1 ) 
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between q_row(1) (384:19) and q_row(:) (392:25)
+   remark #17106: parallel dependence: assumed ANTI dependence between q_row(:) (392:25) and q_row(1) (384:19)
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 2
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between q_row(1) (384:19) and q_row(:) (392:25)
+   remark #15346: vector dependence: assumed ANTI dependence between q_row(:) (392:25) and q_row(1) (384:19)
+
+   LOOP BEGIN at spline_1D_mod.f90(392,25)
+      remark #25436: completely unrolled by 3   (pre-vector) 
+   LOOP END
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(395,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15388: vectorization support: reference WQY2(:) has aligned access   [ spline_1D_mod.f90(395,13) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.182
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15451: unmasked unaligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 5.500 
+   remark #15478: estimated potential speedup: 1.610 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(395,5)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15388: vectorization support: reference WQY2(:) has aligned access   [ spline_1D_mod.f90(395,13) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.059
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(395,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference WQY2(:) has aligned access   [ spline_1D_mod.f90(395,13) ]
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <y(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.115
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 6.500 
+   remark #15478: estimated potential speedup: 1.370 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(395,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(248,15):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(248,15):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(248,15):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(248,15):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,18):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,25):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,18):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,18):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,25):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(254,33):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(309,26):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(309,26):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(309,26):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(309,26):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(309,26):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(342,18):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(342,18):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(342,18):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(342,18):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(342,18):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+spline_1D_mod.f90(231,55):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(231,46):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(230,57):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(230,54):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(230,49):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(230,46):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(231,49):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(231,52):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+spline_1D_mod.f90(246,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(246,5):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(252,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(252,5):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(285,8):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(285,8):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(290,8):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(290,8):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(307,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(307,5):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(315,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(315,5):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(340,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(340,5):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(348,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(348,5):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(382,5):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+spline_1D_mod.f90(382,5):remark #34026: call to memset implemented as a call to optimized library version
+spline_1D_mod.f90(218,14):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_smooth_spline_] spline_1D_mod.f90:218
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :    1649
+            Global    :     371
+            Local     :    1278
+        Regenerable   :     235
+        Spilled       :      54
+        
+    Routine stack
+        Variables     :     981 bytes*
+            Reads     :      94 [9.40e+01 ~ 1.6%]
+            Writes    :     177 [2.06e+02 ~ 3.4%]
+        Spills        :     384 bytes*
+            Reads     :     156 [1.59e+02 ~ 2.6%]
+            Writes    :      95 [9.69e+01 ~ 1.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::QSIMP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::QSIMP) [12/14=85.7%] spline_1D_mod.f90(407,14)
+  -> INLINE: (421,13) SPLINE_1D_MOD::TRAPZD (isz = 360) (sz = 377)
+    -> INLINE: (444,27) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+      -> EXTERN: (143,19) LOCATE_DP
+      -> EXTERN: (150,47) __powr8i4
+      -> EXTERN: (150,67) __powr8i4
+    -> INLINE: (444,55) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+      -> EXTERN: (143,19) LOCATE_DP
+      -> EXTERN: (150,47) __powr8i4
+      -> EXTERN: (150,67) __powr8i4
+    -> EXTERN: (446,15) f_pow2i
+    -> INLINE: (452,23) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+      -> EXTERN: (143,19) LOCATE_DP
+      -> EXTERN: (150,47) __powr8i4
+      -> EXTERN: (150,67) __powr8i4
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at spline_1D_mod.f90(428,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ spline_1D_mod.f90(424,41) ]
+
+   LOOP BEGIN at spline_1D_mod.f90(451,8) inlined into spline_1D_mod.f90(421,13)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #15382: vectorization support: call to function LOCATE_DP cannot be vectorized   [ spline_1D_mod.f90(143,19) ]
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(407,14):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_qsimp_] spline_1D_mod.f90:407
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   27[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm12]
+        
+    Routine temporaries
+        Total         :     181
+            Global    :      54
+            Local     :     127
+        Regenerable   :      12
+        Spilled       :      28
+        
+    Routine stack
+        Variables     :       8 bytes*
+            Reads     :       1 [1.47e+01 ~ 1.5%]
+            Writes    :       4 [1.70e+01 ~ 1.7%]
+        Spills        :     184 bytes*
+            Reads     :      44 [1.74e+02 ~ 17.5%]
+            Writes    :      31 [4.22e+01 ~ 4.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::TRAPZD
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::TRAPZD) [13/14=92.9%] spline_1D_mod.f90(432,14)
+  -> INLINE: (444,27) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+    -> EXTERN: (143,19) LOCATE_DP
+    -> EXTERN: (150,47) __powr8i4
+    -> EXTERN: (150,67) __powr8i4
+  -> INLINE: (444,55) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+    -> EXTERN: (143,19) LOCATE_DP
+    -> EXTERN: (150,47) __powr8i4
+    -> EXTERN: (150,67) __powr8i4
+  -> EXTERN: (446,15) f_pow2i
+  -> INLINE: (452,23) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+    -> EXTERN: (143,19) LOCATE_DP
+    -> EXTERN: (150,47) __powr8i4
+    -> EXTERN: (150,67) __powr8i4
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at spline_1D_mod.f90(451,8)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #15382: vectorization support: call to function LOCATE_DP cannot be vectorized   [ spline_1D_mod.f90(143,19) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(432,14):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_trapzd_] spline_1D_mod.f90:432
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     200
+            Global    :      50
+            Local     :     150
+        Regenerable   :      12
+        Spilled       :      26
+        
+    Routine stack
+        Variables     :       8 bytes*
+            Reads     :       1 [5.16e+00 ~ 1.3%]
+            Writes    :       2 [5.16e+00 ~ 1.3%]
+        Spills        :     168 bytes*
+            Reads     :      21 [5.48e+01 ~ 14.1%]
+            Writes    :      22 [1.77e+01 ~ 4.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: SPLINE_1D_MOD::ZRIDDR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (SPLINE_1D_MOD::ZRIDDR) [14/14=100.0%] spline_1D_mod.f90(462,12)
+  -> INLINE: (475,10) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+    -> EXTERN: (143,19) LOCATE_DP
+    -> EXTERN: (150,47) __powr8i4
+    -> EXTERN: (150,67) __powr8i4
+  -> INLINE: (476,10) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+    -> EXTERN: (143,19) LOCATE_DP
+    -> EXTERN: (150,47) __powr8i4
+    -> EXTERN: (150,67) __powr8i4
+  -> INLINE: (484,16) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+    -> EXTERN: (143,19) LOCATE_DP
+    -> EXTERN: (150,47) __powr8i4
+    -> EXTERN: (150,67) __powr8i4
+  -> INLINE: (490,20) SPLINE_1D_MOD::SPLINT_PLAIN (isz = 95) (sz = 106)
+    -> EXTERN: (143,19) LOCATE_DP
+    -> EXTERN: (150,47) __powr8i4
+    -> EXTERN: (150,67) __powr8i4
+  -> EXTERN: (504,14) for_write_seq_lis
+  -> EXTERN: (510,8) for_open
+  -> EXTERN: (512,11) for_write_seq_lis_xmit
+  -> EXTERN: (512,11) for_write_seq_lis
+  -> EXTERN: (514,14) for_close
+  -> EXTERN: (516,8) for_write_seq_lis
+  -> EXTERN: (517,8) for_write_seq_lis_xmit
+  -> EXTERN: (517,8) for_write_seq_lis
+  -> EXTERN: (518,8) for_write_seq_lis_xmit
+  -> EXTERN: (518,8) for_write_seq_lis
+  -> EXTERN: (519,8) for_write_seq_lis_xmit
+  -> EXTERN: (519,8) for_write_seq_lis
+  -> EXTERN: (520,8) for_stop_core
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at spline_1D_mod.f90(511,8)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (512:11) and at (512:11)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (512:11) and at (512:11)
+   remark #15382: vectorization support: call to function for_write_seq_lis cannot be vectorized   [ spline_1D_mod.f90(512,11) ]
+   remark #15382: vectorization support: call to function for_write_seq_lis_xmit cannot be vectorized   [ spline_1D_mod.f90(512,11) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (512:11) and at (512:11)
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (512:11) and at (512:11)
+LOOP END
+
+LOOP BEGIN at spline_1D_mod.f90(141,5) inlined into spline_1D_mod.f90(490,20)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable j was found, but loop iteration count cannot be computed before executing the loop
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+spline_1D_mod.f90(462,12):remark #34051: REGISTER ALLOCATION : [spline_1d_mod_mp_zriddr_] spline_1D_mod.f90:462
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   25[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm10]
+        
+    Routine temporaries
+        Total         :     343
+            Global    :      64
+            Local     :     279
+        Regenerable   :     107
+        Spilled       :      23
+        
+    Routine stack
+        Variables     :     224 bytes*
+            Reads     :       6 [2.54e+00 ~ 0.7%]
+            Writes    :      29 [2.19e+01 ~ 5.7%]
+        Spills        :     144 bytes*
+            Reads     :      43 [3.16e+01 ~ 8.3%]
+            Writes    :      31 [1.54e+01 ~ 4.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The subprogram is larger than the inliner would normally inline.  Use the
+    option -inline-max-size to increase the size of any subprogram that would
+    normally be inlined, add "!DIR$ATTRIBUTES FORCEINLINE" to the
+    declaration of the called function, or add "!DIR$ FORCEINLINE" before
+    the call site.
+

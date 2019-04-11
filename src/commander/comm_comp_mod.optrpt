@@ -1,0 +1,486 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_comp_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_comp_mod._) [1/9=11.1%] comm_comp_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_comp_mod._] comm_comp_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_COMP_MOD::RJ2UNIT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_COMP_MOD::RJ2UNIT) [2/9=22.2%] comm_comp_mod.f90(261,12)
+  -> EXTERN: (269,12) for_trim
+  -> EXTERN: (269,28) for_cpstr
+  -> INDIRECT-: (270,28)  (*((P64*) *((P64*) (comm_comp_mod_mp_rj2unit_$BP_V$1e89.0.4 + 56(SI64)))))[3(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(261,12):remark #34051: REGISTER ALLOCATION : [comm_comp_mod_mp_rj2unit_] comm_comp_mod.f90:261
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   10[ rax rdx rcx rbx rsi rdi r8 r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :      38
+            Global    :      15
+            Local     :      23
+        Regenerable   :      10
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :     512 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_COMP_MOD::CG_MASK
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_COMP_MOD::CG_MASK) [3/9=33.3%] comm_comp_mod.f90(280,14)
+  -> EXTERN: (287,10) CR_MASK
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(280,14):remark #34051: REGISTER ALLOCATION : [comm_comp_mod_mp_cg_mask_] comm_comp_mod.f90:280
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rax rdx rsi rdi]
+        
+    Routine temporaries
+        Total         :      19
+            Global    :       8
+            Local     :      11
+        Regenerable   :       2
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       4 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       2 [1.00e+00 ~ 4.8%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_COMP_MOD::NEXT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_COMP_MOD::NEXT) [4/9=44.4%] comm_comp_mod.f90(291,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(294,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_comp_mod.f90(294,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_comp_mod.f90(294,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_comp_mod.f90(291,12):remark #34051: REGISTER ALLOCATION : [comm_comp_mod_mp_next_] comm_comp_mod.f90:291
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rsi rdi r8-r11 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      29
+            Global    :       7
+            Local     :      22
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_COMP_MOD::PREV
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_COMP_MOD::PREV) [5/9=55.6%] comm_comp_mod.f90(297,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(300,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_comp_mod.f90(300,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_comp_mod.f90(300,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_comp_mod.f90(297,12):remark #34051: REGISTER ALLOCATION : [comm_comp_mod_mp_prev_] comm_comp_mod.f90:297
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rsi rdi r8-r11 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      29
+            Global    :       7
+            Local     :      22
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_COMP_MOD::SETNEXT
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_COMP_MOD::SETNEXT) [6/9=66.7%] comm_comp_mod.f90(303,14)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(303,14):remark #34051: REGISTER ALLOCATION : [comm_comp_mod_mp_setnext_] comm_comp_mod.f90:303
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rax rdx rcx rsi rdi r8-r11]
+        
+    Routine temporaries
+        Total         :      27
+            Global    :       0
+            Local     :      27
+        Regenerable   :       1
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_COMP_MOD::ADD
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_COMP_MOD::ADD) [7/9=77.8%] comm_comp_mod.f90(309,14)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_comp_mod.f90(316,5)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(319,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_comp_mod.f90(319,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (16, 0), and destination (alignment, offset): (1, 0)
+comm_comp_mod.f90(317,8):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_comp_mod.f90(317,8):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (16, 0)
+comm_comp_mod.f90(309,14):remark #34051: REGISTER ALLOCATION : [comm_comp_mod_mp_add_] comm_comp_mod.f90:309
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      58
+            Global    :      21
+            Local     :      37
+        Regenerable   :       1
+        Spilled       :       5
+        
+    Routine stack
+        Variables     :     128 bytes*
+            Reads     :       4 [4.00e+00 ~ 1.5%]
+            Writes    :      27 [7.32e+01 ~ 27.3%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_COMP_MOD::DUMPSED
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_COMP_MOD::DUMPSED) [8/9=88.9%] comm_comp_mod.f90(218,14)
+  -> EXTERN: (226,9) for_trim
+  -> EXTERN: (226,25) for_cpstr
+  -> INDIRECT-: (228,15)  (*((P64*) *((P64*) (comm_comp_mod_mp_dumpsed_$SELF_V$1e17.0.3 + 56(SI64)))))[6(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (229,26) for_write_seq_lis_xmit
+  -> EXTERN: (229,26) for_write_seq_lis
+  -> EXTERN: (233,37) pow
+  -> INDIRECT-: (236,18)  (*((P64*) *((P64*) (comm_comp_mod_mp_dumpsed_$SELF_V$1e17.0.3 + 56(SI64)))))[6(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> INDIRECT-: (238,18)  (*((P64*) *((P64*) (comm_comp_mod_mp_dumpsed_$SELF_V$1e17.0.3 + 56(SI64)))))[6(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (240,26) for_write_seq_lis_xmit
+  -> EXTERN: (240,26) for_write_seq_lis
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_comp_mod.f90(229,26)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at comm_comp_mod.f90(240,26)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(218,14):remark #34051: REGISTER ALLOCATION : [comm_comp_mod_mp_dumpsed_] comm_comp_mod.f90:218
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :     135
+            Global    :      45
+            Local     :      90
+        Regenerable   :      61
+        Spilled       :      11
+        
+    Routine stack
+        Variables     :     764 bytes*
+            Reads     :       5 [8.16e+00 ~ 2.4%]
+            Writes    :      28 [6.19e+01 ~ 18.1%]
+        Spills        :      56 bytes*
+            Reads     :       8 [1.33e+01 ~ 3.9%]
+            Writes    :       8 [9.31e+00 ~ 2.7%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_COMP_MOD::INITCOMP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_COMP_MOD::INITCOMP) [9/9=100.0%] comm_comp_mod.f90(179,14)
+  -> EXTERN: (187,5) memcpy
+  -> EXTERN: (188,5) memcpy
+  -> EXTERN: (189,5) memcpy
+  -> EXTERN: (190,5) memcpy
+  -> EXTERN: (197,5) for_cpystr
+  -> EXTERN: (200,18) memmove
+  -> EXTERN: (200,18) _alloca
+  -> EXTERN: (200,18) for_trim
+  -> EXTERN: (201,11) for_cpstr
+  -> EXTERN: (202,24) COMPUTE_ANT2THERMO_SINGLE
+  -> EXTERN: (203,11) for_cpstr
+  -> EXTERN: (204,24) COMPUTE_BNU_PRIME_RJ_SINGLE
+  -> EXTERN: (205,11) for_cpstr
+  -> EXTERN: (207,11) for_cpstr
+  -> EXTERN: (209,19) COMPUTE_BNU_PRIME_SINGLE
+  -> EXTERN: (209,49) COMPUTE_SZ_THERMO_SINGLE
+  -> EXTERN: (210,11) for_cpstr
+  -> EXTERN: (213,13) __resetsp_inlined
+  -> EXTERN: (213,13) __resetsp_inlined
+  -> EXTERN: (213,13) REPORT_ERROR
+  -> EXTERN: (213,13) __getsp_inlined
+  -> EXTERN: (213,13) __getsp_inlined
+  -> EXTERN: (213,47) for_concat
+  -> EXTERN: (213,47) _alloca
+  -> EXTERN: (213,50) for_trim
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_comp_mod.f90(187,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_comp_mod.f90(187,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_comp_mod.f90(187,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_comp_mod.f90(188,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_comp_mod.f90(188,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_comp_mod.f90(188,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_comp_mod.f90(189,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_comp_mod.f90(189,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_comp_mod.f90(189,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_comp_mod.f90(190,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_comp_mod.f90(190,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_comp_mod.f90(190,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_comp_mod.f90(200,18):remark #34014: optimization advice for memmove: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_comp_mod.f90(200,18):remark #34026: call to memmove implemented as a call to optimized library version
+comm_comp_mod.f90(179,14):remark #34051: REGISTER ALLOCATION : [comm_comp_mod_mp_initcomp_] comm_comp_mod.f90:179
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   17[ rax rdx rcx rbx rsi rdi r8-r13 r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     215
+            Global    :      51
+            Local     :     164
+        Regenerable   :      39
+        Spilled       :       6
+        
+    Routine stack
+        Variables     :    1056 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       4 [5.50e-02 ~ 0.0%]
+        Spills        :      16 bytes*
+            Reads     :       2 [1.25e-01 ~ 0.0%]
+            Writes    :       2 [1.25e-01 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The indirectly called subprogram must be resolved to its targets before it 
+can be inlined.  Consider compiling with -ipo or -prof-gen followed by 
+-prof-use.
+

@@ -1,0 +1,173 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: COMMANDER
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMMANDER) [1/1=100.0%] commander.f90(1,9)
+  -> EXTERN: (1,9) for_set_reentrancy
+  -> EXTERN: (46,8) wall_time_
+  -> EXTERN: (47,8) mpi_init_
+  -> EXTERN: (48,8) mpi_comm_rank_
+  -> EXTERN: (49,8) mpi_comm_size_
+  -> EXTERN: (53,31) wall_time_
+  -> EXTERN: (54,8) READ_COMM_PARAMS
+  -> EXTERN: (55,31) wall_time_
+  -> EXTERN: (57,8) INITIALIZE_MPI_STRUCT
+  -> EXTERN: (58,8) VALIDATE_PARAMS
+  -> EXTERN: (59,8) __resetsp_inlined
+  -> EXTERN: (59,8) INIT_STATUS
+  -> EXTERN: (59,8) __getsp_inlined
+  -> EXTERN: (59,28) for_trim
+  -> EXTERN: (59,45) for_concat
+  -> EXTERN: (59,45) _alloca
+  -> EXTERN: (62,7) for_iargc
+  -> EXTERN: (63,34) for_write_seq_lis
+  -> EXTERN: (64,11) mpi_finalize_
+  -> EXTERN: (65,6) for_stop_core
+  -> EXTERN: (67,31) wall_time_
+  -> EXTERN: (71,6) for_write_seq_lis
+  -> EXTERN: (72,6) for_write_seq_lis
+  -> EXTERN: (73,6) for_write_seq_lis
+  -> EXTERN: (74,6) for_write_seq_lis
+  -> EXTERN: (74,6) for_write_seq_lis_xmit
+  -> EXTERN: (75,6) for_write_seq_lis
+  -> EXTERN: (75,6) for_write_seq_lis_xmit
+  -> EXTERN: (76,6) for_write_seq_lis
+  -> EXTERN: (77,6) for_write_seq_fmt
+  -> EXTERN: (77,6) for_write_seq_fmt_xmit
+  -> EXTERN: (77,6) for_write_seq_fmt_xmit
+  -> EXTERN: (78,6) for_write_seq_fmt
+  -> EXTERN: (78,6) for_write_seq_fmt_xmit
+  -> EXTERN: (78,6) for_write_seq_fmt_xmit
+  -> EXTERN: (79,6) for_write_seq_lis
+  -> EXTERN: (87,31) wall_time_
+  -> EXTERN: (89,8) UPDATE_STATUS
+  -> EXTERN: (90,8) INITIALIZE_BP_MOD
+  -> EXTERN: (90,49) UPDATE_STATUS
+  -> EXTERN: (91,8) INITIALIZE_DATA_MOD
+  -> EXTERN: (91,49) UPDATE_STATUS
+  -> EXTERN: (92,8) INITIALIZE_SIGNAL_MOD
+  -> EXTERN: (92,49) UPDATE_STATUS
+  -> EXTERN: (93,8) INITIALIZE_FROM_CHAIN
+  -> EXTERN: (93,49) UPDATE_STATUS
+  -> EXTERN: (96,26) for_write_seq_lis
+  -> EXTERN: (97,11) OUTPUT_FITS_SAMPLE
+  -> EXTERN: (98,11) mpi_finalize_
+  -> EXTERN: (99,6) for_stop_core
+  -> EXTERN: (104,34) DUMP_COMPONENTS
+  -> EXTERN: (105,11) mpi_finalize_
+  -> EXTERN: (106,6) for_stop_core
+  -> EXTERN: (109,31) wall_time_
+  -> EXTERN: (116,6) for_write_seq_lis
+  -> EXTERN: (117,6) for_write_seq_fmt
+  -> EXTERN: (117,6) for_write_seq_fmt_xmit
+  -> EXTERN: (117,6) for_write_seq_fmt_xmit
+  -> EXTERN: (118,6) for_write_seq_lis
+  -> EXTERN: (127,14) wall_time_
+  -> EXTERN: (128,9) for_write_seq_fmt
+  -> EXTERN: (129,9) for_write_seq_fmt
+  -> EXTERN: (129,9) for_write_seq_fmt_xmit
+  -> EXTERN: (129,9) for_write_seq_fmt_xmit
+  -> EXTERN: (129,9) for_write_seq_fmt_xmit
+  -> EXTERN: (136,15) for_write_seq_fmt
+  -> EXTERN: (136,15) for_write_seq_fmt_xmit
+  -> EXTERN: (136,15) for_write_seq_fmt_xmit
+  -> EXTERN: (136,15) for_write_seq_fmt_xmit
+  -> EXTERN: (136,15) for_write_seq_fmt_xmit
+  -> EXTERN: (136,15) for_write_seq_fmt_xmit
+  -> EXTERN: (139,17) SAMPLE_AMPS_BY_CG
+  -> EXTERN: (144,11) OUTPUT_FITS_SAMPLE
+  -> EXTERN: (153,14) SAMPLE_NONLIN_PARAMS
+  -> EXTERN: (164,14) wall_time_
+  -> EXTERN: (165,9) for_write_seq_fmt_xmit
+  -> EXTERN: (165,9) for_write_seq_fmt_xmit
+  -> EXTERN: (165,9) for_write_seq_fmt_xmit
+  -> EXTERN: (165,9) for_write_seq_fmt_xmit
+  -> EXTERN: (165,9) for_write_seq_fmt
+  -> EXTERN: (176,8) mpi_barrier_
+  -> EXTERN: (179,56) for_write_seq_lis
+  -> EXTERN: (182,8) FREE_STATUS
+  -> EXTERN: (183,8) mpi_finalize_
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at commander.f90(124,3)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at commander.f90(134,9)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+   LOOP END
+
+   LOOP BEGIN at commander.f90(152,6)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #15382: vectorization support: call to function SAMPLE_NONLIN_PARAMS cannot be vectorized   [ commander.f90(153,14) ]
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+commander.f90(1,9):remark #34026: call to memcpy implemented as a call to optimized library version
+commander.f90(1,9):remark #34051: REGISTER ALLOCATION : [MAIN__] commander.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   11[ rax rdx rcx rbx rsi rdi r8-r9 r14-r15 zmm0]
+        
+    Routine temporaries
+        Total         :     486
+            Global    :      44
+            Local     :     442
+        Regenerable   :     435
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :   12960 bytes*
+            Reads     :      49 [8.31e+01 ~ 8.7%]
+            Writes    :      96 [1.20e+02 ~ 12.6%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

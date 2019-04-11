@@ -1,0 +1,461 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_spindust_comp_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_spindust_comp_mod._) [1/3=33.3%] comm_spindust_comp_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_spindust_comp_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_spindust_comp_mod._] comm_spindust_comp_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_SPINDUST_COMP_MOD::CONSTRUCTOR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_SPINDUST_COMP_MOD::CONSTRUCTOR) [2/3=66.7%] comm_spindust_comp_mod.f90(33,12)
+  -> EXTERN: (44,5) for_allocate
+  -> INDIRECT-: (45,10)  (*((P64*) *((P64*) (comm_spindust_comp_mod_mp_constructor_$CONSTRUCTOR_V$2902.0.2 + 56(SI64)))))[16(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (49,5) for_alloc_allocatable
+  -> EXTERN: (49,5) for_alloc_allocatable
+  -> EXTERN: (49,5) for_alloc_allocatable
+  -> EXTERN: (50,5) for_alloc_allocatable
+  -> EXTERN: (50,5) for_alloc_allocatable
+  -> EXTERN: (51,5) for_alloc_allocatable
+  -> EXTERN: (51,5) for_alloc_allocatable
+  -> EXTERN: (56,5) for_cpystr
+  -> EXTERN: (61,13) COMM_MAP_MOD^CONSTRUCTOR_MAPINFO
+  -> EXTERN: (64,5) for_alloc_allocatable
+  -> EXTERN: (65,9) for_trim
+  -> EXTERN: (65,43) for_cpstr
+  -> EXTERN: (66,34) COMM_MAP_MOD^CONSTRUCTOR_MAP
+  -> EXTERN: (67,8) __getsp_inlined
+  -> EXTERN: (67,8) _alloca
+  -> EXTERN: (67,8) for_realloc_lhs
+  -> EXTERN: (67,8) __resetsp_inlined
+  -> EXTERN: (70,8) __resetsp_inlined
+  -> EXTERN: (70,8) __getsp_inlined
+  -> EXTERN: (70,34) COMM_MAP_MOD^CONSTRUCTOR_MAP
+  -> EXTERN: (70,49) for_trim
+  -> EXTERN: (70,75) for_concat
+  -> EXTERN: (70,75) _alloca
+  -> EXTERN: (70,78) for_trim
+  -> INDIRECT-: (72,36)  (*((P64*) *((P64*) (&((MAP_PTR$P$27_V$c71 *)(comm_spindust_comp_mod_mp_constructor_$CONSTRUCTOR_V$2902.0.2->QNCAtemplate.dim31_dv_template.addr_a0_V$2947.0.2)->COMM_SPINDUST_COMP_MOD$.btCOMM_SPINDUST_COMP$COMM_DIFFUSE_COMP$44_V$10f0)[1(SI64), l:((comm_spindust_comp_mod_mp_constructor_$CONSTRUCTOR_V$2902.0.2->QNCAtemplate.dim31_dv_template.addr_a0_V$2947.0.2)->COMM_SPINDUST_COMP_MOD$.btCOMM_SPINDUST_COMP$COMM_DIFFUSE_COMP$44_V$10f9)[0(SI32), l:0(SI64)]] + 56(SI64)))))[8(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (75,10) __resetsp_inlined
+  -> EXTERN: (75,10) READ_SPECTRUM
+  -> EXTERN: (75,10) __getsp_inlined
+  -> EXTERN: (75,24) for_trim
+  -> EXTERN: (75,47) for_concat
+  -> EXTERN: (75,47) _alloca
+  -> EXTERN: (75,49) for_trim
+  -> EXTERN: (80,5) for_realloc_lhs
+  -> EXTERN: (80,26) log
+  -> EXTERN: (81,10) SPLINE_SIMPLE
+  -> EXTERN: (82,5) for_dealloc_allocatable
+  -> EXTERN: (85,5) for_alloc_allocatable
+  -> EXTERN: (85,5) for_check_mult_overflow64
+  -> EXTERN: (87,34) COMM_F_INT_1D_MOD^CONSTRUCTOR
+  -> INDIRECT-: (91,10)  (*((P64*) *((P64*) (comm_spindust_comp_mod_mp_constructor_$CONSTRUCTOR_V$2902.0.2 + 56(SI64)))))[15(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (94,5) for_alloc_allocatable
+  -> EXTERN: (94,5) for_check_mult_overflow64
+  -> EXTERN: (95,5) for_realloc_lhs
+  -> EXTERN: (97,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(54,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between constructor(:,1) (54:5) and cpar(id_abs,:,1) (54:5)
+   remark #17106: parallel dependence: assumed ANTI dependence between cpar(id_abs,:,1) (54:5) and constructor(:,1) (54:5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between constructor(:,1) (54:5) and cpar(id_abs,:,1) (54:5)
+   remark #15346: vector dependence: assumed ANTI dependence between cpar(id_abs,:,1) (54:5) and constructor(:,1) (54:5)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(54,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(55,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between constructor(:,1) (55:5) and cpar(id_abs,:,1) (55:5)
+   remark #17106: parallel dependence: assumed ANTI dependence between cpar(id_abs,:,1) (55:5) and constructor(:,1) (55:5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between constructor(:,1) (55:5) and cpar(id_abs,:,1) (55:5)
+   remark #15346: vector dependence: assumed ANTI dependence between cpar(id_abs,:,1) (55:5) and constructor(:,1) (55:5)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(55,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(67,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(67,8)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(67,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference at (67:8) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 1.000
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.540 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(67,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(67,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(67,8)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+      remark #25478: While Loop Unrolled by 2  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(76,26)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=3
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(76,26)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference SED(:,2) has aligned access
+   remark #15305: vectorization support: vector length 4
+   remark #15309: vectorization support: normalized vectorization overhead 1.631
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 22 
+   remark #15477: vector cost: 16.250 
+   remark #15478: estimated potential speedup: 1.310 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(76,26)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(78,26)
+<Peeled loop for vectorization, Distributed chunk1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(78,26)
+<Distributed chunk1>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #25426: Loop Distributed (2 way) 
+   remark #15388: vectorization support: reference SED(:,1) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.426
+   remark #15301: PARTIAL LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 8.500 
+   remark #15478: estimated potential speedup: 1.040 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(78,26)
+<Remainder loop for vectorization, Distributed chunk1>
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(78,26)
+<Distributed chunk2>
+   remark #15335: loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 4
+   remark #15309: vectorization support: normalized vectorization overhead 2.000
+   remark #15475: --- begin vector cost summary ---
+   remark #15477: vector cost: 0.250 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(79,26)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(79,26)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ comm_spindust_comp_mod.f90(79,26) ]
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference SED(:,1) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.426
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 8.500 
+   remark #15478: estimated potential speedup: 1.040 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(79,26)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(80,5)
+   remark #17109: LOOP WAS AUTO-PARALLELIZED
+   remark #17101: parallel loop shared={ } private={ } firstprivate={ ? ? ? SED ? ? ? } lastprivate={ } firstlastprivate={ } reduction={ }
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(80,5)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(80,5)
+      remark #15388: vectorization support: reference SED(:,:) has aligned access   [ comm_spindust_comp_mod.f90(80,26) ]
+      remark #15388: vectorization support: reference SED(:,:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 0.143
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 106 
+      remark #15477: vector cost: 38.500 
+      remark #15478: estimated potential speedup: 2.710 
+      remark #15482: vectorized math library calls: 1 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(80,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(86,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (87:34) and constructor(i) (87:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between constructor(i) (87:8) and at (87:34)
+   remark #15382: vectorization support: call to function COMM_F_INT_1D_MOD^CONSTRUCTOR cannot be vectorized   [ comm_spindust_comp_mod.f90(87,34) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (87:34) and constructor(i) (87:8)
+   remark #15346: vector dependence: assumed OUTPUT dependence between constructor(i) (87:8) and at (87:34)
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(95,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between at (95:5) and cpar(id_abs,:) (95:5)
+   remark #17106: parallel dependence: assumed ANTI dependence between cpar(id_abs,:) (95:5) and at (95:5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between at (95:5) and cpar(id_abs,:) (95:5)
+   remark #15346: vector dependence: assumed ANTI dependence between cpar(id_abs,:) (95:5) and at (95:5)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(95,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at comm_spindust_comp_mod.f90(80,5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(80,5)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(80,5)
+      remark #17107: loop was not parallelized: inner loop
+      remark #15388: vectorization support: reference SED(:,:) has aligned access   [ comm_spindust_comp_mod.f90(80,26) ]
+      remark #15388: vectorization support: reference SED(:,:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 0.143
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 106 
+      remark #15477: vector cost: 38.500 
+      remark #15478: estimated potential speedup: 2.710 
+      remark #15482: vectorized math library calls: 1 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_spindust_comp_mod.f90(80,5)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_spindust_comp_mod.f90(40,46):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_spindust_comp_mod.f90(44,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_spindust_comp_mod.f90(44,5):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_spindust_comp_mod.f90(33,12):remark #34051: REGISTER ALLOCATION : [comm_spindust_comp_mod_mp_constructor_] comm_spindust_comp_mod.f90:33
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :    1708
+            Global    :     233
+            Local     :    1475
+        Regenerable   :     161
+        Spilled       :      59
+        
+    Routine stack
+        Variables     :    4092 bytes*
+            Reads     :      60 [1.11e+02 ~ 2.0%]
+            Writes    :     155 [1.46e+02 ~ 2.6%]
+        Spills        :     504 bytes*
+            Reads     :     110 [1.96e+02 ~ 3.5%]
+            Writes    :     101 [1.84e+02 ~ 3.3%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_SPINDUST_COMP_MOD::EVALSED
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_SPINDUST_COMP_MOD::EVALSED) [3/3=100.0%] comm_spindust_comp_mod.f90(103,12)
+  -> EXTERN: (119,18) exp
+  -> EXTERN: (119,22) SPLINT_SIMPLE
+  -> EXTERN: (119,46) log
+  -> EXTERN: (120,18) exp
+  -> EXTERN: (120,22) SPLINT_SIMPLE
+  -> EXTERN: (120,46) log
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_spindust_comp_mod.f90(103,12):remark #34051: REGISTER ALLOCATION : [comm_spindust_comp_mod_mp_evalsed_] comm_spindust_comp_mod.f90:103
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   12[ rax rdx rcx rsi rdi r8 r13-r14 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      55
+            Global    :      22
+            Local     :      33
+        Regenerable   :       4
+        Spilled       :       8
+        
+    Routine stack
+        Variables     :      16 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       2 [5.00e-01 ~ 1.1%]
+        Spills        :      48 bytes*
+            Reads     :       6 [1.50e+00 ~ 3.4%]
+            Writes    :       6 [2.25e+00 ~ 5.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The indirectly called subprogram must be resolved to its targets before it 
+can be inlined.  Consider compiling with -ipo or -prof-gen followed by 
+-prof-use.
+
