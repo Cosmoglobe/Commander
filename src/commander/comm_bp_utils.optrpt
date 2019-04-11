@@ -1,0 +1,998 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_bp_utils._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_bp_utils._) [1/12=8.3%] comm_bp_utils.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_bp_utils._] comm_bp_utils.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::COMPUTE_SZ_THERMO_SINGLE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::COMPUTE_SZ_THERMO_SINGLE) [2/12=16.7%] comm_bp_utils.f90(24,12)
+  -> EXTERN: (33,44) exp
+  -> EXTERN: (33,58) exp
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(24,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_compute_sz_thermo_single_] comm_bp_utils.f90:24
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    5[ rdi zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :      25
+            Global    :       9
+            Local     :      16
+        Regenerable   :       3
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      16 bytes*
+            Reads     :       2 [2.00e+00 ~ 6.5%]
+            Writes    :       2 [2.00e+00 ~ 6.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::COMPUTE_SZ_THERMO_ARRAY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::COMPUTE_SZ_THERMO_ARRAY) [3/12=25.0%] comm_bp_utils.f90(37,12)
+  -> EXTERN: (37,48) for_deallocate
+  -> EXTERN: (44,5) for_alloc_allocatable
+  -> EXTERN: (44,5) for_check_mult_overflow64
+  -> EXTERN: (44,5) for_alloc_allocatable
+  -> EXTERN: (44,5) for_check_mult_overflow64
+  -> EXTERN: (45,5) for_realloc_lhs
+  -> EXTERN: (46,5) for_realloc_lhs
+  -> EXTERN: (46,21) exp
+  -> EXTERN: (46,35) exp
+  -> EXTERN: (47,5) for_dealloc_allocatable
+  -> EXTERN: (49,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_utils.f90(45,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference X(:) has aligned access
+   remark #15389: vectorization support: reference nu(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.032
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 35 
+   remark #15477: vector cost: 19.500 
+   remark #15478: estimated potential speedup: 1.770 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(45,5)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15388: vectorization support: reference X(:) has aligned access
+   remark #15389: vectorization support: reference nu(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.349
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(45,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(45,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference X(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <nu(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.013
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 35 
+   remark #15477: vector cost: 20.000 
+   remark #15478: estimated potential speedup: 1.730 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(45,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(46,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference X(:) has aligned access   [ comm_bp_utils.f90(46,21) ]
+   remark #15388: vectorization support: reference X(:) has aligned access   [ comm_bp_utils.f90(46,35) ]
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15388: vectorization support: reference X(:) has aligned access   [ comm_bp_utils.f90(46,9) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.036
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15451: unmasked unaligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 248 
+   remark #15477: vector cost: 98.500 
+   remark #15478: estimated potential speedup: 2.510 
+   remark #15482: vectorized math library calls: 2 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(46,5)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(42,44):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_utils.f90(37,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_compute_sz_thermo_array_] comm_bp_utils.f90:37
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm5 zmm8-zmm11]
+        
+    Routine temporaries
+        Total         :     294
+            Global    :      64
+            Local     :     230
+        Regenerable   :      38
+        Spilled       :       8
+        
+    Routine stack
+        Variables     :     232 bytes*
+            Reads     :       8 [7.90e+00 ~ 1.3%]
+            Writes    :      29 [2.90e+01 ~ 4.6%]
+        Spills        :      24 bytes*
+            Reads     :       8 [4.95e+00 ~ 0.8%]
+            Writes    :       3 [2.90e+00 ~ 0.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::COMPUTE_ANT2THERMO_ARRAY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::COMPUTE_ANT2THERMO_ARRAY) [4/12=33.3%] comm_bp_utils.f90(52,12)
+  -> EXTERN: (60,5) for_write_seq_lis
+  -> EXTERN: (61,5) for_stop_core
+  -> EXTERN: (64,18) exp
+  -> EXTERN: (64,44) exp
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_utils.f90(62,5)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(62,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference a2t(i) has aligned access   [ comm_bp_utils.f90(64,8) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <nu(i)>, stride is unknown to compiler   [ comm_bp_utils.f90(63,14) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.117
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 180 
+   remark #15477: vector cost: 81.500 
+   remark #15478: estimated potential speedup: 2.180 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(62,5)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(52,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_compute_ant2thermo_array_] comm_bp_utils.f90:52
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   20[ rax rdx rcx rbx rsi rdi r8-r10 r12-r15 zmm0-zmm1 zmm8-zmm12]
+        
+    Routine temporaries
+        Total         :     108
+            Global    :      38
+            Local     :      70
+        Regenerable   :      26
+        Spilled       :      11
+        
+    Routine stack
+        Variables     :      80 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       3 [3.00e+00 ~ 0.7%]
+        Spills        :      48 bytes*
+            Reads     :      11 [2.42e+01 ~ 5.6%]
+            Writes    :       9 [8.81e+00 ~ 2.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::COMPUTE_ANT2THERMO_SINGLE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::COMPUTE_ANT2THERMO_SINGLE) [5/12=41.7%] comm_bp_utils.f90(69,12)
+  -> EXTERN: (77,34) exp
+  -> EXTERN: (77,60) exp
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(69,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_compute_ant2thermo_single_] comm_bp_utils.f90:69
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    4[ rdi zmm0-zmm2]
+        
+    Routine temporaries
+        Total         :      22
+            Global    :       8
+            Local     :      14
+        Regenerable   :       2
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       8 bytes*
+            Reads     :       1 [1.00e+00 ~ 3.8%]
+            Writes    :       1 [1.00e+00 ~ 3.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::COMPUTE_BNU_PRIME_ARRAY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::COMPUTE_BNU_PRIME_ARRAY) [6/12=50.0%] comm_bp_utils.f90(81,12)
+  -> EXTERN: (92,50) __powr8i4
+  -> EXTERN: (92,61) exp
+  -> EXTERN: (93,16) exp
+  -> EXTERN: (93,26) exp
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_utils.f90(90,5)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(90,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference compute_bnu_prime_array(i) has aligned access   [ comm_bp_utils.f90(92,8) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <nu(i)>, stride is unknown to compiler   [ comm_bp_utils.f90(92,45) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <nu(i)>, stride is unknown to compiler   [ comm_bp_utils.f90(91,14) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <nu(i)>, stride is unknown to compiler   [ comm_bp_utils.f90(93,44) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.083
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 3 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 248 
+   remark #15477: vector cost: 121.000 
+   remark #15478: estimated potential speedup: 2.030 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 4 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(90,5)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(81,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_compute_bnu_prime_array_] comm_bp_utils.f90:81
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   25[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm2 zmm8-zmm15]
+        
+    Routine temporaries
+        Total         :     117
+            Global    :      45
+            Local     :      72
+        Regenerable   :      15
+        Spilled       :       9
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      32 bytes*
+            Reads     :       9 [1.77e+01 ~ 3.3%]
+            Writes    :       8 [7.83e+00 ~ 1.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::COMPUTE_BNU_PRIME_SINGLE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::COMPUTE_BNU_PRIME_SINGLE) [7/12=58.3%] comm_bp_utils.f90(98,12)
+  -> EXTERN: (107,42) __powr8i4
+  -> EXTERN: (107,53) exp
+  -> EXTERN: (108,13) exp
+  -> EXTERN: (108,23) exp
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(98,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_compute_bnu_prime_single_] comm_bp_utils.f90:98
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rdi zmm0-zmm5]
+        
+    Routine temporaries
+        Total         :      33
+            Global    :      11
+            Local     :      22
+        Regenerable   :       3
+        Spilled       :       2
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      16 bytes*
+            Reads     :       2 [2.00e+00 ~ 4.9%]
+            Writes    :       2 [2.00e+00 ~ 4.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::COMPUTE_BNU_PRIME_RJ_ARRAY
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::COMPUTE_BNU_PRIME_RJ_ARRAY) [8/12=66.7%] comm_bp_utils.f90(112,12)
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_utils.f90(118,5)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(118,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference nu(:) has aligned access   [ comm_bp_utils.f90(118,45) ]
+   remark #15388: vectorization support: reference compute_bnu_prime_rj_array(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.091
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 38 
+   remark #15477: vector cost: 22.000 
+   remark #15478: estimated potential speedup: 1.700 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(118,5)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(118,5)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15389: vectorization support: reference nu(:) has unaligned access   [ comm_bp_utils.f90(118,45) ]
+   remark #15388: vectorization support: reference compute_bnu_prime_rj_array(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.306
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(118,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(118,5)
+<Peeled loop for vectorization, Multiversioned v2>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(118,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference compute_bnu_prime_rj_array(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <nu(:)>, stride is unknown to compiler   [ comm_bp_utils.f90(118,45) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.065
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 38 
+   remark #15477: vector cost: 23.000 
+   remark #15478: estimated potential speedup: 1.630 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(118,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(112,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_compute_bnu_prime_rj_array_] comm_bp_utils.f90:112
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rsi rdi r8-r11 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :     135
+            Global    :      39
+            Local     :      96
+        Regenerable   :      13
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::COMPUTE_BNU_PRIME_RJ_SINGLE
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::COMPUTE_BNU_PRIME_RJ_SINGLE) [9/12=75.0%] comm_bp_utils.f90(122,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(122,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_compute_bnu_prime_rj_single_] comm_bp_utils.f90:122
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rdi zmm0]
+        
+    Routine temporaries
+        Total         :      13
+            Global    :       0
+            Local     :      13
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::DBDNU
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::DBDNU) [10/12=83.3%] comm_bp_utils.f90(132,12)
+  -> EXTERN: (141,20) __powr8i4
+  -> EXTERN: (141,33) exp
+  -> EXTERN: (141,52) exp
+  -> EXTERN: (141,62) exp
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(132,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_dbdnu_] comm_bp_utils.f90:132
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    9[ rdi zmm0-zmm7]
+        
+    Routine temporaries
+        Total         :      32
+            Global    :      11
+            Local     :      21
+        Regenerable   :       3
+        Spilled       :       3
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      24 bytes*
+            Reads     :       3 [3.00e+00 ~ 7.0%]
+            Writes    :       3 [3.00e+00 ~ 7.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::DB_RJ_DNU
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::DB_RJ_DNU) [11/12=91.7%] comm_bp_utils.f90(145,12)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(145,12):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_db_rj_dnu_] comm_bp_utils.f90:145
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    2[ rdi zmm0]
+        
+    Routine temporaries
+        Total         :      14
+            Global    :       0
+            Local     :      14
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_UTILS::READ_BANDPASS
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_UTILS::READ_BANDPASS) [12/12=100.0%] comm_bp_utils.f90(156,14)
+  -> EXTERN: (156,52) for_deallocate
+  -> EXTERN: (156,56) for_deallocate
+  -> EXTERN: (169,12) GETLUN
+  -> EXTERN: (171,13) __resetsp_inlined
+  -> EXTERN: (171,13) for_inquire
+  -> EXTERN: (171,13) __getsp_inlined
+  -> EXTERN: (171,18) for_trim
+  -> EXTERN: (171,23) _alloca
+  -> EXTERN: (172,22) REPORT_ERROR
+  -> EXTERN: (172,22) __resetsp_inlined
+  -> EXTERN: (172,22) __getsp_inlined
+  -> EXTERN: (172,74) _alloca
+  -> EXTERN: (172,74) for_concat
+  -> EXTERN: (172,77) for_trim
+  -> EXTERN: (172,82) _alloca
+  -> EXTERN: (176,5) __resetsp_inlined
+  -> EXTERN: (176,5) for_open
+  -> EXTERN: (176,5) __getsp_inlined
+  -> EXTERN: (176,21) for_trim
+  -> EXTERN: (176,26) _alloca
+  -> EXTERN: (178,8) for_read_seq_lis
+  -> EXTERN: (182,11) for_close
+  -> EXTERN: (184,17) REPORT_ERROR
+  -> EXTERN: (184,17) __resetsp_inlined
+  -> EXTERN: (184,17) __getsp_inlined
+  -> EXTERN: (184,77) _alloca
+  -> EXTERN: (184,77) for_concat
+  -> EXTERN: (184,80) for_trim
+  -> EXTERN: (184,85) _alloca
+  -> EXTERN: (186,5) for_alloc_allocatable
+  -> EXTERN: (186,5) for_check_mult_overflow64
+  -> EXTERN: (186,5) for_alloc_allocatable
+  -> EXTERN: (186,5) for_check_mult_overflow64
+  -> EXTERN: (188,5) __resetsp_inlined
+  -> EXTERN: (188,5) for_open
+  -> EXTERN: (188,5) __getsp_inlined
+  -> EXTERN: (188,21) for_trim
+  -> EXTERN: (188,26) _alloca
+  -> EXTERN: (190,8) for_read_seq_fmt
+  -> EXTERN: (193,8) for_read_int_lis_xmit
+  -> EXTERN: (193,8) for_read_int_lis
+  -> EXTERN: (200,11) for_close
+  -> EXTERN: (202,5) for_realloc_lhs
+  -> EXTERN: (216,5) for_alloc_allocatable
+  -> EXTERN: (216,5) for_check_mult_overflow64
+  -> EXTERN: (216,5) for_alloc_allocatable
+  -> EXTERN: (216,5) for_check_mult_overflow64
+  -> EXTERN: (217,5) for_realloc_lhs
+  -> EXTERN: (218,5) for_realloc_lhs
+  -> EXTERN: (220,5) for_dealloc_allocatable
+  -> EXTERN: (220,5) for_dealloc_allocatable
+  -> EXTERN: (222,3) for_dealloc_allocatable
+  -> EXTERN: (222,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_utils.f90(176,5)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(188,5)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(202,5)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference X(:) has aligned access
+   remark #15388: vectorization support: reference X(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 1.970 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(202,5)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference X(:) has aligned access
+   remark #15388: vectorization support: reference X(:) has aligned access
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(207,39)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_utils.f90(207,39)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ comm_bp_utils.f90(207,39) ]
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference Y(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.279
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 9 
+      remark #15477: vector cost: 8.500 
+      remark #15478: estimated potential speedup: 1.050 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_bp_utils.f90(207,39)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(210,38)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_utils.f90(210,38)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ comm_bp_utils.f90(210,38) ]
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference Y(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.279
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 9 
+      remark #15477: vector cost: 8.500 
+      remark #15478: estimated potential speedup: 1.050 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_bp_utils.f90(210,38)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(217,5)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between nu(:) (217:5) and nu(:) (217:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between nu(:) (217:5) and nu(:) (217:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_utils.f90(217,5)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_bp_utils.f90(217,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference nu(:) has aligned access
+      remark #15388: vectorization support: reference X(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 4.667
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 1.290 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_utils.f90(217,5)
+   <Alternate Alignment Vectorized Loop>
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_utils.f90(217,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_utils.f90(218,5)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between tau(:) (218:5) and tau(:) (218:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between tau(:) (218:5) and tau(:) (218:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_utils.f90(218,5)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_bp_utils.f90(218,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference tau(:) has aligned access
+      remark #15388: vectorization support: reference Y(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 4.667
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 1.290 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_utils.f90(218,5)
+   <Alternate Alignment Vectorized Loop>
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_utils.f90(218,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_utils.f90(167,47):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_utils.f90(167,44):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_utils.f90(217,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_utils.f90(217,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_utils.f90(217,5):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_bp_utils.f90(218,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_utils.f90(218,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_utils.f90(218,5):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_bp_utils.f90(156,14):remark #34051: REGISTER ALLOCATION : [comm_bp_utils_mp_read_bandpass_] comm_bp_utils.f90:156
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     608
+            Global    :     133
+            Local     :     475
+        Regenerable   :     125
+        Spilled       :      20
+        
+    Routine stack
+        Variables     :     804 bytes*
+            Reads     :      24 [3.05e+01 ~ 1.3%]
+            Writes    :      89 [1.14e+02 ~ 4.8%]
+        Spills        :     120 bytes*
+            Reads     :      21 [1.42e+01 ~ 0.6%]
+            Writes    :      15 [1.05e+01 ~ 0.4%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================

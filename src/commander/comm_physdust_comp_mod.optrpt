@@ -1,0 +1,546 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_physdust_comp_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_physdust_comp_mod._) [1/3=33.3%] comm_physdust_comp_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_physdust_comp_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_physdust_comp_mod._] comm_physdust_comp_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_PHYSDUST_COMP_MOD::CONSTRUCTOR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_PHYSDUST_COMP_MOD::CONSTRUCTOR) [2/3=66.7%] comm_physdust_comp_mod.f90(36,12)
+  -> EXTERN: (50,5) for_allocate
+  -> INDIRECT-: (51,10)  (*((P64*) *((P64*) (comm_physdust_comp_mod_mp_constructor_$CONSTRUCTOR_V$299c.0.2 + 56(SI64)))))[16(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (55,5) for_alloc_allocatable
+  -> EXTERN: (55,5) for_alloc_allocatable
+  -> EXTERN: (55,5) for_alloc_allocatable
+  -> EXTERN: (56,5) for_alloc_allocatable
+  -> EXTERN: (56,5) for_alloc_allocatable
+  -> EXTERN: (61,5) for_cpystr
+  -> EXTERN: (64,13) COMM_MAP_MOD^CONSTRUCTOR_MAPINFO
+  -> EXTERN: (67,5) for_alloc_allocatable
+  -> EXTERN: (68,9) for_trim
+  -> EXTERN: (68,43) for_cpstr
+  -> EXTERN: (69,34) COMM_MAP_MOD^CONSTRUCTOR_MAP
+  -> EXTERN: (70,8) __getsp_inlined
+  -> EXTERN: (70,8) _alloca
+  -> EXTERN: (70,8) for_realloc_lhs
+  -> EXTERN: (70,8) __resetsp_inlined
+  -> EXTERN: (73,8) __resetsp_inlined
+  -> EXTERN: (73,8) __getsp_inlined
+  -> EXTERN: (73,34) COMM_MAP_MOD^CONSTRUCTOR_MAP
+  -> EXTERN: (73,49) for_trim
+  -> EXTERN: (73,75) for_concat
+  -> EXTERN: (73,75) _alloca
+  -> EXTERN: (73,78) for_trim
+  -> INDIRECT-: (75,36)  (*((P64*) *((P64*) (&((MAP_PTR$P$27_V$c4c *)(comm_physdust_comp_mod_mp_constructor_$CONSTRUCTOR_V$299c.0.2->QNCAtemplate.dim31_dv_template.addr_a0_V$29ea.0.2)->COMM_PHYSDUST_COMP_MOD$.btCOMM_PHYSDUST_COMP$COMM_DIFFUSE_COMP$44_V$10cb)[1(SI64), l:((comm_physdust_comp_mod_mp_constructor_$CONSTRUCTOR_V$299c.0.2->QNCAtemplate.dim31_dv_template.addr_a0_V$29ea.0.2)->COMM_PHYSDUST_COMP_MOD$.btCOMM_PHYSDUST_COMP$COMM_DIFFUSE_COMP$44_V$10d4)[0(SI32), l:0(SI64)]] + 56(SI64)))))[3(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (78,29) GETLUN
+  -> EXTERN: (87,5) for_alloc_allocatable
+  -> EXTERN: (87,5) for_check_mult_overflow64
+  -> EXTERN: (88,5) for_alloc_allocatable
+  -> EXTERN: (88,5) for_check_mult_overflow64
+  -> EXTERN: (88,5) for_alloc_allocatable
+  -> EXTERN: (88,5) for_check_mult_overflow64
+  -> EXTERN: (89,5) for_alloc_allocatable
+  -> EXTERN: (89,5) for_check_mult_overflow64
+  -> EXTERN: (89,5) for_alloc_allocatable
+  -> EXTERN: (89,5) for_check_mult_overflow64
+  -> EXTERN: (89,5) for_alloc_allocatable
+  -> EXTERN: (89,5) for_check_mult_overflow64
+  -> EXTERN: (90,5) for_alloc_allocatable
+  -> EXTERN: (90,5) for_check_mult_overflow64
+  -> EXTERN: (95,5) for_realloc_lhs
+  -> EXTERN: (102,5) for_alloc_allocatable
+  -> EXTERN: (102,5) for_check_mult_overflow64
+  -> EXTERN: (104,8) for_open
+  -> EXTERN: (104,8) __resetsp_inlined
+  -> EXTERN: (104,8) __getsp_inlined
+  -> EXTERN: (104,23) for_trim
+  -> EXTERN: (104,46) _alloca
+  -> EXTERN: (104,46) for_concat
+  -> EXTERN: (104,48) for_trim
+  -> EXTERN: (106,11) for_read_seq_fmt_xmit
+  -> EXTERN: (106,11) for_read_seq_fmt_xmit
+  -> EXTERN: (106,11) for_read_seq_fmt_xmit
+  -> EXTERN: (106,11) for_read_seq_fmt_xmit
+  -> EXTERN: (106,11) for_read_seq_fmt_xmit
+  -> EXTERN: (106,11) for_read_seq_fmt_xmit
+  -> EXTERN: (106,11) for_read_seq_fmt_xmit
+  -> EXTERN: (106,11) for_read_seq_fmt_xmit
+  -> EXTERN: (106,11) for_read_seq_fmt
+  -> EXTERN: (109,41) log
+  -> EXTERN: (111,13) log
+  -> EXTERN: (111,13) __getsp_inlined
+  -> EXTERN: (111,13) _alloca
+  -> EXTERN: (111,13) SPLIE2_FULL_PRECOMP
+  -> EXTERN: (111,13) __resetsp_inlined
+  -> EXTERN: (113,15) for_close
+  -> EXTERN: (115,6) for_dealloc_allocatable
+  -> EXTERN: (119,5) for_alloc_allocatable
+  -> EXTERN: (119,5) for_check_mult_overflow64
+  -> EXTERN: (121,34) COMM_F_INT_1D_MOD^CONSTRUCTOR
+  -> INDIRECT-: (125,10)  (*((P64*) *((P64*) (comm_physdust_comp_mod_mp_constructor_$CONSTRUCTOR_V$299c.0.2 + 56(SI64)))))[15(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+  -> EXTERN: (127,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(59,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between constructor(:,1) (59:5) and cpar(id_abs,:,1) (59:5)
+   remark #17106: parallel dependence: assumed ANTI dependence between cpar(id_abs,:,1) (59:5) and constructor(:,1) (59:5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between constructor(:,1) (59:5) and cpar(id_abs,:,1) (59:5)
+   remark #15346: vector dependence: assumed ANTI dependence between cpar(id_abs,:,1) (59:5) and constructor(:,1) (59:5)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(59,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(60,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between constructor(:,1) (60:5) and cpar(id_abs,:,1) (60:5)
+   remark #17106: parallel dependence: assumed ANTI dependence between cpar(id_abs,:,1) (60:5) and constructor(:,1) (60:5)
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed FLOW dependence between constructor(:,1) (60:5) and cpar(id_abs,:,1) (60:5)
+   remark #15346: vector dependence: assumed ANTI dependence between cpar(id_abs,:,1) (60:5) and constructor(:,1) (60:5)
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(60,5)
+<Remainder>
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(70,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(70,8)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(70,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference at (70:8) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 1.000
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.540 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(70,8)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(70,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(70,8)
+      remark #17102: loop was not parallelized: not a parallelization candidate
+      remark #15523: loop was not vectorized: loop control variable ? was found, but loop iteration count cannot be computed before executing the loop
+      remark #25478: While Loop Unrolled by 2  
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(95,5)
+   remark #25401: memcopy(with guard) generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between cpar(:,id_abs) (95:5) and at (95:5)
+   remark #17106: parallel dependence: assumed FLOW dependence between at (95:5) and cpar(:,id_abs) (95:5)
+   remark #15398: loop was not vectorized: loop was transformed to memset or memcpy
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(95,5)
+   <Multiversioned v2>
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed FLOW dependence between at (95:5) and cpar(:,id_abs) (95:5)
+      remark #17106: parallel dependence: assumed ANTI dependence between cpar(:,id_abs) (95:5) and at (95:5)
+      remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+      remark #25439: unrolled with remainder by 2  
+   LOOP END
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(95,5)
+   <Remainder, Multiversioned v2>
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(98,5)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(98,5)
+<Multiversioned v1>
+   remark #25228: Loop multiversioned for Data Dependence
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (99:8) has aligned access   [ comm_physdust_comp_mod.f90(99,8) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.361
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 10 
+   remark #15477: vector cost: 4.500 
+   remark #15478: estimated potential speedup: 2.160 
+   remark #15487: type converts: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(98,5)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15388: vectorization support: reference at (99:8) has aligned access   [ comm_physdust_comp_mod.f90(99,8) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.182
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(98,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(98,5)
+<Multiversioned v2>
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between at (99:8) and at (99:8)
+   remark #17106: parallel dependence: assumed ANTI dependence between at (99:8) and at (99:8)
+   remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+   remark #25439: unrolled with remainder by 2  
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(98,5)
+<Remainder, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(103,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between at (104:23) and at (104:41)
+   remark #17106: parallel dependence: assumed ANTI dependence between at (104:41) and at (104:23)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(106,40)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+      remark #15382: vectorization support: call to function for_read_seq_fmt cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized   [ comm_physdust_comp_mod.f90(106,11) ]
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+      remark #15346: vector dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+
+      LOOP BEGIN at comm_physdust_comp_mod.f90(106,11)
+         remark #17104: loop was not parallelized: existence of parallel dependence
+         remark #17106: parallel dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+         remark #17106: parallel dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+         remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization
+         remark #15346: vector dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+         remark #15346: vector dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+      LOOP END
+
+      LOOP BEGIN at comm_physdust_comp_mod.f90(106,11)
+         remark #17104: loop was not parallelized: existence of parallel dependence
+         remark #17106: parallel dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+         remark #17106: parallel dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+         remark #15382: vectorization support: call to function for_read_seq_fmt_xmit cannot be vectorized
+         remark #15344: loop was not vectorized: vector dependence prevents vectorization
+         remark #15346: vector dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+         remark #15346: vector dependence: assumed OUTPUT dependence between at (106:11) and at (106:11)
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+      remark #17109: LOOP WAS AUTO-PARALLELIZED
+      remark #17101: parallel loop shared={ } private={ } firstprivate={ ? ? COMP_MAT ? ? ? k } lastprivate={ } firstlastprivate={ } reduction={ }
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+
+      LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+      <Peeled loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=1
+      LOOP END
+
+      LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+         remark #15388: vectorization support: reference COMP_MAT(:,:,k) has aligned access
+         remark #15388: vectorization support: reference at (112:15) has aligned access   [ comm_physdust_comp_mod.f90(112,15) ]
+         remark #15305: vectorization support: vector length 2
+         remark #15309: vectorization support: normalized vectorization overhead 0.195
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15448: unmasked aligned unit stride loads: 1 
+         remark #15449: unmasked aligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 106 
+         remark #15477: vector cost: 38.500 
+         remark #15478: estimated potential speedup: 2.710 
+         remark #15482: vectorized math library calls: 1 
+         remark #15488: --- end vector cost summary ---
+      LOOP END
+
+      LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+      <Alternate Alignment Vectorized Loop>
+      LOOP END
+
+      LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+      <Remainder loop for vectorization>
+      LOOP END
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(120,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (121:34) and constructor(i) (121:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between constructor(i) (121:8) and at (121:34)
+   remark #15382: vectorization support: call to function COMM_F_INT_1D_MOD^CONSTRUCTOR cannot be vectorized   [ comm_physdust_comp_mod.f90(121,34) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed OUTPUT dependence between at (121:34) and constructor(i) (121:8)
+   remark #15346: vector dependence: assumed OUTPUT dependence between constructor(i) (121:8) and at (121:34)
+LOOP END
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+      remark #17107: loop was not parallelized: inner loop
+      remark #15388: vectorization support: reference COMP_MAT(:,:,k) has aligned access
+      remark #15388: vectorization support: reference at (112:15) has aligned access   [ comm_physdust_comp_mod.f90(112,15) ]
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 0.195
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 106 
+      remark #15477: vector cost: 38.500 
+      remark #15478: estimated potential speedup: 2.710 
+      remark #15482: vectorized math library calls: 1 
+      remark #15488: --- end vector cost summary ---
+   LOOP END
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+   <Alternate Alignment Vectorized Loop>
+   LOOP END
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(111,13)
+   <Remainder loop for vectorization>
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_physdust_comp_mod.f90(46,48):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_physdust_comp_mod.f90(50,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_physdust_comp_mod.f90(50,5):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_physdust_comp_mod.f90(95,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_physdust_comp_mod.f90(95,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_physdust_comp_mod.f90(95,5):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_physdust_comp_mod.f90(36,12):remark #34051: REGISTER ALLOCATION : [comm_physdust_comp_mod_mp_constructor_] comm_physdust_comp_mod.f90:36
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   24[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm9]
+        
+    Routine temporaries
+        Total         :    2091
+            Global    :     288
+            Local     :    1803
+        Regenerable   :     260
+        Spilled       :      73
+        
+    Routine stack
+        Variables     :    4356 bytes*
+            Reads     :      65 [6.61e+02 ~ 2.8%]
+            Writes    :     190 [1.10e+03 ~ 4.7%]
+        Spills        :     624 bytes*
+            Reads     :     159 [1.12e+03 ~ 4.8%]
+            Writes    :     126 [9.20e+02 ~ 4.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_PHYSDUST_COMP_MOD::EVALSED
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_PHYSDUST_COMP_MOD::EVALSED) [3/3=100.0%] comm_physdust_comp_mod.f90(133,12)
+  -> EXTERN: (159,22) pow
+  -> EXTERN: (160,22) pow
+  -> EXTERN: (164,30) exp
+  -> EXTERN: (164,34) SPLIN2_FULL_PRECOMP_IRREG
+  -> EXTERN: (165,43) log
+  -> EXTERN: (167,30) exp
+  -> EXTERN: (167,34) SPLIN2_FULL_PRECOMP_IRREG
+  -> EXTERN: (168,14) log
+  -> EXTERN: (173,34) pow
+  -> EXTERN: (175,38) pow
+  -> EXTERN: (177,28) pow
+  -> EXTERN: (178,48) pow
+  -> EXTERN: (178,74) pow
+  -> EXTERN: (181,38) log
+  -> EXTERN: (184,22) exp
+  -> EXTERN: (184,26) SPLIN2_FULL_PRECOMP_IRREG
+  -> EXTERN: (185,22) log
+  -> EXTERN: (185,34) log10
+  -> EXTERN: (187,22) exp
+  -> EXTERN: (187,26) SPLIN2_FULL_PRECOMP_IRREG
+  -> EXTERN: (188,20) log
+  -> EXTERN: (188,33) log10
+  -> EXTERN: (192,60) __powr8i4
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_physdust_comp_mod.f90(161,6)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed ANTI dependence between log_umax%COMM_PHYSDUST_COMP(0) (164:34) and self (187:26)
+   remark #15541: outer loop was not auto-vectorized: consider using SIMD directive
+
+   LOOP BEGIN at comm_physdust_comp_mod.f90(174,12)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed ANTI dependence between log_umax%COMM_PHYSDUST_COMP (184:26) and self%LOG_DUST_WAV_V (187:26)
+      remark #17106: parallel dependence: assumed FLOW dependence between self%LOG_DUST_WAV_V (187:26) and log_umax%COMM_PHYSDUST_COMP (184:26)
+      remark #15382: vectorization support: call to function SPLIN2_FULL_PRECOMP_IRREG cannot be vectorized   [ comm_physdust_comp_mod.f90(184,26) ]
+      remark #15382: vectorization support: call to function SPLIN2_FULL_PRECOMP_IRREG cannot be vectorized   [ comm_physdust_comp_mod.f90(187,26) ]
+      remark #15344: loop was not vectorized: vector dependence prevents vectorization
+      remark #15346: vector dependence: assumed ANTI dependence between log_umax%COMM_PHYSDUST_COMP (184:26) and self%LOG_DUST_WAV_V (187:26)
+      remark #15346: vector dependence: assumed FLOW dependence between self%LOG_DUST_WAV_V (187:26) and log_umax%COMM_PHYSDUST_COMP (184:26)
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_physdust_comp_mod.f90(133,12):remark #34051: REGISTER ALLOCATION : [comm_physdust_comp_mod_mp_evalsed_] comm_physdust_comp_mod.f90:133
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   19[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm4]
+        
+    Routine temporaries
+        Total         :     224
+            Global    :      80
+            Local     :     144
+        Regenerable   :      36
+        Spilled       :      26
+        
+    Routine stack
+        Variables     :     632 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      75 [5.71e+02 ~ 27.0%]
+        Spills        :     184 bytes*
+            Reads     :      49 [3.22e+02 ~ 15.2%]
+            Writes    :      30 [1.25e+02 ~ 5.9%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The indirectly called subprogram must be resolved to its targets before it 
+can be inlined.  Consider compiling with -ipo or -prof-gen followed by 
+-prof-use.
+

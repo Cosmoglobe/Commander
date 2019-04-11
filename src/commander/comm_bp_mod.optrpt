@@ -1,0 +1,2729 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: comm_bp_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (comm_bp_mod._) [1/6=16.7%] comm_bp_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [comm_bp_mod._] comm_bp_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_MOD::CONSTRUCTOR
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_MOD::CONSTRUCTOR) [2/6=33.3%] comm_bp_mod.f90(52,12)
+  -> EXTERN: (62,5) for_allocate
+  -> EXTERN: (63,5) for_concat
+  -> EXTERN: (63,11) for_trim
+  -> EXTERN: (68,5) memcpy
+  -> EXTERN: (69,18) memmove
+  -> EXTERN: (69,18) _alloca
+  -> EXTERN: (69,18) for_trim
+  -> EXTERN: (70,11) for_cpstr
+  -> EXTERN: (72,11) for_cpstr
+  -> EXTERN: (74,11) for_cpstr
+  -> EXTERN: (76,11) for_cpstr
+  -> EXTERN: (78,11) for_cpstr
+  -> EXTERN: (80,11) for_cpstr
+  -> EXTERN: (82,11) for_cpstr
+  -> EXTERN: (84,11) for_cpstr
+  -> EXTERN: (88,13) __resetsp_inlined
+  -> EXTERN: (88,13) __resetsp_inlined
+  -> EXTERN: (88,13) REPORT_ERROR
+  -> EXTERN: (88,13) __getsp_inlined
+  -> EXTERN: (88,13) __getsp_inlined
+  -> EXTERN: (88,65) for_concat
+  -> EXTERN: (88,65) _alloca
+  -> EXTERN: (88,67) for_trim
+  -> EXTERN: (92,9) for_trim
+  -> EXTERN: (92,32) for_cpstr
+  -> EXTERN: (93,8) for_alloc_allocatable
+  -> EXTERN: (93,8) for_alloc_allocatable
+  -> EXTERN: (93,8) for_alloc_allocatable
+  -> EXTERN: (93,8) for_alloc_allocatable
+  -> EXTERN: (98,13) __resetsp_inlined
+  -> EXTERN: (98,13) READ_BANDPASS
+  -> EXTERN: (98,13) __getsp_inlined
+  -> EXTERN: (98,27) for_trim
+  -> EXTERN: (98,36) for_concat
+  -> EXTERN: (98,36) _alloca
+  -> EXTERN: (100,8) for_alloc_allocatable
+  -> EXTERN: (100,8) for_check_mult_overflow64
+  -> EXTERN: (100,8) for_alloc_allocatable
+  -> EXTERN: (100,8) for_check_mult_overflow64
+  -> EXTERN: (104,5) memcpy
+  -> EXTERN: (105,9) for_trim
+  -> EXTERN: (105,33) for_cpstr
+  -> EXTERN: (107,8) for_check_mult_overflow64
+  -> EXTERN: (107,8) for_alloc_allocatable
+  -> EXTERN: (109,14) for_trim
+  -> EXTERN: (109,38) for_cpstr
+  -> EXTERN: (111,8) for_check_mult_overflow64
+  -> EXTERN: (111,8) for_alloc_allocatable
+  -> EXTERN: (114,13) __resetsp_inlined
+  -> EXTERN: (114,13) REPORT_ERROR
+  -> EXTERN: (114,13) __getsp_inlined
+  -> EXTERN: (114,67) for_concat
+  -> EXTERN: (114,67) _alloca
+  -> EXTERN: (114,70) for_trim
+  -> EXTERN: (118,10) __resetsp_inlined
+  -> EXTERN: (118,10) READ_INSTRUMENT_FILE
+  -> EXTERN: (118,10) __getsp_inlined
+  -> EXTERN: (118,31) for_trim
+  -> EXTERN: (118,54) for_concat
+  -> EXTERN: (118,54) _alloca
+  -> EXTERN: (118,56) for_trim
+  -> INDIRECT-: (122,10)  (*((P64*) *((P64*) (comm_bp_mod_mp_constructor_$CONSTRUCTOR_V$75c.0.3 + 56(SI64)))))[1(SI64)]
+     [[ Unable to inline indirect callsite  <1>]]
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_mod.f90(108,8)
+   remark #25408: memset generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (108:8) and at (108:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (108:8) and at (108:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_mod.f90(108,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15389: vectorization support: reference at (108:8) has unaligned access
+      remark #15381: vectorization support: unaligned access used inside loop body
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 2
+      remark #15309: vectorization support: normalized vectorization overhead 0.300
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15451: unmasked unaligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 2.500 
+      remark #15478: estimated potential speedup: 1.450 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(108,8)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(112,8)
+   remark #25408: memset generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (112:8) and at (112:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (112:8) and at (112:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_mod.f90(112,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15389: vectorization support: reference at (112:8) has unaligned access
+      remark #15381: vectorization support: unaligned access used inside loop body
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 2
+      remark #15309: vectorization support: normalized vectorization overhead 0.300
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15451: unmasked unaligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 2.500 
+      remark #15478: estimated potential speedup: 1.450 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=3
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(112,8)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_mod.f90(62,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(62,5):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_bp_mod.f90(68,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_bp_mod.f90(68,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_bp_mod.f90(68,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_bp_mod.f90(69,18):remark #34014: optimization advice for memmove: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(69,18):remark #34026: call to memmove implemented as a call to optimized library version
+comm_bp_mod.f90(104,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to increase the width of loads
+comm_bp_mod.f90(104,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to increase the width of stores
+comm_bp_mod.f90(104,5):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (1, 0), and destination (alignment, offset): (1, 0)
+comm_bp_mod.f90(112,8):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(112,8):remark #34026: call to memset implemented as a call to optimized library version
+comm_bp_mod.f90(108,8):remark #34014: optimization advice for memset: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(108,8):remark #34026: call to memset implemented as a call to optimized library version
+comm_bp_mod.f90(52,12):remark #34051: REGISTER ALLOCATION : [comm_bp_mod_mp_constructor_] comm_bp_mod.f90:52
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   18[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm3]
+        
+    Routine temporaries
+        Total         :     791
+            Global    :     108
+            Local     :     683
+        Regenerable   :     155
+        Spilled       :      11
+        
+    Routine stack
+        Variables     :    5840 bytes*
+            Reads     :       4 [2.00e+00 ~ 0.3%]
+            Writes    :      22 [1.74e+01 ~ 2.8%]
+        Spills        :      48 bytes*
+            Reads     :       6 [4.85e+00 ~ 0.8%]
+            Writes    :       6 [4.85e+00 ~ 0.8%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_MOD::UPDATE_TAU
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_MOD::UPDATE_TAU) [3/6=50.0%] comm_bp_mod.f90(128,14)
+  -> EXTERN: (137,5) for_realloc_lhs
+  -> EXTERN: (140,18) memmove
+  -> EXTERN: (140,18) _alloca
+  -> EXTERN: (140,18) for_trim
+  -> EXTERN: (141,11) for_cpstr
+  -> EXTERN: (144,8) for_dealloc_allocatable
+  -> EXTERN: (144,8) for_realloc_lhs
+  -> EXTERN: (146,62) pow
+  -> EXTERN: (149,11) for_cpstr
+  -> EXTERN: (152,8) for_dealloc_allocatable
+  -> EXTERN: (152,8) for_realloc_lhs
+  -> EXTERN: (156,8) __resetsp_inlined
+  -> EXTERN: (156,8) __getsp_inlined
+  -> EXTERN: (161,5) for_alloc_allocatable
+  -> EXTERN: (161,5) for_check_mult_overflow64
+  -> EXTERN: (161,5) for_alloc_allocatable
+  -> EXTERN: (161,5) for_check_mult_overflow64
+  -> EXTERN: (161,5) for_alloc_allocatable
+  -> EXTERN: (161,5) for_check_mult_overflow64
+  -> EXTERN: (161,5) for_alloc_allocatable
+  -> EXTERN: (161,5) for_check_mult_overflow64
+  -> EXTERN: (163,26) COMPUTE_ANT2THERMO_SINGLE
+  -> EXTERN: (164,26) COMPUTE_BNU_PRIME_SINGLE
+  -> EXTERN: (165,26) COMPUTE_BNU_PRIME_RJ_SINGLE
+  -> EXTERN: (166,26) COMPUTE_SZ_THERMO_SINGLE
+  -> EXTERN: (169,18) memmove
+  -> EXTERN: (169,18) _alloca
+  -> EXTERN: (169,18) for_trim
+  -> EXTERN: (170,11) for_cpstr
+  -> EXTERN: (177,11) for_cpstr
+  -> EXTERN: (182,68) pow
+  -> EXTERN: (184,8) for_realloc_lhs
+  -> EXTERN: (186,11) for_cpstr
+  -> EXTERN: (189,8) __resetsp_inlined
+  -> EXTERN: (189,8) __getsp_inlined
+  -> EXTERN: (189,23) _alloca
+  -> EXTERN: (189,23) TSUM
+  -> EXTERN: (190,26) _alloca
+  -> EXTERN: (190,26) TSUM
+  -> EXTERN: (191,8) __getsp_inlined
+  -> EXTERN: (191,8) __resetsp_inlined
+  -> EXTERN: (191,23) _alloca
+  -> EXTERN: (191,23) TSUM
+  -> EXTERN: (192,26) _alloca
+  -> EXTERN: (192,26) TSUM
+  -> EXTERN: (193,8) __getsp_inlined
+  -> EXTERN: (193,8) __resetsp_inlined
+  -> EXTERN: (193,23) pow
+  -> EXTERN: (193,23) _alloca
+  -> EXTERN: (193,23) TSUM
+  -> EXTERN: (194,37) _alloca
+  -> EXTERN: (194,37) TSUM
+  -> EXTERN: (195,8) __getsp_inlined
+  -> EXTERN: (195,8) for_realloc_lhs
+  -> EXTERN: (195,8) __resetsp_inlined
+  -> EXTERN: (195,34) _alloca
+  -> EXTERN: (195,34) TSUM
+  -> EXTERN: (197,11) for_cpstr
+  -> EXTERN: (197,22) for_cpstr
+  -> EXTERN: (199,8) __resetsp_inlined
+  -> EXTERN: (199,8) __getsp_inlined
+  -> EXTERN: (199,23) _alloca
+  -> EXTERN: (199,23) TSUM
+  -> EXTERN: (199,64) _alloca
+  -> EXTERN: (199,64) TSUM
+  -> EXTERN: (200,8) __getsp_inlined
+  -> EXTERN: (200,8) __resetsp_inlined
+  -> EXTERN: (200,23) _alloca
+  -> EXTERN: (200,23) TSUM
+  -> EXTERN: (201,26) _alloca
+  -> EXTERN: (201,26) TSUM
+  -> EXTERN: (202,8) __getsp_inlined
+  -> EXTERN: (202,8) __resetsp_inlined
+  -> EXTERN: (202,23) pow
+  -> EXTERN: (202,23) _alloca
+  -> EXTERN: (202,23) TSUM
+  -> EXTERN: (203,35) _alloca
+  -> EXTERN: (203,35) TSUM
+  -> EXTERN: (204,8) __getsp_inlined
+  -> EXTERN: (204,8) for_realloc_lhs
+  -> EXTERN: (204,8) __resetsp_inlined
+  -> EXTERN: (204,34) _alloca
+  -> EXTERN: (204,34) TSUM
+  -> EXTERN: (206,11) for_cpstr
+  -> EXTERN: (208,8) __resetsp_inlined
+  -> EXTERN: (208,8) __getsp_inlined
+  -> EXTERN: (208,23) _alloca
+  -> EXTERN: (208,23) TSUM
+  -> EXTERN: (208,64) _alloca
+  -> EXTERN: (208,64) TSUM
+  -> EXTERN: (209,8) __getsp_inlined
+  -> EXTERN: (209,8) __resetsp_inlined
+  -> EXTERN: (209,23) _alloca
+  -> EXTERN: (209,23) TSUM
+  -> EXTERN: (210,26) _alloca
+  -> EXTERN: (210,26) TSUM
+  -> EXTERN: (211,8) __getsp_inlined
+  -> EXTERN: (211,8) __resetsp_inlined
+  -> EXTERN: (211,23) pow
+  -> EXTERN: (211,23) _alloca
+  -> EXTERN: (211,23) TSUM
+  -> EXTERN: (212,35) _alloca
+  -> EXTERN: (212,35) TSUM
+  -> EXTERN: (213,8) __getsp_inlined
+  -> EXTERN: (213,8) for_realloc_lhs
+  -> EXTERN: (213,8) __resetsp_inlined
+  -> EXTERN: (213,34) pow
+  -> EXTERN: (213,34) _alloca
+  -> EXTERN: (213,34) TSUM
+  -> EXTERN: (215,11) for_cpstr
+  -> EXTERN: (217,8) __resetsp_inlined
+  -> EXTERN: (217,8) __getsp_inlined
+  -> EXTERN: (217,23) _alloca
+  -> EXTERN: (217,23) TSUM
+  -> EXTERN: (217,64) _alloca
+  -> EXTERN: (217,64) TSUM
+  -> EXTERN: (218,8) __getsp_inlined
+  -> EXTERN: (218,8) __resetsp_inlined
+  -> EXTERN: (218,23) _alloca
+  -> EXTERN: (218,23) TSUM
+  -> EXTERN: (219,26) _alloca
+  -> EXTERN: (219,26) TSUM
+  -> EXTERN: (220,8) __getsp_inlined
+  -> EXTERN: (220,8) __resetsp_inlined
+  -> EXTERN: (220,23) pow
+  -> EXTERN: (220,23) _alloca
+  -> EXTERN: (220,23) TSUM
+  -> EXTERN: (221,35) _alloca
+  -> EXTERN: (221,35) TSUM
+  -> EXTERN: (222,8) __getsp_inlined
+  -> EXTERN: (222,8) for_realloc_lhs
+  -> EXTERN: (222,8) __resetsp_inlined
+  -> EXTERN: (222,34) pow
+  -> EXTERN: (222,34) _alloca
+  -> EXTERN: (222,34) TSUM
+  -> EXTERN: (225,11) for_cpstr
+  -> EXTERN: (231,8) __resetsp_inlined
+  -> EXTERN: (231,8) __getsp_inlined
+  -> EXTERN: (234,5) for_dealloc_allocatable
+  -> EXTERN: (234,5) for_dealloc_allocatable
+  -> EXTERN: (234,5) for_dealloc_allocatable
+  -> EXTERN: (234,5) for_dealloc_allocatable
+  -> EXTERN: (236,3) for_dealloc_allocatable
+  -> EXTERN: (236,3) for_dealloc_allocatable
+  -> EXTERN: (236,3) for_dealloc_allocatable
+  -> EXTERN: (236,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_mod.f90(137,5)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (137:5) and at (137:5)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between at (137:5) and at (137:5)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_mod.f90(137,5)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(137,5)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference at (137:5) has aligned access
+      remark #15388: vectorization support: reference delta(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 4.667
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 1.290 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(137,5)
+   <Alternate Alignment Vectorized Loop>
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(137,5)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(144,8)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between self(:) (144:8) and self(:) (144:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between self(:) (144:8) and self(:) (144:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_mod.f90(144,8)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(144,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference self(:) has aligned access
+      remark #15388: vectorization support: reference self(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 4.667
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 1.290 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(144,8)
+   <Alternate Alignment Vectorized Loop>
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(144,8)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(145,8)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(145,8)
+<Multiversioned v1>
+   remark #25228: Loop multiversioned for Data Dependence
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(i) has unaligned access   [ comm_bp_mod.f90(146,41) ]
+   remark #15388: vectorization support: reference self(i) has aligned access   [ comm_bp_mod.f90(146,11) ]
+   remark #15388: vectorization support: reference at (146:25) has aligned access   [ comm_bp_mod.f90(146,25) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.193
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 138 
+   remark #15477: vector cost: 57.000 
+   remark #15478: estimated potential speedup: 2.390 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(145,8)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(145,8)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(145,8)
+<Multiversioned v2>
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between self(i) (146:11) and self%NU_C (146:62)
+   remark #17106: parallel dependence: assumed ANTI dependence between self%NU_C (146:62) and self(i) (146:11)
+   remark #15304: loop was not vectorized: non-vectorizable loop instance from multiversioning
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(152,8)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between self(:) (152:8) and self(:) (152:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between self(:) (152:8) and self(:) (152:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_mod.f90(152,8)
+   <Peeled loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(152,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference self(:) has aligned access
+      remark #15388: vectorization support: reference at (152:8) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15309: vectorization support: normalized vectorization overhead 4.667
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15442: entire loop may be executed in remainder
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 1.290 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(152,8)
+   <Alternate Alignment Vectorized Loop>
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(152,8)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(153,8)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(153,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(i) has aligned access   [ comm_bp_mod.f90(154,11) ]
+   remark #15388: vectorization support: reference self(i) has aligned access   [ comm_bp_mod.f90(154,24) ]
+   remark #15389: vectorization support: reference self(i) has unaligned access   [ comm_bp_mod.f90(155,35) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.093
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15457: masked unaligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 31 
+   remark #15477: vector cost: 21.500 
+   remark #15478: estimated potential speedup: 1.420 
+   remark #15488: --- end vector cost summary ---
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 4
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(153,8)
+<Alternate Alignment Vectorized Loop>
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 4
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(153,8)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference self(i) has aligned access   [ comm_bp_mod.f90(154,11) ]
+   remark #15389: vectorization support: reference self(i) has unaligned access   [ comm_bp_mod.f90(154,24) ]
+   remark #15389: vectorization support: reference self(i) has unaligned access   [ comm_bp_mod.f90(155,35) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.288
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(153,8)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(162,5)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #15382: vectorization support: call to function COMPUTE_ANT2THERMO_SINGLE cannot be vectorized   [ comm_bp_mod.f90(163,26) ]
+   remark #15382: vectorization support: call to function COMPUTE_BNU_PRIME_SINGLE cannot be vectorized   [ comm_bp_mod.f90(164,26) ]
+   remark #15382: vectorization support: call to function COMPUTE_BNU_PRIME_RJ_SINGLE cannot be vectorized   [ comm_bp_mod.f90(165,26) ]
+   remark #15382: vectorization support: call to function COMPUTE_SZ_THERMO_SINGLE cannot be vectorized   [ comm_bp_mod.f90(166,26) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(180,23)
+   remark #25045: Fused Loops: ( 180 180 )
+
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(180,39) ]
+   remark #15388: vectorization support: reference A(:) has aligned access   [ comm_bp_mod.f90(180,39) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.250
+   remark #15301: FUSED LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 38 
+   remark #15477: vector cost: 22.000 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(180,39)
+   remark #25046: Loop lost in Fusion 
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(180,23)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(180,39) ]
+   remark #15388: vectorization support: reference A(:) has aligned access   [ comm_bp_mod.f90(180,39) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.080
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(180,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(181,23)
+   remark #25045: Fused Loops: ( 181 181 )
+
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference SZ(:) has aligned access   [ comm_bp_mod.f90(181,51) ]
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(181,39) ]
+   remark #15388: vectorization support: reference A(:) has aligned access   [ comm_bp_mod.f90(181,39) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.234
+   remark #15301: FUSED LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 41 
+   remark #15477: vector cost: 23.500 
+   remark #15478: estimated potential speedup: 1.710 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(181,39)
+   remark #25046: Loop lost in Fusion 
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(181,23)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference SZ(:) has aligned access   [ comm_bp_mod.f90(181,51) ]
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(181,39) ]
+   remark #15388: vectorization support: reference A(:) has aligned access   [ comm_bp_mod.f90(181,39) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.982
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(181,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(182,23)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(182,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(:) has aligned access   [ comm_bp_mod.f90(182,43) ]
+   remark #15388: vectorization support: reference self(:) has aligned access   [ comm_bp_mod.f90(182,50) ]
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.261
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 172 
+   remark #15477: vector cost: 76.500 
+   remark #15478: estimated potential speedup: 2.220 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(182,23)
+<Alternate Alignment Vectorized Loop>
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(182,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(183,38)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(183,58) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access   [ comm_bp_mod.f90(183,50) ]
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.141
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 41 
+   remark #15477: vector cost: 24.000 
+   remark #15478: estimated potential speedup: 1.680 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(183,38)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(183,58) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access   [ comm_bp_mod.f90(183,50) ]
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.685
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(183,38)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(184,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference A(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.167
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15451: unmasked unaligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 4.500 
+   remark #15478: estimated potential speedup: 1.320 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(184,8)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(189,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(189,57) ]
+   remark #15388: vectorization support: reference at (189:57) has aligned access   [ comm_bp_mod.f90(189,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.043
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 39 
+   remark #15477: vector cost: 23.000 
+   remark #15478: estimated potential speedup: 1.670 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(189,23)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(189,57) ]
+   remark #15388: vectorization support: reference at (189:57) has aligned access   [ comm_bp_mod.f90(189,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.333
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(189,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(190,26)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(190,60) ]
+   remark #15388: vectorization support: reference at (190:60) has aligned access   [ comm_bp_mod.f90(190,60) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.043
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 39 
+   remark #15477: vector cost: 23.000 
+   remark #15478: estimated potential speedup: 1.670 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(190,26)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(190,60) ]
+   remark #15388: vectorization support: reference at (190:60) has aligned access   [ comm_bp_mod.f90(190,60) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.333
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(190,26)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(191,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(191,57) ]
+   remark #15388: vectorization support: reference at (191:57) has aligned access   [ comm_bp_mod.f90(191,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.043
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 39 
+   remark #15477: vector cost: 23.000 
+   remark #15478: estimated potential speedup: 1.670 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(191,23)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(191,57) ]
+   remark #15388: vectorization support: reference at (191:57) has aligned access   [ comm_bp_mod.f90(191,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.333
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(191,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(192,26)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(192,72) ]
+   remark #15388: vectorization support: reference at (192:72) has aligned access   [ comm_bp_mod.f90(192,72) ]
+   remark #15388: vectorization support: reference SZ(:) has aligned access
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.041
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 41 
+   remark #15477: vector cost: 24.500 
+   remark #15478: estimated potential speedup: 1.650 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(192,26)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(192,72) ]
+   remark #15388: vectorization support: reference at (192:72) has aligned access   [ comm_bp_mod.f90(192,72) ]
+   remark #15388: vectorization support: reference SZ(:) has aligned access
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.305
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(192,26)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(193,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(:) has aligned access   [ comm_bp_mod.f90(193,57) ]
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference at (193:57) has aligned access   [ comm_bp_mod.f90(193,57) ]
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.092
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 170 
+   remark #15477: vector cost: 76.000 
+   remark #15478: estimated potential speedup: 2.230 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(193,23)
+<Alternate Alignment Vectorized Loop>
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(193,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(194,37)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(194,71) ]
+   remark #15388: vectorization support: reference at (194:71) has aligned access   [ comm_bp_mod.f90(194,71) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.043
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 39 
+   remark #15477: vector cost: 23.000 
+   remark #15478: estimated potential speedup: 1.670 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(194,37)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(194,71) ]
+   remark #15388: vectorization support: reference at (194:71) has aligned access   [ comm_bp_mod.f90(194,71) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.333
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(194,37)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(195,34)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (195:56) has aligned access   [ comm_bp_mod.f90(195,56) ]
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference A(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.021
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 30 
+   remark #15477: vector cost: 18.000 
+   remark #15478: estimated potential speedup: 1.650 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(195,34)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (195:56) has aligned access   [ comm_bp_mod.f90(195,56) ]
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference A(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.310
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(195,34)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(195,8)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(195,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.086
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 30 
+   remark #15477: vector cost: 17.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(195,8)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.308
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(195,8)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(208,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (208:46) has aligned access   [ comm_bp_mod.f90(208,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(208,23)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (208:46) has aligned access   [ comm_bp_mod.f90(208,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(208,64)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (208:86) has aligned access   [ comm_bp_mod.f90(208,86) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(208,64)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (208:86) has aligned access   [ comm_bp_mod.f90(208,86) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(209,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (209:46) has aligned access   [ comm_bp_mod.f90(209,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(209,23)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (209:46) has aligned access   [ comm_bp_mod.f90(209,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(210,26)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (210:58) has aligned access   [ comm_bp_mod.f90(210,58) ]
+   remark #15388: vectorization support: reference SZ(:) has aligned access
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.075
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 5.000 
+   remark #15478: estimated potential speedup: 1.770 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(210,26)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (210:58) has aligned access   [ comm_bp_mod.f90(210,58) ]
+   remark #15388: vectorization support: reference SZ(:) has aligned access
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.722
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(211,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference at (211:46) has aligned access   [ comm_bp_mod.f90(211,46) ]
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.105
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 138 
+   remark #15477: vector cost: 57.000 
+   remark #15478: estimated potential speedup: 2.410 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(211,23)
+<Alternate Alignment Vectorized Loop>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(211,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(212,35)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (212:57) has aligned access   [ comm_bp_mod.f90(212,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(212,35)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (212:57) has aligned access   [ comm_bp_mod.f90(212,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(213,34)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference at (213:57) has aligned access   [ comm_bp_mod.f90(213,57) ]
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.105
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 138 
+   remark #15477: vector cost: 57.000 
+   remark #15478: estimated potential speedup: 2.410 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(213,34)
+<Alternate Alignment Vectorized Loop>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(213,34)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(213,8)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(213,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference self(:) has aligned access   [ comm_bp_mod.f90(213,60) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.079
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 33 
+   remark #15477: vector cost: 19.000 
+   remark #15478: estimated potential speedup: 1.710 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(213,8)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference self(:) has aligned access   [ comm_bp_mod.f90(213,60) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.286
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(213,8)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(217,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (217:46) has aligned access   [ comm_bp_mod.f90(217,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(217,23)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (217:46) has aligned access   [ comm_bp_mod.f90(217,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(217,64)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (217:86) has aligned access   [ comm_bp_mod.f90(217,86) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(217,64)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (217:86) has aligned access   [ comm_bp_mod.f90(217,86) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(218,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (218:46) has aligned access   [ comm_bp_mod.f90(218,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(218,23)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (218:46) has aligned access   [ comm_bp_mod.f90(218,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(219,26)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (219:58) has aligned access   [ comm_bp_mod.f90(219,58) ]
+   remark #15388: vectorization support: reference SZ(:) has aligned access
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.075
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 5.000 
+   remark #15478: estimated potential speedup: 1.770 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(219,26)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (219:58) has aligned access   [ comm_bp_mod.f90(219,58) ]
+   remark #15388: vectorization support: reference SZ(:) has aligned access
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.722
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(220,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference at (220:46) has aligned access   [ comm_bp_mod.f90(220,46) ]
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.105
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 138 
+   remark #15477: vector cost: 57.000 
+   remark #15478: estimated potential speedup: 2.410 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(220,23)
+<Alternate Alignment Vectorized Loop>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(220,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(221,35)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (221:57) has aligned access   [ comm_bp_mod.f90(221,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(221,35)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (221:57) has aligned access   [ comm_bp_mod.f90(221,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(222,34)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference at (222:57) has aligned access   [ comm_bp_mod.f90(222,57) ]
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.105
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 138 
+   remark #15477: vector cost: 57.000 
+   remark #15478: estimated potential speedup: 2.410 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(222,34)
+<Alternate Alignment Vectorized Loop>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(222,34)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(222,8)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(222,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference self(:) has aligned access   [ comm_bp_mod.f90(222,60) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.079
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 33 
+   remark #15477: vector cost: 19.000 
+   remark #15478: estimated potential speedup: 1.710 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(222,8)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference self(:) has aligned access   [ comm_bp_mod.f90(222,60) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.286
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(222,8)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(231,8)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(231,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.833
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.550 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(231,8)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(199,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (199:46) has aligned access   [ comm_bp_mod.f90(199,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(199,23)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (199:46) has aligned access   [ comm_bp_mod.f90(199,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(199,64)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (199:86) has aligned access   [ comm_bp_mod.f90(199,86) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(199,64)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (199:86) has aligned access   [ comm_bp_mod.f90(199,86) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(200,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (200:46) has aligned access   [ comm_bp_mod.f90(200,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(200,23)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (200:46) has aligned access   [ comm_bp_mod.f90(200,46) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(201,26)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (201:58) has aligned access   [ comm_bp_mod.f90(201,58) ]
+   remark #15388: vectorization support: reference SZ(:) has aligned access
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.075
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 5.000 
+   remark #15478: estimated potential speedup: 1.770 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(201,26)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (201:58) has aligned access   [ comm_bp_mod.f90(201,58) ]
+   remark #15388: vectorization support: reference SZ(:) has aligned access
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.722
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(202,23)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference at (202:46) has aligned access   [ comm_bp_mod.f90(202,46) ]
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.105
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 138 
+   remark #15477: vector cost: 57.000 
+   remark #15478: estimated potential speedup: 2.410 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(202,23)
+<Alternate Alignment Vectorized Loop>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(202,23)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(203,35)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (203:57) has aligned access   [ comm_bp_mod.f90(203,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(203,35)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (203:57) has aligned access   [ comm_bp_mod.f90(203,57) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(204,34)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (204:56) has aligned access   [ comm_bp_mod.f90(204,56) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(204,34)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (204:56) has aligned access   [ comm_bp_mod.f90(204,56) ]
+   remark #15388: vectorization support: reference BNU_PRIME(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(204,8)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(204,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.086
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 30 
+   remark #15477: vector cost: 17.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(204,8)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.308
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(204,8)
+<Remainder loop for vectorization>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_mod.f90(135,73):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_mod.f90(135,59):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_mod.f90(135,48):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_mod.f90(135,45):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_mod.f90(137,5):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(137,5):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(137,5):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_bp_mod.f90(140,18):remark #34014: optimization advice for memmove: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(140,18):remark #34026: call to memmove implemented as a call to optimized library version
+comm_bp_mod.f90(144,8):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(144,8):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(144,8):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_bp_mod.f90(152,8):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(152,8):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(152,8):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_bp_mod.f90(169,18):remark #34014: optimization advice for memmove: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(169,18):remark #34026: call to memmove implemented as a call to optimized library version
+comm_bp_mod.f90(128,14):remark #34051: REGISTER ALLOCATION : [comm_bp_mod_mp_update_tau_] comm_bp_mod.f90:128
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   29[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm14]
+        
+    Routine temporaries
+        Total         :    2680
+            Global    :     835
+            Local     :    1845
+        Regenerable   :     184
+        Spilled       :     100
+        
+    Routine stack
+        Variables     :    3792 bytes*
+            Reads     :      81 [4.40e+01 ~ 2.1%]
+            Writes    :     332 [8.41e+01 ~ 4.0%]
+        Spills        :     696 bytes*
+            Reads     :     213 [2.78e+01 ~ 1.3%]
+            Writes    :     195 [2.28e+01 ~ 1.1%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_MOD::SED2F
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_MOD::SED2F) [4/6=66.7%] comm_bp_mod.f90(239,12)
+  -> EXTERN: (246,18) memmove
+  -> EXTERN: (246,18) _alloca
+  -> EXTERN: (246,18) for_trim
+  -> EXTERN: (247,11) for_cpstr
+  -> EXTERN: (249,11) for_cpstr
+  -> EXTERN: (250,8) __resetsp_inlined
+  -> EXTERN: (250,8) __getsp_inlined
+  -> EXTERN: (250,16) _alloca
+  -> EXTERN: (250,16) TSUM
+  -> EXTERN: (251,11) for_cpstr
+  -> EXTERN: (252,8) __resetsp_inlined
+  -> EXTERN: (252,8) __getsp_inlined
+  -> EXTERN: (252,16) _alloca
+  -> EXTERN: (252,16) TSUM
+  -> EXTERN: (253,11) for_cpstr
+  -> EXTERN: (254,8) __resetsp_inlined
+  -> EXTERN: (254,8) __getsp_inlined
+  -> EXTERN: (254,16) _alloca
+  -> EXTERN: (254,16) TSUM
+  -> EXTERN: (255,11) for_cpstr
+  -> EXTERN: (256,8) __resetsp_inlined
+  -> EXTERN: (256,8) __getsp_inlined
+  -> EXTERN: (256,16) _alloca
+  -> EXTERN: (256,16) TSUM
+  -> EXTERN: (257,11) for_cpstr
+  -> EXTERN: (258,8) __resetsp_inlined
+  -> EXTERN: (258,8) __getsp_inlined
+  -> EXTERN: (258,16) _alloca
+  -> EXTERN: (258,16) TSUM
+  -> EXTERN: (259,11) for_cpstr
+  -> EXTERN: (261,11) for_cpstr
+  -> EXTERN: (262,8) __resetsp_inlined
+  -> EXTERN: (262,8) __getsp_inlined
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_mod.f90(250,16)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (250:39) has aligned access   [ comm_bp_mod.f90(250,39) ]
+   remark #15389: vectorization support: reference at (250:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.188
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 4.000 
+   remark #15478: estimated potential speedup: 1.480 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(250,16)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(250,16)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (250:39) has aligned access   [ comm_bp_mod.f90(250,39) ]
+   remark #15389: vectorization support: reference at (250:16) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <f(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.083
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 4.500 
+   remark #15478: estimated potential speedup: 1.320 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(250,16)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(252,16)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(252,66) ]
+   remark #15388: vectorization support: reference at (252:66) has aligned access   [ comm_bp_mod.f90(252,66) ]
+   remark #15389: vectorization support: reference at (252:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.052
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 3 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 43 
+   remark #15477: vector cost: 26.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(252,16)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(252,66) ]
+   remark #15388: vectorization support: reference at (252:66) has aligned access   [ comm_bp_mod.f90(252,66) ]
+   remark #15389: vectorization support: reference at (252:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.344
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(252,16)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(252,16)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(252,66) ]
+   remark #15388: vectorization support: reference at (252:66) has aligned access   [ comm_bp_mod.f90(252,66) ]
+   remark #15389: vectorization support: reference at (252:16) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <f(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.037
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 43 
+   remark #15477: vector cost: 27.000 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(252,16)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(254,16)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(254,66) ]
+   remark #15388: vectorization support: reference at (254:66) has aligned access   [ comm_bp_mod.f90(254,66) ]
+   remark #15389: vectorization support: reference at (254:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.052
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 3 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 43 
+   remark #15477: vector cost: 26.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(254,16)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(254,66) ]
+   remark #15388: vectorization support: reference at (254:66) has aligned access   [ comm_bp_mod.f90(254,66) ]
+   remark #15389: vectorization support: reference at (254:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.344
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(254,16)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(254,16)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(254,66) ]
+   remark #15388: vectorization support: reference at (254:66) has aligned access   [ comm_bp_mod.f90(254,66) ]
+   remark #15389: vectorization support: reference at (254:16) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <f(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.037
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 43 
+   remark #15477: vector cost: 27.000 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(254,16)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(256,16)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(256,66) ]
+   remark #15388: vectorization support: reference at (256:66) has aligned access   [ comm_bp_mod.f90(256,66) ]
+   remark #15389: vectorization support: reference at (256:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.052
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 3 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 43 
+   remark #15477: vector cost: 26.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(256,16)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(256,66) ]
+   remark #15388: vectorization support: reference at (256:66) has aligned access   [ comm_bp_mod.f90(256,66) ]
+   remark #15389: vectorization support: reference at (256:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.344
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(256,16)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(256,16)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(256,66) ]
+   remark #15388: vectorization support: reference at (256:66) has aligned access   [ comm_bp_mod.f90(256,66) ]
+   remark #15389: vectorization support: reference at (256:16) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <f(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.037
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 43 
+   remark #15477: vector cost: 27.000 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(256,16)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(258,16)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(258,66) ]
+   remark #15388: vectorization support: reference at (258:66) has aligned access   [ comm_bp_mod.f90(258,66) ]
+   remark #15389: vectorization support: reference at (258:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.052
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 3 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 43 
+   remark #15477: vector cost: 26.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(258,16)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(258,66) ]
+   remark #15388: vectorization support: reference at (258:66) has aligned access   [ comm_bp_mod.f90(258,66) ]
+   remark #15389: vectorization support: reference at (258:16) has unaligned access
+   remark #15389: vectorization support: reference f(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.344
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(258,16)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(258,16)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(258,66) ]
+   remark #15388: vectorization support: reference at (258:66) has aligned access   [ comm_bp_mod.f90(258,66) ]
+   remark #15389: vectorization support: reference at (258:16) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <f(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.037
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 43 
+   remark #15477: vector cost: 27.000 
+   remark #15478: estimated potential speedup: 1.570 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(258,16)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(260,16)
+<Peeled loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(260,16)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (260:16) has aligned access
+   remark #15388: vectorization support: reference f(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 1.031
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 8 
+   remark #15477: vector cost: 4.000 
+   remark #15478: estimated potential speedup: 1.920 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(260,16)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(260,16)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(260,16)
+<Peeled loop for vectorization, Multiversioned v2>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(260,16)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (260:16) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <f(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.725
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 8 
+   remark #15477: vector cost: 5.000 
+   remark #15478: estimated potential speedup: 1.550 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(260,16)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_mod.f90(246,18):remark #34014: optimization advice for memmove: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(246,18):remark #34026: call to memmove implemented as a call to optimized library version
+comm_bp_mod.f90(239,12):remark #34051: REGISTER ALLOCATION : [comm_bp_mod_mp_sed2f_] comm_bp_mod.f90:239
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     844
+            Global    :     203
+            Local     :     641
+        Regenerable   :     103
+        Spilled       :      17
+        
+    Routine stack
+        Variables     :     872 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :      40 [2.85e+00 ~ 1.4%]
+        Spills        :      80 bytes*
+            Reads     :      16 [4.42e-01 ~ 0.2%]
+            Writes    :      16 [4.42e-01 ~ 0.2%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_MOD::LINEAMP_RJ
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_MOD::LINEAMP_RJ) [5/6=83.3%] comm_bp_mod.f90(267,12)
+  -> EXTERN: (291,18) memmove
+  -> EXTERN: (291,18) _alloca
+  -> EXTERN: (291,18) for_trim
+  -> EXTERN: (292,11) for_cpstr
+  -> EXTERN: (300,11) for_cpstr
+  -> EXTERN: (305,11) for_cpstr
+  -> EXTERN: (308,8) for_check_mult_overflow64
+  -> EXTERN: (308,8) for_alloc_allocatable
+  -> EXTERN: (309,8) __getsp_inlined
+  -> EXTERN: (309,8) for_realloc_lhs
+  -> EXTERN: (309,8) __resetsp_inlined
+  -> EXTERN: (309,23) _alloca
+  -> EXTERN: (309,23) COMPUTE_BNU_PRIME_RJ_ARRAY
+  -> EXTERN: (310,8) __getsp_inlined
+  -> EXTERN: (310,8) __resetsp_inlined
+  -> EXTERN: (310,40) COMPUTE_BNU_PRIME_RJ_SINGLE
+  -> EXTERN: (311,15) _alloca
+  -> EXTERN: (311,15) TSUM
+  -> EXTERN: (312,8) for_dealloc_allocatable
+  -> EXTERN: (314,11) for_cpstr
+  -> EXTERN: (314,22) for_cpstr
+  -> EXTERN: (316,8) for_check_mult_overflow64
+  -> EXTERN: (316,8) for_alloc_allocatable
+  -> EXTERN: (317,8) __getsp_inlined
+  -> EXTERN: (317,8) for_realloc_lhs
+  -> EXTERN: (317,8) __resetsp_inlined
+  -> EXTERN: (317,23) _alloca
+  -> EXTERN: (317,23) COMPUTE_BNU_PRIME_RJ_ARRAY
+  -> EXTERN: (318,8) __getsp_inlined
+  -> EXTERN: (318,8) __resetsp_inlined
+  -> EXTERN: (318,34) COMPUTE_BNU_PRIME_RJ_SINGLE
+  -> EXTERN: (319,15) _alloca
+  -> EXTERN: (319,15) TSUM
+  -> EXTERN: (320,8) for_dealloc_allocatable
+  -> EXTERN: (322,11) for_cpstr
+  -> EXTERN: (324,8) __resetsp_inlined
+  -> EXTERN: (324,8) __getsp_inlined
+  -> EXTERN: (324,34) COMPUTE_BNU_PRIME_RJ_SINGLE
+  -> EXTERN: (325,16) pow
+  -> EXTERN: (325,16) _alloca
+  -> EXTERN: (325,16) TSUM
+  -> EXTERN: (328,11) for_cpstr
+  -> EXTERN: (333,11) __resetsp_inlined
+  -> EXTERN: (333,11) __getsp_inlined
+  -> EXTERN: (340,3) for_dealloc_allocatable
+  -> EXTERN: (340,3) for_dealloc_allocatable
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at comm_bp_mod.f90(285,5)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable i was found, but loop iteration count cannot be computed before executing the loop
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(303,58)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(303,58)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 1.450
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 2.260 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(303,58)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(309,8)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between BNU_PRIME_RJ(:) (309:8) and BNU_PRIME_RJ(:) (309:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between BNU_PRIME_RJ(:) (309:8) and BNU_PRIME_RJ(:) (309:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_mod.f90(309,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+      remark #15388: vectorization support: reference at (309:8) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.660 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(309,8)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(311,15)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(311,49) ]
+   remark #15388: vectorization support: reference at (311:49) has aligned access   [ comm_bp_mod.f90(311,49) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.043
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 39 
+   remark #15477: vector cost: 23.000 
+   remark #15478: estimated potential speedup: 1.670 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(311,15)
+<Remainder loop for vectorization>
+   remark #15389: vectorization support: reference self(:) has unaligned access   [ comm_bp_mod.f90(311,49) ]
+   remark #15388: vectorization support: reference at (311:49) has aligned access   [ comm_bp_mod.f90(311,49) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.333
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(311,15)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(325,16)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15388: vectorization support: reference at (325:39) has aligned access   [ comm_bp_mod.f90(325,39) ]
+   remark #15388: vectorization support: reference self(:) has aligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.105
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 138 
+   remark #15477: vector cost: 57.000 
+   remark #15478: estimated potential speedup: 2.410 
+   remark #15482: vectorized math library calls: 1 
+   remark #15486: divides: 1 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(325,16)
+<Alternate Alignment Vectorized Loop>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(325,16)
+<Remainder loop for vectorization>
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(317,8)
+   remark #25399: memcopy generated
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between BNU_PRIME_RJ(:) (317:8) and BNU_PRIME_RJ(:) (317:8)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between BNU_PRIME_RJ(:) (317:8) and BNU_PRIME_RJ(:) (317:8)
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at comm_bp_mod.f90(317,8)
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+      remark #15388: vectorization support: reference at (317:8) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15449: unmasked aligned unit stride stores: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 4 
+      remark #15477: vector cost: 1.500 
+      remark #15478: estimated potential speedup: 2.660 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=6
+   LOOP END
+
+   LOOP BEGIN at comm_bp_mod.f90(317,8)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=12
+   LOOP END
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(319,15)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (319:37) has aligned access   [ comm_bp_mod.f90(319,37) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.107
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 6 
+   remark #15477: vector cost: 3.500 
+   remark #15478: estimated potential speedup: 1.690 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at comm_bp_mod.f90(319,15)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference at (319:37) has aligned access   [ comm_bp_mod.f90(319,37) ]
+   remark #15388: vectorization support: reference BNU_PRIME_RJ(:) has aligned access
+   remark #15389: vectorization support: reference self(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.000
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_mod.f90(276,44):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_mod.f90(276,58):remark #34000: call to memcpy implemented inline with loads and stores with proven source (alignment, offset): (32, 0), and destination (alignment, offset): (16, 0)
+comm_bp_mod.f90(291,18):remark #34014: optimization advice for memmove: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(291,18):remark #34026: call to memmove implemented as a call to optimized library version
+comm_bp_mod.f90(317,8):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(317,8):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(317,8):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_bp_mod.f90(309,8):remark #34014: optimization advice for memcpy: increase the destination's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(309,8):remark #34014: optimization advice for memcpy: increase the source's alignment to 16 (and use __assume_aligned) to speed up library implementation
+comm_bp_mod.f90(309,8):remark #34026: call to memcpy implemented as a call to optimized library version
+comm_bp_mod.f90(267,12):remark #34051: REGISTER ALLOCATION : [comm_bp_mod_mp_lineamp_rj_] comm_bp_mod.f90:267
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   26[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm11]
+        
+    Routine temporaries
+        Total         :     623
+            Global    :     150
+            Local     :     473
+        Regenerable   :      86
+        Spilled       :      24
+        
+    Routine stack
+        Variables     :    1176 bytes*
+            Reads     :      24 [2.12e+00 ~ 2.2%]
+            Writes    :      90 [1.05e+01 ~ 11.0%]
+        Spills        :     144 bytes*
+            Reads     :      39 [8.75e-01 ~ 0.9%]
+            Writes    :      28 [1.55e+00 ~ 1.6%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: COMM_BP_MOD::INITIALIZE_BP_MOD
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (COMM_BP_MOD::INITIALIZE_BP_MOD) [6/6=100.0%] comm_bp_mod.f90(31,14)
+  -> EXTERN: (38,9) for_trim
+  -> EXTERN: (38,37) for_cpstr
+  -> EXTERN: (40,14) for_trim
+  -> EXTERN: (40,42) for_cpstr
+  -> EXTERN: (43,8) for_write_seq_lis_xmit
+  -> EXTERN: (43,8) for_write_seq_lis
+  -> EXTERN: (43,55) for_trim
+  -> EXTERN: (44,8) for_stop_core
+
+
+    Report from: Code generation optimizations [cg]
+
+comm_bp_mod.f90(31,14):remark #34051: REGISTER ALLOCATION : [comm_bp_mod_mp_initialize_bp_mod_] comm_bp_mod.f90:31
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    7[ rax rdx rcx rsi rdi r8 r14]
+        
+    Routine temporaries
+        Total         :      75
+            Global    :      20
+            Local     :      55
+        Regenerable   :      45
+        Spilled       :       1
+        
+    Routine stack
+        Variables     :    1632 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       5 [5.50e-01 ~ 1.4%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The indirectly called subprogram must be resolved to its targets before it 
+can be inlined.  Consider compiling with -ipo or -prof-gen followed by 
+-prof-use.
+

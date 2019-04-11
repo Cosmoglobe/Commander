@@ -1,0 +1,1006 @@
+Intel(R) Advisor can now assist with vectorization and show optimization
+  report messages with your source code.
+See "https://software.intel.com/en-us/intel-advisor-xe" for details.
+
+Intel(R) Fortran Intel(R) 64 Compiler for applications running on Intel(R) 64, Version 18.0.3.222 Build 20180410
+
+Compiler options: -I/mn/stornext/u3/hke/owl/local/src/dagsshealpix/include -I/mn/stornext/u3/hke/owl/local/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -I/astro/local/opt/Intel/compilers_and_libraries_2018.3.222/linux/mpi/intel64/include -O3 -traceback -qopenmp -qopt-report=5 -parallel -c
+
+    Report from: Interprocedural optimizations [ipo]
+
+  WHOLE PROGRAM (SAFE) [EITHER METHOD]: false
+  WHOLE PROGRAM (SEEN) [TABLE METHOD]: false
+  WHOLE PROGRAM (READ) [OBJECT READER METHOD]: false
+
+INLINING OPTION VALUES:
+  -inline-factor: 100
+  -inline-min-size: 30
+  -inline-max-size: 230
+  -inline-max-total-size: 2000
+  -inline-max-per-routine: 10000
+  -inline-max-per-compile: 500000
+
+In the inlining report below:
+   "sz" refers to the "size" of the routine. The smaller a routine's size,
+      the more likely it is to be inlined.
+   "isz" refers to the "inlined size" of the routine. This is the amount
+      the calling routine will grow if the called routine is inlined into it.
+      The compiler generally limits the amount a routine can grow by having
+      routines inlined into it.
+
+Begin optimization report for: invsamp_mod._
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (invsamp_mod._) [1/3=33.3%] InvSamp_mod.f90(1,8)
+
+
+    Report from: Code generation optimizations [cg]
+
+InvSamp_mod.f90(1,8):remark #34051: REGISTER ALLOCATION : [invsamp_mod._] InvSamp_mod.f90:1
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :    0[ reg_null]
+        
+    Routine temporaries
+        Total         :       6
+            Global    :       0
+            Local     :       6
+        Regenerable   :       0
+        Spilled       :       0
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: INVSAMP_MOD::SAMPLE_INVSAMP
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (INVSAMP_MOD::SAMPLE_INVSAMP) [2/3=66.7%] InvSamp_mod.f90(15,12)
+  -> EXTERN: (63,14) for_write_seq_lis
+  -> EXTERN: (64,14) for_stop_core
+  -> INDIRECT-: (70,23)  invsamp_mod_mp_sample_invsamp_$LNL_V$d9.0.2
+     [[ Callee not marked with inlining directive  <1>]]
+  -> INDIRECT-: (77,19)  invsamp_mod_mp_sample_invsamp_$LNL_V$d9.0.2
+     [[ Callee not marked with inlining directive  <1>]]
+  -> (78,16) INVSAMP_MOD::UPDATE_INVSAMP_SAMPLE_SET (isz = 209) (sz = 224)
+     [[ Inlining inhibited by overrideable criterion  <2>]]
+  -> INDIRECT-: (83,19)  invsamp_mod_mp_sample_invsamp_$LNL_V$d9.0.2
+     [[ Callee not marked with inlining directive  <1>]]
+  -> (84,16) INVSAMP_MOD::UPDATE_INVSAMP_SAMPLE_SET (isz = 209) (sz = 224)
+     [[ Inlining inhibited by overrideable criterion  <2>]]
+  -> INDIRECT-: (92,19)  invsamp_mod_mp_sample_invsamp_$LNL_V$d9.0.2
+     [[ Callee not marked with inlining directive  <1>]]
+  -> (93,16) INVSAMP_MOD::UPDATE_INVSAMP_SAMPLE_SET (isz = 209) (sz = 224)
+     [[ Inlining inhibited by overrideable criterion  <2>]]
+  -> INDIRECT-: (98,19)  invsamp_mod_mp_sample_invsamp_$LNL_V$d9.0.2
+     [[ Callee not marked with inlining directive  <1>]]
+  -> (99,16) INVSAMP_MOD::UPDATE_INVSAMP_SAMPLE_SET (isz = 209) (sz = 224)
+     [[ Inlining inhibited by overrideable criterion  <2>]]
+  -> EXTERN: (113,16) SPLINE_PLAIN
+  -> INDIRECT-: (117,32)  invsamp_mod_mp_sample_invsamp_$LNL_V$d9.0.2
+     [[ Callee not marked with inlining directive  <1>]]
+  -> EXTERN: (118,32) SPLINT_PLAIN
+  -> (120,22) INVSAMP_MOD::UPDATE_INVSAMP_SAMPLE_SET (isz = 209) (sz = 224)
+     [[ Inlining inhibited by overrideable criterion  <2>]]
+  -> DELETED: (139,8) for_write_seq_lis_xmit
+  -> DELETED: (139,8) for_write_seq_lis
+  -> DELETED: (140,8) __getsp_inlined
+  -> DELETED: (140,8) for_write_seq_lis
+  -> DELETED: (140,8) _alloca
+  -> EXTERN: (140,8) for_write_seq_lis_xmit
+  -> EXTERN: (140,8) __resetsp_inlined
+  -> EXTERN: (141,8) __getsp_inlined
+  -> EXTERN: (141,8) for_write_seq_lis
+  -> EXTERN: (141,8) _alloca
+  -> EXTERN: (141,8) for_write_seq_lis_xmit
+  -> EXTERN: (141,8) __resetsp_inlined
+  -> EXTERN: (142,8) for_write_seq_lis
+  -> EXTERN: (144,8) for_open
+  -> EXTERN: (146,11) for_write_seq_lis_xmit
+  -> EXTERN: (146,11) for_write_seq_lis
+  -> EXTERN: (148,14) for_close
+  -> EXTERN: (149,8) for_stop_core
+  -> EXTERN: (154,13) SPLINE_PLAIN
+  -> EXTERN: (176,21) SPLINT_PLAIN
+  -> EXTERN: (178,15) exp
+  -> DELETED: (190,14) for_open
+  -> EXTERN: (192,17) for_write_seq_lis_xmit
+  -> EXTERN: (192,17) for_write_seq_lis
+  -> EXTERN: (194,20) for_close
+  -> EXTERN: (196,14) for_open
+  -> EXTERN: (198,17) for_write_seq_lis_xmit
+  -> EXTERN: (198,17) for_write_seq_lis
+  -> EXTERN: (200,20) for_close
+  -> EXTERN: (205,17) RAND_UNI
+  -> EXTERN: (207,20) RAND_UNI
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at InvSamp_mod.f90(46,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference prior_(:) has aligned access
+   remark #15389: vectorization support: reference prior(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15427: loop was completely unrolled
+   remark #15309: vectorization support: normalized vectorization overhead 0.750
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.000 
+   remark #15478: estimated potential speedup: 1.140 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(48,8)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference prior_(:) has aligned access
+   remark #15388: vectorization support: reference at (48:8) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15427: loop was completely unrolled
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.660 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(55,8)
+<Multiversioned v1>
+   remark #25045: Fused Loops: ( 55 56 )
+
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x_n(:) has aligned access
+   remark #15389: vectorization support: reference x_in(:) has unaligned access
+   remark #15388: vectorization support: reference s_n(:) has aligned access   [ InvSamp_mod.f90(56,8) ]
+   remark #15389: vectorization support: reference lnl_in(:) has unaligned access   [ InvSamp_mod.f90(56,8) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.750
+   remark #15301: FUSED LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 2 
+   remark #15450: unmasked unaligned unit stride loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 7 
+   remark #15477: vector cost: 4.000 
+   remark #15478: estimated potential speedup: 1.740 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=500
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(56,8)
+   remark #25046: Loop lost in Fusion 
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(55,8)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x_n(:) has aligned access
+   remark #15388: vectorization support: reference s_n(:) has aligned access   [ InvSamp_mod.f90(56,8) ]
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_in(:)>, stride is unknown to compiler
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <lnl_in(:)>, stride is unknown to compiler   [ InvSamp_mod.f90(56,8) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15301: FUSED LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 2 
+   remark #15452: unmasked strided loads: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 7 
+   remark #15477: vector cost: 5.000 
+   remark #15478: estimated potential speedup: 1.400 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=500
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(59,8)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x_n(:) has aligned access
+   remark #15389: vectorization support: reference x_in(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.750
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.000 
+   remark #15478: estimated potential speedup: 1.990 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=500
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(59,8)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(59,8)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x_n(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x_in(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=500
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(59,8)
+<Remainder loop for vectorization, Multiversioned v2>
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(66,11)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s_n(:) has aligned access
+   remark #15389: vectorization support: reference lnl_in(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.750
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.000 
+   remark #15478: estimated potential speedup: 1.990 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=500
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(66,11)
+<Remainder loop for vectorization, Multiversioned v1>
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(66,11)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s_n(:) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <lnl_in(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=500
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(66,11)
+<Remainder loop for vectorization, Multiversioned v2>
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(69,11)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #15382: vectorization support: call to function (Indirect call) cannot be vectorized   [ InvSamp_mod.f90(70,23) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(75,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(81,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(89,19)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ InvSamp_mod.f90(89,19) ]
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s_n(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.279
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 8.500 
+   remark #15478: estimated potential speedup: 1.050 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=125
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(89,19)
+<Remainder loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(90,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(96,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15521: loop was not vectorized: loop control variable was not identified. Explicitly compute the iteration count before executing the loop or try using canonical loop form from OpenMP specification
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(106,8)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15542: loop was not vectorized: inner loop was already vectorized
+
+   LOOP BEGIN at InvSamp_mod.f90(109,27)
+      remark #25084: Preprocess Loopnests: Moving Out Store    [ InvSamp_mod.f90(109,27) ]
+      remark #17108: loop was not parallelized: insufficient computational work
+      remark #15388: vectorization support: reference s_n(:) has aligned access
+      remark #15305: vectorization support: vector length 2
+      remark #15399: vectorization support: unroll factor set to 4
+      remark #15309: vectorization support: normalized vectorization overhead 0.279
+      remark #15300: LOOP WAS VECTORIZED
+      remark #15448: unmasked aligned unit stride loads: 1 
+      remark #15475: --- begin vector cost summary ---
+      remark #15476: scalar cost: 9 
+      remark #15477: vector cost: 8.500 
+      remark #15478: estimated potential speedup: 1.050 
+      remark #15488: --- end vector cost summary ---
+      remark #25015: Estimate of max trip count of loop=125
+   LOOP END
+
+   LOOP BEGIN at InvSamp_mod.f90(109,27)
+   <Remainder loop for vectorization>
+      remark #25015: Estimate of max trip count of loop=1000
+   LOOP END
+
+   LOOP BEGIN at InvSamp_mod.f90(110,11)
+      remark #25399: memcopy generated
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between x_spline(:) (110:11) and x_spline(:) (110:11)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between x_spline(:) (110:11) and x_spline(:) (110:11)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+      remark #25015: Estimate of max trip count of loop=1000
+
+      LOOP BEGIN at InvSamp_mod.f90(110,11)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15388: vectorization support: reference x_spline(:) has aligned access
+         remark #15388: vectorization support: reference x_n(:) has aligned access
+         remark #15305: vectorization support: vector length 2
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15448: unmasked aligned unit stride loads: 1 
+         remark #15449: unmasked aligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 1.500 
+         remark #15478: estimated potential speedup: 2.660 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=6
+      LOOP END
+
+      LOOP BEGIN at InvSamp_mod.f90(110,11)
+      <Remainder loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=12
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at InvSamp_mod.f90(111,11)
+      remark #25399: memcopy generated
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between s_spline(:) (111:11) and s_spline(:) (111:11)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between s_spline(:) (111:11) and s_spline(:) (111:11)
+      remark #15542: loop was not vectorized: inner loop was already vectorized
+      remark #25015: Estimate of max trip count of loop=1000
+
+      LOOP BEGIN at InvSamp_mod.f90(111,11)
+         remark #17108: loop was not parallelized: insufficient computational work
+         remark #15388: vectorization support: reference s_spline(:) has aligned access
+         remark #15388: vectorization support: reference s_n(:) has aligned access
+         remark #15305: vectorization support: vector length 2
+         remark #15300: LOOP WAS VECTORIZED
+         remark #15448: unmasked aligned unit stride loads: 1 
+         remark #15449: unmasked aligned unit stride stores: 1 
+         remark #15475: --- begin vector cost summary ---
+         remark #15476: scalar cost: 4 
+         remark #15477: vector cost: 1.500 
+         remark #15478: estimated potential speedup: 2.660 
+         remark #15488: --- end vector cost summary ---
+         remark #25015: Estimate of max trip count of loop=6
+      LOOP END
+
+      LOOP BEGIN at InvSamp_mod.f90(111,11)
+      <Remainder loop for vectorization>
+         remark #25015: Estimate of max trip count of loop=12
+      LOOP END
+   LOOP END
+
+   LOOP BEGIN at InvSamp_mod.f90(114,11)
+      remark #17104: loop was not parallelized: existence of parallel dependence
+      remark #17106: parallel dependence: assumed OUTPUT dependence between x_new (116:17) and x_new (120:22)
+      remark #17106: parallel dependence: assumed OUTPUT dependence between x_new (120:22) and x_new (116:17)
+      remark #15520: loop was not vectorized: loop with multiple exits cannot be vectorized unless it meets search loop idiom criteria   [ InvSamp_mod.f90(122,23) ]
+      remark #25015: Estimate of max trip count of loop=1000
+   LOOP END
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(158,28)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s_n(:) has aligned access
+   remark #15305: vectorization support: vector length 4
+   remark #15309: vectorization support: normalized vectorization overhead 1.477
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 22 
+   remark #15477: vector cost: 16.250 
+   remark #15478: estimated potential speedup: 1.340 
+   remark #15488: --- end vector cost summary ---
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 2
+   remark #25015: Estimate of max trip count of loop=250
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(158,28)
+<Remainder loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(162,22)
+   remark #25084: Preprocess Loopnests: Moving Out Store    [ InvSamp_mod.f90(162,22) ]
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference s_n(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.279
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 8.500 
+   remark #15478: estimated potential speedup: 1.050 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=125
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(162,22)
+<Remainder loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(165,11)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable a was found, but loop iteration count cannot be computed before executing the loop
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(168,11)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable b was found, but loop iteration count cannot be computed before executing the loop
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(174,11)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed OUTPUT dependence between x(i) (175:14) and x(i) (176:21)
+   remark #17106: parallel dependence: assumed OUTPUT dependence between x(i) (176:21) and x(i) (175:14)
+   remark #15382: vectorization support: call to function SPLINT_PLAIN cannot be vectorized   [ InvSamp_mod.f90(176,21) ]
+   remark #15344: loop was not vectorized: vector dependence prevents vectorization
+   remark #15346: vector dependence: assumed OUTPUT dependence between x(i) (175:14) and x(i) (176:21)
+   remark #15346: vector dependence: assumed OUTPUT dependence between x(i) (176:21) and x(i) (175:14)
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(178,21)
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference p(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.279
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 9 
+   remark #15477: vector cost: 8.500 
+   remark #15478: estimated potential speedup: 1.050 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=125
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(178,11)
+   remark #17109: LOOP WAS AUTO-PARALLELIZED
+   remark #17101: parallel loop shared={ p } private={ } firstprivate={ ? ? } lastprivate={ } firstlastprivate={ } reduction={ }
+   remark #15388: vectorization support: reference p(:) has aligned access   [ InvSamp_mod.f90(178,15) ]
+   remark #15388: vectorization support: reference p(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.038
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 109 
+   remark #15477: vector cost: 39.500 
+   remark #15478: estimated potential speedup: 2.750 
+   remark #15482: vectorized math library calls: 1 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=500
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(183,11)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #17106: parallel dependence: assumed FLOW dependence between f(j) (184:14) and f(j-2) (184:14)
+   remark #15388: vectorization support: reference f(j) has aligned access   [ InvSamp_mod.f90(184,14) ]
+   remark #15388: vectorization support: reference f(j-2) has aligned access   [ InvSamp_mod.f90(184,14) ]
+   remark #15388: vectorization support: reference p(j-2) has aligned access   [ InvSamp_mod.f90(184,14) ]
+   remark #15389: vectorization support: reference p(j-1) has unaligned access   [ InvSamp_mod.f90(184,42) ]
+   remark #15388: vectorization support: reference p(j) has aligned access   [ InvSamp_mod.f90(184,48) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.011
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 3 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 96 
+   remark #15477: vector cost: 56.000 
+   remark #15478: estimated potential speedup: 1.700 
+   remark #15486: divides: 3 
+   remark #15488: --- end vector cost summary ---
+   remark #25456: Number of Array Refs Scalar Replaced In Loop: 3
+   remark #25015: Estimate of max trip count of loop=124
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(183,11)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference f(j) has aligned access   [ InvSamp_mod.f90(184,14) ]
+   remark #15388: vectorization support: reference f(j-2) has aligned access   [ InvSamp_mod.f90(184,14) ]
+   remark #15388: vectorization support: reference p(j-2) has aligned access   [ InvSamp_mod.f90(184,14) ]
+   remark #15389: vectorization support: reference p(j-1) has unaligned access   [ InvSamp_mod.f90(184,42) ]
+   remark #15388: vectorization support: reference p(j) has aligned access   [ InvSamp_mod.f90(184,48) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.123
+   remark #15301: REMAINDER LOOP WAS VECTORIZED
+   remark #25015: Estimate of max trip count of loop=3
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(186,11)
+   remark #25045: Fused Loops: ( 186 187 )
+
+   remark #17100: FUSED LOOP WAS AUTO-PARALLELIZED
+   remark #17101: parallel loop shared={ p ? f } private={ } firstprivate={ ? ? } lastprivate={ } firstlastprivate={ } reduction={ }
+   remark #15388: vectorization support: reference p(:) has aligned access
+   remark #15388: vectorization support: reference p(:) has aligned access
+   remark #15388: vectorization support: reference at (187:11) has aligned access   [ InvSamp_mod.f90(187,11) ]
+   remark #15388: vectorization support: reference f(:) has aligned access   [ InvSamp_mod.f90(187,11) ]
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.014
+   remark #15301: FUSED LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 2 
+   remark #15449: unmasked aligned unit stride stores: 2 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 60 
+   remark #15477: vector cost: 35.000 
+   remark #15478: estimated potential speedup: 1.710 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=125
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(187,11)
+   remark #25046: Loop lost in Fusion 
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(187,11)
+   remark #25399: memcopy generated
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15398: loop was not vectorized: loop was transformed to memset or memcpy
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(212,11)
+   remark #17102: loop was not parallelized: not a parallelization candidate
+   remark #15523: loop was not vectorized: loop control variable i was found, but loop iteration count cannot be computed before executing the loop
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(178,11)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(178,11)
+   remark #15388: vectorization support: reference P(:) has aligned access   [ InvSamp_mod.f90(178,15) ]
+   remark #15388: vectorization support: reference P(:) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.165
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 109 
+   remark #15477: vector cost: 39.500 
+   remark #15478: estimated potential speedup: 2.740 
+   remark #15482: vectorized math library calls: 1 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=500
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(178,11)
+<Remainder loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(186,11)
+<Peeled loop for vectorization>
+   remark #25015: Estimate of max trip count of loop=1
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(186,11)
+   remark #15388: vectorization support: reference P(:) has aligned access
+   remark #15388: vectorization support: reference P(:) has aligned access
+   remark #15388: vectorization support: reference at (187:11) has aligned access   [ InvSamp_mod.f90(187,11) ]
+   remark #15389: vectorization support: reference F(:) has unaligned access   [ InvSamp_mod.f90(187,11) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15399: vectorization support: unroll factor set to 4
+   remark #15309: vectorization support: normalized vectorization overhead 0.074
+   remark #15301: FUSED LOOP WAS VECTORIZED
+   remark #15442: entire loop may be executed in remainder
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 2 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 60 
+   remark #15477: vector cost: 35.500 
+   remark #15478: estimated potential speedup: 1.670 
+   remark #15486: divides: 2 
+   remark #15488: --- end vector cost summary ---
+   remark #25015: Estimate of max trip count of loop=125
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(186,11)
+<Alternate Alignment Vectorized Loop>
+   remark #25015: Estimate of max trip count of loop=125
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(186,11)
+<Remainder loop for vectorization>
+   remark #15388: vectorization support: reference P(:) has aligned access
+   remark #15388: vectorization support: reference P(:) has aligned access
+   remark #15389: vectorization support: reference at (187:11) has unaligned access   [ InvSamp_mod.f90(187,11) ]
+   remark #15389: vectorization support: reference F(:) has unaligned access   [ InvSamp_mod.f90(187,11) ]
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15335: remainder loop was not vectorized: vectorization possible but seems inefficient. Use vector always directive or -vec-threshold0 to override 
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.247
+   remark #25015: Estimate of max trip count of loop=1000
+LOOP END
+
+
+Non-optimizable loops:
+
+
+LOOP BEGIN at InvSamp_mod.f90(207,14)
+   remark #15522: loop was not vectorized: loop control flow is too complex. Try using canonical loop form from OpenMP specification
+   remark #17102: loop was not parallelized: not a parallelization candidate
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+InvSamp_mod.f90(184,14):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+InvSamp_mod.f90(184,48):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+InvSamp_mod.f90(184,48):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+InvSamp_mod.f90(184,48):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+InvSamp_mod.f90(184,14):remark #34055: adjacent dense (unit-strided stencil) loads are not optimized. Details: stride { 8 }, step { 8 }, types { F64-V128, F64-V128 }, number of elements { 2 }, select mask { 0x000000003 }.
+InvSamp_mod.f90(110,11):remark #34026: call to memcpy implemented as a call to optimized library version
+InvSamp_mod.f90(111,11):remark #34026: call to memcpy implemented as a call to optimized library version
+InvSamp_mod.f90(187,11):remark #34026: call to memcpy implemented as a call to optimized library version
+InvSamp_mod.f90(15,12):remark #34051: REGISTER ALLOCATION : [invsamp_mod_mp_sample_invsamp_] InvSamp_mod.f90:15
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   30[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm15]
+        
+    Routine temporaries
+        Total         :     812
+            Global    :     227
+            Local     :     585
+        Regenerable   :     239
+        Spilled       :      19
+        
+    Routine stack
+        Variables     :   73824 bytes*
+            Reads     :     121 [9.92e+03 ~ 11.8%]
+            Writes    :     246 [1.05e+04 ~ 12.5%]
+        Spills        :     200 bytes*
+            Reads     :      81 [3.51e+02 ~ 0.4%]
+            Writes    :      61 [1.50e+01 ~ 0.0%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+Begin optimization report for: INVSAMP_MOD::UPDATE_INVSAMP_SAMPLE_SET
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINE REPORT: (INVSAMP_MOD::UPDATE_INVSAMP_SAMPLE_SET) [3/3=100.0%] InvSamp_mod.f90(242,14)
+  -> EXTERN: (261,5) __resetsp_inlined
+  -> EXTERN: (261,5) _alloca
+  -> EXTERN: (261,5) __getsp_inlined
+  -> EXTERN: (262,5) __resetsp_inlined
+  -> EXTERN: (262,5) _alloca
+  -> EXTERN: (262,5) __getsp_inlined
+
+
+    Report from: Loop nest, Vector & Auto-parallelization optimizations [loop, vec, par]
+
+
+LOOP BEGIN at InvSamp_mod.f90(259,20)
+   remark #17104: loop was not parallelized: existence of parallel dependence
+   remark #15524: loop was not vectorized: search loop cannot be vectorized unless all memory references can be aligned vector load
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x(i)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15452: unmasked strided loads: 1 
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (261:5) has aligned access
+   remark #15389: vectorization support: reference x(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.750
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.000 
+   remark #15478: estimated potential speedup: 1.990 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (261:5) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <x(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference x(:) has aligned access
+   remark #15388: vectorization support: reference at (261:5) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.333
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.640 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (261:5) has aligned access
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <x(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 1.330 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(261,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (262:5) has aligned access
+   remark #15389: vectorization support: reference y(:) has unaligned access
+   remark #15381: vectorization support: unaligned access used inside loop body
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 0.750
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15450: unmasked unaligned unit stride loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.000 
+   remark #15478: estimated potential speedup: 1.990 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (262:5) has aligned access
+   remark #15328: vectorization support: non-unit strided load was emulated for the variable <y(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15452: unmasked strided loads: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 2.500 
+   remark #15478: estimated potential speedup: 1.600 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Multiversioned v1>
+   remark #25233: Loop multiversioned for stride tests on Assumed shape arrays
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference y(:) has aligned access
+   remark #15388: vectorization support: reference at (262:5) has aligned access
+   remark #15305: vectorization support: vector length 2
+   remark #15309: vectorization support: normalized vectorization overhead 1.333
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15449: unmasked aligned unit stride stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 1.500 
+   remark #15478: estimated potential speedup: 2.640 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Alternate Alignment Vectorized Loop, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Remainder loop for vectorization, Multiversioned v1>
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Multiversioned v2>
+   remark #17108: loop was not parallelized: insufficient computational work
+   remark #15388: vectorization support: reference at (262:5) has aligned access
+   remark #15329: vectorization support: non-unit strided store was emulated for the variable <y(:)>, stride is unknown to compiler
+   remark #15305: vectorization support: vector length 2
+   remark #15300: LOOP WAS VECTORIZED
+   remark #15448: unmasked aligned unit stride loads: 1 
+   remark #15453: unmasked strided stores: 1 
+   remark #15475: --- begin vector cost summary ---
+   remark #15476: scalar cost: 4 
+   remark #15477: vector cost: 3.000 
+   remark #15478: estimated potential speedup: 1.330 
+   remark #15488: --- end vector cost summary ---
+LOOP END
+
+LOOP BEGIN at InvSamp_mod.f90(262,5)
+<Remainder loop for vectorization, Multiversioned v2>
+LOOP END
+
+    Report from: Code generation optimizations [cg]
+
+InvSamp_mod.f90(242,14):remark #34051: REGISTER ALLOCATION : [invsamp_mod_mp_update_invsamp_sample_set_] InvSamp_mod.f90:242
+
+    Hardware registers
+        Reserved     :    2[ rsp rip]
+        Available    :   39[ rax rdx rcx rbx rbp rsi rdi r8-r15 mm0-mm7 zmm0-zmm15]
+        Callee-save  :    6[ rbx rbp r12-r15]
+        Assigned     :   16[ rax rdx rcx rbx rsi rdi r8-r15 zmm0-zmm1]
+        
+    Routine temporaries
+        Total         :     127
+            Global    :      69
+            Local     :      58
+        Regenerable   :       1
+        Spilled       :      10
+        
+    Routine stack
+        Variables     :       0 bytes*
+            Reads     :       0 [0.00e+00 ~ 0.0%]
+            Writes    :       0 [0.00e+00 ~ 0.0%]
+        Spills        :      40 bytes*
+            Reads     :      14 [6.22e+00 ~ 1.8%]
+            Writes    :       8 [1.89e+00 ~ 0.5%]
+    
+    Notes
+    
+        *Non-overlapping variables and spills may share stack space,
+         so the total stack size might be less than this.
+    
+
+===========================================================================
+
+    Report from: Interprocedural optimizations [ipo]
+
+INLINING FOOTNOTES:
+
+<1> The compiler's heuristics indicate that the subprogram is not profitable to 
+    inline.  Override this decision by adding "!DIR$ATTRIBUTES FORCEINLINE" 
+    to the declaration of the called subprogram, or add "!DIR$ FORCEINLINE" 
+    before the call site.
+
+<2> The compiler's heuristics predict that it is not profitable to inline the
+    call.  Add "!DIR$ATTRIBUTES FORCEINLINE" to the declaration of the called 
+    subprogram, or add "!DIR$ FORCEINLINE" before the call site.
+
