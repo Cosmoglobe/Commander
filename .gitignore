@@ -1,6 +1,9 @@
 # Emacs temps
 \#*#
 
+# Compiler report
+*.optrpt
+
 # Prerequisites
 *.d
 
