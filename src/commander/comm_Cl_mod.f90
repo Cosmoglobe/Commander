@@ -3,6 +3,7 @@ module comm_Cl_mod
   use comm_map_mod
   use math_tools
   use comm_hdf_mod
+  use comm_bp_utils
   implicit none
 
   private
@@ -21,9 +22,11 @@ module comm_Cl_mod
      class(comm_mapinfo), pointer :: info
      character(len=512)           :: type  ! {none, binned, power_law, exp}
      character(len=512)           :: label ! {none, binned, power_law, exp}
+     character(len=512)           :: unit
      character(len=512)           :: outdir
      integer(i4b)                 :: lmax, nmaps, nspec, l_apod
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+     real(dp)                     :: nu_ref, RJ2unit
      real(dp),         allocatable, dimension(:,:)   :: Dl
      real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat, sqrtInvS_mat
 
@@ -57,7 +60,8 @@ module comm_Cl_mod
   interface comm_Cl
      procedure constructor
   end interface comm_Cl
-  
+
+
 contains
 
   !**************************************************
@@ -84,12 +88,32 @@ contains
     constructor%label  = cpar%cs_label(id_abs)
     constructor%lmax   = cpar%cs_lmax_amp(id_abs)
     constructor%l_apod = cpar%cs_l_apod(id_abs)
+    constructor%unit   = cpar%cs_unit(id_abs)
+    constructor%nu_ref = cpar%cs_nu_ref(id_abs)
     constructor%nmaps  = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
     constructor%nspec  = 1; if (cpar%cs_polarization(id_abs)) constructor%nspec = 6
     constructor%outdir = cpar%outdir
     datadir            = cpar%datadir
     nmaps              = constructor%nmaps
     only_pol           = cpar%only_pol
+
+    ! Set up conversion factor between RJ and native component unit
+    ! D_l is defined in component units, while S, invS etc are defined in RJ
+    select case (trim(constructor%unit))
+    case ('uK_cmb')
+       constructor%RJ2unit = comp_a2t(constructor%nu_ref)
+    case ('MJy/sr') 
+       constructor%RJ2unit = comp_bnu_prime_RJ(constructor%nu_ref) * 1e14
+    case ('K km/s') 
+       constructor%RJ2unit = 1.d0
+    case ('y_SZ') 
+       constructor%RJ2unit = 2.d0*constructor%nu_ref**2*k_b/c**2 / &
+               & (comp_bnu_prime(constructor%nu_ref) * comp_sz_thermo(constructor%nu_ref))
+    case ('uK_RJ') 
+       constructor%RJ2unit = 1.d0
+    case default
+       call report_error('Unsupported unit: ' // trim(constructor%unit))
+    end select
 
     allocate(constructor%Dl(0:constructor%lmax,constructor%nspec))
     allocate(constructor%sqrtS_mat(nmaps,nmaps,0:constructor%lmax))
@@ -226,8 +250,11 @@ contains
              if (.not. ok(i)) self%sqrtS_mat(i,j,l) = 1.d0
           end do
        end do
-       self%sqrtInvS_mat(:,:,l) = self%sqrtS_mat(:,:,l)
 
+       ! Change to RJ units
+       self%sqrtS_mat(:,:,l) = self%sqrtS_mat(:,:,l) / self%RJ2unit**2
+
+       self%sqrtInvS_mat(:,:,l) = self%sqrtS_mat(:,:,l)
        call compute_hermitian_root(self%sqrtS_mat(:,:,l), 0.5d0)
 !       if (self%info%myid == 0) write(*,*) l, self%sqrtS_mat(:,:,l), self%sqrtInvS_mat(:,:,l)
        
@@ -419,21 +446,25 @@ contains
     integer(i4b), intent(in) :: l, l_apod, lmax
     logical(lgt), intent(in) :: positive
     real(dp)                 :: get_Cl_apod
-    real(dp) :: alpha
-    if (l <= l_apod) then
-       get_Cl_apod = 1.d0
-    else if (l > lmax) then
-       get_Cl_apod = 0.d0
+    real(dp), parameter :: alpha = log(1d3)
+    if (l_apod > 0) then
+       if (l <= l_apod) then
+          get_Cl_apod = 1.d0
+       else if (l > lmax) then
+          get_Cl_apod = 0.d0
+       else
+          get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod+1,dp)**2)
+       end if
     else
-       alpha = log(1d3)
-       get_Cl_apod = exp(-alpha * (l-l_apod)**2 / real(lmax-l_apod+1,dp)**2)
+       if (l >= abs(l_apod)) then
+          get_Cl_apod = 1.d0
+       else if (l == 0 .or. l > lmax) then
+          get_Cl_apod = 0.d0
+       else
+          get_Cl_apod = exp(-alpha * (abs(l_apod)-l)**2 / real(abs(l_apod)-1,dp)**2)
+       end if
     end if
-!!$    if (l > l_apod) then
-!!$       get_Cl_apod = 0.5d0*(1.d0 - cos(pi*real(lmax-l+1,dp)/real(lmax-l_apod,dp)))
-!!$    else
-!!$       get_Cl_apod = 1.d0
-!!$    end if
-    if (.not. positive .and. l <= lmax) get_Cl_apod = 1.d0 / get_Cl_apod
+    if (.not. positive .and. get_Cl_apod /= 0.d0) get_Cl_apod = 1.d0 / get_Cl_apod
   end function get_Cl_apod
 
   subroutine read_Cl_file(self, clfile)
@@ -491,7 +522,7 @@ contains
     end if
 
     if (self%Dl(0,TT) == 0.d0) then
-       write(*,*) 'Warning: Input spectrum file ' // trim(clfile) // ' has vanishing monopole'
+       if (self%info%myid == 0) write(*,*) 'Warning: Input spectrum file ' // trim(clfile) // ' has vanishing monopole'
     end if
     
   end subroutine read_Cl_file

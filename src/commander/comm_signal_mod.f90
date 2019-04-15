@@ -227,7 +227,7 @@ contains
           cycle
        end if
        call update_status(status, "init_chain_"//trim(c%label))
-
+       if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
        call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
        c => c%next()
     end do

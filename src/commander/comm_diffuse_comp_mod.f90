@@ -25,7 +25,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: nside, nx, x0
      logical(lgt)       :: pol, output_mixmat, output_EB
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod
-     real(dp)           :: cg_scale
+     real(dp)           :: cg_scale, latmask
      real(dp), allocatable, dimension(:,:) :: cls
      real(dp), allocatable, dimension(:,:) :: F_mean
 
@@ -65,6 +65,7 @@ module comm_diffuse_comp_mod
   logical(lgt) :: output_cg_eigenvals
   logical(lgt), private :: only_pol
   character(len=512) :: outdir, precond_type
+  integer(i4b),        allocatable, dimension(:) :: ind_pre
   class(comm_mapinfo), pointer                   :: info_pre
   class(diff_ptr),     allocatable, dimension(:) :: diffComps
 
@@ -73,7 +74,7 @@ module comm_diffuse_comp_mod
   ! Variables for non-linear search
   class(comm_diffuse_comp), pointer,       private :: c_lnL
   integer(i4b),                            private :: k_lnL, p_lnL, id_lnL
-  real(dp),                                private :: a_lnL
+  real(dp), allocatable, dimension(:),     private :: a_lnL
   real(dp), allocatable, dimension(:),     private :: theta_lnL        
   logical(lgt),                            private :: apply_mixmat = .true.
   type(map_ptr),        allocatable, dimension(:) :: res_smooth
@@ -102,6 +103,7 @@ contains
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
     self%output_mixmat = cpar%output_mixmat
+    self%latmask       = cpar%cs_latmask(id_abs)
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
     outdir              = cpar%outdir
@@ -131,6 +133,12 @@ contains
        call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
+
+    ! Read component mask
+    if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
+       self%mask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_mask(id_abs)), &
+            & udgrade=.true.)
+    end if
 
     ! Read processing mask
     if (trim(cpar%ds_procmask) /= 'none') then
@@ -313,22 +321,26 @@ contains
   end subroutine initDiffPrecond_pseudoinv
 
 
-  subroutine updateDiffPrecond
+  subroutine updateDiffPrecond(samp_group, force_update)
     implicit none
+    integer(i4b), intent(in) :: samp_group
+    logical(lgt), intent(in) :: force_update
 
     select case (trim(precond_type))
     case ("diagonal")
-       call updateDiffPrecond_diagonal
+       call updateDiffPrecond_diagonal(samp_group, force_update)
     case ("pseudoinv")
-       call updateDiffPrecond_pseudoinv
+       call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
        call report_error("Preconditioner type not supported")
     end select
 
   end subroutine updateDiffPrecond
 
-  subroutine updateDiffPrecond_diagonal
+  subroutine updateDiffPrecond_diagonal(samp_group, force_update)
     implicit none
+    integer(i4b), intent(in) :: samp_group
+    logical(lgt), intent(in) :: force_update
 
     integer(i4b) :: i, j, k, k1, k2, l, m, n, ierr, unit, p, q
     real(dp)     :: W_ref, t1, t2
@@ -339,7 +351,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: alm
 
     if (npre == 0) return
-    if (.not. recompute_diffuse_precond) return
+    if (.not. recompute_diffuse_precond .and. .not. force_update) return
     
     ! Initialize current preconditioner to F^t * B^t * invN * B * F
     !self%invM    = self%invM0
@@ -533,6 +545,22 @@ contains
     call wall_time(t2)
     !write(*,*) 'eigen = ', t2-t1
 
+    ! Nullify elements that are not involved in current sample group
+    do j = 1, info_pre%nmaps
+       do i = 0, info_pre%nalm-1
+          if (P_cr%invM_diff(i,j)%n == 0) cycle                
+          do k1 = 1, npre
+             if (diffComps(k1)%p%cg_samp_group == samp_group) cycle
+             do k2 = 1, npre
+                if (diffComps(k2)%p%cg_samp_group == samp_group) cycle
+                p = P_cr%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                P_cr%invM_diff(i,j)%M(p,q) = 0.d0
+             end do
+          end do
+       end do
+    end do
+
     ! Invert matrix
     call wall_time(t1)
     do j = 1, nmaps_pre
@@ -542,7 +570,9 @@ contains
 !!$                write(*,*) real(P_cr%invM_diff(i,j)%M(k,:),sp)
 !!$             end do
 !!$          end if
-          if (P_cr%invM_diff(i,j)%n > 0) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
+          if (P_cr%invM_diff(i,j)%n > 0) then
+             if (any(P_cr%invM_diff(i,j)%M /= 0.d0)) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
+          end if
        end do
     end do
     call wall_time(t2)
@@ -554,15 +584,17 @@ contains
   end subroutine updateDiffPrecond_diagonal
 
 
-  subroutine updateDiffPrecond_pseudoinv
+  subroutine updateDiffPrecond_pseudoinv(samp_group, force_update)
     implicit none
+    integer(i4b), intent(in) :: samp_group
+    logical(lgt), intent(in) :: force_update
 
     integer(i4b) :: i, j, k, l, n, ierr, p, q
     real(dp)     :: t1, t2, Cl
     real(dp),     allocatable, dimension(:,:) :: mat
 
     if (npre == 0) return
-    if (.not. recompute_diffuse_precond) return
+    if (.not. recompute_diffuse_precond .and. .not. force_update) return
 
     ! Build pinv_U
     call wall_time(t1)
@@ -576,6 +608,7 @@ contains
              if (l > data(q)%info%lmax) cycle
              do k = 1, npre
                 if (l > diffComps(k)%p%lmax_amp) cycle
+                if (diffComps(k)%p%cg_samp_group /= samp_group) cycle
                 mat(q,k) = data(q)%N%alpha_nu(j) * &
                           & data(q)%B%b_l(l,j) * &
                           & diffComps(k)%p%F_mean(q,j)
@@ -588,7 +621,8 @@ contains
 
           ! Prior section
           do k = 1, npre
-             if (trim(diffComps(k)%p%Cl%type) == 'none' .or. l > diffComps(k)%p%lmax_amp) cycle
+             if (trim(diffComps(k)%p%Cl%type) == 'none' .or. l > diffComps(k)%p%lmax_amp .or. &
+                  & diffComps(k)%p%cg_samp_group /= samp_group) cycle
              mat(numband+k,k) = 1.d0
           end do
 
@@ -613,6 +647,23 @@ contains
     deallocate(mat)
     call wall_time(t2)
 
+    ! Set up array of active components
+    if (allocated(ind_pre)) deallocate(ind_pre)
+    n = 0
+    do k = 1, npre
+       if (diffComps(k)%p%cg_samp_group == samp_group) n = n+1
+    end do
+    if (n > 0) then
+       allocate(ind_pre(n))
+       i = 0
+       do k = 1, npre
+          if (diffComps(k)%p%cg_samp_group == samp_group) then
+             i = i+1
+             ind_pre(i) = k
+          end if
+       end do
+    end if
+
 !!$    call mpi_finalize(k)
 !!$    stop
 
@@ -630,10 +681,13 @@ contains
     real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
 
     integer(i4b) :: i, j, k, n, nmaps, ierr
-    real(dp),        allocatable, dimension(:,:) :: theta_p
-    real(dp),        allocatable, dimension(:)   :: nu, s, buffer
-    class(comm_mapinfo),          pointer        :: info
-    class(comm_map),              pointer        :: t, t0
+    real(dp)     :: lat, lon, t1, t2
+    logical(lgt) :: precomp, mixmatnull ! NEW
+    real(dp),        allocatable, dimension(:,:,:) :: theta_p
+    real(dp),        allocatable, dimension(:)     :: nu, s, buffer
+    class(comm_mapinfo),          pointer          :: info
+    class(comm_map),              pointer          :: t, t0
+    class(map_ptr),  allocatable, dimension(:)     :: theta_prev
 
     if (trim(self%type) == 'md') return
     
@@ -647,63 +701,112 @@ contains
     end if
     
     ! Compute mixing matrix
-    allocate(theta_p(self%npar,self%nmaps))
+    allocate(theta_prev(self%npar))
+    do j = 1, self%npar
+       nullify(theta_prev(j)%p)
+    end do
+
     do i = 1, numband
 
        ! Don't update null mixing matrices
        if (self%F_null(i)) cycle
 
        ! Compute spectral parameters at the correct resolution for this channel
-        if (self%npar > 0) then
-           info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(1)%p%info%lmax, &
-                & data(i)%info%nmaps, data(i)%info%pol)
-          t    => comm_map(info)
-          nmaps            = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
-          if (self%lmax_ind >= 0) then
-             t%alm(:,1:nmaps) = self%theta(1)%p%alm(:,1:nmaps)
-             call t%Y_scalar
-          else
-             call self%theta(1)%p%udgrade(t)
-          end if
-          nullify(info)
-          do j = 2, self%npar
-             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
-                  & self%theta(j)%p%info%lmax, data(i)%info%nmaps, data(i)%info%pol)
-             t0    => comm_map(info)
-             nmaps            = min(data(i)%info%nmaps, self%theta(j)%p%info%nmaps)
-             if (self%lmax_ind >= 0) then
-                t0%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-                call t0%Y_scalar
-             else
-                call self%theta(j)%p%udgrade(t0)
+       if (self%npar > 0) then
+          nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
+          allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
+          
+          do j = 1, self%npar
+             if (.false. .and. associated(theta_prev(j)%p)) then
+                if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
+                     & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
+                     & nmaps == theta_prev(j)%p%info%nmaps .and. &
+                     & data(i)%info%pol == theta_prev(j)%p%info%pol) then
+                   theta_p(:,:,j) = theta_prev(j)%p%map
+                   cycle
+                end if
              end if
-             call t%add(t0)
-             nullify(info)
+             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
+             t    => comm_map(info)
+             if (self%lmax_ind >= 0) then
+                t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
+                call t%Y_scalar
+             else
+                call wall_time(t1)
+                call self%theta(j)%p%udgrade(t)
+                call wall_time(t2)
+                !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
+             end if
+             theta_p(:,:,j) = t%map
+             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
+             theta_prev(j)%p => comm_map(t)
+             call t%dealloc()
           end do
-        end if
-       
-       ! Loop over all pixels, computing mixing matrix for each
-       do j = 0, self%F(i)%p%info%np-1
-          if (self%npar > 0) then
-             ! Collect all parameters
-             t0 => t
-             theta_p(1,:) = t0%map(j,:)
-             do k = 2, self%npar
-                t0 => t0%next()
-                theta_p(k,:) = t0%map(j,:)
-             end do
+       end if
+           
 
-             ! Check polarization type
-             if (self%nmaps == 3) then
-                do k = 1, self%npar
-                   if (self%poltype(k) < 2) theta_p(k,2) = theta_p(k,1)
-                   if (self%poltype(k) < 3) theta_p(k,3) = theta_p(k,2)
-                end do
+       ! Loop over all pixels, computing mixing matrix for each
+       !allocate(theta_p(self%npar,self%nmaps))
+       call wall_time(t1)
+       do j = 0, self%F(i)%p%info%np-1
+          if (self%latmask >= 0.d0) then
+             call pix2ang_ring(data(i)%info%nside, data(i)%info%pix(j+1), lat, lon)
+             lat = 0.5d0*pi-lat
+             if (abs(lat) < self%latmask) then
+                self%F(i)%p%map(j,:) = 0.d0
+                cycle
+             end if
+          end if
+
+!          if (self%lmax_ind == 0) then
+!             cycle
+!          end if
+
+!!$          if (self%npar > 0) then
+!!$             ! Collect all parameters
+!!$             t0 => t
+!!$             theta_p(1,:) = t0%map(j,:)
+!!$             do k = 2, self%npar
+!!$                t0 => t0%next()
+!!$                theta_p(k,:) = t0%map(j,:)
+!!$             end do
+!!$
+!!$             ! Check polarization type
+!!$             if (self%nmaps == 3) then
+!!$                do k = 1, self%npar
+!!$                   if (self%poltype(k) < 2) theta_p(k,2) = theta_p(k,1)
+!!$                   if (self%poltype(k) < 3) theta_p(k,3) = theta_p(k,2)
+!!$                end do
+!!$             end if
+!!$          end if
+
+          ! NEW ! Check band sensitivity before mixing matrix update
+          ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
+          if (data(i)%comp_sens == "broadband") then
+             ! If broadband, calculate mixing matrix
+             mixmatnull = .false.
+          else
+             ! If component sensitivity, only calculate mixmat on that component.
+             mixmatnull = .true.
+             if (data(i)%comp_sens == self%label) then
+                mixmatnull = .false.
              end if
           end if
 
           ! Temperature
-          self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(:,1)) * data(i)%gain * self%cg_scale
+          if (self%npar > 0) then
+             if (mixmatnull == .true.) then
+                self%F(i)%p%map(j,1) = 0.0
+             else
+                self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
+             end if
+          else
+             if (mixmatnull == .true.) then 
+                self%F(i)%p%map(j,1) = 0.0
+             else
+                self%F(i)%p%map(j,1) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+             end if
+          end if
 
           ! Polarization
           if (self%nmaps == 3) then
@@ -713,7 +816,11 @@ contains
              else if (all(self%poltype < 2)) then
                 self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) 
              else
-                self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(:,2)) * data(i)%gain * self%cg_scale
+                if (self%npar > 0) then
+                   self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale
+                else
+                   self%F(i)%p%map(j,2) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                end if
              end if
        
              ! Stokes U
@@ -722,12 +829,20 @@ contains
              else if (all(self%poltype < 3)) then
                 self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) 
              else
-                self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(:,3)) * data(i)%gain * self%cg_scale
+                if (self%npar > 0) then
+                   self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale
+                else
+                   self%F(i)%p%map(j,3) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                end if
              end if
           end if
           
        end do
 
+       if (allocated(theta_p)) deallocate(theta_p)
+       call wall_time(t2)
+       !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
+                
        ! Compute mixing matrix average; for preconditioning only
        allocate(buffer(self%nmaps))
        do j = 1, self%nmaps
@@ -738,15 +853,18 @@ contains
        self%F_mean(i,:) = buffer / self%F(i)%p%info%npix
        deallocate(buffer)
 
-       if (self%npar > 0) then
-          call t%dealloc(clean_info=.true.)
-          call t0%dealloc(clean_info=.true.)
-          nullify(t)
-          nullify(t0)
-       end if
+!!$       if (self%npar > 0) then
+!!$          call t%dealloc(clean_info=.true.)
+!!$          call t0%dealloc(clean_info=.true.)
+!!$          nullify(t)
+!!$          nullify(t0)
+!!$       end if
     
     end do
-    deallocate(theta_p)
+    do j = 1, self%npar
+       if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
+    end do
+    deallocate(theta_prev)
 
     call update_status(status, "mixupdate2 " // trim(self%label))
 
@@ -754,6 +872,7 @@ contains
     recompute_diffuse_precond = .true.
 
   end subroutine updateDiffuseMixmat
+
 
   function evalDiffuseBand(self, band, amp_in, pix, alm_out)
     implicit none
@@ -774,7 +893,7 @@ contains
 
     if (self%F_null(band)) then
        if (alm_out_) then
-          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
        else
           if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
        end if
@@ -784,24 +903,25 @@ contains
 
     ! Initialize amplitude map
     nmaps =  min(data(band)%info%nmaps, self%nmaps)
-    info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, self%lmax_amp, &
-         & data(band)%info%nmaps, data(band)%info%pol)
+    info  => comm_mapinfo(data(band)%info%comm, data(band)%info%nside, data(band)%info%lmax, nmaps, nmaps==3)
     m     => comm_map(info)
     if (present(amp_in)) then
-       m%alm(:,1:nmaps) = amp_in
+       m%alm(:,1:nmaps) = amp_in(:,1:nmaps)
+       !m%alm(:,1:nmaps) = amp_in
     else
-       m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
+       call self%x%alm_equal(m)
+       !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
-    if (self%lmax_amp > data(band)%map%info%lmax) then
-       ! Nullify elements above band-specific lmax to avoid aliasing during projection
-       do i = 0, m%info%nalm-1
-          if (m%info%lm(1,i) > data(band)%info%lmax) m%alm(i,:) = 0.d0
-       end do
-    end if
+!!$    if (self%lmax_amp > data(band)%map%info%lmax) then
+!!$       ! Nullify elements above band-specific lmax to avoid aliasing during projection
+!!$       do i = 0, m%info%nalm-1
+!!$          if (m%info%lm(1,i) > data(band)%info%lmax) m%alm(i,:) = 0.d0
+!!$       end do
+!!$    end if
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-       if (self%lmax_ind == 0) then
+       if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
           end do
@@ -818,11 +938,14 @@ contains
 
     ! Return correct data product
     if (alm_out_) then
-       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
-       evalDiffuseBand = m%alm
+       !if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
+       if (nmaps /= data(band)%info%nmaps) evalDiffuseBand = 0.d0
+       evalDiffuseBand(:,1:nmaps) = m%alm(:,1:nmaps)
     else
        if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
-       evalDiffuseBand = m%map
+       if (nmaps /= data(band)%info%nmaps) evalDiffuseBand = 0.d0
+       evalDiffuseBand(:,1:nmaps) = m%map(:,1:nmaps)
     end if
        
 
@@ -843,42 +966,47 @@ contains
 
     integer(i4b) :: i, nmaps
     logical(lgt) :: alm_in_
-    class(comm_mapinfo), pointer :: info
+    class(comm_mapinfo), pointer :: info_in, info_out
     class(comm_map),     pointer :: m, m_out
 
+    if (self%F_null(band)) then
+       if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
+       projectDiffuseBand = 0.d0
+       return
+    end if
+
     nmaps     =  min(self%x%info%nmaps, map%info%nmaps)
-    info      => comm_mapinfo(self%x%info%comm, map%info%nside, self%lmax_amp, &
-         & self%x%info%nmaps, self%x%info%nmaps==3)
-    m_out     => comm_map(info)
-    m         => comm_map(map)
+    info_in   => comm_mapinfo(self%x%info%comm, map%info%nside, map%info%lmax, nmaps, nmaps==3)
+    info_out  => comm_mapinfo(self%x%info%comm, map%info%nside, self%lmax_amp, nmaps, nmaps==3)
+    m         => comm_map(info_in)
+    m_out     => comm_map(info_out)
     alm_in_ = .false.; if (present(alm_in)) alm_in_ = alm_in
 
-    ! Scale to correct frequency through multiplication with mixing matrix
-    if (self%F_null(band)) then
-       m_out%alm = 0.d0
+    ! Convolve with band-specific beam
+    if (alm_in) then
+       m%alm = map%alm(:,1:nmaps)
     else
-       ! Convolve with band-specific beam
-       if (.not. alm_in) call m%Yt()
-       call data(band)%B%conv(trans=.true., map=m)
-
-       if (self%lmax_ind == 0) then
-          call m%alm_equal(m_out)
-          do i = 1, nmaps
-             m_out%alm(:,i) = m_out%alm(:,i) * self%F_mean(band,i)
-          end do
-       else
-          call m%Y()
-          m_out%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
-          call m_out%YtW()
-       end if
+       m%map = map%map(:,1:nmaps)
+       call m%Yt()
     end if
+    call data(band)%B%conv(trans=.true., map=m)
+    
+    if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
+       do i = 1, nmaps
+          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+       end do
+    else
+       call m%Y()
+       m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
+       call m%YtW()
+    end if
+    call m%alm_equal(m_out)
 
     if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
     projectDiffuseBand = m_out%alm
 
     call m%dealloc()
-    call m_out%dealloc(clean_info=.true.)
-    nullify(info)
+    call m_out%dealloc()
 
   end function projectDiffuseBand
 
@@ -924,7 +1052,6 @@ contains
     ! Multiply with preconditioner
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          !y(:,i,j) = matmul(P%invM(:,:,i,j), y(:,i,j))
           if (P_cr%invM_diff(i,j)%n == 0) cycle
           y(P_cr%invM_diff(i,j)%ind,i,j) = &
                & matmul(P_cr%invM_diff(i,j)%M, y(P_cr%invM_diff(i,j)%ind,i,j))
@@ -954,23 +1081,29 @@ contains
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
 
-    integer(i4b)              :: i, j, k, l, m, p, q, nmaps
-    real(dp), allocatable, dimension(:)     :: w
+    integer(i4b)              :: i, ii, j, k, l, m, p, q, qq, nmaps, npre_int
+    real(dp)                  :: t1, t2
+    real(dp), allocatable, dimension(:)     :: w, w2
     real(dp), allocatable, dimension(:,:)   :: alm
     real(dp), allocatable, dimension(:,:,:) :: y, z
     class(comm_map), pointer                :: invN_x
 
-    if (npre == 0) return
+    if (.not. allocated(ind_pre)) return
+
+    npre_int = size(ind_pre)
+    if (npre_int <= 0) return
     
     ! Reformat linear array into y(npre,nalm,nmaps) structure
-    allocate(y(npre,0:info_pre%nalm-1,info_pre%nmaps))
-    allocate(z(npre,0:info_pre%nalm-1,info_pre%nmaps))
+    call update_status(status, "pseudo1")
+    allocate(y(npre_int,0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(z(npre_int,0:info_pre%nalm-1,info_pre%nmaps))
     y = 0.d0
-    do i = 1, npre
-       nmaps = diffComps(i)%p%x%info%nmaps
-       call cr_extract_comp(diffComps(i)%p%id, x, alm)
-       do j = 0, diffComps(i)%p%x%info%nalm-1
-          call diffComps(i)%p%x%info%i2lm(j, l, m)
+    do i = 1, npre_int
+       ii = ind_pre(i)
+       nmaps = diffComps(ii)%p%x%info%nmaps
+       call cr_extract_comp(diffComps(ii)%p%id, x, alm)
+       do j = 0, diffComps(ii)%p%x%info%nalm-1
+          call diffComps(ii)%p%x%info%i2lm(j, l, m)
           call info_pre%lm2i(l, m, k)
           y(i,k,1:nmaps) = alm(j,1:nmaps)
        end do
@@ -980,70 +1113,109 @@ contains
     ! Frequency-dependent terms
     z = 0.d0
     do k = 1, numband
+       call update_status(status, "pseudo2")
        invN_x => comm_map(data(k)%info)
        nmaps  =  data(k)%info%nmaps
        
        ! Sum over (U^plus)^t
+       !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,m,j,q,qq,p)
+       !!$OMP DO SCHEDULE(guided)
        do i = 0, data(k)%info%nalm-1
           call data(k)%info%i2lm(i, l, m)
           if (l > info_pre%lmax) cycle
           call info_pre%lm2i(l,m,j)
-          do q = 1, npre
+          do q = 1, npre_int
+             qq = ind_pre(q)
              do p = 1, nmaps
-                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr%invM_diff(l,p)%M(q,k) * y(q,j,p)
+                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr%invM_diff(l,p)%M(qq,k) * y(q,j,p)
              end do
           end do
        end do
+       !!$OMP END DO
+       !!$OMP END PARALLEL
+       call update_status(status, "pseudo3")
 
        ! Multiply by T
        call invN_x%WY
+       call update_status(status, "pseudo4")
        call data(k)%N%N(invN_x)
+       call update_status(status, "pseudo5")
        call invN_x%YtW
+       call update_status(status, "pseudo6")
        do i = 1, nmaps
           invN_x%alm(:,i) = invN_x%alm(:,i) * data(k)%N%alpha_nu(i)**2
        end do
 
        ! Sum over U^plus
+       !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,m,j,q,qq,p)
+       !!$OMP DO SCHEDULE(guided)
        do i = 0, data(k)%info%nalm-1
           call data(k)%info%i2lm(i, l, m)
           if (l > info_pre%lmax) cycle
           call info_pre%lm2i(l,m,j)
-          do q = 1, npre
+          do q = 1, npre_int
+             qq = ind_pre(q)
              do p = 1, nmaps
-                z(q,j,p) = z(q,j,p) + P_cr%invM_diff(l,p)%M(q,k) * invN_x%alm(i,p)
+                z(q,j,p) = z(q,j,p) + P_cr%invM_diff(l,p)%M(qq,k) * invN_x%alm(i,p)
              end do
           end do
        end do
+       !!$OMP END DO
+       !!$OMP END PARALLEL
+       call update_status(status, "pseudo7")
 
        call invN_x%dealloc()
     end do
 
     ! Prior terms
-    allocate(w(npre))
-    do p = 1, info_pre%nmaps
-       do i = 0, info_pre%nalm-1
-          call info_pre%i2lm(i, l, m)
+    call update_status(status, "pseudo7.1")
+    call wall_time(t1)
+    !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,k,j,m,w,w2,p)
+    allocate(w(npre_int), w2(npre_int))
+    !!$OMP DO SCHEDULE(guided)
+    do i = 0, info_pre%nalm-1
+       do p = 1, info_pre%nmaps
+          !call info_pre%i2lm(i, l, m)
+          l = info_pre%lm(1,i)
+          m = info_pre%lm(2,i)
           w        = y(:,i,p)
-          w        = matmul(transpose(P_cr%invM_diff(l,p)%M(1:npre,numband+1:numband+npre)),w)
-          w        = matmul(          P_cr%invM_diff(l,p)%M(1:npre,numband+1:numband+npre), w)
+          w2       = 0.d0
+          do j = 1, npre_int
+             do k = 1, npre_int
+                w2(j) = w2(j) + P_cr%invM_diff(l,p)%M(ind_pre(k),numband+ind_pre(j))*w(k)
+             end do
+          end do
+          w       = 0.d0
+          do j = 1, npre_int
+             do k = 1, npre_int
+                w(j) = w(j) + P_cr%invM_diff(l,p)%M(ind_pre(j),numband+ind_pre(k))*w2(k)
+             end do
+          end do
           z(:,i,p) = z(:,i,p) + w
        end do
     end do
-    deallocate(w)
+    deallocate(w, w2)
+    !!$OMP END DO
+    !!$OMP END PARALLEL
+    call wall_time(t2)
+    !if (info_pre%myid == 0 .or. info_pre%myid == 25) write(*,*) info_pre%myid, ', nalm = ', info_pre%nalm, real(t2-t1,sp)
+    call update_status(status, "pseudo8")
 
     ! Reformat z(npre,nalm,nmaps) structure into linear array
-    do i = 1, npre
-       nmaps = diffComps(i)%p%x%info%nmaps
-       allocate(alm(0:diffComps(i)%p%x%info%nalm-1,nmaps))
+    do i = 1, npre_int
+       ii = ind_pre(i)
+       nmaps = diffComps(ii)%p%x%info%nmaps
+       allocate(alm(0:diffComps(ii)%p%x%info%nalm-1,nmaps))
        alm = 0.d0
-       do j = 0, diffComps(i)%p%x%info%nalm-1
-          call diffComps(i)%p%x%info%i2lm(j, l, m)
+       do j = 0, diffComps(ii)%p%x%info%nalm-1
+          call diffComps(ii)%p%x%info%i2lm(j, l, m)
           call info_pre%lm2i(l, m, k)
           alm(j,1:nmaps) = z(i,k,1:nmaps)
        end do
-       call cr_insert_comp(diffComps(i)%p%id, .false., alm, x)
+       call cr_insert_comp(diffComps(ii)%p%id, .false., alm, x)
        deallocate(alm)
     end do
+    call update_status(status, "pseudo9")
     
     deallocate(y, z)
 
@@ -1117,9 +1289,13 @@ contains
        end if
     else
 
+       call update_status(status, "writeFITS_1")
+
        ! Write amplitude
        map => comm_map(self%x)
        map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
+
+       call update_status(status, "writeFITS_2")
 
        if (output_hdf) then
           call int2string(iter, itext)
@@ -1127,10 +1303,13 @@ contains
           if (self%x%info%myid == 0) call create_hdf_group(chainfile, trim(adjustl(path)))
        end if
 
+       call update_status(status, "writeFITS_3")
+
        filename = trim(self%label) // '_' // trim(postfix) // '.fits'
        call self%B_out%conv(trans=.false., map=map)
        call map%Y
        map%alm = self%x%alm * self%RJ2unit_ * self%cg_scale  ! Replace convolved with original alms
+       call update_status(status, "writeFITS_4")
 
        !call self%apply_proc_mask(map)
 
@@ -1141,6 +1320,7 @@ contains
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if
        call map%dealloc()
+       call update_status(status, "writeFITS_5")
 
        if (self%output_EB) then
           map => comm_map(self%x)
@@ -1153,6 +1333,7 @@ contains
           call map%writeFITS(trim(dir)//'/'//trim(filename))
           call map%dealloc()
        end if
+       call update_status(status, "writeFITS_6")
        
        allocate(sigma_l(0:self%x%info%lmax,self%x%info%nspec))
        call self%x%getSigmaL(sigma_l)
@@ -1163,6 +1344,7 @@ contains
           if (output_hdf) call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
        end if
        deallocate(sigma_l)
+       call update_status(status, "writeFITS_7")
 
        ! Write spectral index maps
        do i = 1, self%npar
@@ -1178,6 +1360,7 @@ contains
              call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
           end if
        end do
+       call update_status(status, "writeFITS_8")
        
        ! Write mixing matrices
        if (self%output_mixmat) then
@@ -1188,6 +1371,7 @@ contains
              call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
           end do
        end if
+       call update_status(status, "writeFITS_9")
     end if
 
   end subroutine dumpDiffuseToFITS
@@ -1225,6 +1409,7 @@ contains
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                & '_')
+          if (self%lmax_ind >= 0) call self%theta(i)%p%YtW_scalar
        end do       
     end if
 
@@ -1236,7 +1421,7 @@ contains
     implicit none
     integer(i4b), intent(in) :: n, nside, lmax, nmaps
     npre      = npre + n
-    nside_pre = min(lmax_pre, nside)
+    nside_pre = min(nside_pre, nside)
     lmax_pre  = max(lmax_pre, lmax)
     nmaps_pre = max(nmaps_pre, nmaps)
   end subroutine add_to_npre
@@ -1248,54 +1433,79 @@ contains
     type(planck_rng),                        intent(inout)        :: handle
     integer(i4b),                            intent(in)           :: id
 
-    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag, npar, np, nmaps
     real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+    real(dp)     :: x(1), theta_min, theta_max
     logical(lgt) :: ok
     logical(lgt), save :: first_call = .true.
     class(comm_comp), pointer :: c
-    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
-    real(dp),     allocatable, dimension(:,:) :: amp
+    real(dp),     allocatable, dimension(:)   :: lnL, P_tot, F, theta, a_curr
+    real(dp),     allocatable, dimension(:,:) :: amp, buffer
 
     delta_lnL_threshold = 25.d0
     n                   = 101
     n_ok                = 50
     first_call          = .false.
 
-    if (trim(operation) == 'optimize') then
+    !c_lnL       => self
+    id_lnL      = id
+    c           => compList     ! Extremely ugly hack...
+    do while (self%id /= c%id)
+       c => c%next()
+    end do
+    select type (c)
+    class is (comm_diffuse_comp)
+       c_lnL => c
+    end select
 
-       do p = 1, self%x_smooth%info%nmaps
-          do k = 0, self%x_smooth%info%np-1
-             p_lnL       = p
-             k_lnL       = k
-             !c_lnL       => self
-             id_lnL      = id
-             c           => compList     ! Extremely ugly hack...
-             do while (self%id /= c%id)
-                c => c%next()
-             end do
-             select type (c)
-             class is (comm_diffuse_comp)
-                c_lnL => c
-             end select
-             
+    npar      = c%npar
+    np        = self%x_smooth%info%np
+    nmaps     = self%x_smooth%info%nmaps
+    theta_min = c_lnL%p_uni(1,id_lnL)
+    theta_max = c_lnL%p_uni(2,id_lnL)
+
+    if (trim(operation) == 'optimize') then
+       allocate(buffer(0:self%x_smooth%info%np-1,self%x_smooth%info%nmaps))
+       buffer = max(min(self%theta(id)%p%map,theta_max),theta_min)
+       do p = 1, nmaps
+          if (self%poltype(id) > 1 .and. only_pol .and. p == 1) cycle
+          if (p > self%poltype(id)) cycle
+          p_lnL = p
+          !!$OMP PARALLEL DEFAULT(shared) PRIVATE(k,k_lnL,x,theta_lnL,a_lnL,i,ierr)
+          allocate(theta_lnL(npar),a_lnL(self%nmaps))
+
+          !!$OMP DO SCHEDULE(guided)
+          do k = 0, np-1
              ! Perform non-linear search
-             allocate(x(1), theta_lnL(self%npar))
-             a_lnL     = self%x_smooth%map(k,p)
-             x(1)      = max(min(self%theta(id)%p%map(k,p),c_lnL%p_uni(2,id_lnL)),c_lnL%p_uni(1,id_lnL))
-             do i = 1, c%npar
+             k_lnL     = k
+             x(1)      = buffer(k,p)
+             a_lnL     = self%x_smooth%map(k,:)
+             do i = 1, npar
                 if (i == id) cycle
                 theta_lnL(i) = self%theta_smooth(i)%p%map(k,p)
              end do
              call powell(x, lnL_diffuse_multi, ierr)
+             !write(*,*) k, x, ierr
              if (ierr == 0) then
-                self%theta(id)%p%map(k,p) = x(1)
-             else
-                write(*,*) 'Warning: Spectral index Powell search did not converge'
+                if (self%poltype(id) == 1) then
+                   buffer(k,:) = x(1)
+                else if (self%poltype(id) == 2) then
+                   if (p == 1) then
+                      buffer(k,1)   = x(1)
+                   else
+                      buffer(k,2:3) = x(1)
+                   end if
+                else if (self%poltype(id) == 3) then
+                   buffer(k,p) = x(1)
+                end if
              end if
-             deallocate(x, theta_lnL)
 
           end do
+          !!!$OMP END DO
+          deallocate(theta_lnl, a_lnl)
+          !!!$OMP END PARALLEL
        end do
+       self%theta(id)%p%map = buffer
 
        ! Update mixing matrix
        call self%updateMixmat
@@ -1303,8 +1513,10 @@ contains
        ! Ask for CG preconditioner update
        if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
 
-       return
+       deallocate(buffer)
+
     end if
+
 
   end subroutine sampleDiffuseSpecInd
 
@@ -1315,7 +1527,7 @@ contains
     real(dp), dimension(:), intent(in), optional :: p
     real(dp)                                     :: lnL_diffuse_multi
     
-    integer(i4b) :: i, l, k, q, pix, ierr, flag
+    integer(i4b) :: i, l, k, q, pix, ierr, flag, p_min, p_max
     real(dp)     :: lnL, amp, s, a
     real(dp), allocatable, dimension(:) :: theta
 
@@ -1332,28 +1544,57 @@ contains
        end if
     end do
 
+    ! Choose which polarization fields to include
+    if (c_lnL%poltype(id_lnL) == 1) then
+       p_min = 1; p_max = c_lnL%nmaps
+       if (only_pol) p_min = 2
+    else if (c_lnL%poltype(id_lnL) == 2) then
+       if (p_lnL == 1) then
+          p_min = 1; p_max = 1
+       else
+          p_min = 2; p_max = c_lnL%nmaps
+       end if
+    else if (c_lnL%poltype(id_lnL) == 3) then
+       p_min = p_lnL
+       p_max = p_lnL
+    end if
+
+!!$    if (c_lnL%x%info%pix(k_lnL) == 10000) then
+!!$       write(*,*)
+!!$       write(*,*) 'Theta = ', p(1)
+!!$       write(*,*) 'amp   = ', a_lnL(2:3)
+!!$       write(*,*) 'p     = ', p_lnL, p_min, p_max
+!!$    end if
+
+
     lnL = 0.d0
-    do l = 1, numband
+    do k = p_min, p_max
+
+       do l = 1, numband
        !if (c_lnL%x%info%myid == 0) write(*,*) l, numband
-       if (.not. associated(rms_smooth(l)%p)) cycle
-       
+          if (.not. associated(rms_smooth(l)%p)) cycle
+          if (k > data(l)%info%nmaps) cycle
+          
        ! Compute predicted source amplitude for current band
-       s = a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
-       
-       ! Compute likelihood 
-       lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
+          s = a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+          
+          ! Compute likelihood 
+          lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
 
-       !if (c_lnL%x%info%myid == 0) write(*,*) l, res_smooth(l)%p%map(k_lnL,p_lnL), s, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), lnL
+!          if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(1.d0/rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
 
-!!$       if (c_lnL%x%info%pix(k_lnL) == 534044) then
-!!$          write(*,fmt='(5f10.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,p_lnL)-a_lnL * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,p_lnL), (res_smooth(l)%p%map(k_lnL,p_lnL)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,p_lnL)**2
+!!$       if (c_lnL%x%info%pix(k_lnL) == 10000) then
+!!$          write(*,fmt='(5f10.3,f16.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,k), s, res_smooth(l)%p%map(k_lnL,k)-a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,k), (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
 !!$       end if
 
+       end do
     end do
 
+!!$    call mpi_finalize(i)
+!!$    stop
 
-    !call mpi_finalize(i)
-    !stop
+!    if (c_lnL%x%info%myid == 0) write(*,*)
+!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
 
     ! Apply index priors
     do l = 1, c_lnL%npar
@@ -1361,9 +1602,17 @@ contains
           lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
        end if
     end do
+
+!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
     
     ! Return chi-square
     lnL_diffuse_multi = -2.d0*lnL
+
+!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL_diffuse_multi
+
+!!$    if (c_lnL%x%info%pix(k_lnL) == 10000) then
+!!$       write(*,*) 'lnL = ', lnL_diffuse_multi
+!!$    end if
 
 !!$    if (c_lnL%x%info%pix(k_lnL) == 534044) then
 !!$       write(*,*) 'lnL = ', lnL, theta(id_lnL)

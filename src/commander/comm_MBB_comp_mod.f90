@@ -55,30 +55,37 @@ contains
     end do
     constructor%indlabel  = ['beta', 'T   ']
 
-    ! Initialize spectral parameter maps
-    info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
-         & constructor%nmaps, constructor%pol)
-
-    allocate(constructor%theta(2))
-    do i = 1, 2
-       if (trim(cpar%cs_input_ind(i,id_abs)) == 'default') then
-          constructor%theta(i)%p => comm_map(info)
-          constructor%theta(i)%p%map = constructor%theta_def(i)
-       else
-          ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_ind(i,id_abs)))
-       end if
-       if (constructor%lmax_ind >= 0) call constructor%theta(i)%p%YtW_scalar
-    end do
-
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(numband))
     do i = 1, numband
        constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
     end do
 
-    ! Initialize mixing matrix
-    call constructor%updateMixmat
+    ! Initialize spectral parameter maps
+    info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
+         & constructor%nmaps, constructor%pol)
+
+    allocate(constructor%theta(2))
+    if (cpar%init_samp >= 0 .and. trim(cpar%init_chain_prefix) /= 'none' &
+         & .and. constructor%init_from_HDF) then
+       do i = 1, 2
+          constructor%theta(i)%p => comm_map(info)
+       end do
+    else
+       do i = 1, 2
+          if (trim(cpar%cs_input_ind(i,id_abs)) == 'default') then
+             constructor%theta(i)%p => comm_map(info)
+             constructor%theta(i)%p%map = constructor%theta_def(i)
+          else
+             ! Read map from FITS file, and convert to alms
+             constructor%theta(i)%p => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_ind(i,id_abs)))
+          end if
+          if (constructor%lmax_ind >= 0) call constructor%theta(i)%p%YtW_scalar
+       end do
+
+       ! Initialize mixing matrix
+       call constructor%updateMixmat
+    end if
 
     ! Set up smoothing scale information
     allocate(constructor%smooth_scale(constructor%npar))

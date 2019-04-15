@@ -389,8 +389,9 @@ contains
     
   end subroutine initTemplatePrecond
 
-  subroutine updateTemplatePrecond
+  subroutine updateTemplatePrecond(samp_group)
     implicit none
+    integer(i4b),          intent(in) :: samp_group
 
     ! Placeholder for now; already fully initialized
     if (npre == 0) return
