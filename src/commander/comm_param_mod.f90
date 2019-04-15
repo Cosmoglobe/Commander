@@ -505,6 +505,44 @@ contains
                   & par_int=cpar%cs_smooth_scale(i,1))
              call get_parameter(paramfile, 'COMP_NU_P_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
              call get_parameter(paramfile, 'COMP_NU_P_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+          case ('spindust2')
+             call get_parameter(paramfile, 'COMP_NU_P_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+             call get_parameter(paramfile, 'COMP_INPUT_NU_P_MAP'//itext,        &
+                  & par_string=cpar%cs_input_ind(1,i))
+             call get_parameter(paramfile, 'COMP_DEFAULT_NU_P'//itext,          &
+                  & par_dp=cpar%cs_theta_def(1,i))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_NU_P_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_NU_P_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_NU_P_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,1))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_NU_P_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,1))
+             call get_parameter(paramfile, 'COMP_ALPHA_POLTYPE'//itext,  par_int=cpar%cs_poltype(2,i))
+             call get_parameter(paramfile, 'COMP_INPUT_ALPHA_MAP'//itext,        &
+                  & par_string=cpar%cs_input_ind(2,i))
+             call get_parameter(paramfile, 'COMP_DEFAULT_ALPHA'//itext,          &
+                  & par_dp=cpar%cs_theta_def(2,i))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,2))
+             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,2))
+             call get_parameter(paramfile, 'COMP_SED_TEMPLATE'//itext,  &
+                  & par_string=cpar%cs_SED_template(1,i))
+             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter(paramfile, 'COMP_NU_P_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,1))
+             call get_parameter(paramfile, 'COMP_ALPHA_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,2))
+             call get_parameter(paramfile, 'COMP_NU_P_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter(paramfile, 'COMP_NU_P_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter(paramfile, 'COMP_ALPHA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))          
+             call get_parameter(paramfile, 'COMP_ALPHA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
           case ('MBB')
              call get_parameter(paramfile, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter(paramfile, 'COMP_INPUT_BETA_MAP'//itext,        &
@@ -1157,6 +1195,12 @@ contains
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))             
+          case ('spindust2')
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+             if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))
+             call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
           case ('MBB')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
