@@ -1,6 +1,11 @@
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! Commander parameter module !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 module comm_param_mod
   use comm_utils
   use comm_status_mod
+  use hashtbl
   implicit none
 
   ! Note: This module reads in the Commander parameter file as the first operation
@@ -84,6 +89,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_gain_apodmask
      character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
+     character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -111,6 +117,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_binfile
      integer(i4b),       allocatable, dimension(:)     :: cs_lpivot
      character(len=512), allocatable, dimension(:)     :: cs_mask
+     real(dp),           allocatable, dimension(:)     :: cs_latmask
      character(len=512), allocatable, dimension(:)     :: cs_indmask
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
@@ -145,16 +152,43 @@ contains
   ! ********************************************************
   subroutine read_comm_params(cpar)
     implicit none
-
+    type(hash_tbl_sll) :: htable
     type(comm_params), intent(inout) :: cpar
-
+    
+    integer(i4b)       :: paramfile_len, ierr, i
     character(len=512) :: paramfile
-    
+    character(len=512), allocatable, dimension(:) :: paramfile_cache
+
     call getarg(1, paramfile)
-    call read_global_params(paramfile, cpar)
-    call read_data_params(paramfile, cpar)
-    call read_component_params(paramfile, cpar)
+    ! read parameter file once, save to ascii array
+    ! Need to know how long the file is to allocate ascii array
+    if (cpar%myid == cpar%root) then
+       call get_file_length(paramfile,paramfile_len)
+    end if
     
+    call mpi_bcast(paramfile_len, 1, MPI_INTEGER, cpar%root, MPI_COMM_WORLD, ierr)
+    allocate(paramfile_cache(paramfile_len))
+
+    if (cpar%myid == cpar%root) then
+       call read_paramfile_to_ascii(paramfile,paramfile_cache)
+    end if
+    do i=1,paramfile_len
+       call mpi_bcast(paramfile_cache(i), 512, MPI_CHAR, cpar%root, MPI_COMM_WORLD, ierr)
+    end do
+    
+    !Initialize a hash table
+    call init_hash_tbl_sll(htable,tbl_len=10*paramfile_len)
+    ! Put the parameter file into the hash table
+    call put_ascii_into_hashtable(paramfile_cache,htable)
+    deallocate(paramfile_cache)
+
+    ! Read parameters from the hash table
+    call read_global_params_hash(htable,cpar)
+    call read_data_params_hash(htable,cpar)
+    call read_component_params_hash(htable,cpar)
+    
+    !Deallocate hash table
+    call free_hash_tbl_sll(htable)
   end subroutine read_comm_params
 
   subroutine initialize_mpi_struct(cpar, handle)
@@ -164,11 +198,13 @@ contains
 
     integer(i4b) :: i, j, m, n, ierr
     integer(i4b), allocatable, dimension(:,:) :: ind
-
-    call mpi_init(ierr)
-    call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
-    call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
-    cpar%root = 0
+    
+    ! !the following commented lines are moved to commander.f90 in order to initialize
+    ! !the mpi structure so that one only reads parameter file with one processor
+    !call mpi_init(ierr)
+    !call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
+    !call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+    !cpar%root = 0
     cpar%numchain = min(cpar%numchain, cpar%numprocs)
 
     allocate(ind(0:cpar%numprocs-1,2))
@@ -209,61 +245,62 @@ contains
   !              Specialized routines; one per module
   ! ********************************************************
 
-  subroutine read_global_params(paramfile, cpar)
+  subroutine read_global_params_hash(htbl, cpar)
     implicit none
 
-    character(len=*),  intent(in)    :: paramfile
-    type(comm_params), intent(inout) :: cpar
+    type(hash_tbl_sll), intent(in) :: htbl
+    type(comm_params),  intent(inout) :: cpar
 
     integer(i4b)     :: i
     character(len=2) :: itext
 
-    call get_parameter(paramfile, 'VERBOSITY',                par_int=cpar%verbosity)
-    call get_parameter(paramfile, 'OPERATION',                par_string=cpar%operation)
+    
+    call get_parameter_hashtable(htbl, 'VERBOSITY',                par_int=cpar%verbosity)
+    call get_parameter_hashtable(htbl, 'OPERATION',                par_string=cpar%operation)
 
-    call get_parameter(paramfile, 'BASE_SEED',                par_int=cpar%base_seed)
-    call get_parameter(paramfile, 'NUMCHAIN',                 par_int=cpar%numchain)
-    call get_parameter(paramfile, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
-    call get_parameter(paramfile, 'NSKIP_FILELIST',           par_int=cpar%nskip_filelist)
-    call get_parameter(paramfile, 'NUM_ITER_WITH_ML_SEARCH',  par_int=cpar%num_ml_iter)
-    call get_parameter(paramfile, 'CHAIN_PREFIX',             par_string=cpar%chain_prefix)
-    call get_parameter(paramfile, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
-    call get_parameter(paramfile, 'INIT_SAMPLE_NUMBER',       par_int=cpar%init_samp)
-    call get_parameter(paramfile, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
+    call get_parameter_hashtable(htbl, 'BASE_SEED',                par_int=cpar%base_seed)
+    call get_parameter_hashtable(htbl, 'NUMCHAIN',                 par_int=cpar%numchain)
+    call get_parameter_hashtable(htbl, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
+    call get_parameter_hashtable(htbl, 'NSKIP_FILELIST',           par_int=cpar%nskip_filelist)
+    call get_parameter_hashtable(htbl, 'NUM_ITER_WITH_ML_SEARCH',  par_int=cpar%num_ml_iter)
+    call get_parameter_hashtable(htbl, 'CHAIN_PREFIX',             par_string=cpar%chain_prefix)
+    call get_parameter_hashtable(htbl, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
+    call get_parameter_hashtable(htbl, 'INIT_SAMPLE_NUMBER',       par_int=cpar%init_samp)
+    call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
 
-    call get_parameter(paramfile, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
-    call get_parameter(paramfile, 'CG_PRECOND_TYPE',          par_string=cpar%cg_precond)
-    call get_parameter(paramfile, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
-    call get_parameter(paramfile, 'CG_MINITER',               par_int=cpar%cg_miniter)
-    call get_parameter(paramfile, 'CG_MAXITER',               par_int=cpar%cg_maxiter)
-    call get_parameter(paramfile, 'CG_TOLERANCE',             par_dp=cpar%cg_tol)
-    call get_parameter(paramfile, 'CG_CONV_CHECK_FREQUENCY',  par_int=cpar%cg_check_conv_freq)
-    call get_parameter(paramfile, 'CG_INIT_AMPS_ON_ZERO',     par_lgt=cpar%cg_init_zero)
-    call get_parameter(paramfile, 'SET_ALL_NOISE_MAPS_TO_MEAN',     par_lgt=cpar%set_noise_to_mean)
-    call get_parameter(paramfile, 'NUM_INDEX_CYCLES_PER_ITERATION', par_int=cpar%num_ind_cycle)
+    call get_parameter_hashtable(htbl, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
+    call get_parameter_hashtable(htbl, 'CG_PRECOND_TYPE',          par_string=cpar%cg_precond)
+    call get_parameter_hashtable(htbl, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
+    call get_parameter_hashtable(htbl, 'CG_MINITER',               par_int=cpar%cg_miniter)
+    call get_parameter_hashtable(htbl, 'CG_MAXITER',               par_int=cpar%cg_maxiter)
+    call get_parameter_hashtable(htbl, 'CG_TOLERANCE',             par_dp=cpar%cg_tol)
+    call get_parameter_hashtable(htbl, 'CG_CONV_CHECK_FREQUENCY',  par_int=cpar%cg_check_conv_freq)
+    call get_parameter_hashtable(htbl, 'CG_INIT_AMPS_ON_ZERO',     par_lgt=cpar%cg_init_zero)
+    call get_parameter_hashtable(htbl, 'SET_ALL_NOISE_MAPS_TO_MEAN',     par_lgt=cpar%set_noise_to_mean)
+    call get_parameter_hashtable(htbl, 'NUM_INDEX_CYCLES_PER_ITERATION', par_int=cpar%num_ind_cycle)
 
-    call get_parameter(paramfile, 'T_CMB',                    par_dp=cpar%T_cmb)
-    call get_parameter(paramfile, 'MJYSR_CONVENTION',         par_string=cpar%MJysr_convention)
+    call get_parameter_hashtable(htbl, 'T_CMB',                    par_dp=cpar%T_cmb)
+    call get_parameter_hashtable(htbl, 'MJYSR_CONVENTION',         par_string=cpar%MJysr_convention)
 
-    call get_parameter(paramfile, 'OUTPUT_DIRECTORY',         par_string=cpar%outdir)
+    call get_parameter_hashtable(htbl, 'OUTPUT_DIRECTORY',         par_string=cpar%outdir)
 
-    call get_parameter(paramfile, 'NSIDE_CHISQ',              par_int=cpar%nside_chisq)
-    call get_parameter(paramfile, 'POLARIZATION_CHISQ',       par_lgt=cpar%pol_chisq)
+    call get_parameter_hashtable(htbl, 'NSIDE_CHISQ',              par_int=cpar%nside_chisq)
+    call get_parameter_hashtable(htbl, 'POLARIZATION_CHISQ',       par_lgt=cpar%pol_chisq)
     cpar%nmaps_chisq = 1; if (cpar%pol_chisq) cpar%nmaps_chisq = 3
 
-    call get_parameter(paramfile, 'OUTPUT_MIXING_MATRIX',     par_lgt=cpar%output_mixmat)
-    call get_parameter(paramfile, 'OUTPUT_RESIDUAL_MAPS',     par_lgt=cpar%output_residuals)
-    call get_parameter(paramfile, 'OUTPUT_CHISQ_MAP',         par_lgt=cpar%output_chisq)
-    call get_parameter(paramfile, 'OUTPUT_EVERY_NTH_CG_ITERATION', par_int=cpar%output_cg_freq)
-    call get_parameter(paramfile, 'OUTPUT_CG_PRECOND_EIGENVALS', par_lgt=cpar%output_cg_eigenvals)
-    call get_parameter(paramfile, 'OUTPUT_INPUT_MODEL',       par_lgt=cpar%output_input_model)
-    call get_parameter(paramfile, 'IGNORE_GAIN_AND_BANDPASS_CORR', par_lgt=cpar%ignore_gain_bp)
-    call get_parameter(paramfile, 'OUTPUT_DEBUG_SEDS',        par_lgt=cpar%output_debug_seds)
-    call get_parameter(paramfile, 'OUTPUT_SIGNALS_PER_BAND',  par_lgt=cpar%output_sig_per_band)
+    call get_parameter_hashtable(htbl, 'OUTPUT_MIXING_MATRIX',     par_lgt=cpar%output_mixmat)
+    call get_parameter_hashtable(htbl, 'OUTPUT_RESIDUAL_MAPS',     par_lgt=cpar%output_residuals)
+    call get_parameter_hashtable(htbl, 'OUTPUT_CHISQ_MAP',         par_lgt=cpar%output_chisq)
+    call get_parameter_hashtable(htbl, 'OUTPUT_EVERY_NTH_CG_ITERATION', par_int=cpar%output_cg_freq)
+    call get_parameter_hashtable(htbl, 'OUTPUT_CG_PRECOND_EIGENVALS', par_lgt=cpar%output_cg_eigenvals)
+    call get_parameter_hashtable(htbl, 'OUTPUT_INPUT_MODEL',       par_lgt=cpar%output_input_model)
+    call get_parameter_hashtable(htbl, 'IGNORE_GAIN_AND_BANDPASS_CORR', par_lgt=cpar%ignore_gain_bp)
+    call get_parameter_hashtable(htbl, 'OUTPUT_DEBUG_SEDS',        par_lgt=cpar%output_debug_seds)
+    call get_parameter_hashtable(htbl, 'OUTPUT_SIGNALS_PER_BAND',  par_lgt=cpar%output_sig_per_band)
 
-    call get_parameter(paramfile, 'SAMPLE_SIGNAL_AMPLITUDES', par_lgt=cpar%sample_signal_amplitudes)
+    call get_parameter_hashtable(htbl, 'SAMPLE_SIGNAL_AMPLITUDES', par_lgt=cpar%sample_signal_amplitudes)
 
-    call get_parameter(paramfile, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
+    call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 
     allocate(cpar%fwhm_smooth(cpar%num_smooth_scales))
     allocate(cpar%fwhm_postproc_smooth(cpar%num_smooth_scales))
@@ -272,31 +309,31 @@ contains
     allocate(cpar%pixwin_smooth(cpar%num_smooth_scales))
     do i = 1, cpar%num_smooth_scales
        call int2string(i, itext)
-       call get_parameter(paramfile, 'FWHM_SMOOTHING_SCALE'//itext, par_dp=cpar%fwhm_smooth(i))
-       call get_parameter(paramfile, 'FWHM_POSTPROC_SMOOTHING_SCALE'//itext, par_dp=cpar%fwhm_postproc_smooth(i))
-       call get_parameter(paramfile, 'LMAX_SMOOTHING_SCALE'//itext, par_int=cpar%lmax_smooth(i))
-       call get_parameter(paramfile, 'NSIDE_SMOOTHING_SCALE'//itext, par_int=cpar%nside_smooth(i))
-       call get_parameter(paramfile, 'PIXWIN_SMOOTHING_SCALE'//itext, par_string=cpar%pixwin_smooth(i))
+       call get_parameter_hashtable(htbl, 'FWHM_SMOOTHING_SCALE'//itext, par_dp=cpar%fwhm_smooth(i))
+       call get_parameter_hashtable(htbl, 'FWHM_POSTPROC_SMOOTHING_SCALE'//itext, par_dp=cpar%fwhm_postproc_smooth(i))
+       call get_parameter_hashtable(htbl, 'LMAX_SMOOTHING_SCALE'//itext, par_int=cpar%lmax_smooth(i))
+       call get_parameter_hashtable(htbl, 'NSIDE_SMOOTHING_SCALE'//itext, par_int=cpar%nside_smooth(i))
+       call get_parameter_hashtable(htbl, 'PIXWIN_SMOOTHING_SCALE'//itext, par_string=cpar%pixwin_smooth(i))
     end do
 
-  end subroutine read_global_params
+  end subroutine read_global_params_hash
 
 
-  subroutine read_data_params(paramfile, cpar)
+  subroutine read_data_params_hash(htbl, cpar)
     implicit none
 
-    character(len=*),  intent(in)    :: paramfile
-    type(comm_params), intent(inout) :: cpar
+    type(hash_tbl_sll), intent(in) :: htbl
+    type(comm_params),  intent(inout) :: cpar
 
     integer(i4b)     :: i, j, n
     character(len=3) :: itext
     character(len=2) :: jtext
     
-    call get_parameter(paramfile, 'NUMBAND',             par_int=cpar%numband)
-    call get_parameter(paramfile, 'DATA_DIRECTORY',      par_string=cpar%datadir)
-    call get_parameter(paramfile, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask)
-    call get_parameter(paramfile, 'PROCESSING_MASKFILE', par_string=cpar%ds_procmask)
-    call get_parameter(paramfile, 'PROC_SMOOTH_SCALE',   par_dp=cpar%ds_fwhm_proc)
+    call get_parameter_hashtable(htbl, 'NUMBAND',             par_int=cpar%numband)
+    call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
+    call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask)
+    call get_parameter_hashtable(htbl, 'PROCESSING_MASKFILE', par_string=cpar%ds_procmask)
+    call get_parameter_hashtable(htbl, 'PROC_SMOOTH_SCALE',   par_dp=cpar%ds_fwhm_proc)
 
     n = cpar%numband
     allocate(cpar%ds_active(n), cpar%ds_label(n))
@@ -311,41 +348,45 @@ contains
     allocate(cpar%ds_sample_gain(n), cpar%ds_gain_calib_comp(n), cpar%ds_gain_lmax(n))
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
+    allocate(cpar%ds_component_sensitivity(n))
+
     do i = 1, n
        call int2string(i, itext)
-       call get_parameter(paramfile, 'INCLUDE_BAND'//itext,         par_lgt=cpar%ds_active(i))
-       call get_parameter(paramfile, 'BAND_OBS_PERIOD'//itext,      par_int=cpar%ds_period(i))
-       call get_parameter(paramfile, 'BAND_LABEL'//itext,           par_string=cpar%ds_label(i))
-       call get_parameter(paramfile, 'BAND_POLARIZATION'//itext,    par_lgt=cpar%ds_polarization(i))
-       call get_parameter(paramfile, 'BAND_NSIDE'//itext,           par_int=cpar%ds_nside(i))
-       call get_parameter(paramfile, 'BAND_LMAX'//itext,            par_int=cpar%ds_lmax(i))
-       call get_parameter(paramfile, 'BAND_UNIT'//itext,            par_string=cpar%ds_unit(i))
-       call get_parameter(paramfile, 'BAND_NOISE_FORMAT'//itext,    par_string=cpar%ds_noise_format(i))
-       call get_parameter(paramfile, 'BAND_MAPFILE'//itext,         par_string=cpar%ds_mapfile(i))
-       call get_parameter(paramfile, 'BAND_NOISE_RMS'//itext,       par_string=cpar%ds_noise_rms(i))
-       call get_parameter(paramfile, 'BAND_NOISE_UNIFORMIZE_FSKY'//itext, par_dp=cpar%ds_noise_uni_fsky(i))
-       call get_parameter(paramfile, 'BAND_MASKFILE'//itext,        par_string=cpar%ds_maskfile(i))
-       call get_parameter(paramfile, 'BAND_MASKFILE_CALIB'//itext,  par_string=cpar%ds_maskfile_calib(i))
-       call get_parameter(paramfile, 'BAND_BEAMTYPE'//itext,        par_string=cpar%ds_beamtype(i))
-       call get_parameter(paramfile, 'BAND_BEAM_B_L_FILE'//itext,   par_string=cpar%ds_blfile(i))
-       call get_parameter(paramfile, 'BAND_BEAM_B_PTSRC_FILE'//itext, par_string=cpar%ds_btheta_file(i))
-       call get_parameter(paramfile, 'BAND_PIXEL_WINDOW'//itext,    par_string=cpar%ds_pixwin(i))
-       call get_parameter(paramfile, 'BAND_SAMP_NOISE_AMP'//itext,  par_lgt=cpar%ds_samp_noiseamp(i))
-       call get_parameter(paramfile, 'BAND_BANDPASS_TYPE'//itext,   par_string=cpar%ds_bptype(i))
-       call get_parameter(paramfile, 'BAND_NOMINAL_FREQ'//itext,    par_dp=cpar%ds_nu_c(i))
-       call get_parameter(paramfile, 'BAND_BANDPASSFILE'//itext,    par_string=cpar%ds_bpfile(i))
-       call get_parameter(paramfile, 'BAND_BANDPASS_MODEL'//itext,  par_string=cpar%ds_bpmodel(i))
-       call get_parameter(paramfile, 'BAND_SAMP_GAIN'//itext,       par_lgt=cpar%ds_sample_gain(i))
-       call get_parameter(paramfile, 'BAND_GAIN_CALIB_COMP'//itext, par_string=cpar%ds_gain_calib_comp(i))
-       call get_parameter(paramfile, 'BAND_GAIN_LMAX'//itext,       par_int=cpar%ds_gain_lmax(i))
-       call get_parameter(paramfile, 'BAND_GAIN_LMIN'//itext,       par_int=cpar%ds_gain_lmin(i))
-       call get_parameter(paramfile, 'BAND_GAIN_APOD_MASK'//itext,  par_string=cpar%ds_gain_apodmask(i))
-       call get_parameter(paramfile, 'BAND_GAIN_APOD_FWHM'//itext,  par_string=cpar%ds_gain_fwhm(i))
-       call get_parameter(paramfile, 'BAND_DEFAULT_GAIN'//itext,    par_dp=cpar%ds_defaults(i,GAIN))
-       call get_parameter(paramfile, 'BAND_DEFAULT_NOISEAMP'//itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
+       call get_parameter_hashtable(htbl, 'INCLUDE_BAND'//itext,         par_lgt=cpar%ds_active(i))
+       call get_parameter_hashtable(htbl, 'BAND_OBS_PERIOD'//itext,      par_int=cpar%ds_period(i))
+       call get_parameter_hashtable(htbl, 'BAND_LABEL'//itext,           par_string=cpar%ds_label(i))
+       call get_parameter_hashtable(htbl, 'BAND_POLARIZATION'//itext,    par_lgt=cpar%ds_polarization(i))
+       call get_parameter_hashtable(htbl, 'BAND_NSIDE'//itext,           par_int=cpar%ds_nside(i))
+       call get_parameter_hashtable(htbl, 'BAND_LMAX'//itext,            par_int=cpar%ds_lmax(i))
+       call get_parameter_hashtable(htbl, 'BAND_UNIT'//itext,            par_string=cpar%ds_unit(i))
+       call get_parameter_hashtable(htbl, 'BAND_NOISE_FORMAT'//itext,    par_string=cpar%ds_noise_format(i))
+       call get_parameter_hashtable(htbl, 'BAND_MAPFILE'//itext,         par_string=cpar%ds_mapfile(i))
+       call get_parameter_hashtable(htbl, 'BAND_NOISE_RMS'//itext,       par_string=cpar%ds_noise_rms(i))
+       call get_parameter_hashtable(htbl, 'BAND_NOISE_UNIFORMIZE_FSKY'//itext, par_dp=cpar%ds_noise_uni_fsky(i))
+       call get_parameter_hashtable(htbl, 'BAND_MASKFILE'//itext,        par_string=cpar%ds_maskfile(i))
+       call get_parameter_hashtable(htbl, 'BAND_MASKFILE_CALIB'//itext,  par_string=cpar%ds_maskfile_calib(i))
+       call get_parameter_hashtable(htbl, 'BAND_BEAMTYPE'//itext,        par_string=cpar%ds_beamtype(i))
+       call get_parameter_hashtable(htbl, 'BAND_BEAM_B_L_FILE'//itext,   par_string=cpar%ds_blfile(i))
+       call get_parameter_hashtable(htbl, 'BAND_BEAM_B_PTSRC_FILE'//itext, par_string=cpar%ds_btheta_file(i))
+       call get_parameter_hashtable(htbl, 'BAND_PIXEL_WINDOW'//itext,    par_string=cpar%ds_pixwin(i))
+       call get_parameter_hashtable(htbl, 'BAND_SAMP_NOISE_AMP'//itext,  par_lgt=cpar%ds_samp_noiseamp(i))
+       call get_parameter_hashtable(htbl, 'BAND_BANDPASS_TYPE'//itext,   par_string=cpar%ds_bptype(i))
+       call get_parameter_hashtable(htbl, 'BAND_NOMINAL_FREQ'//itext,    par_dp=cpar%ds_nu_c(i))
+       call get_parameter_hashtable(htbl, 'BAND_BANDPASSFILE'//itext,    par_string=cpar%ds_bpfile(i))
+       call get_parameter_hashtable(htbl, 'BAND_BANDPASS_MODEL'//itext,  par_string=cpar%ds_bpmodel(i))
+       call get_parameter_hashtable(htbl, 'BAND_SAMP_GAIN'//itext,       par_lgt=cpar%ds_sample_gain(i))
+       call get_parameter_hashtable(htbl, 'BAND_GAIN_CALIB_COMP'//itext, par_string=cpar%ds_gain_calib_comp(i))
+       call get_parameter_hashtable(htbl, 'BAND_GAIN_LMAX'//itext,       par_int=cpar%ds_gain_lmax(i))
+       call get_parameter_hashtable(htbl, 'BAND_GAIN_LMIN'//itext,       par_int=cpar%ds_gain_lmin(i))
+       call get_parameter_hashtable(htbl, 'BAND_GAIN_APOD_MASK'//itext,  par_string=cpar%ds_gain_apodmask(i))
+       call get_parameter_hashtable(htbl, 'BAND_GAIN_APOD_FWHM'//itext,  par_string=cpar%ds_gain_fwhm(i))
+       call get_parameter_hashtable(htbl, 'BAND_DEFAULT_GAIN'//itext,    par_dp=cpar%ds_defaults(i,GAIN))
+       call get_parameter_hashtable(htbl, 'BAND_DEFAULT_NOISEAMP'//itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
+       call get_parameter_hashtable(htbl, 'BAND_COMPONENT_SENSITIVITY'//itext, par_string=cpar%ds_component_sensitivity(i))
+
        do j = 1, cpar%num_smooth_scales
           call int2string(j, jtext)          
-          call get_parameter(paramfile, 'BAND_NOISE_RMS'//itext//'_SMOOTH'//jtext, &
+          call get_parameter_hashtable(htbl, 'BAND_NOISE_RMS'//itext//'_SMOOTH'//jtext, &
                & par_string=cpar%ds_noise_rms_smooth(i,j))
        end do
     end do
@@ -353,21 +394,22 @@ contains
     ! Convert to proper internal units where necessary
     cpar%ds_nu_c = cpar%ds_nu_c * 1d9                           ! From GHz to Hz
     
-  end subroutine read_data_params
+  end subroutine read_data_params_hash
 
 
-  subroutine read_component_params(paramfile, cpar)
+  subroutine read_component_params_hash(htbl, cpar)
     implicit none
 
-    character(len=*),  intent(in)    :: paramfile
-    type(comm_params), intent(inout) :: cpar
+    type(hash_tbl_sll), intent(in) :: htbl
+    type(comm_params),  intent(inout) :: cpar
 
-    integer(i4b)     :: i, n
-    character(len=2) :: itext
+    integer(i4b)       :: i, n
+    character(len=2)   :: itext
+    character(len=512) :: maskfile
     
-    call get_parameter(paramfile, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
-    call get_parameter(paramfile, 'INIT_INSTRUMENT_FROM_HDF', par_lgt=cpar%cs_init_inst_hdf)
-    call get_parameter(paramfile, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
+    call get_parameter_hashtable(htbl, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
+    call get_parameter_hashtable(htbl, 'INIT_INSTRUMENT_FROM_HDF', par_lgt=cpar%cs_init_inst_hdf)
+    call get_parameter_hashtable(htbl, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
 
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
@@ -376,6 +418,7 @@ contains
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
+    allocate(cpar%cs_latmask(n))
     allocate(cpar%cs_indmask(n), cpar%cs_amp_rms_scale(n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
@@ -387,121 +430,128 @@ contains
     allocate(cpar%cs_smooth_scale(n,MAXPAR))
     do i = 1, n
        call int2string(i, itext)
-       call get_parameter(paramfile, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
-       call get_parameter(paramfile, 'COMP_INIT_FROM_HDF'//itext,   par_lgt=cpar%cs_initHDF(i))
-       call get_parameter(paramfile, 'COMP_LABEL'//itext,           par_string=cpar%cs_label(i))
-       call get_parameter(paramfile, 'COMP_TYPE'//itext,            par_string=cpar%cs_type(i))
-       call get_parameter(paramfile, 'COMP_CLASS'//itext,           par_string=cpar%cs_class(i))
-       call get_parameter(paramfile, 'COMP_CG_SAMPLE_GROUP'//itext, par_int=cpar%cs_cg_samp_group(i))
+       call get_parameter_hashtable(htbl, 'INCLUDE_COMP'//itext,         par_lgt=cpar%cs_include(i))
+       call get_parameter_hashtable(htbl, 'COMP_INIT_FROM_HDF'//itext,   par_lgt=cpar%cs_initHDF(i))
+       call get_parameter_hashtable(htbl, 'COMP_LABEL'//itext,           par_string=cpar%cs_label(i))
+       call get_parameter_hashtable(htbl, 'COMP_TYPE'//itext,            par_string=cpar%cs_type(i))
+       call get_parameter_hashtable(htbl, 'COMP_CLASS'//itext,           par_string=cpar%cs_class(i))
+       call get_parameter_hashtable(htbl, 'COMP_CG_SAMPLE_GROUP'//itext, par_int=cpar%cs_cg_samp_group(i))
        if (trim(cpar%cs_type(i)) == 'md') then
-          call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
-          call get_parameter(paramfile, 'COMP_MD_DEFINITION_FILE'//itext, par_string=cpar%cs_SED_template(1,i))
+          call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
+          call get_parameter_hashtable(htbl, 'COMP_MD_DEFINITION_FILE'//itext, par_string=cpar%cs_SED_template(1,i))
        else if (trim(cpar%cs_type(i)) == 'template') then
-          call get_parameter(paramfile, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, &
+          call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, &
                & par_string=cpar%cs_SED_template(1,i))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
-          call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
+          call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
           if (cpar%cs_polarization(i)) &
-               & call get_parameter(paramfile, 'COMP_OUTPUT_EB_MAP'//itext,        par_lgt=cpar%cs_output_EB(i))
-          call get_parameter(paramfile, 'COMP_CG_SCALE'//itext,        par_dp=cpar%cs_cg_scale(i))
-          call get_parameter(paramfile, 'COMP_NSIDE'//itext,           par_int=cpar%cs_nside(i))
-          call get_parameter(paramfile, 'COMP_LMAX_AMP'//itext,        par_int=cpar%cs_lmax_amp(i))
-          call get_parameter(paramfile, 'COMP_L_APOD'//itext,          par_int=cpar%cs_l_apod(i))
-          call get_parameter(paramfile, 'COMP_LMAX_IND'//itext,        par_int=cpar%cs_lmax_ind(i))
-          call get_parameter(paramfile, 'COMP_UNIT'//itext,            par_string=cpar%cs_unit(i))
-          call get_parameter(paramfile, 'COMP_NU_REF'//itext,          par_dp=cpar%cs_nu_ref(i))
-          call get_parameter(paramfile, 'COMP_CL_TYPE'//itext,         par_string=cpar%cs_cltype(i))
-          call get_parameter(paramfile, 'COMP_INPUT_AMP_MAP'//itext,   par_string=cpar%cs_input_amp(i))
-          call get_parameter(paramfile, 'COMP_PRIOR_AMP_MAP'//itext,   par_string=cpar%cs_prior_amp(i))
-          call get_parameter(paramfile, 'COMP_OUTPUT_FWHM'//itext,     par_dp=cpar%cs_fwhm(i))
+               & call get_parameter_hashtable(htbl, 'COMP_OUTPUT_EB_MAP'//itext,        par_lgt=cpar%cs_output_EB(i))
+          call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext,        par_dp=cpar%cs_cg_scale(i))
+          call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext,           par_int=cpar%cs_nside(i))
+          call get_parameter_hashtable(htbl, 'COMP_LMAX_AMP'//itext,        par_int=cpar%cs_lmax_amp(i))
+          call get_parameter_hashtable(htbl, 'COMP_L_APOD'//itext,          par_int=cpar%cs_l_apod(i))
+          call get_parameter_hashtable(htbl, 'COMP_LMAX_IND'//itext,        par_int=cpar%cs_lmax_ind(i))
+          call get_parameter_hashtable(htbl, 'COMP_UNIT'//itext,            par_string=cpar%cs_unit(i))
+          call get_parameter_hashtable(htbl, 'COMP_NU_REF'//itext,          par_dp=cpar%cs_nu_ref(i))
+          call get_parameter_hashtable(htbl, 'COMP_CL_TYPE'//itext,         par_string=cpar%cs_cltype(i))
+          call get_parameter_hashtable(htbl, 'COMP_INPUT_AMP_MAP'//itext,   par_string=cpar%cs_input_amp(i))
+          call get_parameter_hashtable(htbl, 'COMP_PRIOR_AMP_MAP'//itext,   par_string=cpar%cs_prior_amp(i))
+          call get_parameter_hashtable(htbl, 'COMP_OUTPUT_FWHM'//itext,     par_dp=cpar%cs_fwhm(i))
           if (trim(cpar%cs_cltype(i)) == 'binned') then
-             call get_parameter(paramfile, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
-             call get_parameter(paramfile, 'COMP_CL_DEFAULT_FILE'//itext,     par_string=cpar%cs_clfile(i))
+             call get_parameter_hashtable(htbl, 'COMP_CL_BIN_FILE'//itext,     par_string=cpar%cs_binfile(i))
+             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_FILE'//itext,     par_string=cpar%cs_clfile(i))
           else if (trim(cpar%cs_cltype(i)) == 'power_law' .or. trim(cpar%cs_cltype(i)) == 'exp' .or. trim(cpar%cs_cltype(i))=='gauss') then
-             call get_parameter(paramfile, 'COMP_CL_POLTYPE'//itext,      par_int=cpar%cs_cl_poltype(i))
-             call get_parameter(paramfile, 'COMP_CL_L_PIVOT'//itext,      par_int=cpar%cs_lpivot(i))
-             call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_MEAN'//itext, par_dp=cpar%cs_cl_prior(i,1))
-             call get_parameter(paramfile, 'COMP_CL_BETA_PRIOR_RMS'//itext, par_dp=cpar%cs_cl_prior(i,2))
-             call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_T'//itext,  par_dp=cpar%cs_cl_amp_def(i,1))
-             call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_T'//itext,  par_dp=cpar%cs_cl_beta_def(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_CL_POLTYPE'//itext,      par_int=cpar%cs_cl_poltype(i))
+             call get_parameter_hashtable(htbl, 'COMP_CL_L_PIVOT'//itext,      par_int=cpar%cs_lpivot(i))
+             call get_parameter_hashtable(htbl, 'COMP_CL_BETA_PRIOR_MEAN'//itext, par_dp=cpar%cs_cl_prior(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_CL_BETA_PRIOR_RMS'//itext, par_dp=cpar%cs_cl_prior(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_T'//itext,  par_dp=cpar%cs_cl_amp_def(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_T'//itext,  par_dp=cpar%cs_cl_beta_def(i,1))
              if (cpar%cs_polarization(i)) then
-                call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_E'//itext,  par_dp=cpar%cs_cl_amp_def(i,2))
-                call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_E'//itext,  par_dp=cpar%cs_cl_beta_def(i,2))
-                call get_parameter(paramfile, 'COMP_CL_DEFAULT_AMP_B'//itext,  par_dp=cpar%cs_cl_amp_def(i,3))
-                call get_parameter(paramfile, 'COMP_CL_DEFAULT_BETA_B'//itext,  par_dp=cpar%cs_cl_beta_def(i,3))
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_E'//itext,  par_dp=cpar%cs_cl_amp_def(i,2))
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_E'//itext,  par_dp=cpar%cs_cl_beta_def(i,2))
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_B'//itext,  par_dp=cpar%cs_cl_amp_def(i,3))
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_B'//itext,  par_dp=cpar%cs_cl_beta_def(i,3))
              end if
              cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(i)**2
           end if
-          call get_parameter(paramfile, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
+          call get_parameter_hashtable(htbl, 'COMP_MASK'//itext,            par_string=cpar%cs_mask(i))
+          maskfile = adjustl(trim(cpar%cs_mask(i)))
+          if (maskfile(1:4) == '|b|<') then
+             read(maskfile(5:),*) cpar%cs_latmask(i)
+             cpar%cs_latmask(i) = cpar%cs_latmask(i) * DEG2RAD
+          else
+             cpar%cs_latmask(i) = -1.d0
+          end if
           cpar%cs_indmask(i) = 'fullsky'
 
           select case (trim(cpar%cs_type(i)))
           case ('power_law')
-             call get_parameter(paramfile, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
-             call get_parameter(paramfile, 'COMP_INPUT_BETA_MAP'//itext,        &
+             call get_parameter_hashtable(htbl, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
-             call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_BETA'//itext,          &
                   & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))
-             call get_parameter(paramfile, 'COMP_INDMASK'//itext,               &
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext,               &
                   & par_string=cpar%cs_indmask(i))
-             call get_parameter(paramfile, 'COMP_BETA_SMOOTHING_SCALE'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_BETA_SMOOTHING_SCALE'//itext,  &
                   & par_int=cpar%cs_smooth_scale(i,1))
-             call get_parameter(paramfile, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
-             call get_parameter(paramfile, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
           case ('physdust')
-             call get_parameter(paramfile, 'COMP_UMIN_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
-             call get_parameter(paramfile, 'COMP_INPUT_UMIN_MAP'//itext,        &
+             call get_parameter_hashtable(htbl, 'COMP_UMIN_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_UMIN_MAP'//itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
-             call get_parameter(paramfile, 'COMP_DEFAULT_UMIN'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_UMIN'//itext,          &
                   & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_UMIN_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_UMIN_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_UMIN_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_UMIN_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_UMIN_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_UMIN_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_UMIN_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_UMIN_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))
-             call get_parameter(paramfile, 'COMP_UMAX'//itext,  par_dp=cpar%cs_auxpar(1,i))
-             call get_parameter(paramfile, 'COMP_GAMMA'//itext,  par_dp=cpar%cs_auxpar(2,i))
-             call get_parameter(paramfile, 'COMP_ALPHA'//itext,  par_dp=cpar%cs_auxpar(3,i))
-             call get_parameter(paramfile, 'COMP_SIL_AMP1_'//itext,  par_dp=cpar%cs_auxpar(4,i))
-             call get_parameter(paramfile, 'COMP_SIL_AMP2_'//itext,  par_dp=cpar%cs_auxpar(5,i))
-             call get_parameter(paramfile, 'COMP_CARB_AMP1_'//itext,  par_dp=cpar%cs_auxpar(6,i))
-             call get_parameter(paramfile, 'COMP_CARB_AMP2_'//itext,  par_dp=cpar%cs_auxpar(7,i))
-             call get_parameter(paramfile, 'COMP_SIL_FILE1_'//itext,  par_string=cpar%cs_SED_template(1,i))
-             call get_parameter(paramfile, 'COMP_SIL_FILE2_'//itext,  par_string=cpar%cs_SED_template(2,i))
-             call get_parameter(paramfile, 'COMP_CARB_FILE1_'//itext,  par_string=cpar%cs_SED_template(3,i))
-             call get_parameter(paramfile, 'COMP_CARB_FILE2_'//itext,  par_string=cpar%cs_SED_template(4,i))
-             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_UMAX'//itext,  par_dp=cpar%cs_auxpar(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_GAMMA'//itext,  par_dp=cpar%cs_auxpar(2,i))
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA'//itext,  par_dp=cpar%cs_auxpar(3,i))
+             call get_parameter_hashtable(htbl, 'COMP_SIL_AMP1_'//itext,  par_dp=cpar%cs_auxpar(4,i))
+             call get_parameter_hashtable(htbl, 'COMP_SIL_AMP2_'//itext,  par_dp=cpar%cs_auxpar(5,i))
+             call get_parameter_hashtable(htbl, 'COMP_CARB_AMP1_'//itext,  par_dp=cpar%cs_auxpar(6,i))
+             call get_parameter_hashtable(htbl, 'COMP_CARB_AMP2_'//itext,  par_dp=cpar%cs_auxpar(7,i))
+             call get_parameter_hashtable(htbl, 'COMP_SIL_FILE1_'//itext,  par_string=cpar%cs_SED_template(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_SIL_FILE2_'//itext,  par_string=cpar%cs_SED_template(2,i))
+             call get_parameter_hashtable(htbl, 'COMP_CARB_FILE1_'//itext,  par_string=cpar%cs_SED_template(3,i))
+             call get_parameter_hashtable(htbl, 'COMP_CARB_FILE2_'//itext,  par_string=cpar%cs_SED_template(4,i))
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
              write(*,*) 'ERROR -- smoothing not yet supported.'
              stop
           case ('spindust')
-             call get_parameter(paramfile, 'COMP_NU_P_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
-             call get_parameter(paramfile, 'COMP_INPUT_NU_P_MAP'//itext,        &
+             call get_parameter_hashtable(htbl, 'COMP_NU_P_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
-             call get_parameter(paramfile, 'COMP_DEFAULT_NU_P'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_NU_P'//itext,          &
                   & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_NU_P_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_NU_P_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_NU_P_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_NU_P_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_NU_P_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_NU_P_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_NU_P_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_NU_P_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))
-             call get_parameter(paramfile, 'COMP_SED_TEMPLATE'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext,  &
                   & par_string=cpar%cs_SED_template(1,i))
-             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
-             call get_parameter(paramfile, 'COMP_NU_P_SMOOTHING_SCALE'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_NU_P_SMOOTHING_SCALE'//itext,  &
                   & par_int=cpar%cs_smooth_scale(i,1))
              call get_parameter(paramfile, 'COMP_NU_P_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
              call get_parameter(paramfile, 'COMP_NU_P_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
@@ -544,152 +594,152 @@ contains
              call get_parameter(paramfile, 'COMP_ALPHA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))          
              call get_parameter(paramfile, 'COMP_ALPHA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
           case ('MBB')
-             call get_parameter(paramfile, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
-             call get_parameter(paramfile, 'COMP_INPUT_BETA_MAP'//itext,        &
+             call get_parameter_hashtable(htbl, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
-             call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_BETA'//itext,          &
                   & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))
-             call get_parameter(paramfile, 'COMP_T_POLTYPE'//itext,  par_int=cpar%cs_poltype(2,i))
-             call get_parameter(paramfile, 'COMP_INPUT_T_MAP'//itext,        &
+             call get_parameter_hashtable(htbl, 'COMP_T_POLTYPE'//itext,  par_int=cpar%cs_poltype(2,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_T_MAP'//itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
-             call get_parameter(paramfile, 'COMP_DEFAULT_T'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_T'//itext,          &
                   & par_dp=cpar%cs_theta_def(2,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_T_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_T_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_T_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_T_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_T_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_T_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_T_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_T_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,2))
-             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
-             call get_parameter(paramfile, 'COMP_BETA_SMOOTHING_SCALE'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_SMOOTHING_SCALE'//itext,  &
                   & par_int=cpar%cs_smooth_scale(i,1))
-             call get_parameter(paramfile, 'COMP_T_SMOOTHING_SCALE'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_T_SMOOTHING_SCALE'//itext,  &
                   & par_int=cpar%cs_smooth_scale(i,2))
-             call get_parameter(paramfile, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
-             call get_parameter(paramfile, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
-             call get_parameter(paramfile, 'COMP_T_NU_MIN'//itext,      par_dp=cpar%cs_nu_min(i,2))
-             call get_parameter(paramfile, 'COMP_T_NU_MAX'//itext,      par_dp=cpar%cs_nu_max(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext,      par_dp=cpar%cs_nu_min(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext,      par_dp=cpar%cs_nu_max(i,2))
           case ('freefree')
-             call get_parameter(paramfile, 'COMP_EM_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
-             call get_parameter(paramfile, 'COMP_INPUT_EM_MAP'//itext,        &
+             call get_parameter_hashtable(htbl, 'COMP_EM_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_EM_MAP'//itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
-             call get_parameter(paramfile, 'COMP_DEFAULT_EM'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_EM'//itext,          &
                   & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_EM_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_EM_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_EM_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_EM_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_EM_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_EM_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_EM_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_EM_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))
-             call get_parameter(paramfile, 'COMP_TE_POLTYPE'//itext,  par_int=cpar%cs_poltype(2,i))
-             call get_parameter(paramfile, 'COMP_INPUT_TE_MAP'//itext,        &
+             call get_parameter_hashtable(htbl, 'COMP_TE_POLTYPE'//itext,  par_int=cpar%cs_poltype(2,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_TE_MAP'//itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
-             call get_parameter(paramfile, 'COMP_DEFAULT_TE'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_TE'//itext,          &
                   & par_dp=cpar%cs_theta_def(2,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_TE_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_TE_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_TE_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_TE_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_TE_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_TE_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_TE_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_TE_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,2))
-             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
-             call get_parameter(paramfile, 'COMP_EM_SMOOTHING_SCALE'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_EM_SMOOTHING_SCALE'//itext,  &
                   & par_int=cpar%cs_smooth_scale(i,1))
-             call get_parameter(paramfile, 'COMP_T_E_SMOOTHING_SCALE'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_T_E_SMOOTHING_SCALE'//itext,  &
                   & par_int=cpar%cs_smooth_scale(i,2))
-             call get_parameter(paramfile, 'COMP_EM_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
-             call get_parameter(paramfile, 'COMP_EM_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
-             call get_parameter(paramfile, 'COMP_T_E_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))
-             call get_parameter(paramfile, 'COMP_T_E_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
           case ('line')
-             call get_parameter(paramfile, 'COMP_LINE_TEMPLATE'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_LINE_TEMPLATE'//itext,  &
                   & par_string=cpar%cs_SED_template(1,i))
-             call get_parameter(paramfile, 'COMP_BAND_REF'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_BAND_REF'//itext, &
                   & par_string=cpar%cs_band_ref(i))
-             call get_parameter(paramfile, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
           end select
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
-          call get_parameter(paramfile, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
-          call get_parameter(paramfile, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
-          call get_parameter(paramfile, 'COMP_PTSRC_TEMPLATE'//itext,  &
+          call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext,    par_lgt=cpar%cs_polarization(i))
+          call get_parameter_hashtable(htbl, 'COMP_CATALOG'//itext,  par_string=cpar%cs_catalog(i))
+          call get_parameter_hashtable(htbl, 'COMP_PTSRC_TEMPLATE'//itext,  &
                & par_string=cpar%cs_ptsrc_template(i))
-          call get_parameter(paramfile, 'COMP_BURN_IN_ON_FIRST_SAMPLE'//itext,  par_lgt=cpar%cs_burn_in(i))
-          call get_parameter(paramfile, 'COMP_AMP_RMS_SCALE_FACTOR'//itext,  par_dp=cpar%cs_amp_rms_scale(i))
-          call get_parameter(paramfile, 'COMP_OUTPUT_PTSRC_TEMPLATE'//itext,  &
+          call get_parameter_hashtable(htbl, 'COMP_BURN_IN_ON_FIRST_SAMPLE'//itext,  par_lgt=cpar%cs_burn_in(i))
+          call get_parameter_hashtable(htbl, 'COMP_AMP_RMS_SCALE_FACTOR'//itext,  par_dp=cpar%cs_amp_rms_scale(i))
+          call get_parameter_hashtable(htbl, 'COMP_OUTPUT_PTSRC_TEMPLATE'//itext,  &
                & par_lgt=cpar%cs_output_ptsrc_beam(i))
-          call get_parameter(paramfile, 'COMP_APPLY_POSITIVITY_PRIOR'//itext, par_lgt=cpar%cs_apply_pos_prior(i))
+          call get_parameter_hashtable(htbl, 'COMP_APPLY_POSITIVITY_PRIOR'//itext, par_lgt=cpar%cs_apply_pos_prior(i))
           if (cpar%cs_apply_pos_prior(i)) cpar%cs_cg_samp_group(i) = 0
-          call get_parameter(paramfile, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, par_dp=cpar%cs_min_src_dist(i))
-          call get_parameter(paramfile, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
-          call get_parameter(paramfile, 'COMP_NSIDE'//itext,    par_int=cpar%cs_nside(i))
-          call get_parameter(paramfile, 'COMP_NU_REF'//itext,   par_dp=cpar%cs_nu_ref(i))
-          call get_parameter(paramfile, 'COMP_CG_SCALE'//itext, par_dp=cpar%cs_cg_scale(i))
+          call get_parameter_hashtable(htbl, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, par_dp=cpar%cs_min_src_dist(i))
+          call get_parameter_hashtable(htbl, 'COMP_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+          call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext,    par_int=cpar%cs_nside(i))
+          call get_parameter_hashtable(htbl, 'COMP_NU_REF'//itext,   par_dp=cpar%cs_nu_ref(i))
+          call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext, par_dp=cpar%cs_cg_scale(i))
           select case (trim(cpar%cs_type(i)))
           case ('radio')
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_ALPHA_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_ALPHA_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_ALPHA_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_ALPHA_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_ALPHA_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))
-             call get_parameter(paramfile, 'COMP_DEFAULT_ALPHA'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_ALPHA'//itext,          &
                   & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,2))
-             call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_BETA'//itext,          &
                   & par_dp=cpar%cs_theta_def(2,i))
-             call get_parameter(paramfile, 'COMP_ALPHA_NU_MIN'//itext,  par_dp=cpar%cs_nu_min(i,1))
-             call get_parameter(paramfile, 'COMP_ALPHA_NU_MAX'//itext,  par_dp=cpar%cs_nu_max(i,1))
-             call get_parameter(paramfile, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))
-             call get_parameter(paramfile, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MIN'//itext,  par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MAX'//itext,  par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
           case ('fir')
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_BETA_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,1))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_BETA_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,1))             
-             call get_parameter(paramfile, 'COMP_DEFAULT_BETA'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_BETA'//itext,          &
                   & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_T_LOW'//itext,    &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_T_LOW'//itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_UNI_T_HIGH'//itext,   &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_T_HIGH'//itext,   &
                   & par_dp=cpar%cs_p_uni(i,2,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_T_MEAN'//itext, &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_T_MEAN'//itext, &
                   & par_dp=cpar%cs_p_gauss(i,1,2))
-             call get_parameter(paramfile, 'COMP_PRIOR_GAUSS_T_RMS'//itext,  &
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_T_RMS'//itext,  &
                   & par_dp=cpar%cs_p_gauss(i,2,2))
-             call get_parameter(paramfile, 'COMP_DEFAULT_T'//itext,          &
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_T'//itext,          &
                   & par_dp=cpar%cs_theta_def(2,i))             
-             call get_parameter(paramfile, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
-             call get_parameter(paramfile, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
-             call get_parameter(paramfile, 'COMP_T_NU_MIN'//itext,      par_dp=cpar%cs_nu_min(i,2))
-             call get_parameter(paramfile, 'COMP_T_NU_MAX'//itext,      par_dp=cpar%cs_nu_max(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext,      par_dp=cpar%cs_nu_min(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext,      par_dp=cpar%cs_nu_max(i,2))
           end select
        end if
        
@@ -703,191 +753,14 @@ contains
     cpar%cs_nu_max = 1d9 * cpar%cs_nu_max
 
 
-  end subroutine read_component_params
+  end subroutine read_component_params_hash
+
 
 
 
   ! ********************************************************
   !                     Utility routines
   ! ********************************************************
-  subroutine get_parameter(parfile, parname, par_int, par_char, &
-       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
-    implicit none
-    character(len=*)           :: parfile, parname
-    integer(i4b),     optional :: par_int
-    character(len=*), optional :: par_char
-    character(len=*), optional :: par_string
-    real(sp),         optional :: par_sp
-    real(dp),         optional :: par_dp
-    logical(lgt),     optional :: par_lgt
-    logical(lgt),     optional :: par_present
-    character(len=*), optional :: desc
-
-    logical(lgt)               :: found
-    integer(i4b)               :: unit
-
-    unit = getlun()
-    found = .false.
-    call get_parameter_arg(parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, found, desc)
-    if(found) then
-       if(present(par_present)) par_present = .true.
-    else
-       call get_parameter_parfile(parfile, parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
-    end if
-  end subroutine
-
-  subroutine get_parameter_parfile(parfile, parname, par_int, par_char, &
-       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
-    implicit none
-    character(len=*)           :: parfile, parname
-    integer(i4b),     optional :: par_int
-    character(len=*), optional :: par_char
-    character(len=*), optional :: par_string
-    real(sp),         optional :: par_sp
-    real(dp),         optional :: par_dp
-    logical(lgt),     optional :: par_lgt
-    logical(lgt),     optional :: par_present
-    character(len=*), optional :: desc
-
-    logical(lgt)               :: found
-    integer(i4b), parameter    :: maxdepth = 256
-    integer(i4b)               :: depth, units(maxdepth), i
-    character(len=512)         :: key, value, filenames(maxdepth), line
-
-    depth = 1
-    units(depth) = getlun()
-    !write(*,*) "Entering file " // trim(parfile)
-    filenames(depth) = parfile
-    open(units(depth),file=trim(parfile),status="old",err=4)
-    do while(depth >= 1)
-       read(units(depth),*,end=1) key
-       if (key(1:1)=='#') cycle
-       backspace(units(depth))
-
-       if (key(1:1)=='@') then
-          if(key == '@INCLUDE') then
-             ! Recurse into the new file
-             read(units(depth),*,end=1) key, value
-             !write(*,*) "Entering file " // trim(value)
-             depth=depth+1
-             units(depth) = getlun()
-             filenames(depth) = value
-             open(units(depth),file=value,status="old",err=2)
-          else
-             goto 3
-          end if
-       else
-          read(units(depth),fmt="(a)") line
-          call parse_parameter(line, parname, found, par_int, par_char, par_string, par_sp, par_dp, par_lgt)
-          if(found) then
-             ! Match found, so clean up and return.
-             do i = depth, 1, -1; close(units(i)); end do
-             if(present(par_present)) par_present = .true.
-             return
-          end if
-       end if
-       cycle
-       ! We get here if we reached the end of a file. Close it and
-       ! return to the file above.
-1      close(units(depth))
-       !write(*,*) "Exiting file " // filenames(depth)
-       depth = depth-1
-    end do
-
-    ! ===== Error handling section ======
-    ! Case 1: Failed to find matching parameter in file
-    if(present(par_present)) then
-       par_present = .false.
-       return
-    else
-       write(*,*) "Error: Cannot find " // trim(parname) // &
-            & " in " // trim(parfile) // " or included files."
-       if(present(desc)) write(*,*) trim(desc)
-       stop
-    end if
-
-    ! Case 2: Include file error
-2   write(*,*) "Error: Cannot open include file '" // trim(value) // "'"
-    write(*,*) " in file " // trim(filenames(depth))
-    do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
-    do i = depth-1, 1, -1; close(units(i)); end do
-    stop
-
-    ! Case 3: Directive error
-3   write(*,*) "Error: Unrecognized directive '" // trim(key) //"'"
-    write(*,*) " in file " // trim(filenames(depth))
-    do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
-    do i = depth, 1, -1; close(units(i)); end do
-    stop
-
-    ! Case 4: Top level parameter file unreadable
-4   write(*,*) "Error: Cannot open parameter file '" // trim(parfile) // "'"
-    stop
-  end subroutine
-
-  subroutine get_parameter_arg(parname, par_int, par_char, &
-       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
-    implicit none
-    character(len=*)           :: parname
-    integer(i4b),     optional :: par_int
-    character(len=*), optional :: par_char
-    character(len=*), optional :: par_string
-    real(sp),         optional :: par_sp
-    real(dp),         optional :: par_dp
-    logical(lgt),     optional :: par_lgt
-    logical(lgt),     optional :: par_present
-    character(len=*), optional :: desc
-
-    character(len=512) :: line
-    integer(i4b)       :: i
-    logical(lgt)       :: found
-    do i = 1, iargc()
-       call getarg(i, line)
-       if(line(1:2) /= "--") cycle
-       call parse_parameter(line(3:), parname, found, par_int, par_char, par_string, par_sp, par_dp, par_lgt)
-       if(found) then
-          if(present(par_present)) par_present = .true.
-          return
-       end if
-    end do
-    if(present(par_present)) then
-       par_present = .false.
-    else
-       write(*,*) "get_parameter_arg: Fatal error: Cannot find " // trim(parname) // " in argument list!"
-       if(present(desc)) write(*,*) trim(desc)
-       stop
-    end if
-  end subroutine
-
-  subroutine get_parameter_arr(arr, parname, par_int, par_char, &
-       & par_string, par_sp, par_dp, par_lgt, par_present)
-    implicit none
-    character(len=*)           :: arr(:)
-    character(len=*)           :: parname
-    integer(i4b),     optional :: par_int
-    character(len=*), optional :: par_char
-    character(len=*), optional :: par_string
-    real(sp),         optional :: par_sp
-    real(dp),         optional :: par_dp
-    logical(lgt),     optional :: par_lgt
-    logical(lgt),     optional :: par_present
-
-    integer(i4b)       :: i
-    logical(lgt)       :: found
-    do i = 1, size(arr)
-       call parse_parameter(arr(i), parname, found, par_int, par_char, par_string, par_sp, par_dp, par_lgt)
-       if(found) then
-          if(present(par_present)) par_present = .true.
-          return
-       end if
-    end do
-    if(present(par_present)) then
-       par_present = .false.
-    else
-       write(*,*) "get_parameter_arr: Fatal error: Cannot find " // trim(parname) // " in argument list!"
-       stop
-    end if
-  end subroutine
 
 
   subroutine parse_parameter(line, parname, found, par_int, par_char, par_string, par_sp, par_dp, par_lgt)
@@ -934,8 +807,42 @@ contains
     else
        found = .false.
     end if
-  end subroutine
+  end subroutine parse_parameter
 
+  !gets parameters from input arguments in Commander call
+  subroutine get_parameter_arg(parname, par_int, par_char, &
+       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
+    implicit none
+    character(len=*)           :: parname
+    integer(i4b),     optional :: par_int
+    character(len=*), optional :: par_char
+    character(len=*), optional :: par_string
+    real(sp),         optional :: par_sp
+    real(dp),         optional :: par_dp
+    logical(lgt),     optional :: par_lgt
+    logical(lgt),     optional :: par_present
+    character(len=*), optional :: desc
+
+    character(len=512) :: line
+    integer(i4b)       :: i
+    logical(lgt)       :: found
+    do i = 1, iargc()
+       call getarg(i, line)
+       if(line(1:2) /= "--") cycle
+       call parse_parameter(line(3:), parname, found, par_int, par_char, par_string, par_sp, par_dp, par_lgt)
+       if(found) then
+          if(present(par_present)) par_present = .true.
+          return
+       end if
+    end do
+    if(present(par_present)) then
+       par_present = .false.
+    else
+       write(*,*) "get_parameter_arg: Fatal error: Cannot find " // trim(parname) // " in argument list!"
+       if(present(desc)) write(*,*) trim(desc)
+       stop
+    end if
+  end subroutine
 
   ! Loops through the parameter files and children, counting lines.
   ! No error reporting.
@@ -978,7 +885,7 @@ contains
        depth = depth-1
     end do
     close(ounit)
-  end subroutine
+  end subroutine dump_expanded_paramfile
 
 
   function get_token(string, sep, num, group, allow_empty) result(res)
@@ -989,9 +896,11 @@ contains
     logical(lgt),     optional :: allow_empty
     integer(i4b)               :: i, num, ext(2)
     ext = -1
-    do i = 1, num; call tokenize(string, sep, ext, group, allow_empty); end do
+    do i = 1, num
+       call tokenize(string, sep, ext, group, allow_empty)
+    end do
     res = string(ext(1):ext(2))
-  end function
+  end function get_token
 
   ! Fill all tokens into toks, and the num filled into num
   subroutine get_tokens(string, sep, toks, num, group, maxnum, allow_empty)
@@ -1012,7 +921,7 @@ contains
        call tokenize(string, sep, ext, group, allow_empty)
     end do
     if(present(num)) num = n
-  end subroutine
+  end subroutine get_tokens
 
   function has_token(token, string, sep, group, allow_empty) result(res)
     implicit none
@@ -1029,7 +938,7 @@ contains
        call tokenize(string, sep, ext, group, allow_empty)
     end do
     res = .false.
-  end function
+  end function has_token
 
   function num_tokens(string, sep, group, allow_empty) result(res)
     implicit none
@@ -1044,7 +953,7 @@ contains
        res = res+1
        call tokenize(string, sep, ext, group, allow_empty)
     end do
-  end function
+  end function num_tokens
 
   subroutine tokenize(string, sep, ext, group, allow_empty)
     implicit none
@@ -1120,7 +1029,7 @@ contains
     else
        ext = (/ 0, -1 /)
     end if
-  end subroutine
+  end subroutine tokenize
 
   subroutine validate_params(cpar)
     implicit none
@@ -1156,16 +1065,16 @@ contains
     if (trim(cpar%cs_inst_parfile) /= 'none') &
          & call validate_file(trim(datadir)//trim(cpar%cs_inst_parfile))   ! Instrument data base
     if (trim(cpar%ds_sourcemask) /= 'none') &
-         & call validate_file(trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask))   ! Source mask
+         & call validate_file(trim(datadir)//trim(cpar%ds_sourcemask))   ! Source mask
     if (trim(cpar%ds_procmask) /= 'none') &
-         & call validate_file(trim(cpar%datadir)//'/'//trim(cpar%ds_procmask))   ! Source mask
+         & call validate_file(trim(datadir)//trim(cpar%ds_procmask))   ! Source mask
 
     ! Check component files
     do i = 1, cpar%cs_ncomp_tot
        if (.not. cpar%cs_include(i)) cycle
 
        if (trim(cpar%cs_type(i)) == 'md') then
-          call validate_file(trim(cpar%cs_SED_template(1,i)))
+          call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           if (trim(cpar%cs_input_amp(i)) /= 'none') &
                call validate_file(trim(datadir)//trim(cpar%cs_input_amp(i)))
@@ -1243,5 +1152,253 @@ contains
     else
     end if
   end subroutine validate_file
+
+  subroutine read_paramfile_to_ascii(paramfile,paramfile_cache)
+    implicit none
+    character(len=512),                            intent(in)  :: paramfile
+    character(len=512), allocatable, dimension(:), intent(inout) :: paramfile_cache
+    integer(i4b), parameter    :: maxdepth = 256
+    integer(i4b)               :: depth, units(maxdepth), line_nr, paramfile_len, i
+    character(len=512)         :: key, value, filenames(maxdepth), line
+
+    ! read file to ascii array
+
+
+    line_nr = 0
+    depth = 1
+    units(depth) = getlun()
+    filenames(depth) = paramfile
+    open(units(depth),file=trim(paramfile),status="old",err=4)
+    do while(depth >= 1)
+       read(units(depth),*,end=1) key
+       if (key(1:1)=='#') cycle
+       backspace(units(depth))
+
+       if (key(1:1)=='@') then
+          if(key == '@INCLUDE') then
+             ! Recurse into the new file
+             read(units(depth),*,end=1) key, value
+             depth=depth+1
+             units(depth) = getlun()
+             filenames(depth) = value
+             open(units(depth),file=value,status="old",err=2)
+          else
+             goto 3
+          end if
+       else
+          read(units(depth),fmt="(a)") line
+          !if we get here we have read a new line from the parameter file(s)
+          line_nr = line_nr + 1
+          write(paramfile_cache(line_nr),fmt="(a)") line
+       end if
+       cycle
+       ! We get here if we reached the end of a file. Close it and
+       ! return to the file above.
+1      close(units(depth))
+       !write(*,*) "Exiting file " // filenames(depth)
+       depth = depth-1
+    end do
+    return
+
+    ! ===== Error handling section ======
+
+    ! Case 1: Include file error
+2   write(*,*) "Error: Cannot open include file '" // trim(value) // "'"
+    write(*,*) " in file " // trim(filenames(depth-1))
+    do i = depth-2, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
+    do i = depth-1, 1, -1; close(units(i)); end do
+    stop
+
+    ! Case 2: Directive error
+3   write(*,*) "Error: Unrecognized directive '" // trim(key) //"'"
+    write(*,*) " in file " // trim(filenames(depth))
+    do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
+    do i = depth, 1, -1; close(units(i)); end do
+    stop
+
+    ! Case 3: Top level parameter file unreadable
+4   write(*,*) "Error: Cannot open parameter file '" // trim(paramfile) // "'"
+    stop
+
+  end subroutine read_paramfile_to_ascii
+    
+  subroutine get_file_length(filename,length)
+    implicit none 
+    character(len=512), intent(in)  :: filename
+    integer(i4b),       intent(out) :: length
+    integer(i4b), parameter    :: maxdepth = 256
+    integer(i4b)               :: depth, units(maxdepth), i
+    character(len=512)         :: key, value, filenames(maxdepth), line
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    length = 0
+    depth = 1
+    units(depth) = getlun()
+    filenames(depth) = filename
+    open(units(depth),file=trim(filename),status="old",err=4)
+    do while(depth >= 1)
+       read(units(depth),*,end=1) key
+       if (key(1:1)=='#') cycle
+       backspace(units(depth))
+
+       if (key(1:1)=='@') then
+          if(key == '@INCLUDE') then
+             ! Recurse into the new file
+             read(units(depth),*,end=1) key, value
+             depth=depth+1
+             units(depth) = getlun()
+             filenames(depth) = value
+             open(units(depth),file=value,status="old",err=2)
+          else
+             goto 3
+          end if
+       else
+          read(units(depth),fmt="(a)") line
+          !if we get here we have read a new line from the parameter file(s)
+          length = length + 1
+       end if
+       cycle
+       ! We get here if we reached the end of a file. Close it and
+       ! return to the file above.
+1      close(units(depth))
+       !write(*,*) "Exiting file " // filenames(depth)
+       depth = depth-1
+    end do
+    return
+    ! ===== Error handling section ======
+
+    ! Case 1: Include file error
+2   write(*,*) "Error: Cannot open include file '" // trim(value) // "'"
+    write(*,*) " in file " // trim(filenames(depth-1))
+    do i = depth-2, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
+    do i = depth-1, 1, -1; close(units(i)); end do
+    stop
+
+    ! Case 2: Directive error
+3   write(*,*) "Error: Unrecognized directive '" // trim(key) //"'"
+    write(*,*) " in file " // trim(filenames(depth))
+    do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
+    do i = depth, 1, -1; close(units(i)); end do
+    stop
+
+    ! Case 3: Top level parameter file unreadable
+4   write(*,*) "Error: Cannot open parameter file '" // trim(filename) // "'"
+    stop
+
+  end subroutine get_file_length
+
+  ! A subroutine for debugging
+  subroutine print_ascii_parameter_file(paramfile_cache)
+    implicit none
+    character(len=512), allocatable, dimension(:), intent(in) :: paramfile_cache
+    integer(i4b)       :: i, unit
+    character(len=32) :: paramfile_out
+
+    unit = getlun()
+    paramfile_out="read_ascii_paramfile.txt"
+    open(unit, file=trim(paramfile_out),err=1)
+
+    !If the opening of the output parameter file fails
+1   write(*,*) "Error: Cannot open ascii file '" // trim(paramfile_out) // "'"
+    stop
+  end subroutine print_ascii_parameter_file
+
+  ! filling the hash table with elements from the parameter file (ascii array) 
+  subroutine put_ascii_into_hashtable(asciitbl,htbl)
+    implicit none
+    character(len=512), allocatable, dimension(:), intent(in) :: asciitbl
+    type(hash_tbl_sll), intent(inout) :: htbl
+    character(len=512) :: key, val
+    character(len=256) :: toks(2)
+    integer            :: i, n
+    do i = 1,size(asciitbl)
+       call get_tokens(trim(asciitbl(i)), "=", group="''" // '""', maxnum=2, toks=toks, num=n)
+       if(n < 2) then ! only need the lines where one has 'key'='value'
+          cycle
+       end if
+       key = get_token(toks(1), " ", 1, group="''" // '""')
+       val = get_token(toks(2), " ", 1, group="''" // '""')
+       call tolower(key)  ! we don't differentiate btw. upper and lower case
+       if (key=="") cycle !we don't need blank lines
+       call put_hash_tbl_sll(htbl,trim(key),trim(val)) 
+    end do
+    return
+
+1   write(*,*) "Error: Cannot read ascii line:", i, "line = '" // trim(asciitbl(i)) // "'"
+    stop
+
+  end subroutine put_ascii_into_hashtable
+
+  ! read parameter from input argument or hash table
+  subroutine get_parameter_hashtable(htbl, parname, par_int, par_char, &
+       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
+    implicit none
+    type(hash_tbl_sll), intent(in) :: htbl 
+    character(len=*),   intent(in) :: parname
+    integer(i4b),     optional :: par_int
+    character(len=*), optional :: par_char
+    character(len=*), optional :: par_string
+    real(sp),         optional :: par_sp
+    real(dp),         optional :: par_dp
+    logical(lgt),     optional :: par_lgt
+    logical(lgt),     optional :: par_present
+    character(len=*), optional :: desc
+
+    logical(lgt)               :: found
+   
+    found = .false.
+    call get_parameter_arg(parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, found, desc)
+    if(found) then
+       if(present(par_present)) par_present = .true.
+    else
+       call get_parameter_from_hash(htbl, parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
+    end if
+  end subroutine get_parameter_hashtable
+
+  ! getting parameter value from hash table
+  subroutine get_parameter_from_hash(htbl, parname, par_int, par_char, &
+       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
+    implicit none
+    type(hash_tbl_sll), intent(in) :: htbl
+    character(len=*),   intent(in) :: parname
+    integer(i4b),     optional :: par_int
+    character(len=*), optional :: par_char
+    character(len=*), optional :: par_string
+    real(sp),         optional :: par_sp
+    real(dp),         optional :: par_dp
+    logical(lgt),     optional :: par_lgt
+    logical(lgt),     optional :: par_present
+    character(len=*), optional :: desc
+    character(len=256)         :: key
+    CHARACTER(len=:), ALLOCATABLE   :: val
+    
+    key=trim(parname)
+    call tolower(key)
+    call get_hash_tbl_sll(htbl,trim(key),val)
+    if (.not. allocated(val)) then
+       write(*,*) "Error: Could not find parameter '" // trim(parname) // "'"
+       write(*,*) ""
+       stop
+    end if
+    
+    if (present(par_int)) then
+       read(val,*) par_int
+    elseif (present(par_char)) then
+       read(val,*) par_char
+    elseif (present(par_string)) then
+       read(val,*) par_string
+    elseif (present(par_sp)) then
+       read(val,*) par_sp
+    elseif (present(par_dp)) then
+       read(val,*) par_dp
+    elseif (present(par_lgt)) then
+       read(val,*) par_lgt
+    else
+       write(*,*) "get_parameter: Reached unreachable point!"
+    end if
+
+    deallocate(val)
+  end subroutine get_parameter_from_hash
 
 end module comm_param_mod

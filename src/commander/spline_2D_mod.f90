@@ -381,7 +381,7 @@ contains
 
 
     if (x0 < x(1) .or. x0 > x(m)) then
-       write(*,fmt='(a,3f8.3)') 'splin2_full_precomp -- Warning: x0 out of bounds = ', x(1), x0, x(m)
+       write(*,fmt='(a,3f8.3)') 'splin2_full_precomp -- Warning: x0 out of bounds = ', x(1), x0, x(m), x(m+14)
        splin2_full_precomp = 0.d0
        return
     end if

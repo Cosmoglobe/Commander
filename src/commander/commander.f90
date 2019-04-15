@@ -32,7 +32,7 @@ program commander
   ! *********************************************************************
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group
-  real(dp)            :: t1, t2
+  real(dp)            :: t0, t1, t2, t3
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle
 
@@ -43,17 +43,28 @@ program commander
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
+  call wall_time(t0)
+  call mpi_init(ierr)
+  call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
+  call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+  cpar%root = 0
+    
+  
+  if (cpar%myid == cpar%root) call wall_time(t1)
   call read_comm_params(cpar)
+  if (cpar%myid == cpar%root) call wall_time(t3)
+  
   call initialize_mpi_struct(cpar, handle)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
-  status%active = .false.
+  status%active = cpar%myid == 0 !.false.
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
      call mpi_finalize(ierr)
      stop
   end if
+  if (cpar%myid == cpar%root) call wall_time(t2)
 
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
@@ -63,11 +74,17 @@ program commander
      write(*,*) '   Number of chains                       = ', cpar%numchain
      write(*,*) '   Number of processors in first chain    = ', cpar%numprocs_chain
      write(*,*) ''
+     write(*,fmt='(a,f12.3,a)') '   Time to initialize run = ', t2-t0, ' sec'
+     write(*,fmt='(a,f12.3,a)') '   Time to read in parameters = ', t3-t1, ' sec'
+     write(*,*) ''
+
   end if
 
   ! ************************************************
   ! *               Initialize modules             *
   ! ************************************************
+
+  if (cpar%myid == cpar%root) call wall_time(t1)
 
   call update_status(status, "init")
   call initialize_bp_mod(cpar);            call update_status(status, "init_bp")
@@ -89,18 +106,21 @@ program commander
      stop
   end if
   
+  if (cpar%myid == cpar%root) call wall_time(t2)
+  
   ! **************************************************************
   ! *                   Carry out computations                   *
   ! **************************************************************
 
-  if (cpar%myid == cpar%root .and. cpar%verbosity > 0) write(*,*) '     Starting Gibbs sampling'
-
+  if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
+     write(*,*) ''
+     write(*,fmt='(a,f12.3,a)') '   Time to read data = ', t2-t1, ' sec'
+     write(*,*) '   Starting Gibbs sampling'
+  end if
   ! Initialize output structures
 
   ! Run Gibbs loop
   first_sample = 1
-!  if (trim(cpar%init_chain_prefix) == trim(cpar%chain_prefix)) 
-first_sample = 1 !cpar%init_samp+1
   do iter = first_sample, cpar%num_gibbs_iter
 
      if (cpar%myid == 0) then
@@ -113,7 +133,8 @@ first_sample = 1 !cpar%init_samp+1
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_samp_groups
            if (cpar%myid == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_samp_groups
+              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
+                   & samp_group, ' of ', cpar%cg_num_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle)
         end do
@@ -135,6 +156,7 @@ first_sample = 1 !cpar%init_samp+1
      ! Sample instrumental parameters
 
      ! Sample power spectra
+     
 
      ! Compute goodness-of-fit statistics
      

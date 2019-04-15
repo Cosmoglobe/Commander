@@ -8,7 +8,7 @@ module comm_data_mod
   implicit none
 
   type comm_data_set
-     character(len=512)           :: label, unit
+     character(len=512)           :: label, unit, comp_sens
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
      real(dp)                     :: gain
@@ -68,6 +68,7 @@ contains
        data(n)%gain_comp   = cpar%ds_gain_calib_comp(i)
        data(n)%gain_lmin   = cpar%ds_gain_lmin(i)
        data(n)%gain_lmax   = cpar%ds_gain_lmax(i)
+       data(n)%comp_sens    = cpar%ds_component_sensitivity(i)
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
@@ -81,6 +82,8 @@ contains
        data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
 
+!       call data(n)%map%writeFITS('data.fits')
+
 !!$       data(n)%res => comm_map(data(n)%map)
 !!$       call data(n)%res%writeFITS('res1.fits')
 !!$       call data(n)%res%YtW()
@@ -88,8 +91,8 @@ contains
 !!$       call data(n)%res%writeFITS('res2.fits')
 !!$       data(n)%res%map = data(n)%map%map - data(n)%res%map
 !!$       call data(n)%res%writeFITS('res3.fits')
-!!$       call mpi_finalize(ierr)
-!!$       stop
+!       call mpi_finalize(ierr)
+!       stop
 
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
@@ -140,6 +143,7 @@ contains
                & data(n)%B%r_max)
        end if
        if (cpar%only_pol) data(n)%mask%map(:,1) = 0.d0
+       data(n)%map%map  = data(n)%map%map  * data(n)%mask%map ! Apply mask to map to avoid surprises
        call update_status(status, "data_mask")
        deallocate(mask_misspix)
 
@@ -234,6 +238,8 @@ contains
     case ('y_SZ') 
        RJ2data = self%bp%a2sz
     case ('uK_RJ') 
+       RJ2data = 1.d0
+    case ('K km/s') ! NEW
        RJ2data = 1.d0
     end select
     

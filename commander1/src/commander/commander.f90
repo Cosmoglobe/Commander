@@ -533,11 +533,9 @@ contains
     ! Initialize chains
     first_iteration = 1
     call initialize_chain_files(chain_dir, chain, num_gibbs_iter)
-    
     call output_component_maps(map_id, s_i, chain, 10, chain_dir)
     call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
 !    stop
-
     if (output_ml_map_and_covmat) then
        call compute_residuals(s_i, .false.)
        call output_ml_map(paramfile)
@@ -562,9 +560,9 @@ contains
           !call update_cgd_constraint_module
        end if
        call genvec_set_equal(s_i, s_prev)
-
+       
        stat = 0
-
+       
 !!$       write(*,*) 'a'
 !!$       call output_sample(paramfile, 2, 0, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
 !!$       stop
@@ -579,7 +577,7 @@ contains
           cl_i = 0.d0
           call update_S_mult_mod(cl_i)
        end if
-       
+
        ! Outside mask
        !if (.not. enforce_zero_cl) then
        if (.true.) then
@@ -594,23 +592,30 @@ contains
           end if
 
           call compute_residuals(s_i, .false.)
-          call sample_signal_component(iter, precond_type, s_i, stat)
+          call sample_signal_component(iter, precond_type, s_i, stat) ! BUG HERE
+
           do j = 1, num_fg_comp
              where (mask_lowres < 0.5d0) s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
              if (fg_components(j)%enforce_positive_amplitude) s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
+             
+             ! NEW - Overwrite sampled (but frozen) amplitude with previous value
+             if (.not. fg_components(j)%sample_amplitudes) s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
           end do
+
           where (fix_temp)
              s_i%temp_amp = s_prev%temp_amp
           end where
-             
-!!$          write(*,*) 'b'
-!!$          call output_sample(paramfile, 2, 1, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
+
+
+
+
     
 
              ! Enforce zero CMB monopole and dipole if requested; transfer CMB offsets to template coefficients
           if (.not. enforce_zero_cl .and. sample_fg_pix) call set_pix_cmb_equal_to_Cl_cmb(s_i)
           call set_exclude_fg_amp(.false.)
        end if
+       
 
 !!$       write(*,*) 'b2'
 !!$       call output_sample(paramfile, 2, 2, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)    
@@ -662,7 +667,6 @@ contains
     
 !       stop
 
-
        ! **********************************************
        !             Sample global parameters
        ! **********************************************
@@ -677,7 +681,6 @@ contains
 !!$       write(*,*) 'f'
 !!$       call output_sample(paramfile, 2, 6, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
 !       stop
-
 
 
        ! **********************************************
@@ -701,7 +704,7 @@ contains
           call set_pix_cmb_equal_to_Cl_cmb(s_i)
           call update_S_mult_mod(cl_i)
        end if
-
+       !stop
        ! **********************************************
        !             Sample instrumental parameters
        ! **********************************************

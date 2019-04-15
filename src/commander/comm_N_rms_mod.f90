@@ -53,7 +53,7 @@ contains
     class(comm_map),                    pointer, intent(in), optional :: procmask
 
     integer(i4b)       :: i, ierr, tmp, nside_smooth
-    real(dp)           :: sum_tau, sum_tau2, sum_noise, npix
+    real(dp)           :: sum_tau, sum_tau2, sum_noise, npix, t1, t2
     character(len=512) :: dir, cache
     character(len=4)   :: itext
     type(comm_mapinfo), pointer :: info_smooth
@@ -69,13 +69,22 @@ contains
     constructor%type    = cpar%ds_noise_format(id_abs)
     constructor%nmaps   = info%nmaps
     constructor%pol     = info%nmaps == 3
-    constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
+!    call wall_time(t1)
+!    constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
+!    call wall_time(t2)
+!    if (info%myid == 0) write(*,*) 'read = ', t2-t1
     if (id_smooth == 0) then
        constructor%nside   = info%nside
        constructor%np      = info%np
        constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
-       call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), regnoise)
+       call wall_time(t1)
+       call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), mask, regnoise)
+       call wall_time(t2)
+!       if (info%myid == 0) write(*,*) 'uniformize = ', t2-t1
+       call wall_time(t1)
        constructor%siN%map = constructor%siN%map * mask%map ! Apply mask
+       call wall_time(t2)
+!       if (info%myid == 0) write(*,*) 'apply_mask = ', t2-t1
        if (present(procmask)) then
           where (procmask%map < 0.5d0)
              constructor%siN%map = constructor%siN%map * 20.d0 ! Boost noise by 20 in processing mask
@@ -87,13 +96,19 @@ contains
             & constructor%nmaps, constructor%pol)
        constructor%nside   = info_smooth%nside
        constructor%np      = info_smooth%np
+       call wall_time(t1)
        constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+       call wall_time(t2)
+!       if (info%myid == 0) write(*,*) 'read = ', t2-t1
     end if
+    call wall_time(t1)
     where (constructor%siN%map > 0.d0) 
        constructor%siN%map = 1.d0 / constructor%siN%map
     elsewhere
        constructor%siN%map = 0.d0
     end where
+    call wall_time(t2)
+!    if (info%myid == 0) write(*,*) 'siN = ', t2-t1
 
     ! Set siN to its mean; useful for debugging purposes
     if (cpar%set_noise_to_mean) then
@@ -114,7 +129,8 @@ contains
     end if
 
     ! Compute alpha_nu for pseudo-inverse preconditioner
-    if (trim(cpar%cg_precond) == 'pseudoinv') then
+    call wall_time(t1)
+    if (id_smooth == 0 .and. trim(cpar%cg_precond) == 'pseudoinv') then
        allocate(constructor%alpha_nu(constructor%nmaps))
        invW_tau     => comm_map(constructor%siN)
        invW_tau%map =  invW_tau%map**2
@@ -143,6 +159,8 @@ contains
           end if
        end if
     end if
+    call wall_time(t2)
+!    if (info%myid == 0) write(*,*) 'precond = ', t2-t1
 
   end function constructor
 
@@ -217,11 +235,12 @@ contains
     end if
   end function returnRMSpix
 
-  subroutine uniformize_rms(handle, rms, fsky, regnoise)
+  subroutine uniformize_rms(handle, rms, fsky, mask, regnoise)
     implicit none
     type(planck_rng),                   intent(inout) :: handle
     class(comm_map),                    intent(inout) :: rms
     real(dp),                           intent(in)    :: fsky
+    class(comm_map),                    intent(in)    :: mask
     real(dp),         dimension(0:,1:), intent(out)   :: regnoise
 
     integer(i4b) :: i, j, nbin=1000, ierr, b
@@ -236,14 +255,18 @@ contains
     allocate(F(nbin))
     do j = 1, rms%info%nmaps
        ! Find pixel histogram across cores
-       limits(1) = minval(rms%map(:,j))
-       limits(2) = maxval(rms%map(:,j))
+       limits(1) = minval(rms%map(:,j), mask%map(:,j) > 0.5d0)
+       limits(2) = maxval(rms%map(:,j), mask%map(:,j) > 0.5d0)
        call mpi_allreduce(MPI_IN_PLACE, limits(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, rms%info%comm, ierr)       
        call mpi_allreduce(MPI_IN_PLACE, limits(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, rms%info%comm, ierr)       
        dx = (limits(2)-limits(1))/nbin
-       if (dx == 0.d0) cycle
+       if (dx == 0.d0) then
+          regnoise(:,j) = 0.d0
+          cycle
+       end if
        F = 0.d0
        do i = 0, rms%info%np-1
+          if (mask%map(i,j) <= 0.5d0) cycle
           b    = max(min(int((rms%map(i,j)-limits(1))/dx),nbin),1)
           F(b) = F(b) + 1.d0
        end do
@@ -264,7 +287,7 @@ contains
 
        ! Update RMS map, and draw corresponding noise realization
        do i = 0, rms%info%np-1
-          if (rms%map(i,j) < threshold) then
+          if (rms%map(i,j) < threshold .and. mask%map(i,j) > 0.5d0) then
              sigma         = sqrt(threshold**2 - rms%map(i,j)**2)
              rms%map(i,j)  = threshold                  ! Update RMS map to requested limit
              regnoise(i,j) = sigma * rand_gauss(handle) ! Draw corresponding noise realization

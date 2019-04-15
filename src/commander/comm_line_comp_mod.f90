@@ -78,8 +78,8 @@ contains
              constructor%theta_def(n) = mu(j)
              constructor%p_gauss(1,n) = mu(j)
              constructor%p_gauss(2,n) = sigma(j)
-             constructor%p_uni(1,n)   = -10.d0   !mu(j)-5*sigma(j)
-             constructor%p_uni(2,n)   =  10.d0   !mu(j)+5*sigma(j)
+             constructor%p_uni(1,n)   = -100.d0   !mu(j)-5*sigma(j)
+             constructor%p_uni(2,n)   =  100.d0   !mu(j)+5*sigma(j)
              constructor%poltype(n)   = poltype(j)
              constructor%indlabel(n)  = label(j)
              constructor%line2RJ(n)   = line2RJ(j)
@@ -118,7 +118,9 @@ contains
     end do
     
     ! Initialize mixing matrix
-    call constructor%updateMixmat
+    if (cpar%init_samp < 0 .or. trim(cpar%init_chain_prefix) == 'none' &
+         & .or. .not. constructor%init_from_HDF) &
+         & call constructor%updateMixmat
 
     deallocate(label, mu, sigma, line2RJ, poltype)
 

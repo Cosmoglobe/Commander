@@ -26,6 +26,8 @@ contains
     class(comm_comp),    pointer :: c
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
+
+    call update_status(status, "output_start")
     
     call int2string(cpar%mychain, ctext)
     call int2string(iter,         itext)
@@ -55,10 +57,13 @@ contains
        call create_hdf_group(file, trim(adjustl(itext)))
        call create_hdf_group(file, trim(adjustl(itext))//'/md')             
     end if
+    call update_status(status, "output_chain")
 
     ! Output instrumental parameters
     call output_inst_params(cpar, file, itext, &
          & trim(cpar%outdir)//'/instpar_'//trim(postfix)//'.dat', output_hdf)
+
+    call update_status(status, "output_inst")
 
     ! Output component results
     c => compList
@@ -74,6 +79,7 @@ contains
              call c%Cl%writeFITS(cpar%mychain, iter)
           end if
        end select
+       call update_status(status, "output_"//trim(c%label))
        c => c%next()
     end do
     !call wall_time(t2)
@@ -88,12 +94,15 @@ contains
        do i = 1, numband
           call wall_time(t3)
           map => compute_residual(i)
+          call update_status(status, "output_res1_"//trim(data(i)%label))
           !call data(i)%apply_proc_mask(map)
+          !map%map = map%map * data(i)%mask%map ! Apply frequency mask to current residual
           if (cpar%output_residuals) then
              call map%writeFITS(trim(cpar%outdir)//'/res_'//trim(data(i)%label)//'_'// &
                   & trim(postfix)//'.fits')
              call wall_time(t4)
           end if
+          call update_status(status, "output_res2_"//trim(data(i)%label))
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
              map%map = map%map**2
@@ -104,6 +113,7 @@ contains
              call chisq_sub%dealloc()
           end if
           call map%dealloc()
+          call update_status(status, "output_res3_"//trim(data(i)%label))
        end do
        
        if (cpar%output_chisq) then
@@ -113,10 +123,12 @@ contains
                & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
           call chisq_map%dealloc(clean_info=.true.)
        end if
+       call update_status(status, "output_chisq")
     end if
 
     ! Output signal components per band
     if (cpar%output_sig_per_band) call output_signals_per_band(cpar%outdir, postfix)
+    call update_status(status, "output_sig")
 
     if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
   end subroutine output_FITS_sample
