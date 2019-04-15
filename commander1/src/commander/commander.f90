@@ -503,7 +503,6 @@ contains
     end do
 
     ! Initialize foreground amplitudes
-    call write_map('mymap1.fits', s_i%fg_amp(:,:,7))
     call init_fg_amps(paramfile, s_i%fg_amp)
 
     if (sample_fg_pix) then
@@ -537,7 +536,6 @@ contains
     
     call output_component_maps(map_id, s_i, chain, 10, chain_dir)
     call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
-    call write_map('mymap4.fits', s_i%fg_amp(:,:,7))
 !    stop
 
     if (output_ml_map_and_covmat) then
@@ -1641,13 +1639,11 @@ contains
        if (exist) then
           call read_map(filename, fg_amp(:,:,i))
        end if
-       call write_map('mymap2.fits', fg_amp(:,:,7))
 
        ! Convert from external native units to internal antenna temperature units
        scale = ant2unit(fg_components(i)%amp_unit, fg_components(i)%nu_ref, &
             & band_ref=fg_components(i)%ref_band)
        fg_amp(:,:,i) = fg_amp(:,:,i) / scale
-       call write_map('mymap3.fits', fg_amp(:,:,7))
 
     end do
 
