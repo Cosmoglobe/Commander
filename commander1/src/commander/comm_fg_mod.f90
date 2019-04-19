@@ -706,7 +706,7 @@ contains
              df(i,j) = -amp_reg(i) * get_effective_deriv_fg_spectrum(fg_components(comp_reg), &
                   & j, p_local_reg, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)) * w_reg(i)
           end if
-          write(*,*) i, j, lnL
+          !write(*,*) i, j, lnL
           !write(*,*) 'a', real(f,sp), real(amp_reg(i),sp), real(par(1:n),sp)
 !!$          if (pix_reg(i,1) == 22946) then
 !             write(*,fmt='(i6,7e16.8)') j, x, par(p_local_reg), d_reg(i,j), amp_reg(i), &

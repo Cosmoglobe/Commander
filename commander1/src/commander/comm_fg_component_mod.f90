@@ -809,17 +809,20 @@ contains
 
        do j = 1, fg_components(i)%npar
           if (trim(fg_components(i)%type) == 'CO_multiline') cycle
-
           ! Give some extra space to ensure stable splines
           delta = fg_components(i)%priors(j,2)-fg_components(i)%priors(j,1)
-          fg_components(i)%priors(j,1) = fg_components(i)%priors(j,1) - 0.1d0*delta
-          fg_components(i)%priors(j,2) = fg_components(i)%priors(j,2) + 0.1d0*delta
+          if (.not. trim(fg_components(i)%type) == 'physical_dust') then
+             fg_components(i)%priors(j,1) = fg_components(i)%priors(j,1) - 0.1d0*delta
+             fg_components(i)%priors(j,2) = fg_components(i)%priors(j,2) + 0.1d0*delta
+          end if
           do k = 1, numgrid
              fg_components(i)%par(k,j) = (fg_components(i)%priors(j,2)-fg_components(i)%priors(j,1)) * &
                   & (k-1) / real(numgrid-1,dp) + fg_components(i)%priors(j,1)
           end do
-          fg_components(i)%priors(j,1) = fg_components(i)%priors(j,1) + 0.1d0*delta
-          fg_components(i)%priors(j,2) = fg_components(i)%priors(j,2) - 0.1d0*delta
+          if (.not. trim(fg_components(i)%type) == 'physical_dust') then
+             fg_components(i)%priors(j,1) = fg_components(i)%priors(j,1) + 0.1d0*delta
+             fg_components(i)%priors(j,2) = fg_components(i)%priors(j,2) - 0.1d0*delta
+          end if
        end do
 
        ! Set up index regions
@@ -1569,7 +1572,7 @@ contains
     open(31,file='model_nu.dat')
     open(32,file='model_matrix_RJ.dat',form='unformatted')
     do i=1,n_u
-       read(30,fmt='(E31.24)') us(i)
+       read(30,fmt='(E31.24)') us(i) 
     end do
     do i=1,n_lam
        read(31,fmt='(E31.24)')  nus(i)
@@ -1582,9 +1585,7 @@ contains
     call splie2_full_precomp(nus, us, em_RJ, em_coeff)
     
     norm = splin2_full_precomp(nus, us, em_coeff, nu_ref, 0.d0)
-
     compute_physical_dust_spectrum = splin2_full_precomp(nus, us, em_coeff, nu, u)/norm
-
   end function compute_physical_dust_spectrum
 
 
@@ -1819,8 +1820,14 @@ contains
                       s(j) = compute_magnetic_dust_spectrum(nu, fg_components(i)%nu_ref, &
                            & fg_components(i)%par(k,1),fg_components(i)%S_nu_ref, &
                            & fg_components(i)%p_rms)
+                   else if (trim(fg_components(i)%type) == 'physical_dust') then
+                      s(j) = compute_physical_dust_spectrum(nu, fg_components(i)%par(k,1), fg_components(i)%nu_ref,&
+                           & fg_components(i)%p_rms)
+
+
                    end if
                 end do
+                stop
                 fg_components(i)%S_1D(k,1,l) = get_bp_avg_spectrum(l, s)
              end do
              deallocate(s)
@@ -1842,6 +1849,7 @@ contains
                 do l = 1, numgrid
                    do j = 1, n
                       nu = bp(m)%nu(j)
+                      
                       if (trim(fg_components(i)%type) == 'one-component_dust') then
                          s(j) = compute_one_comp_dust_spectrum(nu, fg_components(i)%nu_ref, &
                               & fg_components(i)%par(k,1), fg_components(i)%par(l,2), &
