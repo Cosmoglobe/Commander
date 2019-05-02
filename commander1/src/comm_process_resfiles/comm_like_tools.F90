@@ -1284,36 +1284,41 @@ contains
                       cl(l)  = cl_min + (cl_max-cl_min)/(numbin-1) * (l-1)
                       cls(lmin:lmax,ind) = cl(l)
                       lnL(l) = comm_br_compute_lnL(cls, ierr, handle=id_bin, check_posdef=.false.)
-                      !write(*,*) cl(l), lnL(l)
+                      write(*,*) cl(l), lnL(l)
                    end do
                    ind1 = 1
-                   do while ((abs(lnL(ind1)) > 1.d29 .or. lnL(ind1) /= lnL(ind1)) .and. ind1 < numbin)
+                   do while ((lnL(ind1) < -1.d29 .or. lnL(ind1) /= lnL(ind1)) .and. ind1 < numbin)
                       ind1 = ind1+1
                    end do
                    ind2 = numbin
-                   do while ((abs(lnL(ind2)) > 1.d29 .or. (lnL(ind2) /= lnL(ind2))) .and. ind2 > ind1+1)
+                   do while ((lnL(ind2) < -1.d29 .or. (lnL(ind2) /= lnL(ind2))) .and. ind2 > ind1+1)
                       ind2 = ind2-1
                    end do
+                   write(*,*) ind1, ind2
+                   write(*,*) cl(ind1), cl(ind2)
+                   write(*,*) cl(ind1:ind2)
+                   write(*,*) lnL(ind1:ind2)
                    !lnL = exp(lnL-maxval(lnL))
                    !lnL = lnL / sum(lnL) / ((cl_max-cl_min)/(numbin-1))
                    call spline(cl(ind1:ind2), lnL(ind1:ind2), 1.d30, 1.d30, lnL2(ind1:ind2))
                    do l = 1, nspline
                       cl_spline(l)  = cl_min + (cl_max-cl_min)/(nspline-1) * (l-1)
                       if (cl_spline(l) < cl(ind1) .or. cl_spline(l) > cl(ind2)) then
-                         lnL_spline = -1.d30
+                         lnL_spline(l) = -1.d30
                       else
                          lnL_spline(l) = splint(cl(ind1:ind2), lnL(ind1:ind2), lnL2(ind1:ind2), &
                               & cl_spline(l))
                       end if
                    end do
                    lnL_spline = exp(lnL_spline-maxval(lnL_spline))
+                   !write(*,*) lnL_spline
                    lnL_spline = lnL_spline / sum(lnL_spline) / ((cl_max-cl_min)/(nspline-1))
 
-!!$                   open(58,file='slice.dat')
-!!$                   do l = 1, nspline
-!!$                      write(58,*) cl_spline(l), lnL_spline(l)
-!!$                   end do
-!!$                   close(58)
+                   !open(58,file='slice.dat')
+                   !do l = 1, nspline
+                   !   write(58,*) cl_spline(l), lnL_spline(l)
+                   !end do
+                   !close(58)
 
                    call compute_asymmetric_errors(cl_spline, lnL_spline, peak, upper, lower)
                    

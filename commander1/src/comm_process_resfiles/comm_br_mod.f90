@@ -483,15 +483,16 @@ contains
        num_active = count(subsum-maxval(subsum) > -4.605d0)
        if (num_active >= MIN_NUM_ACTIVE_SAMPLES) then
           lnL = sum(exp(subsum))
-!          if (lnL > 1d-20) then
+          if (lnL > 1d-20) then
 !          write(*,*) 'Fraction of contributing samples = ', &
 !              & count(subsum-maxval(subsum) > -4.605d0)/real(size(subsum),sp), &
 !              & count(subsum-maxval(subsum) > -4.605d0)
+             !write(*,*) lnL
              lnL = log(lnL)
-!          else
-!             lnL    = log(1d-30)
-!             ierr = 2
-!          end if
+          else
+             lnL    = log(1d-30)
+             ierr = 2
+          end if
        else
           lnL  = log(1d-30)
           ierr = 3

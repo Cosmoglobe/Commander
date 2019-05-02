@@ -89,6 +89,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_gain_apodmask
      character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
+     character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -356,6 +357,8 @@ contains
     allocate(cpar%ds_sample_gain(n), cpar%ds_gain_calib_comp(n), cpar%ds_gain_lmax(n))
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
+    allocate(cpar%ds_component_sensitivity(n))
+
     do i = 1, n
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'INCLUDE_BAND'//itext,         par_lgt=cpar%ds_active(i))
@@ -388,6 +391,8 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_GAIN_APOD_FWHM'//itext,  par_string=cpar%ds_gain_fwhm(i))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_GAIN'//itext,    par_dp=cpar%ds_defaults(i,GAIN))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_NOISEAMP'//itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
+       call get_parameter_hashtable(htbl, 'BAND_COMPONENT_SENSITIVITY'//itext, par_string=cpar%ds_component_sensitivity(i))
+
        do j = 1, cpar%num_smooth_scales
           call int2string(j, jtext)          
           call get_parameter_hashtable(htbl, 'BAND_NOISE_RMS'//itext//'_SMOOTH'//jtext, &
@@ -559,6 +564,44 @@ contains
                   & par_int=cpar%cs_smooth_scale(i,1))
              call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
              call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+          case ('spindust2')
+             call get_parameter_hashtable(htbl, 'COMP_NU_P_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext,        &
+                  & par_string=cpar%cs_input_ind(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_NU_P'//itext,          &
+                  & par_dp=cpar%cs_theta_def(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_NU_P_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,1))
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_NU_P_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,1))
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_NU_P_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,1))
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_NU_P_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,1))
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA_POLTYPE'//itext,  par_int=cpar%cs_poltype(2,i))
+             call get_parameter_hashtable(htbl, 'COMP_INPUT_ALPHA_MAP'//itext,        &
+                  & par_string=cpar%cs_input_ind(2,i))
+             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_ALPHA'//itext,          &
+                  & par_dp=cpar%cs_theta_def(2,i))
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext,    &
+                  & par_dp=cpar%cs_p_uni(i,1,2))
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_ALPHA_HIGH'//itext,   &
+                  & par_dp=cpar%cs_p_uni(i,2,2))
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_ALPHA_MEAN'//itext, &
+                  & par_dp=cpar%cs_p_gauss(i,1,2))
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_ALPHA_RMS'//itext,  &
+                  & par_dp=cpar%cs_p_gauss(i,2,2))
+             call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext,  &
+                  & par_string=cpar%cs_SED_template(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_NU_P_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA_SMOOTHING_SCALE'//itext,  &
+                  & par_int=cpar%cs_smooth_scale(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MIN'//itext,   par_dp=cpar%cs_nu_min(i,2))          
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MAX'//itext,   par_dp=cpar%cs_nu_max(i,2))
           case ('MBB')
              call get_parameter_hashtable(htbl, 'COMP_BETA_POLTYPE'//itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext,        &
@@ -1070,6 +1113,12 @@ contains
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))             
+          case ('spindust2')
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+             if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))
+             call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
           case ('MBB')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))

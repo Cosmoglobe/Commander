@@ -45,6 +45,7 @@ module comm_fg_component_mod
      logical(lgt)                                  :: apply_jeffreys_prior
      logical(lgt)                                  :: output_freq_comp_maps
      logical(lgt)                                  :: enforce_positive_amplitude
+     logical(lgt)                                  :: sample_amplitudes
      real(dp)                                      :: nu_ref, C_def
      integer(i4b), allocatable, dimension(:)       :: co_band
      real(dp), allocatable, dimension(:,:)         :: par
@@ -138,7 +139,7 @@ contains
     ! Read foreground parameters
     num_fg_par = 0
     do i = 1, num_fg_comp
-
+       
        call int2string(i, i_text)
 
        fg_components(i)%fg_id = i
@@ -164,6 +165,9 @@ contains
 
        paramname = 'ENFORCE_POSITIVE_AMPLITUDE' // i_text
        call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%enforce_positive_amplitude)       
+
+       paramname = 'SAMPLE_AMPLITUDES' // i_text
+       call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%sample_amplitudes)
 
        paramname = 'COMPONENT_MASK' // i_text
        call get_parameter(paramfile, paramname, par_string=maskname)
@@ -278,6 +282,44 @@ contains
           call get_parameter(paramfile, paramname, par_dp=fg_components(i)%gauss_prior(2,1))
           paramname = 'DUST_TEMP_PRIOR_GAUSSIAN_STDDEV' // i_text
           call get_parameter(paramfile, paramname, par_dp=fg_components(i)%gauss_prior(2,2))
+
+       else if (trim(fg_components(i)%type) == 'physical_dust') then
+
+          paramname = 'APPLY_JEFFREYS_PRIOR' // i_text
+          call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%apply_jeffreys_prior)       
+
+          num_fg_par                   = num_fg_par + 1
+          fg_components(i)%indlabel(1) = 'U'
+          fg_components(i)%ind_unit(1) = 'erg/s/sr/cm^2'
+          fg_components(i)%ttype(1)    = 'Intensity'
+          fg_components(i)%npar        = 1
+          allocate(fg_components(i)%priors(fg_components(i)%npar,1))
+          allocate(fg_components(i)%gauss_prior(1,2))
+          allocate(fg_components(i)%par(numgrid,1))
+          allocate(fg_components(i)%S_1D(numgrid,2,numband))
+
+          paramname = 'INITIALIZATION_MODE' // i_text
+          call get_parameter(paramfile, paramname, par_string=fg_components(i)%init_mode)
+          call get_parameter(paramfile, 'DEFAULT_U' // i_text, par_dp=fg_components(i)%priors(1,3))
+          call get_parameter(paramfile, 'U_PRIOR_UNIFORM_LOW' // i_text, &
+               & par_dp=fg_components(i)%priors(1,1))
+          call get_parameter(paramfile, 'U_PRIOR_UNIFORM_HIGH' // i_text, &
+               & par_dp=fg_components(i)%priors(1,2))
+          if (fg_components(i)%priors(1,3) .lt. -3 .or. fg_components(i)%priors(1,3) .gt. 6) then
+             write(*,*) 'Error: Prior outside of sampling range for parameter no. ', i
+             call mpi_finalize(ierr)
+             stop
+          end if
+          if (fg_components(i)%priors(1,1) >= fg_components(i)%priors(1,2)) then
+             write(*,*) 'Error: Lower prior is larger than or equal to upper prior for parameter no. ', i
+             call mpi_finalize(ierr)
+             stop
+          end if
+
+          call get_parameter(paramfile, 'U_PRIOR_GAUSSIAN_MEAN' // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(1,1))
+          call get_parameter(paramfile, 'U_PRIOR_GAUSSIAN_STDDEV' // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(1,2))
 
        else if (trim(fg_components(i)%type) == 'freefree_EM') then
 
@@ -767,17 +809,20 @@ contains
 
        do j = 1, fg_components(i)%npar
           if (trim(fg_components(i)%type) == 'CO_multiline') cycle
-
           ! Give some extra space to ensure stable splines
           delta = fg_components(i)%priors(j,2)-fg_components(i)%priors(j,1)
-          fg_components(i)%priors(j,1) = fg_components(i)%priors(j,1) - 0.1d0*delta
-          fg_components(i)%priors(j,2) = fg_components(i)%priors(j,2) + 0.1d0*delta
+          if (.not. trim(fg_components(i)%type) == 'physical_dust') then
+             fg_components(i)%priors(j,1) = fg_components(i)%priors(j,1) - 0.1d0*delta
+             fg_components(i)%priors(j,2) = fg_components(i)%priors(j,2) + 0.1d0*delta
+          end if
           do k = 1, numgrid
              fg_components(i)%par(k,j) = (fg_components(i)%priors(j,2)-fg_components(i)%priors(j,1)) * &
                   & (k-1) / real(numgrid-1,dp) + fg_components(i)%priors(j,1)
           end do
-          fg_components(i)%priors(j,1) = fg_components(i)%priors(j,1) + 0.1d0*delta
-          fg_components(i)%priors(j,2) = fg_components(i)%priors(j,2) - 0.1d0*delta
+          if (.not. trim(fg_components(i)%type) == 'physical_dust') then
+             fg_components(i)%priors(j,1) = fg_components(i)%priors(j,1) + 0.1d0*delta
+             fg_components(i)%priors(j,2) = fg_components(i)%priors(j,2) - 0.1d0*delta
+          end if
        end do
 
        ! Set up index regions
@@ -1207,6 +1252,10 @@ contains
     else if (trim(fg_comp%type) == 'one-component_dust') then
        get_ideal_fg_spectrum = compute_one_comp_dust_spectrum(nu, fg_comp%nu_ref, &
             & p(1), p(2), fg_comp%nu_flat, fg_comp%frac_flat, fg_comp%p_rms)
+
+    else if (trim(fg_comp%type) == 'physical_dust') then                         
+       get_ideal_fg_spectrum = compute_physical_dust_spectrum(nu, p(1), fg_comp%nu_ref, fg_comp%p_rms)
+
     else if (trim(fg_comp%type) == 'power_law') then
        get_ideal_fg_spectrum = compute_power_law_spectrum(nu, fg_comp%nu_ref, &
             & p(1), p(2), fg_comp%p_rms)
@@ -1501,6 +1550,44 @@ contains
 
   end function compute_magnetic_dust_spectrum
 
+  function compute_physical_dust_spectrum(nu, u, nu_ref, rms)
+    implicit none
+
+    real(dp),               intent(in)        :: nu, u, nu_ref
+    real(dp), dimension(:), intent(in)        :: rms
+    real(dp)                                  :: compute_physical_dust_spectrum, norm
+
+    integer(i4b)                              :: n_lam, n_u, i
+    real(dp), allocatable, dimension(:)       :: us, nus
+    real(dp), allocatable, dimension(:,:)     :: em_RJ
+    real(dp), allocatable, dimension(:,:,:,:) :: em_coeff
+
+    n_lam     = 500    ! Number of wavelengths in model
+    n_u       = 181    ! Number of log_10(U) values in model
+
+    allocate(us(n_u), nus(n_lam))
+    allocate(em_RJ(n_lam,n_u), em_coeff(4,4,n_lam,n_u))
+
+    open(30,file='model_uvals.dat')
+    open(31,file='model_nu.dat')
+    open(32,file='model_matrix_RJ.dat',form='unformatted')
+    do i=1,n_u
+       read(30,fmt='(E31.24)') us(i) 
+    end do
+    do i=1,n_lam
+       read(31,fmt='(E31.24)')  nus(i)
+    end do
+    read(32) em_RJ
+    close(30)
+    close(31)
+    close(32)
+
+    call splie2_full_precomp(nus, us, em_RJ, em_coeff)
+    
+    norm = splin2_full_precomp(nus, us, em_coeff, nu_ref, 0.d0)
+    compute_physical_dust_spectrum = splin2_full_precomp(nus, us, em_coeff, nu, u)/norm
+  end function compute_physical_dust_spectrum
+
 
   function compute_one_comp_dust_spectrum(nu, nu_ref, beta, T_d, nu_flat, frac_flat, rms)
     implicit none
@@ -1512,14 +1599,16 @@ contains
     integer(i4b) :: n_beta, n_T, i, j
     real(dp)     :: w, w_tot, betap, Tp, beta_min, beta_max, dbeta, T_min, T_max, dT, beta_rms, T_rms, f, S, x
     real(dp)     :: alpha, gamma, delta, nu_steep
-
 !!$    alpha = alpha_flat
 !!$    gamma  = gamma_flat
     x      = h / (k_B*T_d)
 !!$    if (nu >= nu_flat) then
-
-!    compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)
-!    return
+    !alpha (fraq_flat) between 2-6
+    
+    compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)
+    !compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)*(tanh(x*frac_flat*nu)/tanh(x*frac_flat*nu_ref))**(2.d0-beta)
+    !compute_one_comp_dust_spectrum = (exp(x*nu_ref)-1.d0) / (exp(x*nu)-1.d0) * (nu/nu_ref)**(beta+1.d0)*(tanh(x*frac_flat*nu)/tanh(x*frac_flat*nu_ref))
+    return
 
     nu_steep = nu_flat !100.d9
     delta    = -frac_flat !0.2d0 ! Index steepening
@@ -1731,8 +1820,14 @@ contains
                       s(j) = compute_magnetic_dust_spectrum(nu, fg_components(i)%nu_ref, &
                            & fg_components(i)%par(k,1),fg_components(i)%S_nu_ref, &
                            & fg_components(i)%p_rms)
+                   else if (trim(fg_components(i)%type) == 'physical_dust') then
+                      s(j) = compute_physical_dust_spectrum(nu, fg_components(i)%par(k,1), fg_components(i)%nu_ref,&
+                           & fg_components(i)%p_rms)
+
+
                    end if
                 end do
+                stop
                 fg_components(i)%S_1D(k,1,l) = get_bp_avg_spectrum(l, s)
              end do
              deallocate(s)
@@ -1754,6 +1849,7 @@ contains
                 do l = 1, numgrid
                    do j = 1, n
                       nu = bp(m)%nu(j)
+                      
                       if (trim(fg_components(i)%type) == 'one-component_dust') then
                          s(j) = compute_one_comp_dust_spectrum(nu, fg_components(i)%nu_ref, &
                               & fg_components(i)%par(k,1), fg_components(i)%par(l,2), &
