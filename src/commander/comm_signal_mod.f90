@@ -123,12 +123,12 @@ contains
     
   end subroutine dump_components
 
-  subroutine sample_amps_by_CG(cpar, samp_group, handle)
+  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
     implicit none
 
     type(comm_params), intent(in)    :: cpar
     integer(i4b),      intent(in)    :: samp_group
-    type(planck_rng),  intent(inout) :: handle
+    type(planck_rng),  intent(inout) :: handle, handle_noise
 
     integer(i4b) :: stat, i
     real(dp)     :: Nscale = 1.d-4
@@ -145,7 +145,7 @@ contains
     end do
     
     ! Solve the linear system
-    call cr_computeRHS(cpar%operation, handle, mask, samp_group, rhs)
+    call cr_computeRHS(cpar%operation, handle, handle_noise, mask, samp_group, rhs)
     call update_status(status, "init_precond1")
     call initPrecond(cpar%comm_chain)
     call update_status(status, "init_precond2")

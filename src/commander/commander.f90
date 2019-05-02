@@ -34,7 +34,7 @@ program commander
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group
   real(dp)            :: t0, t1, t2, t3
   type(comm_params)   :: cpar
-  type(planck_rng)    :: handle
+  type(planck_rng)    :: handle, handle_noise
 
   type(comm_mapinfo), pointer :: info
   type(comm_map), pointer :: m
@@ -54,7 +54,7 @@ program commander
   call read_comm_params(cpar)
   if (cpar%myid == cpar%root) call wall_time(t3)
   
-  call initialize_mpi_struct(cpar, handle)
+  call initialize_mpi_struct(cpar, handle, handle_noise)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   status%active = cpar%myid == 0 !.false.
@@ -136,7 +136,7 @@ program commander
               write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                    & samp_group, ' of ', cpar%cg_num_samp_groups
            end if
-           call sample_amps_by_CG(cpar, samp_group, handle)
+           call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
         end do
      end if
 

@@ -4,6 +4,8 @@ module comm_data_mod
   use comm_noise_mod
   use comm_beam_mod
   use comm_map_mod
+  use comm_tod_mod
+  use comm_tod_LFI_mod
   use locate_mod
   implicit none
 
@@ -21,6 +23,7 @@ module comm_data_mod
      class(comm_map),     pointer :: mask
      class(comm_map),     pointer :: procmask
      class(comm_map),     pointer :: gainmask
+     class(comm_tod),     pointer :: tod
      class(comm_N),       pointer :: N
      class(comm_bp),      pointer :: bp
      class(comm_B),       pointer :: B
@@ -200,6 +203,12 @@ contains
           end if
        end do
 
+       ! Initialize TOD structures
+       if (.false.) then ! Test to disable or enable TOD during debugging
+          if (.true.) then ! Test for type; should be something like (type == 'LFI')
+             data(n)%tod => comm_tod_LFI(cpar)             
+          end if
+       end if
     end do
     numband = n
     if (cpar%myid == 0 .and. cpar%verbosity > 0) &

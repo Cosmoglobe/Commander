@@ -27,7 +27,7 @@ module comm_param_mod
 
      ! Global parameters
      character(len=24)  :: operation
-     integer(i4b)       :: verbosity, base_seed, numchain, num_smooth_scales
+     integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
      integer(i4b)       :: num_gibbs_iter, num_ml_iter, init_samp
      integer(i4b)       :: nskip_filelist
      character(len=512) :: chain_prefix, init_chain_prefix
@@ -190,10 +190,10 @@ contains
     call free_hash_tbl_sll(htable)
   end subroutine read_comm_params
 
-  subroutine initialize_mpi_struct(cpar, handle)
+  subroutine initialize_mpi_struct(cpar, handle, handle_noise)
     implicit none
     type(comm_params), intent(inout) :: cpar
-    type(planck_rng),  intent(out)   :: handle
+    type(planck_rng),  intent(out)   :: handle, handle_noise
 
     integer(i4b) :: i, j, m, n, ierr
     integer(i4b), allocatable, dimension(:,:) :: ind
@@ -231,9 +231,16 @@ contains
           j = nint(rand_uni(handle)*1000000.d0)
           call mpi_send(j, 1, MPI_INTEGER, i, 98, MPI_COMM_WORLD, ierr)
        end do
+       call rand_init(handle_noise, cpar%base_seed_noise)
+       do i = 1, cpar%numprocs-1
+          j = nint(rand_uni(handle_noise)*1000000.d0)
+          call mpi_send(j, 1, MPI_INTEGER, i, 98, MPI_COMM_WORLD, ierr)
+       end do
     else 
        call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, status, ierr)
        call rand_init(handle, j)
+       call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, status, ierr)
+       call rand_init(handle_noise, j)
     end if
     
     deallocate(ind)
@@ -258,6 +265,8 @@ contains
     call get_parameter_hashtable(htbl, 'OPERATION',                par_string=cpar%operation)
 
     call get_parameter_hashtable(htbl, 'BASE_SEED',                par_int=cpar%base_seed)
+    !call get_parameter_hashtable(htbl, 'BASE_SEED_NOISE',          par_int=cpar%base_seed_noise)
+    cpar%base_seed_noise = 0  ! Not currently in use
     call get_parameter_hashtable(htbl, 'NUMCHAIN',                 par_int=cpar%numchain)
     call get_parameter_hashtable(htbl, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
     call get_parameter_hashtable(htbl, 'NSKIP_FILELIST',           par_int=cpar%nskip_filelist)
