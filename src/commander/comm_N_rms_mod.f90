@@ -77,10 +77,8 @@ contains
        constructor%nside   = info%nside
        constructor%np      = info%np
        constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
-       !if (info%myid == 0) write(*,*) 'scaling the noise by a factor of 10'
-       !constructor%siN%map = constructor%siN%map * 10
        call wall_time(t1)
-       call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), regnoise)
+       call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), mask, regnoise)
        call wall_time(t2)
 !       if (info%myid == 0) write(*,*) 'uniformize = ', t2-t1
        call wall_time(t1)
@@ -237,11 +235,12 @@ contains
     end if
   end function returnRMSpix
 
-  subroutine uniformize_rms(handle, rms, fsky, regnoise)
+  subroutine uniformize_rms(handle, rms, fsky, mask, regnoise)
     implicit none
     type(planck_rng),                   intent(inout) :: handle
     class(comm_map),                    intent(inout) :: rms
     real(dp),                           intent(in)    :: fsky
+    class(comm_map),                    intent(in)    :: mask
     real(dp),         dimension(0:,1:), intent(out)   :: regnoise
 
     integer(i4b) :: i, j, nbin=1000, ierr, b
@@ -256,14 +255,18 @@ contains
     allocate(F(nbin))
     do j = 1, rms%info%nmaps
        ! Find pixel histogram across cores
-       limits(1) = minval(rms%map(:,j))
-       limits(2) = maxval(rms%map(:,j))
+       limits(1) = minval(rms%map(:,j), mask%map(:,j) > 0.5d0)
+       limits(2) = maxval(rms%map(:,j), mask%map(:,j) > 0.5d0)
        call mpi_allreduce(MPI_IN_PLACE, limits(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, rms%info%comm, ierr)       
        call mpi_allreduce(MPI_IN_PLACE, limits(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, rms%info%comm, ierr)       
        dx = (limits(2)-limits(1))/nbin
-       if (dx == 0.d0) cycle
+       if (dx == 0.d0) then
+          regnoise(:,j) = 0.d0
+          cycle
+       end if
        F = 0.d0
        do i = 0, rms%info%np-1
+          if (mask%map(i,j) <= 0.5d0) cycle
           b    = max(min(int((rms%map(i,j)-limits(1))/dx),nbin),1)
           F(b) = F(b) + 1.d0
        end do
@@ -284,7 +287,7 @@ contains
 
        ! Update RMS map, and draw corresponding noise realization
        do i = 0, rms%info%np-1
-          if (rms%map(i,j) < threshold) then
+          if (rms%map(i,j) < threshold .and. mask%map(i,j) > 0.5d0) then
              sigma         = sqrt(threshold**2 - rms%map(i,j)**2)
              rms%map(i,j)  = threshold                  ! Update RMS map to requested limit
              regnoise(i,j) = sigma * rand_gauss(handle) ! Draw corresponding noise realization

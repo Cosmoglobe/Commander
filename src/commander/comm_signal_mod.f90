@@ -6,6 +6,7 @@ module comm_signal_mod
   use comm_powlaw_comp_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
+  use comm_spindust2_comp_mod
   use comm_MBB_comp_mod
   use comm_freefree_comp_mod
   use comm_line_comp_mod
@@ -50,6 +51,8 @@ contains
              c => comm_physdust_comp(cpar, ncomp, i)
           case ("spindust")
              c => comm_spindust_comp(cpar, ncomp, i)
+          case ("spindust2")
+             c => comm_spindust2_comp(cpar, ncomp, i)
           case ("MBB")
              c => comm_MBB_comp(cpar, ncomp, i)
           case ("freefree")

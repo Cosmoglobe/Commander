@@ -57,11 +57,27 @@ contains
     constructor%nu_min_ind(1) = cpar%cs_nu_min(id_abs,1)
     constructor%nu_max_ind(1) = cpar%cs_nu_max(id_abs,1)
 
+    ! Component specific parameters for 2 parameter model
+    !constructor%npar         = 2
+    !allocate(constructor%theta_def(2), constructor%p_gauss(2,2), constructor%p_uni(2,2))
+    !allocate(constructor%poltype(2), constructor%indlabel(2))
+    !allocate(constructor%nu_min_ind(2), constructor%nu_max_ind(2))
+    !do i = 1, 2
+    !   constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
+    !   constructor%theta_def(i) = cpar%cs_theta_def(i,id_abs)
+    !   constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
+    !   constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
+    !   constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
+    !   constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
+    !end do
+    !constructor%indlabel  = ['nu_p','alpha']
+    
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
          & constructor%nmaps, constructor%pol)
 
     allocate(constructor%theta(1))
+    
     if (trim(cpar%cs_input_ind(1,id_abs)) == 'default') then
        constructor%theta(1)%p => comm_map(info)
        constructor%theta(1)%p%map = constructor%theta_def(1)
@@ -71,7 +87,20 @@ contains
     end if
     if (constructor%lmax_ind >= 0) call constructor%theta(1)%p%YtW_scalar
 
-    ! Initialize spectral template
+    ! Initialize spectral index map for 2 parameter model
+    !allocate(constructor%theta(constructor%npar))
+    !do i = 1, constructor%npar
+    !   if (trim(cpar%cs_input_ind(i,id_abs)) == 'default') then
+    !      constructor%theta(i)%p => comm_map(info)
+    !      constructor%theta(i)%p%map = constructor%theta_def(i)
+    !   else
+    !      ! Read map from FITS file, and convert to alms
+    !      constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_$
+    !   end if
+    !   if (constructor%lmax_ind >= 0) call constructor%theta(1)%p%YtW_scalar
+    !end do
+
+    ! Initialize spectral template !CHANGE??
     call read_spectrum(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), SED)
     ind                = maxloc(SED(:,2))
     constructor%nu_p0  = SED(ind(1),1)
@@ -111,6 +140,7 @@ contains
     real(dp) :: scale, nu_p
 
     nu_p    = theta(1)
+    !alpha   = theta(2)
     scale   = self%nu_p0 / (nu_p*1.d9) ! nu_p is in GHz
 
     if (scale*nu < self%nu_min .or. scale*nu > self%nu_max) then
@@ -118,6 +148,7 @@ contains
     else
        evalSED = exp(splint(self%SED_spline, log(scale*nu))) / &
                & exp(splint(self%SED_spline, log(scale*self%nu_ref))) * (self%nu_ref/nu)**2
+    !           & exp(splint(self%SED_spline, log(scale*self%nu_ref))) * (self%nu_ref/nu)**(2.d0-alpha)
     end if
 
   end function evalSED

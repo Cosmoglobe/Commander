@@ -180,23 +180,27 @@ contains
     m = size(x)
     n = size(y)
 
-    inv_h_x = 1.d0 / (x(2)-x(1))
-    inv_h_y = 1.d0 / (y(2)-y(1))
+!    inv_h_x = 1.d0 / (x(2)-x(1))
+!    inv_h_y = 1.d0 / (y(2)-y(1))
 
-!    b_x = locate(x, x0)
-!    b_y = locate(y, y0)
-    b_x = max(min(int((x0-x(1))*inv_h_x)+1,m-1),1)
-    b_y = max(min(int((y0-y(1))*inv_h_y)+1,n-1),1)
+    b_x = locate(x, x0)
+    b_y = locate(y, y0)
+!    b_x = max(min(int((x0-x(1))*inv_h_x)+1,m-1),1)
+!    b_y = max(min(int((y0-y(1))*inv_h_y)+1,n-1),1)
 
+    inv_h_x = 1.d0 / (x(b_x+1)-x(b_x))
+    inv_h_y = 1.d0 / (y(b_y+1)-y(b_y))
 
-    if (x0 < x(1) .or. x0 > x(m)) then
-!       write(*,*) 'splin2_full_precomp -- Warning: x0 out of bounds = ', x0
+!   if (x0 < x(1) .or. x0 > x(n) then
+    if (b_x <= 0 .or. b_x >= m) then
+       write(*,*) 'splin2_full_precomp -- Warning: x0 out of bounds = ', x0
        splin2_full_precomp = 0.d0
        return
     end if
 
-    if (y0 < y(1) .or. y0 > y(n)) then
-!       write(*,*) 'splin2_full_precomp -- Warning: y0 out of bounds = ', y0
+!   if (y0 < y(1) .or. y0 > y(n) then
+    if (b_y < 0 .or. b_y > n) then
+       write(*,*) 'splin2_full_precomp -- Warning: y0 out of bounds = ', y0
        splin2_full_precomp = 0.d0
        return
     end if
