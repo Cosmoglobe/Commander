@@ -534,6 +534,7 @@ contains
     first_iteration = 1
     call initialize_chain_files(chain_dir, chain, num_gibbs_iter)
 
+!    call output_component_maps(map_id, s_i, chain, 10, chain_dir)
 !    call output_sample(paramfile, 2, 10, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
 !    stop
 
@@ -598,9 +599,11 @@ contains
              where (mask_lowres < 0.5d0) s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
              if (fg_components(j)%enforce_positive_amplitude) s_i%fg_amp(:,:,j) = s_prev%fg_amp(:,:,j)
           end do
-          where (fix_temp)
-             s_i%temp_amp = s_prev%temp_amp
-          end where
+          if (num_fg_temp > 0) then
+             where (fix_temp)
+                s_i%temp_amp = s_prev%temp_amp
+             end where
+          end if
              
 !!$          write(*,*) 'b'
 !!$          call output_sample(paramfile, 2, 1, s_i, skip_freq, cl_i, fg_param_map, noiseamp, bp%gain, bp%delta)
@@ -1249,212 +1252,244 @@ contains
        
 
        open(58,file='s.dat')
-       do j = 1, num_fg_comp
-          do q = 1, numband
-             k = i2f(q)
-             s1 = get_effective_fg_spectrum(fg_components(j), k, fg_components(j)%priors(:,3))
-             if (trim(bp(k)%unit) == 'uK_cmb') then
-                write(*,*) real(bp(k)%nu_c/1.d9,sp), s1 / bp(k)%a2t
-                write(58,*) bp(k)%nu_c/1.d9, s1 / bp(k)%a2t
-             else
-                write(*,*) real(bp(k)%nu_c/1.d9,sp), s1 * bp(k)%f2t / bp(k)%a2t
-                write(58,*) bp(k)%nu_c/1.d9, s1 * bp(k)%f2t / bp(k)%a2t
-             end if
-          end do
-          write(58,*)
-       end do
-       close(58)
-       stop
+       ! Thermal dust
+!!$       n      = 1000
+!!$       nu_min = 0.1d0
+!!$       nu_max = 3000d0
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.5d0, 21d0, 100.d0, 0.d0, [0.d0, 0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       call mpi_finalize(ierr)
+!!$       stop
+
+
+       !do j = 1, num_fg_comp
+!!$       do j = 4, 4
+!!$          do q = 1, numband
+!!$             k = i2f(q)
+!!$             s1 = get_effective_fg_spectrum(fg_components(j), k, fg_components(j)%priors(:,3))
+!!$             if (trim(bp(k)%unit) == 'uK_cmb') then
+!!$                write(*,*) real(bp(k)%nu_c/1.d9,sp), s1 / bp(k)%a2t
+!!$                write(58,*) bp(k)%nu_c/1.d9, s1, ' # ', trim(bp(k)%label) !/ bp(k)%a2t !/ bp(k)%a2t
+!!$             else
+!!$                write(*,*) real(bp(k)%nu_c/1.d9,sp), s1 * bp(k)%f2t / bp(k)%a2t
+!!$                write(58,*) bp(k)%nu_c/1.d9, s1 * bp(k)%f2t, ' # ', trim(bp(k)%label) !/ bp(k)%a2t
+!!$             end if
+!!$          end do
+!!$          write(58,*)
+!!$       end do
+
+!!$       do i = 1, numband
+!!$          q = i2f(i)
+!!$          nu = bp(q)%nu_c
+!!$          s2 = compute_freefree_spectrum(nu, 1.4d9, 7000d0)
+!!$          write(*,*) 'hei', nu/1.d9, s2
+!!$          write(58,*) nu/1.d9, s2
+!!$       end do
+!!$       write(58,*)
+
+!!$       close(58)
+!!$       stop
 
 
        n      = 1000
        nu_min = 0.1d0
        nu_max = 3000d0
-       ! CMB
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = 1.d0 / compute_ant2thermo_single(nu)
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       ! TSZ
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = 1.d0/((2.d0*nu**2*k_b/c**2 / &
-               & (compute_bnu_prime_single(nu) * sz_thermo(nu)))) * 1d6
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
+!!$       ! CMB
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = 1.d0 / compute_ant2thermo_single(nu)
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       ! TSZ
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = 1.d0/((2.d0*nu**2*k_b/c**2 / &
+!!$               & (compute_bnu_prime_single(nu) * sz_thermo(nu)))) * 1d6
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
        ! Synchrotron 
-       nu_min = 0.001d0
+       !nu_min = 0.001d0
        do i = 1, n
           nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.0d0, -3.0d0, 3.d0, [0.d0,0.d0])
+          !s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.0d0, -3.0d0, 3.d0, [0.d0,0.d0])
+          s1 = compute_power_law_spectrum(nu, 21.d9, -3.0d0, -0.053d0, [0.d0,0.d0])
           write(58,*) nu/1.d9, s1
        end do
        write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -3.d0, 3.d0, [0.d0,0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -3.2d0, 3.d0, [0.d0,0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -2.8d0, 3.d0, [0.d0,0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       ! Thermal dust
-       nu_min = 0.1d0
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.5d0, 21d0, 100.d0, 0.d0, [0.d0, 0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 2.d0, 21d0, 100.d0, 0.d0, [0.d0, 0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.d0, 21d0, 100.d0, 0.d0, [0.d0, 0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.5d0, 16.d0, 100.d0, 0.d0, [0.d0, 0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.5d0, 26.d0, 100.d0, 0.d0, [0.d0, 0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       ! Spinning dust
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_AME_freq_shift_spectrum(nu, 22.8d9, 21.d0, 30.d9, fg_components(5)%S_nu_ref, [0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_AME_freq_shift_spectrum(nu, 22.8d9, 11.d0, 30.d9, fg_components(5)%S_nu_ref, [0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_AME_freq_shift_spectrum(nu, 22.8d9, 31.d0, 30.d9, fg_components(5)%S_nu_ref, [0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -3.d0, 3.d0, [0.d0,0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -3.2d0, 3.d0, [0.d0,0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -2.8d0, 3.d0, [0.d0,0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       ! Thermal dust
+!!$       nu_min = 0.1d0
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.5d0, 21d0, 100.d0, 0.d0, [0.d0, 0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 2.d0, 21d0, 100.d0, 0.d0, [0.d0, 0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.d0, 21d0, 100.d0, 0.d0, [0.d0, 0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.5d0, 16.d0, 100.d0, 0.d0, [0.d0, 0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_one_comp_dust_spectrum(nu, 545.d9, 1.5d0, 26.d0, 100.d0, 0.d0, [0.d0, 0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       ! Spinning dust
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_AME_freq_shift_spectrum(nu, 22.8d9, 21.d0, 30.d9, fg_components(5)%S_nu_ref, [0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_AME_freq_shift_spectrum(nu, 22.8d9, 11.d0, 30.d9, fg_components(5)%S_nu_ref, [0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_AME_freq_shift_spectrum(nu, 22.8d9, 31.d0, 30.d9, fg_components(5)%S_nu_ref, [0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
 
        ! Free-free
-       nu_min = 0.00001d0
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_freefree_EM_spectrum(nu, log(1.d0), 7000d0)
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
+!!$       nu_min = 0.00001d0
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_freefree_EM_spectrum(nu, log(1.d0), 7000d0)
+!!$          s2 = compute_freefree_spectrum(nu, 23.d9, 7000d0)
+!!$          write(58,*) nu/1.d9, s1, s2
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_freefree_EM_spectrum(nu, log(1.d-2), 7000d0)
+!!$          s2 = compute_freefree_spectrum(nu, 23.d9, 7000d0)
+!!$          write(58,*) nu/1.d9, s1, s2
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_freefree_EM_spectrum(nu, log(1.d2), 7000d0)
+!!$          s2 = compute_freefree_spectrum(nu, 23d9, 7000d0)
+!!$          write(58,*) nu/1.d9, s1, s2
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_freefree_EM_spectrum(nu, log(1.d0), 500d0)
+!!$          s2 = compute_freefree_spectrum(nu, 23.d9, 500d0)
+!!$          write(58,*) nu/1.d9, s1, s2
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_freefree_EM_spectrum(nu, log(1.d0), 20000d0)
+!!$          s2 = compute_freefree_spectrum(nu, 23.d9, 20000d0)
+!!$          write(58,*) nu/1.d9, s1, s2
+!!$       end do
+!!$       write(58,*)
 
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_freefree_EM_spectrum(nu, log(1.d-2), 7000d0)
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_freefree_EM_spectrum(nu, log(1.d2), 7000d0)
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_freefree_EM_spectrum(nu, log(1.d0), 500d0)
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_freefree_EM_spectrum(nu, log(1.d0), 20000d0)
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       ! CO
-       nu = 100d9
-       s1 = compute_CO_multiline_spectrum(4, fg_components(3)%co_band, 100d0, [0.6d0, 0.3d0])
-       write(58,*) nu/1.d9, 1.d-6
-       write(58,*) nu/1.d9, s1
-       write(58,*)
-
-       nu = 217d9*0.99
-       s1 = compute_CO_multiline_spectrum(6, fg_components(3)%co_band, 100d0, [0.5d0, 0.3d0])
-       write(58,*) nu/1.d9, 1.d-6
-       write(58,*) nu/1.d9, s1
-       write(58,*)
-
-       nu = 217d9
-       s1 = compute_CO_multiline_spectrum(6, fg_components(3)%co_band, 100d0, [0.6d0, 0.3d0])
-       write(58,*) nu/1.d9, 1.d-6
-       write(58,*) nu/1.d9, s1
-       write(58,*)
-
-       nu = 217d9*1.01
-       s1 = compute_CO_multiline_spectrum(6, fg_components(3)%co_band, 100d0, [0.7d0, 0.3d0])
-       write(58,*) nu/1.d9, 1.d-6
-       write(58,*) nu/1.d9, s1
-       write(58,*)
-
-       nu = 353d9*0.99
-       s1 = compute_CO_multiline_spectrum(7, fg_components(3)%co_band, 100d0, [0.6d0, 0.2d0])
-       write(58,*) nu/1.d9, 1.d-6
-       write(58,*) nu/1.d9, s1
-       write(58,*)
-
-       nu = 353d9
-       s1 = compute_CO_multiline_spectrum(7, fg_components(3)%co_band, 100d0, [0.6d0, 0.25d0])
-       write(58,*) nu/1.d9, 1.d-6
-       write(58,*) nu/1.d9, s1
-       write(58,*)
-
-       nu = 353d9*1.01
-       s1 = compute_CO_multiline_spectrum(7, fg_components(3)%co_band, 100d0, [0.6d0, 0.3d0])
-       write(58,*) nu/1.d9, 1.d-6
-       write(58,*) nu/1.d9, s1
-       write(58,*)
+!!$       ! CO
+!!$       nu = 100d9
+!!$       s1 = compute_CO_multiline_spectrum(4, fg_components(3)%co_band, 100d0, [0.6d0, 0.3d0])
+!!$       write(58,*) nu/1.d9, 1.d-6
+!!$       write(58,*) nu/1.d9, s1
+!!$       write(58,*)
+!!$
+!!$       nu = 217d9*0.99
+!!$       s1 = compute_CO_multiline_spectrum(6, fg_components(3)%co_band, 100d0, [0.5d0, 0.3d0])
+!!$       write(58,*) nu/1.d9, 1.d-6
+!!$       write(58,*) nu/1.d9, s1
+!!$       write(58,*)
+!!$
+!!$       nu = 217d9
+!!$       s1 = compute_CO_multiline_spectrum(6, fg_components(3)%co_band, 100d0, [0.6d0, 0.3d0])
+!!$       write(58,*) nu/1.d9, 1.d-6
+!!$       write(58,*) nu/1.d9, s1
+!!$       write(58,*)
+!!$
+!!$       nu = 217d9*1.01
+!!$       s1 = compute_CO_multiline_spectrum(6, fg_components(3)%co_band, 100d0, [0.7d0, 0.3d0])
+!!$       write(58,*) nu/1.d9, 1.d-6
+!!$       write(58,*) nu/1.d9, s1
+!!$       write(58,*)
+!!$
+!!$       nu = 353d9*0.99
+!!$       s1 = compute_CO_multiline_spectrum(7, fg_components(3)%co_band, 100d0, [0.6d0, 0.2d0])
+!!$       write(58,*) nu/1.d9, 1.d-6
+!!$       write(58,*) nu/1.d9, s1
+!!$       write(58,*)
+!!$
+!!$       nu = 353d9
+!!$       s1 = compute_CO_multiline_spectrum(7, fg_components(3)%co_band, 100d0, [0.6d0, 0.25d0])
+!!$       write(58,*) nu/1.d9, 1.d-6
+!!$       write(58,*) nu/1.d9, s1
+!!$       write(58,*)
+!!$
+!!$       nu = 353d9*1.01
+!!$       s1 = compute_CO_multiline_spectrum(7, fg_components(3)%co_band, 100d0, [0.6d0, 0.3d0])
+!!$       write(58,*) nu/1.d9, 1.d-6
+!!$       write(58,*) nu/1.d9, s1
+!!$       write(58,*)
 
 
 
