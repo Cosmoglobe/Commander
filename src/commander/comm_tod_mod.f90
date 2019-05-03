@@ -6,19 +6,20 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod
+  public comm_tod, read_hdf_scan, comm_scan
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
      real(dp)          :: gain                            ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
      real(dp)          :: samprate                        ! Sample rate in Hz
+     integer(i4b)      :: nside                           ! Nside for pixelized pointing
      real(dp),     allocatable, dimension(:)   :: tod     ! Detector values in time domain, (ntod)     
      real(dp),     allocatable, dimension(:)   :: n_corr  ! Correlated noise estimate in time domain
      real(dp),     allocatable, dimension(:)   :: n_temp  ! Template estimate in time domain
      integer(i4b), allocatable, dimension(:)   :: flag    ! Detector flag; 0 is accepted, /= 0 is rejected
-     integer(i4b), allocatable, dimension(:,:) :: pix     ! Pixelized pointing, (ntod,nhorn)
-     real(dp),     allocatable, dimension(:,:) :: psi     ! Polarization angle, (ntod,nhorn)
+     integer(i4b), allocatable, dimension(:) :: pix     ! Pixelized pointing, (ntod,nhorn)
+     real(dp),     allocatable, dimension(:) :: psi     ! Polarization angle, (ntod,nhorn)
      real(dp),     allocatable, dimension(:)   :: N_psd   ! Noise power spectrum density; in uncalibrated units
      real(dp),     allocatable, dimension(:)   :: nu_psd  ! Noise power spectrum bins; in Hz
   end type comm_detscan
@@ -28,8 +29,6 @@ module comm_tod_mod
      real(dp)     :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
      real(dp),            allocatable, dimension(:)     :: time  ! MJD for current scan
      class(comm_detscan), allocatable, dimension(:)     :: d     ! Array of all detectors
-   contains
-     procedure :: initHDF => read_hdf_scan
   end type comm_scan
 
   type :: comm_tod 
@@ -40,7 +39,7 @@ module comm_tod_mod
      real(dp)     :: samprate                                   ! Sample rate in Hz
      integer(i4b),     allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),         allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
-     class(comm_scan), allocatable, dimension(:)     :: scans   ! Array of all scans
+     type(comm_scan),  allocatable, dimension(:)     :: scans   ! Array of all scans
    contains
      procedure     :: compute_binned_map
      procedure     :: fit_gain
@@ -50,6 +49,7 @@ module comm_tod_mod
   interface comm_tod
      procedure constructor
   end interface comm_tod
+
 
 contains
 
@@ -105,44 +105,59 @@ contains
 
   subroutine read_hdf_scan(self, filename, scan, ndet)
     implicit none
-    class(comm_scan)                   :: self
     character(len=*),       intent(in) :: filename
     integer(i4b),           intent(in) :: scan, ndet
+    class(comm_scan), intent(inout)                  :: self
 
-    integer(i4b)     :: i, j, n, nhorn, ext(2)
-    character(len=6) :: slabel, dlabel
-    type(hdf_file)   :: file
+    integer(i4b)       :: i, j, n, nhorn, ext(1)
+    character(len=6)   :: slabel
+    character(len=128) :: field
+    integer(hid_t)     :: nfield, err, obj_type
+    type(hdf_file)     :: file
 
     call int2string(scan, slabel)
 
     call open_hdf_file(filename, file, "r")
 
     ! Find array sizes
-    call get_size_hdf(file, slabel // "/000001/pix", ext)
-    nhorn     = ext(1)
-    n         = ext(2)
+    call h5gget_obj_info_idx_f(file%filehandle, slabel, 1, field, obj_type, err)
+    if (trim(field) == 'common') then
+       call h5gget_obj_info_idx_f(file%filehandle, slabel, 2, field, obj_type, err)
+    end if
+    call get_size_hdf(file, slabel // "/" // trim(field) // "/pix", ext)
+    !nhorn     = ext(1)
+    n         = ext(1)
     self%ntod = n
 
     ! Read common scan data
     allocate(self%time(n))
-    call read_hdf(file, slabel // "/vsun", self%v_sun)
-    call read_hdf(file, slabel // "/time", self%time)
+    !call read_hdf(file, slabel // "/common/vsun", self%v_sun)
+    call read_hdf(file, slabel // "/common/time", self%time)
 
     ! Read detector scans
     allocate(self%d(ndet))
-    do i = 1, ndet
-       allocate(self%d(i)%tod(n), self%d(i)%flag(n), self%d(i)%pix(nhorn,n), self%d(i)%psi(nhorn,n))
-       call int2string(i, dlabel)
-       call read_hdf(file, slabel // "/" // dlabel // "/label",  self%d(i)%label)
-       call read_hdf(file, slabel // "/" // dlabel // "/gain",   self%d(i)%gain)
-       call read_hdf(file, slabel // "/" // dlabel // "/sigma0", self%d(i)%sigma0)
-       call read_hdf(file, slabel // "/" // dlabel // "/alpha",  self%d(i)%alpha)
-       call read_hdf(file, slabel // "/" // dlabel // "/fknee",  self%d(i)%fknee)
-       call read_hdf(file, slabel // "/" // dlabel // "/tod",    self%d(i)%tod)
-       call read_hdf(file, slabel // "/" // dlabel // "/flag",   self%d(i)%flag)
-       call read_hdf(file, slabel // "/" // dlabel // "/pix",    self%d(i)%pix)
-       call read_hdf(file, slabel // "/" // dlabel // "/psi",    self%d(i)%psi)
+    i = 0
+    do j = 0, ndet
+       call h5gget_obj_info_idx_f(file%filehandle, slabel, j, field, obj_type, err)
+       if (trim(field) == 'common') cycle
+       i = i+1
+       allocate(self%d(i)%tod(n), self%d(i)%flag(n), self%d(i)%pix(n), self%d(i)%psi(n))
+       self%d(i)%label = trim(field)
+       call read_hdf(file, slabel // "/" // trim(field) // "/gain",   self%d(i)%gain)
+       call read_hdf(file, slabel // "/" // trim(field) // "/sigma0", self%d(i)%sigma0)
+       call read_hdf(file, slabel // "/" // trim(field) // "/alpha",  self%d(i)%alpha)
+       call read_hdf(file, slabel // "/" // trim(field) // "/fknee",  self%d(i)%fknee)
+       call read_hdf(file, slabel // "/" // trim(field) // "/tod",    self%d(i)%tod)
+       call read_hdf(file, slabel // "/" // trim(field) // "/flag",   self%d(i)%flag)
+       call read_hdf(file, slabel // "/" // trim(field) // "/nside",  self%d(i)%nside)
+       call read_hdf(file, slabel // "/" // trim(field) // "/pix",    self%d(i)%pix)
+       call read_hdf(file, slabel // "/" // trim(field) // "/psi",    self%d(i)%psi)
     end do
+
+    if (i /= ndet) then
+       write(*,*) 'ERROR: Too few detectors in TOD file = ', trim(filename)
+       stop
+    end if
 
   end subroutine read_hdf_scan
 

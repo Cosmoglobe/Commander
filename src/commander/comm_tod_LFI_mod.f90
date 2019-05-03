@@ -30,14 +30,18 @@ contains
     class(comm_tod_LFI),     pointer    :: constructor
 
     integer(i4b) :: i, j
+    real(dp) :: t1, t2
+    class(comm_scan), pointer :: scan
 
     write(*,*) 'init tod_LFI'
 
+
+
     ! Test code, just to be able to read a single file; need to settle on parameter structure
     allocate(constructor)
-    constructor%nscan    = 1
+    constructor%nscan    = 20
     constructor%nmaps    = 3
-    constructor%ndet     = 1
+    constructor%ndet     = 4
     constructor%nhorn    = 1
     constructor%samprate = 50.d0
     allocate(constructor%stokes(constructor%nmaps))
@@ -46,9 +50,12 @@ contains
     constructor%stokes = [1,2,3]
     constructor%w      = 1.d0
     
+    call wall_time(t1)
     do i = 1, constructor%nscan
-       call constructor%scans(i)%initHDF("filename.hdf", i, constructor%ndet)
+       call read_hdf_scan(constructor%scans(i), "data/LFI_30_OD1000.h5", 27679-i, constructor%ndet)
     end do
+    call wall_time(t2)
+    write(*,*) t2-t1
 
   end function constructor
 
