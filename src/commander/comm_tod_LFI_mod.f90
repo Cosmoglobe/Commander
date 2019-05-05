@@ -57,9 +57,9 @@ contains
   !**************************************************
   subroutine process_LFI_tod(self, map_in, map_out, rms_out)
     implicit none
-    class(comm_LFI_tod),               intent(in)  :: self
-    class(comm_map),     dimension(:), intent(in)  :: map_in            ! One map per detector
-    class(comm_map),                   intent(out) :: map_out, rms_out  ! Combined output map and rms
+    class(comm_LFI_tod),               intent(in)    :: self
+    type(map_ptr),       dimension(:), intent(in)    :: map_in            ! One map per detector
+    class(comm_map),                   intent(inout) :: map_out, rms_out ! Combined output map and rms
 
     integer(i4b) :: i, j, ntod, ndet, nside, npix, nmaps
     real(sp), allocatable, dimension(:,:) :: n_corr, s_sl, d_calib, s_sky, s_orb
@@ -67,15 +67,15 @@ contains
     real(dp), allocatable, dimension(:)   :: A_abscal, b_abscal
 
     ! Set up full-sky map structures
-    nside = self%scans(1)%d(1)%nside
+    nside = map_out%info%nside
+    nmaps = map_out%info%nmaps
     npix  = 12*nside**2
-    nmaps = self%nmaps
     allocate(map_tot(0:npix-1,nmaps), rms_tot(0:npix-1,nmaps))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
 
     ! Compute output map and rms
     map_tot  = 0.d0
-    rms_tot  = 0.d0
+    rms_tot = 0.d0
     A_abscal = 0.d0
     b_abscal = 0.d0
     do i = 1, self%nscan
@@ -119,8 +119,8 @@ contains
     ! Compute absolute calibration, summed over all scans, and rescale output maps
 
     ! Copy rescaled maps to final output structure
-    map_out%map = map_tot(map_out%info%pix,:)
-    rms_out%map = rms_tot(rms_out%info%pix,:)
+    !map_out%map  = map_tot(map_out%info%pix,:)
+    !rms_out%map = rms_tot(rms_out%info%pix,:)
 
     deallocate(map_tot, rms_tot)
 

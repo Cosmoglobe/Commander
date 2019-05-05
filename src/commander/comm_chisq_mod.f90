@@ -176,5 +176,54 @@ contains
 
   end subroutine output_signals_per_band
 
+  subroutine get_sky_signal(band, det, map_out)
+    implicit none
+    integer(i4b),    intent(in)     :: band, det
+    class(comm_map), pointer        :: map_out
+
+    logical(lgt) :: skip
+    class(comm_comp), pointer :: c
+    real(dp),     allocatable, dimension(:,:) :: map, alm
+
+    ! Allocate map
+    map_out => comm_map(data(band)%info)  
+
+    ! Compute predicted signal for this band
+    c => compList
+    do while (associated(c))
+       if (trim(c%type) == 'md') then
+          c => c%next()
+          cycle
+       end if
+
+       skip    = .false.
+       map_out%alm = 0.d0
+       map_out%map = 0.d0
+       select type (c)
+       class is (comm_diffuse_comp)
+          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
+          alm     = c%getBand(band, alm_out=.true.)
+          call map_out%add_alm(alm, c%x%info)
+          call map_out%Y()
+          deallocate(alm)
+       class is (comm_ptsrc_comp)
+          allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
+          map         = c%getBand(band)
+          map_out%map = map_out%map + map
+          deallocate(map)
+       class is (comm_template_comp)
+          if (c%band /= band) skip = .true.
+          if (.not. skip) then
+             allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
+             map         = c%getBand(band)
+             map_out%map = map_out%map + map
+             deallocate(map)
+          end if
+       end select
+       c => c%next()
+    end do
+
+  end subroutine get_sky_signal
+
 
 end module comm_chisq_mod
