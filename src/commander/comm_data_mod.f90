@@ -210,7 +210,7 @@ contains
        ! Initialize TOD structures
        if (.false.) then ! Test to disable or enable TOD during debugging
           if (.true.) then ! Test for type; should be something like (type == 'LFI')
-             data(n)%tod => comm_tod_LFI(cpar)             
+             data(n)%tod => comm_LFI_tod(cpar)             
           end if
        end if
     end do
