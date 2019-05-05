@@ -62,9 +62,11 @@ contains
     class(comm_map),                   intent(inout) :: map_out, rms_out ! Combined output map and rms
 
     integer(i4b) :: i, j, ntod, ndet, nside, npix, nmaps
-    real(sp), allocatable, dimension(:,:) :: n_corr, s_sl, d_calib, s_sky, s_orb
-    real(sp), allocatable, dimension(:,:) :: map_tot, rms_tot
-    real(dp), allocatable, dimension(:)   :: A_abscal, b_abscal
+    real(dp)     :: t1, t2
+    real(sp), allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb
+    real(dp), allocatable, dimension(:,:)   :: map_tot, rms_tot
+    real(dp), allocatable, dimension(:,:,:) :: map_sky
+    real(dp), allocatable, dimension(:)     :: A_abscal, b_abscal
 
     ! Set up full-sky map structures
     nside = map_out%info%nside
@@ -72,6 +74,10 @@ contains
     npix  = 12*nside**2
     allocate(map_tot(0:npix-1,nmaps), rms_tot(0:npix-1,nmaps))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
+    allocate(map_sky(0:npix-1,nmaps,ndet))
+    do i = 1, self%ndet
+       call map_in(i)%p%bcast_fullsky_map(map_sky(:,:,i))
+    end do
 
     ! Compute output map and rms
     map_tot  = 0.d0
@@ -122,7 +128,7 @@ contains
     !map_out%map  = map_tot(map_out%info%pix,:)
     !rms_out%map = rms_tot(rms_out%info%pix,:)
 
-    deallocate(map_tot, rms_tot)
+    deallocate(map_tot, rms_tot, map_sky)
 
   end subroutine process_LFI_tod
 
