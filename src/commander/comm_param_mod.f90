@@ -34,6 +34,7 @@ module comm_param_mod
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
      logical(lgt)       :: only_pol
+     logical(lgt)       :: enable_TOD_analysis
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
      real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
      integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
@@ -90,6 +91,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
      character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
+     character(len=512), allocatable, dimension(:)   :: ds_tod_experiment
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -311,6 +313,8 @@ contains
 
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 
+    call get_parameter_hashtable(htbl, 'ENABLE_TOD_ANALYSIS',      par_lgt=cpar%enable_TOD_analysis)
+
     allocate(cpar%fwhm_smooth(cpar%num_smooth_scales))
     allocate(cpar%fwhm_postproc_smooth(cpar%num_smooth_scales))
     allocate(cpar%lmax_smooth(cpar%num_smooth_scales))
@@ -358,6 +362,7 @@ contains
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
+    allocate(cpar%ds_tod_experiment(n))
 
     do i = 1, n
        call int2string(i, itext)
@@ -398,6 +403,12 @@ contains
           call get_parameter_hashtable(htbl, 'BAND_NOISE_RMS'//itext//'_SMOOTH'//jtext, &
                & par_string=cpar%ds_noise_rms_smooth(i,j))
        end do
+
+       if (cpar%enable_TOD_analysis) then
+          call get_parameter_hashtable(htbl, 'BAND_TOD_EXPERIMENT'//itext, &
+               & par_string=cpar%ds_tod_experiment(i))
+       end if
+
     end do
 
     ! Convert to proper internal units where necessary

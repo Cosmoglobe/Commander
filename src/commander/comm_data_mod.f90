@@ -208,9 +208,12 @@ contains
        end do
 
        ! Initialize TOD structures
-       if (.false.) then ! Test to disable or enable TOD during debugging
-          if (.true.) then ! Test for type; should be something like (type == 'LFI')
+       if (cpar%enable_TOD_analysis) then
+          if (trim(cpar%ds_tod_experiment(n)) == 'LFI') then
              data(n)%tod => comm_LFI_tod(cpar)             
+          else
+             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_experiment(n))
+             stop
           end if
        end if
     end do
