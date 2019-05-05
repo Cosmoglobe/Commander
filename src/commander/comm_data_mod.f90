@@ -209,10 +209,10 @@ contains
 
        ! Initialize TOD structures
        if (cpar%enable_TOD_analysis) then
-          if (trim(cpar%ds_tod_experiment(n)) == 'LFI') then
+          if (trim(cpar%ds_tod_type(n)) == 'LFI') then
              data(n)%tod => comm_LFI_tod(cpar)             
           else
-             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_experiment(n))
+             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(n))
              stop
           end if
        end if

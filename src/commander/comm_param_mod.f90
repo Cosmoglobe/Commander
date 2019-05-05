@@ -91,7 +91,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
      character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
-     character(len=512), allocatable, dimension(:)   :: ds_tod_experiment
+     character(len=512), allocatable, dimension(:)   :: ds_tod_type
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -362,7 +362,7 @@ contains
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
-    allocate(cpar%ds_tod_experiment(n))
+    allocate(cpar%ds_tod_type(n))
 
     do i = 1, n
        call int2string(i, itext)
@@ -405,8 +405,8 @@ contains
        end do
 
        if (cpar%enable_TOD_analysis) then
-          call get_parameter_hashtable(htbl, 'BAND_TOD_EXPERIMENT'//itext, &
-               & par_string=cpar%ds_tod_experiment(i))
+          call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, &
+               & par_string=cpar%ds_tod_type(i))
        end if
 
     end do

@@ -49,11 +49,11 @@ module comm_tod_mod
 
   abstract interface
      subroutine process_tod(self, map_in, map_out, rms_out)
-       import comm_tod, comm_map
+       import comm_tod, comm_map, map_ptr
        implicit none
-       class(comm_tod),                   intent(in)  :: self
-       class(comm_map),     dimension(:), intent(in)  :: map_in            
-       class(comm_map),                   intent(out) :: map_out, rms_out  
+       class(comm_tod),                 intent(in)    :: self
+       type(map_ptr),     dimension(:), intent(in)    :: map_in            
+       class(comm_map),                 intent(inout) :: map_out, rms_out  
      end subroutine process_tod
   end interface
 

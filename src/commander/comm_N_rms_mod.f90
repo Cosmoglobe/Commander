@@ -8,7 +8,6 @@ module comm_N_rms_mod
   public comm_N_rms, comm_N_rms_ptr
   
   type, extends (comm_N) :: comm_N_rms
-     class(comm_map), pointer :: siN
    contains
      ! Data procedures
      procedure :: invN     => matmulInvN_1map
