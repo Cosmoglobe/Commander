@@ -142,6 +142,34 @@ contains
   !**************************************************
   !             Sub-process routines
   !**************************************************
+  ! Compute map with white noise assumption from correlated noise 
+  ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
+  subroutine compute_orbital_dipole(self, ind, s_orb)
+    implicit none
+    class(comm_LFI_tod),                 intent(in)  :: self
+    integer(i4b),                        intent(in)  :: ind !scan nr/index
+    real(sp),            dimension(:,:), intent(out) :: s_orb
+    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot
+    real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
+    integer(i4b)         :: i,j
+
+    !T_0 = T_CMB*k_b/h !T_0 = T_CMB frequency
+    !x = freq * 1.d9 / (2.d0*T_0) !freq is the center bandpass frequancy of the detector
+    !q = x * (exp(2.d0*x)+1) / (exp(2.d0*x)-1) !frequency dependency of the quadrupole
+    !b = sqrt(sum(self%scans(ind)%v_sun**2))/c !beta for the given scan
+
+    do i = 1,self%ndet
+       do j=1,self%scans(ind)%ntod !length of the tod
+          call pix2vec_ring(self%scans(ind)%d(i)%nside, self%scans(ind)%d(i)%pix(j), &
+               & pix_dir)
+          b_dot = dot_product(self%scans(ind)%v_sun, pix_dir)/c
+          s_orb(j,i) = T_CMB * b_dot !only dipole
+          !s_orb(j,i) = T_CMB * (b_dot + q*b_dot**2) ! with quadrupole
+          !s_orb(j,i) = T_CMB * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
+       end do
+   end do
+
+  end subroutine compute_orbital_dipole
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
