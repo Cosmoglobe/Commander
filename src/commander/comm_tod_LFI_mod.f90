@@ -8,12 +8,11 @@ module comm_tod_LFI_mod
   public comm_LFI_tod
 
   type, extends(comm_tod) :: comm_LFI_tod 
-
    contains
      procedure     :: process_tod        => process_LFI_tod
      procedure     :: compute_binned_map
-     procedure     :: fit_gain
-     procedure     :: fit_n_corr
+     procedure     :: sample_gain
+     procedure     :: sample_n_corr
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -82,8 +81,8 @@ contains
     ! Compute output map and rms
     map_tot  = 0.d0
     rms_tot = 0.d0
-    A_abscal = 0.d0
-    b_abscal = 0.d0
+    !A_abscal = 0.d0
+    !b_abscal = 0.d0
     do i = 1, self%nscan
 
        ! Short-cuts to local variables
@@ -101,21 +100,23 @@ contains
        ! Analyze current scan
        ! --------------------
 
-       ! Construct sky signal template
+       ! Construct sky signal template -- Maksym -- this week
 
-       ! Construct orbital dipole template
+       ! Construct orbital dipole template -- Kristian -- this week-ish
 
-       ! Construct sidelobe template
+       ! Construct sidelobe template -- Mathew -- long term
 
-       ! Fit correlated noise
+       ! Fit correlated noise -- Haavard -- this week-ish
 
-       ! Fit gain for current scan
+       ! Fit gain for current scan -- Eirik -- this week
 
-       ! Compute contribution to absolute calibration from current scan
+       ! .. Compute contribution to absolute calibration from current scan .. -- let's see
 
-       ! Compute clean and calibrated TOD
+       ! Compute bandpass corrections, as in s_sky(i) - <s_sky> -- Trygve, after deadline
 
-       ! Compute binned map from cleaned TOD
+       ! Compute clean and calibrated TOD -- Mathew -- this week
+
+       ! Compute binned map from cleaned TOD -- Marie -- this week
        
        ! Clean up
        deallocate(n_corr, s_sl, s_sky, s_orb, d_calib)
@@ -123,6 +124,8 @@ contains
     end do
 
     ! Compute absolute calibration, summed over all scans, and rescale output maps
+
+    ! Solve combined map, summed over all pixels -- Marie -- weeks
 
     ! Copy rescaled maps to final output structure
     !map_out%map  = map_tot(map_out%info%pix,:)
@@ -141,29 +144,35 @@ contains
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
   subroutine compute_binned_map(self, map, rms)
     implicit none
-    class(comm_LFI_tod), intent(in)  :: self
-    class(comm_map),     intent(out) :: map, rms
+    class(comm_LFI_tod),                 intent(in)  :: self
+    real(dp),            dimension(:,:), intent(out) :: map, rms
 
-    map%map = 0.d0
-    rms%map = 0.d0
+    map = 0.d0
+    rms = 0.d0
 
   end subroutine compute_binned_map
   
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
-  subroutine fit_gain(self, map)
+  subroutine sample_gain(self, det, n_corr, s_sky, s_sl, s_orb)
     implicit none
-    class(comm_LFI_tod), intent(inout)  :: self
-    class(comm_map),     intent(in)     :: map
+    class(comm_LFI_tod),               intent(inout)  :: self
+    integer(i4b),                      intent(in)     :: det
+    real(sp),            dimension(:), intent(in)     :: n_corr, s_sky, s_sl, s_orb
 
-  end subroutine fit_gain
+
+  end subroutine sample_gain
 
   ! Compute correlated noise term, n_corr
-  subroutine fit_n_corr(self, map)
+  subroutine sample_n_corr(self, det, s_sky, s_sl, s_orb, n_corr)
     implicit none
-    class(comm_LFI_tod), intent(inout)  :: self
-    class(comm_map),     intent(in)     :: map
+    class(comm_LFI_tod),               intent(in)     :: self
+    integer(i4b),                      intent(in)     :: det
+    real(sp),            dimension(:), intent(in)     :: s_sky, s_sl, s_orb
+    real(sp),            dimension(:), intent(out)    :: n_corr
+    
+    n_corr = 0.d0
 
-  end subroutine fit_n_corr
+  end subroutine sample_n_corr
 
 end module comm_tod_LFI_mod
