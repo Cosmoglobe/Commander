@@ -105,7 +105,7 @@ contains
        ! Construct sky signal template -- Maksym -- this week
 
        ! Construct orbital dipole template -- Kristian -- this week-ish
-
+       call self%compute_orbital_dipole(i,s_orb)
        ! Construct sidelobe template -- Mathew -- long term
        call self%construct_sl_template()
        ! Fit correlated noise -- Haavard -- this week-ish
