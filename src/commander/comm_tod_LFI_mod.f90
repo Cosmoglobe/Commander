@@ -150,12 +150,10 @@ contains
     real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
     integer(i4b)         :: i,j
 
-    !s_orb(sample,det)
-    T_0 = T_CMB*k_b/h !T_0 = T_CMB frequency
-
+    !T_0 = T_CMB*k_b/h !T_0 = T_CMB frequency
     !x = freq * 1.d9 / (2.d0*T_0) !freq is the center bandpass frequancy of the detector
     !q = x * (exp(2.d0*x)+1) / (exp(2.d0*x)-1) !frequency dependency of the quadrupole
-    b = sqrt(sum(self%scans(ind)%v_sun**2))/c !beta for the given scan
+    !b = sqrt(sum(self%scans(ind)%v_sun**2))/c !beta for the given scan
 
     do i = 1,self%ndet
        do j=1,self%scans(ind)%ntod !length of the tod
