@@ -13,6 +13,8 @@ module comm_tod_LFI_mod
      procedure     :: compute_binned_map
      procedure     :: sample_gain
      procedure     :: sample_n_corr
+     procedure     :: compute_cleaned_tod
+     procedure     :: construct_sl_template
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -105,7 +107,7 @@ contains
        ! Construct orbital dipole template -- Kristian -- this week-ish
 
        ! Construct sidelobe template -- Mathew -- long term
-
+       call self%construct_sl_template()
        ! Fit correlated noise -- Haavard -- this week-ish
 
        ! Fit gain for current scan -- Eirik -- this week
@@ -115,6 +117,7 @@ contains
        ! Compute bandpass corrections, as in s_sky(i) - <s_sky> -- Trygve, after deadline
 
        ! Compute clean and calibrated TOD -- Mathew -- this week
+       call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib)
 
        ! Compute binned map from cleaned TOD -- Marie -- this week
        
@@ -174,5 +177,28 @@ contains
     n_corr = 0.d0
 
   end subroutine sample_n_corr
+
+  !construct a sidelobe template in the time domain
+  subroutine construct_sl_template(self)
+    implicit none
+    class(comm_LFI_tod),               intent(in)    :: self
+
+  end subroutine construct_sl_template
+
+  !compute the cleaned TOD from the computed TOD components
+  subroutine compute_cleaned_tod(self, ntod, scan_num, s_orb, s_sl, n_corr, d_calib)
+    implicit none
+    class(comm_LFI_tod),               intent(in)    :: self
+    integer(i4b),                      intent(in)    :: ntod, scan_num
+    real(sp),          dimension(:,:), intent(in)    :: n_corr, s_sl, s_orb
+    real(sp),          dimension(:,:), intent(out)   :: d_calib
+
+    integer(i4b) :: i
+
+    !cleaned calibrated data = (rawTOD - orbitalDipole - corrNoise - sidelobes)/gain
+    do i=1, self%ndet
+      d_calib(:,i) = (self%scans(scan_num)%d(i)%tod - s_orb(:,i) - n_corr(:,i) - s_sl(:,i))/ self%scans(scan_num)%d(i)%gain
+    end do
+  end subroutine compute_cleaned_tod
 
 end module comm_tod_LFI_mod
