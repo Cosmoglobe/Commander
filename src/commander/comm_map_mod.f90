@@ -1057,10 +1057,16 @@ contains
 
     allocate(p(npix))
     do i = 0, self%info%nprocs-1
+       if (self%info%myid == i) then
+          np      = self%info%np
+          p(1:np) = self%info%pix(1:np)
+          allocate(buffer(np,nmaps))
+          buffer  = self%map
+       end if
+       
        call mpi_bcast(np,       1, MPI_INTEGER, i, self%info%comm, ierr)
        call mpi_bcast(p(1:np), np, MPI_INTEGER, i, self%info%comm, ierr)
-       allocate(buffer(np,nmaps))
-       if (self%info%myid == i) buffer = self%map
+       if (.not. allocated(buffer)) allocate(buffer(np,nmaps))
        call mpi_bcast(buffer, np*nmaps, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
        map(p(1:np),:) = buffer(1:np,:)
        deallocate(buffer)

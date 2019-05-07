@@ -73,12 +73,14 @@ contains
     real(dp), allocatable, dimension(:)     :: A_abscal, b_abscal
 
     ! Set up full-sky map structures
+    ndet  = self%ndet
     nside = map_out%info%nside
     nmaps = map_out%info%nmaps
     npix  = 12*nside**2
     allocate(map_tot(0:npix-1,nmaps), rms_tot(0:npix-1,nmaps))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(map_sky(0:npix-1,nmaps,ndet))
+    ! This step should be optimized -- currently takes 6 seconds..
     do i = 1, self%ndet
        call map_in(i)%p%bcast_fullsky_map(map_sky(:,:,i))
     end do
@@ -113,14 +115,18 @@ contains
 
        ! Construct sky signal template -- Maksym -- this week
        do j = 1, ndet
-          call self%project_sky(map_sky(:, :, j), i, j, s_sky(:, j))!scan_id, det,  s_sky(:, j))
+          call self%project_sky(map_sky(:,:,j), i, j, s_sky(:,j))!scan_id, det,  s_sky(:, j))
        end do
+
        ! Construct orbital dipole template -- Kristian -- this week-ish
        call self%compute_orbital_dipole(i, s_orb)
+
        ! Construct sidelobe template -- Mathew -- long term
        call self%construct_sl_template()
+
        ! Fit correlated noise -- Haavard -- this week-ish
        call self%sample_n_corr(i, s_sky, s_sl, s_orb, n_corr)
+
        ! Fit gain for current scan -- Eirik -- this week
 
        ! .. Compute contribution to absolute calibration from current scan .. -- let's see
@@ -254,8 +260,8 @@ contains
     deallocate(dt, dv)
     !$OMP PARALLEL PRIVATE(i,l,dt,dv,nu,sigma_0,alpha,nu_knee)
     allocate(dt(2*ntod), dv(0:n-1))
-    !$OMP DO SCHEDULE(guided)
     allocate(d_prime(ntod))
+    !$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sky(:,i) - S_sl(:,i) - S_orb(:,i)
 !       if (i == 1 .and. scan == 1) then
