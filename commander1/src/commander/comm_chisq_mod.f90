@@ -182,10 +182,12 @@ contains
        allocate(fg_amp(0:npix-1,nmaps, num_fg_signal))
        if (myid_chain == root) fg_amp = s%fg_amp
        call mpi_bcast(fg_amp, size(fg_amp), MPI_DOUBLE_PRECISION, root, comm_chain, ierr)
+       !write(*,*) 'LEAVING FREE-FREE!!'
        do k = 1, num_fg_signal
           do j = 1, nmaps
              do i = 0, map_size-1
                 if (.not. enforce_zero_cl .and. trim(fg_components(k)%type) == 'cmb' .and. mask(i,j)) cycle
+                !if (trim(fg_components(k)%type) == 'freefree') cycle
                 if (use_index_map) then
                    call reorder_fg_params(ind_map(pixels(i),:,:), fg_par)
                    f = get_effective_fg_spectrum(fg_components(k), map_id, fg_par%comp(k)%p(j,:), &
@@ -380,7 +382,7 @@ contains
     character(len=2)   :: band, chain_text
     character(len=5)   :: iter_text
     character(len=5)   :: id_text
-    real(dp)           :: MAX_DELTA_G = 0.02d0, md(4)
+    real(dp)           :: MAX_DELTA_G = 0.05d0, md(4)
     integer(i4b), allocatable, dimension(:)     :: mask2map
     real(dp),     allocatable, dimension(:)     :: my_gain, buffer, cl1, cl2, slope
     real(dp),     allocatable, dimension(:,:,:) :: fg_amp, ind_map
@@ -837,9 +839,9 @@ contains
              end if
           end do
           if (myid_chain == root) write(*,*) '--------------------------------------------------------------'
-          if (myid_chain == root) write(*,*) 'iteration  = ', i, count(.not. done), chisq0(8)-chisq_curr(8)
-          if (myid_chain == root) write(*,*) 'delta      = ', delta_prop(8)
-          if (myid_chain == root) write(*,*) 'gain       = ', bp(8)%gain
+          if (myid_chain == root) write(*,*) 'iteration  = ', i, count(.not. done), chisq0(22)-chisq_curr(22)
+          if (myid_chain == root) write(*,*) 'delta      = ', delta_prop(22)
+          if (myid_chain == root) write(*,*) 'gain       = ', bp(22)%gain
        end do
 
        if (myid_chain == root) then
