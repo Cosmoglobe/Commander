@@ -4,9 +4,10 @@
 {{py:
 ndim   = 8
 types  = [
-    [ "dp",  "real",    "dp",  "H5T_IEEE_F64LE", "H5T_NATIVE_DOUBLE"  ],
-    [ "sp",  "real",    "sp",  "H5T_IEEE_F32LE", "H5T_NATIVE_REAL"    ],
-    [ "int", "integer", "i4b", "H5T_STD_I32LE",  "H5T_NATIVE_INTEGER" ],
+    [ "dp",   "real",      "dp",    "H5T_IEEE_F64LE", "H5T_NATIVE_DOUBLE"  ],
+    [ "sp",   "real",      "sp",    "H5T_IEEE_F32LE", "H5T_NATIVE_REAL"    ],
+    [ "int",  "integer",   "i4b",   "H5T_STD_I32LE",  "H5T_NATIVE_INTEGER" ],
+    [ "char", "character", "len=*", "H5T_C_S1",       "H5T_NATIVE_CHARACTER" ],
 ]
 def desc(i):
     return "%dd" % i

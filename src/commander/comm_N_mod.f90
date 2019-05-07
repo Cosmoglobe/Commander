@@ -13,6 +13,7 @@ module comm_N_mod
      logical(lgt)             :: pol
      real(dp), allocatable, dimension(:) :: alpha_nu ! (T,Q,U)
      class(comm_map), pointer :: invN_diag
+     class(comm_map), pointer :: siN
    contains
      ! Data procedures
      procedure(matmulInvN),     deferred :: invN

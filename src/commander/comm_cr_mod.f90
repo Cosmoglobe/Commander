@@ -478,15 +478,16 @@ contains
   ! Definition of linear system
   ! ---------------------------
 
-  subroutine cr_computeRHS(operation, handle, mask, samp_group, rhs)
+  subroutine cr_computeRHS(operation, handle, handle_noise, mask, samp_group, rhs)
     implicit none
     character(len=*),                            intent(in)             :: operation
-    type(planck_rng),                            intent(inout)          :: handle
+    type(planck_rng),                            intent(inout)          :: handle, handle_noise
     integer(i4b),                                intent(in)             :: samp_group
     real(dp),         allocatable, dimension(:), intent(in)             :: mask
     real(dp),         allocatable, dimension(:), intent(out)            :: rhs
 
     integer(i4b) :: i, j, l, m, k, n, ierr
+    real(dp)     :: tmp
     class(comm_map),     pointer                 :: map, Tm, mu
     class(comm_comp),    pointer                 :: c
     class(comm_mapinfo), pointer                 :: info
@@ -508,6 +509,8 @@ contains
           do k = 1, map%info%nmaps
              do j = 0, map%info%np-1
                 map%map(j,k) = map%map(j,k) + rand_gauss(handle)
+                !tmp          = rand_gauss(handle)
+                !map%map(j,k) = map%map(j,k) + rand_gauss(handle_noise)
              end do
           end do
           call data(i)%N%sqrtInvN(map)          ! Multiply with sqrt(invN)

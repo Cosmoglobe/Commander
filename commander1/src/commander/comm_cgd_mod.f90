@@ -95,6 +95,25 @@ contains
     if (verbosity > 1) write(*,*) 'Chain no. ', chain, ' -- Starting CG search'
 !    open(98,file='cls.dat')
 
+!!$    write(*,*) 'precond_type = ', precond_type
+!!$    write(*,*) 'mask_state   = ', mask_state == OUTSIDE_MASK
+!!$    do i = 1, numcomp
+!!$       !call nullify_genvec(x)
+!!$       !call nullify_genvec(Ax)
+!!$       x%cmb_amp      = 0.d0
+!!$       x%cmb_amp(i,3) = 1.d0
+!!$!    write(*,*) 'a', x%cmb_amp(6,:)
+!!$!    write(*,*) 'a', sum(abs(x%cmb_amp(6,:)))
+!!$       call compute_Au(x, Ax)
+!!$!    write(*,*) 'b', Ax%cmb_amp(6,:)
+!!$!    write(*,*) 'b', sum(abs(Ax%cmb_amp(6,:)))
+!!$       call compute_invM_u(Ax, x)
+!!$       write(*,*) i, x%cmb_amp(i,3), sum(abs(x%cmb_amp)), sum(abs(x%fg_amp)), sum(abs(x%temp_amp))
+!!$    end do
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+
 !    call genvec_set_equal(x, x_out)
 !    call multiply_by_sqrt_S(.false., x_out%cmb_amp)
 !    call output_maps_from_iteration(256, 750, 0, 0, 'chains_cls', x_out%cmb_amp)

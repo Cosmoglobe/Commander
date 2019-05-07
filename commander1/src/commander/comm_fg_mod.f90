@@ -38,6 +38,7 @@ module comm_fg_mod
   integer(i4b),    allocatable, dimension(:),   private :: s_reg
   real(dp),        allocatable, dimension(:),   private :: amp_reg, w_reg, scale_reg
   real(dp),        allocatable, dimension(:,:), private :: d_reg, invN_reg
+  real(dp),        allocatable, dimension(:),   private :: x_def
   type(fg_params), allocatable, dimension(:),   private :: fg_par_reg
 
   integer(i4b),                                 private :: namp, blocksize
@@ -333,18 +334,18 @@ contains
     
     alpha = 1.d0
 
-    if (trim(noise_format) /= 'rms') then
-       write(*,*) 'ERROR -- MUST BE FIXED!!'
-       alpha = 0.05d0
-       par = par_map(region%pix(1,1),region%pix(1,2),p) 
-       chisq_in = (par+3.1d0)**2 / 0.3d0**3
-       par = par + alpha * rand_gauss(handle)
-       chisq_out = (par+3.1d0)**2 / 0.3d0**3
-       do i = 1, region%n
-          par_map(region%pix(i,1),region%pix(i,2),p) = par
-       end do
-       return
-    end if
+!!$    if (trim(noise_format) /= 'rms') then
+!!$       write(*,*) 'ERROR -- MUST BE FIXED!!'
+!!$       alpha = 0.05d0
+!!$       par = par_map(region%pix(1,1),region%pix(1,2),p) 
+!!$       chisq_in = (par+3.1d0)**2 / 0.3d0**3
+!!$       par = par + alpha * rand_gauss(handle)
+!!$       chisq_out = (par+3.1d0)**2 / 0.3d0**3
+!!$       do i = 1, region%n
+!!$          par_map(region%pix(i,1),region%pix(i,2),p) = par
+!!$       end do
+!!$       return
+!!$    end if
 
 
     ! Prepare reduced data set
@@ -488,6 +489,7 @@ contains
                 ! Draw an actual sample
                 par = sample_InvSamp(handle, x_init, lnL_specind_ARS, fg_components(comp)%priors(p_local,1:2), &
                      & status=status)
+
              end if
                 
              if (status /= 0) then
@@ -704,11 +706,12 @@ contains
              df(i,j) = -amp_reg(i) * get_effective_deriv_fg_spectrum(fg_components(comp_reg), &
                   & j, p_local_reg, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)) * w_reg(i)
           end if
+          !write(*,*) i, j, lnL
           !write(*,*) 'a', real(f,sp), real(amp_reg(i),sp), real(par(1:n),sp)
 !!$          if (pix_reg(i,1) == 22946) then
-!!$             write(*,fmt='(i6,7e16.8)') j, x, par(p_local_reg), d_reg(i,j), amp_reg(i), &
-!!$                  & get_effective_fg_spectrum(fg_components(comp_reg), &
-!!$                  & j, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)), w_reg(i), lnL
+!             write(*,fmt='(i6,7e16.8)') j, x, par(p_local_reg), d_reg(i,j), amp_reg(i), &
+!                  & get_effective_fg_spectrum(fg_components(comp_reg), &
+!x                  & j, par(1:n), pixel=pix_reg(i,1), pol=pix_reg(i,2)), w_reg(i), lnL
 !!$          end if
        end do
     end do
@@ -830,6 +833,8 @@ contains
     allocate(all_residuals(0:npix-1,numband))
     allocate(all_inv_N(0:npix-1,numband))
     allocate(my_fg_amp(0:npix-1,1,num_fg_comp))
+    allocate(x_def(num_fg_comp))
+
     if (myid_chain == root) then
        all_residuals = residuals_in(:,1,:)
        all_inv_N     = inv_N_in(:,1,:)
@@ -848,9 +853,12 @@ contains
     call mpi_bcast(ind_map,     size(ind_map),     MPI_DOUBLE_PRECISION, root, comm_chain, ierr)
 
     namp = 0
+    ! NEW
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM') namp = namp+1
+       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. & 
+            & fg_components(i)%sample_amplitudes) namp = namp+1
     end do
+
     npar = namp
     do i = 1, num_fg_comp
        do j = 1, fg_components(i)%npar
@@ -927,11 +935,23 @@ contains
        chisq     = 1.d30
        converged = .false.
        x_prop    = 0.d0
+       
+       x_def     = my_fg_amp(p,1,:) ! Saving default amplitude values
+       
+       !if (myid_chain == 0) then
+       !   write(*,*) "x_def", x_def
+       !   !write(*,*) "namp", namp, "npar", npar
+       !end if
+       
        do counter = 1, 100
 
           if (.true. .or. counter == 1) then
+             !if (myid_chain == 0) then
+             !   write(*,*) "This goes in ", my_fg_amp(p,1,:)
+             !end if
+       
              ! Initialize on old solution
-             x(1:namp)      = amp2x(namp,my_fg_amp(p,1,:))
+             x(1:namp)      = amp2x(namp,my_fg_amp(p,1,:)) ! Save all amplitudes to be sampled here.
              x(namp+1:npar) = par2x(npar-namp,ind_map(p,1,:))
              scale_reg = abs(x)
              where (scale_reg < 1.d-12)
@@ -945,6 +965,7 @@ contains
                 stop
              end if
           else 
+             !write(*,*) "lol"
              ! Draw a random sample over the prior
              x(1:namp) = amp2x(namp,my_fg_amp(p,1,:))
              k = 1
@@ -985,6 +1006,9 @@ contains
           if (chisq <= chisq0) then
              chisq0           = chisq
              my_fg_amp(p,1,:) = x2amp(num_fg_comp,x(1:namp))
+             !if (myid_chain == 0) then
+             !   write(*,*) "This comes out ", my_fg_amp(p,1,:)
+             !end if
              ind_map(p,1,:)   = x2par(nind,x(namp+1:npar))
           end if
           if (converged) then
@@ -1077,6 +1101,7 @@ contains
 
     deallocate(A, x, x_prop, b, M, all_inv_N, all_residuals, my_residual, my_inv_N, scale_reg)
     deallocate(my_fg_amp, ind_map, p_default)
+    deallocate(x_def)
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
@@ -1113,14 +1138,16 @@ contains
     real(dp),     dimension(n)               :: res
 
     integer(i4b) :: i, j, k, l
-
+    ! NEW 
     k = 1
+    ! Putting amplitude into sampling array. Do not put amplitudes that are not supposed to be sampled in.
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM') then
+       if (trim(fg_components(i)%type) /= 'freefree_EM' .and. fg_components(i)%sample_amplitudes) then
           res(k) = p(i)
           k      = k+1
        end if
     end do
+
 
   end function amp2x
   
@@ -1159,13 +1186,28 @@ contains
     integer(i4b) :: i, j, k, l
 
     k = 1
+    ! NEW
+    ! Fetch all sampled amplitudes, those that were not sampled, get from prev.
+
     do i = 1, num_fg_comp
-       if (trim(fg_components(i)%type) /= 'freefree_EM') then
+       if (.not. fg_components(i)%sample_amplitudes) then ! Freeze amplitudes
+          !if (myid_chain == 0) then
+          !   write(*,*) "i", i
+          !   write(*,*) "fgcomps sample", fg_components(i)%sample_amplitudes
+          !   write(*,*) "comp", fg_components(i)%type
+          !   write(*,*) x_def(i)
+          !end if
+          res(i) = x_def(i) ! Set amplitudes to previous value
+          ! x_def has all initial aplitude values stored
+          ! Does it contain the right stuff though?
+          cycle
+       else if (trim(fg_components(i)%type) /= 'freefree_EM') then
           res(i) = x(k)
           k      = k+1
        else
           res(i) = 1.d0
        end if
+
     end do
 
   end function x2amp
@@ -1182,15 +1224,21 @@ contains
 
     npar = size(p)
     allocate(fg_amp(num_fg_comp), fg_ind(nind))
-    fg_amp = x2amp(num_fg_comp,p(1:namp)*scale_reg(1:namp))
+    ! x2amp(2,p(1:1)*scale_reg(1:1))
+    fg_amp = x2amp(num_fg_comp,p(1:namp)*scale_reg(1:namp)) ! p=x here. fg_amp is namp+1
     fg_ind = x2par(nind,p(namp+1:npar)*scale_reg(namp+1:npar))
 
-!!$    if (myid_chain == 0) then
-!!$       write(*,*) 'p      = ', real(p,sp)
-!!$       write(*,*) 'fg_amp = ', real(fg_amp,sp)
-!!$       write(*,*) 'fg_ind = ', real(fg_ind,sp)
-!!$    end if
 
+    !if (myid_chain == 0) then
+    !   write(*,*) "p", p, "namp",namp, "p()",p(1:namp)
+    !   write(*,*) 'fg_amp = ', fg_amp
+       !write(*,*) 'fg_ind = ', real(fg_ind,sp)
+    !end if
+    
+    
+    !call mpi_finalize(i)
+    !stop
+    
     ! Check priors
     do i = 1, num_fg_comp
        if (fg_components(i)%enforce_positive_amplitude .and. fg_amp(i) < 0.d0) then
@@ -1238,7 +1286,7 @@ contains
     end do
 
     fg_init_chisq = chisq + prior
-
+    
     if (.false.) then
        write(*,*) 'amp   = ', real(fg_amp,sp)
        write(*,*) 'ind   = ', real(fg_ind,sp)
@@ -1246,9 +1294,10 @@ contains
        write(*,*) 'prior = ', real(prior,sp)
        write(*,*) 'total = ', real(fg_init_chisq,sp)
        write(*,*)
+       
     end if
-!!$    call mpi_finalize(ierr)
-!!$    stop
+    !call mpi_finalize(ierr)
+    !stop
 
     deallocate(fg_amp, fg_ind)
 
@@ -1310,7 +1359,7 @@ contains
     call mpi_bcast(fg_amp0,      size(fg_amp0),      MPI_DOUBLE_PRECISION, root, comm_chain, ierr)
     call mpi_bcast(cdir,         len(cdir),          MPI_CHARACTER,        root, comm_chain, ierr)
     my_fg_amp = -1.d60
-
+    write(*,*) "ENFORCING POS AMPLITUDES"
     nval = count(inv_N(:,1,1) /= 0.d0)
     allocate(mask2map(nval))
     j = 1
@@ -1562,7 +1611,7 @@ contains
                 p(j,1) = xi
              end do
           end do
-
+          write(*,*) "Enforcing positive amplitude"
           my_fg_amp(i,1,:) = p(:,1)
 
           chisq = 0.d0

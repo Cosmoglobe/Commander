@@ -213,7 +213,7 @@ contains
 
     if (any(Cl_bin_stat(:,1) /= '0')) then
        ! Set monopole and dipole to a large value
-       cls_out(0:1,1) = 1.d4
+       cls_out(0:1,1) = 1.d3
     end if
 
     deallocate(cl, cl_in, buffer)

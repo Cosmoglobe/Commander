@@ -34,7 +34,7 @@ program commander
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group
   real(dp)            :: t0, t1, t2, t3
   type(comm_params)   :: cpar
-  type(planck_rng)    :: handle
+  type(planck_rng)    :: handle, handle_noise
 
   type(comm_mapinfo), pointer :: info
   type(comm_map), pointer :: m
@@ -54,7 +54,7 @@ program commander
   call read_comm_params(cpar)
   if (cpar%myid == cpar%root) call wall_time(t3)
   
-  call initialize_mpi_struct(cpar, handle)
+  call initialize_mpi_struct(cpar, handle, handle_noise)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   status%active = cpar%myid == 0 !.false.
@@ -129,6 +129,10 @@ program commander
         write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
 
+     ! Process TOD structures
+     if (cpar%enable_TOD_analysis) call process_TOD(cpar)
+
+
      ! Sample linear parameters with CG search; loop over CG sample groups
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_samp_groups
@@ -136,7 +140,7 @@ program commander
               write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                    & samp_group, ' of ', cpar%cg_num_samp_groups
            end if
-           call sample_amps_by_CG(cpar, samp_group, handle)
+           call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
         end do
      end if
 
@@ -181,5 +185,32 @@ program commander
   ! And exit
   call free_status(status)
   call mpi_finalize(ierr)
+
+
+contains
+
+  subroutine process_TOD(cpar)
+    implicit none
+    type(comm_params), intent(in) :: cpar
+
+    integer(i4b) :: i, j, ndet
+    type(map_ptr), allocatable, dimension(:) :: s_sky
+
+    do i = 1, numband
+       if (trim(cpar%ds_tod_type(i)) == 'none') cycle
+
+       ! Compute current sky signal
+       allocate(s_sky(data(i)%tod%ndet))
+       do j = 1, data(i)%tod%ndet
+          s_sky(j)%p => comm_map(data(i)%info)
+          call get_sky_signal(i, j, s_sky(j)%p)  ! Currently returns the same signal for each detector
+       end do
+
+       ! Process TOD, get new map and rms map
+       call data(i)%tod%process_tod(s_sky, data(i)%map, data(i)%N%siN)
+
+    end do
+
+  end subroutine process_TOD
 
 end program commander

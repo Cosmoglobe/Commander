@@ -4,11 +4,13 @@ module comm_data_mod
   use comm_noise_mod
   use comm_beam_mod
   use comm_map_mod
+  use comm_tod_mod
+  use comm_tod_LFI_mod
   use locate_mod
   implicit none
 
   type comm_data_set
-     character(len=512)           :: label, unit
+     character(len=512)           :: label, unit, comp_sens
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
      real(dp)                     :: gain
@@ -21,6 +23,7 @@ module comm_data_mod
      class(comm_map),     pointer :: mask
      class(comm_map),     pointer :: procmask
      class(comm_map),     pointer :: gainmask
+     class(comm_tod),     pointer :: tod
      class(comm_N),       pointer :: N
      class(comm_bp),      pointer :: bp
      class(comm_B),       pointer :: B
@@ -68,6 +71,7 @@ contains
        data(n)%gain_comp   = cpar%ds_gain_calib_comp(i)
        data(n)%gain_lmin   = cpar%ds_gain_lmin(i)
        data(n)%gain_lmax   = cpar%ds_gain_lmax(i)
+       data(n)%comp_sens    = cpar%ds_component_sensitivity(i)
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
@@ -81,6 +85,8 @@ contains
        data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
 
+!       call data(n)%map%writeFITS('data.fits')
+
 !!$       data(n)%res => comm_map(data(n)%map)
 !!$       call data(n)%res%writeFITS('res1.fits')
 !!$       call data(n)%res%YtW()
@@ -88,8 +94,8 @@ contains
 !!$       call data(n)%res%writeFITS('res2.fits')
 !!$       data(n)%res%map = data(n)%map%map - data(n)%res%map
 !!$       call data(n)%res%writeFITS('res3.fits')
-!!$       call mpi_finalize(ierr)
-!!$       stop
+!       call mpi_finalize(ierr)
+!       stop
 
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
@@ -140,6 +146,7 @@ contains
                & data(n)%B%r_max)
        end if
        if (cpar%only_pol) data(n)%mask%map(:,1) = 0.d0
+       data(n)%map%map  = data(n)%map%map  * data(n)%mask%map ! Apply mask to map to avoid surprises
        call update_status(status, "data_mask")
        deallocate(mask_misspix)
 
@@ -200,6 +207,15 @@ contains
           end if
        end do
 
+       ! Initialize TOD structures
+       if (cpar%enable_TOD_analysis) then
+          if (trim(cpar%ds_tod_type(n)) == 'LFI') then
+             data(n)%tod => comm_LFI_tod(cpar)             
+          else
+             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(n))
+             stop
+          end if
+       end if
     end do
     numband = n
     if (cpar%myid == 0 .and. cpar%verbosity > 0) &
@@ -234,6 +250,8 @@ contains
     case ('y_SZ') 
        RJ2data = self%bp%a2sz
     case ('uK_RJ') 
+       RJ2data = 1.d0
+    case ('K km/s') ! NEW
        RJ2data = 1.d0
     end select
     
@@ -391,49 +409,6 @@ contains
     call map_out%Y
 
   end subroutine smooth_map
-
-  subroutine smooth_map_scalar(info, alms_in, bl_in, map_in, bl_out, map_out)
-    implicit none
-    class(comm_mapinfo),                      intent(in),   target :: info
-    logical(lgt),                             intent(in)           :: alms_in
-    real(dp),            dimension(0:,1:),    intent(in)           :: bl_in, bl_out
-    class(comm_map),                          intent(inout)        :: map_in
-    class(comm_map),                          intent(out), pointer :: map_out
-
-    integer(i4b) :: i, j, l, lmax, nmaps
-
-    map_out => comm_map(info)
-
-    if (.not. alms_in) then
-       !map_out%map = map_in%map
-       call map_in%udgrade(map_out)
-       call map_out%YtW_scalar
-    else
-       call map_in%alm_equal(map_out)
-    end if
-
-
-    ! Deconvolve old beam, and convolve with new beam
-    lmax  = min(size(bl_in,1)-1, size(bl_out,1)-1)
-    do i = 0, info%nalm-1
-       l = info%lm(1,i)
-       if (l > lmax) then
-          map_out%alm(i,:) = 0.d0
-          cycle
-       end if
-       do j = 1, map_out%info%nmaps
-          if (bl_in(l,j) > 1.d-12) then
-             map_out%alm(i,j) = map_out%alm(i,j) * bl_out(l,1) / bl_in(l,1)
-          else
-             map_out%alm(i,j) = 0.d0
-          end if
-       end do
-    end do    
-
-    ! Recompose map
-    call map_out%Y_scalar
-    
-  end subroutine smooth_map_scalar
 
   subroutine get_mapfile(cpar, band, mapfile)
     implicit none

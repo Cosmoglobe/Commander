@@ -196,6 +196,7 @@ contains
     call mpi_bcast(output_cmb_freq_map, 1,   MPI_LOGICAL,   root, comm_alms, ierr)    
     call mpi_bcast(output_mixmat,       1,   MPI_LOGICAL,   root, comm_alms, ierr)    
     call mpi_bcast(reg_noise,           1,   MPI_DOUBLE_PRECISION,root, comm_alms, ierr)    
+    call mpi_bcast(sample_inside_mask,  1,   MPI_LOGICAL,   root, comm_alms, ierr)    
 
     call get_pixels(pixels)
     map_size = size(pixels)

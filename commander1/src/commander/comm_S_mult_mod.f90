@@ -63,7 +63,7 @@ contains
     do l = 0, lmax
        if (l <= 1) then
           if (any(cls(:,1) /= 0.d0)) then
-             S(1,1,l) = 10000.d0
+             S(1,1,l) = 1.d12
              !S(1,1,l) = 0.d0
           else
              S(1,1,l) = 0.d0

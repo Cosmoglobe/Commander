@@ -69,6 +69,7 @@ module comm_map_mod
      procedure     :: getSigmaL
      procedure     :: getCrossSigmaL
      procedure     :: smooth
+     procedure     :: bcast_fullsky_map
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -1041,5 +1042,31 @@ contains
     end do
 
   end subroutine getCrossSigmaL
+
+  subroutine bcast_fullsky_map(self, map)
+    implicit none
+    class(comm_map),                    intent(in)   :: self
+    real(dp),         dimension(0:,1:), intent(out)  :: map
+
+    integer(i4b) :: i, nmaps, npix, np, ierr
+    real(dp),     allocatable, dimension(:,:) :: buffer
+    integer(i4b), allocatable, dimension(:)   :: p
+    
+    npix  = self%info%npix
+    nmaps = self%info%nmaps
+
+    allocate(p(npix))
+    do i = 0, self%info%nprocs-1
+       call mpi_bcast(np,       1, MPI_INTEGER, i, self%info%comm, ierr)
+       call mpi_bcast(p(1:np), np, MPI_INTEGER, i, self%info%comm, ierr)
+       allocate(buffer(np,nmaps))
+       if (self%info%myid == i) buffer = self%map
+       call mpi_bcast(buffer, np*nmaps, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
+       map(p(1:np),:) = buffer(1:np,:)
+       deallocate(buffer)
+    end do
+    deallocate(p)
+
+  end subroutine bcast_fullsky_map
   
 end module comm_map_mod
