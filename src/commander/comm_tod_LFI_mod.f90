@@ -3,6 +3,7 @@ module comm_tod_LFI_mod
   use comm_param_mod
   use comm_map_mod
   implicit none
+  include 'fftw3.f'
 
   private
   public comm_LFI_tod
@@ -116,7 +117,7 @@ contains
        ! Construct sidelobe template -- Mathew -- long term
        call self%construct_sl_template()
        ! Fit correlated noise -- Haavard -- this week-ish
-
+       call self%sample_n_corr(i, s_sky, s_sl, s_orb, n_corr)
        ! Fit gain for current scan -- Eirik -- this week
 
        ! .. Compute contribution to absolute calibration from current scan .. -- let's see
@@ -197,20 +198,76 @@ contains
     class(comm_LFI_tod),               intent(inout)  :: self
     integer(i4b),                      intent(in)     :: det
     real(sp),            dimension(:), intent(in)     :: n_corr, s_sky, s_sl, s_orb
-
+    
 
   end subroutine sample_gain
 
   ! Compute correlated noise term, n_corr
-  subroutine sample_n_corr(self, det, s_sky, s_sl, s_orb, n_corr)
+  subroutine sample_n_corr(self, scan, s_sky, s_sl, s_orb, n_corr)
     implicit none
     class(comm_LFI_tod),               intent(in)     :: self
-    integer(i4b),                      intent(in)     :: det
-    real(sp),            dimension(:), intent(in)     :: s_sky, s_sl, s_orb
-    real(sp),            dimension(:), intent(out)    :: n_corr
+    integer(i4b),                      intent(in)     :: scan
+    real(sp),          dimension(:,:), intent(in)     :: s_sky, s_sl, s_orb
+    real(sp),          dimension(:,:), intent(out)    :: n_corr
+    integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads
+    integer*8    :: plan_fwd, plan_back
+    real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
+    real(sp),     allocatable, dimension(:) :: d_prime
     
-    n_corr = 0.d0
+    ntod = self%scans(scan)%ntod
+    ndet = self%ndet
+    nomp = omp_get_max_threads()
+    samprate = self%samprate
+    n = ntod + 1
 
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
+
+    allocate(dt(2*ntod), dv(0:n-1))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
+    deallocate(dt, dv)
+    !$OMP PARALLEL PRIVATE(i,l,dt,dv,nu,sigma_0,alpha,nu_knee)
+    allocate(dt(2*ntod), dv(0:n-1))
+    !$OMP DO SCHEDULE(guided)
+    allocate(d_prime(ntod))
+    do i = 1, ndet
+       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sky(:,i) - S_sl(:,i) - S_orb(:,i)
+!       if (i == 1 .and. scan == 1) then
+!          open(22, file="tod.unf", form="unformatted") ! Adjusted open statement
+!          write(22) d_prime
+!          close(22)
+!       end if
+
+       dt(1:ntod)           = d_prime(:)
+       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       sigma_0 = self%scans(scan)%d(i)%sigma0
+       alpha = self%scans(scan)%d(i)%alpha
+       nu_knee = self%scans(scan)%d(i)%fknee
+       do l = 0, n-1                                                      
+          nu = l*(samprate/2)/(n-1)
+          dv(l) = dv(l) * 1.d0/(1.d0 + (nu/nu_knee)**(-alpha))          
+       end do
+       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+       dt          = dt / (2*ntod)
+       n_corr(:,i) = dt(1:ntod)
+!       if (i == 1 .and. scan == 1) then
+!          open(22, file="n_corr.unf", form="unformatted") ! Adjusted open statement
+!          write(22) n_corr(:,i)
+!          close(22)
+!       end if
+
+    end do
+    !$OMP END DO                                                          
+    deallocate(dt, dv)                                                    
+    !$OMP END PARALLEL
+    
+    call sfftw_destroy_plan(plan_fwd)                                           
+    call sfftw_destroy_plan(plan_back)                                          
+  
   end subroutine sample_n_corr
 
   !construct a sidelobe template in the time domain
