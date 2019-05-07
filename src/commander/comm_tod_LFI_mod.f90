@@ -11,6 +11,7 @@ module comm_tod_LFI_mod
    contains
      procedure     :: process_tod        => process_LFI_tod
      procedure     :: compute_binned_map
+     procedure     :: project_sky
      procedure     :: compute_orbital_dipole
      procedure     :: sample_gain
      procedure     :: sample_n_corr
@@ -60,7 +61,7 @@ contains
   subroutine process_LFI_tod(self, map_in, map_out, rms_out)
     implicit none
     class(comm_LFI_tod),               intent(in)    :: self
-    type(map_ptr),       dimension(:), intent(in)    :: map_in            ! One map per detector
+    type(map_ptr),       dimension(:), intent(in)    :: map_in           ! One map per detector
     class(comm_map),                   intent(inout) :: map_out, rms_out ! Combined output map and rms
 
     integer(i4b) :: i, j, ntod, ndet, nside, npix, nmaps
@@ -110,9 +111,11 @@ contains
        ! --------------------
 
        ! Construct sky signal template -- Maksym -- this week
-
+       do j = 1, ndet
+          call self%project_sky(map_sky(:, :, j), i, j, s_sky(:, j))!scan_id, det,  s_sky(:, j))
+       end do
        ! Construct orbital dipole template -- Kristian -- this week-ish
-       call self%compute_orbital_dipole(i,s_orb)
+       call self%compute_orbital_dipole(i, s_orb)
        ! Construct sidelobe template -- Mathew -- long term
        call self%construct_sl_template()
        ! Fit correlated noise -- Haavard -- this week-ish
@@ -190,6 +193,26 @@ contains
 
   end subroutine compute_binned_map
   
+  ! Sky signal template
+  subroutine project_sky(self, map, scan_id, det, s_sky)
+    implicit none
+    class(comm_LFI_tod),                  intent(in)  :: self
+    real(dp),            dimension(:,:),  intent(in)  :: map
+    integer(i4b),                         intent(in)  :: scan_id, det
+    real(sp),            dimension(:),    intent(out) :: s_sky
+    integer(i4b)                                      :: i, pix
+    real(dp)                                          :: psi
+
+    ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
+    ! T - temperature; Q, U - Stoke's parameters
+    do i = 1, self%scans(scan_id)%ntod
+       pix = self%scans(scan_id)%d(det)%pix(i)
+       psi = self%scans(scan_id)%d(det)%psi(i)
+       s_sky(i) = map(pix, 1) + map(pix, 2) * cos(2.d0 * psi) + map(pix, 3) * sin(2.d0 * psi)
+    end do
+
+  end subroutine project_sky
+
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   subroutine sample_gain(self, det, n_corr, s_sky, s_sl, s_orb)
