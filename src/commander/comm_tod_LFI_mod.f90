@@ -11,6 +11,7 @@ module comm_tod_LFI_mod
    contains
      procedure     :: process_tod        => process_LFI_tod
      procedure     :: compute_binned_map
+     procedure     :: compute_orbital_dipole
      procedure     :: sample_gain
      procedure     :: sample_n_corr
      procedure     :: compute_cleaned_tod
@@ -97,6 +98,12 @@ contains
        allocate(s_sl(ntod, ndet))               ! Sidelobe in uKcmb
        allocate(s_sky(ntod, ndet))              ! Stationary sky signal in uKcmb
        allocate(s_orb(ntod, ndet))              ! Orbital dipole in uKcmb
+
+       ! Initializing arrays to zero
+       n_corr = 0.d0
+       s_sl = 0.d0
+       s_sky = 0.d0
+       s_orb = 0.d0
 
        ! --------------------
        ! Analyze current scan
