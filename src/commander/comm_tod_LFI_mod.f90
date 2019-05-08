@@ -61,8 +61,8 @@ contains
   !**************************************************
   subroutine process_LFI_tod(self, map_in, map_out, rms_out)
     implicit none
-    class(comm_LFI_tod),               intent(in)    :: self
-    type(map_ptr),       dimension(:), intent(in)    :: map_in           ! One map per detector
+    class(comm_LFI_tod),               intent(inout)    :: self
+    type(map_ptr),       dimension(:), intent(in)    :: map_in            ! One map per detector
     class(comm_map),                   intent(inout) :: map_out, rms_out ! Combined output map and rms
 
     integer(i4b) :: i, j, ntod, ndet, nside, npix, nmaps
@@ -128,6 +128,9 @@ contains
        call self%sample_n_corr(i, s_sky, s_sl, s_orb, n_corr)
 
        ! Fit gain for current scan -- Eirik -- this week
+       do j = 1, ndet
+          call sample_gain(self, j, i, n_corr(:, j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
+       end do
 
        ! .. Compute contribution to absolute calibration from current scan .. -- let's see
 
@@ -222,12 +225,27 @@ contains
 
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
-  subroutine sample_gain(self, det, n_corr, s_sky, s_sl, s_orb)
+  subroutine sample_gain(self, det, scan_id, n_corr, s_sky, s_sl, s_orb)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
-    integer(i4b),                      intent(in)     :: det
+    integer(i4b),                      intent(in)     :: det, scan_id
     real(sp),            dimension(:), intent(in)     :: n_corr, s_sky, s_sl, s_orb
-    
+    real(dp),            allocatable,  dimension(:)   :: d_only_wn
+    real(dp),            allocatable,  dimension(:)   :: gain_template
+    real(dp)                                          :: curr_gain, ata
+    real(dp)                                          :: curr_sigma
+
+    allocate(d_only_wn(size(s_sl)))
+    allocate(gain_template(size(s_sl)))
+    d_only_wn = self%scans(scan_id)%d(det)%tod - s_sl - n_corr
+    gain_template = s_sky + s_orb
+    ata = sum(gain_template**2)
+    curr_gain = sum(d_only_wn * gain_template) / ata
+    curr_sigma = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)
+    self%scans(scan_id)%d(det)%gain = curr_gain
+    self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
+
+    deallocate(d_only_wn)
 
   end subroutine sample_gain
 
