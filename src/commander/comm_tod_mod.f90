@@ -10,7 +10,7 @@ module comm_tod_mod
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
-     real(dp)          :: gain                            ! Gain; assumed constant over scan
+     real(dp)          :: gain, gain_sigma                ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
      real(dp)          :: samprate                        ! Sample rate in Hz
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
@@ -51,7 +51,7 @@ module comm_tod_mod
      subroutine process_tod(self, map_in, map_out, rms_out)
        import comm_tod, comm_map, map_ptr
        implicit none
-       class(comm_tod),                 intent(in)    :: self
+       class(comm_tod),                 intent(inout)    :: self
        type(map_ptr),     dimension(:), intent(in)    :: map_in            
        class(comm_map),                 intent(inout) :: map_out, rms_out  
      end subroutine process_tod
