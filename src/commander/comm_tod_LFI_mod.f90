@@ -71,6 +71,8 @@ contains
     real(dp), allocatable, dimension(:,:)   :: map_tot, rms_tot
     real(dp), allocatable, dimension(:,:,:) :: map_sky
     real(dp), allocatable, dimension(:)     :: A_abscal, b_abscal
+    real(dp), allocatable, dimension(:,:,:) :: A_map
+    real(dp), allocatable, dimension(:,:)   :: b_map
 
     ! Set up full-sky map structures
     ndet  = self%ndet
@@ -78,6 +80,7 @@ contains
     nmaps = map_out%info%nmaps
     npix  = 12*nside**2
     allocate(map_tot(0:npix-1,nmaps), rms_tot(0:npix-1,nmaps))
+    allocate(A_map(0:npix-1,nmaps,nmaps), b_map(0:npix-1,nmaps))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(map_sky(0:npix-1,nmaps,ndet))
     ! This step should be optimized -- currently takes 6 seconds..
@@ -88,6 +91,8 @@ contains
     ! Compute output map and rms
     map_tot  = 0.d0
     rms_tot = 0.d0
+    A_map = 0.d0
+    b_map = 0.d0
     !A_abscal = 0.d0
     !b_abscal = 0.d0
     do i = 1, self%nscan
@@ -140,7 +145,10 @@ contains
        call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib)
 
        ! Compute binned map from cleaned TOD -- Marie -- this week
-       
+       do j = 1, ndet
+          call self%compute_binned_map(d_calib, A_map, b_map, i, j)
+       end do
+
        ! Clean up
        deallocate(n_corr, s_sl, s_sky, s_orb, d_calib)
 
@@ -149,12 +157,13 @@ contains
     ! Compute absolute calibration, summed over all scans, and rescale output maps
 
     ! Solve combined map, summed over all pixels -- Marie -- weeks
+    call finalize_binned_map(A_map, b_map, map_tot, rms_tot)
 
     ! Copy rescaled maps to final output structure
-    !map_out%map  = map_tot(map_out%info%pix,:)
-    !rms_out%map = rms_tot(rms_out%info%pix,:)
+    map_out%map = map_tot(map_out%info%pix,:)
+    rms_out%map = rms_tot(rms_out%info%pix,:)
 
-    deallocate(map_tot, rms_tot, map_sky)
+    deallocate(map_tot, rms_tot, map_sky, A_map, b_map)
 
   end subroutine process_LFI_tod
 
@@ -193,15 +202,79 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine compute_binned_map(self, map, rms)
+  subroutine compute_binned_map(self, data, A, b, scan, det)
     implicit none
-    class(comm_LFI_tod),                 intent(in)  :: self
-    real(dp),            dimension(:,:), intent(out) :: map, rms
+    class(comm_LFI_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan, det
+    real(sp),            dimension(:,:),   intent(in)    :: data
+    real(dp),            dimension(:,:,:), intent(inout) :: A
+    real(dp),            dimension(:,:),   intent(inout) :: b
 
-    map = 0.d0
-    rms = 0.d0
+    integer(i4b) :: i, j, t
+    real(dp)     :: pix, cos_psi, sin_psi, sigma
+
+
+    do t = 1, self%scans(scan)%ntod
+
+       if (iand(self%scans(scan)%d(det)%flag(t),6111248) .ne. 0) cycle
+
+       pix = self%scans(scan)%d(det)%pix(t)
+       cos_psi = cos(2.d0*self%scans(scan)%d(det)%psi(t))
+       sin_psi = sin(2.d0*self%scans(scan)%d(det)%psi(t))
+       sigma = self%scans(scan)%d(det)%sigma0
+       
+       A(pix,0,0) = A(pix,0,0) + 1.d0 / sigma
+       A(pix,0,1) = A(pix,0,1) + cos_psi / sigma
+       A(pix,0,2) = A(pix,0,2) + sin_psi / sigma
+       A(pix,1,1) = A(pix,1,1) + cos_psi**2 / sigma
+       A(pix,1,2) = A(pix,1,2) + cos_psi*sin_psi / sigma
+       A(pix,2,2) = A(pix,2,2) + sin_psi**2 / sigma
+
+       b(pix,0) = b(pix,0) + data(t,det) / sigma
+       b(pix,1) = b(pix,1) + data(t,det) * cos_psi / sigma
+       b(pix,2) = b(pix,2) + data(t,det) * sin_psi / sigma
+
+    end do
+
+    ! should this be in finalize_binned_map???
+    A(:,1,0) = A(:,0,1)
+    A(:,2,0) = A(:,0,2)
+    A(:,2,1) = A(:,1,2)
+
 
   end subroutine compute_binned_map
+
+  subroutine finalize_binned_map(A, b, map, rms)
+    implicit none
+    real(dp), dimension(:,:,:), intent(in) :: A
+    real(dp), dimension(:,:),   intent(in) :: b
+    real(dp), dimension(:,:),   intent(inout) :: map, rms
+
+    integer(i4b) :: i, j, npix, nmaps
+    real(dp), allocatable, dimension(:,:) :: A_inv
+
+    npix = size(map, dim=1)
+    nmaps = size(map, dim=2)
+
+    allocate(A_inv(nmaps,nmaps))
+
+    do i = 0, npix-1
+       ! map
+       call solve_system_real(A(i,:,:), map(i,:), b(i,:))
+
+       ! rms
+       A_inv = A(i,:,:)
+       call invert_matrix(A_inv, .true.)
+       do j = 1, nmaps
+          rms(i,j) = A_inv(j,j)
+       end do
+
+    end do
+
+    deallocate(A_inv)
+
+  end subroutine finalize_binned_map
+
   
   ! Sky signal template
   subroutine project_sky(self, map, scan_id, det, s_sky)
