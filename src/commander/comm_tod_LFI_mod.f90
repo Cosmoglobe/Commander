@@ -282,7 +282,7 @@ contains
     allocate(d_prime(ntod))
     !$OMP DO SCHEDULE(guided)
     do i = 1, ndet
-       gain = 1.d-6 / self%scans(scan)%d(i)%gain  ! Gain in V / muK
+       gain = 1.d-6 * self%scans(scan)%d(i)%gain  ! Gain in V / muK
        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain
        ! if (i == 1 .and. scan == 1) then
        !    open(22, file="tod.unf", form="unformatted") ! Adjusted open statement
@@ -298,7 +298,7 @@ contains
 
        ! if (i == 1 .and. scan == 1) then
        !    open(22, file="sky.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) S_sky(:,i) / gain
+       !    write(22) S_sky(:,i) * gain
        !    close(22)
        ! end if
 
@@ -323,7 +323,8 @@ contains
 
     end do
     !$OMP END DO                                                          
-    deallocate(dt, dv)                                                    
+    deallocate(dt, dv)                                      
+    deallocate(d_prime)
     !$OMP END PARALLEL
     
     call sfftw_destroy_plan(plan_fwd)                                           
