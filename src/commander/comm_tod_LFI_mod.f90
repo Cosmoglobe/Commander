@@ -264,8 +264,8 @@ contains
     allocate(d_prime(ntod))
     !$OMP DO SCHEDULE(guided)
     do i = 1, ndet
-       gain = self%scans(scan)%d(i)%gain
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - (S_sky(:,i) + S_sl(:,i) + S_orb(:,i)) / gain * 1.d-6
+       gain = 1.d-6 / self%scans(scan)%d(i)%gain  ! Gain in V / muK
+       d_prime(:) = self%scans(scan)%d(i)%tod(:) - (S_sky(:,i) + S_sl(:,i) + S_orb(:,i)) * gain
        ! if (i == 1 .and. scan == 1) then
        !    open(22, file="tod.unf", form="unformatted") ! Adjusted open statement
        !    write(22) self%scans(scan)%d(i)%tod(:)
