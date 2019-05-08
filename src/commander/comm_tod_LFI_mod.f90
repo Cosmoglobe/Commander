@@ -240,7 +240,7 @@ contains
     real(sp),          dimension(:,:), intent(out)    :: n_corr
     integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads
     integer*8    :: plan_fwd, plan_back
-    real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate
+    real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate, gain
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
@@ -249,6 +249,7 @@ contains
     ndet = self%ndet
     nomp = omp_get_max_threads()
     samprate = self%samprate
+    
     n = ntod + 1
 
     call sfftw_init_threads(err)
@@ -263,12 +264,25 @@ contains
     allocate(d_prime(ntod))
     !$OMP DO SCHEDULE(guided)
     do i = 1, ndet
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sky(:,i) - S_sl(:,i) - S_orb(:,i)
-!       if (i == 1 .and. scan == 1) then
-!          open(22, file="tod.unf", form="unformatted") ! Adjusted open statement
-!          write(22) d_prime
-!          close(22)
-!       end if
+       gain = self%scans(scan)%d(i)%gain
+       d_prime(:) = self%scans(scan)%d(i)%tod(:) - (S_sky(:,i) + S_sl(:,i) + S_orb(:,i)) / gain * 1.d-6
+       ! if (i == 1 .and. scan == 1) then
+       !    open(22, file="tod.unf", form="unformatted") ! Adjusted open statement
+       !    write(22) self%scans(scan)%d(i)%tod(:)
+       !    close(22)
+       ! end if
+       
+       ! if (i == 1 .and. scan == 1) then
+       !    open(22, file="d_prime.unf", form="unformatted") ! Adjusted open statement
+       !    write(22) d_prime
+       !    close(22)
+       ! end if
+
+       ! if (i == 1 .and. scan == 1) then
+       !    open(22, file="sky.unf", form="unformatted") ! Adjusted open statement
+       !    write(22) S_sky(:,i) / gain
+       !    close(22)
+       ! end if
 
        dt(1:ntod)           = d_prime(:)
        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
@@ -283,11 +297,11 @@ contains
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        dt          = dt / (2*ntod)
        n_corr(:,i) = dt(1:ntod)
-!       if (i == 1 .and. scan == 1) then
-!          open(22, file="n_corr.unf", form="unformatted") ! Adjusted open statement
-!          write(22) n_corr(:,i)
-!          close(22)
-!       end if
+       ! if (i == 1 .and. scan == 1) then
+       !    open(22, file="n_corr.unf", form="unformatted") ! Adjusted open statement
+       !    write(22) n_corr(:,i)
+       !    close(22)
+       ! end if
 
     end do
     !$OMP END DO                                                          
