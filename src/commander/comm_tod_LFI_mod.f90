@@ -40,7 +40,7 @@ contains
     constructor%numprocs = cpar%numprocs
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
-    call constructor%get_scan_ids("data/filelist_5files.txt")
+    call constructor%get_scan_ids("data/filelist_1year.txt")
 
     constructor%nmaps    = 3
     constructor%ndet     = 4
@@ -68,7 +68,6 @@ contains
     integer(i4b) :: i, j, ntod, ndet, nside, npix, nmaps
     real(dp)     :: t1, t2
     real(sp), allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb
-    real(dp), allocatable, dimension(:,:)   :: map_tot, rms_tot
     real(dp), allocatable, dimension(:,:,:) :: map_sky
     real(dp), allocatable, dimension(:)     :: A_abscal, b_abscal
     real(dp), allocatable, dimension(:,:,:) :: A_map
@@ -79,7 +78,6 @@ contains
     nside = map_out%info%nside
     nmaps = map_out%info%nmaps
     npix  = 12*nside**2
-    allocate(map_tot(0:npix-1,nmaps), rms_tot(0:npix-1,nmaps))
     allocate(A_map(0:npix-1,nmaps,nmaps), b_map(0:npix-1,nmaps))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(map_sky(0:npix-1,nmaps,ndet))
@@ -89,13 +87,13 @@ contains
     end do
 
     ! Compute output map and rms
-    map_tot  = 0.d0
-    rms_tot = 0.d0
     A_map = 0.d0
     b_map = 0.d0
     !A_abscal = 0.d0
     !b_abscal = 0.d0
     do i = 1, self%nscan
+
+       call wall_time(t1)
 
        ! Short-cuts to local variables
        ntod = self%scans(i)%ntod
@@ -110,60 +108,86 @@ contains
 
        ! Initializing arrays to zero
        n_corr = 0.d0
-       s_sl = 0.d0
-       s_sky = 0.d0
-       s_orb = 0.d0
+       s_sl   = 0.d0
+       s_sky  = 0.d0
+       s_orb  = 0.d0
 
        ! --------------------
        ! Analyze current scan
        ! --------------------
 
        ! Construct sky signal template -- Maksym -- this week
+       call wall_time(t1)
        do j = 1, ndet
-          call self%project_sky(map_sky(:,:,j), i, j, s_sky(:,j))!scan_id, det,  s_sky(:, j))
+          call self%project_sky(map_sky(:,:,j), i, j, s_sky(:,j))  ! scan_id, det,  s_sky(:, j))
        end do
+       call wall_time(t2)
+       if (self%myid == 0) write(*,*) 'Project = ', t2-t1
 
        ! Construct orbital dipole template -- Kristian -- this week-ish
+       call wall_time(t1)
        call self%compute_orbital_dipole(i, s_orb)
+       call wall_time(t2)
+       if (self%myid == 0) write(*,*) 'Orb dipole = ', t2-t1
 
        ! Construct sidelobe template -- Mathew -- long term
        call self%construct_sl_template()
 
        ! Fit correlated noise -- Haavard -- this week-ish
+       call wall_time(t1)
        call self%sample_n_corr(i, s_sky, s_sl, s_orb, n_corr)
+       call wall_time(t2)
+       if (self%myid == 0) write(*,*) 'ncorr = ', t2-t1
 
        ! Fit gain for current scan -- Eirik -- this week
+       call wall_time(t1)
        do j = 1, ndet
-          call sample_gain(self, j, i, n_corr(:, j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
+          !call sample_gain(self, j, i, n_corr(:, j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
        end do
+       call wall_time(t2)
+       if (self%myid == 0) write(*,*) 'gain = ', t2-t1
 
        ! .. Compute contribution to absolute calibration from current scan .. -- let's see
 
        ! Compute bandpass corrections, as in s_sky(i) - <s_sky> -- Trygve, after deadline
 
        ! Compute clean and calibrated TOD -- Mathew -- this week
+       call wall_time(t1)
        call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib)
+       call wall_time(t2)
+       if (self%myid == 0) write(*,*) 'clean = ', t2-t1
 
        ! Compute binned map from cleaned TOD -- Marie -- this week
+       call wall_time(t1)
        do j = 1, ndet
           call self%compute_binned_map(d_calib, A_map, b_map, i, j)
        end do
+       call wall_time(t2)
+       if (self%myid == 0) write(*,*) 'bin = ', t2-t1
 
        ! Clean up
        deallocate(n_corr, s_sl, s_sky, s_orb, d_calib)
 
+       call wall_time(t2)
+       if(map_out%info%myid==0) write(*,*) i, self%nscan, t2-t1
     end do
 
     ! Compute absolute calibration, summed over all scans, and rescale output maps
 
     ! Solve combined map, summed over all pixels -- Marie -- weeks
-    call finalize_binned_map(A_map, b_map, map_tot, rms_tot)
+    !call finalize_binned_map(A_map, b_map, map_tot, rms_tot)
+    !map_out%map = map_tot(map_out%info%pix,:)
+    !rms_out%map = rms_tot(rms_out%info%pix,:)
+    call wall_time(t1)
+    call finalize_binned_map(A_map, b_map, map_out, rms_out)
+    call wall_time(t2)
+    if (self%myid == 0) write(*,*) 'final = ', t2-t1
 
-    ! Copy rescaled maps to final output structure
-    map_out%map = map_tot(map_out%info%pix,:)
-    rms_out%map = rms_tot(rms_out%info%pix,:)
+    call map_out%writeFITS('map.fits')
+    call rms_out%writeFITS('rms.fits')
 
-    deallocate(map_tot, rms_tot, map_sky, A_map, b_map)
+    ! Clean up temporary arrays
+    deallocate(map_sky, A_map, b_map)
 
   end subroutine process_LFI_tod
 
@@ -204,70 +228,93 @@ contains
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
   subroutine compute_binned_map(self, data, A, b, scan, det)
     implicit none
-    class(comm_LFI_tod),                   intent(in)    :: self
-    integer(i4b),                          intent(in)    :: scan, det
-    real(sp),            dimension(:,:),   intent(in)    :: data
-    real(dp),            dimension(:,:,:), intent(inout) :: A
-    real(dp),            dimension(:,:),   intent(inout) :: b
+    class(comm_LFI_tod),                      intent(in)    :: self
+    integer(i4b),                             intent(in)    :: scan, det
+    real(sp),            dimension(:,:),      intent(in)    :: data
+    real(dp),            dimension(0:,1:,1:), intent(inout) :: A
+    real(dp),            dimension(0:,1:),    intent(inout) :: b
 
-    integer(i4b) :: i, j, t
-    real(dp)     :: pix, cos_psi, sin_psi, sigma
+    integer(i4b) :: i, j, t, pix
+    real(dp)     :: psi, cos_psi, sin_psi, inv_sigmasq
 
 
+    inv_sigmasq = 1.d0 / self%scans(scan)%d(det)%sigma0**2 *1d12
     do t = 1, self%scans(scan)%ntod
 
        if (iand(self%scans(scan)%d(det)%flag(t),6111248) .ne. 0) cycle
 
-       pix = self%scans(scan)%d(det)%pix(t)
-       cos_psi = cos(2.d0*self%scans(scan)%d(det)%psi(t))
-       sin_psi = sin(2.d0*self%scans(scan)%d(det)%psi(t))
-       sigma = self%scans(scan)%d(det)%sigma0
+       pix     = self%scans(scan)%d(det)%pix(t)
+       psi     = self%scans(scan)%d(det)%psi(t) + self%scans(scan)%d(det)%polang * DEG2RAD
+       cos_psi = cos(2.d0*psi)
+       sin_psi = sin(2.d0*psi)
        
-       A(pix,0,0) = A(pix,0,0) + 1.d0 / sigma
-       A(pix,0,1) = A(pix,0,1) + cos_psi / sigma
-       A(pix,0,2) = A(pix,0,2) + sin_psi / sigma
-       A(pix,1,1) = A(pix,1,1) + cos_psi**2 / sigma
-       A(pix,1,2) = A(pix,1,2) + cos_psi*sin_psi / sigma
-       A(pix,2,2) = A(pix,2,2) + sin_psi**2 / sigma
+       A(pix,1,1) = A(pix,1,1) + 1.d0            * inv_sigmasq
+       A(pix,1,2) = A(pix,1,2) + cos_psi         * inv_sigmasq
+       A(pix,1,3) = A(pix,1,3) + sin_psi         * inv_sigmasq
+       A(pix,2,2) = A(pix,2,2) + cos_psi**2      * inv_sigmasq
+       A(pix,2,3) = A(pix,2,3) + cos_psi*sin_psi * inv_sigmasq
+       A(pix,3,3) = A(pix,3,3) + sin_psi**2      * inv_sigmasq
 
-       b(pix,0) = b(pix,0) + data(t,det) / sigma
-       b(pix,1) = b(pix,1) + data(t,det) * cos_psi / sigma
-       b(pix,2) = b(pix,2) + data(t,det) * sin_psi / sigma
+       b(pix,1) = b(pix,1) + data(t,det)           * inv_sigmasq
+       b(pix,2) = b(pix,2) + data(t,det) * cos_psi * inv_sigmasq
+       b(pix,3) = b(pix,3) + data(t,det) * sin_psi * inv_sigmasq
 
     end do
-
-    ! should this be in finalize_binned_map???
-    A(:,1,0) = A(:,0,1)
-    A(:,2,0) = A(:,0,2)
-    A(:,2,1) = A(:,1,2)
-
 
   end subroutine compute_binned_map
 
   subroutine finalize_binned_map(A, b, map, rms)
     implicit none
-    real(dp), dimension(:,:,:), intent(in) :: A
-    real(dp), dimension(:,:),   intent(in) :: b
-    real(dp), dimension(:,:),   intent(inout) :: map, rms
+    real(dp),        dimension(0:,1:,1:), intent(in)    :: A
+    real(dp),        dimension(0:,1:),    intent(in)    :: b
+    class(comm_map),                      intent(inout) :: map, rms
 
-    integer(i4b) :: i, j, npix, nmaps
-    real(dp), allocatable, dimension(:,:) :: A_inv
+    integer(i4b) :: i, j, k, npix, nmaps, np, ierr
+    real(dp), allocatable, dimension(:,:)   :: A_inv, b_tot
+    real(dp), allocatable, dimension(:,:,:) :: A_tot
+    integer(i4b), allocatable, dimension(:) :: pix
 
-    npix = size(map, dim=1)
-    nmaps = size(map, dim=2)
+    npix  = size(map%map, dim=1)
+    nmaps = size(map%map, dim=2)
 
+    ! Collect contributions from all cores
+    allocate(A_tot(map%info%np,nmaps,nmaps), b_tot(map%info%np,nmaps))
+    do i = 0, map%info%nprocs-1
+       if (map%info%myid == i) np = map%info%np
+       call mpi_bcast(np, 1,  MPI_INTEGER, i, map%info%comm, ierr)
+       allocate(pix(np))
+       if (map%info%myid == i) pix = map%info%pix
+       call mpi_bcast(pix, np,  MPI_INTEGER, i, map%info%comm, ierr)
+       do j =1, nmaps
+          do k = j, nmaps
+             call mpi_reduce(A(pix,j,k), A_tot(:,j,k), np, MPI_DOUBLE_PRECISION, MPI_SUM, i, map%info%comm, ierr)
+          end do
+       end do
+       call mpi_reduce(b(pix,:),   b_tot, np*nmaps,    MPI_DOUBLE_PRECISION, MPI_SUM, i, map%info%comm, ierr)
+       deallocate(pix)
+    end do
+
+    ! Solve for local map and rms
     allocate(A_inv(nmaps,nmaps))
-
-    do i = 0, npix-1
-       ! map
-       call solve_system_real(A(i,:,:), map(i,:), b(i,:))
+    map%map = 0.d0
+    rms%map = 0.d0
+    do i = 1, map%info%np
+       if (all(b_tot(i,:) == 0.d0)) cycle
 
        ! rms
-       A_inv = A(i,:,:)
-       call invert_matrix(A_inv, .true.)
        do j = 1, nmaps
-          rms(i,j) = A_inv(j,j)
+          do k = j, nmaps
+             A_inv(j,k) = A_tot(i,j,k)
+             A_inv(k,j) = A_tot(i,j,k)
+          end do
        end do
+       call invert_singular_matrix(A_inv, 1d-12)
+       do j = 1, nmaps
+          rms%map(i,j) = sqrt(A_inv(j,j))
+       end do
+
+       ! map
+       map%map(i,:) = matmul(A_inv,b_tot(i,:))
 
     end do
 
@@ -283,6 +330,7 @@ contains
     real(dp),            dimension(:,:),  intent(in)  :: map
     integer(i4b),                         intent(in)  :: scan_id, det
     real(sp),            dimension(:),    intent(out) :: s_sky
+
     integer(i4b)                                      :: i, pix
     real(dp)                                          :: psi
 
@@ -290,7 +338,7 @@ contains
     ! T - temperature; Q, U - Stoke's parameters
     do i = 1, self%scans(scan_id)%ntod
        pix = self%scans(scan_id)%d(det)%pix(i)
-       psi = self%scans(scan_id)%d(det)%psi(i)
+       psi = self%scans(scan_id)%d(det)%psi(i) + self%scans(scan_id)%d(det)%polang * DEG2RAD
        s_sky(i) = map(pix, 1) + map(pix, 2) * cos(2.d0 * psi) + map(pix, 3) * sin(2.d0 * psi)
     end do
 
@@ -313,8 +361,8 @@ contains
     d_only_wn = self%scans(scan_id)%d(det)%tod - s_sl - n_corr
     gain_template = s_sky + s_orb
     ata = sum(gain_template**2)
-    curr_gain = sum(d_only_wn * gain_template) / ata
-    curr_sigma = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)
+    curr_gain = sum(d_only_wn * gain_template) / ata            / 1d6 ! V/K
+    curr_sigma = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)  / 1d6 ! V/K
     self%scans(scan_id)%d(det)%gain = curr_gain
     self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
 

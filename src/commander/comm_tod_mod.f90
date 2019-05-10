@@ -13,6 +13,7 @@ module comm_tod_mod
      real(dp)          :: gain, gain_sigma                ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
      real(dp)          :: samprate                        ! Sample rate in Hz
+     real(dp)          :: polang                          ! Detector polarization angle
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
      real(sp),     allocatable, dimension(:)   :: tod     ! Detector values in time domain, (ntod)     
      integer(i4b), allocatable, dimension(:)   :: flag    ! Detector flag; 0 is accepted, /= 0 is rejected
@@ -134,6 +135,7 @@ contains
        call read_hdf(file, slabel // "/" // trim(field) // "/nside",  self%d(i)%nside)
        call read_hdf(file, slabel // "/" // trim(field) // "/pix",    self%d(i)%pix)
        call read_hdf(file, slabel // "/" // trim(field) // "/psi",    self%d(i)%psi)
+       call read_hdf(file, slabel // "/" // trim(field) // "/polang", self%d(i)%polang)
     end do
 
     if (i /= ndet) then
