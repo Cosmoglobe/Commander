@@ -85,6 +85,7 @@ contains
     do i = 1, self%ndet
        call map_in(i)%p%bcast_fullsky_map(map_sky(:,:,i))
     end do
+    map_sky = map_sky * 1.d-6  ! Kelvin
 
     ! Compute output map and rms
     A_map = 0.d0
@@ -131,7 +132,7 @@ contains
        if (self%myid == 0) write(*,*) 'Orb dipole = ', t2-t1
 
        ! Construct sidelobe template -- Mathew -- long term
-       call self%construct_sl_template()
+       !call self%construct_sl_template()
 
        ! Fit correlated noise -- Haavard -- this week-ish
        call wall_time(t1)
@@ -142,7 +143,7 @@ contains
        ! Fit gain for current scan -- Eirik -- this week
        call wall_time(t1)
        do j = 1, ndet
-          !call sample_gain(self, j, i, n_corr(:, j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
+          call sample_gain(self, j, i, n_corr(:, j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
        end do
        call wall_time(t2)
        if (self%myid == 0) write(*,*) 'gain = ', t2-t1
@@ -195,6 +196,28 @@ contains
   !**************************************************
   !             Sub-process routines
   !**************************************************
+  ! Sky signal template
+  subroutine project_sky(self, map, scan_id, det, s_sky)
+    implicit none
+    class(comm_LFI_tod),                  intent(in)  :: self
+    real(dp),            dimension(:,:),  intent(in)  :: map
+    integer(i4b),                         intent(in)  :: scan_id, det
+    real(sp),            dimension(:),    intent(out) :: s_sky
+
+    integer(i4b)                                      :: i, pix
+    real(dp)                                          :: psi
+
+    ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
+    ! T - temperature; Q, U - Stoke's parameters
+    do i = 1, self%scans(scan_id)%ntod
+       pix = self%scans(scan_id)%d(det)%pix(i)
+       psi = self%scans(scan_id)%d(det)%psi(i) + self%scans(scan_id)%d(det)%polang * DEG2RAD
+       s_sky(i) = map(pix, 1) + map(pix, 2) * cos(2.d0 * psi) + map(pix, 3) * sin(2.d0 * psi)
+    end do
+
+  end subroutine project_sky
+
+
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
   subroutine compute_orbital_dipole(self, ind, s_orb)
@@ -223,6 +246,149 @@ contains
    end do
 
   end subroutine compute_orbital_dipole
+
+  ! Compute correlated noise term, n_corr
+  subroutine sample_n_corr(self, scan, s_sky, s_sl, s_orb, n_corr)
+    implicit none
+    class(comm_LFI_tod),               intent(in)     :: self
+    integer(i4b),                      intent(in)     :: scan
+    real(sp),          dimension(:,:), intent(in)     :: s_sky, s_sl, s_orb
+    real(sp),          dimension(:,:), intent(out)    :: n_corr
+    integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads
+    integer*8    :: plan_fwd, plan_back
+    real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate, gain
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
+    real(sp),     allocatable, dimension(:) :: d_prime
+    
+    ntod = self%scans(scan)%ntod
+    ndet = self%ndet
+    nomp = omp_get_max_threads()
+    samprate = self%samprate
+
+!    do i = 1, ndet
+!       gain = 1.d-6 * self%scans(scan)%d(i)%gain  ! Gain in V / muK
+!       n_corr(:,i) = self%scans(scan)%d(i)%tod(:) - S_sky(:,i) * gain 
+!    end do
+!    return
+
+    
+    n = ntod + 1
+
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
+
+    allocate(dt(2*ntod), dv(0:n-1))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
+    deallocate(dt, dv)
+    !$OMP PARALLEL PRIVATE(i,l,dt,dv,nu,sigma_0,alpha,nu_knee)
+    allocate(dt(2*ntod), dv(0:n-1))
+    allocate(d_prime(ntod))
+    !$OMP DO SCHEDULE(guided)
+    do i = 1, ndet
+       gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
+       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain
+       ! if (i == 1 .and. scan == 1) then
+       !    open(22, file="tod.unf", form="unformatted") ! Adjusted open statement
+       !    write(22) self%scans(scan)%d(i)%tod(:)
+       !    close(22)
+       ! end if
+       
+       ! if (i == 1 .and. scan == 1) then
+       !    open(22, file="d_prime.unf", form="unformatted") ! Adjusted open statement
+       !    write(22) d_prime
+       !    close(22)
+       ! end if
+
+       ! if (i == 1 .and. scan == 1) then
+       !    open(22, file="sky.unf", form="unformatted") ! Adjusted open statement
+       !    write(22) S_sky(:,i) * gain
+       !    close(22)
+       ! end if
+
+       dt(1:ntod)           = d_prime(:)
+       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       sigma_0 = self%scans(scan)%d(i)%sigma0
+       alpha = self%scans(scan)%d(i)%alpha
+       nu_knee = self%scans(scan)%d(i)%fknee
+       do l = 0, n-1                                                      
+          nu = l*(samprate/2)/(n-1)
+          dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))          
+       end do
+       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+       dt          = dt / (2*ntod)
+       n_corr(:,i) = dt(1:ntod)
+       ! if (i == 1 .and. scan == 1) then
+       !    open(22, file="n_corr.unf", form="unformatted") ! Adjusted open statement
+       !    write(22) n_corr(:,i)
+       !    close(22)
+       ! end if
+
+       if (self%myid == 0 .and. i == 2 .and. scan == 2 .and. .false.) then
+          open(58,file='tod.dat')
+          do j = 1, ntod
+             write(58,*) j, d_prime(j), n_corr(j,i)
+          end do
+          close(58)
+       end if
+
+    end do
+    !$OMP END DO                                                          
+    deallocate(dt, dv)                                      
+    deallocate(d_prime)
+    !$OMP END PARALLEL
+
+    call sfftw_destroy_plan(plan_fwd)                                           
+    call sfftw_destroy_plan(plan_back)                                          
+  
+  end subroutine sample_n_corr
+
+
+  ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
+  ! estimate of the stationary sky
+  subroutine sample_gain(self, det, scan_id, n_corr, s_sky, s_sl, s_orb)
+    implicit none
+    class(comm_LFI_tod),               intent(inout)  :: self
+    integer(i4b),                      intent(in)     :: det, scan_id
+    real(sp),            dimension(:), intent(in)     :: n_corr, s_sky, s_sl, s_orb
+    real(dp),            allocatable,  dimension(:)   :: d_only_wn
+    real(dp),            allocatable,  dimension(:)   :: gain_template
+    real(dp)                                          :: curr_gain, ata
+    real(dp)                                          :: curr_sigma
+
+    allocate(d_only_wn(size(s_sl)))
+    allocate(gain_template(size(s_sl)))
+    d_only_wn = self%scans(scan_id)%d(det)%tod - s_sl - n_corr
+    gain_template = s_sky + s_orb
+    ata = sum(gain_template**2)
+    curr_gain = sum(d_only_wn * gain_template) / ata            
+    curr_sigma = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)  
+    self%scans(scan_id)%d(det)%gain = curr_gain
+    self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
+
+    deallocate(d_only_wn)
+
+  end subroutine sample_gain
+
+
+  !compute the cleaned TOD from the computed TOD components
+  subroutine compute_cleaned_tod(self, ntod, scan_num, s_orb, s_sl, n_corr, d_calib)
+    implicit none
+    class(comm_LFI_tod),               intent(in)    :: self
+    integer(i4b),                      intent(in)    :: ntod, scan_num
+    real(sp),          dimension(:,:), intent(in)    :: n_corr, s_sl, s_orb
+    real(sp),          dimension(:,:), intent(out)   :: d_calib
+
+    integer(i4b) :: i
+
+    !cleaned calibrated data = (rawTOD - corrNoise)/gain - orbitalDipole - sideLobes
+    do i=1, self%ndet
+      d_calib(:,i) = (self%scans(scan_num)%d(i)%tod - n_corr(:,i))/ self%scans(scan_num)%d(i)%gain - s_orb(:,i) - s_sl(:,i)
+    end do
+  end subroutine compute_cleaned_tod
+
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
@@ -278,7 +444,7 @@ contains
     nmaps = size(map%map, dim=2)
 
     ! Collect contributions from all cores
-    allocate(A_tot(map%info%np,nmaps,nmaps), b_tot(map%info%np,nmaps))
+    allocate(A_tot(0:map%info%np-1,nmaps,nmaps), b_tot(0:map%info%np-1,nmaps))
     do i = 0, map%info%nprocs-1
        if (map%info%myid == i) np = map%info%np
        call mpi_bcast(np, 1,  MPI_INTEGER, i, map%info%comm, ierr)
@@ -298,7 +464,7 @@ contains
     allocate(A_inv(nmaps,nmaps))
     map%map = 0.d0
     rms%map = 0.d0
-    do i = 1, map%info%np
+    do i = 0, map%info%np-1
        if (all(b_tot(i,:) == 0.d0)) cycle
 
        ! rms
@@ -314,7 +480,7 @@ contains
        end do
 
        ! map
-       map%map(i,:) = matmul(A_inv,b_tot(i,:))
+       map%map(i,:) = matmul(A_inv,b_tot(i,:)) * 1.d6 ! uK
 
     end do
 
@@ -323,135 +489,8 @@ contains
   end subroutine finalize_binned_map
 
   
-  ! Sky signal template
-  subroutine project_sky(self, map, scan_id, det, s_sky)
-    implicit none
-    class(comm_LFI_tod),                  intent(in)  :: self
-    real(dp),            dimension(:,:),  intent(in)  :: map
-    integer(i4b),                         intent(in)  :: scan_id, det
-    real(sp),            dimension(:),    intent(out) :: s_sky
 
-    integer(i4b)                                      :: i, pix
-    real(dp)                                          :: psi
 
-    ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
-    ! T - temperature; Q, U - Stoke's parameters
-    do i = 1, self%scans(scan_id)%ntod
-       pix = self%scans(scan_id)%d(det)%pix(i)
-       psi = self%scans(scan_id)%d(det)%psi(i) + self%scans(scan_id)%d(det)%polang * DEG2RAD
-       s_sky(i) = map(pix, 1) + map(pix, 2) * cos(2.d0 * psi) + map(pix, 3) * sin(2.d0 * psi)
-    end do
-
-  end subroutine project_sky
-
-  ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
-  ! estimate of the stationary sky
-  subroutine sample_gain(self, det, scan_id, n_corr, s_sky, s_sl, s_orb)
-    implicit none
-    class(comm_LFI_tod),               intent(inout)  :: self
-    integer(i4b),                      intent(in)     :: det, scan_id
-    real(sp),            dimension(:), intent(in)     :: n_corr, s_sky, s_sl, s_orb
-    real(dp),            allocatable,  dimension(:)   :: d_only_wn
-    real(dp),            allocatable,  dimension(:)   :: gain_template
-    real(dp)                                          :: curr_gain, ata
-    real(dp)                                          :: curr_sigma
-
-    allocate(d_only_wn(size(s_sl)))
-    allocate(gain_template(size(s_sl)))
-    d_only_wn = self%scans(scan_id)%d(det)%tod - s_sl - n_corr
-    gain_template = s_sky + s_orb
-    ata = sum(gain_template**2)
-    curr_gain = sum(d_only_wn * gain_template) / ata            / 1d6 ! V/K
-    curr_sigma = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)  / 1d6 ! V/K
-    self%scans(scan_id)%d(det)%gain = curr_gain
-    self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
-
-    deallocate(d_only_wn)
-
-  end subroutine sample_gain
-
-  ! Compute correlated noise term, n_corr
-  subroutine sample_n_corr(self, scan, s_sky, s_sl, s_orb, n_corr)
-    implicit none
-    class(comm_LFI_tod),               intent(in)     :: self
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: s_sky, s_sl, s_orb
-    real(sp),          dimension(:,:), intent(out)    :: n_corr
-    integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads
-    integer*8    :: plan_fwd, plan_back
-    real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate, gain
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime
-    
-    ntod = self%scans(scan)%ntod
-    ndet = self%ndet
-    nomp = omp_get_max_threads()
-    samprate = self%samprate
-    
-    n = ntod + 1
-
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
-
-    allocate(dt(2*ntod), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
-    deallocate(dt, dv)
-    !$OMP PARALLEL PRIVATE(i,l,dt,dv,nu,sigma_0,alpha,nu_knee)
-    allocate(dt(2*ntod), dv(0:n-1))
-    allocate(d_prime(ntod))
-    !$OMP DO SCHEDULE(guided)
-    do i = 1, ndet
-       gain = 1.d-6 * self%scans(scan)%d(i)%gain  ! Gain in V / muK
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain
-       ! if (i == 1 .and. scan == 1) then
-       !    open(22, file="tod.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) self%scans(scan)%d(i)%tod(:)
-       !    close(22)
-       ! end if
-       
-       ! if (i == 1 .and. scan == 1) then
-       !    open(22, file="d_prime.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) d_prime
-       !    close(22)
-       ! end if
-
-       ! if (i == 1 .and. scan == 1) then
-       !    open(22, file="sky.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) S_sky(:,i) * gain
-       !    close(22)
-       ! end if
-
-       dt(1:ntod)           = d_prime(:)
-       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-       sigma_0 = self%scans(scan)%d(i)%sigma0
-       alpha = self%scans(scan)%d(i)%alpha
-       nu_knee = self%scans(scan)%d(i)%fknee
-       do l = 0, n-1                                                      
-          nu = l*(samprate/2)/(n-1)
-          dv(l) = dv(l) * 1.d0/(1.d0 + (nu/nu_knee)**(-alpha))          
-       end do
-       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-       dt          = dt / (2*ntod)
-       n_corr(:,i) = dt(1:ntod)
-       ! if (i == 1 .and. scan == 1) then
-       !    open(22, file="n_corr.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) n_corr(:,i)
-       !    close(22)
-       ! end if
-
-    end do
-    !$OMP END DO                                                          
-    deallocate(dt, dv)                                      
-    deallocate(d_prime)
-    !$OMP END PARALLEL
-    
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
-  
-  end subroutine sample_n_corr
 
   !construct a sidelobe template in the time domain
   subroutine construct_sl_template(self)
@@ -460,20 +499,5 @@ contains
 
   end subroutine construct_sl_template
 
-  !compute the cleaned TOD from the computed TOD components
-  subroutine compute_cleaned_tod(self, ntod, scan_num, s_orb, s_sl, n_corr, d_calib)
-    implicit none
-    class(comm_LFI_tod),               intent(in)    :: self
-    integer(i4b),                      intent(in)    :: ntod, scan_num
-    real(sp),          dimension(:,:), intent(in)    :: n_corr, s_sl, s_orb
-    real(sp),          dimension(:,:), intent(out)   :: d_calib
-
-    integer(i4b) :: i
-
-    !cleaned calibrated data = (rawTOD - orbitalDipole - corrNoise - sidelobes)/gain
-    do i=1, self%ndet
-      d_calib(:,i) = (self%scans(scan_num)%d(i)%tod - s_orb(:,i) - n_corr(:,i) - s_sl(:,i))/ self%scans(scan_num)%d(i)%gain
-    end do
-  end subroutine compute_cleaned_tod
 
 end module comm_tod_LFI_mod
