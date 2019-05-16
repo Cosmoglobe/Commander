@@ -65,13 +65,14 @@ contains
     type(map_ptr),       dimension(:), intent(in)    :: map_in            ! One map per detector
     class(comm_map),                   intent(inout) :: map_out, rms_out ! Combined output map and rms
 
-    integer(i4b) :: i, j, ntod, ndet, nside, npix, nmaps
+    integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps
     real(dp)     :: t1, t2
     real(sp), allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb
     real(dp), allocatable, dimension(:,:,:) :: map_sky
     real(dp), allocatable, dimension(:)     :: A_abscal, b_abscal
     real(dp), allocatable, dimension(:,:,:) :: A_map
     real(dp), allocatable, dimension(:,:)   :: b_map
+    real(dp), allocatable, dimension(:,:)   :: point_map !debug map
 
     ! Set up full-sky map structures
     ndet  = self%ndet
@@ -92,6 +93,7 @@ contains
     b_map = 0.d0
     !A_abscal = 0.d0
     !b_abscal = 0.d0
+
     do i = 1, self%nscan
 
        call wall_time(t1)
@@ -130,6 +132,17 @@ contains
        call self%compute_orbital_dipole(i, s_orb)
        call wall_time(t2)
        if (self%myid == 0) write(*,*) 'Orb dipole = ', t2-t1
+
+       !! debug of orbital dipole, printing the orbital dipole
+!       if (i == 20) then
+!          j=getlun()
+!          open(j,file='temp_s_orb.dat')
+!          do k = 1,ntod
+!             write(j,*) k,s_orb(k,1)
+!          end do
+!          close(j)
+!          stop
+!       end if
 
        ! Construct sidelobe template -- Mathew -- long term
        !call self%construct_sl_template()
@@ -189,6 +202,7 @@ contains
 
     ! Clean up temporary arrays
     deallocate(map_sky, A_map, b_map)
+    deallocate(A_abscal, b_abscal)
 
   end subroutine process_LFI_tod
 
@@ -239,9 +253,9 @@ contains
           call pix2vec_ring(self%scans(ind)%d(i)%nside, self%scans(ind)%d(i)%pix(j), &
                & pix_dir)
           b_dot = dot_product(self%scans(ind)%v_sun, pix_dir)/c
-          s_orb(j,i) = T_CMB * b_dot !only dipole
-          !s_orb(j,i) = T_CMB * (b_dot + q*b_dot**2) ! with quadrupole
-          !s_orb(j,i) = T_CMB * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
+          s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
+          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
+          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
        end do
    end do
 
@@ -368,7 +382,7 @@ contains
     self%scans(scan_id)%d(det)%gain = curr_gain
     self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
 
-    deallocate(d_only_wn)
+    deallocate(d_only_wn,gain_template)
 
   end subroutine sample_gain
 
@@ -484,7 +498,7 @@ contains
 
     end do
 
-    deallocate(A_inv)
+    deallocate(A_inv,A_tot,b_tot)
 
   end subroutine finalize_binned_map
 
