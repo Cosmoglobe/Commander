@@ -72,7 +72,6 @@ contains
     real(dp), allocatable, dimension(:)     :: A_abscal, b_abscal
     real(dp), allocatable, dimension(:,:,:) :: A_map
     real(dp), allocatable, dimension(:,:)   :: b_map
-    real(dp), allocatable, dimension(:,:)   :: point_map !debug map
 
     ! Set up full-sky map structures
     ndet  = self%ndet
@@ -132,17 +131,6 @@ contains
        call self%compute_orbital_dipole(i, s_orb)
        call wall_time(t2)
        if (self%myid == 0) write(*,*) 'Orb dipole = ', t2-t1
-
-       !! debug of orbital dipole, printing the orbital dipole
-!       if (i == 20) then
-!          j=getlun()
-!          open(j,file='temp_s_orb.dat')
-!          do k = 1,ntod
-!             write(j,*) k,s_orb(k,1)
-!          end do
-!          close(j)
-!          stop
-!       end if
 
        ! Construct sidelobe template -- Mathew -- long term
        !call self%construct_sl_template()
