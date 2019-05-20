@@ -11,7 +11,7 @@ COBJS  := d1mach.o drc3jj.o hashtbl.o powell_mod.o comm_hdf_mod.o sharp.o sort_u
 	  comm_gain_mod.o comm_nonlin_mod.o comm_N_mod.o comm_N_rms_mod.o \
           comm_B_mod.o comm_B_bl_mod.o comm_beam_mod.o \
           comm_F_int_mod.o comm_F_int_1D_mod.o comm_F_int_0D_mod.o comm_F_int_2D_mod.o \
-          comm_tod_mod.o comm_tod_LFI_mod.o \
+          comm_fft_mod.o comm_tod_mod.o comm_tod_LFI_mod.o \
           comm_F_line_mod.o comm_data_mod.o comm_bp_mod.o comm_Cl_mod.o \
           comm_chisq_mod.o comm_cr_mod.o comm_signal_mod.o comm_output_mod.o
 
@@ -23,7 +23,8 @@ spline_2D_mod.o :          comm_utils.o
 InvSamp_mod.o :            spline_1D_mod.o
 comm_map_mod.o :           sharp.o comm_hdf_mod.o comm_param_mod.o
 comm_hdf_mod.o :           comm_utils.o
-comm_tod_mod.o :           comm_utils.o comm_map_mod.o comm_hdf_mod.o comm_param_mod.o
+comm_fft_mod.o :           locate_mod.o comm_utils.o comm_param_mod.o
+comm_tod_mod.o :           comm_utils.o comm_fft_mod.o comm_map_mod.o comm_hdf_mod.o comm_param_mod.o
 comm_utils.o :             comm_defs.o spline_1D_mod.o
 comm_system_mod.o :        comm_system_backend.o
 comm_shared_output_mod.o : comm_system_mod.o
