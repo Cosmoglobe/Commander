@@ -33,6 +33,7 @@ module comm_param_mod
      character(len=512) :: chain_prefix, init_chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
+     character(len=512) :: fft_magic_number_file
      logical(lgt)       :: only_pol
      logical(lgt)       :: enable_TOD_analysis
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
@@ -315,6 +316,10 @@ contains
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 
     call get_parameter_hashtable(htbl, 'ENABLE_TOD_ANALYSIS',      par_lgt=cpar%enable_TOD_analysis)
+
+    if (cpar%enable_TOD_analysis) then
+       call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file)
+    end if
 
     allocate(cpar%fwhm_smooth(cpar%num_smooth_scales))
     allocate(cpar%fwhm_postproc_smooth(cpar%num_smooth_scales))

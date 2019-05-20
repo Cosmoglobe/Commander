@@ -3,10 +3,11 @@ module comm_tod_mod
   use comm_param_mod
   use comm_hdf_mod
   use comm_map_mod
+  use comm_fft_mod
   implicit none
 
   private
-  public comm_tod
+  public comm_tod, initialize_tod_mod
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
@@ -14,6 +15,7 @@ module comm_tod_mod
      real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
      real(dp)          :: samprate                        ! Sample rate in Hz
      real(dp)          :: polang                          ! Detector polarization angle
+     real(dp)          :: chisq
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
      real(sp),     allocatable, dimension(:)   :: tod     ! Detector values in time domain, (ntod)     
      integer(i4b), allocatable, dimension(:)   :: flag    ! Detector flag; 0 is accepted, /= 0 is rejected
@@ -42,6 +44,8 @@ module comm_tod_mod
      type(comm_scan),    allocatable, dimension(:)     :: scans   ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid  ! List of scan IDs
      character(len=512), allocatable, dimension(:)     :: hdfname ! List of HDF filenames for each ID
+     class(comm_map), pointer                          :: procmask ! Mask for gain and n_corr
+     class(comm_mapinfo), pointer                      :: info     ! Map definition
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
@@ -60,6 +64,18 @@ module comm_tod_mod
 
 
 contains
+
+  subroutine initialize_tod_mod(cpar)
+    implicit none
+    type(comm_params),       intent(in) :: cpar
+
+    logical(lgt), save :: initialized = .false.
+
+    if (initialized) return
+
+    call initialize_fft_mod(cpar)
+
+  end subroutine initialize_tod_mod
 
 
   !**************************************************
@@ -93,11 +109,13 @@ contains
     integer(i4b),           intent(in) :: scan, ndet
     class(comm_scan), intent(inout)                  :: self
 
-    integer(i4b)       :: i, j, n, nhorn, ext(1)
+    integer(i4b)       :: i, j, n, m, nhorn, ext(1)
     character(len=6)   :: slabel
     character(len=128) :: field
     integer(hid_t)     :: nfield, err, obj_type
     type(hdf_file)     :: file
+    integer(i4b), allocatable, dimension(:) :: buffer_int
+    real(sp),     allocatable, dimension(:) :: buffer_sp
 
     call int2string(scan, slabel)
 
@@ -111,32 +129,38 @@ contains
     call get_size_hdf(file, slabel // "/" // trim(field) // "/pix", ext)
     !nhorn     = ext(1)
     n         = ext(1)
-    self%ntod = n
+    m         = get_closest_fft_magic_number(n)
+    self%ntod = m
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun", self%v_sun)
     call read_hdf(file, slabel // "/common/time", self%t0)
 
     ! Read detector scans
-    allocate(self%d(ndet))
+    allocate(self%d(ndet), buffer_int(n), buffer_sp(n))
     i = 0
     do j = 0, ndet
        call h5gget_obj_info_idx_f(file%filehandle, slabel, j, field, obj_type, err)
        if (trim(field) == 'common') cycle
        i = i+1
-       allocate(self%d(i)%tod(n), self%d(i)%flag(n), self%d(i)%pix(n), self%d(i)%psi(n))
+       allocate(self%d(i)%tod(m), self%d(i)%flag(m), self%d(i)%pix(m), self%d(i)%psi(m))
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/gain",   self%d(i)%gain)
        call read_hdf(file, slabel // "/" // trim(field) // "/sigma0", self%d(i)%sigma0)
        call read_hdf(file, slabel // "/" // trim(field) // "/alpha",  self%d(i)%alpha)
        call read_hdf(file, slabel // "/" // trim(field) // "/fknee",  self%d(i)%fknee)
-       call read_hdf(file, slabel // "/" // trim(field) // "/tod",    self%d(i)%tod)
-       call read_hdf(file, slabel // "/" // trim(field) // "/flag",   self%d(i)%flag)
+       call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+       self%d(i)%tod = buffer_sp(1:m)
+       call read_hdf(file, slabel // "/" // trim(field) // "/flag",   buffer_int)
+       self%d(i)%flag = buffer_int(1:m)
        call read_hdf(file, slabel // "/" // trim(field) // "/nside",  self%d(i)%nside)
-       call read_hdf(file, slabel // "/" // trim(field) // "/pix",    self%d(i)%pix)
-       call read_hdf(file, slabel // "/" // trim(field) // "/psi",    self%d(i)%psi)
+       call read_hdf(file, slabel // "/" // trim(field) // "/pix",    buffer_int)
+       self%d(i)%pix = buffer_int(1:m)
+       call read_hdf(file, slabel // "/" // trim(field) // "/psi",    buffer_sp)
+       self%d(i)%psi = buffer_sp(1:m)
        call read_hdf(file, slabel // "/" // trim(field) // "/polang", self%d(i)%polang)
     end do
+    deallocate(buffer_int, buffer_sp)
 
     if (i /= ndet) then
        write(*,*) 'ERROR: Too few detectors in TOD file = ', trim(filename)

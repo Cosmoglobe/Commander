@@ -87,6 +87,7 @@ program commander
   if (cpar%myid == cpar%root) call wall_time(t1)
 
   call update_status(status, "init")
+  if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call initialize_bp_mod(cpar);            call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);  call update_status(status, "init_data")
   call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
