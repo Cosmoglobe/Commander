@@ -93,7 +93,7 @@ contains
     nside = map_out%info%nside
     nmaps = map_out%info%nmaps
     npix  = 12*nside**2
-    allocate(A_map(0:npix-1,nmaps,nmaps), b_map(0:npix-1,nmaps))
+    allocate(A_map(nmaps,nmaps,0:npix-1), b_map(nmaps,0:npix-1))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(map_sky(0:npix-1,nmaps,ndet))
     allocate(procmask(0:npix-1,nmaps))
@@ -556,16 +556,16 @@ contains
        cos_psi = cos(2.d0*psi)
        sin_psi = sin(2.d0*psi)
        
-       A(pix,1,1) = A(pix,1,1) + 1.d0            * inv_sigmasq
-       A(pix,1,2) = A(pix,1,2) + cos_psi         * inv_sigmasq
-       A(pix,1,3) = A(pix,1,3) + sin_psi         * inv_sigmasq
-       A(pix,2,2) = A(pix,2,2) + cos_psi**2      * inv_sigmasq
-       A(pix,2,3) = A(pix,2,3) + cos_psi*sin_psi * inv_sigmasq
-       A(pix,3,3) = A(pix,3,3) + sin_psi**2      * inv_sigmasq
+       A(1,1,pix) = A(1,1,pix) + 1.d0            * inv_sigmasq
+       A(1,2,pix) = A(1,2,pix) + cos_psi         * inv_sigmasq
+       A(1,3,pix) = A(1,3,pix) + sin_psi         * inv_sigmasq
+       A(2,2,pix) = A(2,2,pix) + cos_psi**2      * inv_sigmasq
+       A(2,3,pix) = A(2,3,pix) + cos_psi*sin_psi * inv_sigmasq
+       A(3,3,pix) = A(3,3,pix) + sin_psi**2      * inv_sigmasq
 
-       b(pix,1) = b(pix,1) + data(t,det)           * inv_sigmasq
-       b(pix,2) = b(pix,2) + data(t,det) * cos_psi * inv_sigmasq
-       b(pix,3) = b(pix,3) + data(t,det) * sin_psi * inv_sigmasq
+       b(1,pix) = b(1,pix) + data(t,det)           * inv_sigmasq
+       b(2,pix) = b(2,pix) + data(t,det) * cos_psi * inv_sigmasq
+       b(3,pix) = b(3,pix) + data(t,det) * sin_psi * inv_sigmasq
 
     end do
 
@@ -573,8 +573,8 @@ contains
 
   subroutine finalize_binned_map(A, b, map, rms)
     implicit none
-    real(dp),        dimension(0:,1:,1:), intent(in)    :: A
-    real(dp),        dimension(0:,1:),    intent(in)    :: b
+    real(dp),        dimension(1:,1:,0:), intent(in)    :: A
+    real(dp),        dimension(1:,0:),    intent(in)    :: b
     class(comm_map),                      intent(inout) :: map, rms
 
     integer(i4b) :: i, j, k, npix, nmaps, np, ierr
@@ -586,7 +586,7 @@ contains
     nmaps = size(map%map, dim=2)
 
     ! Collect contributions from all cores
-    allocate(A_tot(0:map%info%np-1,nmaps,nmaps), b_tot(0:map%info%np-1,nmaps))
+    allocate(A_tot(nmaps,nmaps,0:map%info%np-1), b_tot(nmaps,0:map%info%np-1))
     do i = 0, map%info%nprocs-1
        if (map%info%myid == i) np = map%info%np
        call mpi_bcast(np, 1,  MPI_INTEGER, i, map%info%comm, ierr)
@@ -595,10 +595,10 @@ contains
        call mpi_bcast(pix, np,  MPI_INTEGER, i, map%info%comm, ierr)
        do j =1, nmaps
           do k = j, nmaps
-             call mpi_reduce(A(pix,j,k), A_tot(:,j,k), np, MPI_DOUBLE_PRECISION, MPI_SUM, i, map%info%comm, ierr)
+             call mpi_reduce(A(j,k,pix), A_tot(j,k,:), np, MPI_DOUBLE_PRECISION, MPI_SUM, i, map%info%comm, ierr)
           end do
        end do
-       call mpi_reduce(b(pix,:),   b_tot, np*nmaps,    MPI_DOUBLE_PRECISION, MPI_SUM, i, map%info%comm, ierr)
+       call mpi_reduce(b(:,pix),   b_tot, np*nmaps,    MPI_DOUBLE_PRECISION, MPI_SUM, i, map%info%comm, ierr)
        deallocate(pix)
     end do
 
@@ -607,13 +607,13 @@ contains
     map%map = 0.d0
     rms%map = 0.d0
     do i = 0, map%info%np-1
-       if (all(b_tot(i,:) == 0.d0)) cycle
+       if (all(b_tot(:,i) == 0.d0)) cycle
 
        ! rms
        do j = 1, nmaps
           do k = j, nmaps
-             A_inv(j,k) = A_tot(i,j,k)
-             A_inv(k,j) = A_tot(i,j,k)
+             A_inv(j,k) = A_tot(j,k,i)
+             A_inv(k,j) = A_tot(j,k,i)
           end do
        end do
        call invert_singular_matrix(A_inv, 1d-12)
@@ -622,7 +622,7 @@ contains
        end do
 
        ! map
-       map%map(i,:) = matmul(A_inv,b_tot(i,:)) * 1.d6 ! uK
+       map%map(i,:) = matmul(A_inv,b_tot(:,i)) * 1.d6 ! uK
 
     end do
 
