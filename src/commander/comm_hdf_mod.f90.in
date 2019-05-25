@@ -224,6 +224,27 @@ contains
   {{endfor}}
   {{endfor}}
 
+  subroutine read_hdf_opaque(file, setname, val)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*),                                    intent(in)  :: setname
+    integer(i4b),     allocatable, dimension(:), target, intent(out) :: val
+
+    integer(hid_t)  :: dtype
+    integer(size_t) :: len, numint
+    type(c_ptr)     :: f_ptr
+    call open_hdf_set(file, setname)
+    call h5dget_type_f(file%sethandle, dtype, file%status)
+    call h5tget_size_f(dtype, len, file%status)
+    numint = len/4+1
+    allocate(val(numint))
+    f_ptr = c_loc(val)
+    call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
+    call h5tclose_f(dtype, file%status)
+  end subroutine read_hdf_opaque
+
+
+
   ! *****************************************************
   ! Set write operations
   ! *****************************************************

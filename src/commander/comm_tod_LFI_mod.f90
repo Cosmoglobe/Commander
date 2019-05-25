@@ -5,9 +5,9 @@ module comm_tod_LFI_mod
   use comm_conviqt_mod
   use pix_tools
   use healpix_types  
-
+  use comm_huffman_mod
   implicit none
-  include 'fftw3.f'
+!  include 'fftw3.f'
 
   private
   public comm_LFI_tod
@@ -24,6 +24,7 @@ module comm_tod_LFI_mod
      procedure     :: construct_sl_template
      procedure     :: compute_chisq
      procedure     :: sample_noise_psd
+     procedure     :: decompress_pointing_and_flags
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -48,8 +49,8 @@ contains
     constructor%info     => info
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
-!    call constructor%get_scan_ids("data/filelist_5files.txt")
-     call constructor%get_scan_ids("data/filelist_1year.txt")
+    call constructor%get_scan_ids("data/filelist_1file.txt")
+!     call constructor%get_scan_ids("data/filelist_1year.txt")
 !    call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
@@ -58,7 +59,6 @@ contains
     constructor%nmaps    = info%nmaps
     constructor%ndet     = 4
     constructor%nhorn    = 1
-    constructor%samprate = 50.d0
     allocate(constructor%stokes(constructor%nmaps))
     allocate(constructor%w(constructor%nmaps,constructor%nhorn,constructor%ndet))
     constructor%stokes = [1,2,3]
@@ -80,13 +80,14 @@ contains
 
     integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot, ierr
     real(dp)     :: t1, t2, t3, t4, t5, t6, chisq_threshold
-    real(dp)     :: t_tot(10) 
-    real(sp), allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb, mask
-    real(dp), allocatable, dimension(:,:,:) :: map_sky
-    real(dp), allocatable, dimension(:)     :: A_abscal, b_abscal
-    real(dp), allocatable, dimension(:,:,:) :: A_map
-    real(dp), allocatable, dimension(:,:)   :: b_map
-    real(dp), allocatable, dimension(:,:)   :: procmask
+    real(dp)     :: t_tot(11) 
+    real(sp),     allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb, mask
+    real(dp),     allocatable, dimension(:,:,:) :: map_sky
+    real(dp),     allocatable, dimension(:)     :: A_abscal, b_abscal
+    real(dp),     allocatable, dimension(:,:,:) :: A_map
+    real(dp),     allocatable, dimension(:,:)   :: b_map
+    real(dp),     allocatable, dimension(:,:)   :: procmask
+    integer(i4b), allocatable, dimension(:,:)   :: pix, psi, flag
 
     t_tot   = 0.d0
     call wall_time(t5)
@@ -132,7 +133,10 @@ contains
        allocate(s_sl(ntod, ndet))               ! Sidelobe in uKcmb
        allocate(s_sky(ntod, ndet))              ! Stationary sky signal in uKcmb
        allocate(s_orb(ntod, ndet))              ! Orbital dipole in uKcmb
-       allocate(mask(ntod, ndet))              ! Processing mask in time
+       allocate(mask(ntod, ndet))               ! Processing mask in time
+       allocate(pix(ntod, ndet))                ! Decompressed pointing
+       allocate(psi(ntod, ndet))                ! Decompressed discretized polarization angle
+       allocate(flag(ntod, ndet))               ! Decompressed flags
 
        ! Initializing arrays to zero
        n_corr = 0.d0
@@ -144,10 +148,18 @@ contains
        ! Analyze current scan
        ! --------------------
 
+       ! Decompress pointing, psi and flags for current scan
+       call wall_time(t1)
+       do j = 1, ndet
+          call self%decompress_pointing_and_flags(i, j, pix(:,j), psi(:,j), flag(:,j))
+       end do
+       call wall_time(t2)       
+       t_tot(11) = t_tot(11) + t2-t1
+
        ! Construct sky signal template -- Maksym -- this week
        call wall_time(t1)
        do j = 1, ndet
-          call self%project_sky(map_sky(:,:,j), procmask, i, j, s_sky(:,j), mask(:,j))  ! scan_id, det,  s_sky(:, j))
+          call self%project_sky(map_sky(:,:,j), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j))  ! scan_id, det,  s_sky(:, j))
        end do
        call wall_time(t2)
        t_tot(1) = t_tot(1) + t2-t1
@@ -216,14 +228,14 @@ contains
                & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
                & cycle
           naccept = naccept + 1
-          call self%compute_binned_map(d_calib, A_map, b_map, i, j)
+          call self%compute_binned_map(d_calib, pix(:,j), psi(:,j), flag(:,j), A_map, b_map, i, j)
        end do
        call wall_time(t2)
        t_tot(8) = t_tot(8) + t2-t1
        !if (self%myid == 0) write(*,*) 'bin        = ', t2-t1
 
        ! Clean up
-       deallocate(n_corr, s_sl, s_sky, s_orb, d_calib, mask)
+       deallocate(n_corr, s_sl, s_sky, s_orb, d_calib, mask, pix, psi, flag)
 
        call wall_time(t4)
        do j = 1, ndet
@@ -251,6 +263,7 @@ contains
     call wall_time(t6)
     if (self%myid == 0) then
        write(*,*) '  Time dist sky   = ', t_tot(9)
+       write(*,*) '  Time decompress = ', t_tot(11)
        write(*,*) '  Time project    = ', t_tot(1)
        write(*,*) '  Time orbital    = ', t_tot(2)
        write(*,*) '  Time ncorr      = ', t_tot(3)
@@ -276,28 +289,57 @@ contains
   !**************************************************
   !             Sub-process routines
   !**************************************************
+  subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag)
+    implicit none
+    class(comm_LFI_tod),                intent(in)  :: self
+    integer(i4b),                       intent(in)  :: scan, det
+    integer(i4b),        dimension(:),  intent(out) :: pix, psi, flag
+
+    integer(i4b) :: i, j
+
+    write(*,*) self%scans(scan)%d(det)%pix(1:5)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    write(*,*) self%scans(scan)%ntod
+    write(*,*) pix(1:5)
+    write(*,*) pix(self%scans(scan)%ntod-4:self%scans(scan)%ntod)
+    do j = 2, self%scans(scan)%ntod
+       pix(j)  = pix(j-1)  + pix(j)
+       psi(j)  = psi(j-1)  + psi(j)
+       flag(j) = flag(j-1) + flag(j)
+    end do
+    write(*,*) pix(1:5)
+    !write(*,*) psi(1:5)
+    !write(*,*) flag(1:5)
+
+  end subroutine decompress_pointing_and_flags
+
   ! Sky signal template
-  subroutine project_sky(self, map, pmask, scan_id, det, s_sky, tmask)
+  subroutine project_sky(self, map, pix, psi, pmask, scan_id, det, s_sky, tmask)
     implicit none
     class(comm_LFI_tod),                  intent(in)  :: self
     real(dp),            dimension(:,:),  intent(in)  :: map, pmask
+    integer(i4b),        dimension(:),    intent(in)  :: pix, psi
     integer(i4b),                         intent(in)  :: scan_id, det
     real(sp),            dimension(:),    intent(out) :: s_sky, tmask
 
-    integer(i4b)                                      :: i, pix
-    real(dp)                                          :: psi
+    integer(i4b)                                      :: i!, pix
+    !real(dp)                                          :: psi
 
     ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
     ! T - temperature; Q, U - Stoke's parameters
     do i = 1, self%scans(scan_id)%ntod
-       pix = self%scans(scan_id)%d(det)%pix(i)
-       psi = self%scans(scan_id)%d(det)%psi(i) + self%scans(scan_id)%d(det)%polang * DEG2RAD
-       s_sky(i) = map(pix, 1) + map(pix, 2) * cos(2.d0 * psi) + map(pix, 3) * sin(2.d0 * psi)
-       if (any(pmask(pix,:) < 0.5d0)) then
-          tmask(i) = 0.
-       else
-          tmask(i) = 1.
-       end if
+       !pix = self%scans(scan_id)%d(det)%pix(i)
+       !psi = self%scans(scan_id)%d(det)%psi(i) + self%scans(scan_id)%d(det)%polang * DEG2RAD
+       !s_sky(i) = map(pix, 1) + map(pix, 2) * cos(2.d0 * psi) + map(pix, 3) * sin(2.d0 * psi)
+!       if (any(pmask(pix(i),:) < 0.5d0)) then
+!          tmask(i) = 0.
+!       else
+!          tmask(i) = 1.
+!       end if
+       s_sky(i) = 0.d0
+       tmask(i) = 0.d0
     end do
 
   end subroutine project_sky
@@ -560,16 +602,17 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine compute_binned_map(self, data, A, b, scan, det)
+  subroutine compute_binned_map(self, data, pix, psi, flag, A, b, scan, det)
     implicit none
     class(comm_LFI_tod),                      intent(in)    :: self
     integer(i4b),                             intent(in)    :: scan, det
     real(sp),            dimension(:,:),      intent(in)    :: data
+    integer(i4b),        dimension(:),        intent(in)    :: pix, psi,flag
     real(dp),            dimension(0:,1:,1:), intent(inout) :: A
     real(dp),            dimension(0:,1:),    intent(inout) :: b
 
-    integer(i4b) :: i, j, t, pix
-    real(dp)     :: psi, cos_psi, sin_psi, inv_sigmasq
+    integer(i4b) :: i, j, t, pix_
+    real(dp)     :: psi_, cos_psi, sin_psi, inv_sigmasq
 
 
     inv_sigmasq = 1.d0 / self%scans(scan)%d(det)%sigma0**2 *1d12
@@ -577,21 +620,21 @@ contains
 
        if (iand(self%scans(scan)%d(det)%flag(t),6111248) .ne. 0) cycle
 
-       pix     = self%scans(scan)%d(det)%pix(t)
-       psi     = self%scans(scan)%d(det)%psi(t) + self%scans(scan)%d(det)%polang * DEG2RAD
-       cos_psi = cos(2.d0*psi)
-       sin_psi = sin(2.d0*psi)
+       pix_    = 0
+       psi_    = 0.d0
+       cos_psi = cos(2.d0*psi_)
+       sin_psi = sin(2.d0*psi_)
        
-       A(1,1,pix) = A(1,1,pix) + 1.d0            * inv_sigmasq
-       A(1,2,pix) = A(1,2,pix) + cos_psi         * inv_sigmasq
-       A(1,3,pix) = A(1,3,pix) + sin_psi         * inv_sigmasq
-       A(2,2,pix) = A(2,2,pix) + cos_psi**2      * inv_sigmasq
-       A(2,3,pix) = A(2,3,pix) + cos_psi*sin_psi * inv_sigmasq
-       A(3,3,pix) = A(3,3,pix) + sin_psi**2      * inv_sigmasq
+       A(pix_,1,1) = A(pix_,1,1) + 1.d0            * inv_sigmasq
+       A(pix_,1,2) = A(pix_,1,2) + cos_psi         * inv_sigmasq
+       A(pix_,1,3) = A(pix_,1,3) + sin_psi         * inv_sigmasq
+       A(pix_,2,2) = A(pix_,2,2) + cos_psi**2      * inv_sigmasq
+       A(pix_,2,3) = A(pix_,2,3) + cos_psi*sin_psi * inv_sigmasq
+       A(pix_,3,3) = A(pix_,3,3) + sin_psi**2      * inv_sigmasq
 
-       b(1,pix) = b(1,pix) + data(t,det)           * inv_sigmasq
-       b(2,pix) = b(2,pix) + data(t,det) * cos_psi * inv_sigmasq
-       b(3,pix) = b(3,pix) + data(t,det) * sin_psi * inv_sigmasq
+       b(pix_,1) = b(pix_,1) + data(t,det)           * inv_sigmasq
+       b(pix_,2) = b(pix_,2) + data(t,det) * cos_psi * inv_sigmasq
+       b(pix_,3) = b(pix_,3) + data(t,det) * sin_psi * inv_sigmasq
 
     end do
 
