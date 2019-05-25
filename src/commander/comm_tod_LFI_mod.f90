@@ -2,6 +2,10 @@ module comm_tod_LFI_mod
   use comm_tod_mod
   use comm_param_mod
   use comm_map_mod
+  use comm_conviqt_mod
+  use pix_tools
+  use healpix_types  
+
   implicit none
   include 'fftw3.f'
 
@@ -157,8 +161,8 @@ contains
        !if (self%myid == 0) write(*,*) 'Orb dipole = ', t2-t1
 
        ! Construct sidelobe template -- Mathew -- long term
-       !call self%construct_sl_template()
-
+       call self%construct_sl_template(ntod, i, map_in, s_sl)
+       
        ! Fit correlated noise -- Haavard -- this week-ish
        call wall_time(t1)
        call self%sample_n_corr(i, mask, s_sky, s_sl, s_orb, n_corr)
@@ -432,7 +436,6 @@ contains
   
   end subroutine sample_n_corr
 
-
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   subroutine sample_gain(self, det, scan_id, n_corr, mask, s_sky, s_sl, s_orb)
@@ -459,7 +462,30 @@ contains
     deallocate(d_only_wn,gain_template)
 
   end subroutine sample_gain
+  
+  !construct a sidelobe template in the time domain
+  subroutine construct_sl_template(self, ntod, scan_id, map_in, s_sl)
+    implicit none
+    class(comm_LFI_tod),                 intent(in)    :: self
+    integer(i4b),                        intent(in)    :: ntod, scan_id
+    type(map_ptr),       dimension(:),   intent(in)    :: map_in
+    real(sp),            dimension(:,:), intent(out)   :: s_sl
+    
+    integer(i4b) :: i, j
+    real(dpc) :: psi, theta, phi
+    class(comm_conviqt), allocatable :: conviqt
 
+    do i=1, self%ndet
+      !TODO: figure out how the beam is stored
+      !conviqt = comm_conviqt(self%beams(i), map_in(i), 0)
+      do j=1, ntod
+        call pix2ang_ring(self%scans(scan_id)%d(i)%nside, self%scans(scan_id)%d(i)%pix(j), theta, phi)
+        psi = self%scans(scan_id)%d(i)%psi(i)
+        s_sl(j, i) = 0!conviqt%interp(theta, phi, psi) 
+      end do
+    end do
+
+  end subroutine construct_sl_template
 
   !compute the cleaned TOD from the computed TOD components
   subroutine compute_cleaned_tod(self, ntod, scan_num, s_orb, s_sl, n_corr, d_calib)
@@ -629,17 +655,5 @@ contains
     deallocate(A_inv,A_tot,b_tot)
 
   end subroutine finalize_binned_map
-
-  
-
-
-
-  !construct a sidelobe template in the time domain
-  subroutine construct_sl_template(self)
-    implicit none
-    class(comm_LFI_tod),               intent(in)    :: self
-
-  end subroutine construct_sl_template
-
 
 end module comm_tod_LFI_mod

@@ -46,6 +46,7 @@ module comm_tod_mod
      character(len=512), allocatable, dimension(:)     :: hdfname ! List of HDF filenames for each ID
      class(comm_map), pointer                          :: procmask ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info     ! Map definition
+     class(comm_map),    allocatable, dimension(:)     :: beams    ! Beam data (ndet)
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
