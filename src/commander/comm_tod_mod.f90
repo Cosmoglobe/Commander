@@ -4,6 +4,8 @@ module comm_tod_mod
   use comm_hdf_mod
   use comm_map_mod
   use comm_fft_mod
+  use comm_huffman_mod
+  USE ISO_C_BINDING
   implicit none
 
   private
@@ -17,19 +19,23 @@ module comm_tod_mod
      real(dp)          :: polang                          ! Detector polarization angle
      real(dp)          :: chisq
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
+     integer(i4b)      :: npsi                            ! Number of discrete polarization angles
+     !character(len=10000) :: pixcode
+     real(dp) :: pixcode
      real(sp),     allocatable, dimension(:)   :: tod     ! Detector values in time domain, (ntod)     
-     integer(i4b), allocatable, dimension(:)   :: flag    ! Detector flag; 0 is accepted, /= 0 is rejected
-     integer(i4b), allocatable, dimension(:)   :: pix     ! Pixelized pointing, (ntod,nhorn)
-     real(dp),     allocatable, dimension(:)   :: psi     ! Polarization angle, (ntod,nhorn)
+     integer(i4b), allocatable, dimension(:)   :: flag    ! Compressed detector flag; 0 is accepted, /= 0 is rejected
+     integer(i4b), allocatable, dimension(:)   :: pix     ! Compressed pixelized pointing, (ntod,nhorn)
+     integer(i4b), allocatable, dimension(:)   :: psi     ! Compressed polarization angle, (ntod,nhorn)
      real(dp),     allocatable, dimension(:)   :: N_psd   ! Noise power spectrum density; in uncalibrated units
      real(dp),     allocatable, dimension(:)   :: nu_psd  ! Noise power spectrum bins; in Hz
   end type comm_detscan
 
   type :: comm_scan
-     integer(i4b) :: ntod                                        ! Number of time samples
-     real(dp)     :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
-     real(dp)     :: t0                                          ! MJD for first sample
-     class(comm_detscan), allocatable, dimension(:)     :: d     ! Array of all detectors
+     integer(i4b)   :: ntod                                        ! Number of time samples
+     real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
+     real(dp)       :: t0                                          ! MJD for first sample
+     type(huffcode) :: hkey                                        ! Huffman decompression key
+     class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
 
   type, abstract :: comm_tod 
@@ -38,9 +44,12 @@ module comm_tod_mod
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
      integer(i4b) :: nscan                                        ! Number of scans
+     integer(i4b) :: npsi                                         ! Number of discretized psi steps
      real(dp)     :: samprate                                     ! Sample rate in Hz
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
+     real(sp),           allocatable, dimension(:,:)   :: sin2psi ! Lookup table of sin(2psi) for each det
+     real(sp),           allocatable, dimension(:,:)   :: cos2psi ! Lookup table of cos(2psi) for each det
      type(comm_scan),    allocatable, dimension(:)     :: scans   ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid  ! List of scan IDs
      character(len=512), allocatable, dimension(:)     :: hdfname ! List of HDF filenames for each ID
@@ -87,16 +96,29 @@ contains
     implicit none
     class(comm_tod),                intent(inout)  :: self
 
-    integer(i4b) :: i
-    real(dp)     :: t1, t2
+    integer(i4b) :: i, j
+    real(dp)     :: t1, t2, psi
 
     if (self%nscan ==0) return
 
     call wall_time(t1)
     allocate(self%scans(self%nscan))
     do i = 1, self%nscan
-       call read_hdf_scan(self%scans(i), self%hdfname(i), self%scanid(i), self%ndet)
+       call read_hdf_scan(self%scans(i), self%hdfname(i), self%scanid(i), self%ndet, &
+            & self%npsi)
     end do
+
+    ! Precompute trigonometric functions
+    allocate(self%sin2psi(0:self%npsi-1,self%ndet), self%cos2psi(0:self%npsi-1,self%ndet))
+    do j = 1, self%ndet
+       do i = 0, self%npsi-1
+          psi          = (i+0.5d0)*2.d0*pi/real(self%npsi,dp)+self%scans(1)%d(j)%polang
+          self%sin2psi(i,j) = sin(2.d0*psi)
+          self%cos2psi(i,j) = cos(2.d0*psi)
+       end do
+    end do
+
+
     call wall_time(t2)
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
          & '    Myid = ', self%myid, ' -- nscan = ', self%nscan, &
@@ -104,19 +126,21 @@ contains
 
   end subroutine read_tod
 
-  subroutine read_hdf_scan(self, filename, scan, ndet)
+  subroutine read_hdf_scan(self, filename, scan, ndet, npsi)
     implicit none
-    character(len=*),       intent(in) :: filename
-    integer(i4b),           intent(in) :: scan, ndet
-    class(comm_scan), intent(inout)                  :: self
+    character(len=*),                              intent(in)    :: filename
+    integer(i4b),                                  intent(in)    :: scan, ndet
+    integer(i4b),                                  intent(out)   :: npsi
+    class(comm_scan),                              intent(inout) :: self
 
-    integer(i4b)       :: i, j, n, m, nhorn, ext(1)
+    integer(i4b)       :: i, j, n, m, nhorn, ext(1), ierr
+    real(dp)           :: psi
     character(len=6)   :: slabel
     character(len=128) :: field
     integer(hid_t)     :: nfield, err, obj_type
     type(hdf_file)     :: file
-    integer(i4b), allocatable, dimension(:) :: buffer_int
-    real(sp),     allocatable, dimension(:) :: buffer_sp
+    integer(i4b), allocatable, dimension(:) :: hsymb, hfreq
+    real(dp),     allocatable, dimension(:) :: buffer_sp
 
     call int2string(scan, slabel)
 
@@ -127,7 +151,7 @@ contains
     if (trim(field) == 'common') then
        call h5gget_obj_info_idx_f(file%filehandle, slabel, 2, field, obj_type, err)
     end if
-    call get_size_hdf(file, slabel // "/" // trim(field) // "/pix", ext)
+    call get_size_hdf(file, slabel // "/" // trim(field) // "/tod", ext)
     !nhorn     = ext(1)
     n         = ext(1)
     m         = get_closest_fft_magic_number(n)
@@ -138,13 +162,14 @@ contains
     call read_hdf(file, slabel // "/common/time", self%t0)
 
     ! Read detector scans
-    allocate(self%d(ndet), buffer_int(n), buffer_sp(n))
+    allocate(self%d(ndet), buffer_sp(n))
     i = 0
     do j = 0, ndet
        call h5gget_obj_info_idx_f(file%filehandle, slabel, j, field, obj_type, err)
        if (trim(field) == 'common') cycle
        i = i+1
-       allocate(self%d(i)%tod(m), self%d(i)%flag(m), self%d(i)%pix(m), self%d(i)%psi(m))
+!write(*,*) i, allocated(self%d(i)%tod)
+       allocate(self%d(i)%tod(m))
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/gain",   self%d(i)%gain)
        call read_hdf(file, slabel // "/" // trim(field) // "/sigma0", self%d(i)%sigma0)
@@ -152,21 +177,29 @@ contains
        call read_hdf(file, slabel // "/" // trim(field) // "/fknee",  self%d(i)%fknee)
        call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
        self%d(i)%tod = buffer_sp(1:m)
-       call read_hdf(file, slabel // "/" // trim(field) // "/flag",   buffer_int)
-       self%d(i)%flag = buffer_int(1:m)
        call read_hdf(file, slabel // "/" // trim(field) // "/nside",  self%d(i)%nside)
-       call read_hdf(file, slabel // "/" // trim(field) // "/pix",    buffer_int)
-       self%d(i)%pix = buffer_int(1:m)
-       call read_hdf(file, slabel // "/" // trim(field) // "/psi",    buffer_sp)
-       self%d(i)%psi = buffer_sp(1:m)
        call read_hdf(file, slabel // "/" // trim(field) // "/polang", self%d(i)%polang)
+       call read_hdf(file, slabel // "/common/fsamp",                 self%d(i)%samprate)
+       call read_hdf(file, slabel // "/" // trim(field) // "/npsi",  npsi)
+   
+       ! Read Huffman coded data arrays
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi)
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
     end do
-    deallocate(buffer_int, buffer_sp)
+    deallocate(buffer_sp)
 
     if (i /= ndet) then
        write(*,*) 'ERROR: Too few detectors in TOD file = ', trim(filename)
        stop
     end if
+
+    ! Initialize Huffman key
+    call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
+    call read_alloc_hdf(file, slabel // "/common/hufffreq", hfreq)
+    !write(*,*) size(hsymb), size(hfreq)
+    call hufmak(hsymb,hfreq,self%hkey)
+    deallocate(hsymb, hfreq)
 
     call close_hdf_file(file)
 
