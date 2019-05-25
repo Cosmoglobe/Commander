@@ -70,6 +70,7 @@ module comm_map_mod
      procedure     :: getCrossSigmaL
      procedure     :: smooth
      procedure     :: bcast_fullsky_map
+     procedure     :: get_alm
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -1074,5 +1075,29 @@ contains
     deallocate(p)
 
   end subroutine bcast_fullsky_map
-  
+ 
+  subroutine get_alm(self, l, m, pol, complx, alm)
+    implicit none
+    class(comm_map),                  intent(in) :: self
+    integer(i4b),                     intent(in) :: l,m,pol
+    logical(lgt),                     intent(in) :: complx
+    complex(dpc),                     intent(out) :: alm
+ 
+    integer(i4b) :: ind, ind2
+
+    call self%info%lm2i(l, m, ind)
+
+    if(complx == .false.) then
+      alm = cmplx(self%alm(ind, pol), 0.d0)
+    else
+      if(m == 0) then
+        alm = cmplx(self%alm(ind, pol), 0.d0)
+      else
+        call self%info%lm2i(l, -m, ind2)
+        alm = 1.d0 / sqrt(2.d0) * cmplx(self%alm(ind, pol), self%alm(ind2, pol))
+      end if 
+    end if
+
+
+  end subroutine get_alm
 end module comm_map_mod
