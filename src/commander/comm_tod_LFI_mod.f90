@@ -7,7 +7,7 @@ module comm_tod_LFI_mod
   use healpix_types  
   use comm_huffman_mod
   implicit none
-!  include 'fftw3.f'
+  include 'fftw3.f'
 
   private
   public comm_LFI_tod
