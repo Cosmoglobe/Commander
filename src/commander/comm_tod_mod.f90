@@ -5,6 +5,7 @@ module comm_tod_mod
   use comm_map_mod
   use comm_fft_mod
   use comm_huffman_mod
+  use comm_conviqt_mod
   USE ISO_C_BINDING
   implicit none
 
@@ -20,12 +21,10 @@ module comm_tod_mod
      real(dp)          :: chisq
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
      integer(i4b)      :: npsi                            ! Number of discrete polarization angles
-     !character(len=10000) :: pixcode
-     real(dp) :: pixcode
      real(sp),     allocatable, dimension(:)   :: tod     ! Detector values in time domain, (ntod)     
-     integer(i4b), allocatable, dimension(:)   :: flag    ! Compressed detector flag; 0 is accepted, /= 0 is rejected
-     integer(i4b), allocatable, dimension(:)   :: pix     ! Compressed pixelized pointing, (ntod,nhorn)
-     integer(i4b), allocatable, dimension(:)   :: psi     ! Compressed polarization angle, (ntod,nhorn)
+     byte,         allocatable, dimension(:)   :: flag    ! Compressed detector flag; 0 is accepted, /= 0 is rejected
+     byte,         allocatable, dimension(:)   :: pix     ! Compressed pixelized pointing, (ntod,nhorn)
+     byte,         allocatable, dimension(:)   :: psi     ! Compressed polarization angle, (ntod,nhorn)
      real(dp),     allocatable, dimension(:)   :: N_psd   ! Noise power spectrum density; in uncalibrated units
      real(dp),     allocatable, dimension(:)   :: nu_psd  ! Noise power spectrum bins; in Hz
   end type comm_detscan
@@ -48,14 +47,16 @@ module comm_tod_mod
      real(dp)     :: samprate                                     ! Sample rate in Hz
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
-     real(sp),           allocatable, dimension(:,:)   :: sin2psi ! Lookup table of sin(2psi) for each det
-     real(sp),           allocatable, dimension(:,:)   :: cos2psi ! Lookup table of cos(2psi) for each det
-     type(comm_scan),    allocatable, dimension(:)     :: scans   ! Array of all scans
-     integer(i4b),       allocatable, dimension(:)     :: scanid  ! List of scan IDs
-     character(len=512), allocatable, dimension(:)     :: hdfname ! List of HDF filenames for each ID
+     real(sp),           allocatable, dimension(:,:)   :: sin2psi  ! Lookup table of sin(2psi) for each det
+     real(sp),           allocatable, dimension(:,:)   :: cos2psi  ! Lookup table of cos(2psi) for each det
+     type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
+     integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
+     character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      class(comm_map), pointer                          :: procmask ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info     ! Map definition
-     class(comm_map),    allocatable, dimension(:)     :: beams    ! Beam data (ndet)
+     class(comm_mapinfo), pointer                      :: slinfo   ! Sidelobe map info
+     class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
+     class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
@@ -66,8 +67,8 @@ module comm_tod_mod
      subroutine process_tod(self, map_in, map_out, rms_out)
        import comm_tod, comm_map, map_ptr
        implicit none
-       class(comm_tod),                 intent(inout)    :: self
-       type(map_ptr),     dimension(:), intent(in)    :: map_in            
+       class(comm_tod),                 intent(inout) :: self
+       type(map_ptr),     dimension(:), intent(inout) :: map_in            
        class(comm_map),                 intent(inout) :: map_out, rms_out  
      end subroutine process_tod
   end interface
@@ -133,9 +134,11 @@ contains
     integer(i4b),                                  intent(out)   :: npsi
     class(comm_scan),                              intent(inout) :: self
 
-    integer(i4b)       :: i, j, n, m, nhorn, ext(1), ierr
+    integer(i4b)       :: i, j, k, n, m, nhorn, ext(1), ierr
     real(dp)           :: psi
     character(len=6)   :: slabel
+    character(len=32)   :: out
+    character(len=8)   :: out2
     character(len=128) :: field
     integer(hid_t)     :: nfield, err, obj_type
     type(hdf_file)     :: file
@@ -186,6 +189,39 @@ contains
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi)
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+!!$       write(*,'(10z2)') self%d(i)%pix(1:10)
+!!$
+!!$    do k = 1, 8
+!!$       if (btest(self%d(i)%pix(1),k-1)) then
+!!$          write(*,*) k,'1'
+!!$       else
+!!$          write(*,*) k,'0'
+!!$       end if
+!!$    end do
+!!$
+!!$       write(*,*) 
+!!$       stop
+
+!!$       if (scan==1) then
+!!$          do k=0, 31
+!!$             if (btest(self%d(i)%flag(1),k)) then
+!!$                out(k+1:k+1) = '1'
+!!$             else
+!!$                out(k+1:k+1) = '0'
+!!$             end if
+!!$          end do
+!!$          write(*,*)  self%d(i)%flag(1), out
+!!$
+!!$          do k=0, 7
+!!$             if (btest(self%d(i)%flag2(2),k)) then
+!!$                out2(k+1:k+1) = '1'
+!!$             else
+!!$                out2(k+1:k+1) = '0'
+!!$             end if
+!!$          end do
+!!$          write(*,*)  self%d(i)%flag2(2), out2
+!!$
+!!$       end if
     end do
     deallocate(buffer_sp)
 
@@ -197,7 +233,11 @@ contains
     ! Initialize Huffman key
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufffreq", hfreq)
-    !write(*,*) size(hsymb), size(hfreq)
+!!$    if (scan==1) then
+!!$    do i =1, size(hsymb)
+!!$       write(*,*) i, hsymb(i), hfreq(i)
+!!$    end do
+!!$ end if
     call hufmak(hsymb,hfreq,self%hkey)
     deallocate(hsymb, hfreq)
 

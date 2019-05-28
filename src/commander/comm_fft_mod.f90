@@ -46,7 +46,7 @@ contains
 
     integer(i4b) :: ind
 
-    if (i > max_fft_magic_number .or. i < min_fft_magic_number) then
+    if (.true. .or. i > max_fft_magic_number .or. i < min_fft_magic_number) then
        get_closest_fft_magic_number = i
     else
        ind                          = locate(fft_magic_numbers, i)

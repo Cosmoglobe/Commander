@@ -7,7 +7,6 @@ module comm_tod_LFI_mod
   use healpix_types  
   use comm_huffman_mod
   implicit none
-  include 'fftw3.f'
 
   private
   public comm_LFI_tod
@@ -42,6 +41,9 @@ contains
     class(comm_mapinfo),     target     :: info
     class(comm_LFI_tod),     pointer    :: constructor
 
+    integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam
+    logical(lgt) :: pol_beam
+
     ! Set up LFI specific parameters
     allocate(constructor)
     constructor%myid     = cpar%myid
@@ -67,6 +69,21 @@ contains
     ! Read the actual TOD
     call constructor%read_tod
 
+    ! Initialize far sidelobe beams
+    if (.false.) then
+       nside_beam = 128
+       lmax_beam  = 128
+       nmaps_beam = 1
+       pol_beam   = .false.
+       constructor%slinfo => comm_mapinfo(cpar%comm_chain, nside_beam, lmax_beam, &
+            & nmaps_beam, pol_beam)
+       allocate(constructor%slbeam(constructor%ndet), constructor%slconv(constructor%ndet))
+       do i = 1, constructor%ndet
+          constructor%slbeam(i)%p => comm_map(constructor%slinfo, "slbeam.fits")
+          call constructor%slbeam(i)%p%YtW() ! Compute beam alms
+       end do
+    end if
+
   end function constructor
 
   !**************************************************
@@ -74,13 +91,13 @@ contains
   !**************************************************
   subroutine process_LFI_tod(self, map_in, map_out, rms_out)
     implicit none
-    class(comm_LFI_tod),               intent(inout)    :: self
-    type(map_ptr),       dimension(:), intent(in)    :: map_in            ! One map per detector
-    class(comm_map),                   intent(inout) :: map_out, rms_out ! Combined output map and rms
+    class(comm_LFI_tod),               intent(inout) :: self
+    type(map_ptr),       dimension(:), intent(inout) :: map_in            ! One map per detector
+    class(comm_map),                   intent(inout) :: map_out, rms_out  ! Combined output map and rms
 
     integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot, ierr
     real(dp)     :: t1, t2, t3, t4, t5, t6, chisq_threshold
-    real(dp)     :: t_tot(11) 
+    real(dp)     :: t_tot(13) 
     real(sp),     allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb, mask
     real(dp),     allocatable, dimension(:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)     :: A_abscal, b_abscal
@@ -88,6 +105,7 @@ contains
     real(dp),     allocatable, dimension(:,:)   :: b_map
     real(dp),     allocatable, dimension(:,:)   :: procmask
     integer(i4b), allocatable, dimension(:,:)   :: pix, psi, flag
+    integer(i4b), allocatable, dimension(:)     :: ncount
 
     t_tot   = 0.d0
     call wall_time(t5)
@@ -111,6 +129,15 @@ contains
     map_sky = map_sky * 1.d-6 ! Gain in V/K
     call wall_time(t2)
     t_tot(9) = t2-t1
+
+    ! Compute far sidelobe Conviqt structures
+    call wall_time(t1)
+    do i = 1, self%ndet
+       call map_in(i)%p%YtW()  ! Compute sky a_lms
+       call self%slconv(i)%p%precompute_sky(self%slbeam(i)%p, map_in(i)%p)
+    end do
+    call wall_time(t2)
+    t_tot(13) = t2-t1
 
     ! Compute output map and rms
     A_map = 0.d0
@@ -150,11 +177,19 @@ contains
 
        ! Decompress pointing, psi and flags for current scan
        call wall_time(t1)
+    allocate(ncount(self%scans(i)%hkey%nch))
+    ncount = 0
        do j = 1, ndet
-          call self%decompress_pointing_and_flags(i, j, pix(:,j), psi(:,j), flag(:,j))
+          call self%decompress_pointing_and_flags(i, j, pix(:,j), psi(:,j), flag(:,j), ncount)
        end do
        call wall_time(t2)       
        t_tot(11) = t_tot(11) + t2-t1
+    do j= 1, self%scans(i)%hkey%nch
+       write(*,*) j, self%scans(i)%hkey%symbols(j), self%scans(i)%hkey%nfreq(j), ncount(j), get_bitstring(self%scans(i)%hkey,j)
+    end do
+    write(*,*) 'total = ', sum(self%scans(i)%hkey%nfreq), sum(ncount)
+
+    deallocate(ncount)
 
        ! Construct sky signal template -- Maksym -- this week
        call wall_time(t1)
@@ -167,13 +202,18 @@ contains
 
        ! Construct orbital dipole template -- Kristian -- this week-ish
        call wall_time(t1)
-       call self%compute_orbital_dipole(i, s_orb)
+       call self%compute_orbital_dipole(i, pix, s_orb)
        call wall_time(t2)
        t_tot(2) = t_tot(2) + t2-t1
        !if (self%myid == 0) write(*,*) 'Orb dipole = ', t2-t1
 
        ! Construct sidelobe template -- Mathew -- long term
-       call self%construct_sl_template(ntod, i, map_in, s_sl)
+       call wall_time(t1)
+       do j = 1, ndet
+          call self%construct_sl_template(self%slconv(j)%p, i, pix(:,j), psi(:,j), s_sl(:,j))
+       end do
+       call wall_time(t2)
+       t_tot(12) = t_tot(12) + t2-t1
        
        ! Fit correlated noise -- Haavard -- this week-ish
        call wall_time(t1)
@@ -263,9 +303,11 @@ contains
     call wall_time(t6)
     if (self%myid == 0) then
        write(*,*) '  Time dist sky   = ', t_tot(9)
+       write(*,*) '  Time sl precomp = ', t_tot(13)
        write(*,*) '  Time decompress = ', t_tot(11)
        write(*,*) '  Time project    = ', t_tot(1)
        write(*,*) '  Time orbital    = ', t_tot(2)
+       write(*,*) '  Time sl interp  = ', t_tot(12)
        write(*,*) '  Time ncorr      = ', t_tot(3)
        write(*,*) '  Time gain       = ', t_tot(4)
        write(*,*) '  Time clean      = ', t_tot(5)
@@ -289,18 +331,19 @@ contains
   !**************************************************
   !             Sub-process routines
   !**************************************************
-  subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag)
+  subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag, ncount)
     implicit none
     class(comm_LFI_tod),                intent(in)  :: self
     integer(i4b),                       intent(in)  :: scan, det
     integer(i4b),        dimension(:),  intent(out) :: pix, psi, flag
+    integer(i4b),        dimension(:),  intent(inout) :: ncount
 
     integer(i4b) :: i, j
 
     write(*,*) self%scans(scan)%d(det)%pix(1:5)
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi)
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix, ncount)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, ncount)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag, ncount)
     write(*,*) self%scans(scan)%ntod
     write(*,*) pix(1:5)
     write(*,*) pix(self%scans(scan)%ntod-4:self%scans(scan)%ntod)
@@ -312,6 +355,7 @@ contains
     write(*,*) pix(1:5)
     !write(*,*) psi(1:5)
     !write(*,*) flag(1:5)
+
 
   end subroutine decompress_pointing_and_flags
 
@@ -347,10 +391,11 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine compute_orbital_dipole(self, ind, s_orb)
+  subroutine compute_orbital_dipole(self, ind, pix, s_orb)
     implicit none
     class(comm_LFI_tod),                 intent(in)  :: self
     integer(i4b),                        intent(in)  :: ind !scan nr/index
+    integer(i4b),        dimension(:,:), intent(in)  :: pix
     real(sp),            dimension(:,:), intent(out) :: s_orb
     real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot
     real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
@@ -363,7 +408,7 @@ contains
 
     do i = 1,self%ndet
        do j=1,self%scans(ind)%ntod !length of the tod
-          call pix2vec_ring(self%scans(ind)%d(i)%nside, self%scans(ind)%d(i)%pix(j), &
+          call pix2vec_ring(self%scans(ind)%d(i)%nside, pix(j,i), &
                & pix_dir)
           b_dot = dot_product(self%scans(ind)%v_sun, pix_dir)/c
           s_orb(j,i) = T_CMB  * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
@@ -506,25 +551,21 @@ contains
   end subroutine sample_gain
   
   !construct a sidelobe template in the time domain
-  subroutine construct_sl_template(self, ntod, scan_id, map_in, s_sl)
+  subroutine construct_sl_template(self, slconv, scan_id, pix, psi, s_sl)
     implicit none
     class(comm_LFI_tod),                 intent(in)    :: self
-    integer(i4b),                        intent(in)    :: ntod, scan_id
-    type(map_ptr),       dimension(:),   intent(in)    :: map_in
-    real(sp),            dimension(:,:), intent(out)   :: s_sl
+    class(comm_conviqt),                 intent(in)    :: slconv
+    integer(i4b),                        intent(in)    :: scan_id
+    integer(i4b),        dimension(:),   intent(in)    :: pix, psi
+    real(sp),            dimension(:),   intent(out)   :: s_sl
     
-    integer(i4b) :: i, j
-    real(dpc) :: psi, theta, phi
-    class(comm_conviqt), allocatable :: conviqt
+    integer(i4b) :: i, j, p
+    real(dp)     :: psi_, theta, phi
 
-    do i=1, self%ndet
-      !TODO: figure out how the beam is stored
-      !conviqt = comm_conviqt(self%beams(i), map_in(i), 0)
-      do j=1, ntod
-        call pix2ang_ring(self%scans(scan_id)%d(i)%nside, self%scans(scan_id)%d(i)%pix(j), theta, phi)
-        psi = self%scans(scan_id)%d(i)%psi(i)
-        s_sl(j, i) = 0!conviqt%interp(theta, phi, psi) 
-      end do
+    do j=1, size(pix)
+       call pix2ang_ring(self%scans(scan_id)%d(i)%nside, pix(j), theta, phi)
+       psi_    = psi(j) ! HKE: Should this be defined without the detector angle
+       s_sl(j) = 0.     ! slconv%interp(theta, phi, psi_)  ! Commented out until validated
     end do
 
   end subroutine construct_sl_template
