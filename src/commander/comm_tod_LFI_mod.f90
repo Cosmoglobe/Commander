@@ -268,7 +268,7 @@ contains
                & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
                & cycle
           naccept = naccept + 1
-          call self%compute_binned_map(d_calib, pix(:,j), psi(:,j), flag(:,j), A_map, b_map, i, j)
+          call self%compute_binned_map(d_calib, pix(:,j), flag(:,j), A_map, b_map, i, j)
        end do
        call wall_time(t2)
        t_tot(8) = t_tot(8) + t2-t1
@@ -640,18 +640,17 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine compute_binned_map(self, data, pix, psi, flag, A, b, scan, det)
+  subroutine compute_binned_map(self, data, pix, flag, A, b, scan, det)
     implicit none
     class(comm_LFI_tod),                      intent(in)    :: self
     integer(i4b),                             intent(in)    :: scan, det
     real(sp),            dimension(:,:),      intent(in)    :: data
-    integer(i4b),        dimension(:),        intent(in)    :: pix, psi,flag
+    integer(i4b),        dimension(:),        intent(in)    :: pix, flag
     real(dp),            dimension(1:,1:,0:), intent(inout) :: A
     real(dp),            dimension(1:,0:),    intent(inout) :: b
 
     integer(i4b) :: i, j, t, pix_
-    real(dp)     :: psi_, cos_psi, sin_psi, inv_sigmasq
-
+    real(dp)     :: psi_, inv_sigmasq
 
     inv_sigmasq = 1.d0 / self%scans(scan)%d(det)%sigma0**2 *1d12
     do t = 1, self%scans(scan)%ntod
@@ -659,20 +658,18 @@ contains
        if (iand(flag(t),6111248) .ne. 0) cycle
 
        pix_    = pix(t)
-       psi_    = psi(t)   ! Current an index; must be converted to a real value
-       cos_psi = cos(2.d0*psi_)
-       sin_psi = sin(2.d0*psi_)
+       psi_    = self%scans(scan)%d(det)%psi(t)
        
-       A(1,1,pix_) = A(1,1,pix_) + 1.d0            * inv_sigmasq
-       A(1,2,pix_) = A(1,2,pix_) + cos_psi         * inv_sigmasq
-       A(1,3,pix_) = A(1,3,pix_) + sin_psi         * inv_sigmasq
-       A(2,2,pix_) = A(2,2,pix_) + cos_psi**2      * inv_sigmasq
-       A(2,3,pix_) = A(2,3,pix_) + cos_psi*sin_psi * inv_sigmasq
-       A(3,3,pix_) = A(3,3,pix_) + sin_psi**2      * inv_sigmasq
+       A(1,1,pix_) = A(1,1,pix_) + 1.d0                                          * inv_sigmasq
+       A(1,2,pix_) = A(1,2,pix_) + self%cos2psi(psi_,det)                        * inv_sigmasq
+       A(1,3,pix_) = A(1,3,pix_) + self%sin2psi(psi_,det)                        * inv_sigmasq
+       A(2,2,pix_) = A(2,2,pix_) + self%cos2psi(psi_,det)**2                     * inv_sigmasq
+       A(2,3,pix_) = A(2,3,pix_) + self%cos2psi(psi_,det)*self%sin2psi(psi_,det) * inv_sigmasq
+       A(3,3,pix_) = A(3,3,pix_) + self%sin2psi(psi_,det)**2                     * inv_sigmasq
 
-       b(1,pix_) = b(1,pix_) + data(t,det)           * inv_sigmasq
-       b(2,pix_) = b(2,pix_) + data(t,det) * cos_psi * inv_sigmasq
-       b(3,pix_) = b(3,pix_) + data(t,det) * sin_psi * inv_sigmasq
+       b(1,pix_) = b(1,pix_) + data(t,det)                          * inv_sigmasq
+       b(2,pix_) = b(2,pix_) + data(t,det) * self%cos2psi(psi_,det) * inv_sigmasq
+       b(3,pix_) = b(3,pix_) + data(t,det) * self%sin2psi(psi_,det) * inv_sigmasq
 
     end do
 
