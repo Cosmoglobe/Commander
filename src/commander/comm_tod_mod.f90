@@ -142,8 +142,9 @@ contains
     character(len=128) :: field
     integer(hid_t)     :: nfield, err, obj_type
     type(hdf_file)     :: file
-    integer(i4b), allocatable, dimension(:) :: hsymb, hfreq
+    integer(i4b), allocatable, dimension(:) :: hsymb
     real(dp),     allocatable, dimension(:) :: buffer_sp
+    integer(i4b), allocatable, dimension(:) :: htree
 
     call int2string(scan, slabel)
 
@@ -161,8 +162,9 @@ contains
     self%ntod = m
 
     ! Read common scan data
-    call read_hdf(file, slabel // "/common/vsun", self%v_sun)
-    call read_hdf(file, slabel // "/common/time", self%t0)
+    call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
+    call read_hdf(file, slabel // "/common/time",  self%t0)
+    call read_hdf(file, slabel // "/common/npsi",  npsi)
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -180,10 +182,10 @@ contains
        call read_hdf(file, slabel // "/" // trim(field) // "/fknee",  self%d(i)%fknee)
        call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
        self%d(i)%tod = buffer_sp(1:m)
-       call read_hdf(file, slabel // "/" // trim(field) // "/nside",  self%d(i)%nside)
        call read_hdf(file, slabel // "/" // trim(field) // "/polang", self%d(i)%polang)
+       call read_hdf(file, slabel // "/common/nside",                 self%d(i)%nside)
        call read_hdf(file, slabel // "/common/fsamp",                 self%d(i)%samprate)
-       call read_hdf(file, slabel // "/" // trim(field) // "/npsi",  npsi)
+
    
        ! Read Huffman coded data arrays
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
@@ -231,16 +233,25 @@ contains
     end if
 
     ! Initialize Huffman key
-    call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
-    call read_alloc_hdf(file, slabel // "/common/hufffreq", hfreq)
-!!$    if (scan==1) then
-!!$    do i =1, size(hsymb)
-!!$       write(*,*) i, hsymb(i), hfreq(i)
-!!$    end do
-!!$ end if
-    call hufmak(hsymb,hfreq,self%hkey)
-    deallocate(hsymb, hfreq)
+    call read_alloc_hdf(file, slabel // "/common/hsymb", hsymb)
+    call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
+    call hufmak_precomp(hsymb,htree,self%hkey)
+    !call hufmak(hsymb,hfreq,self%hkey)
+    deallocate(hsymb, htree)
 
+!!$    if (scan==1) then
+!!$       open(58,file='tree.dat')
+!!$       write(58,*) self%hkey%nodemax
+!!$       write(58,*)
+!!$       do i = 1, size(self%hkey%left)
+!!$          if (i <= size(self%hkey%symbols)) then
+!!$             write(58,*) i, self%hkey%left(i), self%hkey%iright(i), self%hkey%symbols(i)
+!!$          else
+!!$             write(58,*) i, self%hkey%left(i), self%hkey%iright(i)
+!!$          end if
+!!$       end do
+!!$       close(58)
+!!$    end if
     call close_hdf_file(file)
 
   end subroutine read_hdf_scan
