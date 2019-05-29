@@ -108,6 +108,14 @@ def make_od(freq, od, args):
         outFile[prefix + '/vsun'].attrs['info'] = '[x, y, z]'
         outFile[prefix + '/vsun'].attrs['coords'] = 'galactic'
 
+        #psi angle resolution
+        outFile.create_dataset(prefix + '/npsi', data=[npsi])
+
+        #nside
+        outFile.create_dataset(prefix + '/nside', data=[nside])
+
+
+
         #make huffman code table
         pixArray = [[], [], []]
         for horn in horns[freq]:
@@ -147,8 +155,10 @@ def make_od(freq, od, args):
         h = huffman.Huffman("", nside)
         h.GenerateCode(pixArray)
 
-        outFile.create_dataset(prefix + '/huffsymb', data=list(h.weight.keys()))
-        outFile.create_dataset(prefix + '/hufffreq', data=list(h.weight.values()))
+        huffarray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
+
+        outFile.create_dataset(prefix + '/hufftree', data=huffarray)
+        outFile.create_dataset(prefix + '/huffsymb', data=h.symbols)
 
         for horn in horns[freq]:
             fileName = h5py.File(os.path.join(args.planck_dir, 'LFI_0' + str(freq) + '_' + str(horn) + '_L2_002_OD' + str(od).zfill(4) +'.h5'), 'r')
@@ -167,31 +177,31 @@ def make_od(freq, od, args):
                     outFile.create_dataset(str(pid).zfill(6) + '/common/fsamp', data=fsamp)
 
                 #make tod data 
-                outFile.create_dataset(prefix + '/tod', data=fileName[str(horn) + hornType +'/SIGNAL'][pid_start:pid_end])
+                outFile.create_dataset(prefix + '/tod', data=fileName[str(horn) + hornType +'/SIGNAL'][pid_start:pid_end], dtype='f4')
 
                 #undifferenced data? TODO
                 #outFile.create_dataset(prefix + '/')
                 
                 #make flag data
                 flagArray = fileName[str(horn) + hornType + '/FLAG'][pid_start:pid_end]
-                '''
+                
                 if (len(flagArray) > 0):
                     delta = np.diff(flagArray)
                     delta = np.insert(delta, 0, flagArray[0])
                     outFile.create_dataset(prefix + '/flag', data=np.void(bytes(h.byteCode(delta))))
-                '''
-                outFile.create_dataset(prefix + '/flag', data=flagArray, compression='gzip', shuffle=True)
+                
+                #outFile.create_dataset(prefix + '/flag', data=flagArray, compression='gzip', shuffle=True)
 
                 #make pixel number
                 newTheta, newPhi = r(fileName[str(horn) + hornType + '/THETA'][pid_start:pid_end], fileName[str(horn) + hornType + '/PHI'][pid_start:pid_end])
                 pixels = hp.pixelfunc.ang2pix(nside, newTheta, newPhi)
-                '''
+                
                 if len(pixels > 0):
                     delta = np.diff(pixels)
                     delta = np.insert(delta, 0, pixels[0])
                     outFile.create_dataset(prefix + '/pix', data=np.void(bytes(h.byteCode(delta))))
-                '''                
-                outFile.create_dataset(prefix + '/pix', data=pixels, compression='gzip', shuffle=True)
+                                
+                #outFile.create_dataset(prefix + '/pix', data=pixels, compression='gzip', shuffle=True)
 
                 #make pol angle
                 psiArray = fileName[str(horn) + hornType + '/PSI'][pid_start:pid_end] + r.angle_ref(fileName[str(horn) + hornType + '/THETA'][pid_start:pid_end], fileName[str(horn) + hornType + '/PHI'][pid_start:pid_end]) + math.radians(rimo[1].data.field('psi_pol')[rimo_i])
@@ -199,22 +209,15 @@ def make_od(freq, od, args):
                 psiBins = np.linspace(0, 2*np.pi, num=4096)
 
                 psiIndexes = np.digitize(psiArray, psiBins)
-                '''
+                
                 if(len(psiIndexes) > 0):
                     delta = np.diff(psiIndexes)
                     delta = np.insert(delta, 0, psiIndexes[0])               
                     outFile.create_dataset(prefix + '/psi', data=np.void(bytes(h.byteCode(delta))))
-                '''
-                outFile.create_dataset(prefix + '/psi', data=psiIndexes, compression='gzip', shuffle=True)
+                
+                #outFile.create_dataset(prefix + '/psi', data=psiIndexes, compression='gzip', shuffle=True)
 
                 #scalars
-        
-                #psi angle resolution
-                outFile.create_dataset(prefix + '/npsi', data=[npsi])
-
-                #nside
-                outFile.create_dataset(prefix + '/nside', data=[nside])
-
                 #make gain
                 if args.gains_dir is not None:
                     gainFile = fits.open(os.path.join(args.gains_dir, 'LFI_0' + str(freq) + '_LFI' + str(horn) + hornType + '_001.fits'))

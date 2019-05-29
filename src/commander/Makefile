@@ -15,7 +15,7 @@ COBJS  := d1mach.o drc3jj.o hashtbl.o powell_mod.o comm_hdf_mod.o sharp.o sort_u
           comm_F_line_mod.o comm_data_mod.o comm_bp_mod.o comm_Cl_mod.o \
           comm_chisq_mod.o comm_cr_mod.o comm_signal_mod.o comm_output_mod.o
 
-all : commander hdftest # sharp_test
+all : commander #hdftest sharp_test
 
 locate_mod.o :             math_tools.o
 spline_1D_mod.o :          locate_mod.o
