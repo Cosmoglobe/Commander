@@ -3,10 +3,14 @@ import numpy as np
 import heapq
 import os
 
+_node_number = 0
 
 class LeafNode:
 
     def __init__(self, symbol, weight):
+        global _node_number
+        _node_number += 1
+        self.node_number = _node_number
         self.symbol = symbol
         self.weight = weight
         self.left = None
@@ -25,6 +29,10 @@ class Huffman:
         self.decoding = {}
         self.queue = []
         self.weight = {}
+        self.symbols = []
+        self.left_nodes = []
+        self.right_nodes = []
+        self.node_max = 0
 
     def PixellizePointing(self, diff=True, write=False):
         angs_pol = np.loadtxt(self.infile)
@@ -76,9 +84,13 @@ class Huffman:
         array = np.array(array).flatten()
         self.weight = self.Weights(array)
 
+        global _node_number
+
         for d in self.weight:
             node = LeafNode(d, self.weight[d])
             heapq.heappush(self.queue, node)
+            self.symbols.append(d)
+    
 
         while(len(self.queue)>1):
             left_child = heapq.heappop(self.queue)
@@ -89,8 +101,14 @@ class Huffman:
             collapsed.right = right_child
             heapq.heappush(self.queue, collapsed)
 
+            self.left_nodes.append(left_child.node_number)
+            self.right_nodes.append(right_child.node_number)
+
         node = heapq.heappop(self.queue)
         self.PrintCode(node)
+
+        self.node_max = node.node_number
+        _node_number = 0
 
         b = self.byteCode(array)
 
