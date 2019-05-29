@@ -51,8 +51,8 @@ contains
     constructor%info     => info
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
-    call constructor%get_scan_ids("data/filelist_1file.txt")
-!     call constructor%get_scan_ids("data/filelist_1year.txt")
+    !call constructor%get_scan_ids("data/filelist_1file.txt")
+     call constructor%get_scan_ids("data/filelist_1year.txt")
 !    call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
@@ -134,7 +134,7 @@ contains
     call wall_time(t1)
     do i = 1, self%ndet
        call map_in(i)%p%YtW()  ! Compute sky a_lms
-       call self%slconv(i)%p%precompute_sky(self%slbeam(i)%p, map_in(i)%p)
+       !call self%slconv(i)%p%precompute_sky(self%slbeam(i)%p, map_in(i)%p)
     end do
     call wall_time(t2)
     t_tot(13) = t2-t1
@@ -184,10 +184,10 @@ contains
        end do
        call wall_time(t2)       
        t_tot(11) = t_tot(11) + t2-t1
-    do j= 1, self%scans(i)%hkey%nch
-       write(*,*) j, self%scans(i)%hkey%symbols(j), self%scans(i)%hkey%nfreq(j), ncount(j), get_bitstring(self%scans(i)%hkey,j)
-    end do
-    write(*,*) 'total = ', sum(self%scans(i)%hkey%nfreq), sum(ncount)
+       !do j= 1, self%scans(i)%hkey%nch
+       !   write(*,*) j, self%scans(i)%hkey%symbols(j), ncount(j)!, get_bitstring(self%scans(i)%hkey,j)
+       !end do
+    !write(*,*) 'total = ', sum(self%scans(i)%hkey%nfreq), sum(ncount)
 
     deallocate(ncount)
 
@@ -210,7 +210,7 @@ contains
        ! Construct sidelobe template -- Mathew -- long term
        call wall_time(t1)
        do j = 1, ndet
-          call self%construct_sl_template(self%slconv(j)%p, i, pix(:,j), psi(:,j), s_sl(:,j))
+          !call self%construct_sl_template(self%slconv(j)%p, i, pix(:,j), psi(:,j), s_sl(:,j))
        end do
        call wall_time(t2)
        t_tot(12) = t_tot(12) + t2-t1
@@ -340,19 +340,19 @@ contains
 
     integer(i4b) :: i, j
 
-    write(*,*) self%scans(scan)%d(det)%pix(1:5)
+!    write(*,*) self%scans(scan)%d(det)%pix(1:5)
     call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix, ncount)
     call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, ncount)
     call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag, ncount)
-    write(*,*) self%scans(scan)%ntod
-    write(*,*) pix(1:5)
-    write(*,*) pix(self%scans(scan)%ntod-4:self%scans(scan)%ntod)
+!    write(*,*) self%scans(scan)%ntod
+!    write(*,*) pix(1:5)
+!    write(*,*) pix(self%scans(scan)%ntod-4:self%scans(scan)%ntod)
     do j = 2, self%scans(scan)%ntod
        pix(j)  = pix(j-1)  + pix(j)
        psi(j)  = psi(j-1)  + psi(j)
        flag(j) = flag(j-1) + flag(j)
     end do
-    write(*,*) pix(1:5)
+!    write(*,*) pix(1:5)
     !write(*,*) psi(1:5)
     !write(*,*) flag(1:5)
 
@@ -374,16 +374,13 @@ contains
     ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
     ! T - temperature; Q, U - Stoke's parameters
     do i = 1, self%scans(scan_id)%ntod
-       !pix = self%scans(scan_id)%d(det)%pix(i)
-       !psi = self%scans(scan_id)%d(det)%psi(i) + self%scans(scan_id)%d(det)%polang * DEG2RAD
-       !s_sky(i) = map(pix, 1) + map(pix, 2) * cos(2.d0 * psi) + map(pix, 3) * sin(2.d0 * psi)
-!       if (any(pmask(pix(i),:) < 0.5d0)) then
-!          tmask(i) = 0.
-!       else
-!          tmask(i) = 1.
-!       end if
-       s_sky(i) = 0.d0
-       tmask(i) = 0.d0
+       ! note that psi(i) is an index now; must be converted to a real number based on lookup table
+       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * cos(2.d0 * psi(i)) + map(pix(i), 3) * sin(2.d0 * psi(i))
+       if (any(pmask(pix(i),:) < 0.5d0)) then
+          tmask(i) = 0.
+       else
+          tmask(i) = 1.
+       end if
     end do
 
   end subroutine project_sky
@@ -649,8 +646,8 @@ contains
     integer(i4b),                             intent(in)    :: scan, det
     real(sp),            dimension(:,:),      intent(in)    :: data
     integer(i4b),        dimension(:),        intent(in)    :: pix, psi,flag
-    real(dp),            dimension(0:,1:,1:), intent(inout) :: A
-    real(dp),            dimension(0:,1:),    intent(inout) :: b
+    real(dp),            dimension(1:,1:,0:), intent(inout) :: A
+    real(dp),            dimension(1:,0:),    intent(inout) :: b
 
     integer(i4b) :: i, j, t, pix_
     real(dp)     :: psi_, cos_psi, sin_psi, inv_sigmasq
@@ -659,23 +656,23 @@ contains
     inv_sigmasq = 1.d0 / self%scans(scan)%d(det)%sigma0**2 *1d12
     do t = 1, self%scans(scan)%ntod
 
-       if (iand(self%scans(scan)%d(det)%flag(t),6111248) .ne. 0) cycle
+       if (iand(flag(t),6111248) .ne. 0) cycle
 
-       pix_    = 0
-       psi_    = 0.d0
+       pix_    = pix(t)
+       psi_    = psi(t)   ! Current an index; must be converted to a real value
        cos_psi = cos(2.d0*psi_)
        sin_psi = sin(2.d0*psi_)
        
-       A(pix_,1,1) = A(pix_,1,1) + 1.d0            * inv_sigmasq
-       A(pix_,1,2) = A(pix_,1,2) + cos_psi         * inv_sigmasq
-       A(pix_,1,3) = A(pix_,1,3) + sin_psi         * inv_sigmasq
-       A(pix_,2,2) = A(pix_,2,2) + cos_psi**2      * inv_sigmasq
-       A(pix_,2,3) = A(pix_,2,3) + cos_psi*sin_psi * inv_sigmasq
-       A(pix_,3,3) = A(pix_,3,3) + sin_psi**2      * inv_sigmasq
+       A(1,1,pix_) = A(1,1,pix_) + 1.d0            * inv_sigmasq
+       A(1,2,pix_) = A(1,2,pix_) + cos_psi         * inv_sigmasq
+       A(1,3,pix_) = A(1,3,pix_) + sin_psi         * inv_sigmasq
+       A(2,2,pix_) = A(2,2,pix_) + cos_psi**2      * inv_sigmasq
+       A(2,3,pix_) = A(2,3,pix_) + cos_psi*sin_psi * inv_sigmasq
+       A(3,3,pix_) = A(3,3,pix_) + sin_psi**2      * inv_sigmasq
 
-       b(pix_,1) = b(pix_,1) + data(t,det)           * inv_sigmasq
-       b(pix_,2) = b(pix_,2) + data(t,det) * cos_psi * inv_sigmasq
-       b(pix_,3) = b(pix_,3) + data(t,det) * sin_psi * inv_sigmasq
+       b(1,pix_) = b(1,pix_) + data(t,det)           * inv_sigmasq
+       b(2,pix_) = b(2,pix_) + data(t,det) * cos_psi * inv_sigmasq
+       b(3,pix_) = b(3,pix_) + data(t,det) * sin_psi * inv_sigmasq
 
     end do
 
