@@ -52,7 +52,7 @@ contains
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
     !call constructor%get_scan_ids("data/filelist_1file.txt")
-     call constructor%get_scan_ids("data/filelist_1year.txt")
+    call constructor%get_scan_ids("data/filelist_1year.txt")
 !    call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
@@ -95,7 +95,7 @@ contains
     type(map_ptr),       dimension(:), intent(inout) :: map_in            ! One map per detector
     class(comm_map),                   intent(inout) :: map_out, rms_out  ! Combined output map and rms
 
-    integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot, ierr
+    integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot, ierr, iter
     real(dp)     :: t1, t2, t3, t4, t5, t6, chisq_threshold
     real(dp)     :: t_tot(13) 
     real(sp),     allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb, mask
@@ -214,6 +214,8 @@ contains
        end do
        call wall_time(t2)
        t_tot(12) = t_tot(12) + t2-t1
+
+       do iter = 1, 1
        
        ! Fit correlated noise -- Haavard -- this week-ish
        call wall_time(t1)
@@ -235,12 +237,6 @@ contains
 
        ! Compute bandpass corrections, as in s_sky(i) - <s_sky> -- Trygve, after deadline
 
-       ! Compute clean and calibrated TOD -- Mathew -- this week
-       call wall_time(t1)
-       call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib)
-       call wall_time(t2)
-       t_tot(5) = t_tot(5) + t2-t1
-       !if (self%myid == 0) write(*,*) 'clean      = ', t2-t1
 
        ! Compute noise spectrum
        call wall_time(t1)
@@ -251,6 +247,10 @@ contains
        t_tot(6) = t_tot(6) + t2-t1
        !if (self%myid == 0) write(*,*) 'noise      = ', t2-t1
 
+       end do
+
+
+
        ! Compute chisquare
        call wall_time(t1)
        do j = 1, ndet
@@ -260,6 +260,13 @@ contains
        t_tot(7) = t_tot(7) + t2-t1
        !if (self%myid == 0) write(*,*) 'chisq      = ', t2-t1
 
+       ! Compute clean and calibrated TOD -- Mathew -- this week
+       call wall_time(t1)
+       call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib)
+       call wall_time(t2)
+       t_tot(5) = t_tot(5) + t2-t1
+       !if (self%myid == 0) write(*,*) 'clean      = ', t2-t1
+
        ! Compute binned map from cleaned TOD -- Marie -- this week
        call wall_time(t1)
        do j = 1, ndet
@@ -268,7 +275,7 @@ contains
                & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
                & cycle
           naccept = naccept + 1
-          call self%compute_binned_map(d_calib, pix(:,j), flag(:,j), A_map, b_map, i, j)
+          call self%compute_binned_map(d_calib, pix(:,j), psi(:,j), flag(:,j), A_map, b_map, i, j)
        end do
        call wall_time(t2)
        t_tot(8) = t_tot(8) + t2-t1
@@ -297,8 +304,10 @@ contains
     call wall_time(t2)
     t_tot(10) = t2-t1
 
-    call mpi_reduce(ntot, MPI_IN_PLACE, 1, MPI_INTEGER, MPI_SUM, 0, self%info%comm, ierr)
-    call mpi_reduce(naccept, MPI_IN_PLACE, 1, MPI_INTEGER, MPI_SUM, 0, self%info%comm, ierr)
+    call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, 0, self%info%comm, ierr)
+    ntot = i
+    call mpi_reduce(naccept, i, 1, MPI_INTEGER, MPI_SUM, 0, self%info%comm, ierr)
+    naccept = i
 
     call wall_time(t6)
     if (self%myid == 0) then
@@ -316,6 +325,7 @@ contains
        write(*,*) '  Time bin        = ', t_tot(8)
        write(*,*) '  Time final      = ', t_tot(10)
        write(*,*) '  Time total      = ', t6-t5, ', accept rate = ', real(naccept,sp) / ntot
+       write(*,*) naccept, ntot
     end if
 
     call map_out%writeFITS('map.fits')
@@ -352,6 +362,7 @@ contains
        psi(j)  = psi(j-1)  + psi(j)
        flag(j) = flag(j-1) + flag(j)
     end do
+    !psi = max(min(psi,4095),0)
 !    write(*,*) pix(1:5)
     !write(*,*) psi(1:5)
     !write(*,*) flag(1:5)
@@ -435,7 +446,6 @@ contains
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
     nomp = omp_get_max_threads()
-    samprate = self%samprate
 
 !    do i = 1, ndet
 !       gain = 1.d-6 * self%scans(scan)%d(i)%gain  ! Gain in V / muK
@@ -460,7 +470,7 @@ contains
     do i = 1, ndet
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
 !       where (mask(:,i) == 1.)
-          d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain
+          d_prime(:) = self%scans(scan)%d(i)%tod(:) -  (S_sky(:,i) + S_orb(:,i) + S_sl(:,i)) * gain
 !       elsewhere
           ! Do gap filling, placeholder
 !          d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain 
@@ -486,10 +496,11 @@ contains
        dt(1:ntod)           = d_prime(:)
        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       samprate = self%scans(i)%d(i)%samprate
        sigma_0 = self%scans(scan)%d(i)%sigma0
        alpha = self%scans(scan)%d(i)%alpha
        nu_knee = self%scans(scan)%d(i)%fknee
-       do l = 0, n-1                                                      
+       do l = 1, n-1                                                      
           nu = l*(samprate/2)/(n-1)
           dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))          
        end do
@@ -536,8 +547,8 @@ contains
     allocate(d_only_wn(size(s_sl)))
     allocate(gain_template(size(s_sl)))
 
-    d_only_wn     = self%scans(scan_id)%d(det)%tod - s_sl - n_corr
-    gain_template = s_sky + s_orb
+    d_only_wn     = self%scans(scan_id)%d(det)%tod - n_corr
+    gain_template = s_sky + s_orb + s_sl
     ata           = sum(mask*gain_template**2)
     curr_gain     = sum(mask * d_only_wn * gain_template) / ata            
     curr_sigma    = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)  
@@ -607,6 +618,7 @@ contains
          & (self%scans(scan)%d(det)%gain * (s_sky(i) + s_sl(i) + s_orb(i)) + &
          & n_corr(i)))**2/self%scans(scan)%d(det)%sigma0**2
     end do
+    close(58)
     self%scans(scan)%d(det)%chisq = (chisq - n) / sqrt(2.d0*n)
 
   end subroutine compute_chisq
@@ -641,25 +653,25 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine compute_binned_map(self, data, pix, flag, A, b, scan, det)
+  subroutine compute_binned_map(self, data, pix, psi, flag, A, b, scan, det)
     implicit none
     class(comm_LFI_tod),                      intent(in)    :: self
     integer(i4b),                             intent(in)    :: scan, det
     real(sp),            dimension(:,:),      intent(in)    :: data
-    integer(i4b),        dimension(:),        intent(in)    :: pix, flag
+    integer(i4b),        dimension(:),        intent(in)    :: pix, psi, flag
     real(dp),            dimension(1:,1:,0:), intent(inout) :: A
     real(dp),            dimension(1:,0:),    intent(inout) :: b
 
     integer(i4b) :: i, j, t, pix_
     real(dp)     :: psi_, inv_sigmasq
 
-    inv_sigmasq = 1.d0 / self%scans(scan)%d(det)%sigma0**2 *1d12
+    inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
     do t = 1, self%scans(scan)%ntod
 
        if (iand(flag(t),6111248) .ne. 0) cycle
 
        pix_    = pix(t)
-       psi_    = self%scans(scan)%d(det)%psi(t)
+       psi_    = psi(t)
        
        A(1,1,pix_) = A(1,1,pix_) + 1.d0                                          * inv_sigmasq
        A(1,2,pix_) = A(1,2,pix_) + self%cos2psi(psi_,det)                        * inv_sigmasq
@@ -692,6 +704,7 @@ contains
 
     ! Collect contributions from all cores
     allocate(A_tot(nmaps,nmaps,0:map%info%np-1), b_tot(nmaps,0:map%info%np-1))
+    
     do i = 0, map%info%nprocs-1
        if (map%info%myid == i) np = map%info%np
        call mpi_bcast(np, 1,  MPI_INTEGER, i, map%info%comm, ierr)
@@ -723,7 +736,7 @@ contains
        end do
        call invert_singular_matrix(A_inv, 1d-12)
        do j = 1, nmaps
-          rms%map(i,j) = sqrt(A_inv(j,j))
+          rms%map(i,j) = sqrt(A_inv(j,j)) * 1.d6 ! uK
        end do
 
        ! map
