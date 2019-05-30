@@ -113,7 +113,7 @@ contains
     allocate(self%sin2psi(0:self%npsi-1,self%ndet), self%cos2psi(0:self%npsi-1,self%ndet))
     do j = 1, self%ndet
        do i = 0, self%npsi-1
-          psi          = (i+0.5d0)*2.d0*pi/real(self%npsi,dp)+self%scans(1)%d(j)%polang
+          psi          = (i+0.5d0)*2.d0*pi/real(self%npsi,dp)
           self%sin2psi(i,j) = sin(2.d0*psi)
           self%cos2psi(i,j) = cos(2.d0*psi)
        end do
@@ -185,7 +185,6 @@ contains
        call read_hdf(file, slabel // "/" // trim(field) // "/polang", self%d(i)%polang)
        call read_hdf(file, slabel // "/common/nside",                 self%d(i)%nside)
        call read_hdf(file, slabel // "/common/fsamp",                 self%d(i)%samprate)
-
    
        ! Read Huffman coded data arrays
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
@@ -233,7 +232,7 @@ contains
     end if
 
     ! Initialize Huffman key
-    call read_alloc_hdf(file, slabel // "/common/hsymb", hsymb)
+    call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
     !call hufmak(hsymb,hfreq,self%hkey)
