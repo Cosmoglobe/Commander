@@ -226,7 +226,7 @@ contains
     if (trim(self%type) == 'line') then
        do i = 1, numband
           S = self%S(band=i, theta=self%theta_def(1:self%npar))
-          if (S /= 0.d0) write(unit,*) data(i)%bp%nu_c*1d-9, S
+          if (S /= 0.d0) write(unit,*) data(i)%bp(0)%p%nu_c*1d-9, S
        end do
     else
        nu = nu_dump(1)

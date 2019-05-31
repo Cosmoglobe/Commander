@@ -144,7 +144,7 @@ contains
        constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
        constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
        do i = 1, numband
-          constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
+          constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp(0)%p)
        end do
     case ("fir")
        constructor%npar = 2   ! (beta, T_d)
@@ -157,12 +157,12 @@ contains
        constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
        constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
        do i = 1, numband
-          constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
+          constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp(0)%p)
        end do
     case ("sz")
        constructor%npar = 0   ! (none)
        do i = 1, numband
-          constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp)
+          constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp(0)%p)
        end do
     case default
        call report_error("Unknown point source model: " // trim(constructor%type))
@@ -1371,7 +1371,7 @@ contains
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
-                   if (data(l)%bp%nu_c >= self%nu_min_ind(1) .and. data(l)%bp%nu_c <= self%nu_max_ind(1)) then
+                   if (data(l)%bp(0)%p%nu_c >= self%nu_min_ind(1) .and. data(l)%bp(0)%p%nu_c <= self%nu_max_ind(1)) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
                       n_pix = n_pix + 1
                    end if
@@ -1408,7 +1408,7 @@ contains
 !!$       theta = self%src(k)%theta(:,1)
 !!$       if (self%myid == 0) open(68,file='ptsrc_sed.dat', recl=1024)
 !!$       do l = 1, numband
-!!$          !if (data(l)%bp%nu_c > 500d9) cycle
+!!$          !if (data(l)%bp(0)%p%nu_c > 500d9) cycle
 !!$          ! Compute mixing matrix
 !!$          !s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
 !!$          !s = self%getScale(l,k,p) * data(l)%gain * self%cg_scale
@@ -1418,15 +1418,15 @@ contains
 !!$          a = 0.d0
 !!$          b = 0.d0
 !!$          do q = 1, self%src(k)%T(l)%np
-!!$             if (data(l)%bp%nu_c > 500d9) then
-!!$                unitconv = (data(l)%bp%f2t/data(l)%bp%a2t)
+!!$             if (data(l)%bp(0)%p%nu_c > 500d9) then
+!!$                unitconv = (data(l)%bp(0)%p%f2t/data(l)%bp(0)%p%a2t)
 !!$             else
-!!$                unitconv = 1.d0/data(l)%bp%a2t
+!!$                unitconv = 1.d0/data(l)%bp(0)%p%a2t
 !!$             end if
 !!$             pix = self%src(k)%T(l)%pix(q,1)
 !!$             w   = s*self%src(k)%T(l)%map(q,p) / (data(l)%N%rms_pix(pix,p)*unitconv)**2 
 !!$             a   = a + w * s*self%src(k)%T(l)%map(q,p)
-!!$             if (data(l)%bp%nu_c > 500d9) then
+!!$             if (data(l)%bp(0)%p%nu_c > 500d9) then
 !!$                b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * s*self%src(k)%T(l)%map(q,p))*unitconv
 !!$             else
 !!$                b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * s*self%src(k)%T(l)%map(q,p))*unitconv
@@ -1440,12 +1440,12 @@ contains
 !!$          if (self%myid == 0) then
 !!$             
 !!$             ! Compute maximum likelihood solution
-!!$             s = 1.d-23 * (c/data(l)%bp%nu_c)**2 / (2.d0*k_b*self%src(k)%T(l)%Omega_b(p))
-!!$             write(*,*) data(l)%bp%nu_c, self%src(k)%T(l)%Omega_b(p)
+!!$             s = 1.d-23 * (c/data(l)%bp(0)%p%nu_c)**2 / (2.d0*k_b*self%src(k)%T(l)%Omega_b(p))
+!!$             write(*,*) data(l)%bp(0)%p%nu_c, self%src(k)%T(l)%Omega_b(p)
 !!$             sigma   = 1.d0  / sqrt(a_tot) / s
 !!$             mu      = b_tot / a_tot       / s
 !!$             
-!!$             if (self%myid == 0) write(68,*) real(data(l)%bp%nu_c/1.d9,sp), mu, sigma
+!!$             if (self%myid == 0) write(68,*) real(data(l)%bp(0)%p%nu_c/1.d9,sp), mu, sigma
 !!$          end if
 !!$          
 !!$       end do
@@ -1478,7 +1478,7 @@ contains
 
                 ! Construct current source model
                 do l = 1, numband
-                   if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
+                   if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    s         = self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
                 end do
@@ -1500,7 +1500,7 @@ contains
                    lnL = 0.d0
                    do i = 1, n
                       do l = 1, numband
-                         if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
+                         if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                          
                          ! Compute mixing matrix
                          theta(j) = x(i)
@@ -1619,7 +1619,7 @@ contains
              b     = 0.d0
              theta = self%src(k)%theta(:,p)
              do l = 1, numband
-                if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
+                if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
 
                 ! Compute mixing matrix
                 s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
@@ -1680,7 +1680,7 @@ contains
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(k)%T(l)%map(q,p) * (amp(k,p)-a_old)
-                   if (data(l)%bp%nu_c >= self%nu_min_ind(1) .and. data(l)%bp%nu_c <= self%nu_max_ind(1)) then
+                   if (data(l)%bp(0)%p%nu_c >= self%nu_min_ind(1) .and. data(l)%bp(0)%p%nu_c <= self%nu_max_ind(1)) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
                       n_pix = n_pix + 1
                    end if
@@ -1772,7 +1772,7 @@ contains
 
     lnL = 0.d0
     do l = 1, numband
-       if (data(l)%bp%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp%nu_c > c_lnL%nu_max_ind(1)) cycle
+       if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
        s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale

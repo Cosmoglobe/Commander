@@ -14,12 +14,11 @@ module comm_huffman_mod
 contains
 
   ! Public routines
-  subroutine huffman_decode(hcode, x_in, x_out, ncount)
+  subroutine huffman_decode(hcode, x_in, x_out)
     implicit none
     type(huffcode),               intent(in)  :: hcode
     byte,           dimension(:), intent(in)  :: x_in
     integer(i4b),   dimension(:), intent(out) :: x_out
-    integer(i4b),   dimension(:), intent(inout), optional :: ncount
 
     integer(i4b) :: i, n, nb, ich
 
@@ -28,7 +27,6 @@ contains
     do i = 1, n
        call hufdec(ich, x_in, nb, hcode)
        x_out(i) = hcode%symbols(ich)
-       if (present(ncount)) ncount(ich)=ncount(ich)+1
     end do
 
   end subroutine huffman_decode

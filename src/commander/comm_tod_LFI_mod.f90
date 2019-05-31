@@ -105,7 +105,6 @@ contains
     real(dp),     allocatable, dimension(:,:)   :: b_map
     real(dp),     allocatable, dimension(:,:)   :: procmask
     integer(i4b), allocatable, dimension(:,:)   :: pix, psi, flag
-    integer(i4b), allocatable, dimension(:)     :: ncount
 
     t_tot   = 0.d0
     call wall_time(t5)
@@ -177,19 +176,11 @@ contains
 
        ! Decompress pointing, psi and flags for current scan
        call wall_time(t1)
-    allocate(ncount(self%scans(i)%hkey%nch))
-    ncount = 0
        do j = 1, ndet
-          call self%decompress_pointing_and_flags(i, j, pix(:,j), psi(:,j), flag(:,j), ncount)
+          call self%decompress_pointing_and_flags(i, j, pix(:,j), psi(:,j), flag(:,j))
        end do
        call wall_time(t2)       
        t_tot(11) = t_tot(11) + t2-t1
-       !do j= 1, self%scans(i)%hkey%nch
-       !   write(*,*) j, self%scans(i)%hkey%symbols(j), ncount(j)!, get_bitstring(self%scans(i)%hkey,j)
-       !end do
-    !write(*,*) 'total = ', sum(self%scans(i)%hkey%nfreq), sum(ncount)
-
-    deallocate(ncount)
 
        ! Construct sky signal template -- Maksym -- this week
        call wall_time(t1)
@@ -217,39 +208,37 @@ contains
 
        do iter = 1, 1
        
-       ! Fit correlated noise -- Haavard -- this week-ish
-       call wall_time(t1)
-       call self%sample_n_corr(i, mask, s_sky, s_sl, s_orb, n_corr)
-       call wall_time(t2)
-       t_tot(3) = t_tot(3) + t2-t1
-       !if (self%myid == 0) write(*,*) 'ncorr      = ', t2-t1
-
-       ! Fit gain for current scan -- Eirik -- this week
-       call wall_time(t1)
-       do j = 1, ndet
-          call sample_gain(self, j, i, n_corr(:, j), mask(:,j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
+          ! Fit correlated noise -- Haavard -- this week-ish
+          call wall_time(t1)
+          call self%sample_n_corr(i, mask, s_sky, s_sl, s_orb, n_corr)
+          call wall_time(t2)
+          t_tot(3) = t_tot(3) + t2-t1
+          !if (self%myid == 0) write(*,*) 'ncorr      = ', t2-t1
+          
+          ! Fit gain for current scan -- Eirik -- this week
+          call wall_time(t1)
+          do j = 1, ndet
+             call sample_gain(self, j, i, n_corr(:, j), mask(:,j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
+          end do
+          call wall_time(t2)
+          t_tot(4) = t_tot(4) + t2-t1
+          !if (self%myid == 0) write(*,*) 'gain       = ', t2-t1
+          
+          ! .. Compute contribution to absolute calibration from current scan .. -- let's see
+          
+          ! Compute bandpass corrections, as in s_sky(i) - <s_sky> -- Trygve, after deadline
+          
+          
+          ! Compute noise spectrum
+          call wall_time(t1)
+          do j = 1, ndet
+             call self%sample_noise_psd(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
+          end do
+          call wall_time(t2)
+          t_tot(6) = t_tot(6) + t2-t1
+          !if (self%myid == 0) write(*,*) 'noise      = ', t2-t1
+          
        end do
-       call wall_time(t2)
-       t_tot(4) = t_tot(4) + t2-t1
-       !if (self%myid == 0) write(*,*) 'gain       = ', t2-t1
-
-       ! .. Compute contribution to absolute calibration from current scan .. -- let's see
-
-       ! Compute bandpass corrections, as in s_sky(i) - <s_sky> -- Trygve, after deadline
-
-
-       ! Compute noise spectrum
-       call wall_time(t1)
-       do j = 1, ndet
-          call self%sample_noise_psd(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
-       end do
-       call wall_time(t2)
-       t_tot(6) = t_tot(6) + t2-t1
-       !if (self%myid == 0) write(*,*) 'noise      = ', t2-t1
-
-       end do
-
-
 
        ! Compute chisquare
        call wall_time(t1)
@@ -271,6 +260,16 @@ contains
        call wall_time(t1)
        do j = 1, ndet
           ntot= ntot + 1
+
+!!$          if (self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) then
+!!$             open(58,file='nan.dat', recl=1024)
+!!$             do k = 1, self%scans(i)%ntod
+!!$                write(58,*) k, self%scans(i)%d(j)%tod(k), s_sky(k,j), s_sl(k,j), s_orb(k,j), n_corr(k,j), self%scans(i)%d(j)%sigma0
+!!$             end do
+!!$             close(58)
+!!$             stop
+!!$          end if
+
           if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
                & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
                & cycle
@@ -341,19 +340,18 @@ contains
   !**************************************************
   !             Sub-process routines
   !**************************************************
-  subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag, ncount)
+  subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag)
     implicit none
     class(comm_LFI_tod),                intent(in)  :: self
     integer(i4b),                       intent(in)  :: scan, det
     integer(i4b),        dimension(:),  intent(out) :: pix, psi, flag
-    integer(i4b),        dimension(:),  intent(inout) :: ncount
 
     integer(i4b) :: i, j
 
 !    write(*,*) self%scans(scan)%d(det)%pix(1:5)
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix, ncount)
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, ncount)
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag, ncount)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi)
+    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 !    write(*,*) self%scans(scan)%ntod
 !    write(*,*) pix(1:5)
 !    write(*,*) pix(self%scans(scan)%ntod-4:self%scans(scan)%ntod)
@@ -362,7 +360,7 @@ contains
        psi(j)  = psi(j-1)  + psi(j)
        flag(j) = flag(j-1) + flag(j)
     end do
-    !psi = max(min(psi,4095),0)
+    psi = min(psi,4095)
 !    write(*,*) pix(1:5)
     !write(*,*) psi(1:5)
     !write(*,*) flag(1:5)
@@ -388,12 +386,18 @@ contains
        ! note that psi(i) is an index now; must be converted to a real number based on lookup table
 !       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * cos(2.d0 * psi(i)) + map(pix(i), 3) * sin(2.d0 * psi(i))
        s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * self%cos2psi(psi(i)) + map(pix(i), 3) * self%sin2psi(psi(i))
+       if (s_sky(i) /= s_sky(i)) then
+          write(*,*) scan_id, i, map(pix(i),:), psi(i), self%cos2psi(psi(i)), self%sin2psi(psi(i))
+          stop
+       end if
        if (any(pmask(pix(i),:) < 0.5d0)) then
           tmask(i) = 0.
        else
           tmask(i) = 1.
        end if
     end do
+
+
 
   end subroutine project_sky
 

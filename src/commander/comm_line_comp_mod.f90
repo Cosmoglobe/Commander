@@ -109,11 +109,11 @@ contains
     j = 1
     do i = 1, numband
        if (any(constructor%ind2band == i)) then
-          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp, .true., &
+          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp(0)%p, .true., &
                & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(), j)
           j = j+1
        else
-          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp, .false., 0.d0, j)
+          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp(0)%p, .false., 0.d0, j)
        end if
     end do
     

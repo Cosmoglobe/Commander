@@ -54,7 +54,7 @@ contains
     constructor%class           = cpar%cs_class(id_abs)
     constructor%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     constructor%unit            = data(band)%unit
-    constructor%nu_ref          = data(band)%bp%nu_c
+    constructor%nu_ref          = data(band)%bp(0)%p%nu_c
     constructor%cg_scale        = 1.d0
     constructor%myid            = cpar%myid_chain
     constructor%comm            = cpar%comm_chain
@@ -65,9 +65,9 @@ contains
     ! Set up conversion factor between RJ and native component unit
     select case (trim(constructor%unit))
     case ('uK_cmb')
-       constructor%RJ2unit_ = data(band)%bp%a2t
+       constructor%RJ2unit_ = data(band)%bp(0)%p%a2t
     case ('MJy/sr') 
-       constructor%RJ2unit_ = data(band)%bp%a2t / data(band)%bp%f2t
+       constructor%RJ2unit_ = data(band)%bp(0)%p%a2t / data(band)%bp(0)%p%f2t
     case ('uK_RJ') 
        constructor%RJ2unit_ = 1.d0
     case ('K km/s') 
@@ -164,9 +164,9 @@ contains
     allocate(constructor%F_int(numband))
     do i = 1, numband
        if (i == band) then
-          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp, .true., 1.d0, -1)
+          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp(0)%p, .true., 1.d0, -1)
        else
-          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp, .true., 0.d0, -1)
+          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp(0)%p, .true., 0.d0, -1)
        end if
     end do
 
