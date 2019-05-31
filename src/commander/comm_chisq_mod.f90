@@ -202,20 +202,20 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
-          alm     = c%getBand(band, alm_out=.true.)
+          alm     = c%getBand(band, alm_out=.true., det=det)
           call map_out%add_alm(alm, c%x%info)
           call map_out%Y()
           deallocate(alm)
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
-          map         = c%getBand(band)
+          map         = c%getBand(band, det=det)
           map_out%map = map_out%map + map
           deallocate(map)
        class is (comm_template_comp)
           if (c%band /= band) skip = .true.
           if (.not. skip) then
              allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
-             map         = c%getBand(band)
+             map         = c%getBand(band, det=det)
              map_out%map = map_out%map + map
              deallocate(map)
           end if

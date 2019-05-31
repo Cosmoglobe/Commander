@@ -33,7 +33,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_cmb_comp), pointer   :: constructor
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j
     real(dp)     :: f
     
     ! General parameters
@@ -44,10 +44,12 @@ contains
     constructor%npar         = 0
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband))
+    allocate(constructor%F_int(numband,0:constructor%ndet))
     do i = 1, numband
-       f = comp_a2t(constructor%nu_ref) / data(i)%bp(0)%p%a2t * data(i)%RJ2data()
-       constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp(0)%p, f_precomp=f)
+       do j = 0, data(i)%ndet
+          f = comp_a2t(constructor%nu_ref) / data(i)%bp(j)%p%a2t * data(i)%RJ2data()
+          constructor%F_int(i,j)%p => comm_F_int_0D(constructor, data(i)%bp(j)%p, f_precomp=f)
+       end do
     end do
     
     ! Initialize mixing matrix

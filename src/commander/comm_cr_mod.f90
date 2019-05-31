@@ -535,17 +535,17 @@ contains
              info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, c%lmax_amp, &
                   & c%nmaps, data(i)%info%pol)
              Tm     => comm_map(info)
-             if (c%F_null(i)) then
+             if (c%F_null(i,0)) then
                 Tm%alm = 0.d0
              else
                 call map%alm_equal(Tm)
                 if (c%lmax_ind == 0) then
                    do j = 1, min(c%x%info%nmaps, Tm%info%nmaps)
-                      Tm%alm(:,j) = Tm%alm(:,j) * c%F_mean(i,j)
+                      Tm%alm(:,j) = Tm%alm(:,j) * c%F_mean(i,0,j)
                    end do
                 else
                    call Tm%Y()
-                   Tm%map = c%F(i)%p%map * Tm%map
+                   Tm%map = c%F(i,0)%p%map * Tm%map
                    call Tm%YtW()
                 end if
              end if

@@ -118,21 +118,27 @@ contains
 
 
     ! Allocate mixing matrix
-    allocate(constructor%F(numband), constructor%F_mean(numband,constructor%nmaps), constructor%F_null(numband))
+    constructor%ndet = maxval(data%ndet)
+    allocate(constructor%F(numband,0:constructor%ndet), constructor%F_mean(numband,0:constructor%ndet,constructor%nmaps), constructor%F_null(numband,0:constructor%ndet))
     do i = 1, numband
        if (i == band) then
           info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
                & constructor%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-          constructor%F(i)%p      => comm_map(info)
-          constructor%F_null(i)   = .false.
-          constructor%F(i)%p%map  = constructor%RJ2unit_
-          constructor%F(i)%p%alm  = constructor%RJ2unit_ * sqrt(4.d0*pi)
-          constructor%F_mean(i,:) = constructor%RJ2unit_
+          constructor%F(i,0)%p      => comm_map(info)
+          constructor%F(i,0)%p%map  = constructor%RJ2unit_
+          constructor%F(i,0)%p%alm  = constructor%RJ2unit_ * sqrt(4.d0*pi)
+          constructor%F_null(i,:)   = .false.
+          constructor%F_mean(i,:,:) = constructor%RJ2unit_
+          do j = 1, data(i)%ndet
+             constructor%F(i,j)%p      => constructor%F(i,0)%p
+          end do
        else
-          constructor%F_null(i)   = .true.
-          !constructor%F(i)%p%map  = 0.d0
-          !constructor%F(i)%p%alm  = 0.d0
-          constructor%F_mean(i,:) = 0.d0
+          do j = 0, data(i)%ndet
+             constructor%F_null(i,j)   = .true.
+             !constructor%F(i)%p%map  = 0.d0
+             !constructor%F(i)%p%alm  = 0.d0
+             constructor%F_mean(i,j,:) = 0.d0
+          end do
        end if
     end do
 
@@ -161,12 +167,16 @@ contains
     constructor%npar = 0
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband))
+    allocate(constructor%F_int(numband,0:constructor%ndet))
     do i = 1, numband
        if (i == band) then
-          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp(0)%p, .true., 1.d0, -1)
+          do j = 0, data(i)%ndet
+             constructor%F_int(i,j)%p => comm_F_line(constructor, data(i)%bp(j)%p, .true., 1.d0, -1)
+          end do
        else
-          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp(0)%p, .true., 0.d0, -1)
+          do j = 0, data(i)%ndet
+             constructor%F_int(i,j)%p => comm_F_line(constructor, data(i)%bp(j)%p, .true., 0.d0, -1)
+          end do
        end if
     end do
 

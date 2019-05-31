@@ -51,8 +51,8 @@ contains
     constructor%info     => info
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
-    !call constructor%get_scan_ids("data/filelist_1file.txt")
-    call constructor%get_scan_ids("data/filelist_1year.txt")
+    call constructor%get_scan_ids("data/filelist_1file.txt")
+    !call constructor%get_scan_ids("data/filelist_1year.txt")
 !    call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
@@ -63,8 +63,10 @@ contains
     constructor%nhorn    = 1
     allocate(constructor%stokes(constructor%nmaps))
     allocate(constructor%w(constructor%nmaps,constructor%nhorn,constructor%ndet))
+    allocate(constructor%label(constructor%ndet))
     constructor%stokes = [1,2,3]
     constructor%w      = 1.d0
+    constructor%label  = ['27M','27S','28M','28S']
 
     ! Read the actual TOD
     call constructor%read_tod
