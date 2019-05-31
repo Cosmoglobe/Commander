@@ -66,23 +66,25 @@ module comm_comp_mod
      end function evalSED
 
      ! Return effective signal at given frequency band
-     function evalBand(self, band, amp_in, pix, alm_out)
+     function evalBand(self, band, amp_in, pix, alm_out, det)
        import i4b, dp, comm_comp, lgt
        class(comm_comp),                             intent(in)            :: self
        integer(i4b),                                 intent(in)            :: band
        integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
        real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
        logical(lgt),                                 intent(in),  optional :: alm_out
+       integer(i4b),                                 intent(in),  optional :: det
        real(dp),        dimension(:,:), allocatable                        :: evalBand
      end function evalBand
 
      ! Return component projected from map
-     function projectBand(self, band, map, alm_in)
+     function projectBand(self, band, map, alm_in, det)
        import i4b, dp, comm_comp, comm_map, lgt
        class(comm_comp),                             intent(in)            :: self
        integer(i4b),                                 intent(in)            :: band
        class(comm_map),                              intent(in)            :: map
        logical(lgt),                                 intent(in), optional  :: alm_in
+       integer(i4b),                                 intent(in), optional  :: det
        real(dp),        dimension(:,:), allocatable                        :: projectBand
      end function projectBand
 

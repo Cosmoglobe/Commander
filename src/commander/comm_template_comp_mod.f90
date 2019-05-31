@@ -167,13 +167,14 @@ contains
     
   end function evalSED
 
-  function evalTemplateBand(self, band, amp_in, pix, alm_out)
+  function evalTemplateBand(self, band, amp_in, pix, alm_out, det)
     implicit none
     class(comm_template_comp),                    intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     logical(lgt),                                 intent(in),  optional :: alm_out
+    integer(i4b),                                 intent(in),  optional :: det
     real(dp),        dimension(:,:), allocatable                        :: evalTemplateBand
 
     integer(i4b) :: i, j, p, q, ierr
@@ -201,15 +202,16 @@ contains
   end function evalTemplateBand
   
   ! Return component projected from map
-  function projectTemplateBand(self, band, map, alm_in)
+  function projectTemplateBand(self, band, map, alm_in, det)
     implicit none
     class(comm_template_comp),                    intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
     logical(lgt),                                 intent(in), optional  :: alm_in
+    integer(i4b),                                 intent(in), optional  :: det
     real(dp),        dimension(:,:), allocatable                        :: projectTemplateBand
 
-    integer(i4b) :: i, j, q, p, ierr
+    integer(i4b) :: i, j, q, p, ierr, d
     real(dp)     :: val, val2
     real(dp), allocatable, dimension(:,:) :: amp, amp2
     

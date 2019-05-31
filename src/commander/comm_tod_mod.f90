@@ -52,6 +52,7 @@ module comm_tod_mod
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
+     character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info     ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo   ! Sidelobe map info

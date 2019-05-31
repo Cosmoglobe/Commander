@@ -54,10 +54,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs)
+  function constructor(cpar, id, id_abs, detlabel)
     implicit none
     type(comm_params),           intent(in) :: cpar
     integer(i4b),                intent(in) :: id, id_abs
+    character(len=*),            intent(in) :: detlabel
     class(comm_bp),     pointer             :: constructor
 
     integer(i4b)       :: i
@@ -102,7 +103,7 @@ contains
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
     else
-       call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), label, &
+       call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), detlabel, &
             & constructor%threshold, &
             & constructor%n, constructor%nu0, constructor%tau0)
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
