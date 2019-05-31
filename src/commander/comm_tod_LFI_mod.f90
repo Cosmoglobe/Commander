@@ -387,7 +387,7 @@ contains
     do i = 1, self%scans(scan_id)%ntod
        ! note that psi(i) is an index now; must be converted to a real number based on lookup table
 !       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * cos(2.d0 * psi(i)) + map(pix(i), 3) * sin(2.d0 * psi(i))
-       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * self%cos2psi(psi(i),det) + map(pix(i), 3) * self%sin2psi(psi(i),det)
+       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * self%cos2psi(psi(i)) + map(pix(i), 3) * self%sin2psi(psi(i))
        if (any(pmask(pix(i),:) < 0.5d0)) then
           tmask(i) = 0.
        else
@@ -674,15 +674,15 @@ contains
        psi_    = psi(t)
        
        A(1,1,pix_) = A(1,1,pix_) + 1.d0                                          * inv_sigmasq
-       A(1,2,pix_) = A(1,2,pix_) + self%cos2psi(psi_,det)                        * inv_sigmasq
-       A(1,3,pix_) = A(1,3,pix_) + self%sin2psi(psi_,det)                        * inv_sigmasq
-       A(2,2,pix_) = A(2,2,pix_) + self%cos2psi(psi_,det)**2                     * inv_sigmasq
-       A(2,3,pix_) = A(2,3,pix_) + self%cos2psi(psi_,det)*self%sin2psi(psi_,det) * inv_sigmasq
-       A(3,3,pix_) = A(3,3,pix_) + self%sin2psi(psi_,det)**2                     * inv_sigmasq
+       A(1,2,pix_) = A(1,2,pix_) + self%cos2psi(psi_)                        * inv_sigmasq
+       A(1,3,pix_) = A(1,3,pix_) + self%sin2psi(psi_)                        * inv_sigmasq
+       A(2,2,pix_) = A(2,2,pix_) + self%cos2psi(psi_)**2                     * inv_sigmasq
+       A(2,3,pix_) = A(2,3,pix_) + self%cos2psi(psi_)*self%sin2psi(psi_) * inv_sigmasq
+       A(3,3,pix_) = A(3,3,pix_) + self%sin2psi(psi_)**2                     * inv_sigmasq
 
-       b(1,pix_) = b(1,pix_) + data(t,det)                          * inv_sigmasq
-       b(2,pix_) = b(2,pix_) + data(t,det) * self%cos2psi(psi_,det) * inv_sigmasq
-       b(3,pix_) = b(3,pix_) + data(t,det) * self%sin2psi(psi_,det) * inv_sigmasq
+       b(1,pix_) = b(1,pix_) + data(t,det)                      * inv_sigmasq
+       b(2,pix_) = b(2,pix_) + data(t,det) * self%cos2psi(psi_) * inv_sigmasq
+       b(3,pix_) = b(3,pix_) + data(t,det) * self%sin2psi(psi_) * inv_sigmasq
 
     end do
 
