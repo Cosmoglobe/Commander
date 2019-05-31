@@ -46,8 +46,8 @@ contains
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(numband))
     do i = 1, numband
-       f = comp_a2t(constructor%nu_ref) / data(i)%bp%a2t * data(i)%RJ2data()
-       constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp, f_precomp=f)
+       f = comp_a2t(constructor%nu_ref) / data(i)%bp(0)%p%a2t * data(i)%RJ2data()
+       constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp(0)%p, f_precomp=f)
     end do
     
     ! Initialize mixing matrix

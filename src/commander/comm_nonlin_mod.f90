@@ -147,8 +147,8 @@ contains
                    status_fit(i)   = 1    ! Native
                 else
                    if (.not. associated(data(i)%N_smooth(smooth_scale)%p) .or. &
-                        & data(i)%bp%nu_c < c%nu_min_ind(j) .or. &
-                        & data(i)%bp%nu_c > c%nu_max_ind(j)) then
+                        & data(i)%bp(0)%p%nu_c < c%nu_min_ind(j) .or. &
+                        & data(i)%bp(0)%p%nu_c > c%nu_max_ind(j)) then
                       status_fit(i) = 0
                    else
                       if (.not. associated(data(i)%B_smooth(smooth_scale)%p)) then

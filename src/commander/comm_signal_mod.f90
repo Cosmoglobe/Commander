@@ -208,12 +208,12 @@ contains
        do i = 1, numband
           if (cpar%ignore_gain_bp) then
              data(i)%gain     = 1.d0
-             data(i)%bp%delta = 0.d0
+             data(i)%bp(0)%p%delta = 0.d0
           else
              call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
                   & data(i)%gain)
              call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
-                  & data(i)%bp%delta)
+                  & data(i)%bp(0)%p%delta)
           end if
        end do
     end if

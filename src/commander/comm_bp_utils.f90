@@ -1,6 +1,7 @@
 module comm_bp_utils
   use sort_utils
   use comm_utils
+  use comm_hdf_mod
   implicit none 
 
   interface comp_sz_thermo
@@ -153,17 +154,19 @@ contains
   end function dB_rj_dnu
 
   ! Routine for reading bandpass files
-  subroutine read_bandpass(filename, threshold, n, nu, tau)
+  subroutine read_bandpass(filename, label, threshold, n, nu, tau)
     implicit none
 
     character(len=*),                            intent(in)  :: filename
+    character(len=*),                            intent(in)  :: label
     real(dp),                                    intent(in)  :: threshold
     integer(i4b),                                intent(out) :: n
     real(dp),         allocatable, dimension(:), intent(out) :: nu, tau
 
-    integer(i4b)        :: unit, first, last, m, ierr
+    integer(i4b)        :: unit, first, last, m, ierr, l, ext(1)
     logical(lgt)        :: exist
     character(len=128)  :: string
+    type(hdf_file)     :: file
     real(dp), allocatable, dimension(:) :: x, y
 
     unit = getlun()
@@ -171,33 +174,61 @@ contains
     inquire(file=trim(filename), exist=exist)
     if (.not. exist) call report_error('Bandpass file does not exist = ' // trim(filename))
 
-    ! Find the number of entries
-    m = 0
-    open(unit, file=trim(filename))
-    do while (.true.)
-       read(unit,*,end=1) string
-       if (string(1:1)=='#') cycle
-       m = m + 1
-    end do
-1   close(unit)
+    l = len(trim(filename))
 
-    if (m == 0) call report_error('No valid data entries in bandpass file ' // trim(filename))
+    if (filename(l-2:l) == '.h5' .or. filename(l-3:l) == '.hd5') then
 
-    allocate(x(m), y(m))
-    m = 0
-    open(unit, file=trim(filename))
-    do while (.true.)
-       read(unit,fmt='(a)',end=2) string
-       if (string(1:1)=='#') cycle
-       m = m+1
-       read(string,*) x(m), y(m)
+       call open_hdf_file(filename, file, "r")
+       call get_size_hdf(file, trim(label) // "/bandpass", ext)
+       m = ext(1)
+       allocate(x(m), y(m))
+       call read_hdf(file, trim(label) // "/bandpassx",x)
+       call read_hdf(file, trim(label) // "/bandpass", y)
+       call close_hdf_file(file)
 
        ! Drop double entries
-       if (m > 1) then
-          if (x(m) == x(m-1)) m = m-1
-       end if
-    end do
-2   close(unit)
+       l = 1
+       do while (l < m)
+          if (x(l) == x(l+1)) then
+             x(l:m-1) = x(l+1:m)
+             y(l:m-1) = y(l+1:m)
+             m        = m-1
+          else
+             l = l+1
+          end if
+       end do
+       
+    else 
+       ! Assume ASCII
+
+       ! Find the number of entries
+       m = 0
+       open(unit, file=trim(filename))
+       do while (.true.)
+          read(unit,*,end=1) string
+          if (string(1:1)=='#') cycle
+          m = m + 1
+       end do
+1      close(unit)
+       
+       if (m == 0) call report_error('No valid data entries in bandpass file ' // trim(filename))
+
+       allocate(x(m), y(m))
+       m = 0
+       open(unit, file=trim(filename))
+       do while (.true.)
+          read(unit,fmt='(a)',end=2) string
+          if (string(1:1)=='#') cycle
+          m = m+1
+          read(string,*) x(m), y(m)
+
+          ! Drop double entries
+          if (m > 1) then
+             if (x(m) == x(m-1)) m = m-1
+          end if
+       end do
+2      close(unit)
+    end if
 
     x = x * 1.d9 ! Convert from GHz to Hz
 
