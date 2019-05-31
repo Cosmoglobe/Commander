@@ -47,8 +47,8 @@ module comm_tod_mod
      real(dp)     :: samprate                                     ! Sample rate in Hz
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
-     real(sp),           allocatable, dimension(:,:)   :: sin2psi  ! Lookup table of sin(2psi) for each det
-     real(sp),           allocatable, dimension(:,:)   :: cos2psi  ! Lookup table of cos(2psi) for each det
+     real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
+     real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi) 
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
@@ -105,20 +105,18 @@ contains
     call wall_time(t1)
     allocate(self%scans(self%nscan))
     do i = 1, self%nscan
-       call read_hdf_scan(self%scans(i), self%hdfname(i), self%scanid(i), self%ndet, &
+       call read_hdf_scan(self%scans(i), self%myid, self%hdfname(i), self%scanid(i), self%ndet, &
             & self%npsi)
     end do
 
     ! Precompute trigonometric functions
-    allocate(self%sin2psi(0:self%npsi-1,self%ndet), self%cos2psi(0:self%npsi-1,self%ndet))
-    do j = 1, self%ndet
-       do i = 0, self%npsi-1
-          psi          = (i+0.5d0)*2.d0*pi/real(self%npsi,dp)
-          self%sin2psi(i,j) = sin(2.d0*psi)
-          self%cos2psi(i,j) = cos(2.d0*psi)
-       end do
+    allocate(self%sin2psi(0:self%npsi-1), self%cos2psi(0:self%npsi-1))
+    do i = 0, self%npsi-1
+       psi             = (i+0.5d0)*2.d0*pi/real(self%npsi,dp)
+       self%sin2psi(i) = sin(2.d0*psi)
+       self%cos2psi(i) = cos(2.d0*psi)
     end do
-
+ 
 
     call wall_time(t2)
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
@@ -127,15 +125,16 @@ contains
 
   end subroutine read_tod
 
-  subroutine read_hdf_scan(self, filename, scan, ndet, npsi)
+  subroutine read_hdf_scan(self, myid, filename, scan, ndet, npsi)
     implicit none
+    integer(i4b),                                  intent(in)    :: myid
     character(len=*),                              intent(in)    :: filename
     integer(i4b),                                  intent(in)    :: scan, ndet
     integer(i4b),                                  intent(out)   :: npsi
     class(comm_scan),                              intent(inout) :: self
 
     integer(i4b)       :: i, j, k, n, m, nhorn, ext(1), ierr
-    real(dp)           :: psi
+    real(dp)           :: psi, t1, t2, t3, t4, t_tot(6)
     character(len=6)   :: slabel
     character(len=32)   :: out
     character(len=8)   :: out2
@@ -146,6 +145,10 @@ contains
     real(dp),     allocatable, dimension(:) :: buffer_sp
     integer(i4b), allocatable, dimension(:) :: htree
 
+    call wall_time(t3)
+    t_tot = 0.d0
+
+    call wall_time(t1)
     call int2string(scan, slabel)
 
     call open_hdf_file(filename, file, "r")
@@ -165,13 +168,19 @@ contains
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
     call read_hdf(file, slabel // "/common/time",  self%t0)
     call read_hdf(file, slabel // "/common/npsi",  npsi)
+    call wall_time(t2)
+    t_tot(1) = t2-t1
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
     i = 0
     do j = 0, ndet
+       call wall_time(t1)
        call h5gget_obj_info_idx_f(file%filehandle, slabel, j, field, obj_type, err)
+       call wall_time(t2)
+       t_tot(2) = t_tot(2) + t2-t1
        if (trim(field) == 'common') cycle
+       call wall_time(t1)
        i = i+1
 !write(*,*) i, allocated(self%d(i)%tod)
        allocate(self%d(i)%tod(m))
@@ -180,16 +189,24 @@ contains
        call read_hdf(file, slabel // "/" // trim(field) // "/sigma0", self%d(i)%sigma0)
        call read_hdf(file, slabel // "/" // trim(field) // "/alpha",  self%d(i)%alpha)
        call read_hdf(file, slabel // "/" // trim(field) // "/fknee",  self%d(i)%fknee)
-       call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-       self%d(i)%tod = buffer_sp(1:m)
        call read_hdf(file, slabel // "/" // trim(field) // "/polang", self%d(i)%polang)
        call read_hdf(file, slabel // "/common/nside",                 self%d(i)%nside)
        call read_hdf(file, slabel // "/common/fsamp",                 self%d(i)%samprate)
+       call wall_time(t2)
+       t_tot(3) = t_tot(3) + t2-t1
+       call wall_time(t1)
+       call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+       self%d(i)%tod = buffer_sp(1:m)
+       call wall_time(t2)
+       t_tot(4) = t_tot(4) + t2-t1
    
        ! Read Huffman coded data arrays
+       call wall_time(t1)
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi)
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+       call wall_time(t2)
+       t_tot(5) = t_tot(5) + t2-t1
 !!$       write(*,'(10z2)') self%d(i)%pix(1:10)
 !!$
 !!$    do k = 1, 8
@@ -232,11 +249,14 @@ contains
     end if
 
     ! Initialize Huffman key
+    call wall_time(t1)
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
     !call hufmak(hsymb,hfreq,self%hkey)
     deallocate(hsymb, htree)
+    call wall_time(t2)
+    t_tot(6) = t_tot(6) + t2-t1
 
 !!$    if (scan==1) then
 !!$       open(58,file='tree.dat')
@@ -252,6 +272,19 @@ contains
 !!$       close(58)
 !!$    end if
     call close_hdf_file(file)
+
+    call wall_time(t4)
+
+    if (myid == 0) then
+       write(*,*)
+       write(*,*) '  IO init   = ', t_tot(1)
+       write(*,*) '  IO field  = ', t_tot(2)
+       write(*,*) '  IO scalar = ', t_tot(3)
+       write(*,*) '  IO tod    = ', t_tot(4)
+       write(*,*) '  IO comp   = ', t_tot(5)
+       write(*,*) '  IO huff   = ', t_tot(6)
+       write(*,*) '  IO total  = ', t4-t3
+    end if
 
   end subroutine read_hdf_scan
 
