@@ -38,7 +38,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_line_comp), pointer   :: constructor
 
-    integer(i4b) :: i, j, nline, b, n, ierr
+    integer(i4b) :: i, j, k, nline, b, n, ierr
     real(dp)     :: f
     logical(lgt) :: ref_exist
     character(len=512), allocatable, dimension(:) :: label
@@ -105,15 +105,19 @@ contains
 
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband))
+    allocate(constructor%F_int(numband,0:constructor%ndet))
     j = 1
     do i = 1, numband
        if (any(constructor%ind2band == i)) then
-          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp, .true., &
-               & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(), j)
+          do k = 0, data(i)%ndet
+             constructor%F_int(i,k)%p => comm_F_line(constructor, data(i)%bp(k)%p, .true., &
+                  & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(), j)
+          end do
           j = j+1
        else
-          constructor%F_int(i)%p => comm_F_line(constructor, data(i)%bp, .false., 0.d0, j)
+          do k = 0, data(i)%ndet
+             constructor%F_int(i,j)%p => comm_F_line(constructor, data(i)%bp(k)%p, .false., 0.d0, j)
+          end do
        end if
     end do
     

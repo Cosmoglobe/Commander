@@ -33,7 +33,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_MBB_comp), pointer   :: constructor
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j
     type(comm_mapinfo), pointer :: info
 
     ! General parameters
@@ -56,9 +56,11 @@ contains
     constructor%indlabel  = ['beta', 'T   ']
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband))
+    allocate(constructor%F_int(numband,0:constructor%ndet))
     do i = 1, numband
-       constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
+       do j = 0, data(i)%ndet
+          constructor%F_int(i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p)
+       end do
     end do
 
     ! Initialize spectral parameter maps

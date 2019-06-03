@@ -16,6 +16,7 @@ module comm_data_mod
      real(dp)                     :: gain
      character(len=128)           :: gain_comp
      integer(i4b)                 :: gain_lmin, gain_lmax
+     integer(i4b)                 :: ndet
 
      class(comm_mapinfo), pointer :: info
      class(comm_map),     pointer :: map
@@ -25,8 +26,8 @@ module comm_data_mod
      class(comm_map),     pointer :: gainmask
      class(comm_tod),     pointer :: tod
      class(comm_N),       pointer :: N
-     class(comm_bp),      pointer :: bp
      class(comm_B),       pointer :: B
+     class(comm_bp_ptr),   allocatable, dimension(:) :: bp
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
      type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
@@ -167,9 +168,24 @@ contains
        end select
        call update_status(status, "data_N")
 
-       ! Initialize bandpass structures
-       data(n)%bp => comm_bp(cpar, n, i)
-       call update_status(status, "data_bp")
+       ! Initialize TOD structures
+       data(n)%ndet = 0
+       if (cpar%enable_TOD_analysis) then
+          if (trim(cpar%ds_tod_type(n)) == 'LFI') then
+             data(n)%tod => comm_LFI_tod(cpar, data(n)%info)
+          else
+             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(n))
+             stop
+          end if
+          data(n)%ndet = data(n)%tod%ndet
+       end if
+
+       ! Initialize bandpass structures; 0 is full freq, i is detector
+       allocate(data(n)%bp(0:data(n)%ndet)) 
+       data(n)%bp(0)%p => comm_bp(cpar, n, i, data(n)%label)
+       do j = 1, data(n)%ndet
+          data(n)%bp(j)%p => comm_bp(cpar, n, i, data(n)%tod%label(j))
+       end do
 
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))
@@ -207,15 +223,6 @@ contains
           end if
        end do
 
-       ! Initialize TOD structures
-       if (cpar%enable_TOD_analysis) then
-          if (trim(cpar%ds_tod_type(n)) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(cpar, data(n)%info)             
-          else
-             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(n))
-             stop
-          end if
-       end if
     end do
     numband = n
     if (cpar%myid == 0 .and. cpar%verbosity > 0) &
@@ -225,7 +232,7 @@ contains
     allocate(ind_ds(numband), nu(numband))
     do i = 1, numband
        ind_ds(i)  = i
-       nu(i)        = data(i)%bp%nu_c
+       nu(i)        = data(i)%bp(0)%p%nu_c
     end do
     call QuickSort(ind_ds, nu)
     deallocate(nu)
@@ -244,11 +251,11 @@ contains
 
     select case (trim(self%unit))
     case ('uK_cmb') 
-       RJ2data = self%bp%a2t
+       RJ2data = self%bp(0)%p%a2t
     case ('MJy/sr') 
-       RJ2data = self%bp%a2t / self%bp%f2t
+       RJ2data = self%bp(0)%p%a2t / self%bp(0)%p%f2t
     case ('y_SZ') 
-       RJ2data = self%bp%a2sz
+       RJ2data = self%bp(0)%p%a2sz
     case ('uK_RJ') 
        RJ2data = 1.d0
     case ('K km/s') ! NEW
@@ -268,8 +275,8 @@ contains
          & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]'
     do i = 1, numband
        q = ind_ds(i)
-       write(unit,fmt='(a7,a10,f10.1,3e16.5)') trim(data(q)%label), trim(data(q)%bp%type), &
-            & data(q)%bp%nu_c/1.d9, data(q)%bp%a2t, 1.d0/data(q)%bp%f2t*1e6, data(q)%bp%a2sz * 1.d6
+       write(unit,fmt='(a7,a10,f10.1,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
+            & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6
     end do
     close(unit)
   end subroutine dump_unit_conversion

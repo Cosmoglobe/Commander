@@ -4,7 +4,7 @@ module comm_bp_mod
   implicit none 
 
   private
-  public comm_bp, initialize_bp_mod
+  public comm_bp, comm_bp_ptr, initialize_bp_mod
 
   type :: comm_bp
      ! Data variables
@@ -19,6 +19,11 @@ module comm_bp_mod
      procedure     :: SED2F
      procedure     :: lineAmp_RJ
   end type comm_bp
+
+  type comm_bp_ptr
+     class(comm_bp), pointer :: p
+  end type comm_bp_ptr
+
 
   interface comm_bp
      procedure constructor
@@ -49,14 +54,17 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs)
+  function constructor(cpar, id, id_abs, detlabel)
     implicit none
     type(comm_params),           intent(in) :: cpar
     integer(i4b),                intent(in) :: id, id_abs
+    character(len=*),            intent(in) :: detlabel
     class(comm_bp),     pointer             :: constructor
 
     integer(i4b)       :: i
-    character(len=512) :: dir
+    character(len=512) :: dir, label
+
+    label = cpar%ds_label(id_abs)
     
     ! General parameters
     allocate(constructor)
@@ -95,7 +103,8 @@ contains
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
     else
-       call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), constructor%threshold, &
+       call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), detlabel, &
+            & constructor%threshold, &
             & constructor%n, constructor%nu0, constructor%tau0)
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     end if

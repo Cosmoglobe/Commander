@@ -21,12 +21,12 @@ module sharp
 
   type sharp_geom_info
      type(c_ptr) :: handle
-     integer(C_INTPTR_T) :: n_local
+     integer(c_intptr_t) :: n_local
   end type sharp_geom_info
 
   type sharp_alm_info
      type(c_ptr) :: handle
-     integer(C_INTPTR_T) :: n_local
+     integer(c_intptr_t) :: n_local
   end type sharp_alm_info
 
   interface
@@ -37,7 +37,7 @@ module sharp
        use iso_c_binding
        integer(c_int), value, intent(in)    :: lmax, nm, stride, flags
        integer(c_int), intent(in)           :: mval(nm)
-       integer(C_INTPTR_T), intent(in)     :: mvstart(nm)
+       integer(c_intptr_t), intent(in)     :: mvstart(nm)
        type(c_ptr), intent(out)             :: alm_info
      end subroutine sharp_make_general_alm_info
 
@@ -51,7 +51,7 @@ module sharp
 
      function c_sharp_alm_count(alm_info) bind(c, name='sharp_alm_count')
        use iso_c_binding
-       integer(C_INTPTR_T)           :: c_sharp_alm_count
+       integer(c_intptr_t)           :: c_sharp_alm_count
        type(c_ptr), value, intent(in) :: alm_info
      end function c_sharp_alm_count
 
@@ -77,32 +77,31 @@ module sharp
 
      function c_sharp_map_size(info) bind(c, name='sharp_map_size')
        use iso_c_binding
-       integer(C_INTPTR_T) :: c_sharp_map_size
+       integer(c_intptr_t) :: c_sharp_map_size
        type(c_ptr), value   :: info
      end function c_sharp_map_size
 
 
      ! execute
-     subroutine c_sharp_execute(type, spin, alm, map, geom_info, alm_info, ntrans, &
+     subroutine c_sharp_execute(type, spin, alm, map, geom_info, alm_info, &
                                 flags, time, opcnt) bind(c, name='sharp_execute')
        use iso_c_binding
-       integer(c_int), value                        :: type, spin, ntrans, flags
+       integer(c_int), value                        :: type, spin, flags
        type(c_ptr), value                           :: alm_info, geom_info
        real(c_double), intent(out), optional        :: time
        integer(c_long_long), intent(out), optional  :: opcnt
        type(c_ptr), intent(in)                      :: alm(*), map(*)
      end subroutine c_sharp_execute
 
-     subroutine c_sharp_execute_mpi(comm, type, spin, alm, map, geom_info, alm_info, ntrans, &
+     subroutine c_sharp_execute_mpi(comm, type, spin, alm, map, geom_info, alm_info, &
                                     flags, time, opcnt) bind(c, name='sharp_execute_mpi_fortran')
        use iso_c_binding
-       integer(c_int), value                        :: comm, type, spin, ntrans, flags
+       integer(c_int), value                        :: comm, type, spin, flags
        type(c_ptr), value                           :: alm_info, geom_info
        real(c_double), intent(out), optional        :: time
        integer(c_long_long), intent(out), optional  :: opcnt
        type(c_ptr), intent(in)                      :: alm(*), map(*)
      end subroutine c_sharp_execute_mpi
-
   end interface
 
   interface sharp_execute
@@ -176,7 +175,7 @@ contains
 
   ! Currently the only mode supported is stacked (not interleaved) maps.
   !
-  ! Note that passing the exact dimension of alm/map is necesarry, it
+  ! Note that passing the exact dimension of alm/map is necessary, it
   ! prevents the caller from doing too crazy slicing prior to pass array
   ! in...
   !
@@ -214,10 +213,13 @@ contains
     else
        ntrans = nmaps / 2
     end if
+    if (ntrans/=1) print *, "ERROR: ntrans /= 1"
 
     ! Set up pointer table to access maps
+    alm_ptr(:) = c_null_ptr
+    map_ptr(:) = c_null_ptr
     do k = 1, nmaps
-       if (alm_info%n_local > 0)  alm_ptr(k) = c_loc(alm(0, k))
+       if (alm_info%n_local > 0) alm_ptr(k) = c_loc(alm(0, k))
        if (geom_info%n_local > 0) map_ptr(k) = c_loc(map(0, k))
     end do
 
@@ -225,7 +227,6 @@ contains
       call c_sharp_execute_mpi(comm, type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &
           alm_info=alm_info%handle, &
-          ntrans=ntrans, &
           flags=mod_flags, &
           time=time, &
           opcnt=opcnt)
@@ -233,13 +234,9 @@ contains
       call c_sharp_execute(type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &
           alm_info=alm_info%handle, &
-          ntrans=ntrans, &
           flags=mod_flags, &
           time=time, &
           opcnt=opcnt)
    end if
   end subroutine sharp_execute_d
-
-
-
 end module

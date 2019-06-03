@@ -13,6 +13,8 @@ module comm_utils
   implicit none
 
   include "mpif.h"
+  include 'fftw3.f'
+
   
   ! *********************************************************************
   ! *      Commander -- An MCMC code for global, exact CMB analysis     *
