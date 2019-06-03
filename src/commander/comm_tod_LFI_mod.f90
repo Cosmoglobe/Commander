@@ -51,9 +51,9 @@ contains
     constructor%info     => info
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
-    call constructor%get_scan_ids("data/filelist_1file.txt")
+    !call constructor%get_scan_ids("data/filelist_1file.txt")
     !call constructor%get_scan_ids("data/filelist_1year.txt")
-!    call constructor%get_scan_ids("data/filelist.txt")
+    call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
     constructor%procmask => comm_map(constructor%info, "data/test_procmask_expand20arcmin_n512.fits")
