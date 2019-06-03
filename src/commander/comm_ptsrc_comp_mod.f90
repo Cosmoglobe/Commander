@@ -26,7 +26,7 @@ module comm_ptsrc_comp_mod
      integer(i4b) :: nside, np, nmaps
      integer(i4b), allocatable, dimension(:,:) :: pix     ! Pixel list, both absolute and relative
      real(dp),     allocatable, dimension(:,:) :: map     ! (0:np-1,nmaps)
-     real(dp),     allocatable, dimension(:)   :: F       ! Mixing matrix (nmaps)
+     real(dp),     allocatable, dimension(:,:) :: F       ! Mixing matrix (nmaps,ndet)
      real(dp),     allocatable, dimension(:)   :: Omega_b ! Solid angle (nmaps)
   end type Tnu
 
@@ -45,10 +45,10 @@ module comm_ptsrc_comp_mod
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale, amp_rms_scale
-     integer(i4b)       :: nside, nsrc, ncr_tot
+     integer(i4b)       :: nside, nsrc, ncr_tot, ndet
      logical(lgt)       :: apply_pos_prior, burn_in
      real(dp),        allocatable, dimension(:,:) :: x      ! Amplitudes (sum(nsrc),nmaps)
-     type(F_int_ptr), allocatable, dimension(:)   :: F_int  ! SED integrator (numband)
+     type(F_int_ptr), allocatable, dimension(:,:) :: F_int  ! SED integrator (numband)
      type(ptsrc),     allocatable, dimension(:)   :: src    ! Source template (nsrc)
    contains
      procedure :: dumpFITS => dumpPtsrcToFITS
@@ -131,7 +131,8 @@ contains
     if (constructor%apply_pos_prior)  constructor%cg_samp_group = 0
 
     ! Initialize frequency scaling parameters
-    allocate(constructor%F_int(numband))
+    constructor%ndet = maxval(data%ndet)
+    allocate(constructor%F_int(numband,0:constructor%ndet))
     select case (trim(constructor%type))
     case ("radio")
        constructor%npar = 2   ! (alpha, beta)
@@ -144,7 +145,9 @@ contains
        constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
        constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
        do i = 1, numband
-          constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
+          do j = 0, data(i)%ndet
+             constructor%F_int(i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p)
+          end do
        end do
     case ("fir")
        constructor%npar = 2   ! (beta, T_d)
@@ -157,12 +160,16 @@ contains
        constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
        constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
        do i = 1, numband
-          constructor%F_int(i)%p => comm_F_int_2D(constructor, data(i)%bp)
+          do j = 0, data(i)%ndet
+             constructor%F_int(i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p)
+          end do
        end do
     case ("sz")
        constructor%npar = 0   ! (none)
        do i = 1, numband
-          constructor%F_int(i)%p => comm_F_int_0D(constructor, data(i)%bp)
+          do j = 0, data(i)%ndet
+             constructor%F_int(i,j)%p => comm_F_int_0D(constructor, data(i)%bp(j)%p)
+          end do
        end do
     case default
        call report_error("Unknown point source model: " // trim(constructor%type))
@@ -184,35 +191,37 @@ contains
     class(comm_map), dimension(:),     intent(in), optional :: theta
     real(dp),        dimension(:,:,:), intent(in), optional :: beta  ! (npar,nmaps,nsrc)
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, k
     
     do j = 1, self%nsrc
        if (present(beta)) then
           self%src(j)%theta = beta(:,:,j)
        end if
        do i = 1, numband
-          ! Temperature
-          self%src(j)%T(i)%F(1) = &
-               & self%F_int(i)%p%eval(self%src(j)%theta(:,1)) * data(i)%gain * self%cg_scale
-
-          ! Polarization
-          if (self%nmaps == 3) then
-             ! Stokes Q
-             if (self%poltype(1) < 2) then
-                self%src(j)%T(i)%F(2) = self%src(j)%T(i)%F(1)
-             else
-                self%src(j)%T(i)%F(2) = &
-                     & self%F_int(i)%p%eval(self%src(j)%theta(:,2)) * data(i)%gain * self%cg_scale
+          do k = 0, data(i)%ndet
+             ! Temperature
+             self%src(j)%T(i)%F(1,k) = &
+                  & self%F_int(i,k)%p%eval(self%src(j)%theta(:,1)) * data(i)%gain * self%cg_scale
+             
+             ! Polarization
+             if (self%nmaps == 3) then
+                ! Stokes Q
+                if (self%poltype(1) < 2) then
+                   self%src(j)%T(i)%F(2,k) = self%src(j)%T(i)%F(1,k)
+                else
+                   self%src(j)%T(i)%F(2,k) = &
+                        & self%F_int(i,k)%p%eval(self%src(j)%theta(:,2)) * data(i)%gain * self%cg_scale
+                end if
+                
+                ! Stokes U
+                if (self%poltype(1) < 3) then
+                   self%src(j)%T(i)%F(3,k) = self%src(j)%T(i)%F(2,k)
+                else
+                   self%src(j)%T(i)%F(3,k) = &
+                        & self%F_int(i,k)%p%eval(self%src(j)%theta(:,3)) * data(i)%gain * self%cg_scale
+                end if
              end if
-          
-             ! Stokes U
-             if (self%poltype(1) < 3) then
-                self%src(j)%T(i)%F(3) = self%src(j)%T(i)%F(2)
-             else
-                self%src(j)%T(i)%F(3) = &
-                     & self%F_int(i)%p%eval(self%src(j)%theta(:,3)) * data(i)%gain * self%cg_scale
-             end if
-          end if
+          end do
        end do
     end do
     
@@ -242,18 +251,21 @@ contains
     
   end function evalSED
 
-  function evalPtsrcBand(self, band, amp_in, pix, alm_out)
+  function evalPtsrcBand(self, band, amp_in, pix, alm_out, det)
     implicit none
     class(comm_ptsrc_comp),                       intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     logical(lgt),                                 intent(in),  optional :: alm_out
+    integer(i4b),                                 intent(in),  optional :: det
     real(dp),        dimension(:,:), allocatable                        :: evalPtsrcBand
 
-    integer(i4b) :: i, j, p, q, ierr
+    integer(i4b) :: i, j, p, q, ierr, d
     real(dp)     :: a
     real(dp), allocatable, dimension(:,:) :: amp
+
+    d = 0; if (present(det)) d = det
 
     if (.not. allocated(evalPtsrcBand)) &
          & allocate(evalPtsrcBand(0:data(band)%info%np-1,data(band)%info%nmaps))
@@ -273,7 +285,7 @@ contains
     do i = 1, self%nsrc
        do j = 1, self%src(i)%T(band)%nmaps
           ! Scale to correct frequency through multiplication with mixing matrix
-          a = self%getScale(band,i,j) * self%src(i)%T(band)%F(j) *  amp(i,j)
+          a = self%getScale(band,i,j) * self%src(i)%T(band)%F(j,d) *  amp(i,j)
 
           ! Project with beam
           do q = 1, self%src(i)%T(band)%np
@@ -288,18 +300,21 @@ contains
   end function evalPtsrcBand
   
   ! Return component projected from map
-  function projectPtsrcBand(self, band, map, alm_in)
+  function projectPtsrcBand(self, band, map, alm_in, det)
     implicit none
     class(comm_ptsrc_comp),                       intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
     logical(lgt),                                 intent(in), optional  :: alm_in
+    integer(i4b),                                 intent(in), optional  :: det
     real(dp),        dimension(:,:), allocatable                        :: projectPtsrcBand
 
-    integer(i4b) :: i, j, q, p, ierr
+    integer(i4b) :: i, j, q, p, ierr, d
     real(dp)     :: val
     real(dp), allocatable, dimension(:,:) :: amp, amp2
     
+    d = 0; if (present(det)) d = det
+
     if (.not. allocated(projectPtsrcBand)) &
          & allocate(projectPtsrcBand(self%nsrc,self%nmaps))
 
@@ -315,7 +330,7 @@ contains
           end do
 
           ! Scale to correct frequency through multiplication with mixing matrix
-          val = self%getScale(band,i,j) * self%src(i)%T(band)%F(j) * val
+          val = self%getScale(band,i,j) * self%src(i)%T(band)%F(j,d) * val
 
           ! Return value
           amp(i,j) = val
@@ -608,7 +623,7 @@ contains
        do i = 1, numband
           self%src(j)%T(i)%nside   = data(i)%info%nside
           self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
-          allocate(self%src(j)%T(i)%F(self%src(j)%T(i)%nmaps))
+          allocate(self%src(j)%T(i)%F(self%src(j)%T(i)%nmaps,0:data(i)%ndet))
           self%src(j)%T(i)%F       = 0.d0
 
           ! Get pixel space template; try precomputed templates first
@@ -1043,8 +1058,8 @@ contains
                                  & data(l)%N%invN_diag%map(p,j) * &          ! invN_{p,p}
                                  & pt1%src(k1)%T(l)%map(p1,j) * & ! B_1
                                  & pt2%src(k2)%T(l)%map(p2,j) * & ! B_2
-                                 & pt1%src(k1)%T(l)%F(j)      * & ! F_1
-                                 & pt2%src(k2)%T(l)%F(j)      * & ! F_2
+                                 & pt1%src(k1)%T(l)%F(j,0)    * & ! F_1
+                                 & pt2%src(k2)%T(l)%F(j,0)    * & ! F_2
                                  & pt1%getScale(l,k1,j)       * & ! Unit 1
                                  & pt2%getScale(l,k2,j)           ! Unit 2
                             p1 = p1+1
@@ -1320,7 +1335,7 @@ contains
              
              do l = 1, numband
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) + s*self%src(k)%T(l)%map(q,p) * a
@@ -1367,11 +1382,11 @@ contains
              chisq = 0.d0
              n_pix = 0
              do l = 1, numband
-                s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
-                   if (data(l)%bp%nu_c >= self%nu_min_ind(1) .and. data(l)%bp%nu_c <= self%nu_max_ind(1)) then
+                   if (data(l)%bp(0)%p%nu_c >= self%nu_min_ind(1) .and. data(l)%bp(0)%p%nu_c <= self%nu_max_ind(1)) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
                       n_pix = n_pix + 1
                    end if
@@ -1408,7 +1423,7 @@ contains
 !!$       theta = self%src(k)%theta(:,1)
 !!$       if (self%myid == 0) open(68,file='ptsrc_sed.dat', recl=1024)
 !!$       do l = 1, numband
-!!$          !if (data(l)%bp%nu_c > 500d9) cycle
+!!$          !if (data(l)%bp(0)%p%nu_c > 500d9) cycle
 !!$          ! Compute mixing matrix
 !!$          !s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
 !!$          !s = self%getScale(l,k,p) * data(l)%gain * self%cg_scale
@@ -1418,15 +1433,15 @@ contains
 !!$          a = 0.d0
 !!$          b = 0.d0
 !!$          do q = 1, self%src(k)%T(l)%np
-!!$             if (data(l)%bp%nu_c > 500d9) then
-!!$                unitconv = (data(l)%bp%f2t/data(l)%bp%a2t)
+!!$             if (data(l)%bp(0)%p%nu_c > 500d9) then
+!!$                unitconv = (data(l)%bp(0)%p%f2t/data(l)%bp(0)%p%a2t)
 !!$             else
-!!$                unitconv = 1.d0/data(l)%bp%a2t
+!!$                unitconv = 1.d0/data(l)%bp(0)%p%a2t
 !!$             end if
 !!$             pix = self%src(k)%T(l)%pix(q,1)
 !!$             w   = s*self%src(k)%T(l)%map(q,p) / (data(l)%N%rms_pix(pix,p)*unitconv)**2 
 !!$             a   = a + w * s*self%src(k)%T(l)%map(q,p)
-!!$             if (data(l)%bp%nu_c > 500d9) then
+!!$             if (data(l)%bp(0)%p%nu_c > 500d9) then
 !!$                b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * s*self%src(k)%T(l)%map(q,p))*unitconv
 !!$             else
 !!$                b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * s*self%src(k)%T(l)%map(q,p))*unitconv
@@ -1440,12 +1455,12 @@ contains
 !!$          if (self%myid == 0) then
 !!$             
 !!$             ! Compute maximum likelihood solution
-!!$             s = 1.d-23 * (c/data(l)%bp%nu_c)**2 / (2.d0*k_b*self%src(k)%T(l)%Omega_b(p))
-!!$             write(*,*) data(l)%bp%nu_c, self%src(k)%T(l)%Omega_b(p)
+!!$             s = 1.d-23 * (c/data(l)%bp(0)%p%nu_c)**2 / (2.d0*k_b*self%src(k)%T(l)%Omega_b(p))
+!!$             write(*,*) data(l)%bp(0)%p%nu_c, self%src(k)%T(l)%Omega_b(p)
 !!$             sigma   = 1.d0  / sqrt(a_tot) / s
 !!$             mu      = b_tot / a_tot       / s
 !!$             
-!!$             if (self%myid == 0) write(68,*) real(data(l)%bp%nu_c/1.d9,sp), mu, sigma
+!!$             if (self%myid == 0) write(68,*) real(data(l)%bp(0)%p%nu_c/1.d9,sp), mu, sigma
 !!$          end if
 !!$          
 !!$       end do
@@ -1478,8 +1493,8 @@ contains
 
                 ! Construct current source model
                 do l = 1, numband
-                   if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
-                   s         = self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
+                   s         = self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
                 end do
                 
@@ -1500,11 +1515,11 @@ contains
                    lnL = 0.d0
                    do i = 1, n
                       do l = 1, numband
-                         if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
+                         if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                          
                          ! Compute mixing matrix
                          theta(j) = x(i)
-                         s        = self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                         s        = self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                          
                          ! Compute predicted source amplitude for current band
                          a = self%getScale(l,k,p) * s * amp(k,p)
@@ -1591,7 +1606,7 @@ contains
                 ! Update residuals
                 do l = 1, numband
                    ! Compute mixing matrix
-                   s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    
                    ! Compute likelihood by summing over pixels
                    do q = 1, self%src(k)%T(l)%np
@@ -1619,10 +1634,10 @@ contains
              b     = 0.d0
              theta = self%src(k)%theta(:,p)
              do l = 1, numband
-                if (data(l)%bp%nu_c < self%nu_min_ind(1) .or. data(l)%bp%nu_c > self%nu_max_ind(1)) cycle
+                if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
 
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
@@ -1674,13 +1689,13 @@ contains
              n_pix = 0
              do l = 1, numband
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(l)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(k)%T(l)%map(q,p) * (amp(k,p)-a_old)
-                   if (data(l)%bp%nu_c >= self%nu_min_ind(1) .and. data(l)%bp%nu_c <= self%nu_max_ind(1)) then
+                   if (data(l)%bp(0)%p%nu_c >= self%nu_min_ind(1) .and. data(l)%bp(0)%p%nu_c <= self%nu_max_ind(1)) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
                       n_pix = n_pix + 1
                    end if
@@ -1772,10 +1787,10 @@ contains
 
     lnL = 0.d0
     do l = 1, numband
-       if (data(l)%bp%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp%nu_c > c_lnL%nu_max_ind(1)) cycle
+       if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
-       s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       s = c_lnL%F_int(l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
           
        ! Compute predicted source amplitude for current band
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp

@@ -152,14 +152,14 @@ contains
     
     unit = getlun()
     open(unit, file=trim(filename), recl=1024)
-    write(unit,*) '#       Band          Gain         delta_bp'
+    write(unit,*) '#       Band          Gain         delta_bp(0)%p'
     do i = 1, numband
-       write(unit,'(a15,f12.5,f10.2)') adjustl(trim(data(i)%label)), data(i)%gain, data(i)%bp%delta
+       write(unit,'(a15,f12.5,f10.2)') adjustl(trim(data(i)%label)), data(i)%gain, data(i)%bp(0)%p%delta
        if (output_hdf) then
           call write_hdf(chainfile, trim(adjustl(iter))//'/gain/'//trim(adjustl(data(i)%label)), &
                & data(i)%gain)
           call write_hdf(chainfile, trim(adjustl(iter))//'/bandpass/'//trim(adjustl(data(i)%label)), &
-               & data(i)%bp%delta)
+               & data(i)%bp(0)%p%delta)
        end if
     end do
     close(unit)

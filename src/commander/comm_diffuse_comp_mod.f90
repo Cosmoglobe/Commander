@@ -22,12 +22,12 @@ module comm_diffuse_comp_mod
   !**************************************************
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
-     integer(i4b)       :: nside, nx, x0
+     integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod
      real(dp)           :: cg_scale, latmask
-     real(dp), allocatable, dimension(:,:) :: cls
-     real(dp), allocatable, dimension(:,:) :: F_mean
+     real(dp), allocatable, dimension(:,:)   :: cls
+     real(dp), allocatable, dimension(:,:,:) :: F_mean
 
      class(comm_map),               pointer     :: mask
      class(comm_map),               pointer     :: procmask
@@ -39,9 +39,9 @@ module comm_diffuse_comp_mod
      class(comm_Cl),                pointer     :: Cl           ! Power spectrum
      class(map_ptr),  dimension(:), allocatable :: theta        ! Spectral parameters
      class(map_ptr),  dimension(:), allocatable :: theta_smooth ! Spectral parameters
-     type(map_ptr),   dimension(:), allocatable :: F            ! Mixing matrix
-     logical(lgt),    dimension(:), allocatable :: F_null       ! Don't allocate space for null mixmat's
-     type(F_int_ptr), dimension(:), allocatable :: F_int        ! SED integrator
+     type(map_ptr),   dimension(:,:), allocatable :: F            ! Mixing matrix
+     logical(lgt),    dimension(:,:), allocatable :: F_null       ! Don't allocate space for null mixmat's
+     type(F_int_ptr), dimension(:,:), allocatable :: F_int        ! SED integrator
    contains
      procedure :: initDiffuse
      procedure :: updateMixmat  => updateDiffuseMixmat
@@ -88,7 +88,7 @@ contains
     type(comm_params),       intent(in) :: cpar
     integer(i4b),            intent(in) :: id, id_abs
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j
     type(comm_mapinfo), pointer :: info
     
     call self%initComp(cpar, id, id_abs)
@@ -160,12 +160,15 @@ contains
 
     ! Allocate mixing matrix
     call update_status(status, "init_pre_mix")
-    allocate(self%F(numband), self%F_mean(numband,self%nmaps), self%F_null(numband))
+    self%ndet = maxval(data%ndet)
+    allocate(self%F(numband,0:self%ndet), self%F_mean(numband,0:self%ndet,self%nmaps), self%F_null(numband,0:self%ndet))
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-       self%F(i)%p    => comm_map(info)
-       self%F_null(i) =  .false.
+       do j = 0, data(i)%ndet
+          self%F(i,j)%p    => comm_map(info)
+          self%F_null(i,j) =  .false.
+       end do
     end do
     call update_status(status, "init_postmix")
 
@@ -249,7 +252,7 @@ contains
                    mat(k1,k2) = mat(k1,k2) + &
                         & data(q)%N%invN_diag%alm(i2,j) * &  ! invN_{lm,lm}
                         & data(q)%B%b_l(l,j)**2 * &          ! b_l^2
-                        & p1%F_mean(q,j) * p2%F_mean(q,j)    ! F(c1)*F(c2)
+                        & p1%F_mean(q,0,j) * p2%F_mean(q,0,j)    ! F(c1)*F(c2)
                 end do
              end do
           end do
@@ -611,7 +614,7 @@ contains
                 if (diffComps(k)%p%cg_samp_group /= samp_group) cycle
                 mat(q,k) = data(q)%N%alpha_nu(j) * &
                           & data(q)%B%b_l(l,j) * &
-                          & diffComps(k)%p%F_mean(q,j)
+                          & diffComps(k)%p%F_mean(q,0,j)
 
                 if (trim(diffComps(k)%p%Cl%type) /= 'none') then
                    mat(q,k) = mat(q,k)*sqrt(diffComps(k)%p%Cl%getCl(l,j))
@@ -680,7 +683,7 @@ contains
     class(comm_map),           dimension(:),   intent(in),    optional :: theta
     real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
 
-    integer(i4b) :: i, j, k, n, nmaps, ierr
+    integer(i4b) :: i, j, k, l, n, nmaps, ierr
     real(dp)     :: lat, lon, t1, t2
     logical(lgt) :: precomp, mixmatnull ! NEW
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
@@ -707,56 +710,57 @@ contains
     end do
 
     do i = 1, numband
-
-       ! Don't update null mixing matrices
-       if (self%F_null(i)) cycle
-
-       ! Compute spectral parameters at the correct resolution for this channel
-       if (self%npar > 0) then
-          nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
-          allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
+       do l = 0, data(i)%ndet
           
-          do j = 1, self%npar
-             if (.false. .and. associated(theta_prev(j)%p)) then
-                if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
-                     & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
-                     & nmaps == theta_prev(j)%p%info%nmaps .and. &
-                     & data(i)%info%pol == theta_prev(j)%p%info%pol) then
-                   theta_p(:,:,j) = theta_prev(j)%p%map
+          ! Don't update null mixing matrices
+          if (self%F_null(i,l)) cycle
+          
+          ! Compute spectral parameters at the correct resolution for this channel
+          if (self%npar > 0) then
+             nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
+             allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
+             
+             do j = 1, self%npar
+                if (.false. .and. associated(theta_prev(j)%p)) then
+                   if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
+                        & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
+                        & nmaps == theta_prev(j)%p%info%nmaps .and. &
+                        & data(i)%info%pol == theta_prev(j)%p%info%pol) then
+                      theta_p(:,:,j) = theta_prev(j)%p%map
+                      cycle
+                   end if
+                end if
+                info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
+                t    => comm_map(info)
+                if (self%lmax_ind >= 0) then
+                   t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
+                   call t%Y_scalar
+                else
+                   call wall_time(t1)
+                   call self%theta(j)%p%udgrade(t)
+                   call wall_time(t2)
+                   !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
+                end if
+                theta_p(:,:,j) = t%map
+                if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
+                theta_prev(j)%p => comm_map(t)
+                call t%dealloc()
+             end do
+          end if
+          
+          
+          ! Loop over all pixels, computing mixing matrix for each
+          !allocate(theta_p(self%npar,self%nmaps))
+          call wall_time(t1)
+          do j = 0, self%F(i,l)%p%info%np-1
+             if (self%latmask >= 0.d0) then
+                call pix2ang_ring(data(i)%info%nside, data(i)%info%pix(j+1), lat, lon)
+                lat = 0.5d0*pi-lat
+                if (abs(lat) < self%latmask) then
+                   self%F(i,l)%p%map(j,:) = 0.d0
                    cycle
                 end if
              end if
-             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
-             t    => comm_map(info)
-             if (self%lmax_ind >= 0) then
-                t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-                call t%Y_scalar
-             else
-                call wall_time(t1)
-                call self%theta(j)%p%udgrade(t)
-                call wall_time(t2)
-                !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
-             end if
-             theta_p(:,:,j) = t%map
-             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
-             theta_prev(j)%p => comm_map(t)
-             call t%dealloc()
-          end do
-       end if
-           
-
-       ! Loop over all pixels, computing mixing matrix for each
-       !allocate(theta_p(self%npar,self%nmaps))
-       call wall_time(t1)
-       do j = 0, self%F(i)%p%info%np-1
-          if (self%latmask >= 0.d0) then
-             call pix2ang_ring(data(i)%info%nside, data(i)%info%pix(j+1), lat, lon)
-             lat = 0.5d0*pi-lat
-             if (abs(lat) < self%latmask) then
-                self%F(i)%p%map(j,:) = 0.d0
-                cycle
-             end if
-          end if
 
 !          if (self%lmax_ind == 0) then
 !             cycle
@@ -780,78 +784,78 @@ contains
 !!$             end if
 !!$          end if
 
-          ! NEW ! Check band sensitivity before mixing matrix update
-          ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
-          if (data(i)%comp_sens == "broadband") then
-             ! If broadband, calculate mixing matrix
-             mixmatnull = .false.
-          else
-             ! If component sensitivity, only calculate mixmat on that component.
-             mixmatnull = .true.
-             if (data(i)%comp_sens == self%label) then
+             ! NEW ! Check band sensitivity before mixing matrix update
+             ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
+             if (data(i)%comp_sens == "broadband") then
+                ! If broadband, calculate mixing matrix
                 mixmatnull = .false.
-             end if
-          end if
-
-          ! Temperature
-          if (self%npar > 0) then
-             if (mixmatnull == .true.) then
-                self%F(i)%p%map(j,1) = 0.0
              else
-                self%F(i)%p%map(j,1) = self%F_int(i)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
-             end if
-          else
-             if (mixmatnull == .true.) then 
-                self%F(i)%p%map(j,1) = 0.0
-             else
-                self%F(i)%p%map(j,1) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
-             end if
-          end if
-
-          ! Polarization
-          if (self%nmaps == 3) then
-             ! Stokes Q
-             if (self%npar == 0) then
-                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) 
-             else if (all(self%poltype < 2)) then
-                self%F(i)%p%map(j,2) = self%F(i)%p%map(j,1) 
-             else
-                if (self%npar > 0) then
-                   self%F(i)%p%map(j,2) = self%F_int(i)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale
-                else
-                   self%F(i)%p%map(j,2) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                ! If component sensitivity, only calculate mixmat on that component.
+                mixmatnull = .true.
+                if (data(i)%comp_sens == self%label) then
+                   mixmatnull = .false.
                 end if
              end if
-       
-             ! Stokes U
-             if (self%npar == 0) then
-                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) 
-             else if (all(self%poltype < 3)) then
-                self%F(i)%p%map(j,3) = self%F(i)%p%map(j,2) 
-             else
-                if (self%npar > 0) then
-                   self%F(i)%p%map(j,3) = self%F_int(i)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale
+             
+             ! Temperature
+             if (self%npar > 0) then
+                if (mixmatnull == .true.) then
+                   self%F(i,l)%p%map(j,1) = 0.0
                 else
-                   self%F(i)%p%map(j,3) = self%F_int(i)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                   self%F(i,l)%p%map(j,1) = self%F_int(i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
+                end if
+             else
+                if (mixmatnull == .true.) then 
+                   self%F(i,l)%p%map(j,1) = 0.0
+                else
+                   self%F(i,l)%p%map(j,1) = self%F_int(i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
                 end if
              end if
-          end if
-          
-       end do
-
-       if (allocated(theta_p)) deallocate(theta_p)
-       call wall_time(t2)
-       !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
+             
+             ! Polarization
+             if (self%nmaps == 3) then
+                ! Stokes Q
+                if (self%npar == 0) then
+                   self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
+                else if (all(self%poltype < 2)) then
+                   self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
+                else
+                   if (self%npar > 0) then
+                      self%F(i,l)%p%map(j,2) = self%F_int(i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale
+                   else
+                      self%F(i,l)%p%map(j,2) = self%F_int(i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                   end if
+                end if
                 
-       ! Compute mixing matrix average; for preconditioning only
-       allocate(buffer(self%nmaps))
-       do j = 1, self%nmaps
-          self%F_mean(i,j) = sum(self%F(i)%p%map(:,j))
-       end do
-       call mpi_allreduce(self%F_mean(i,:), buffer, self%nmaps, &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
-       self%F_mean(i,:) = buffer / self%F(i)%p%info%npix
-       deallocate(buffer)
+                ! Stokes U
+                if (self%npar == 0) then
+                   self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
+                else if (all(self%poltype < 3)) then
+                   self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
+                else
+                   if (self%npar > 0) then
+                      self%F(i,l)%p%map(j,3) = self%F_int(i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale
+                   else
+                      self%F(i,l)%p%map(j,3) = self%F_int(i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                   end if
+                end if
+             end if
+          
+          end do
+
+          if (allocated(theta_p)) deallocate(theta_p)
+          call wall_time(t2)
+          !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
+                
+          ! Compute mixing matrix average; for preconditioning only
+          allocate(buffer(self%nmaps))
+          do j = 1, self%nmaps
+             self%F_mean(i,l,j) = sum(self%F(i,l)%p%map(:,j))
+          end do
+          call mpi_allreduce(self%F_mean(i,l,:), buffer, self%nmaps, &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+          self%F_mean(i,l,:) = buffer / self%F(i,l)%p%info%npix
+          deallocate(buffer)
 
 !!$       if (self%npar > 0) then
 !!$          call t%dealloc(clean_info=.true.)
@@ -860,6 +864,7 @@ contains
 !!$          nullify(t0)
 !!$       end if
     
+       end do
     end do
     do j = 1, self%npar
        if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
@@ -874,24 +879,26 @@ contains
   end subroutine updateDiffuseMixmat
 
 
-  function evalDiffuseBand(self, band, amp_in, pix, alm_out)
+  function evalDiffuseBand(self, band, amp_in, pix, alm_out, det)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     integer(i4b),    dimension(:),   allocatable, intent(out), optional :: pix
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     logical(lgt),                                 intent(in),  optional :: alm_out
+    integer(i4b),                                 intent(in),  optional :: det
     real(dp),        dimension(:,:), allocatable                        :: evalDiffuseBand
 
-    integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp
+    integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp, d
     logical(lgt) :: alm_out_
     real(dp)     :: t1, t2
     class(comm_mapinfo), pointer :: info
     class(comm_map),     pointer :: m
 
     alm_out_ = .false.; if (present(alm_out)) alm_out_ = alm_out
+    d = 0; if (present(det)) d = det
 
-    if (self%F_null(band)) then
+    if (self%F_null(band,0)) then
        if (alm_out_) then
           if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
        else
@@ -923,11 +930,11 @@ contains
        ! Scale to correct frequency through multiplication with mixing matrix
        if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
-             m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+             m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
        else
           call m%Y()
-          m%map = m%map * self%F(band)%p%map
+          m%map = m%map * self%F(band,d)%p%map
           call m%YtW()
        end if
     end if
@@ -956,24 +963,27 @@ contains
   end function evalDiffuseBand
 
   ! Return component projected from map
-  function projectDiffuseBand(self, band, map, alm_in)
+  function projectDiffuseBand(self, band, map, alm_in, det)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
     logical(lgt),                                 intent(in), optional  :: alm_in
+    integer(i4b),                                 intent(in), optional  :: det
     real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
 
-    integer(i4b) :: i, nmaps
+    integer(i4b) :: i, nmaps, d
     logical(lgt) :: alm_in_
     class(comm_mapinfo), pointer :: info_in, info_out
     class(comm_map),     pointer :: m, m_out
 
-    if (self%F_null(band)) then
+    if (self%F_null(band,0)) then
        if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
        projectDiffuseBand = 0.d0
        return
     end if
+
+    d = 0; if (present(det)) d = det
 
     nmaps     =  min(self%x%info%nmaps, map%info%nmaps)
     info_in   => comm_mapinfo(self%x%info%comm, map%info%nside, map%info%lmax, nmaps, nmaps==3)
@@ -993,11 +1003,11 @@ contains
     
     if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
        do i = 1, nmaps
-          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,i)
+          m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
        call m%Y()
-       m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band)%p%map(:,1:nmaps)
+       m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
        call m%YtW()
     end if
     call m%alm_equal(m_out)
@@ -1365,10 +1375,10 @@ contains
        ! Write mixing matrices
        if (self%output_mixmat) then
           do i = 1, numband
-             if (self%F_null(i)) cycle
+             if (self%F_null(i,0)) cycle
              filename = 'mixmat_' // trim(self%label) // '_' // trim(data(i)%label) // '_' // &
                   & trim(postfix) // '.fits'
-             call self%F(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+             call self%F(i,0)%p%writeFITS(trim(dir)//'/'//trim(filename))
           end do
        end if
        call update_status(status, "writeFITS_9")
@@ -1576,7 +1586,7 @@ contains
           if (k > data(l)%info%nmaps) cycle
           
        ! Compute predicted source amplitude for current band
-          s = a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+          s = a_lnL(k) * c_lnL%F_int(l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
           
           ! Compute likelihood 
           lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
