@@ -52,8 +52,8 @@ contains
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
     !call constructor%get_scan_ids("data/filelist_1file.txt")
-    !call constructor%get_scan_ids("data/filelist_1year.txt")
-    call constructor%get_scan_ids("data/filelist.txt")
+    call constructor%get_scan_ids("data/filelist_1year.txt")
+    !call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
     constructor%procmask => comm_map(constructor%info, "data/test_procmask_expand20arcmin_n512.fits")
@@ -100,7 +100,7 @@ contains
     integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot, ierr, iter
     real(dp)     :: t1, t2, t3, t4, t5, t6, chisq_threshold
     real(dp)     :: t_tot(13) 
-    real(sp),     allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb, mask
+    real(sp),     allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb, mask, s_sb
     real(dp),     allocatable, dimension(:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)     :: A_abscal, b_abscal
     real(dp),     allocatable, dimension(:,:,:) :: A_map
@@ -110,7 +110,13 @@ contains
 
     t_tot   = 0.d0
     call wall_time(t5)
-
+    
+    call map_in(1)%p%writefits("map1.fits")
+    call map_in(2)%p%writefits("map2.fits")
+    call map_in(3)%p%writefits("map3.fits")
+    call map_in(4)%p%writefits("map4.fits")
+    call mpi_finalize(i)
+    stop
     ! Set up full-sky map structures
     chisq_threshold = 7.d0
     ndet  = self%ndet
@@ -119,7 +125,7 @@ contains
     npix  = 12*nside**2
     allocate(A_map(nmaps,nmaps,0:npix-1), b_map(nmaps,0:npix-1))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
-    allocate(map_sky(0:npix-1,nmaps,ndet))
+    allocate(map_sky(0:npix-1,nmaps,0:ndet)) 
     allocate(procmask(0:npix-1,nmaps))
     ! This step should be optimized -- currently takes 6 seconds..
     call wall_time(t1)
@@ -127,9 +133,18 @@ contains
        call map_in(i)%p%bcast_fullsky_map(map_sky(:,:,i))
     end do
     call self%procmask%bcast_fullsky_map(procmask)
+    
+    ! Trygve - Calculate mean map at zeroth index
+    map_sky(:,:,0) = map_sky(:,:,1)
+    do i = 2, self%ndet
+       map_sky(:,:,0) = map_sky(:,:,0) + map_sky(:,:,i) 
+    end do
+    map_sky(:,:,0) = map_sky(:,:,0)/self%ndet
+
     map_sky = map_sky * 1.d-6 ! Gain in V/K
     call wall_time(t2)
     t_tot(9) = t2-t1
+
 
     ! Compute far sidelobe Conviqt structures
     call wall_time(t1)
@@ -147,6 +162,7 @@ contains
     !b_abscal = 0.d0
     naccept = 0
     ntot    = 0
+
     do i = 1, self%nscan
 
        call wall_time(t3)
@@ -158,8 +174,9 @@ contains
        ! Set up local data structure for current scan
        allocate(d_calib(ntod, ndet))            ! Calibrated and cleaned TOD in uKcmb
        allocate(n_corr(ntod, ndet))             ! Correlated noise in V
-       allocate(s_sl(ntod, ndet))               ! Sidelobe in uKcmb
+       allocate(s_sl(ntod, ndet))               ! Sidelobe in uKcm
        allocate(s_sky(ntod, ndet))              ! Stationary sky signal in uKcmb
+       allocate(s_sb(ntod, ndet))               ! Signal minus mean
        allocate(s_orb(ntod, ndet))              ! Orbital dipole in uKcmb
        allocate(mask(ntod, ndet))               ! Processing mask in time
        allocate(pix(ntod, ndet))                ! Decompressed pointing
@@ -184,10 +201,10 @@ contains
        call wall_time(t2)       
        t_tot(11) = t_tot(11) + t2-t1
 
-       ! Construct sky signal template -- Maksym -- this week
+       ! Construct sky signal template -- Maksym -- this week - Trygve added mean sky
        call wall_time(t1)
-       do j = 1, ndet
-          call self%project_sky(map_sky(:,:,j), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j))  ! scan_id, det,  s_sky(:, j))
+       do j = 1, ndet 
+          call self%project_sky(map_sky(:,:,j), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j),map_sky(:,:,0), s_sb(:,j))  ! scan_id, det,  s_sky(:, j))
        end do
        call wall_time(t2)
        t_tot(1) = t_tot(1) + t2-t1
@@ -227,9 +244,7 @@ contains
           !if (self%myid == 0) write(*,*) 'gain       = ', t2-t1
           
           ! .. Compute contribution to absolute calibration from current scan .. -- let's see
-          
-          ! Compute bandpass corrections, as in s_sky(i) - <s_sky> -- Trygve, after deadline
-          
+                    
           
           ! Compute noise spectrum
           call wall_time(t1)
@@ -253,7 +268,7 @@ contains
 
        ! Compute clean and calibrated TOD -- Mathew -- this week
        call wall_time(t1)
-       call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib)
+       call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib,s_sb)
        call wall_time(t2)
        t_tot(5) = t_tot(5) + t2-t1
        !if (self%myid == 0) write(*,*) 'clean      = ', t2-t1
@@ -283,7 +298,7 @@ contains
        !if (self%myid == 0) write(*,*) 'bin        = ', t2-t1
 
        ! Clean up
-       deallocate(n_corr, s_sl, s_sky, s_orb, d_calib, mask, pix, psi, flag)
+       deallocate(n_corr, s_sl, s_sky, s_orb, d_calib, mask, pix, psi, flag, s_sb)
 
        call wall_time(t4)
        do j = 1, ndet
@@ -371,13 +386,13 @@ contains
   end subroutine decompress_pointing_and_flags
 
   ! Sky signal template
-  subroutine project_sky(self, map, pix, psi, pmask, scan_id, det, s_sky, tmask)
+  subroutine project_sky(self, map, pix, psi, pmask, scan_id, det, s_sky, tmask, map_mean,s_sb)
     implicit none
     class(comm_LFI_tod),                  intent(in)  :: self
-    real(dp),            dimension(:,:),  intent(in)  :: map, pmask
+    real(dp),            dimension(:,:),  intent(in)  :: map, pmask, map_mean
     integer(i4b),        dimension(:),    intent(in)  :: pix, psi
     integer(i4b),                         intent(in)  :: scan_id, det
-    real(sp),            dimension(:),    intent(out) :: s_sky, tmask
+    real(sp),            dimension(:),    intent(out) :: s_sky, tmask, s_sb
 
     integer(i4b)                                      :: i!, pix
     !real(dp)                                          :: psi
@@ -388,6 +403,8 @@ contains
        ! note that psi(i) is an index now; must be converted to a real number based on lookup table
 !       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * cos(2.d0 * psi(i)) + map(pix(i), 3) * sin(2.d0 * psi(i))
        s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * self%cos2psi(psi(i)) + map(pix(i), 3) * self%sin2psi(psi(i))
+       s_sb(i) = s_sky(i) - (map_mean(pix(i), 1) + map_mean(pix(i), 2) * self%cos2psi(psi(i)) + map_mean(pix(i), 3)*self%sin2psi(psi(i)))
+
        if (s_sky(i) /= s_sky(i)) then
           write(*,*) scan_id, i, map(pix(i),:), psi(i), self%cos2psi(psi(i)), self%sin2psi(psi(i))
           stop
@@ -635,18 +652,18 @@ contains
   end subroutine construct_sl_template
 
   !compute the cleaned TOD from the computed TOD components
-  subroutine compute_cleaned_tod(self, ntod, scan_num, s_orb, s_sl, n_corr, d_calib)
+  subroutine compute_cleaned_tod(self, ntod, scan_num, s_orb, s_sl, n_corr, d_calib,s_sb)
     implicit none
     class(comm_LFI_tod),               intent(in)    :: self
     integer(i4b),                      intent(in)    :: ntod, scan_num
-    real(sp),          dimension(:,:), intent(in)    :: n_corr, s_sl, s_orb
+    real(sp),          dimension(:,:), intent(in)    :: n_corr, s_sl, s_orb,s_sb
     real(sp),          dimension(:,:), intent(out)   :: d_calib
 
     integer(i4b) :: i
 
     !cleaned calibrated data = (rawTOD - corrNoise)/gain - orbitalDipole - sideLobes
     do i=1, self%ndet
-      d_calib(:,i) = (self%scans(scan_num)%d(i)%tod - n_corr(:,i))/ self%scans(scan_num)%d(i)%gain - s_orb(:,i) - s_sl(:,i)
+      d_calib(:,i) = s_sb(:,i) !(self%scans(scan_num)%d(i)%tod - n_corr(:,i))/ self%scans(scan_num)%d(i)%gain - s_orb(:,i) - s_sl(:,i) - s_sb(:,i)
     end do
   end subroutine compute_cleaned_tod
 
