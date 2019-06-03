@@ -45,7 +45,8 @@ contains
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
 !    call constructor%get_scan_ids("data/filelist_5files.txt")
-     call constructor%get_scan_ids("data/filelist_1year.txt")
+    call constructor%get_scan_ids("data/filelist_old.txt")
+!     call constructor%get_scan_ids("data/filelist_1year.txt")
 !    call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
@@ -336,24 +337,24 @@ contains
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sky, s_sl, s_orb
     real(sp),          dimension(:,:), intent(out)    :: n_corr
-    integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads, meanrange, start, last
     integer*8    :: plan_fwd, plan_back
-    real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate, gain
+    real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate, gain, mean
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime
+    real(sp),     allocatable, dimension(:) :: d_prime, diff
     
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
     nomp = omp_get_max_threads()
     samprate = self%samprate
-
+    
 !    do i = 1, ndet
 !       gain = 1.d-6 * self%scans(scan)%d(i)%gain  ! Gain in V / muK
 !       n_corr(:,i) = self%scans(scan)%d(i)%tod(:) - S_sky(:,i) * gain 
 !    end do
 !    return
-
+    meanrange = 20
     
     n = ntod + 1
 
@@ -364,54 +365,127 @@ contains
     call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
-    !$OMP PARALLEL PRIVATE(i,l,dt,dv,nu,sigma_0,alpha,nu_knee)
+    !$OMP PARALLEL PRIVATE(i,l,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,diff,start,last)
     allocate(dt(2*ntod), dv(0:n-1))
     allocate(d_prime(ntod))
+    allocate(diff(ntod+1))
+    diff = 0.d0
     !$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-!       where (mask(:,i) == 1.)
-          d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain
-!       elsewhere
-          ! Do gap filling, placeholder
-!          d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain 
-!       end where
-       ! if (i == 1 .and. scan == 1) then
-       !    open(22, file="tod.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) self%scans(scan)%d(i)%tod(:)
-       !    close(22)
-       ! end if
+       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain
        
-       ! if (i == 1 .and. scan == 1) then
-       !    open(22, file="d_prime.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) d_prime
-       !    close(22)
-       ! end if
+       
+       if (i == 4 .and. scan == 1) then
+          open(23, file="d_prime1.unf", form="unformatted")
+          write(23) d_prime
+          close(23)
+       end if
+       if (i == 4 .and. scan == 1) then
+          open(230, file="mask.unf", form="unformatted")
+          write(230) mask(:,i)
+          close(230)
+       end if
 
-       ! if (i == 1 .and. scan == 1) then
-       !    open(22, file="sky.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) S_sky(:,i) * gain
-       !    close(22)
-       ! end if
+
+       sigma_0 = self%scans(scan)%d(i)%sigma0 * gain
+       do j = 1,ntod
+          if (mask(j,i) == 0.d0) then
+             start = max(j - meanrange, 1)
+             last = min(j + meanrange, ntod)
+             if (sum(mask(start:last, i)) > 2) then
+                mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+             else
+                start = max(j - meanrange * 2, 1)
+                last = min(j + meanrange * 2, ntod)
+                write(*,*) "wider mean area needed", sum(mask(start:last, i))
+                mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+             end if
+
+             if (abs(d_prime(j) - mean) > 3.d0 * sigma_0) then 
+                d_prime(j) = mean
+             end if
+          end if
+       end do
+       
+       !diff(2:ntod) = abs(d_prime(2:ntod) - d_prime(1:ntod - 1)) / sqrt(2.d0) 
+       ! do j = 1,ntod
+       !    if (mask(j,i) == 0.d0) then
+       !       if () then !((diff(j) > 0.d0 * sigma_0) .or. (diff(j+1) > 0.d0 * sigma_0)) then
+       !          start = max(j - meanrange, 1)
+       !          last = min(j + meanrange, ntod)
+       !          if (sum(mask(start:last, i)) > 0) then
+       !             !write(*,*) "before", d_prime(j), i, j
+       !             d_prime(j) = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+       !             !write(*,*) "after", d_prime(j), scan, i, j, start, last,sum(d_prime(start:last) * mask(start:last, i)), sum(mask(start:last, i)), d_prime(start:last), mask(start:last, i)
+       !          else
+       !             start = max(j - meanrange * 3, 1)
+       !             last = min(j + meanrange * 3, ntod)
+       !             write(*,*) "wider mean area needed"
+       !             d_prime(j) = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+       !             open(29, file="d_prime_after.unf", form="unformatted")
+       !             write(29) d_prime
+       !             close(29)
+       !             open(30, file="mask_after.unf", form="unformatted")
+       !             write(30) mask(:,i)
+       !             close(30)
+       !          end if
+       !       end if
+       !    end if
+       ! end do
+       if (i == 4 .and. scan == 1) then
+          open(23, file="d_prime2.unf", form="unformatted")
+          write(23) d_prime
+          close(23)
+       end if
+
+       ! where (mask(:,i) == 1.)
+       !    d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain
+       ! elsewhere
+       !    ! Do gap filling, placeholder
+       !    sigma_0 = self%scans(scan)%d(i)%sigma0
+       !    d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain 
+       ! end where
 
        dt(1:ntod)           = d_prime(:)
        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-       sigma_0 = self%scans(scan)%d(i)%sigma0
+       !sigma_0 = self%scans(scan)%d(i)%sigma0
        alpha = self%scans(scan)%d(i)%alpha
        nu_knee = self%scans(scan)%d(i)%fknee
-       do l = 0, n-1                                                      
+       do l = 0, n-1
           nu = l*(samprate/2)/(n-1)
-          dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))          
+          dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
        end do
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        dt          = dt / (2*ntod)
        n_corr(:,i) = dt(1:ntod)
-       ! if (i == 1 .and. scan == 1) then
-       !    open(22, file="n_corr.unf", form="unformatted") ! Adjusted open statement
-       !    write(22) n_corr(:,i)
-       !    close(22)
-       ! end if
+
+       if (i == 1 .and. scan == 1) then
+          open(22, file="tod.unf", form="unformatted")
+          write(22) self%scans(scan)%d(i)%tod(:)
+          close(22)
+       end if
+
+       if (i == 1 .and. scan == 1) then
+          open(24, file="sky.unf", form="unformatted")
+          write(24) S_sky(:,i) * gain
+          close(24)
+       end if
+
+       
+       if (i == 1 .and. scan == 1) then
+          open(23, file="d_prime.unf", form="unformatted")
+          write(23) d_prime
+          close(23)
+       end if
+
+
+       if (i == 1 .and. scan == 1) then
+          open(25, file="n_corr.unf", form="unformatted")
+          write(25) n_corr(:,i)
+          close(25)
+       end if
 
 !!$       if (self%myid == 0 .and. i == 2 .and. scan == 2 .and. .false.) then
 !!$          open(58,file='tod.dat')
@@ -423,8 +497,9 @@ contains
 
     end do
     !$OMP END DO                                                          
-    deallocate(dt, dv)                                      
+    deallocate(dt, dv)
     deallocate(d_prime)
+    deallocate(diff)
     !$OMP END PARALLEL
 
     call sfftw_destroy_plan(plan_fwd)                                           
