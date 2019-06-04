@@ -38,7 +38,7 @@ module comm_tod_mod
   end type comm_scan
 
   type, abstract :: comm_tod 
-     integer(i4b) :: myid, numprocs                               ! MPI parameters
+     integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
