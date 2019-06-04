@@ -243,19 +243,24 @@ contains
   end subroutine initialize_data_mod
 
 
-  function RJ2data(self)
+  function RJ2data(self, det)
     implicit none
 
-    class(comm_data_set), intent(in) :: self
-    real(dp)                         :: RJ2data
+    class(comm_data_set), intent(in)           :: self
+    integer(i4b),         intent(in), optional :: det
+    real(dp)                                   :: RJ2data
+
+    integer(i4b) :: d
+
+    d = 0; if (present(det)) d = det
 
     select case (trim(self%unit))
     case ('uK_cmb') 
-       RJ2data = self%bp(0)%p%a2t
+       RJ2data = self%bp(d)%p%a2t
     case ('MJy/sr') 
-       RJ2data = self%bp(0)%p%a2t / self%bp(0)%p%f2t
+       RJ2data = self%bp(d)%p%a2t / self%bp(d)%p%f2t
     case ('y_SZ') 
-       RJ2data = self%bp(0)%p%a2sz
+       RJ2data = self%bp(d)%p%a2sz
     case ('uK_RJ') 
        RJ2data = 1.d0
     case ('K km/s') ! NEW

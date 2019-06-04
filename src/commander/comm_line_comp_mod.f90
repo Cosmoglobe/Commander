@@ -111,7 +111,7 @@ contains
        if (any(constructor%ind2band == i)) then
           do k = 0, data(i)%ndet
              constructor%F_int(i,k)%p => comm_F_line(constructor, data(i)%bp(k)%p, .true., &
-                  & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(), j)
+                  & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(k), j)
           end do
           j = j+1
        else
