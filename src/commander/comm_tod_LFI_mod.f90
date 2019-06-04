@@ -111,12 +111,12 @@ contains
     t_tot   = 0.d0
     call wall_time(t5)
     
-    call map_in(1)%p%writefits("map1.fits")
-    call map_in(2)%p%writefits("map2.fits")
-    call map_in(3)%p%writefits("map3.fits")
-    call map_in(4)%p%writefits("map4.fits")
-    call mpi_finalize(i)
-    stop
+!!$    call map_in(1)%p%writefits("map1.fits")
+!!$    call map_in(2)%p%writefits("map2.fits")
+!!$    call map_in(3)%p%writefits("map3.fits")
+!!$    call map_in(4)%p%writefits("map4.fits")
+!!$    call mpi_finalize(i)
+!!$    stop
     ! Set up full-sky map structures
     chisq_threshold = 7.d0
     ndet  = self%ndet
@@ -140,6 +140,11 @@ contains
        map_sky(:,:,0) = map_sky(:,:,0) + map_sky(:,:,i) 
     end do
     map_sky(:,:,0) = map_sky(:,:,0)/self%ndet
+
+!!$    do i = 0, self%ndet
+!!$       write(*,*) i, sum(abs(map_sky(:,:,i)))
+!!$    end do
+!!$    stop
 
     map_sky = map_sky * 1.d-6 ! Gain in V/K
     call wall_time(t2)
@@ -204,7 +209,7 @@ contains
        ! Construct sky signal template -- Maksym -- this week - Trygve added mean sky
        call wall_time(t1)
        do j = 1, ndet 
-          call self%project_sky(map_sky(:,:,j), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j),map_sky(:,:,0), s_sb(:,j))  ! scan_id, det,  s_sky(:, j))
+          call self%project_sky(map_sky(:,:,j), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j), map_sky(:,:,0), s_sb(:,j))  ! scan_id, det,  s_sky(:, j))
        end do
        call wall_time(t2)
        t_tot(1) = t_tot(1) + t2-t1
@@ -386,7 +391,7 @@ contains
   end subroutine decompress_pointing_and_flags
 
   ! Sky signal template
-  subroutine project_sky(self, map, pix, psi, pmask, scan_id, det, s_sky, tmask, map_mean,s_sb)
+  subroutine project_sky(self, map, pix, psi, pmask, scan_id, det, s_sky, tmask, map_mean, s_sb)
     implicit none
     class(comm_LFI_tod),                  intent(in)  :: self
     real(dp),            dimension(:,:),  intent(in)  :: map, pmask, map_mean
@@ -403,7 +408,7 @@ contains
        ! note that psi(i) is an index now; must be converted to a real number based on lookup table
 !       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * cos(2.d0 * psi(i)) + map(pix(i), 3) * sin(2.d0 * psi(i))
        s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * self%cos2psi(psi(i)) + map(pix(i), 3) * self%sin2psi(psi(i))
-       s_sb(i) = s_sky(i) - (map_mean(pix(i), 1) + map_mean(pix(i), 2) * self%cos2psi(psi(i)) + map_mean(pix(i), 3)*self%sin2psi(psi(i)))
+       s_sb(i)  = s_sky(i) - (map_mean(pix(i), 1) + map_mean(pix(i), 2) * self%cos2psi(psi(i)) + map_mean(pix(i), 3)*self%sin2psi(psi(i)))
 
        if (s_sky(i) /= s_sky(i)) then
           write(*,*) scan_id, i, map(pix(i),:), psi(i), self%cos2psi(psi(i)), self%sin2psi(psi(i))
@@ -415,8 +420,6 @@ contains
           tmask(i) = 1.
        end if
     end do
-
-
 
   end subroutine project_sky
 

@@ -47,7 +47,7 @@ contains
     allocate(constructor%F_int(numband,0:constructor%ndet))
     do i = 1, numband
        do j = 0, data(i)%ndet
-          f = comp_a2t(constructor%nu_ref) / data(i)%bp(j)%p%a2t * data(i)%RJ2data()
+          f = comp_a2t(constructor%nu_ref) / data(i)%bp(j)%p%a2t * data(i)%RJ2data(j)
           constructor%F_int(i,j)%p => comm_F_int_0D(constructor, data(i)%bp(j)%p, f_precomp=f)
        end do
     end do
