@@ -24,6 +24,8 @@ module comm_tod_LFI_mod
      procedure     :: compute_chisq
      procedure     :: sample_noise_psd
      procedure     :: decompress_pointing_and_flags
+     procedure     :: accumulate_absgain_from_orbital
+     procedure     :: sample_absgain_from_orbital
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -46,14 +48,15 @@ contains
 
     ! Set up LFI specific parameters
     allocate(constructor)
-    constructor%myid     = cpar%myid
+    constructor%myid     = cpar%myid_chain
+    constructor%comm     = cpar%comm_chain
     constructor%numprocs = cpar%numprocs
     constructor%info     => info
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
-    !call constructor%get_scan_ids("data/filelist_1file.txt")
-    call constructor%get_scan_ids("data/filelist_1year.txt")
-    !call constructor%get_scan_ids("data/filelist.txt")
+!    call constructor%get_scan_ids("data/filelist_1file.txt")
+    !call constructor%get_scan_ids("data/filelist_1year.txt")
+    call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
     constructor%procmask => comm_map(constructor%info, "data/test_procmask_expand20arcmin_n512.fits")
@@ -97,9 +100,9 @@ contains
     type(map_ptr),       dimension(:), intent(inout) :: map_in            ! One map per detector
     class(comm_map),                   intent(inout) :: map_out, rms_out  ! Combined output map and rms
 
-    integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot, ierr, iter
-    real(dp)     :: t1, t2, t3, t4, t5, t6, chisq_threshold
-    real(dp)     :: t_tot(13) 
+    integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot, ierr, iter, main_iter, n_main_iter
+    real(dp)     :: t1, t2, t5, t6, chisq_threshold
+    real(dp)     :: t_tot(14)
     real(sp),     allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb, mask, s_sb
     real(dp),     allocatable, dimension(:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)     :: A_abscal, b_abscal
@@ -119,10 +122,11 @@ contains
 !!$    stop
     ! Set up full-sky map structures
     chisq_threshold = 7.d0
-    ndet  = self%ndet
-    nside = map_out%info%nside
-    nmaps = map_out%info%nmaps
-    npix  = 12*nside**2
+    n_main_iter     = 2
+    ndet            = self%ndet
+    nside           = map_out%info%nside
+    nmaps           = map_out%info%nmaps
+    npix            = 12*nside**2
     allocate(A_map(nmaps,nmaps,0:npix-1), b_map(nmaps,0:npix-1))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(map_sky(0:npix-1,nmaps,0:ndet)) 
@@ -161,165 +165,178 @@ contains
     t_tot(13) = t2-t1
 
     ! Compute output map and rms
-    A_map = 0.d0
-    b_map = 0.d0
-    !A_abscal = 0.d0
-    !b_abscal = 0.d0
-    naccept = 0
-    ntot    = 0
+    do main_iter = 1, n_main_iter
 
-    do i = 1, self%nscan
+       if (main_iter == n_main_iter) then
+          ! Initialize main map arrays
+          A_map = 0.d0
+          b_map = 0.d0
+          naccept = 0
+          ntot    = 0
 
-       call wall_time(t3)
+          ! Compute contribution to absolute calibration from current scan
+          call self%sample_absgain_from_orbital(A_abscal, b_abscal)
+       else if (main_iter == n_main_iter-1) then
+          ! Prepare for final absolute calibration from orbital
+          A_abscal = 0.d0
+          b_abscal = 0.d0
+       end if
 
-       ! Short-cuts to local variables
-       ntod = self%scans(i)%ntod
-       ndet = self%ndet
-
-       ! Set up local data structure for current scan
-       allocate(d_calib(ntod, ndet))            ! Calibrated and cleaned TOD in uKcmb
-       allocate(n_corr(ntod, ndet))             ! Correlated noise in V
-       allocate(s_sl(ntod, ndet))               ! Sidelobe in uKcm
-       allocate(s_sky(ntod, ndet))              ! Stationary sky signal in uKcmb
-       allocate(s_sb(ntod, ndet))               ! Signal minus mean
-       allocate(s_orb(ntod, ndet))              ! Orbital dipole in uKcmb
-       allocate(mask(ntod, ndet))               ! Processing mask in time
-       allocate(pix(ntod, ndet))                ! Decompressed pointing
-       allocate(psi(ntod, ndet))                ! Decompressed discretized polarization angle
-       allocate(flag(ntod, ndet))               ! Decompressed flags
-
-       ! Initializing arrays to zero
-       n_corr = 0.d0
-       s_sl   = 0.d0
-       s_sky  = 0.d0
-       s_orb  = 0.d0
-
-       ! --------------------
-       ! Analyze current scan
-       ! --------------------
-
-       ! Decompress pointing, psi and flags for current scan
-       call wall_time(t1)
-       do j = 1, ndet
-          call self%decompress_pointing_and_flags(i, j, pix(:,j), psi(:,j), flag(:,j))
-       end do
-       call wall_time(t2)       
-       t_tot(11) = t_tot(11) + t2-t1
-
-       ! Construct sky signal template -- Maksym -- this week - Trygve added mean sky
-       call wall_time(t1)
-       do j = 1, ndet 
-          call self%project_sky(map_sky(:,:,j), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j), map_sky(:,:,0), s_sb(:,j))  ! scan_id, det,  s_sky(:, j))
-       end do
-       call wall_time(t2)
-       t_tot(1) = t_tot(1) + t2-t1
-       !if (self%myid == 0) write(*,*) 'Project    = ', t2-t1
-
-       ! Construct orbital dipole template -- Kristian -- this week-ish
-       call wall_time(t1)
-       call self%compute_orbital_dipole(i, pix, s_orb)
-       call wall_time(t2)
-       t_tot(2) = t_tot(2) + t2-t1
-       !if (self%myid == 0) write(*,*) 'Orb dipole = ', t2-t1
-
-       ! Construct sidelobe template -- Mathew -- long term
-       call wall_time(t1)
-       do j = 1, ndet
-          !call self%construct_sl_template(self%slconv(j)%p, i, pix(:,j), psi(:,j), s_sl(:,j))
-       end do
-       call wall_time(t2)
-       t_tot(12) = t_tot(12) + t2-t1
-
-       do iter = 1, 1
-       
-          ! Fit correlated noise -- Haavard -- this week-ish
-          call wall_time(t1)
-          call self%sample_n_corr(i, mask, s_sky, s_sl, s_orb, n_corr)
-          call wall_time(t2)
-          t_tot(3) = t_tot(3) + t2-t1
-          !if (self%myid == 0) write(*,*) 'ncorr      = ', t2-t1
+       do i = 1, self%nscan
           
-          ! Fit gain for current scan -- Eirik -- this week
+          ! Short-cuts to local variables
+          ntod = self%scans(i)%ntod
+          ndet = self%ndet
+          
+          ! Set up local data structure for current scan
+          allocate(d_calib(ntod, ndet))            ! Calibrated and cleaned TOD in uKcmb
+          allocate(n_corr(ntod, ndet))             ! Correlated noise in V
+          allocate(s_sl(ntod, ndet))               ! Sidelobe in uKcm
+          allocate(s_sky(ntod, ndet))              ! Stationary sky signal in uKcmb
+          allocate(s_sb(ntod, ndet))               ! Signal minus mean
+          allocate(s_orb(ntod, ndet))              ! Orbital dipole in uKcmb
+          allocate(mask(ntod, ndet))               ! Processing mask in time
+          allocate(pix(ntod, ndet))                ! Decompressed pointing
+          allocate(psi(ntod, ndet))                ! Decompressed discretized polarization angle
+          allocate(flag(ntod, ndet))               ! Decompressed flags
+          
+          ! Initializing arrays to zero
+          n_corr = 0.d0
+          s_sl   = 0.d0
+          s_sky  = 0.d0
+          s_orb  = 0.d0
+          
+          ! --------------------
+          ! Analyze current scan
+          ! --------------------
+          
+          ! Decompress pointing, psi and flags for current scan
           call wall_time(t1)
           do j = 1, ndet
-             call sample_gain(self, j, i, n_corr(:, j), mask(:,j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
+             call self%decompress_pointing_and_flags(i, j, pix(:,j), psi(:,j), flag(:,j))
+          end do
+          call wall_time(t2)       
+          t_tot(11) = t_tot(11) + t2-t1
+          
+          ! Construct sky signal template -- Maksym -- this week - Trygve added mean sky
+          call wall_time(t1)
+          do j = 1, ndet 
+             call self%project_sky(map_sky(:,:,j), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j), map_sky(:,:,0), s_sb(:,j))  ! scan_id, det,  s_sky(:, j))
           end do
           call wall_time(t2)
-          t_tot(4) = t_tot(4) + t2-t1
-          !if (self%myid == 0) write(*,*) 'gain       = ', t2-t1
+          t_tot(1) = t_tot(1) + t2-t1
+          !if (self%myid == 0) write(*,*) 'Project    = ', t2-t1
           
-          ! .. Compute contribution to absolute calibration from current scan .. -- let's see
-                    
+          ! Construct orbital dipole template -- Kristian -- this week-ish
+          call wall_time(t1)
+          call self%compute_orbital_dipole(i, pix, s_orb)
+          call wall_time(t2)
+          t_tot(2) = t_tot(2) + t2-t1
+          !if (self%myid == 0) write(*,*) 'Orb dipole = ', t2-t1
           
-          ! Compute noise spectrum
+          ! Construct sidelobe template -- Mathew -- long term
           call wall_time(t1)
           do j = 1, ndet
-             call self%sample_noise_psd(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
+             !call self%construct_sl_template(self%slconv(j)%p, i, pix(:,j), psi(:,j), s_sl(:,j))
           end do
           call wall_time(t2)
-          t_tot(6) = t_tot(6) + t2-t1
-          !if (self%myid == 0) write(*,*) 'noise      = ', t2-t1
+          t_tot(12) = t_tot(12) + t2-t1
           
-       end do
+          do iter = 1, 1
+             
+             ! Fit correlated noise -- Haavard -- this week-ish
+             call wall_time(t1)
+             call self%sample_n_corr(i, mask, s_sky, s_sl, s_orb, n_corr)
+             call wall_time(t2)
+             t_tot(3) = t_tot(3) + t2-t1
+             !if (self%myid == 0) write(*,*) 'ncorr      = ', t2-t1
+             
+             ! Fit gain 
+             call wall_time(t1)
+             if (main_iter < n_main_iter) then
+                ! Fit both relative and absolute gain
+                do j = 1, ndet
+                   call sample_gain(self, j, i, n_corr(:, j), mask(:,j), s_sky(:, j), s_sl(:, j), s_orb(:, j))
+                end do
+             end if
+             call wall_time(t2)
+             t_tot(4) = t_tot(4) + t2-t1
+             !if (self%myid == 0) write(*,*) 'gain       = ', t2-t1
+             
+             ! Compute noise spectrum
+             call wall_time(t1)
+             do j = 1, ndet
+                call self%sample_noise_psd(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
+             end do
+             call wall_time(t2)
+             t_tot(6) = t_tot(6) + t2-t1
+             !if (self%myid == 0) write(*,*) 'noise      = ', t2-t1
+             
+          end do
 
-       ! Compute chisquare
-       call wall_time(t1)
-       do j = 1, ndet
-          call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
-       end do
-       call wall_time(t2)
-       t_tot(7) = t_tot(7) + t2-t1
-       !if (self%myid == 0) write(*,*) 'chisq      = ', t2-t1
+          if (main_iter == n_main_iter-1) then
+             ! Compute contribution to absolute calibration from current scan
+             call wall_time(t1)
+             do j = 1, ndet
+                call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
+                if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
+                     & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
+                     & cycle
+                call self%accumulate_absgain_from_orbital(i, j, mask(:,j), s_sky(:,j), &
+                     & s_sl(:,j), s_orb(:,j), n_corr(:,j), A_abscal(j), b_abscal(j))
+             end do
+             call wall_time(t2)
+             t_tot(14) = t_tot(14) + t2-t1
+          end if
 
-       ! Compute clean and calibrated TOD -- Mathew -- this week
-       call wall_time(t1)
-       call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib,s_sb)
-       call wall_time(t2)
-       t_tot(5) = t_tot(5) + t2-t1
-       !if (self%myid == 0) write(*,*) 'clean      = ', t2-t1
 
-       ! Compute binned map from cleaned TOD -- Marie -- this week
-       call wall_time(t1)
-       do j = 1, ndet
-          ntot= ntot + 1
+          if (main_iter == n_main_iter) then
+             ! Compute chisquare
+             call wall_time(t1)
+             do j = 1, ndet
+                call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
+             end do
+             call wall_time(t2)
+             t_tot(7) = t_tot(7) + t2-t1
+             !if (self%myid == 0) write(*,*) 'chisq      = ', t2-t1
+             
+             ! Compute clean and calibrated TOD -- Mathew -- this week
+             call wall_time(t1)
+             call self%compute_cleaned_tod(ntod, i, s_orb, s_sl, n_corr, d_calib,s_sb)
+             call wall_time(t2)
+             t_tot(5) = t_tot(5) + t2-t1
+             !if (self%myid == 0) write(*,*) 'clean      = ', t2-t1
+             
+             ! Compute binned map from cleaned TOD -- Marie -- this week
+             call wall_time(t1)
+             do j = 1, ndet
+                ntot= ntot + 1
+                if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
+                     & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
+                     & cycle
+                naccept = naccept + 1
+                call self%compute_binned_map(d_calib, pix(:,j), psi(:,j), flag(:,j), A_map, b_map, i, j)
+             end do
+             
+             do j = 1, ndet
+                if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
+                     & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
+                     write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
+               & self%scanid(i), j, ', chisq = ', self%scans(i)%d(j)%chisq
+             end do
+          end if
 
-!!$          if (self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) then
-!!$             open(58,file='nan.dat', recl=1024)
-!!$             do k = 1, self%scans(i)%ntod
-!!$                write(58,*) k, self%scans(i)%d(j)%tod(k), s_sky(k,j), s_sl(k,j), s_orb(k,j), n_corr(k,j), self%scans(i)%d(j)%sigma0
-!!$             end do
-!!$             close(58)
-!!$             stop
-!!$          end if
+          ! Clean up
+          deallocate(n_corr, s_sl, s_sky, s_orb, d_calib, mask, pix, psi, flag, s_sb)
 
-          if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
-               & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
-               & cycle
-          naccept = naccept + 1
-          call self%compute_binned_map(d_calib, pix(:,j), psi(:,j), flag(:,j), A_map, b_map, i, j)
        end do
        call wall_time(t2)
        t_tot(8) = t_tot(8) + t2-t1
        !if (self%myid == 0) write(*,*) 'bin        = ', t2-t1
 
-       ! Clean up
-       deallocate(n_corr, s_sl, s_sky, s_orb, d_calib, mask, pix, psi, flag, s_sb)
-
-       call wall_time(t4)
-       do j = 1, ndet
-          if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
-               & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
-               write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
-               & self%scanid(i), j, ', chisq = ', self%scans(i)%d(j)%chisq
-       end do
     end do
 
-    ! Compute absolute calibration, summed over all scans, and rescale output maps
-
-    ! Solve combined map, summed over all pixels -- Marie -- weeks
-    !call finalize_binned_map(A_map, b_map, map_tot, rms_tot)
-    !map_out%map = map_tot(map_out%info%pix,:)
-    !rms_out%map = rms_tot(rms_out%info%pix,:)
+    ! Solve combined map, summed over all pixels -- Marie 
     call wall_time(t1)
     call finalize_binned_map(A_map, b_map, map_out, rms_out)
     call wall_time(t2)
@@ -340,6 +357,7 @@ contains
        write(*,*) '  Time sl interp  = ', t_tot(12)
        write(*,*) '  Time ncorr      = ', t_tot(3)
        write(*,*) '  Time gain       = ', t_tot(4)
+       write(*,*) '  Time absgain    = ', t_tot(14)
        write(*,*) '  Time clean      = ', t_tot(5)
        write(*,*) '  Time noise      = ', t_tot(6)
        write(*,*) '  Time chisq      = ', t_tot(7)
@@ -633,6 +651,65 @@ contains
     deallocate(d_only_wn,gain_template)
 
   end subroutine sample_gain
+
+  subroutine accumulate_absgain_from_orbital(self, scan, det, mask, s_sky, s_sl, s_orb, n_corr, A_abs, b_abs)
+    implicit none
+    class(comm_LFI_tod),             intent(in)     :: self
+    integer(i4b),                    intent(in)     :: scan, det
+    real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_sl, s_orb, n_corr
+    real(dp),                        intent(inout)  :: A_abs, b_abs
+
+    integer(i4b) :: i
+    real(dp)     :: data          ! Cleaned data in units of K
+    real(dp)     :: inv_sigmasq  ! Inverse variance in units of K**-2
+
+    inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
+    do i = 1, self%scans(scan)%ntod
+       data = (self%scans(scan)%d(det)%tod(i)-n_corr(i))/self%scans(scan)%d(det)%gain - s_sky(i) - s_sl(i)
+       A_abs = A_abs + S_orb(i) * inv_sigmasq * mask(i) * S_orb(i)
+       b_abs = b_abs + S_orb(i) * inv_sigmasq * mask(i) * data
+    end do
+
+  end subroutine accumulate_absgain_from_orbital
+
+  ! Sample absolute gain from orbital dipole alone 
+  subroutine sample_absgain_from_orbital(self, A_abs, b_abs)
+    implicit none
+    class(comm_LFI_tod),               intent(inout)  :: self
+    real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
+
+    integer(i4b) :: i, j, ierr
+    real(dp), allocatable, dimension(:) :: A, b, dgain, sigma
+
+    ! Collect contributions from all cores
+    allocate(A(self%ndet), b(self%ndet), dgain(self%ndet), sigma(self%ndet))
+    call mpi_reduce(A_abs, A, self%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+    call mpi_reduce(b_abs, b, self%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+
+    ! Compute gain update and distribute to all cores
+    if (self%myid == 0) then
+       sigma = 1.d0/sqrt(A)
+       dgain = b/A
+       if (.false.) then
+          ! Add fluctuation term if requested
+       end if
+       do j = 1, self%ndet
+          write(*,fmt='(a,i5,a,3f8.3)') 'Orb gain -- d = ', j, ', dgain = ', &
+               & 100*(dgain(j)-1), 100*sigma(j), (dgain(j)-1)/sigma(j)
+       end do
+    end if
+    call mpi_bcast(dgain, self%ndet,  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    call mpi_bcast(sigma, self%ndet,  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+
+    do j = 1, self%ndet
+       do i = 1, self%nscan
+          self%scans(i)%d(j)%gain = dgain(j) * self%scans(i)%d(j)%gain
+       end do
+    end do
+
+    deallocate(A, b, dgain, sigma)
+
+  end subroutine sample_absgain_from_orbital
   
   !construct a sidelobe template in the time domain
   subroutine construct_sl_template(self, slconv, scan_id, pix, psi, s_sl)
@@ -666,7 +743,7 @@ contains
 
     !cleaned calibrated data = (rawTOD - corrNoise)/gain - orbitalDipole - sideLobes
     do i=1, self%ndet
-      d_calib(:,i) = s_sb(:,i) !(self%scans(scan_num)%d(i)%tod - n_corr(:,i))/ self%scans(scan_num)%d(i)%gain - s_orb(:,i) - s_sl(:,i) - s_sb(:,i)
+      d_calib(:,i) = (self%scans(scan_num)%d(i)%tod - n_corr(:,i))/ self%scans(scan_num)%d(i)%gain - s_orb(:,i) - s_sl(:,i) - s_sb(:,i)
     end do
   end subroutine compute_cleaned_tod
 
