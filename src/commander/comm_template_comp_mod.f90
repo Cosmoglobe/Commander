@@ -152,10 +152,11 @@ contains
   
   end function initialize_template_comps
 
-  function evalSED(self, nu, band, theta)
+  function evalSED(self, nu, band, pol, theta)
     class(comm_template_comp),  intent(in)           :: self
     real(dp),                   intent(in), optional :: nu
     integer(i4b),               intent(in), optional :: band
+    integer(i4b),               intent(in), optional :: pol
     real(dp), dimension(1:),    intent(in), optional :: theta
     real(dp)                                        :: evalSED
 

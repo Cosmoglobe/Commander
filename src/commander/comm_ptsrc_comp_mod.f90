@@ -47,9 +47,9 @@ module comm_ptsrc_comp_mod
      real(dp)           :: cg_scale, amp_rms_scale
      integer(i4b)       :: nside, nsrc, ncr_tot, ndet
      logical(lgt)       :: apply_pos_prior, burn_in
-     real(dp),        allocatable, dimension(:,:) :: x      ! Amplitudes (sum(nsrc),nmaps)
-     type(F_int_ptr), allocatable, dimension(:,:) :: F_int  ! SED integrator (numband)
-     type(ptsrc),     allocatable, dimension(:)   :: src    ! Source template (nsrc)
+     real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (sum(nsrc),nmaps)
+     type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
+     type(ptsrc),     allocatable, dimension(:)   :: src      ! Source template (nsrc)
    contains
      procedure :: dumpFITS => dumpPtsrcToFITS
      procedure :: getBand  => evalPtsrcBand
@@ -108,7 +108,7 @@ contains
     constructor%label           = cpar%cs_label(id_abs)
     constructor%id              = id
     constructor%nmaps           = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
-    constructor%nu_ref          = cpar%cs_nu_ref(id_abs)
+    constructor%nu_ref          = cpar%cs_nu_ref(id_abs,:)
     constructor%nside           = cpar%cs_nside(id_abs)
     constructor%outprefix       = trim(cpar%cs_label(id_abs))
     constructor%cg_scale        = cpar%cs_cg_scale(id_abs)
@@ -132,7 +132,7 @@ contains
 
     ! Initialize frequency scaling parameters
     constructor%ndet = maxval(data%ndet)
-    allocate(constructor%F_int(numband,0:constructor%ndet))
+    allocate(constructor%F_int(3,numband,0:constructor%ndet))
     select case (trim(constructor%type))
     case ("radio")
        constructor%npar = 2   ! (alpha, beta)
@@ -144,9 +144,17 @@ contains
        constructor%theta_def  = cpar%cs_theta_def(1:2,id_abs)
        constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
        constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
-       do i = 1, numband
-          do j = 0, data(i)%ndet
-             constructor%F_int(i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p)
+       do k = 1, 3
+          do i = 1, numband
+             do j = 0, data(i)%ndet
+                if (k > 1) then
+                   if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                      constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                      cycle
+                   end if
+                end if
+                constructor%F_int(k,i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
+             end do
           end do
        end do
     case ("fir")
@@ -159,16 +167,32 @@ contains
        constructor%theta_def = cpar%cs_theta_def(1:2,id_abs)
        constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
        constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
-       do i = 1, numband
-          do j = 0, data(i)%ndet
-             constructor%F_int(i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p)
+       do k = 1, 3
+          do i = 1, numband
+             do j = 0, data(i)%ndet
+                if (k > 1) then
+                   if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                      constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                      cycle
+                   end if
+                end if
+                constructor%F_int(k,i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
+             end do
           end do
        end do
     case ("sz")
        constructor%npar = 0   ! (none)
-       do i = 1, numband
-          do j = 0, data(i)%ndet
-             constructor%F_int(i,j)%p => comm_F_int_0D(constructor, data(i)%bp(j)%p)
+       do k = 1, 3
+          do i = 1, numband
+             do j = 0, data(i)%ndet
+                if (k > 1) then
+                   if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                      constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                      cycle
+                   end if
+                end if
+                constructor%F_int(k,i,j)%p => comm_F_int_0D(constructor, data(i)%bp(j)%p, k)
+             end do
           end do
        end do
     case default
@@ -201,7 +225,7 @@ contains
           do k = 0, data(i)%ndet
              ! Temperature
              self%src(j)%T(i)%F(1,k) = &
-                  & self%F_int(i,k)%p%eval(self%src(j)%theta(:,1)) * data(i)%gain * self%cg_scale
+                  & self%F_int(1,i,k)%p%eval(self%src(j)%theta(:,1)) * data(i)%gain * self%cg_scale
              
              ! Polarization
              if (self%nmaps == 3) then
@@ -210,7 +234,7 @@ contains
                    self%src(j)%T(i)%F(2,k) = self%src(j)%T(i)%F(1,k)
                 else
                    self%src(j)%T(i)%F(2,k) = &
-                        & self%F_int(i,k)%p%eval(self%src(j)%theta(:,2)) * data(i)%gain * self%cg_scale
+                        & self%F_int(2,i,k)%p%eval(self%src(j)%theta(:,2)) * data(i)%gain * self%cg_scale
                 end if
                 
                 ! Stokes U
@@ -218,7 +242,7 @@ contains
                    self%src(j)%T(i)%F(3,k) = self%src(j)%T(i)%F(2,k)
                 else
                    self%src(j)%T(i)%F(3,k) = &
-                        & self%F_int(i,k)%p%eval(self%src(j)%theta(:,3)) * data(i)%gain * self%cg_scale
+                        & self%F_int(3,i,k)%p%eval(self%src(j)%theta(:,3)) * data(i)%gain * self%cg_scale
                 end if
              end if
           end do
@@ -227,10 +251,11 @@ contains
     
   end subroutine updateF
 
-  function evalSED(self, nu, band, theta)
+  function evalSED(self, nu, band, pol, theta)
     class(comm_ptsrc_comp),    intent(in)           :: self
     real(dp),                  intent(in), optional :: nu
     integer(i4b),              intent(in), optional :: band
+    integer(i4b),              intent(in), optional :: pol
     real(dp), dimension(1:),   intent(in), optional :: theta
     real(dp)                                        :: evalSED
 
@@ -240,10 +265,10 @@ contains
     case ("radio")
        !evalSED = exp(theta(1) * (nu/self%nu_ref) + theta(2) * (log(nu/self%nu_ref))**2) * &
        !     & (self%nu_ref/nu)**2
-       evalSED = (self%nu_ref/nu)**(2.d0+theta(1)) 
+       evalSED = (self%nu_ref(pol)/nu)**(2.d0+theta(1)) 
     case ("fir")
        x = h/(k_B*theta(2))
-       evalSED = (exp(x*self%nu_ref)-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref)**(theta(1)+1.d0)
+       evalSED = (exp(x*self%nu_ref(pol))-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref(pol))**(theta(1)+1.d0)
     case ("sz")
        evalSED = 0.d0
        call report_error('SZ not implemented yet')
@@ -395,14 +420,14 @@ contains
           if (trim(self%type) == 'radio') then
              write(unit,*) '# '
              write(unit,*) '# SED model type      = ', trim(self%type)
-             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
+             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref(1)*1d-9, ' GHz'
              write(unit,*) '# '
              write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    alpha_I   beta_I   Q(mJy)  ' // &
                   & ' alpha_Q  beta_Q  U(mJy)  alpha_U  beta_U  ID'
           else if (trim(self%type) == 'fir') then
              write(unit,*) '# '
              write(unit,*) '# SED model type      = ', trim(self%type)
-             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
+             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref(1)*1d-9, ' GHz'
              write(unit,*) '# '
              write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    beta_I      T_I   Q(mJy)  ' // &
                   & ' beta_Q     T_Q  U(mJy)  beta_U     T_U  ID'             
@@ -411,13 +436,13 @@ contains
           if (trim(self%type) == 'radio') then
              write(unit,*) '# '
              write(unit,*) '# SED model type      = ', trim(self%type)
-             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
+             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref(1)*1d-9, ' GHz'
              write(unit,*) '# '
              write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)          I_RMS(mJy)  alpha_I beta_I  a_RMS_I   b_RMS_I      chisq     ID'
           else if (trim(self%type) == 'fir') then
              write(unit,*) '# '
              write(unit,*) '# SED model type      = ', trim(self%type)
-             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref*1d-9, ' GHz'
+             write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref(1)*1d-9, ' GHz'
              write(unit,*) '# '
              write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    I_RMS(mJy)  beta_I      T_I   beta_RMS_I     T_RMS_I      chisq    ID'
           end if
@@ -1236,7 +1261,7 @@ contains
     real(dp)                           :: getScale
 
     if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
-       getScale = 1.d-23 * (c/self%nu_ref)**2 / (2.d0*k_b*self%src(id)%T(band)%Omega_b(pol))
+       getScale = 1.d-23 * (c/self%nu_ref(pol))**2 / (2.d0*k_b*self%src(id)%T(band)%Omega_b(pol))
     end if
 
   end function getScale
@@ -1335,7 +1360,7 @@ contains
              
              do l = 1, numband
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) + s*self%src(k)%T(l)%map(q,p) * a
@@ -1382,7 +1407,7 @@ contains
              chisq = 0.d0
              n_pix = 0
              do l = 1, numband
-                s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
@@ -1494,7 +1519,7 @@ contains
                 ! Construct current source model
                 do l = 1, numband
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
-                   s         = self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s         = self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
                 end do
                 
@@ -1519,7 +1544,7 @@ contains
                          
                          ! Compute mixing matrix
                          theta(j) = x(i)
-                         s        = self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                         s        = self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                          
                          ! Compute predicted source amplitude for current band
                          a = self%getScale(l,k,p) * s * amp(k,p)
@@ -1606,7 +1631,7 @@ contains
                 ! Update residuals
                 do l = 1, numband
                    ! Compute mixing matrix
-                   s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    
                    ! Compute likelihood by summing over pixels
                    do q = 1, self%src(k)%T(l)%np
@@ -1637,7 +1662,7 @@ contains
                 if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
 
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
@@ -1689,7 +1714,7 @@ contains
              n_pix = 0
              do l = 1, numband
                 ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
@@ -1790,7 +1815,7 @@ contains
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix
-       s = c_lnL%F_int(l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+       s = c_lnL%F_int(1,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
           
        ! Compute predicted source amplitude for current band
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp

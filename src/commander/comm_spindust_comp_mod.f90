@@ -36,7 +36,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_spindust_comp), pointer   :: constructor
 
-    integer(i4b) :: i, j, ind(1)
+    integer(i4b) :: i, j, k, ind(1)
     real(dp), allocatable, dimension(:,:) :: SED
     type(comm_mapinfo), pointer :: info
 
@@ -111,10 +111,18 @@ contains
     deallocate(SED)
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband,0:constructor%ndet))
-    do i = 1, numband
-       do j = 0, data(i)%ndet
-          constructor%F_int(i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p)
+    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    do k = 1, 3
+       do i = 1, numband
+          do j = 0, data(i)%ndet
+             if (k > 1) then
+                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                   cycle
+                end if
+             end if
+             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
+          end do
        end do
     end do
 
@@ -131,11 +139,12 @@ contains
   !    SED  = (nu/nu_ref)**beta
   ! where 
   !    beta = theta(1)
-  function evalSED(self, nu, band, theta)
+  function evalSED(self, nu, band, pol, theta)
     implicit none
     class(comm_spindust_comp), intent(in)           :: self
     real(dp),                intent(in), optional :: nu
-    integer(i4b),            intent(in), optional :: band
+    integer(i4b),            intent(in), optional :: band    
+    integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
 
@@ -149,7 +158,7 @@ contains
        evalSED = 0.d0
     else
        evalSED = exp(splint(self%SED_spline, log(scale*nu))) / &
-               & exp(splint(self%SED_spline, log(scale*self%nu_ref))) * (self%nu_ref/nu)**2
+               & exp(splint(self%SED_spline, log(scale*self%nu_ref(pol)))) * (self%nu_ref(pol)/nu)**2
     !           & exp(splint(self%SED_spline, log(scale*self%nu_ref))) * (self%nu_ref/nu)**(2.d0-alpha)
     end if
 

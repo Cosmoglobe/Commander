@@ -41,7 +41,7 @@ module comm_diffuse_comp_mod
      class(map_ptr),  dimension(:), allocatable :: theta_smooth ! Spectral parameters
      type(map_ptr),   dimension(:,:), allocatable :: F            ! Mixing matrix
      logical(lgt),    dimension(:,:), allocatable :: F_null       ! Don't allocate space for null mixmat's
-     type(F_int_ptr), dimension(:,:), allocatable :: F_int        ! SED integrator
+     type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
    contains
      procedure :: initDiffuse
      procedure :: updateMixmat  => updateDiffuseMixmat
@@ -129,7 +129,9 @@ contains
     else
        ! Read map from FITS file, and convert to alms
        self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
-       self%x%map = self%x%map / self%RJ2unit_
+       do i = 1, self%x%info%nmaps
+          self%x%map(:,i) = self%x%map(:,i) / self%RJ2unit_(i)
+       end do
        call self%x%YtW
     end if
     self%ncr = size(self%x%alm)
@@ -802,13 +804,13 @@ contains
                 if (mixmatnull == .true.) then
                    self%F(i,l)%p%map(j,1) = 0.0
                 else
-                   self%F(i,l)%p%map(j,1) = self%F_int(i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
+                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
                 end if
              else
                 if (mixmatnull == .true.) then 
                    self%F(i,l)%p%map(j,1) = 0.0
                 else
-                   self%F(i,l)%p%map(j,1) = self%F_int(i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
                 end if
              end if
              
@@ -821,9 +823,9 @@ contains
                    self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
                 else
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,2) = self%F_int(i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale
                    else
-                      self%F(i,l)%p%map(j,2) = self%F_int(i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
                    end if
                 end if
                 
@@ -834,9 +836,9 @@ contains
                    self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
                 else
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,3) = self%F_int(i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale
                    else
-                      self%F(i,l)%p%map(j,3) = self%F_int(i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
                    end if
                 end if
              end if
@@ -1243,7 +1245,7 @@ contains
     character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
-    integer(i4b)       :: i, l, m, ierr, unit
+    integer(i4b)       :: i, l, j, k, m, ierr, unit
     real(dp)           :: vals(10)
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
@@ -1257,22 +1259,22 @@ contains
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
           if (l == 0) then                 ! Monopole
-             vals(1)  = 1.d0/sqrt(4.d0*pi) * self%x%alm(i,1)             * self%RJ2unit_
-             vals(5)  = 1.d0/sqrt(4.d0*pi) * self%mu%alm(i,1)            * self%RJ2unit_
-             vals(9)  = 1.d0/sqrt(4.d0*pi) * sqrt(self%Cl%Dl(0,1))       * self%RJ2unit_
+             vals(1)  = 1.d0/sqrt(4.d0*pi) * self%x%alm(i,1)             * self%RJ2unit_(1)
+             vals(5)  = 1.d0/sqrt(4.d0*pi) * self%mu%alm(i,1)            * self%RJ2unit_(1)
+             vals(9)  = 1.d0/sqrt(4.d0*pi) * sqrt(self%Cl%Dl(0,1))       * self%RJ2unit_(1)
           end if
           if (l == 1 .and. m == -1) then   ! Y dipole
-             vals(3)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
-             vals(7)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
+             vals(3)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_(1)
+             vals(7)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_(1)
           end if
           if (l == 1 .and. m ==  0) then   ! Z dipole
-             vals(4)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
-             vals(8)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
+             vals(4)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_(1)
+             vals(8)  = 1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_(1)
           end if
           if (l == 1 .and. m ==  1) then   ! X dipole
-             vals(2)  = -1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_
-             vals(6)  = -1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_
-             vals(10) =  1.d0/sqrt(4.d0*pi/3.d0) * sqrt(self%Cl%Dl(1,1))  * self%RJ2unit_
+             vals(2)  = -1.d0/sqrt(4.d0*pi/3.d0) * self%x%alm(i,1)        * self%RJ2unit_(1)
+             vals(6)  = -1.d0/sqrt(4.d0*pi/3.d0) * self%mu%alm(i,1)       * self%RJ2unit_(1)
+             vals(10) =  1.d0/sqrt(4.d0*pi/3.d0) * sqrt(self%Cl%Dl(1,1))  * self%RJ2unit_(1)
           end if
        end do
        call mpi_allreduce(MPI_IN_PLACE, vals, 10, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
@@ -1303,7 +1305,9 @@ contains
 
        ! Write amplitude
        map => comm_map(self%x)
-       map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
+       do i = 1, map%info%nmaps
+          map%alm(:,i) = map%alm(:,i) * self%RJ2unit_(i) * self%cg_scale  ! Output in requested units
+       end do
 
        call update_status(status, "writeFITS_2")
 
@@ -1318,7 +1322,9 @@ contains
        filename = trim(self%label) // '_' // trim(postfix) // '.fits'
        call self%B_out%conv(trans=.false., map=map)
        call map%Y
-       map%alm = self%x%alm * self%RJ2unit_ * self%cg_scale  ! Replace convolved with original alms
+       do i = 1, map%info%nmaps
+          map%alm(:,i) = self%x%alm(:,i) * self%RJ2unit_(i) * self%cg_scale  ! Replace convolved with original alms
+       end do
        call update_status(status, "writeFITS_4")
 
        !call self%apply_proc_mask(map)
@@ -1334,7 +1340,10 @@ contains
 
        if (self%output_EB) then
           map => comm_map(self%x)
-          map%alm = map%alm * self%RJ2unit_ * self%cg_scale  ! Output in requested units
+
+          do i = 1, map%info%nmaps
+             map%alm(:,i) = map%alm(:,i) * self%RJ2unit_(i) * self%cg_scale  ! Output in requested units
+          end do
           
           filename = trim(self%label) // '_' // trim(postfix) // '_TEB.fits'
           call self%B_out%conv(trans=.false., map=map)
@@ -1347,7 +1356,13 @@ contains
        
        allocate(sigma_l(0:self%x%info%lmax,self%x%info%nspec))
        call self%x%getSigmaL(sigma_l)
-       sigma_l = sigma_l * self%RJ2unit()**2
+       k = 1
+       do i = 1, self%x%info%nmaps
+          do j = i, self%x%info%nmaps
+             sigma_l(:,k) = sigma_l(:,k) * self%RJ2unit(j)
+             k = k+1
+          end do
+       end do
        if (self%x%info%myid == 0) then
           filename = trim(dir)//'/sigma_l_'//trim(self%label) // '_' // trim(postfix) // '.dat'
           call write_sigma_l(filename, sigma_l)
@@ -1403,19 +1418,21 @@ contains
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
           if (l == 0) then                 
-             self%x%alm(i,1) =  md(1) * sqrt(4.d0*pi)      / self%RJ2unit_  ! Monopole
+             self%x%alm(i,1) =  md(1) * sqrt(4.d0*pi)      / self%RJ2unit_(1)  ! Monopole
           else if (l == 1 .and. m == -1) then   
-             self%x%alm(i,1) =  md(3) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! Y dipole
+             self%x%alm(i,1) =  md(3) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_(1)  ! Y dipole
           else if (l == 1 .and. m ==  0) then   
-             self%x%alm(i,1) =  md(4) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! Z dipole
+             self%x%alm(i,1) =  md(4) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_(1)  ! Z dipole
           else if (l == 1 .and. m ==  1) then   
-             self%x%alm(i,1) = -md(2) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_  ! X dipole
+             self%x%alm(i,1) = -md(2) * sqrt(4.d0*pi/3.d0) / self%RJ2unit_(1)  ! X dipole
           end if
        end do
     else
        path = trim(adjustl(hdfpath))//trim(adjustl(self%label))
        call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_')    ! Read amplitudes
-       self%x%alm = self%x%alm / (self%RJ2unit_ * self%cg_scale)
+       do i = 1, self%x%info%nmaps
+          self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale)
+       end do
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                & '_')
@@ -1586,7 +1603,7 @@ contains
           if (k > data(l)%info%nmaps) cycle
           
        ! Compute predicted source amplitude for current band
-          s = a_lnL(k) * c_lnL%F_int(l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+          s = a_lnL(k) * c_lnL%F_int(k,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
           
           ! Compute likelihood 
           lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2

@@ -23,7 +23,7 @@ module comm_comp_mod
      logical(lgt)       :: active, init_from_HDF
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_samp_group
      character(len=512) :: label, class, type, unit, operation
-     real(dp)           :: nu_ref, RJ2unit_
+     real(dp)           :: nu_ref(3), RJ2unit_(3)
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
      real(dp),           allocatable, dimension(:)   :: theta_def
@@ -56,11 +56,12 @@ module comm_comp_mod
 
   abstract interface
      ! Evaluate SED in brightness temperature normalized to reference frequency
-     function evalSED(self, nu, band, theta)
+     function evalSED(self, nu, band, pol, theta)
        import comm_comp, dp, i4b
        class(comm_comp),        intent(in)           :: self
        real(dp),                intent(in), optional :: nu
        integer(i4b),            intent(in), optional :: band
+       integer(i4b),            intent(in), optional :: pol
        real(dp), dimension(1:), intent(in), optional :: theta
        real(dp)                                      :: evalSED
      end function evalSED
@@ -184,13 +185,16 @@ contains
     type(comm_params),  intent(in) :: cpar
     integer(i4b),       intent(in) :: id, id_abs
 
+    integer(i4b) :: i
+
+
     self%id              = id
     self%active          = cpar%cs_include(id_abs)
     self%label           = cpar%cs_label(id_abs)
     self%type            = cpar%cs_type(id_abs)
     self%class           = cpar%cs_class(id_abs)
     self%unit            = cpar%cs_unit(id_abs)
-    self%nu_ref          = cpar%cs_nu_ref(id_abs)
+    self%nu_ref          = cpar%cs_nu_ref(id_abs,:)
     self%myid            = cpar%myid_chain    
     self%comm            = cpar%comm_chain
     self%numprocs        = cpar%numprocs_chain
@@ -199,21 +203,23 @@ contains
     self%operation       = cpar%operation
 
     ! Set up conversion factor between RJ and native component unit
-    select case (trim(self%unit))
-    case ('uK_cmb')
-       self%RJ2unit_ = comp_a2t(self%nu_ref)
-    case ('MJy/sr') 
-       self%RJ2unit_ = comp_bnu_prime_RJ(self%nu_ref) * 1e14
-    case ('K km/s') 
-       self%RJ2unit_ = 1.d0 !-1.d30
-    case ('y_SZ') 
-       self%RJ2unit_ = 2.d0*self%nu_ref**2*k_b/c**2 / &
-               & (comp_bnu_prime(self%nu_ref) * comp_sz_thermo(self%nu_ref))
-    case ('uK_RJ') 
-       self%RJ2unit_ = 1.d0
-    case default
-       call report_error('Unsupported unit: ' // trim(self%unit))
-    end select
+    do i = 1, 3
+       select case (trim(self%unit))
+       case ('uK_cmb')
+          self%RJ2unit_(i) = comp_a2t(self%nu_ref(i))
+       case ('MJy/sr') 
+          self%RJ2unit_(i) = comp_bnu_prime_RJ(self%nu_ref(i)) * 1e14
+       case ('K km/s') 
+          self%RJ2unit_(i) = 1.d0 !-1.d30
+       case ('y_SZ') 
+          self%RJ2unit_(i) = 2.d0*self%nu_ref(i)**2*k_b/c**2 / &
+               & (comp_bnu_prime(self%nu_ref(i)) * comp_sz_thermo(self%nu_ref(i)))
+       case ('uK_RJ') 
+          self%RJ2unit_(i) = 1.d0
+       case default
+          call report_error('Unsupported unit: ' // trim(self%unit))
+       end select
+    end do
 
   end subroutine initComp
 
@@ -260,21 +266,22 @@ contains
 !!$    
 !!$  end subroutine dumpCompMaps
 
-  function RJ2unit(self, bp)
+  function RJ2unit(self, pol, bp)
     implicit none
 
     class(comm_comp), intent(in)           :: self
+    integer(i4b),     intent(in)           :: pol
     class(comm_bp),   intent(in), optional :: bp
     real(dp)                               :: RJ2unit
 
     if (present(bp)) then
        if (trim(self%unit) == 'K km/s') then
-          RJ2unit = 1.d0 / bp%lineAmp_RJ(self%nu_ref)
+          RJ2unit = 1.d0 / bp%lineAmp_RJ(self%nu_ref(pol))
        else
-          RJ2unit = self%RJ2unit_
+          RJ2unit = self%RJ2unit_(pol)
        end if
     else
-       RJ2unit = self%RJ2unit_
+       RJ2unit = self%RJ2unit_(pol)
     end if
     
   end function RJ2unit

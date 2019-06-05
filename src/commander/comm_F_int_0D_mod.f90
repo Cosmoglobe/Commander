@@ -24,10 +24,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(comp, bp, f_precomp)
+  function constructor(comp, bp, pol, f_precomp)
     implicit none
     class(comm_comp),     intent(in)           :: comp
     class(comm_bp),       intent(in)           :: bp
+    integer(i4b),         intent(in)           :: pol
     real(dp),             intent(in), optional :: f_precomp
     class(comm_F_int_0D), pointer              :: constructor
 

@@ -33,7 +33,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_freefree_comp), pointer   :: constructor
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, k
     type(comm_mapinfo), pointer :: info
 
     ! General parameters
@@ -87,10 +87,18 @@ contains
     end do
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband,0:constructor%ndet))
-    do i = 1, numband
-       do j = 0, data(i)%ndet
-          constructor%F_int(i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p)
+    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    do k = 1, 3
+       do i = 1, numband
+          do j = 0, data(i)%ndet
+             if (k > 1) then
+                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                   cycle
+                end if
+             end if
+             constructor%F_int(k,i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
+          end do
        end do
     end do
 
@@ -108,11 +116,12 @@ contains
   !    SED  = (nu/nu_ref)**(beta+1) * (exp(x_ref)-1)/(exp(x)-1)
   ! where 
   !    beta = theta(1)
-  function evalSED(self, nu, band, theta)
+  function evalSED(self, nu, band, pol, theta)
     implicit none
     class(comm_freefree_comp),    intent(in)      :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
+    integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
     real(dp)     :: S, S_ref, EM, T_e
@@ -134,8 +143,8 @@ contains
     !EM    = theta(1) ! Not used
     T_e   = theta(2)
     S     = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu    /1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
-    S_ref = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * self%nu_ref/1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
-    evalSED = S/S_ref * exp(-h*(nu-self%nu_ref)/k_b/T_e) * (nu/self%nu_ref)**(-2)
+    S_ref = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * self%nu_ref(pol)/1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
+    evalSED = S/S_ref * exp(-h*(nu-self%nu_ref(pol))/k_b/T_e) * (nu/self%nu_ref(pol))**(-2)
     !write(*,*) "2",evalSED
     
   end function evalSED

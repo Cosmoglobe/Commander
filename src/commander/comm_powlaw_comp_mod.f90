@@ -33,7 +33,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_powlaw_comp), pointer   :: constructor
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, k
     type(comm_mapinfo), pointer :: info
 
     ! General parameters
@@ -68,10 +68,18 @@ contains
     if (constructor%lmax_ind >= 0) call constructor%theta(1)%p%YtW_scalar
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband,0:constructor%ndet))
-    do i = 1, numband
-       do j = 0, data(i)%ndet
-          constructor%F_int(i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p)
+    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    do k = 1, 3
+       do i = 1, numband
+          do j = 0, data(i)%ndet
+             if (k > 1) then
+                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                   cycle
+                end if
+             end if
+             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
+          end do
        end do
     end do
 
@@ -90,15 +98,16 @@ contains
   !    SED  = (nu/nu_ref)**beta
   ! where 
   !    beta = theta(1)
-  function evalSED(self, nu, band, theta)
+  function evalSED(self, nu, band, pol, theta)
     implicit none
     class(comm_powlaw_comp), intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
+    integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
 
-    evalSED = (nu/self%nu_ref)**theta(1)
+    evalSED = (nu/self%nu_ref(pol))**theta(1)
 
   end function evalSED
   

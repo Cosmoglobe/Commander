@@ -182,29 +182,31 @@ contains
     class(comm_map), pointer        :: map_out
 
     logical(lgt) :: skip
+    class(comm_map),  pointer :: map_diff
     class(comm_comp), pointer :: c
     real(dp),     allocatable, dimension(:,:) :: map, alm
 
     ! Allocate map
-    map_out => comm_map(data(band)%info)  
+    map_out  => comm_map(data(band)%info)  
+    map_diff => comm_map(data(band)%info)
 
     ! Compute predicted signal for this band
     c => compList
+    map_out%alm  = 0.d0
+    map_out%map  = 0.d0
+    map_diff%alm = 0.d0
     do while (associated(c))
-       if (trim(c%type) == 'md') then
-          c => c%next()
-          cycle
-       end if
-
-       skip    = .false.
-       map_out%alm = 0.d0
-       map_out%map = 0.d0
        select type (c)
        class is (comm_diffuse_comp)
           allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
           alm     = c%getBand(band, alm_out=.true., det=det)
-          call map_out%add_alm(alm, c%x%info)
-          call map_out%Y()
+!!$          if (c%x%info%myid == 0) then
+!!$             write(*,*) c%label
+!!$             write(*,*) shape(alm)
+!!$             write(*,*) shape(map_out%alm)
+!!$          end if
+!!$          write(*,*) c%x%info%nalm, map_diff%info%nalm, c%x%info%nmaps, map_diff%info%nmaps
+          call map_diff%add_alm(alm, c%x%info)
           deallocate(alm)
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
@@ -212,16 +214,22 @@ contains
           map_out%map = map_out%map + map
           deallocate(map)
        class is (comm_template_comp)
-          if (c%band /= band) skip = .true.
-          if (.not. skip) then
-             allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
-             map         = c%getBand(band, det=det)
-             map_out%map = map_out%map + map
-             deallocate(map)
-          end if
+          allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
+          map         = c%getBand(band, det=det)
+          map_out%map = map_out%map + map
+          deallocate(map)
        end select
        c => c%next()
     end do
+    
+    call map_diff%Y()
+
+    ! Compute residual map
+    map_out%map = map_out%map + map_diff%map
+
+    ! Clean up
+    nullify(c)
+    call map_diff%dealloc
 
   end subroutine get_sky_signal
 

@@ -38,7 +38,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_line_comp), pointer   :: constructor
 
-    integer(i4b) :: i, j, k, nline, b, n, ierr
+    integer(i4b) :: i, j, k, l, nline, b, n, ierr
     real(dp)     :: f
     logical(lgt) :: ref_exist
     character(len=512), allocatable, dimension(:) :: label
@@ -105,20 +105,26 @@ contains
 
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband,0:constructor%ndet))
+    allocate(constructor%F_int(3,numband,0:constructor%ndet))
     j = 1
-    do i = 1, numband
-       if (any(constructor%ind2band == i)) then
-          do k = 0, data(i)%ndet
-             constructor%F_int(i,k)%p => comm_F_line(constructor, data(i)%bp(k)%p, .true., &
-                  & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(k), j)
-          end do
-          j = j+1
-       else
-          do k = 0, data(i)%ndet
-             constructor%F_int(i,j)%p => comm_F_line(constructor, data(i)%bp(k)%p, .false., 0.d0, j)
-          end do
-       end if
+    do l = 1, 3
+       do i = 1, numband
+          if (l > 1) then
+             constructor%F_int(l,i,j)%p => constructor%F_int(l-1,i,j)%p
+             cycle
+          end if
+          if (any(constructor%ind2band == i)) then
+             do k = 0, data(i)%ndet
+                constructor%F_int(l,i,k)%p => comm_F_line(constructor, data(i)%bp(k)%p, .true., &
+                     & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(k), j)
+             end do
+             j = j+1
+          else
+             do k = 0, data(i)%ndet
+                constructor%F_int(l,i,j)%p => comm_F_line(constructor, data(i)%bp(k)%p, .false., 0.d0, j)
+             end do
+          end if
+       end do
     end do
     
     ! Initialize mixing matrix
@@ -132,10 +138,11 @@ contains
 
   ! Definition:
   !    SED  = delta_{band,
-  function evalSED(self, nu, band, theta)
+  function evalSED(self, nu, band, pol, theta)
     class(comm_line_comp),    intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
+    integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
 

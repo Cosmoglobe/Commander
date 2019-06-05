@@ -37,7 +37,7 @@ contains
     real(dp),         dimension(2), intent(in) :: rms
     class(comm_md_comp), pointer               :: constructor
 
-    integer(i4b) :: i, j, l, m
+    integer(i4b) :: i, j, k, l, m
     type(comm_mapinfo), pointer :: info
 
 !    write(*,*) 'mu', trim(label), real(mu,sp)
@@ -99,20 +99,20 @@ contains
     do i = 0, constructor%x%info%nalm-1
        call constructor%x%info%i2lm(i,l,m)
        if (l == 0) then ! Monopole
-          constructor%x%alm(i,1)  = sqrt(4.d0*pi) * def(1) / constructor%RJ2unit_
-          constructor%mu%alm(i,1) = sqrt(4.d0*pi) * mu(1)  / constructor%RJ2unit_
+          constructor%x%alm(i,1)  = sqrt(4.d0*pi) * def(1) / constructor%RJ2unit_(1)
+          constructor%mu%alm(i,1) = sqrt(4.d0*pi) * mu(1)  / constructor%RJ2unit_(1)
        end if
        if (l == 1 .and. m == -1) then ! Y dipole
-          constructor%x%alm(i,1)  = sqrt(4.d0*pi/3.d0) * def(3) / constructor%RJ2unit_
-          constructor%mu%alm(i,1) = sqrt(4.d0*pi/3.d0) * mu(3)  / constructor%RJ2unit_
+          constructor%x%alm(i,1)  = sqrt(4.d0*pi/3.d0) * def(3) / constructor%RJ2unit_(1)
+          constructor%mu%alm(i,1) = sqrt(4.d0*pi/3.d0) * mu(3)  / constructor%RJ2unit_(1)
        end if
        if (l == 1 .and. m ==  0) then ! Z dipole
-          constructor%x%alm(i,1)  = sqrt(4.d0*pi/3.d0) * def(4) / constructor%RJ2unit_
-          constructor%mu%alm(i,1) = sqrt(4.d0*pi/3.d0) * mu(4)  / constructor%RJ2unit_
+          constructor%x%alm(i,1)  = sqrt(4.d0*pi/3.d0) * def(4) / constructor%RJ2unit_(1)
+          constructor%mu%alm(i,1) = sqrt(4.d0*pi/3.d0) * mu(4)  / constructor%RJ2unit_(1)
        end if
        if (l == 1 .and. m ==  1) then ! X dipole
-          constructor%x%alm(i,1)  = -sqrt(4.d0*pi/3.d0) * def(2) / constructor%RJ2unit_
-          constructor%mu%alm(i,1) = -sqrt(4.d0*pi/3.d0) * mu(2)  / constructor%RJ2unit_
+          constructor%x%alm(i,1)  = -sqrt(4.d0*pi/3.d0) * def(2) / constructor%RJ2unit_(1)
+          constructor%mu%alm(i,1) = -sqrt(4.d0*pi/3.d0) * mu(2)  / constructor%RJ2unit_(1)
        end if
     end do
 
@@ -125,10 +125,10 @@ contains
           info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
                & constructor%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
           constructor%F(i,0)%p      => comm_map(info)
-          constructor%F(i,0)%p%map  = constructor%RJ2unit_
-          constructor%F(i,0)%p%alm  = constructor%RJ2unit_ * sqrt(4.d0*pi)
+          constructor%F(i,0)%p%map  = constructor%RJ2unit_(1)
+          constructor%F(i,0)%p%alm  = constructor%RJ2unit_(1) * sqrt(4.d0*pi)
           constructor%F_null(i,:)   = .false.
-          constructor%F_mean(i,:,:) = constructor%RJ2unit_
+          constructor%F_mean(i,:,:) = constructor%RJ2unit_(1)
           do j = 1, data(i)%ndet
              constructor%F(i,j)%p      => constructor%F(i,0)%p
           end do
@@ -156,38 +156,53 @@ contains
     constructor%Cl%outdir = 'none'
     allocate(constructor%Cl%Dl(0:1,1), constructor%Cl%sqrtS_mat(1,1,0:1))
     allocate(constructor%Cl%sqrtInvS_mat(1,1,0:1), constructor%Cl%S_mat(1,1,0:1))
-    constructor%Cl%Dl(0,1) = 4.d0*pi      * rms(1)**2 / constructor%RJ2unit_**2
-    constructor%Cl%Dl(1,1) = 4.d0*pi/3.d0 * rms(2)**2 / constructor%RJ2unit_**2
-    constructor%Cl%S_mat(1,1,0:1)        = rms**2     / constructor%RJ2unit_**2
-    constructor%Cl%sqrtS_mat(1,1,0:1)    = rms        / constructor%RJ2unit_
-    if (rms(1) > 0.d0) constructor%Cl%sqrtInvS_mat(1,1,0) = 1.d0/rms(1) * constructor%RJ2unit_
-    if (rms(2) > 0.d0) constructor%Cl%sqrtInvS_mat(1,1,1) = 1.d0/rms(2) * constructor%RJ2unit_
+    constructor%Cl%Dl(0,1) = 4.d0*pi      * rms(1)**2 / constructor%RJ2unit_(1)**2
+    constructor%Cl%Dl(1,1) = 4.d0*pi/3.d0 * rms(2)**2 / constructor%RJ2unit_(1)**2
+    constructor%Cl%S_mat(1,1,0:1)        = rms**2     / constructor%RJ2unit_(1)**2
+    constructor%Cl%sqrtS_mat(1,1,0:1)    = rms        / constructor%RJ2unit_(1)
+    if (rms(1) > 0.d0) constructor%Cl%sqrtInvS_mat(1,1,0) = 1.d0/rms(1) * constructor%RJ2unit_(1)
+    if (rms(2) > 0.d0) constructor%Cl%sqrtInvS_mat(1,1,1) = 1.d0/rms(2) * constructor%RJ2unit_(1)
 
     ! Initialize md_mod specific parameters
     constructor%npar = 0
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband,0:constructor%ndet))
-    do i = 1, numband
-       if (i == band) then
-          do j = 0, data(i)%ndet
-             constructor%F_int(i,j)%p => comm_F_line(constructor, data(i)%bp(j)%p, .true., 1.d0, -1)
-          end do
-       else
-          do j = 0, data(i)%ndet
-             constructor%F_int(i,j)%p => comm_F_line(constructor, data(i)%bp(j)%p, .true., 0.d0, -1)
-          end do
-       end if
+    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    do k = 1, 3
+       do i = 1, numband
+          if (i == band) then
+             do j = 0, data(i)%ndet
+                if (k > 1) then
+                   if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                      constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                      cycle
+                   end if
+                end if
+                constructor%F_int(k,i,j)%p => comm_F_line(constructor, data(i)%bp(j)%p, .true., 1.d0, -1)
+             end do
+          else
+             do j = 0, data(i)%ndet
+                if (k > 1) then
+                   if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                      constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                      cycle
+                   end if
+                end if
+                constructor%F_int(k,i,j)%p => comm_F_line(constructor, data(i)%bp(j)%p, .true., 0.d0, -1)
+             end do
+          end if
+       end do
     end do
 
   end function constructor
 
   ! Definition:
   !    SED  = delta_{band,ref_band}
-  function evalSED(self, nu, band, theta)
+  function evalSED(self, nu, band, pol, theta)
     class(comm_md_comp),    intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
+    integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
 
