@@ -116,10 +116,18 @@ contains
 
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(numband,0:constructor%ndet))
-    do i = 1, numband
-       do j = 0, data(i)%ndet
-          constructor%F_int(i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p)
+    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    do k = 1, 3
+       do i = 1, numband
+          do j = 0, data(i)%ndet
+             if (k > 1) then
+                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
+                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                   cycle
+                end if
+             end if
+             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
+          end do
        end do
     end do
 
@@ -132,11 +140,12 @@ contains
   !    SED  = (nu/nu_ref)**beta
   ! where 
   !    beta = theta(1)
-  function evalSED(self, nu, band, theta)
+  function evalSED(self, nu, band, pol, theta)
     implicit none
     class(comm_physdust_comp), intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
+    integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
 
@@ -156,8 +165,8 @@ contains
     log_umax     = self%log_umax
     SED_physdust = 0.d0
     SED_norm     = 0.d0
-    wav_in       = c/nu          * 1d6 ! In um
-    wav_ref      = c/self%nu_ref * 1d6 ! In um
+    wav_in       = c/nu               * 1d6 ! In um
+    wav_ref      = c/self%nu_ref(pol) * 1d6 ! In um
     umin         = 10**log_umin
     umax         = 10**log_umax
      do i = 1, self%num_comp
@@ -191,7 +200,7 @@ contains
            enddo
         endif
      enddo
-     evalSED = (SED_physdust / SED_norm) * (self%nu_ref/nu)**3 ! Normalize to reference in T units
+     evalSED = (SED_physdust / SED_norm) * (self%nu_ref(pol)/nu)**3 ! Normalize to reference in T units
 
   end function evalSED
   

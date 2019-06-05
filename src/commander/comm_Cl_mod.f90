@@ -26,7 +26,7 @@ module comm_Cl_mod
      character(len=512)           :: outdir
      integer(i4b)                 :: lmax, nmaps, nspec, l_apod
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
-     real(dp)                     :: nu_ref, RJ2unit
+     real(dp)                     :: nu_ref(3), RJ2unit(3)
      real(dp),         allocatable, dimension(:,:)   :: Dl
      real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat, sqrtInvS_mat
 
@@ -89,7 +89,7 @@ contains
     constructor%lmax   = cpar%cs_lmax_amp(id_abs)
     constructor%l_apod = cpar%cs_l_apod(id_abs)
     constructor%unit   = cpar%cs_unit(id_abs)
-    constructor%nu_ref = cpar%cs_nu_ref(id_abs)
+    constructor%nu_ref = cpar%cs_nu_ref(id_abs,:)
     constructor%nmaps  = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
     constructor%nspec  = 1; if (cpar%cs_polarization(id_abs)) constructor%nspec = 6
     constructor%outdir = cpar%outdir
@@ -99,21 +99,23 @@ contains
 
     ! Set up conversion factor between RJ and native component unit
     ! D_l is defined in component units, while S, invS etc are defined in RJ
-    select case (trim(constructor%unit))
-    case ('uK_cmb')
-       constructor%RJ2unit = comp_a2t(constructor%nu_ref)
-    case ('MJy/sr') 
-       constructor%RJ2unit = comp_bnu_prime_RJ(constructor%nu_ref) * 1e14
-    case ('K km/s') 
-       constructor%RJ2unit = 1.d0
-    case ('y_SZ') 
-       constructor%RJ2unit = 2.d0*constructor%nu_ref**2*k_b/c**2 / &
-               & (comp_bnu_prime(constructor%nu_ref) * comp_sz_thermo(constructor%nu_ref))
-    case ('uK_RJ') 
-       constructor%RJ2unit = 1.d0
-    case default
-       call report_error('Unsupported unit: ' // trim(constructor%unit))
-    end select
+    do l = 1, 3
+       select case (trim(constructor%unit))
+       case ('uK_cmb')
+          constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l))
+       case ('MJy/sr') 
+          constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1e14
+       case ('K km/s') 
+          constructor%RJ2unit(l) = 1.d0
+       case ('y_SZ') 
+          constructor%RJ2unit(l) = 2.d0*constructor%nu_ref(l)**2*k_b/c**2 / &
+               & (comp_bnu_prime(constructor%nu_ref(l)) * comp_sz_thermo(constructor%nu_ref(l)))
+       case ('uK_RJ') 
+          constructor%RJ2unit(l) = 1.d0
+       case default
+          call report_error('Unsupported unit: ' // trim(constructor%unit))
+       end select
+    end do
 
     allocate(constructor%Dl(0:constructor%lmax,constructor%nspec))
     allocate(constructor%sqrtS_mat(nmaps,nmaps,0:constructor%lmax))
@@ -246,13 +248,15 @@ contains
              else
                 self%sqrtS_mat(i,j,l) = self%Dl(l,k) / (l*(l+1)/(2.d0*pi))
              end if
+             self%sqrtS_mat(i,j,l) = self%sqrtS_mat(i,j,l) / &
+                  & (self%RJ2unit(i)*self%RJ2unit(j))
              if (i == j) ok(i) = self%Dl(l,k) > 0.d0
              if (.not. ok(i)) self%sqrtS_mat(i,j,l) = 1.d0
           end do
        end do
 
        ! Change to RJ units
-       self%sqrtS_mat(:,:,l) = self%sqrtS_mat(:,:,l) / self%RJ2unit**2
+       !self%sqrtS_mat(:,:,l) = self%sqrtS_mat(:,:,l) / self%RJ2unit**2
 
        self%sqrtInvS_mat(:,:,l) = self%sqrtS_mat(:,:,l)
        call compute_hermitian_root(self%sqrtS_mat(:,:,l), 0.5d0)

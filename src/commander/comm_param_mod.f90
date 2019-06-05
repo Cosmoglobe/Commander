@@ -113,7 +113,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: cs_l_apod
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
      character(len=512), allocatable, dimension(:)     :: cs_unit
-     real(dp),           allocatable, dimension(:)     :: cs_nu_ref
+     real(dp),           allocatable, dimension(:,:)   :: cs_nu_ref
      character(len=512), allocatable, dimension(:)     :: cs_band_ref
      real(dp),           allocatable, dimension(:)     :: cs_fwhm
      character(len=512), allocatable, dimension(:)     :: cs_cltype
@@ -450,7 +450,7 @@ contains
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
     allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n))
-    allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
+    allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_latmask(n))
@@ -471,6 +471,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_TYPE'//itext, len_itext=len_itext,            par_string=cpar%cs_type(i))
        call get_parameter_hashtable(htbl, 'COMP_CLASS'//itext, len_itext=len_itext,           par_string=cpar%cs_class(i))
        call get_parameter_hashtable(htbl, 'COMP_CG_SAMPLE_GROUP'//itext, len_itext=len_itext, par_int=cpar%cs_cg_samp_group(i))
+       if (.not. cpar%cs_include(i)) cpar%cs_cg_samp_group(i) = 0
        if (trim(cpar%cs_type(i)) == 'md') then
           call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%cs_polarization(i))
           call get_parameter_hashtable(htbl, 'COMP_MD_DEFINITION_FILE'//itext, len_itext=len_itext, par_string=cpar%cs_SED_template(1,i))
@@ -487,7 +488,9 @@ contains
           call get_parameter_hashtable(htbl, 'COMP_L_APOD'//itext, len_itext=len_itext,          par_int=cpar%cs_l_apod(i))
           call get_parameter_hashtable(htbl, 'COMP_LMAX_IND'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_ind(i))
           call get_parameter_hashtable(htbl, 'COMP_UNIT'//itext, len_itext=len_itext,            par_string=cpar%cs_unit(i))
-          call get_parameter_hashtable(htbl, 'COMP_NU_REF'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_ref(i))
+          call get_parameter_hashtable(htbl, 'COMP_NU_REF_T'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_ref(i,1))
+          call get_parameter_hashtable(htbl, 'COMP_NU_REF_P'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_ref(i,2))
+          cpar%cs_nu_ref(i,3) = cpar%cs_nu_ref(i,2)
           call get_parameter_hashtable(htbl, 'COMP_CL_TYPE'//itext, len_itext=len_itext,         par_string=cpar%cs_cltype(i))
           call get_parameter_hashtable(htbl, 'COMP_INPUT_AMP_MAP'//itext, len_itext=len_itext,   par_string=cpar%cs_input_amp(i))
           call get_parameter_hashtable(htbl, 'COMP_PRIOR_AMP_MAP'//itext, len_itext=len_itext,   par_string=cpar%cs_prior_amp(i))
@@ -722,7 +725,8 @@ contains
           call get_parameter_hashtable(htbl, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, len_itext=len_itext, par_dp=cpar%cs_min_src_dist(i))
           call get_parameter_hashtable(htbl, 'COMP_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
           call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,    par_int=cpar%cs_nside(i))
-          call get_parameter_hashtable(htbl, 'COMP_NU_REF'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_ref(i))
+          call get_parameter_hashtable(htbl, 'COMP_NU_REF'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_ref(i,1))
+          cpar%cs_nu_ref(i,2:3) = cpar%cs_nu_ref(i,1)
           call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext, len_itext=len_itext, par_dp=cpar%cs_cg_scale(i))
           select case (trim(cpar%cs_type(i)))
           case ('radio')

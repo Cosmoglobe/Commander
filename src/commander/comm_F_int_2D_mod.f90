@@ -28,10 +28,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(comp, bp)
+  function constructor(comp, bp, pol)
     implicit none
     class(comm_comp),     intent(in) :: comp
     class(comm_bp),       intent(in) :: bp
+    integer(i4b),         intent(in) :: pol
     class(comm_F_int_2D), pointer    :: constructor
 
     integer(i4b) :: i, j, k, m, ierr
@@ -57,7 +58,7 @@ contains
     do i = 1+comp%myid, n, comp%numprocs
        do j = 1, n
           do k = 1, m
-             s(k) = comp%S(nu=bp%nu(k), theta=[constructor%x(i),constructor%y(j)])
+             s(k) = comp%S(nu=bp%nu(k), pol=pol, theta=[constructor%x(i),constructor%y(j)])
           end do
           F(i,j) = bp%SED2F(s)
        end do
