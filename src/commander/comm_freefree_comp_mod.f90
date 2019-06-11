@@ -125,19 +125,21 @@ contains
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
     real(dp)     :: S, S_ref, EM, T_e
-    !real(dp)     :: g, g_ref, Z_i, tau, tau_ref, EM1, Te
+    real(dp)     :: g, g_ref, Z_i, tau, tau_ref, EM1, Te
 
-    !EM      = theta(1)
-    !EM1 = 1.d0 
-    !Te      = theta(2)
-    !Z_i     = 1.d0
-    !g       = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * nu/1.d9          * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
-    !g_ref   = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * self%nu_ref/1.d9 * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
-    !tau     = 5.468d-2 * Te**(-1.5d0) * (nu/1.d9)**(-2)          * EM1 * g
-    !tau_ref = 5.468d-2 * Te**(-1.5d0) * (self%nu_ref/1.d9)**(-2) * EM1 * g_ref
-
-    !evalSED = (1.d0 - exp(-tau)) / (1.d0 - exp(-tau_ref)) 
-    !write(*,*) "1:", evalSED
+!!$    EM      = theta(1)
+!!$    !EM1 = 1.d0 
+!!$    Te      = theta(2)
+!!$    Z_i     = 1.d0
+!!$    g       = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * nu/1.d9          * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
+!!$    !g_ref   = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * self%nu_ref/1.d9 * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
+!!$    tau     = 5.468d-2 * Te**(-1.5d0) * (nu/1.d9)**(-2)          * EM * g
+!!$    !tau_ref = 5.468d-2 * Te**(-1.5d0) * (self%nu_ref/1.d9)**(-2) * EM * g_ref
+!!$
+!!$    evalSED = 1.d6 * Te * (1.d0 - exp(-tau)) !/ (1.d0 - exp(-tau_ref)) 
+!!$    
+!!$    return
+!!$    !write(*,*) "1:", evalSED
 
 
     !EM    = theta(1) ! Not used

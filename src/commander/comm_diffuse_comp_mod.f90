@@ -136,6 +136,15 @@ contains
     end if
     self%ncr = size(self%x%alm)
 
+    ! Initialize output beam
+    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
+         & init_realspace=.false.)
+
+    if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
+       call self%B_out%deconv(.false., self%x)
+    end if
+
+
     ! Read component mask
     if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
        self%mask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_mask(id_abs)), &
@@ -174,9 +183,6 @@ contains
     end do
     call update_status(status, "init_postmix")
 
-    ! Initialize output beam
-    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
-         & init_realspace=.false.)
 
     ! Initialize power spectrum
     self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)

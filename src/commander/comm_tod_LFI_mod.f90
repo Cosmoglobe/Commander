@@ -60,6 +60,7 @@ contains
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
     constructor%procmask => comm_map(constructor%info, "data/test_procmask_expand20arcmin_n512.fits")
+    !constructor%procmask => comm_map(constructor%info, "data/mask2_TQU.fits")
 
     constructor%nmaps    = info%nmaps
     constructor%ndet     = 4
