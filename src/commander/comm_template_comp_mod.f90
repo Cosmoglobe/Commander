@@ -35,13 +35,14 @@ module comm_template_comp_mod
      class(comm_map), pointer   :: T         ! Template
      class(comm_map), pointer   :: mask      ! Template mask
    contains
-     procedure :: dumpFITS => dumpTemplateToFITS
-     procedure :: getBand  => evalTemplateBand
-     procedure :: projectBand  => projectTemplateBand
-     procedure :: S => evalSED
+     procedure :: dumpFITS      => dumpTemplateToFITS
+     procedure :: getBand       => evalTemplateBand
+     procedure :: projectBand   => projectTemplateBand
+     procedure :: S             => evalSED
      procedure :: initHDF       => initTemplateHDF
      procedure :: sampleSpecInd => sampleTempSpecInd
      procedure :: updateMixmat  => updateTempMixmat
+     procedure :: update_F_int  => updateTempFInt
   end type comm_template_comp
 
   interface comm_template_comp
@@ -476,12 +477,21 @@ contains
   end subroutine sampleTempSpecInd
 
 
-  subroutine updateTempMixmat(self, theta, beta)
+  subroutine updateTempMixmat(self, theta, beta, band)
     implicit none
     class(comm_template_comp),         intent(inout)        :: self
     class(comm_map), dimension(:),     intent(in), optional :: theta
     real(dp),        dimension(:,:,:), intent(in), optional :: beta  ! (npar,nmaps,nsrc)
+    integer(i4b),                      intent(in), optional :: band
 
   end subroutine updateTempMixmat
+
+  subroutine updateTempFInt(self, band)
+    implicit none
+    class(comm_template_comp), intent(inout)          :: self
+    integer(i4b),              intent(in),   optional :: band
+
+  end subroutine updateTempFInt
+
   
 end module comm_template_comp_mod

@@ -95,56 +95,67 @@ contains
   !**************************************************
   !             Driver routine
   !**************************************************
-  subroutine process_LFI_tod(self, map_in, map_out, rms_out)
+  subroutine process_LFI_tod(self, map_in, delta, map_out, rms_out)
     implicit none
-    class(comm_LFI_tod),               intent(inout) :: self
-    type(map_ptr),       dimension(:), intent(inout) :: map_in            ! One map per detector
-    class(comm_map),                   intent(inout) :: map_out, rms_out  ! Combined output map and rms
+    class(comm_LFI_tod),                 intent(inout) :: self
+    type(map_ptr),       dimension(:,:), intent(inout) :: map_in            ! (ndet,ndelta)
+    real(dp),            dimension(:,:), intent(in)    :: delta             ! (ndet,ndelta) BP corrections
+    class(comm_map),                     intent(inout) :: map_out, rms_out  ! Combined output map and rms
 
-    integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot, ierr, iter, main_iter, n_main_iter
+    integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot
+    integer(i4b) :: ierr, iter, main_iter, n_main_iter, ndelta
     real(dp)     :: t1, t2, t5, t6, chisq_threshold
     real(dp)     :: t_tot(14)
-    real(sp),     allocatable, dimension(:,:)   :: n_corr, s_sl, d_calib, s_sky, s_orb, mask, s_sb
-    real(dp),     allocatable, dimension(:,:,:) :: map_sky
-    real(dp),     allocatable, dimension(:)     :: A_abscal, b_abscal
-    real(dp),     allocatable, dimension(:,:,:) :: A_map
-    real(dp),     allocatable, dimension(:,:)   :: b_map
-    real(dp),     allocatable, dimension(:,:)   :: procmask
-    integer(i4b), allocatable, dimension(:,:)   :: pix, psi, flag
+    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, d_calib, s_sky, s_orb, mask, s_sb
+    real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
+    real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
+    real(dp),     allocatable, dimension(:,:,:)   :: A_map
+    real(dp),     allocatable, dimension(:,:)     :: b_map
+    real(dp),     allocatable, dimension(:,:)     :: procmask
+    integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
 
     t_tot   = 0.d0
     call wall_time(t5)
-    
-!!$    call map_in(1)%p%writefits("map1.fits")
-!!$    call map_in(2)%p%writefits("map2.fits")
-!!$    call map_in(3)%p%writefits("map3.fits")
-!!$    call map_in(4)%p%writefits("map4.fits")
+
+!!$    write(*,*) delta(:,1)
+!!$    write(*,*) delta(:,2)
+!!$    call map_in(1,1)%p%writefits("map1_1.fits")
+!!$    call map_in(2,1)%p%writefits("map2_1.fits")
+!!$    call map_in(3,1)%p%writefits("map3_1.fits")
+!!$    call map_in(4,1)%p%writefits("map4_1.fits")
+!!$    call map_in(1,2)%p%writefits("map1_2.fits")
+!!$    call map_in(2,2)%p%writefits("map2_2.fits")
+!!$    call map_in(3,2)%p%writefits("map3_2.fits")
+!!$    call map_in(4,2)%p%writefits("map4_2.fits")
 !!$    call mpi_finalize(i)
 !!$    stop
     ! Set up full-sky map structures
     chisq_threshold = 7.d0
     n_main_iter     = 2
     ndet            = self%ndet
+    ndelta          = size(map_in,2)
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
     allocate(A_map(nmaps,nmaps,0:npix-1), b_map(nmaps,0:npix-1))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
-    allocate(map_sky(0:npix-1,nmaps,0:ndet)) 
+    allocate(map_sky(0:npix-1,nmaps,0:ndet, ndelta)) 
     allocate(procmask(0:npix-1,nmaps))
     ! This step should be optimized -- currently takes 6 seconds..
     call wall_time(t1)
-    do i = 1, self%ndet
-       call map_in(i)%p%bcast_fullsky_map(map_sky(:,:,i))
+    do j = 1, ndelta
+       do i = 1, self%ndet
+          call map_in(i,j)%p%bcast_fullsky_map(map_sky(:,:,i,j))
+       end do
     end do
     call self%procmask%bcast_fullsky_map(procmask)
     
-    ! Trygve - Calculate mean map at zeroth index
-    map_sky(:,:,0) = map_sky(:,:,1)
+    ! Trygve - Calculate mean map at zeroth index 
+    map_sky(:,:,0,:) = map_sky(:,:,1,:)
     do i = 2, self%ndet
-       map_sky(:,:,0) = map_sky(:,:,0) + map_sky(:,:,i) 
+       map_sky(:,:,0,:) = map_sky(:,:,0,:) + map_sky(:,:,i,:) 
     end do
-    map_sky(:,:,0) = map_sky(:,:,0)/self%ndet
+    map_sky(:,:,0,:) = map_sky(:,:,0,:)/self%ndet
 
 !!$    do i = 0, self%ndet
 !!$       write(*,*) i, sum(abs(map_sky(:,:,i)))
@@ -159,7 +170,7 @@ contains
     ! Compute far sidelobe Conviqt structures
     call wall_time(t1)
     do i = 1, self%ndet
-       call map_in(i)%p%YtW()  ! Compute sky a_lms
+       call map_in(i,1)%p%YtW()  ! Compute sky a_lms
        !call self%slconv(i)%p%precompute_sky(self%slbeam(i)%p, map_in(i)%p)
     end do
     call wall_time(t2)
@@ -222,7 +233,7 @@ contains
           ! Construct sky signal template -- Maksym -- this week - Trygve added mean sky
           call wall_time(t1)
           do j = 1, ndet 
-             call self%project_sky(map_sky(:,:,j), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j), map_sky(:,:,0), s_sb(:,j))  ! scan_id, det,  s_sky(:, j))
+             call self%project_sky(map_sky(:,:,j,1), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j), map_sky(:,:,0,1), s_sb(:,j))  ! scan_id, det,  s_sky(:, j))
           end do
           call wall_time(t2)
           t_tot(1) = t_tot(1) + t2-t1

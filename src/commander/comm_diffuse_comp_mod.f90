@@ -45,6 +45,7 @@ module comm_diffuse_comp_mod
    contains
      procedure :: initDiffuse
      procedure :: updateMixmat  => updateDiffuseMixmat
+     procedure :: update_F_int  => updateDiffuseFInt
 !!$     procedure :: dumpHDF    => dumpDiffuseToHDF
      procedure :: getBand       => evalDiffuseBand
      procedure :: projectBand   => projectDiffuseBand
@@ -685,11 +686,12 @@ contains
     
   
   ! Evaluate amplitude map in brightness temperature at reference frequency
-  subroutine updateDiffuseMixmat(self, theta, beta)
+  subroutine updateDiffuseMixmat(self, theta, beta, band)
     implicit none
     class(comm_diffuse_comp),                  intent(inout)           :: self
     class(comm_map),           dimension(:),   intent(in),    optional :: theta
     real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
+    integer(i4b),                              intent(in),    optional :: band
 
     integer(i4b) :: i, j, k, l, n, nmaps, ierr
     real(dp)     :: lat, lon, t1, t2
@@ -718,6 +720,12 @@ contains
     end do
 
     do i = 1, numband
+       
+       ! Only update requested band if present
+       if (present(band)) then
+          if (i /= band) cycle
+       end if
+
        do l = 0, data(i)%ndet
           
           ! Don't update null mixing matrices
@@ -733,7 +741,7 @@ contains
                    if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
                         & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
                         & nmaps == theta_prev(j)%p%info%nmaps .and. &
-                        & data(i)%info%pol == theta_prev(j)%p%info%pol) then
+                        & Data(i)%info%pol == theta_prev(j)%p%info%pol) then !
                       theta_p(:,:,j) = theta_prev(j)%p%map
                       cycle
                    end if
@@ -800,7 +808,7 @@ contains
              else
                 ! If component sensitivity, only calculate mixmat on that component.
                 mixmatnull = .true.
-                if (data(i)%comp_sens == self%label) then
+                If (data(i)%comp_sens == self%label) then
                    mixmatnull = .false.
                 end if
              end if
@@ -1865,5 +1873,30 @@ contains
 
 
   end subroutine print_precond_mat
+
+  subroutine updateDiffuseFInt(self, band)
+    implicit none
+    class(comm_diffuse_comp), intent(inout)          :: self
+    integer(i4b),             intent(in),   optional :: band
+
+    integer(i4b) :: i, j, k
+
+    if (present(band)) then
+       do i = 1, data(band)%info%nmaps
+          do j = 0, data(band)%tod%ndet
+             call self%F_int(i,band,j)%p%update(pol=i)
+          end do
+       end do
+    else
+       do k = 1, numband
+          do i = 1, data(k)%info%nmaps
+             do j = 0, data(k)%tod%ndet
+                call self%F_int(i,k,j)%p%update(pol=i)
+             end do
+          end do
+       end do
+    end if
+
+  end subroutine updateDiffuseFInt
 
 end module comm_diffuse_comp_mod

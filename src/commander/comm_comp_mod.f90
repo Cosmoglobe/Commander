@@ -9,7 +9,7 @@ module comm_comp_mod
   implicit none
 
   private
-  public  :: comm_comp, ncomp, compList!, dumpCompMaps
+  public  :: comm_comp, ncomp, compList, update_mixing_matrices!, dumpCompMaps
   
   !**************************************************
   !        Generic component class definition
@@ -51,6 +51,7 @@ module comm_comp_mod
      procedure                          :: RJ2unit
      procedure(sampleSpecInd), deferred :: sampleSpecInd
      procedure                          :: CG_mask
+     procedure(update_F_int),  deferred :: update_F_int
      procedure(updateMixmat),  deferred :: updateMixmat
   end type comm_comp
 
@@ -155,12 +156,20 @@ module comm_comp_mod
      end subroutine sampleSpecInd
 
      ! Update mixing matrices
-     subroutine updateMixmat(self, theta, beta)
-       import comm_comp, comm_map, dp
+     subroutine updateMixmat(self, theta, beta, band)
+       import comm_comp, comm_map, dp, i4b
        class(comm_comp),                        intent(inout)        :: self
        class(comm_map), dimension(:),           intent(in), optional :: theta
        real(dp),        dimension(:,:,:),       intent(in), optional :: beta
+       integer(i4b),                            intent(in), optional :: band
      end subroutine updateMixmat
+
+     ! Update band integration lookup tables
+     subroutine update_F_int(self, band)
+       import comm_comp, i4b
+       class(comm_comp),                        intent(inout)        :: self
+       integer(i4b),                            intent(in), optional :: band
+     end subroutine update_F_int
        
   end interface
 
@@ -328,5 +337,30 @@ contains
     link%prevLink => c
     c%nextLink    => link
   end subroutine add
+
+  subroutine update_mixing_matrices(band, update_F_int)
+    implicit none
+    integer(i4b), intent(in), optional :: band
+    logical(lgt), intent(in), optional :: update_F_int
+
+    integer(i4b) :: i, j, k
+    logical(lgt) :: update_F
+    class(comm_comp), pointer :: c
+    
+    update_F =.false.; if (present(update_F_int)) update_F = update_F_int 
+
+    c => compList
+    do while (associated(c))
+       if (present(band)) then
+          if (update_F) call c%update_F_int(band)
+          call c%updateMixmat(band=band)
+       else
+          if (update_F) call c%update_F_int
+          call c%updateMixmat()
+       end if
+       c => c%nextLink
+    end do
+
+  end subroutine update_mixing_matrices
   
 end module comm_comp_mod

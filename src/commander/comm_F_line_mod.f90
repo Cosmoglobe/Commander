@@ -9,12 +9,14 @@ module comm_F_line_mod
   public comm_F_line
 
   type, extends (comm_F_int) :: comm_F_line
+     class(comm_comp), pointer :: comp
      logical(lgt) :: active
      real(dp)     :: f_precomp
      integer(i4b) :: ind
    contains
      ! Data procedures
      procedure :: eval => evalIntF
+     procedure :: update => updateIntF
   end type comm_F_line
 
   interface comm_F_line
@@ -28,21 +30,25 @@ contains
   !**************************************************
   function constructor(comp, bp, active, scale, ind)
     implicit none
-    class(comm_comp),                 intent(in) :: comp
-    class(comm_bp),                   intent(in) :: bp
-    logical(lgt),                     intent(in) :: active
-    real(dp),                         intent(in) :: scale
-    integer(i4b),                     intent(in) :: ind
-    class(comm_F_line), pointer                  :: constructor
+    class(comm_comp),                 intent(in), target :: comp
+    class(comm_bp),                   intent(in), target :: bp
+    logical(lgt),                     intent(in)         :: active
+    real(dp),                         intent(in)         :: scale 
+    integer(i4b),                     intent(in)         :: ind
+    class(comm_F_line), pointer                          :: constructor
 
     allocate(constructor)
-    constructor%active = active
-    if (active) then
+    constructor%comp   => comp
+    constructor%bp     => bp
+    constructor%active =  active
+
+    if (constructor%active) then
        constructor%f_precomp = scale
        constructor%ind       = ind
     else
        constructor%f_precomp = 0.d0
     end if
+
 
   end function constructor
 
@@ -62,5 +68,14 @@ contains
        evalIntF = 0.d0
     end if
   end function evalIntF
+
+  ! Compute/update integration look-up tables
+  subroutine updateIntF(self, f_precomp, pol)
+    class(comm_F_line),   intent(inout)           :: self
+    real(dp),             intent(in),    optional :: f_precomp
+    integer(i4b),         intent(in),    optional :: pol
+
+  end subroutine updateIntF
+
 
 end module comm_F_line_mod

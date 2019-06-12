@@ -15,7 +15,8 @@ module comm_cmb_comp_mod
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_cmb_comp
    contains
-     procedure :: S    => evalSED
+     procedure :: S            => evalSED
+     procedure :: update_F_int => updateIntF
   end type comm_cmb_comp
 
   interface comm_cmb_comp
@@ -45,20 +46,7 @@ contains
 
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(3,numband,0:constructor%ndet))
-    do k = 1, 3
-       do i = 1, numband
-          do j = 0, data(i)%ndet
-             if (k > 1) then
-                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
-                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
-                   cycle
-                end if
-             end if
-             f = comp_a2t(constructor%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%RJ2data(j)
-             constructor%F_int(k,i,j)%p => comm_F_int_0D(constructor, data(i)%bp(j)%p, k, f_precomp=f)
-          end do
-       end do
-    end do
+    call constructor%update_F_int
     
     ! Initialize mixing matrix
     call constructor%updateMixmat
@@ -80,5 +68,30 @@ contains
     evalSED = (x**2 * exp(x)) / (exp(x)-1.d0)**2
 
   end function evalSED
-  
+
+  ! Update band integration lookup tables
+  subroutine updateIntF(self, band)
+    class(comm_cmb_comp),                    intent(inout)        :: self
+    integer(i4b),                            intent(in), optional :: band
+
+    integer(i4b) :: i, j, k
+    real(dp)     :: f
+
+    do k = 1, 3
+       do i = 1, numband
+          do j = 0, data(i)%ndet
+             if (k > 1) then
+                if (self%nu_ref(k) == self%nu_ref(k-1)) then
+                   self%F_int(k,i,j)%p => self%F_int(k-1,i,j)%p
+                   cycle
+                end if
+             end if
+             f = comp_a2t(self%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%RJ2data(j)
+             self%F_int(k,i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, k, f_precomp=f)
+          end do
+       end do
+    end do
+
+  end subroutine updateIntF
+
 end module comm_cmb_comp_mod
