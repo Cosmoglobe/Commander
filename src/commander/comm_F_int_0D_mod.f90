@@ -9,10 +9,12 @@ module comm_F_int_0D_mod
   public comm_F_int_0D
 
   type, extends (comm_F_int) :: comm_F_int_0D
-     real(dp) :: f_precomp
+     real(dp)                  :: f_precomp
+     class(comm_comp), pointer :: comp
    contains
      ! Data procedures
-     procedure :: eval => evalIntF
+     procedure :: eval   => evalIntF
+     procedure :: update => updateIntF
   end type comm_F_int_0D
 
   interface comm_F_int_0D
@@ -26,8 +28,8 @@ contains
   !**************************************************
   function constructor(comp, bp, pol, f_precomp)
     implicit none
-    class(comm_comp),     intent(in)           :: comp
-    class(comm_bp),       intent(in)           :: bp
+    class(comm_comp),     intent(in), target   :: comp
+    class(comm_bp),       intent(in), target   :: bp
     integer(i4b),         intent(in)           :: pol
     real(dp),             intent(in), optional :: f_precomp
     class(comm_F_int_0D), pointer              :: constructor
@@ -36,18 +38,13 @@ contains
     real(dp), allocatable, dimension(:) :: s
     
     allocate(constructor)
+    constructor%comp => comp
+    constructor%bp   => bp
 
     if (present(f_precomp)) then
-       constructor%f_precomp = f_precomp
+       call constructor%update(f_precomp)
     else
-       ! Evaluate the bandpass integrated SED
-       m = bp%n
-       allocate(s(m))
-       do j = 1, m
-          s(j) = comp%S(nu=bp%nu(j))
-       end do
-       constructor%f_precomp = bp%SED2F(s)
-       deallocate(s)
+       call constructor%update
     end if
 
   end function constructor
@@ -60,5 +57,28 @@ contains
     real(dp)                                        :: evalIntF
     evalIntF = self%f_precomp
   end function evalIntF
+
+  ! Compute/update integration look-up tables
+  subroutine updateIntF(self, f_precomp, pol)
+    class(comm_F_int_0D), intent(inout)           :: self
+    real(dp),             intent(in),    optional :: f_precomp
+    integer(i4b),         intent(in),    optional :: pol
+
+    integer(i4b) :: m, j
+    real(dp), allocatable, dimension(:) :: s
+
+    if (present(f_precomp)) then
+       self%f_precomp = f_precomp
+    else
+       ! Evaluate the bandpass integrated SED
+       m = self%bp%n
+       allocate(s(m))
+       do j = 1, m
+          s(j) = self%comp%S(nu=self%bp%nu(j))
+       end do
+       self%f_precomp = self%bp%SED2F(s)
+       deallocate(s)
+    end if
+  end subroutine updateIntF
 
 end module comm_F_int_0D_mod

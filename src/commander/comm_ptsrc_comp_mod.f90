@@ -51,14 +51,15 @@ module comm_ptsrc_comp_mod
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
      type(ptsrc),     allocatable, dimension(:)   :: src      ! Source template (nsrc)
    contains
-     procedure :: dumpFITS => dumpPtsrcToFITS
-     procedure :: getBand  => evalPtsrcBand
-     procedure :: projectBand  => projectPtsrcBand
-     procedure :: updateMixmat => updateF
-     procedure :: S => evalSED
+     procedure :: dumpFITS      => dumpPtsrcToFITS
+     procedure :: getBand       => evalPtsrcBand
+     procedure :: projectBand   => projectPtsrcBand
+     procedure :: updateMixmat  => updateF
+     procedure :: S             => evalSED
      procedure :: getScale
      procedure :: initHDF       => initPtsrcHDF
      procedure :: sampleSpecInd => samplePtsrcSpecInd
+     procedure :: update_F_int  => updatePtsrcFInt
   end type comm_ptsrc_comp
 
   interface comm_ptsrc_comp
@@ -209,11 +210,12 @@ contains
 
 
 
-  subroutine updateF(self, theta, beta)
+  subroutine updateF(self, theta, beta, band)
     implicit none
     class(comm_ptsrc_comp),            intent(inout)        :: self
     class(comm_map), dimension(:),     intent(in), optional :: theta
     real(dp),        dimension(:,:,:), intent(in), optional :: beta  ! (npar,nmaps,nsrc)
+    integer(i4b),                      intent(in), optional :: band
 
     integer(i4b) :: i, j, k
     
@@ -222,6 +224,12 @@ contains
           self%src(j)%theta = beta(:,:,j)
        end if
        do i = 1, numband
+
+          ! Only update requested band if present
+          if (present(band)) then
+             if (i /= band) cycle
+          end if
+
           do k = 0, data(i)%ndet
              ! Temperature
              self%src(j)%T(i)%F(1,k) = &
@@ -1855,6 +1863,31 @@ contains
     deallocate(theta)
 
   end function lnL_ptsrc_multi
+
+  subroutine updatePtsrcFInt(self, band)
+    implicit none
+    class(comm_ptsrc_comp), intent(inout)          :: self
+    integer(i4b),           intent(in),   optional :: band
+
+    integer(i4b) :: i, j, k
+
+    if (present(band)) then
+       do i = 1, data(band)%info%nmaps
+          do j = 0, data(band)%tod%ndet
+             call self%F_int(i,band,j)%p%update(pol=i)
+          end do
+       end do
+    else
+       do k = 1, numband
+          do i = 1, data(k)%info%nmaps
+             do j = 0, data(k)%tod%ndet
+                call self%F_int(i,k,j)%p%update(pol=i)
+             end do
+          end do
+       end do
+    end if
+
+  end subroutine updatePtsrcFInt
   
 end module comm_ptsrc_comp_mod
 
