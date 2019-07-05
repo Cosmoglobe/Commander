@@ -22,7 +22,7 @@ module comm_data_mod
      class(comm_map),     pointer :: map
      class(comm_map),     pointer :: res
      class(comm_map),     pointer :: mask
-     class(comm_map),     pointer :: procmask
+     class(comm_map),     pointer :: procmask, procmask2
      class(comm_map),     pointer :: gainmask
      class(comm_tod),     pointer :: tod
      class(comm_N),       pointer :: N

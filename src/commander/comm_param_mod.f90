@@ -59,7 +59,7 @@ module comm_param_mod
 
      ! Data parameters
      integer(i4b)       :: numband
-     character(len=512) :: datadir, ds_sourcemask, ds_procmask
+     character(len=512) :: datadir, ds_sourcemask, ds_procmask, ds_procmask2
      real(dp)           :: ds_fwhm_proc
      logical(lgt),       allocatable, dimension(:)   :: ds_active
      integer(i4b),       allocatable, dimension(:)   :: ds_period
@@ -353,6 +353,7 @@ contains
     call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
     call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask)
     call get_parameter_hashtable(htbl, 'PROCESSING_MASKFILE', par_string=cpar%ds_procmask)
+    call get_parameter_hashtable(htbl, 'PROCESSING_MASKFILE2', par_string=cpar%ds_procmask2)
     call get_parameter_hashtable(htbl, 'PROC_SMOOTH_SCALE',   par_dp=cpar%ds_fwhm_proc)
 
     n = cpar%numband
@@ -1107,6 +1108,8 @@ contains
          & call validate_file(trim(datadir)//trim(cpar%ds_sourcemask))   ! Source mask
     if (trim(cpar%ds_procmask) /= 'none') &
          & call validate_file(trim(datadir)//trim(cpar%ds_procmask))   ! Source mask
+    if (trim(cpar%ds_procmask2) /= 'none') &
+         & call validate_file(trim(datadir)//trim(cpar%ds_procmask2))   ! Source mask
 
     ! Check component files
     do i = 1, cpar%cs_ncomp_tot

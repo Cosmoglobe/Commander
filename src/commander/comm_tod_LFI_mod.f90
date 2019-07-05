@@ -54,13 +54,13 @@ contains
     constructor%info     => info
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
-    !call constructor%get_scan_ids("data/filelist_1file.txt")
+    call constructor%get_scan_ids("data/filelist_1file.txt")
     !call constructor%get_scan_ids("data/filelist_1year.txt")
-    call constructor%get_scan_ids("data/filelist.txt")
+    !call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
     constructor%procmask => comm_map(constructor%info, "data/test_procmask_expand20arcmin_n512.fits")
-    !constructor%procmask => comm_map(constructor%info, "data/mask2_TQU.fits")
+    constructor%procmask2 => comm_map(constructor%info, "data/mask_fullsky_n512_tqu.fits")
 
     constructor%nmaps    = info%nmaps
     constructor%ndet     = 4
@@ -99,21 +99,23 @@ contains
     implicit none
     class(comm_LFI_tod),                 intent(inout) :: self
     type(map_ptr),       dimension(:,:), intent(inout) :: map_in            ! (ndet,ndelta)
-    real(dp),            dimension(:,:), intent(in)    :: delta             ! (ndet,ndelta) BP corrections
+    real(dp),            dimension(:,:), intent(inout)    :: delta             ! (ndet,ndelta) BP corrections
     class(comm_map),                     intent(inout) :: map_out, rms_out  ! Combined output map and rms
 
     integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot
     integer(i4b) :: ierr, iter, main_iter, n_main_iter, ndelta
-    real(dp)     :: t1, t2, t5, t6, chisq_threshold
+    real(dp)     :: t1, t2, t5, t6, chisq_threshold, delta_temp, cc, cp
     real(dp)     :: t_tot(14)
-    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, d_calib, s_sky, s_orb, mask, s_sb
+    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, d_calib, s_sky, s_orb, mask,mask2, s_sb, s_sky_prop
     real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
-    real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
+    real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal, chisq_prop, chisq_curr
     real(dp),     allocatable, dimension(:,:,:)   :: A_map
-    real(dp),     allocatable, dimension(:,:)     :: b_map
-    real(dp),     allocatable, dimension(:,:)     :: procmask
+    real(dp),     allocatable, dimension(:,:)     :: b_map, map_temp
+    real(dp),     allocatable, dimension(:,:)     :: procmask, procmask2
     integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
-
+    logical(lgt) :: dobp
+    logical(lgt), save :: first_call = .true.
+    type(planck_rng) :: handle 
     t_tot   = 0.d0
     call wall_time(t5)
 
@@ -129,9 +131,11 @@ contains
 !!$    call map_in(4,2)%p%writefits("map4_2.fits")
 !!$    call mpi_finalize(i)
 !!$    stop
+
+    call rand_init(handle, 243789)
     ! Set up full-sky map structures
     chisq_threshold = 7.d0
-    n_main_iter     = 2
+    n_main_iter     = 3
     ndet            = self%ndet
     ndelta          = size(map_in,2)
     nside           = map_out%info%nside
@@ -139,8 +143,10 @@ contains
     npix            = 12*nside**2
     allocate(A_map(nmaps,nmaps,0:npix-1), b_map(nmaps,0:npix-1))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
-    allocate(map_sky(0:npix-1,nmaps,0:ndet, ndelta)) 
+    allocate(chisq_prop(self%ndet), chisq_curr(self%ndet))
+    allocate(map_sky(0:npix-1,nmaps,0:ndet, ndelta),map_temp(0:npix-1,nmaps)) 
     allocate(procmask(0:npix-1,nmaps))
+    allocate(procmask2(0:npix-1,nmaps))
     ! This step should be optimized -- currently takes 6 seconds..
     call wall_time(t1)
     do j = 1, ndelta
@@ -149,6 +155,7 @@ contains
        end do
     end do
     call self%procmask%bcast_fullsky_map(procmask)
+    call self%procmask2%bcast_fullsky_map(procmask2)
     
     ! Trygve - Calculate mean map at zeroth index 
     map_sky(:,:,0,:) = map_sky(:,:,1,:)
@@ -156,7 +163,7 @@ contains
        map_sky(:,:,0,:) = map_sky(:,:,0,:) + map_sky(:,:,i,:) 
     end do
     map_sky(:,:,0,:) = map_sky(:,:,0,:)/self%ndet
-
+    
 !!$    do i = 0, self%ndet
 !!$       write(*,*) i, sum(abs(map_sky(:,:,i)))
 !!$    end do
@@ -176,6 +183,9 @@ contains
     call wall_time(t2)
     t_tot(13) = t2-t1
 
+    ! Toggle bp sampling on or off
+    dobp = .true.
+
     ! Compute output map and rms
     do main_iter = 1, n_main_iter
 
@@ -188,10 +198,56 @@ contains
 
           ! Compute contribution to absolute calibration from current scan
           call self%sample_absgain_from_orbital(A_abscal, b_abscal)
+
        else if (main_iter == n_main_iter-1) then
           ! Prepare for final absolute calibration from orbital
           A_abscal = 0.d0
           b_abscal = 0.d0
+       end if
+       
+       if (main_iter == n_main_iter-1 .and. dobp) then
+          ! trygve2
+          ! Sample bp adjustments with mcmc sampler
+          ! new variables: dobp, chisq_prop,_current
+
+          do j = 1, self%ndet
+             ! Summing chisq for current delta
+             chisq_curr(j) = 0.d0
+             chisq_prop(j) = 0.d0
+             do i = 1, self%nscan ! Sum chisq for all scans
+                chisq_curr(j) = chisq_curr(j) + self%scans(i)%d(j)%chisq_masked 
+                chisq_prop(j) = chisq_prop(j) + self%scans(i)%d(j)%chisq_prop 
+             end do
+             
+             cp = 0.d0
+             cc = 0.d0
+             call mpi_reduce(chisq_prop(j),cp, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+             call mpi_reduce(chisq_curr(j),cc, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+             chisq_prop(j) = cp
+             chisq_curr(j) = cc
+             
+             ! Gather all proposed data
+             map_temp = 0.d0
+             delta_temp = 0.d0
+             call mpi_reduce(map_sky(:,:,j,2), map_temp, size(map_sky(:,:,j,2)), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+             call mpi_reduce(delta(j,2),delta_temp, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+
+             if ( self%myid == 0 .and. rand_uni(handle)<exp(-0.5d0*(chisq_prop(j)-chisq_curr(j)))) then
+                write(*,*) "Accepted"
+                !write(*,*) map_sky(:,:,j,1) - map_temp ! accept proposal map 
+                map_sky(:,:,j,1) = map_temp ! accept proposal map 
+                delta(j,1) = delta_temp             ! accept proposal bp shift
+             end if
+
+             ! Broadcast new saved data
+             call mpi_bcast(map_sky(:,:,j,1), size(map_sky(:,:,j,1)),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+             call mpi_bcast(delta(j,1), 1,  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+          end do
+          
+          !if (self%myid == 0 ) write(*,*) map_sky(:,:,1,1)
+          !stop
+          !call mpi_finalize()
+
        end if
 
        do i = 1, self%nscan
@@ -205,9 +261,11 @@ contains
           allocate(n_corr(ntod, ndet))             ! Correlated noise in V
           allocate(s_sl(ntod, ndet))               ! Sidelobe in uKcm
           allocate(s_sky(ntod, ndet))              ! Stationary sky signal in uKcmb
+          allocate(s_sky_prop(ntod, ndet))              ! Stationary sky signal in uKcmb
           allocate(s_sb(ntod, ndet))               ! Signal minus mean
           allocate(s_orb(ntod, ndet))              ! Orbital dipole in uKcmb
           allocate(mask(ntod, ndet))               ! Processing mask in time
+          allocate(mask2(ntod, ndet))               ! Processing mask in time
           allocate(pix(ntod, ndet))                ! Decompressed pointing
           allocate(psi(ntod, ndet))                ! Decompressed discretized polarization angle
           allocate(flag(ntod, ndet))               ! Decompressed flags
@@ -216,6 +274,7 @@ contains
           n_corr = 0.d0
           s_sl   = 0.d0
           s_sky  = 0.d0
+          s_sky_prop  = 0.d0
           s_orb  = 0.d0
           
           ! --------------------
@@ -232,8 +291,8 @@ contains
           
           ! Construct sky signal template -- Maksym -- this week - Trygve added mean sky
           call wall_time(t1)
-          do j = 1, ndet 
-             call self%project_sky(map_sky(:,:,j,1), pix(:,j), psi(:,j), procmask, i, j, s_sky(:,j), mask(:,j), map_sky(:,:,0,1), s_sb(:,j))  ! scan_id, det,  s_sky(:, j))
+          do j = 1, ndet            
+             call self%project_sky(map_sky(:,:,j,:), pix(:,j), psi(:,j), procmask,procmask2, i, j, s_sky(:,j), mask(:,j),mask2(:,j), map_sky(:,:,0,:), s_sb(:,j), s_sky_prop(:,j), dobp)  ! scan_id, det,  s_sky(:, j))
           end do
           call wall_time(t2)
           t_tot(1) = t_tot(1) + t2-t1
@@ -286,11 +345,12 @@ contains
              
           end do
 
-          if (main_iter == n_main_iter-1) then
+          if (main_iter == n_main_iter-1 .or. dobp) then
              ! Compute contribution to absolute calibration from current scan
              call wall_time(t1)
              do j = 1, ndet
-                call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
+                call self%compute_chisq(i, j, mask(:,j), mask2(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j), s_sky_prop(:,j), dobp)
+                
                 if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
                      & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
                      & cycle
@@ -306,7 +366,7 @@ contains
              ! Compute chisquare
              call wall_time(t1)
              do j = 1, ndet
-                call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j))
+                call self%compute_chisq(i, j, mask(:,j), mask2(:,j), s_sky(:,j), s_sl(:,j), s_orb(:,j), n_corr(:,j), s_sky_prop(:,j), dobp)
              end do
              call wall_time(t2)
              t_tot(7) = t_tot(7) + t2-t1
@@ -323,11 +383,18 @@ contains
              call wall_time(t1)
              do j = 1, ndet
                 ntot= ntot + 1
-                if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
-                     & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
-                     & cycle
-                naccept = naccept + 1
-                call self%compute_binned_map(d_calib, pix(:,j), psi(:,j), flag(:,j), A_map, b_map, i, j)
+                if (first_call) then
+                   if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
+                        & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) then
+                      self%scans(i)%d(j)%accept = .false.
+                   else
+                      self%scans(i)%d(j)%accept = .true.                   
+                   end if
+                end if
+                if (self%scans(i)%d(j)%accept) then
+                   naccept = naccept + 1
+                   call self%compute_binned_map(d_calib, pix(:,j), psi(:,j), flag(:,j), A_map, b_map, i, j)
+                end if
              end do
              
              do j = 1, ndet
@@ -336,18 +403,22 @@ contains
                      write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
                & self%scanid(i), j, ', chisq = ', self%scans(i)%d(j)%chisq
              end do
-          end if
 
+          end if
           ! Clean up
-          deallocate(n_corr, s_sl, s_sky, s_orb, d_calib, mask, pix, psi, flag, s_sb)
+          deallocate(n_corr, s_sl, s_sky, s_orb, d_calib, mask,mask2, pix, psi, flag, s_sb, s_sky_prop)!, s_sb_prop)
+
 
        end do
+
+
        call wall_time(t2)
        t_tot(8) = t_tot(8) + t2-t1
        !if (self%myid == 0) write(*,*) 'bin        = ', t2-t1
-
+       
     end do
-
+    ! Parameter to check if this is first time routine has been 
+    first_call = .false.
     ! Solve combined map, summed over all pixels -- Marie 
     call wall_time(t1)
     call finalize_binned_map(A_map, b_map, map_out, rms_out)
@@ -383,7 +454,7 @@ contains
     call rms_out%writeFITS('rms.fits')
 
     ! Clean up temporary arrays
-    deallocate(map_sky, A_map, b_map, procmask)
+    deallocate(map_sky, A_map, b_map, procmask, procmask2)
     deallocate(A_abscal, b_abscal)
 
   end subroutine process_LFI_tod
@@ -421,15 +492,17 @@ contains
   end subroutine decompress_pointing_and_flags
 
   ! Sky signal template
-  subroutine project_sky(self, map, pix, psi, pmask, scan_id, det, s_sky, tmask, map_mean, s_sb)
+  subroutine project_sky(self, map, pix, psi, pmask,pmask2, scan_id, det, s_sky, tmask,tmask2, map_mean, s_sb, s_sky_prop, dobp)
     implicit none
     class(comm_LFI_tod),                  intent(in)  :: self
-    real(dp),            dimension(:,:),  intent(in)  :: map, pmask, map_mean
+    real(dp),            dimension(:,:),  intent(in)  :: pmask,pmask2
+    real(dp),            dimension(:,:,:),  intent(in)  :: map, map_mean !Added dimension trygve
     integer(i4b),        dimension(:),    intent(in)  :: pix, psi
     integer(i4b),                         intent(in)  :: scan_id, det
-    real(sp),            dimension(:),    intent(out) :: s_sky, tmask, s_sb
+    real(sp),            dimension(:),    intent(out) :: s_sky, tmask,tmask2, s_sb, s_sky_prop !, s_sb_prop
 
     integer(i4b)                                      :: i!, pix
+    logical(lgt), intent(in) :: dobp
     !real(dp)                                          :: psi
 
     ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
@@ -437,17 +510,27 @@ contains
     do i = 1, self%scans(scan_id)%ntod
        ! note that psi(i) is an index now; must be converted to a real number based on lookup table
 !       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * cos(2.d0 * psi(i)) + map(pix(i), 3) * sin(2.d0 * psi(i))
-       s_sky(i) = map(pix(i), 1) + map(pix(i), 2) * self%cos2psi(psi(i)) + map(pix(i), 3) * self%sin2psi(psi(i))
-       s_sb(i)  = s_sky(i) - (map_mean(pix(i), 1) + map_mean(pix(i), 2) * self%cos2psi(psi(i)) + map_mean(pix(i), 3)*self%sin2psi(psi(i)))
+       s_sky(i) = map(pix(i), 1,1) + map(pix(i), 2,1) * self%cos2psi(psi(i)) + map(pix(i), 3,1) * self%sin2psi(psi(i))
+       s_sb(i)  = s_sky(i) - (map_mean(pix(i), 1,1) + map_mean(pix(i), 2,1) * self%cos2psi(psi(i)) + map_mean(pix(i), 3,1)*self%sin2psi(psi(i)))
+
+       ! Calculate proposed sky if asked to
+       if ( dobp ) then
+          s_sky_prop(i) = map(pix(i), 1, 2) + map(pix(i), 2, 2) * self%cos2psi(psi(i)) + map(pix(i), 3, 2) * self%sin2psi(psi(i))
+       end if
 
        if (s_sky(i) /= s_sky(i)) then
-          write(*,*) scan_id, i, map(pix(i),:), psi(i), self%cos2psi(psi(i)), self%sin2psi(psi(i))
+          write(*,*) scan_id, i, map(pix(i),1,:), psi(i), self%cos2psi(psi(i)), self%sin2psi(psi(i))
           stop
        end if
        if (any(pmask(pix(i),:) < 0.5d0)) then
           tmask(i) = 0.
        else
           tmask(i) = 1.
+       end if
+       if (any(pmask2(pix(i),:) < 0.5d0)) then
+          tmask2(i) = 0.
+       else
+          tmask2(i) = 1.
        end if
     end do
 
@@ -761,22 +844,36 @@ contains
 
 
   ! Compute chisquare
-  subroutine compute_chisq(self, scan, det, mask, s_sky, s_sl, s_orb, n_corr)
+  subroutine compute_chisq(self, scan, det, mask,mask2, s_sky, s_sl, s_orb, n_corr, s_sky_prop, dobp)
     implicit none
     class(comm_LFI_tod),             intent(inout)  :: self
     integer(i4b),                    intent(in)     :: scan, det
-    real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_sl, s_orb, n_corr
+    real(sp),          dimension(:), intent(in)     :: mask,mask2, s_sky, s_sl, s_orb, n_corr, s_sky_prop
 
-    real(dp) :: chisq    
+    real(dp) :: chisq, chisq_prop, chisq_masked
     integer(i4b) :: i, n
+    logical(lgt), intent(in) :: dobp
 
     chisq = 0.d0
+    chisq_prop = 0.d0
+    chisq_masked = 0.d0
     n     = 0
     do i = 1, self%scans(scan)%ntod
-       if (mask(i) < 0.5) cycle
-       chisq = chisq + (self%scans(scan)%d(det)%tod(i) - &
-         & (self%scans(scan)%d(det)%gain * (s_sky(i) + s_sl(i) + s_orb(i)) + &
-         & n_corr(i)))**2/self%scans(scan)%d(det)%sigma0**2
+       if (mask(i) > 0.5) chisq = chisq + (self%scans(scan)%d(det)%tod(i) - &
+            & (self%scans(scan)%d(det)%gain * (s_sky(i) + s_sl(i) + s_orb(i)) + &
+            & n_corr(i)))**2/self%scans(scan)%d(det)%sigma0**2
+       
+       
+       if ( dobp ) then
+       
+          if (mask2(i) > 0.5) chisq_masked = chisq_masked + (self%scans(scan)%d(det)%tod(i) - &
+               & (self%scans(scan)%d(det)%gain * (s_sky(i) + s_sl(i) + s_orb(i)) + &
+               & n_corr(i)))**2/self%scans(scan)%d(det)%sigma0**2
+          
+          if (mask2(i) > 0.5) chisq_prop = chisq_prop + (self%scans(scan)%d(det)%tod(i) - &
+               & (self%scans(scan)%d(det)%gain * (s_sky_prop(i) + s_sl(i) + s_orb(i)) + &
+               & n_corr(i)))**2/self%scans(scan)%d(det)%sigma0**2
+       end if
        n = n+1
        if (.false. .and. self%myid == 0) write(*,*) i, chisq/n, (self%scans(scan)%d(det)%tod(i) - &
          & (self%scans(scan)%d(det)%gain * (s_sky(i) + s_sl(i) + s_orb(i)) + &
@@ -784,6 +881,8 @@ contains
     end do
     close(58)
     self%scans(scan)%d(det)%chisq = (chisq - n) / sqrt(2.d0*n)
+    self%scans(scan)%d(det)%chisq_prop = chisq_prop
+    self%scans(scan)%d(det)%chisq_masked = chisq_masked
 
   end subroutine compute_chisq
 
