@@ -19,6 +19,9 @@ module comm_tod_mod
      real(dp)          :: samprate                        ! Sample rate in Hz
      real(dp)          :: polang                          ! Detector polarization angle
      real(dp)          :: chisq
+     real(dp)          :: chisq_prop
+     real(dp)          :: chisq_masked
+     logical(lgt)      :: accept
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
      integer(i4b)      :: npsi                            ! Number of discrete polarization angles
      real(sp),     allocatable, dimension(:)   :: tod     ! Detector values in time domain, (ntod)     
@@ -54,6 +57,7 @@ module comm_tod_mod
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask ! Mask for gain and n_corr
+     class(comm_map), pointer                          :: procmask2 ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info     ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo   ! Sidelobe map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
@@ -70,7 +74,7 @@ module comm_tod_mod
        implicit none
        class(comm_tod),                   intent(inout) :: self
        type(map_ptr),     dimension(:,:), intent(inout) :: map_in            
-       real(dp),          dimension(:,:), intent(in)    :: delta
+       real(dp),          dimension(:,:), intent(inout)    :: delta
        class(comm_map),                   intent(inout) :: map_out, rms_out  
      end subroutine process_tod
   end interface
