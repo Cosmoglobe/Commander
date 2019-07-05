@@ -54,8 +54,8 @@ contains
     constructor%info     => info
 
     ! Test code, just to be able to read a single file; need to settle on parameter structure
-    call constructor%get_scan_ids("data/filelist_1file.txt")
-    !call constructor%get_scan_ids("data/filelist_1year.txt")
+    !call constructor%get_scan_ids("data/filelist_1file.txt")
+    call constructor%get_scan_ids("data/filelist_1year.txt")
     !call constructor%get_scan_ids("data/filelist.txt")
 !    call constructor%get_scan_ids("data/filelist_2half.txt")
 
@@ -105,7 +105,7 @@ contains
     integer(i4b) :: i, j, k, ntod, ndet, nside, npix, nmaps, naccept, ntot
     integer(i4b) :: ierr, iter, main_iter, n_main_iter, ndelta
     real(dp)     :: t1, t2, t5, t6, chisq_threshold, delta_temp, cc, cp
-    real(dp)     :: t_tot(14)
+    real(dp)     :: t_tot(14), accept_rate
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, d_calib, s_sky, s_orb, mask,mask2, s_sb, s_sky_prop
     real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal, chisq_prop, chisq_curr
@@ -113,7 +113,7 @@ contains
     real(dp),     allocatable, dimension(:,:)     :: b_map, map_temp
     real(dp),     allocatable, dimension(:,:)     :: procmask, procmask2
     integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
-    logical(lgt) :: dobp
+    logical(lgt) :: dobp, accept
     logical(lgt), save :: first_call = .true.
     type(planck_rng) :: handle 
     t_tot   = 0.d0
@@ -227,21 +227,31 @@ contains
              chisq_curr(j) = cc
              
              ! Gather all proposed data
-             map_temp = 0.d0
-             delta_temp = 0.d0
-             call mpi_reduce(map_sky(:,:,j,2), map_temp, size(map_sky(:,:,j,2)), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-             call mpi_reduce(delta(j,2),delta_temp, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+!!$             map_temp = 0.d0
+!!$             delta_temp = 0.d0
+!!$             call mpi_reduce(map_sky(:,:,j,2), map_temp, size(map_sky(:,:,j,2)), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+!!$             call mpi_reduce(delta(j,2),delta_temp, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
-             if ( self%myid == 0 .and. rand_uni(handle)<exp(-0.5d0*(chisq_prop(j)-chisq_curr(j)))) then
-                write(*,*) "Accepted"
+             if (self%myid == 0) then
+                accept_rate = exp(-0.5d0*(cp-cc))  
+                accept = (rand_uni(handle) < accept_rate)
+                write(*,fmt='(a,i3,a,f12.1,a,f12.1,a,f12.1)') "det = ", j, ', c0 = ', cc, ', cp = ', cp, ', diff = ', cp-cc
                 !write(*,*) map_sky(:,:,j,1) - map_temp ! accept proposal map 
-                map_sky(:,:,j,1) = map_temp ! accept proposal map 
-                delta(j,1) = delta_temp             ! accept proposal bp shift
+                !map_sky(:,:,j,1) = map_temp ! accept proposal map 
+                !delta(j,1) = delta_temp             ! accept proposal bp shift
              end if
 
              ! Broadcast new saved data
-             call mpi_bcast(map_sky(:,:,j,1), size(map_sky(:,:,j,1)),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-             call mpi_bcast(delta(j,1), 1,  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+             call mpi_bcast(accept, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
+             if (accept) then
+                ! Set current to proposal
+                map_sky(:,:,j,1) = map_sky(:,:,j,2)
+                delta(j,1)       = delta(j,2)
+             end if
+
+!             call mpi_bcast(map_sky(:,:,j,1), size(map_sky(:,:,j,1)),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+
+!             call mpi_bcast(delta(j,1), 1,  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
           end do
           
           !if (self%myid == 0 ) write(*,*) map_sky(:,:,1,1)
@@ -378,7 +388,15 @@ contains
              call wall_time(t2)
              t_tot(5) = t_tot(5) + t2-t1
              !if (self%myid == 0) write(*,*) 'clean      = ', t2-t1
-             
+
+!!$             open(58,file='poster_tod.dat',recl=1024)
+!!$             do j = 1, ntod
+!!$                write(58,*) j, self%scans(i)%d(1)%tod(j), n_corr(j,1), s_orb(j,1), s_sky(j,1), s_sb(j,i), d_calib(j,1)
+!!$             end do
+!!$             close(58)
+!!$             call mpi_finalize(ierr)
+!!$             stop
+
              ! Compute binned map from cleaned TOD -- Marie -- this week
              call wall_time(t1)
              do j = 1, ndet
