@@ -199,7 +199,7 @@ contains
     {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(out) :: val
     call open_hdf_set(file, setname)
     call h5dread_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set")
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   {{endfor}}

@@ -281,16 +281,16 @@ contains
 
     call wall_time(t4)
 
-    if (myid == 0) then
-       write(*,*)
-       write(*,*) '  IO init   = ', t_tot(1)
-       write(*,*) '  IO field  = ', t_tot(2)
-       write(*,*) '  IO scalar = ', t_tot(3)
-       write(*,*) '  IO tod    = ', t_tot(4)
-       write(*,*) '  IO comp   = ', t_tot(5)
-       write(*,*) '  IO huff   = ', t_tot(6)
-       write(*,*) '  IO total  = ', t4-t3
-    end if
+    !if (myid == 0) then
+    !   write(*,*)
+    !   write(*,*) '  IO init   = ', t_tot(1)
+    !   write(*,*) '  IO field  = ', t_tot(2)
+    !   write(*,*) '  IO scalar = ', t_tot(3)
+    !   write(*,*) '  IO tod    = ', t_tot(4)
+    !   write(*,*) '  IO comp   = ', t_tot(5)
+    !   write(*,*) '  IO huff   = ', t_tot(6)
+    !   write(*,*) '  IO total  = ', t4-t3
+    !end if
 
   end subroutine read_hdf_scan
 
