@@ -9,6 +9,7 @@ module comm_map_mod
   use comm_hdf_mod
   use extension
   use comm_param_mod
+  use comm_hdf_mod
   implicit none
 
 !  include "mpif.h"
@@ -24,9 +25,9 @@ module comm_map_mod
      ! Data variables
      type(sharp_alm_info)  :: alm_info
      type(sharp_geom_info) :: geom_info_T, geom_info_P
-     logical(lgt) :: pol
+     logical(lgt) :: pol, dist
      integer(i4b) :: comm, myid, nprocs
-     integer(i4b) :: nside, npix, nmaps, nspec, nring, np, lmax, nm, nalm
+     integer(i4b) :: nside, npix, nmaps, nspec, nring, np, lmax, nm, nalm, mmax
      integer(c_int), allocatable, dimension(:)   :: rings
      integer(c_int), allocatable, dimension(:)   :: ms
      integer(c_int), allocatable, dimension(:)   :: mind
@@ -72,6 +73,7 @@ module comm_map_mod
      procedure     :: bcast_fullsky_map
      procedure     :: get_alm
 
+
      ! Linked list procedures
      procedure :: next    ! get the link after this link
      procedure :: prev    ! get the link before this link
@@ -89,7 +91,7 @@ module comm_map_mod
   end interface comm_mapinfo
 
   interface comm_map
-     procedure constructor_map, constructor_clone
+     procedure constructor_map, constructor_clone, constructor_alms
   end interface comm_map
 
   ! Library of mapinfos; resident in memory during the analysis
@@ -100,26 +102,33 @@ contains
   !**************************************************
   !             Constructors
   !**************************************************
-  function constructor_mapinfo(comm, nside, lmax, nmaps, pol)
+  function constructor_mapinfo(comm, nside, lmax, nmaps, pol, dist)
     implicit none
     integer(i4b),                 intent(in) :: comm, nside, lmax, nmaps
     logical(lgt),                 intent(in) :: pol
+    logical(lgt),       optional, intent(in) :: dist
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
     integer(i4b) :: myid, nprocs, ierr
     integer(i4b) :: l, m, i, j, k, iring, np, ind 
     real(dp)     :: nullval
-    logical(lgt) :: anynull
+    logical(lgt) :: anynull, distval
     integer(i4b), allocatable, dimension(:) :: pixlist
     real(dp),     allocatable, dimension(:,:) :: weights
     character(len=5)   :: nside_text
     character(len=512) :: weight_file, healpixdir
     class(comm_mapinfo), pointer :: p, p_prev, p_new
 
+    if( .not. present(dist)) then
+      distval = .true.
+    else
+      distval = dist
+    end if
+
     ! Check if requested mapinfo already exists in library; if so return a link to that object
     p => mapinfos
     do while (associated(p)) 
-       if (p%nside == nside .and. p%lmax == lmax .and. p%nmaps == nmaps .and. p%pol == pol) then
+       if (p%nside == nside .and. p%lmax == lmax .and. p%nmaps == nmaps .and. p%pol == pol .and. p%dist == distval) then
           constructor_mapinfo => p
           return
        else
@@ -129,8 +138,13 @@ contains
     end do
 
     ! Set up new mapinfo object
-    call mpi_comm_rank(comm, myid, ierr)
-    call mpi_comm_size(comm, nprocs, ierr)
+    if (distval == .false.) then
+      myid=0
+      nprocs = 1
+    else
+      call mpi_comm_rank(comm, myid, ierr)
+      call mpi_comm_size(comm, nprocs, ierr)
+    end if
 
     allocate(p_new)
     p_new%comm   = comm
@@ -142,6 +156,7 @@ contains
     p_new%lmax   = lmax
     p_new%pol    = pol
     p_new%npix   = 12*nside**2
+    p_new%dist   = distval
 
     ! Select rings and pixels
     allocate(pixlist(0:4*nside-1))
@@ -244,6 +259,14 @@ contains
        end do
        p%nextLink => p_new
     end if
+
+    !stop lying to mpi_comm about rank and id
+    if (distval == .false.) then
+      call mpi_comm_rank(comm, myid, ierr)
+      call mpi_comm_size(comm, nprocs, ierr)
+      p_new%myid = myid
+      p_new%nprocs = nprocs
+    end if
     constructor_mapinfo => p_new
 
   end function constructor_mapinfo
@@ -274,6 +297,50 @@ contains
     constructor_map%alm = 0.d0
     
   end function constructor_map
+
+  function constructor_alms(info, h5_file, hdf, sidelobe, label)
+    implicit none
+    class(comm_mapinfo),                intent(inout), target   :: info
+    type(hdf_file),                     intent(in), target   :: h5_file
+    character(len=*),                   intent(in)           :: label
+    logical(lgt),                       intent(in)           :: hdf, sidelobe
+    class(comm_map),     pointer                             :: constructor_alms
+    character(len=10)                                        :: fieldName
+    integer(i4b)                                             :: mmax, ierr
+
+    allocate(constructor_alms)
+    constructor_alms%info => info
+
+    allocate(constructor_alms%map(0:info%np-1,info%nmaps))
+    allocate(constructor_alms%alm(0:info%nalm-1,info%nmaps))
+
+    if( sidelobe == .true. ) then
+      fieldName = 'sl'
+    else 
+      fieldName = 'beam'
+    end if
+
+    info%mmax = 0
+
+    if( hdf == .true. ) then
+      !write(*,*) 'About to call read_hdf'
+      if(info%myid == 0) then
+        call read_hdf(h5_file,  trim(label) // '/' // trim(fieldName) // 'mmax', mmax)
+      end if
+      call mpi_bcast(mmax, 1, MPI_INTEGER, 0, info%comm, ierr)
+      !bcast mmax to all cores
+
+      info%mmax = mmax
+
+      call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName), .false., mmax=mmax)
+    else 
+      write(*,*) 'Unsupported file format in map_mod constructor_alms. (Use hdf)' 
+      constructor_alms%alm = 0.d0
+    end if
+
+    constructor_alms%map = 0.d0
+
+  end function constructor_alms
   
   function constructor_clone(map)
     implicit none
@@ -666,12 +733,14 @@ contains
     
   end subroutine readFITS
 
-  subroutine readHDF(self, hdffile, hdfpath)
+  subroutine readHDF(self, hdffile, hdfpath, read_map, mmax)
     implicit none
 
-    class(comm_map),  intent(inout) :: self
-    type(hdf_file),   intent(in)    :: hdffile
-    character(len=*), intent(in)    :: hdfpath
+    class(comm_map),        intent(inout) :: self
+    type(hdf_file),         intent(in)    :: hdffile
+    character(len=*),       intent(in)    :: hdfpath
+    logical(lgt),           intent(in)    :: read_map
+    integer(i4b), optional, intent(in)    :: mmax
 
     integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
     real(dp),     allocatable, dimension(:,:) :: alms, map
@@ -681,28 +750,32 @@ contains
     lmax  = self%info%lmax
     npix  = self%info%npix
     nmaps = self%info%nmaps
-    nalm  = (lmax+1)**2
-
-    ! Only the root actually reads from disk; data are distributed via MPI
-    allocate(alms(0:nalm-1,nmaps))
-    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath))//'alm', alms)
-    call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-    do i = 0, self%info%nalm-1
-       call self%info%i2lm(i, l, m)
-       j = l**2 + l + m
-       self%alm(i,:) = alms(j,:)
-    end do
-    deallocate(alms)
-
-    ! Only the root actually reads from disk; data are distributed via MPI
-    allocate(map(0:npix-1,nmaps))
-    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath))//'map', map)
-    call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-    do i = 1, nmaps
-       self%map(:,i) = map(self%info%pix,i)
-    end do
-    deallocate(map)
+    nalm = (lmax+1)**2
     
+    if (.not. read_map) then
+      ! Only the root actually reads from disk; data are distributed via MPI
+      allocate(alms(0:nalm-1,nmaps))
+      if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
+      call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+      do i = 0, self%info%nalm-1
+        call self%info%i2lm(i, l, m)
+        j = l**2 + l + m
+        self%alm(i,:) = alms(j,:)
+      end do
+      deallocate(alms)
+    else
+      if(present(mmax)) then
+        write(*,*) 'Mmax present when reading map in readHDF, field '// hdfpath
+      end if
+      ! Only the root actually reads from disk; data are distributed via MPI
+      allocate(map(0:npix-1,nmaps))
+      if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), map)
+      call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+      do i = 1, nmaps
+         self%map(:,i) = map(self%info%pix,i)
+      end do
+      deallocate(map)
+    end if
   end subroutine readHDF
 
   subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
@@ -1075,7 +1148,39 @@ contains
     deallocate(p)
 
   end subroutine bcast_fullsky_map
- 
+
+!  subroutine bcast_fullsky_alms(self, alms, lms)
+!    implicit none
+!    class(comm_map),                       intent(in) :: self
+!    real(dp),              dimension(:,:), intent(out):: alms
+!    integer(i4b),          dimension(:,:), intent(out):: lms   
+!    real(dp), allocatable, dimension(:,:)             :: buffer
+!    integer(i4b)                                      :: nalm, nmaps
+!
+!    nmaps = self%info%nmaps
+!    nalm = self%info%nalm
+!
+!    allocate(p(nalm))
+!
+!    do i = 0, self%info%nprocs-1
+!       if (self%info%myid == i) then
+!          nalm    = self%info%nalm
+!          p(1:nalm) = self%info%alm(1:nalm)
+!          allocate(buffer(nalm,nmaps))
+!          buffer  = self%alm
+!       end if
+!
+!       call mpi_bcast(nalm,       1, MPI_INTEGER, i, self%info%comm, ierr)
+!       call mpi_bcast(p(1:alm), np, MPI_INTEGER, i, self%info%comm, ierr)
+!       if (.not. allocated(buffer)) allocate(buffer(nalm,nmaps))
+!       call mpi_bcast(buffer, nalm*nmaps, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
+!       alms(p(1:nalm),:) = buffer(1:nalm,:)
+!       deallocate(buffer)
+!    end do
+!    deallocate(p)
+!
+!  end subroutine bcast_fullsky_alms
+
   subroutine get_alm(self, l, m, pol, complx, alm)
     implicit none
     class(comm_map),                  intent(in) :: self

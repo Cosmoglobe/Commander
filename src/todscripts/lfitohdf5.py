@@ -135,7 +135,7 @@ def make_od(freq, od, args):
 
                 #get all pol angle data
                 psiArray = fileName[str(horn) + hornType + '/PSI'][pid_start:pid_end] + r.angle_ref(fileName[str(horn) + hornType + '/THETA'][pid_start:pid_end], fileName[str(horn) + hornType + '/PHI'][pid_start:pid_end]) + math.radians(rimo[1].data.field('psi_pol')[rimo_i])
-                psiArray = np.where(psiArray < 0, 2*np.pi, psiArray)
+                psiArray = np.where(psiArray < 0, 2*np.pi + psiArray, psiArray)
 
                 psiBins = np.linspace(0, 2*np.pi, num=4096)
 
@@ -205,7 +205,7 @@ def make_od(freq, od, args):
 
                 #make pol angle
                 psiArray = fileName[str(horn) + hornType + '/PSI'][pid_start:pid_end] + r.angle_ref(fileName[str(horn) + hornType + '/THETA'][pid_start:pid_end], fileName[str(horn) + hornType + '/PHI'][pid_start:pid_end]) + math.radians(rimo[1].data.field('psi_pol')[rimo_i])
-                psiArray = np.where(psiArray < 0, 2*np.pi, psiArray)
+                psiArray = np.where(psiArray < 0, 2*np.pi + psiArray, psiArray)
                 psiBins = np.linspace(0, 2*np.pi, num=4096)
 
                 psiIndexes = np.digitize(psiArray, psiBins)
