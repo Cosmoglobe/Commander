@@ -138,7 +138,7 @@ contains
 
     call rand_init(handle, 243789)
     ! Set up full-sky map structures
-    n_main_iter     = 1
+    n_main_iter     = 3
     chisq_threshold = 2000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -192,10 +192,13 @@ contains
     ! Toggle bp sampling on or off
     dobp = .true.
 
+    A_abscal = 0.d0
+    b_abscal = 0.d0
+
     ! Compute output map and rms
     do main_iter = 1, n_main_iter
 
-       !write(*,*) "main_iter", main_iter, A_abscal, b_abscal
+       write(*,*) "main_iter", main_iter, A_abscal, b_abscal
 
        if (main_iter == n_main_iter) then
           ! Initialize main map arrays
@@ -205,6 +208,8 @@ contains
           ntot    = 0
 
           ! Compute contribution to absolute calibration from current scan
+          ! If you are running only one main iter I think this will be 0
+          ! and thus will return NaN - Mathew
           call self%sample_absgain_from_orbital(A_abscal, b_abscal)
 
        else if (main_iter == n_main_iter-1) then
@@ -371,7 +376,7 @@ contains
                 
                if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
                      & isNaN(self%scans(i)%d(j)%chisq)) then
-                 write(*,*) "testing chisq", self%scans(i)%d(j)%chisq
+                 !write(*,*) "testing chisq", self%scans(i)%d(j)%chisq
                  cycle
                 end if
                 call self%accumulate_absgain_from_orbital(i, j, mask(:,j), s_sky(:,j), &
@@ -426,10 +431,10 @@ contains
              end do
              
              do j = 1, ndet
-                !if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
-                !     & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
-                !     write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
-               !& self%scanid(i), j, ', chisq = ', self%scans(i)%d(j)%chisq
+                if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
+                     & self%scans(i)%d(j)%chisq /= self%scans(i)%d(j)%chisq) &
+                     write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
+               & self%scanid(i), j, ', chisq = ', self%scans(i)%d(j)%chisq
              end do
 
           end if
@@ -532,7 +537,7 @@ contains
   subroutine project_sky(self, map, pix, psi, pmask,pmask2, scan_id, det, s_sky, tmask,tmask2, map_mean, s_sb, s_sky_prop, dobp)
     implicit none
     class(comm_LFI_tod),                  intent(in)  :: self
-    real(dp),            dimension(:,:),  intent(in)  :: pmask,pmask2
+    real(dp),            dimension(0:,1:),  intent(in)  :: pmask,pmask2
     real(dp),            dimension(0:,1:,:),  intent(in)  :: map, map_mean !Added dimension trygve
     integer(i4b),        dimension(:),    intent(in)  :: pix, psi
     integer(i4b),                         intent(in)  :: scan_id, det
@@ -654,7 +659,7 @@ contains
        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sl(:,i) - (S_sky(:,i) + S_orb(:,i)) * gain
       
        if(isNaN(sum(d_prime))) then
-         write(*,*) 'dprime', sum(self%scans(scan)%d(i)%tod), sum(S_sl(:,i)), sum(S_sky(:,i)), sum(S_orb(:,i)), gain
+         !write(*,*) 'dprime', sum(self%scans(scan)%d(i)%tod), sum(S_sl(:,i)), sum(S_sky(:,i)), sum(S_orb(:,i)), gain
        end if
  
        
@@ -808,6 +813,10 @@ contains
     self%scans(scan_id)%d(det)%gain       = curr_gain
     self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
 
+    if(isNaN(self%scans(scan_id)%d(det)%gain)) then
+      write(*,*) "Gain estimate", sum(s_sky), sum(s_orb), sum(s_sl), ata, curr_gain, curr_sigma
+    end if
+
     deallocate(d_only_wn,gain_template)
 
   end subroutine sample_gain
@@ -828,6 +837,9 @@ contains
        data = (self%scans(scan)%d(det)%tod(i)-n_corr(i))/self%scans(scan)%d(det)%gain - s_sky(i) - s_sl(i)
        A_abs = A_abs + S_orb(i) * inv_sigmasq * mask(i) * S_orb(i)
        b_abs = b_abs + S_orb(i) * inv_sigmasq * mask(i) * data
+       if(abs(A_abs) < 1.d0) then
+         !write(*,*) "accumulate gain", A_abs, b_abs, mask(i), inv_sigmasq, data, S_orb(i)
+       end if
     end do
 
   end subroutine accumulate_absgain_from_orbital
@@ -864,6 +876,10 @@ contains
 
     do j = 1, self%ndet
        do i = 1, self%nscan
+          if(isNaN(dgain(j))) then
+            !write(*,*) "sample absgain", dgain(j), self%scans(i)%d(j)%gain
+            dgain(j) = 1.d0
+          end if
           self%scans(i)%d(j)%gain = dgain(j) * self%scans(i)%d(j)%gain
        end do
     end do
@@ -894,7 +910,7 @@ contains
        if(abs(s_sl(j)) > 10.d0) then
          write(*,*) s_sl(j), pix, theta, phi, psi_
        end if
-       !s_sl(j) = 0.d0
+       s_sl(j) = 0.d0
     end do
 
   end subroutine construct_sl_template
@@ -958,9 +974,9 @@ contains
     self%scans(scan)%d(det)%chisq_prop = chisq_prop
     self%scans(scan)%d(det)%chisq_masked = chisq_masked
 
-    !if(self%scans(scan)%d(det)%chisq > 2000.d0) then
-    !  write(*,*) "chisq", scan, det, sum(mask), sum(s_sky), sum(s_sl), sum(s_orb), sum(n_corr)
-    !end if
+    if(self%scans(scan)%d(det)%chisq > 2000.d0 .or. isNaN(self%scans(scan)%d(det)%chisq)) then
+      !write(*,*) "chisq", scan, det, sum(mask), sum(s_sky), sum(s_sl), sum(s_orb), sum(n_corr)
+    end if
 
   end subroutine compute_chisq
 
