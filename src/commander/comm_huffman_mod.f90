@@ -214,10 +214,8 @@ contains
        nb=nb+1
        if (btest(code(nc),7-l)) then 
           node=hcode%iright(node) 
-          !write(*,*) nb, '1', code(nc)
        else
           node=hcode%left(node)
-          !write(*,*) nb, '0', code(nc)
        end if
        if (node <= hcode%nch) then 
           ich=node

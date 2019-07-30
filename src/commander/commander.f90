@@ -32,7 +32,7 @@ program commander
   ! *********************************************************************
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group
-  real(dp)            :: t0, t1, t2, t3
+  real(dp)            :: t0, t1, t2, t3, dbp
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
 
@@ -120,6 +120,14 @@ program commander
   end if
   ! Initialize output structures
 
+!!$  dbp = 0.
+  data(1)%bp(1)%p%delta(1) = -0.018238
+  data(1)%bp(2)%p%delta(1) =  0.190366
+  data(1)%bp(3)%p%delta(1) = -0.201403
+  data(1)%bp(4)%p%delta(1) =  0.029275
+  !data(1)%bp(:)%p%delta(1) = data(1)%bp(:)%p%delta(1) - mean(data(1)%bp(:)%p%delta(1))
+  call update_mixing_matrices(update_F_int=.true.)       
+
   ! Run Gibbs loop
   first_sample = 1
   do iter = first_sample, cpar%num_gibbs_iter
@@ -131,7 +139,7 @@ program commander
      end if
 
      ! Process TOD structures
-     if (cpar%enable_TOD_analysis) call process_TOD(cpar, handle)
+     if (cpar%enable_TOD_analysis) call process_TOD(cpar, iter, handle)
 
 
      ! Sample linear parameters with CG search; loop over CG sample groups
@@ -190,9 +198,10 @@ program commander
 
 contains
 
-  subroutine process_TOD(cpar, handle)
+  subroutine process_TOD(cpar, iter, handle)
     implicit none
     type(comm_params), intent(in)    :: cpar
+    integer(i4b),      intent(in)    :: iter
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: i, j, k, ndet, ndelta, ierr
@@ -201,9 +210,9 @@ contains
     type(map_ptr), allocatable, dimension(:,:) :: s_sky
 
     ndelta      = 2
-    sigma_delta = 1.d0 ! BP delta step size in GHz
+    sigma_delta = 0.003d0 ! BP delta step size in GHz
 
-    do i = 1, numband
+    do i = 1, numband  
        if (trim(cpar%ds_tod_type(i)) == 'none') cycle
 
        ! Compute current sky signal for default bandpass and MH proposal
@@ -215,6 +224,7 @@ contains
                 do j = 1, data(i)%tod%ndet
                    delta(j,k)               = data(i)%bp(j)%p%delta(1) + sigma_delta * rand_gauss(handle)
                 end do
+                delta(:,k) = delta(:,k) - mean(delta(:,k))
              end if
              call mpi_bcast(delta(:,k), data(i)%tod%ndet, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
              do j = 1, data(i)%tod%ndet
@@ -224,11 +234,12 @@ contains
              call wall_time(t1)
              call update_mixing_matrices(i, update_F_int=.true.)       
              call wall_time(t2)
-             if (cpar%myid == 0) write(*,*) 'mixmat time = ', t2-t1
+             !if (cpar%myid == 0) write(*,*) 'mixmat time = ', t2-t1
           else
              do j = 1, data(i)%tod%ndet
                 delta(j,k) = data(i)%bp(j)%p%delta(1) 
              end do
+             delta(:,k) = delta(:,k) - mean(delta(:,k))
           end if
           
           ! Evaluate sky for each detector given current bandpass
@@ -244,7 +255,7 @@ contains
 !!$       stop
 
        ! Process TOD, get new map and rms map
-       call data(i)%tod%process_tod(s_sky, delta, data(i)%map, data(i)%N%siN)
+       call data(i)%tod%process_tod(cpar%outdir, iter, handle, s_sky, delta, data(i)%map, data(i)%N%siN)
 
        ! Update mixing matrices based on new bandpasses
        do j = 1, data(i)%tod%ndet

@@ -17,6 +17,7 @@ module comm_map_mod
   private
   public comm_map, comm_mapinfo, map_ptr
 
+
   type :: comm_mapinfo
      ! Linked list variables
      class(comm_mapinfo), pointer :: nextLink => null()
@@ -72,6 +73,7 @@ module comm_map_mod
      procedure     :: smooth
      procedure     :: bcast_fullsky_map
      procedure     :: get_alm
+     procedure     :: get_alm_TEB
 
 
      ! Linked list procedures
@@ -85,7 +87,6 @@ module comm_map_mod
      class(comm_map), pointer :: p
   end type map_ptr
   
-  
   interface comm_mapinfo
      procedure constructor_mapinfo
   end interface comm_mapinfo
@@ -93,6 +94,7 @@ module comm_map_mod
   interface comm_map
      procedure constructor_map, constructor_clone, constructor_alms
   end interface comm_map
+
 
   ! Library of mapinfos; resident in memory during the analysis
   class(comm_mapinfo), pointer, private :: mapinfos
@@ -332,7 +334,9 @@ contains
 
       info%mmax = mmax
 
-      call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName), .false., mmax=mmax)
+      call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName) // '/T', .false., mmax=mmax, pol=1)
+      call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName) // '/E', .false., mmax=mmax, pol=2)
+      call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName) // '/B', .false., mmax=mmax, pol=3)
     else 
       write(*,*) 'Unsupported file format in map_mod constructor_alms. (Use hdf)' 
       constructor_alms%alm = 0.d0
@@ -733,14 +737,14 @@ contains
     
   end subroutine readFITS
 
-  subroutine readHDF(self, hdffile, hdfpath, read_map, mmax)
+  subroutine readHDF(self, hdffile, hdfpath, read_map, mmax, pol)
     implicit none
 
     class(comm_map),        intent(inout) :: self
     type(hdf_file),         intent(in)    :: hdffile
     character(len=*),       intent(in)    :: hdfpath
     logical(lgt),           intent(in)    :: read_map
-    integer(i4b), optional, intent(in)    :: mmax
+    integer(i4b), optional, intent(in)    :: mmax, pol
 
     integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
     real(dp),     allocatable, dimension(:,:) :: alms, map
@@ -749,7 +753,7 @@ contains
 
     lmax  = self%info%lmax
     npix  = self%info%npix
-    nmaps = self%info%nmaps
+    nmaps = 1 ! self%info%nmaps ! FIX THIS
     nalm = (lmax+1)**2
     
     if (.not. read_map) then
@@ -760,7 +764,7 @@ contains
       do i = 0, self%info%nalm-1
         call self%info%i2lm(i, l, m)
         j = l**2 + l + m
-        self%alm(i,:) = alms(j,:)
+        self%alm(i,pol) = alms(j,1)
       end do
       deallocate(alms)
     else
@@ -985,7 +989,12 @@ contains
     integer(i4b),       intent(in)  :: l, m
     integer(i4b),       intent(out) :: i
 
-    if (l > self%lmax) then
+    if (l > self%lmax .or. abs(m)>l) then
+        i = -1
+       return
+    end if
+ 
+   if (self%mind(abs(m)) == -1) then
        i = -1
        return
     end if
@@ -995,6 +1004,10 @@ contains
     else
        i = self%mind(abs(m)) + 2*(l-abs(m))
        if (m < 0) i = i+1
+    end if
+
+    if (i == -1) then
+       write(*,*) 'stop', l, m, i, self%lmax, self%mind(abs(m))
     end if
     
   end subroutine lm2i
@@ -1205,4 +1218,31 @@ contains
 
 
   end subroutine get_alm
+
+  subroutine get_alm_TEB(self, l, m, complx, alm)
+    implicit none
+    class(comm_map),                  intent(in) :: self
+    integer(i4b),                     intent(in) :: l,m
+    logical(lgt),                     intent(in) :: complx
+    complex(dpc),                     intent(out) :: alm(3)
+ 
+    integer(i4b) :: ind, ind2
+
+    call self%info%lm2i(l, m, ind)
+
+    if(.not. complx) then
+      alm = cmplx(self%alm(ind, :), 0.d0)
+    else
+      if(m == 0) then
+        alm = cmplx(self%alm(ind, :), 0.d0)
+      else
+        call self%info%lm2i(l, -m, ind2)
+        alm = 1.d0 / sqrt(2.d0) * cmplx(self%alm(ind, :), self%alm(ind2, :))
+      end if 
+    end if
+
+
+  end subroutine get_alm_TEB
+
+
 end module comm_map_mod

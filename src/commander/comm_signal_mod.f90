@@ -232,6 +232,15 @@ contains
        c => c%next()
     end do
 
+    ! Output TOD parameters
+    do i = 1, numband  
+       if (trim(cpar%ds_tod_type(i)) == 'none' .or. &
+            & .not. data(i)%tod%init_from_HDF) cycle
+       if (cpar%myid == 0) write(*,*) ' Initializing TOD par from chain = ', trim(data(i)%tod%freq)
+       call data(i)%tod%initHDF(file, cpar%init_samp)
+    end do
+
+
     ! Close HDF file
     call close_hdf_file(file)
     

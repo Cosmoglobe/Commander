@@ -130,6 +130,17 @@ contains
     if (cpar%output_sig_per_band) call output_signals_per_band(cpar%outdir, postfix)
     call update_status(status, "output_sig")
 
+    ! Output TOD parameters
+    if (output_hdf) then
+       if (cpar%myid_chain == 0) then
+          call create_hdf_group(file, trim(adjustl(itext))//'/tod')
+       end if
+       do i = 1, numband  
+          if (trim(cpar%ds_tod_type(i)) == 'none') cycle
+          call data(i)%tod%dumpToHDF(file, iter)
+       end do
+    end if
+
     if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
   end subroutine output_FITS_sample
 
