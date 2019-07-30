@@ -11,7 +11,7 @@ module comm_conviqt_mod
   public comm_conviqt, conviqt_ptr
 
   type :: comm_conviqt
-    integer(i4b) :: lmax, mmax, bmax, nside, comm, optim, psisteps
+    integer(i4b) :: lmax, mmax, bmax, nside, comm, optim, psisteps, win
     real(dp), allocatable, dimension(:,:)      :: c
     real(dp) :: psires
   contains
@@ -37,7 +37,9 @@ contains
     class(comm_map),              intent(inout) :: beam, map
     integer(i4b),                 intent(in)    :: optim ! desired optimization flags
     class(comm_conviqt), pointer                :: constructor
-
+    integer(i4b)                                :: ierr, winsize, disp_unit
+    type(c_ptr)                                 :: baseptr
+    integer(i4b), allocatable, dimension(:)     :: arrayshape
 
     !inquire(file='precomp.unf', exist=exist)
     !if (exist) then
@@ -70,7 +72,31 @@ contains
     constructor%psires = 2.d0*pi/constructor%bmax
     constructor%psisteps = int(2.d0*pi/constructor%psires)
 
-    allocate(constructor%c(0:12*map%info%nside**2-1, 0:constructor%psisteps-1))
+    !TODO: move this to a more useful spot so it can be used elsewhere
+    call MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, constructor%comm, ierr)
+
+    winsize = 0
+    if(map%info%myid == 0) then
+      winsize = (12*map%info%nside**2 *constructor%psisteps)*8
+    end if
+    disp_unit = 1
+    call MPI_Win_allocate_shared(winsize, disp_unit, MPI_INFO_NULL, constructor%comm, baseptr, constructor%win, ierr)
+
+    if (map%info%myid /= 0) then
+      call MPI_Win_shared_query(constructor%win, 0, winsize, disp_unit, baseptr, ierr)
+    end if
+
+    allocate(arrayshape(2))
+    arrayshape(1) = 12*map%info%nside**2
+    arrayshape(2) = constructor%psisteps
+
+    call C_F_POINTER(baseptr, constructor%c, arrayshape)
+
+    call MPI_WIN_FENCE(0, constructor%win, ierr)
+
+    deallocate(arrayshape)
+
+    !allocate(constructor%c(12*map%info%nside**2, constructor%psisteps))
 
     call constructor%precompute_sky(beam, map)
 
@@ -99,7 +125,7 @@ contains
     !end if
 
     if (self%optim == 2) then
-      interp = self%c(pixnum, nint(unwrap / self%psires))
+      interp = self%c(pixnum+1, nint(unwrap / self%psires) + 1)
       return
     end if
 
@@ -115,12 +141,12 @@ contains
     ! y = (y_0 (x_1 - x) + y_1 (x - x_0))/(x_1 - x_0)
     x0     = psii * self%psires
     x1     = psiu * self%psires
-    interp = ((self%c(pixnum, psii)) * (x1 - unwrap) + self%c(pixnum, psiu) * (unwrap - x0))/(x1 - x0)
+    interp = ((self%c(pixnum+1, psii+1)) * (x1 - unwrap) + self%c(pixnum+1, psiu+1) * (unwrap - x0))/(x1 - x0)
 
     !interp = 0.d0
 
     !if( isNaN(interp)) then
-    !  write(*,*) self%c(pixnum, psii), self%c(pixnum, psiu), interp, theta, phi,psi
+    !  write(*,*) self%c(pixnum+1, psii), self%c(pixnum+1, psiu), interp, theta, phi,psi
     !end if
 
   end function interp
@@ -142,7 +168,9 @@ contains
     real(dp),       allocatable, dimension(:)     :: dt
     double complex,   allocatable, dimension(:)     :: dv
 
-    self%c = 0
+    if(map%info%myid == 0) then
+      self%c = 0
+    end if
 
     np = map%info%np
 
@@ -167,15 +195,18 @@ contains
       l   = map%info%lm(1,i)
       m_s = map%info%lm(2,i)
       !write(*,*) i, l, m_s, q
-      alm_s_r = one_over_root_two * map%alm(i, 1)
+      alm_s_r = map%alm(i, 1)
+      if(m_s /= 0) then
+        alm_s_r = alm_s_r * one_over_root_two
+      end if
       call beam%info%lm2i(l, 0, q)
       if(q == -1) then
         alm_b_r = 0.d0
       else
-        alm_b_r = one_over_root_two * beam%alm(q, 1)
+        alm_b_r = beam%alm(q, 1)
       end if
-      !if(map%info%myid == 0) then
-      !  write(*, *) alm_b_r, l
+      !if(m_s == 0) then
+      !  write(*, *) l, 0, alm_b_r
       !end if
       alm(i, 1) = -1 ** m_s * sqrt(4*pi/(2*l + 1)) * (alm_b_r * alm_s_r) !real part
     end do
@@ -190,45 +221,47 @@ contains
     marray(:,0) = mout(:,1)
 
     if(map%info%myid == 0 .and. .false.) then
-      write(*,*) 'Sharp  execute, m=', 0, sum(mout(:,1:1)), sum(alm(:,1:1))
+      write(*,*) 'Sharp  execute, m=', 0, sum(mout(:,1:1)), sum(alm(:,1:1)), alm_b_r, alm_s_r
     end if
 
     ! Compute m /= 0 cases
-    do j=1, self%bmax
+    do j=1, beam%info%mmax
       alm = 0
  
       do i=0, map%info%nalm-1
         l   = map%info%lm(1,i)
         m_s = map%info%lm(2,i)
-        alm_s_r = one_over_root_two * map%alm(i, 1)
+        if(j > l) cycle !catch case where m_b > l_sky
+        alm_s_r = map%alm(i, 1)
         call map%info%lm2i(l, -m_s, q)
-        alm_s_c = one_over_root_two * map%alm(q, 1)
+        alm_s_c = map%alm(q, 1)
+        if(m_s /= 0) then
+          alm_s_r = alm_s_r * one_over_root_two
+          alm_s_c = alm_s_c * one_over_root_two
+        end if
+
         call beam%info%lm2i(l, j, q)
-        if(q == -1) then
+        if(q < 0) then
           alm_b_r = 0.d0
         else
-          alm_b_r = one_over_root_two * beam%alm(q, 1)
+          alm_b_r = beam%alm(q, 1) * one_over_root_two
         end if
 
         call beam%info%lm2i(l, -j, u)
-        if(u == -1) then
+        if(u < 0) then
           alm_b_c = 0.d0
         else
-          alm_b_c = one_over_root_two * beam%alm(u, 1)
+          alm_b_c = beam%alm(u, 1) * one_over_root_two
         end if
 
-        !if(map%info%myid == 0) then
-        !  write(*,*) 'j=', j, alm_b_r, alm_b_c, q, u, l
+        !if(j == 10 .and. m_s == 0) then
+        !  write(*,*) l, alm_b_r, alm_b_c
         !end if
 
         alm(i, 1) = -1 ** m_s * sqrt(4*pi/(2*l + 1)) * ((alm_b_r * alm_s_r) + (alm_b_c * alm_s_c)) !real part
         alm(i, 2) = -1 ** m_s * sqrt(4*pi/(2*l + 1)) * ((alm_b_r * alm_s_c) - (alm_b_c * alm_s_r)) !imag part
     
       end do
-
-      if(sum(alm(:, 1:2)) == 0.d0) then
-        cycle
-      end if
 
       mout = 0.d0
       !if(map%info%myid == 0) then
@@ -248,7 +281,7 @@ contains
     !end if
 
     ! Fourier transform in psi direction
-    allocate(dt(self%psisteps), dv(0:self%psisteps/2 +1))
+    allocate(dt(self%psisteps), dv(0:self%psisteps/2))
     call dfftw_plan_dft_c2r_1d(fft_plan, self%psisteps, dv, dt, fftw_estimate + fftw_unaligned)
     if(fft_plan == 0) then
       write(*,*) 'Failed to create fftw plan, thread ', map%info%myid
@@ -277,10 +310,10 @@ contains
       dt = 2.d0 * pi / (real(self%psisteps)**2) * dt
 
       !copy to c
-      self%c(pixNum,0:self%psisteps -1) = dt(1:self%psisteps)
-      !if(map%info%myid == 2 .and. sum(self%c) /= 0.d0) then
-      !  write(*,*) 'Executed fft, i = ', i, sum(dv), sum(dt), sum(self%c), size(self%c(pixNum,:)), size(dt)
-      !end if
+      self%c(pixNum+1,:) = dt(1:self%psisteps)
+      if(map%info%myid == 2 .and. .false.) then
+        write(*,*) 'Executed fft, i = ', i, sum(dv), sum(dt), sum(self%c), size(self%c(pixNum+1,:)), size(dt), dv(0), sum(marray(:,0))
+      end if
 
     end do
  
@@ -292,11 +325,10 @@ contains
  
     !bcast to all cores
 
-    if(.false.) then
-      write(*,*) ' Pre allreduce, sum = ', sum(self%c), size(self%c), map%info%myid
-    end if
+    !call mpi_allreduce(MPI_IN_PLACE, self%c, size(self%c), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
 
-    call mpi_allreduce(MPI_IN_PLACE, self%c, size(self%c), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+    call MPI_WIN_FENCE(0, self%win, ierr)
+    call MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
     if(map%info%myid == 0) then
       write(*,*) 'Allreduced, sum = ', sum(self%c)
