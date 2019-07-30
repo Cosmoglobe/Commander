@@ -35,6 +35,7 @@ module comm_map_mod
      integer(c_int), allocatable, dimension(:,:) :: lm
      integer(c_int), allocatable, dimension(:)   :: pix
      real(c_double), allocatable, dimension(:,:) :: W
+     integer(i4b),   allocatable, dimension(:)   :: nalms
    contains
      procedure     :: lm2i
      procedure     :: i2lm
@@ -72,9 +73,11 @@ module comm_map_mod
      procedure     :: getCrossSigmaL
      procedure     :: smooth
      procedure     :: bcast_fullsky_map
+     procedure     :: bcast_fullsky_alms
+     procedure     :: distribute_alms
      procedure     :: get_alm
      procedure     :: get_alm_TEB
-
+     procedure     :: remove_MDpoles
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -306,9 +309,12 @@ contains
     type(hdf_file),                     intent(in), target   :: h5_file
     character(len=*),                   intent(in)           :: label
     logical(lgt),                       intent(in)           :: hdf, sidelobe
-    class(comm_map),     pointer                             :: constructor_alms
-    character(len=10)                                        :: fieldName
-    integer(i4b)                                             :: mmax, ierr
+    class(comm_map),     pointer                      :: constructor_alms
+    character(len=10)                                 :: fieldName
+    character(len=80),   dimension(:,:) , allocatable :: header
+    integer(i4b)                                      :: mmax, ierr, i, j, l, m,nalm
+
+    real(dp), dimension(:,:,:), allocatable           :: tempalms 
 
     allocate(constructor_alms)
     constructor_alms%info => info
@@ -338,8 +344,24 @@ contains
       call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName) // '/E', .false., mmax=mmax, pol=2)
       call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName) // '/B', .false., mmax=mmax, pol=3)
     else 
-      write(*,*) 'Unsupported file format in map_mod constructor_alms. (Use hdf)' 
-      constructor_alms%alm = 0.d0
+      nalm = 123543225
+      allocate(tempalms(nalm, 4, 3))
+      allocate(header(10, 3))
+
+      !TODO: this fits call doesn't seem to work properly for some reason
+      call fits2alms("/mn/stornext/d16/cmbco/bp/data/beamalms/sl/sl_030_27_x_qucs-raa.alm", nalm, tempalms, 3, header, 10, 3)
+
+      do i = 0, nalm
+        l = tempalms(i, 1, 1)
+        m = tempalms(i, 2, 1)
+        call constructor_alms%info%lm2i(l, m, j)
+        constructor_alms%alm(j,:) = sqrt(2.d0) * tempalms(i,3,1)
+        call constructor_alms%info%lm2i(l, -m, j)
+        constructor_alms%alm(j,:) = sqrt(2.d0) * tempalms(i,4,1)
+      end do
+
+      deallocate(header)
+      deallocate(tempalms)
     end if
 
     constructor_alms%map = 0.d0
@@ -761,10 +783,22 @@ contains
       allocate(alms(0:nalm-1,nmaps))
       if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
       call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+      if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
       do i = 0, self%info%nalm-1
         call self%info%i2lm(i, l, m)
         j = l**2 + l + m
         self%alm(i,pol) = alms(j,1)
+!!$        self%alm(i,:) = alms(j,:)
+!!$        self%info%lm(1,i) = l
+!!$        self%info%lm(2,i) = m
+        !if(self%info%myid == 0 .and. m==10) then
+        !  write(*,*) 'l = ', l, ' m = ', m, alms(j,:)
+        !end if
+        !self%alm(i,:) = 0.d0
+        !if(m == 0) then
+        !  self%alm(i,:) = exp(-0.d5 * l * (l+1) *(( 0.d0017/(8.d0* log(2.d0)) ) ** 2)) / 1000.d0
+        !end if
+        !write(*,*) i, j, l, m, self%alm(i,:)
       end do
       deallocate(alms)
     else
@@ -998,7 +1032,12 @@ contains
        i = -1
        return
     end if
-    
+   
+    if(abs(m) > l) then !if this isn't a valid l,m pair
+      i = -1
+      return
+    end if
+ 
     if (m == 0) then
        i = self%mind(m) + l
     else
@@ -1162,37 +1201,84 @@ contains
 
   end subroutine bcast_fullsky_map
 
-!  subroutine bcast_fullsky_alms(self, alms, lms)
-!    implicit none
-!    class(comm_map),                       intent(in) :: self
-!    real(dp),              dimension(:,:), intent(out):: alms
-!    integer(i4b),          dimension(:,:), intent(out):: lms   
-!    real(dp), allocatable, dimension(:,:)             :: buffer
-!    integer(i4b)                                      :: nalm, nmaps
-!
-!    nmaps = self%info%nmaps
-!    nalm = self%info%nalm
-!
-!    allocate(p(nalm))
-!
-!    do i = 0, self%info%nprocs-1
-!       if (self%info%myid == i) then
-!          nalm    = self%info%nalm
-!          p(1:nalm) = self%info%alm(1:nalm)
-!          allocate(buffer(nalm,nmaps))
-!          buffer  = self%alm
-!       end if
-!
-!       call mpi_bcast(nalm,       1, MPI_INTEGER, i, self%info%comm, ierr)
-!       call mpi_bcast(p(1:alm), np, MPI_INTEGER, i, self%info%comm, ierr)
-!       if (.not. allocated(buffer)) allocate(buffer(nalm,nmaps))
-!       call mpi_bcast(buffer, nalm*nmaps, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
-!       alms(p(1:nalm),:) = buffer(1:nalm,:)
-!       deallocate(buffer)
-!    end do
-!    deallocate(p)
-!
-!  end subroutine bcast_fullsky_alms
+  subroutine bcast_fullsky_alms(self)
+    implicit none
+    class(comm_map),                    intent(inout) :: self
+    real(dp), allocatable, dimension(:,:)             :: alms
+    integer(i4b), allocatable, dimension(:,:)         :: lms   
+    real(dp), allocatable, dimension(:,:)             :: buffer
+    integer(i4b)      :: nalm, nmaps, i, ierr, offset
+
+    nmaps = self%info%nmaps
+    nalm = self%info%nalm
+
+    if (.not. allocated(self%info%nalms)) allocate(self%info%nalms(0:self%info%nprocs -1))
+
+    do i = 0, self%info%nprocs-1
+       
+       self%info%nalms(i) = nalm
+       call mpi_bcast(self%info%nalms(i), 1, MPI_INTEGER, i, self%info%comm, ierr)
+    end do
+
+    !nalms now contains nalm for each core
+       
+    allocate(alms(0:sum(self%info%nalms)-1, nmaps), lms(2, 0:sum(self%info%nalms)-1))
+     
+    do i = 0, self%info%nprocs-1
+      offset = sum(self%info%nalms(0:i-1))
+      if (self%info%myid == i) then
+        !write(*,*) i, offset, self%info%nalms(i), size(self%alm(:,1))
+        alms(offset:offset + self%info%nalms(i)-1, :) = self%alm
+        lms(:, offset:offset+self%info%nalms(i)-1) = self%info%lm
+      end if
+      call mpi_bcast(alms(offset:offset + self%info%nalms(i)-1,:), self%info%nalms(i)*nmaps, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
+      call mpi_bcast(lms(:,offset:offset+self%info%nalms(i)-1), self%info%nalms(i) * 2, MPI_INTEGER, i, self%info%comm, ierr)
+    end do
+
+    deallocate(self%info%lm, self%alm)
+    self%info%nalm = sum(self%info%nalms)
+
+    allocate(self%info%lm(2, 0:self%info%nalm-1), self%alm(0:self%info%nalm-1, nmaps))
+
+    self%info%lm = lms
+    self%alm = alms
+
+    deallocate(alms, lms)
+
+  end subroutine bcast_fullsky_alms
+
+  subroutine distribute_alms(self)
+    implicit none
+    class(comm_map),                 intent(inout) :: self
+    real(dp), allocatable, dimension(:,:)          :: alms
+    integer(i4b), allocatable, dimension(:,:)      :: lms
+    integer(i4b)                                   :: offset    
+
+    if(.not. allocated(self%info%nalms)) then
+      write(*,*) "Call to distribute alms while nalms not allocated"
+      return
+    end if
+
+    allocate(alms(0:self%info%nalms(self%info%myid)-1, self%info%nmaps))
+    allocate(lms(2, 0:self%info%nalms(self%info%myid) -1))
+
+    offset = sum(self%info%nalms(0:self%info%myid-1)) 
+
+    alms = self%alm(offset:offset + self%info%nalms(self%info%myid)-1, :)
+    lms = self%info%lm(:, offset:offset + self%info%nalms(self%info%myid)-1)
+
+    deallocate(self%alm, self%info%lm)
+
+    self%info%nalm = self%info%nalms(self%info%myid)
+
+    allocate(self%alm(0:self%info%nalm-1, self%info%nmaps))
+    allocate(self%info%lm(2, 0:self%info%nalm-1))
+
+    self%alm = alms
+    self%info%lm = lms
+
+    deallocate(alms, lms, self%info%nalms)
+  end subroutine distribute_alms
 
   subroutine get_alm(self, l, m, pol, complx, alm)
     implicit none
@@ -1219,6 +1305,7 @@ contains
 
   end subroutine get_alm
 
+
   subroutine get_alm_TEB(self, l, m, complx, alm)
     implicit none
     class(comm_map),                  intent(in) :: self
@@ -1244,5 +1331,36 @@ contains
 
   end subroutine get_alm_TEB
 
+
+
+  subroutine remove_MDpoles(self)
+    implicit none
+    class(comm_map),                    intent(inout) :: self
+    real(dp), allocatable, dimension(:,:)             :: fullmap
+    real(dp), allocatable, dimension(:)               :: multipoles, zbounds
+    integer(i4b)                                      :: i, j
+
+    allocate(fullmap(0:self%info%npix -1, self%info%nmaps))
+    allocate(multipoles(0:3))
+    allocate(zbounds(1:2))
+    zbounds(1) = 0.d0!0.17 ! ~10 degree galaxy cut I think
+    zbounds(2) = 0.d0!-0.17
+    !broadcast fullsky map
+    call self%bcast_fullsky_map(fullmap)
+
+    !subtract mono and dipoles
+    call remove_dipole(self%info%nside, fullmap(:,1), 1, 2, multipoles, zbounds)
+
+    
+
+    !redistribute map
+    do i = 1, self%info%np
+      if(fullmap(self%info%pix(i),1) /= 0.d0) then
+        self%map(i-1, 1) = fullmap(self%info%pix(i),1)
+      end if
+    end do
+
+    deallocate(fullmap, multipoles, zbounds)
+  end subroutine remove_MDpoles
 
 end module comm_map_mod

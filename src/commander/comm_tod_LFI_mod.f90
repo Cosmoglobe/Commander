@@ -171,6 +171,7 @@ contains
        call close_hdf_file(h5_file)
     end if
 
+
   end function constructor
 
   !**************************************************
@@ -297,14 +298,14 @@ contains
     do i = 1, self%ndet
        if (.not. correct_sl) exit
 
-       if (self%myid == 0) write(*,*) 'precomputing sky', i
-!!$       map_in(i,1)%p%map = 0
-!!$       map_in(i,1)%p%map(:,1) = i
+       !call map_in(i,1)%p%remove_MDpoles() !remove mono and dipole components
+       !call map_in(i,1)%p%writeFITS('nodp.fits')
        call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-       do j = 0, map_in(i,1)%p%info%nalm-1
-!          write(*,*) self%myid, j, map_in(i,1)%p%info%lm(:,j), map_in(i,1)%p%alm(j,1)
-       end do
+       !TODO: make this work with shared arrays instead because that makes more
+       !sense
+       if (self%myid == 0) write(*,*) 'precomputing sky', i
 
+       call map_in(i,1)%p%YtW()  ! Compute sky a_lms
        self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
             & self%myid_inter, self%comm_inter, 128, 256, 3, 256, &
             & self%slbeam(i)%p, map_in(i,1)%p, 2)
@@ -781,6 +782,7 @@ contains
     end if
 !    write(*,fmt='(a,f8.3,2f8.3,i6,i8)') 'Time total = ', t6-t5, sum(t_tot(1:18)), sum(self%scans%proctime/self%scans%n_proctime), self%myid, self%nscan
 
+    !stop
     ! Clean up temporary arrays
     deallocate(A_map, b_map)
     deallocate(A_abscal, b_abscal, chisq_S)
@@ -1290,7 +1292,7 @@ contains
        psi_    = self%psi(psi(j))-polangle ! HKE: Should this be defined without the detector angle
        s_sl(j) = slconv%interp(theta, phi, psi_)  ! Commented out until validated
        if(abs(s_sl(j)) > 10.d0) then
-         write(*,*) s_sl(j), pix, theta, phi, psi_
+         !write(*,*) s_sl(j), pix, theta, phi, psi_
        end if
        !s_sl(j) = 0.d0
     end do

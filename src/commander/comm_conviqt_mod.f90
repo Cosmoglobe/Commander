@@ -12,9 +12,10 @@ module comm_conviqt_mod
   public comm_conviqt, conviqt_ptr
 
   type :: comm_conviqt
-    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps
+    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win
     real(dp), allocatable, dimension(:)        :: lnorm
-    real(dp), allocatable, dimension(:,:)      :: c
+    !real(dp), allocatable, dimension(:,:)      :: c
+    type(shared_2d_dp) :: c
     real(dp) :: psires
     class(comm_mapinfo), pointer :: info
     type(shared_2d_spc) :: alm_beam
@@ -125,7 +126,9 @@ contains
     deallocate(ind, alm)
 
     ! Precompute convolution cube
-    allocate(constructor%c(0:constructor%npix-1, 0:constructor%psisteps-1))
+    call init_shared_2d_dp(myid_shared, comm_shared, myid_inter, comm_inter, &
+         & [constructor%npix,constructor%psisteps], constructor%c)
+    !allocate(constructor%c(0:constructor%npix-1, 0:constructor%psisteps-1))
 
     call constructor%precompute_sky(beam, map)
 !!$    if (map%info%myid == 0) then
@@ -165,7 +168,7 @@ contains
     if (self%optim == 2) then
        bpsi = max(nint(unwrap / self%psires),0)
        if (bpsi == self%psisteps) bpsi = 0
-      interp = self%c(pixnum, bpsi)
+      interp = self%c%a(pixnum+1, bpsi+1)
       if (isNaN(interp)) then
          write(*,*) 'nan', theta, phi, psi, pixnum, unwrap, interp
       end if
@@ -184,12 +187,12 @@ contains
     ! y = (y_0 (x_1 - x) + y_1 (x - x_0))/(x_1 - x_0)
     x0     = psii * self%psires
     x1     = psiu * self%psires
-    interp = ((self%c(pixnum, psii)) * (x1 - unwrap) + self%c(pixnum, psiu) * (unwrap - x0))/(x1 - x0)
+    interp = ((self%c%a(pixnum+1, psii+1)) * (x1 - unwrap) + self%c%a(pixnum+1, psiu+1) * (unwrap - x0))/(x1 - x0)
 
     !interp = 0.d0
 
     !if( isNaN(interp)) then
-    !  write(*,*) self%c(pixnum, psii), self%c(pixnum, psiu), interp, theta, phi,psi
+    !  write(*,*) self%c(pixnum+1, psii), self%c(pixnum+1, psiu), interp, theta, phi,psi
     !end if
 
   end function interp
@@ -212,10 +215,8 @@ contains
     real(dp),       allocatable, dimension(:)     :: dt
     complex(dpc),   allocatable, dimension(:)     :: dv
 
-    self%c = 0
 
     np = self%info%np
-
 
     allocate(marray(np, -self%bmax:self%bmax))
     marray = 0
@@ -280,7 +281,7 @@ contains
       write(*,*) 'Failed to create fftw plan, thread ', map%info%myid
     end if
     
-    self%c = 0.d0
+    !self%c = 0.d0
     do i=1, np
         if(map%info%myid == 0) then
 !          write(*,*) 'i=', i, np
@@ -306,12 +307,14 @@ contains
 !      dt = dt / self%psisteps
 
       !copy to c
-      self%c(self%info%pix(i),0:self%psisteps -1) = dt(1:self%psisteps)
+      !self%c(self%info%pix(i),0:self%psisteps -1) = dt(1:self%psisteps)
+      self%c%a(self%info%pix(i)+1,:) = dt(1:self%psisteps)
       !if(map%info%myid == 2 .and. sum(self%c) /= 0.d0) then
       !  write(*,*) 'Executed fft, i = ', i, sum(dv), sum(dt), sum(self%c), size(self%c(pixNum,:)), size(dt)
       !end if
 
     end do
+    call mpi_win_fence(0, self%c%win, ierr)
  
     deallocate(marray, alm, mout) 
  
@@ -321,13 +324,11 @@ contains
  
     !bcast to all cores
 
-    if(.false.) then
-      write(*,*) ' Pre allreduce, sum = ', sum(self%c), size(self%c), map%info%myid
-    end if
+    !call mpi_allreduce(MPI_IN_PLACE, self%c, size(self%c), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
 
 
 !    if(map%info%myid == 0) write(*,*) 'b'
-    call mpi_allreduce(MPI_IN_PLACE, self%c, size(self%c), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+!    call mpi_allreduce(MPI_IN_PLACE, self%c, size(self%c), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
 !    if(map%info%myid == 0) write(*,*) 'c'
 
     if(map%info%myid == 0) then
@@ -423,9 +424,10 @@ contains
     implicit none
     class(comm_conviqt), intent(inout) :: self
 
-    deallocate(self%c)
+!    deallocate(self%c)
     deallocate(self%lnorm)
     call dealloc_shared_2d_spc(self%alm_beam)
+    call dealloc_shared_2d_dp(self%c)
 
   end subroutine dealloc
 
