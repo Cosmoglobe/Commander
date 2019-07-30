@@ -61,6 +61,17 @@ extern "C"
 				return vm_peak_kb << 10;
 		return 0;
 	}
+	int64_t get_mem_use2_()
+	{
+		stringstream path; path << "/proc/" << getpid() << "/status";
+		ifstream f(path.str().c_str());
+		string line;
+		int64_t vm_peak_kb;
+		while(getline(f, line))
+			if(sscanf(line.c_str(), "RssAnon: %ld kB\n", &vm_peak_kb) == 1)
+				return vm_peak_kb << 10;
+		return 0;
+	}
 	void set_sig_handler_(int * signal, forthandler foo) {
 		handlers[*signal] = foo;
 		struct sigaction ho, h;

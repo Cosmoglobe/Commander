@@ -23,6 +23,7 @@ module comm_param_mod
      ! MPI info
      integer(i4b) :: myid, numprocs, root = 0
      integer(i4b) :: myid_chain, numprocs_chain, comm_chain, mychain
+     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
      integer(i4b), dimension(MPI_STATUS_SIZE)          :: status
 
      ! Global parameters
@@ -92,8 +93,13 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
      character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
-     character(len=512), allocatable, dimension(:)   :: ds_tod_type
      !TOD data parameters
+     character(len=512), allocatable, dimension(:)   :: ds_tod_type
+     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask1
+     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask2
+     character(len=512), allocatable, dimension(:)   :: ds_tod_filelist
+     character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
+     character(len=512), allocatable, dimension(:)   :: ds_tod_dets
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -200,7 +206,7 @@ contains
     type(comm_params), intent(inout) :: cpar
     type(planck_rng),  intent(out)   :: handle, handle_noise
 
-    integer(i4b) :: i, j, m, n, ierr
+    integer(i4b) :: i, j, m, n, ierr, mpistat(MPI_STATUS_SIZE)
     integer(i4b), allocatable, dimension(:,:) :: ind
     
     ! !the following commented lines are moved to commander.f90 in order to initialize
@@ -229,6 +235,13 @@ contains
     call mpi_comm_split(MPI_COMM_WORLD, cpar%mychain, cpar%myid_chain, cpar%comm_chain,  ierr) 
     call mpi_comm_size(cpar%comm_chain, cpar%numprocs_chain, ierr)
 
+    !Communicators for shared memory access
+    call mpi_comm_split_type(cpar%comm_chain, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, cpar%comm_shared, ierr) 
+    call mpi_comm_rank(cpar%comm_shared, cpar%myid_shared, ierr)
+    call mpi_comm_split(cpar%comm_chain, cpar%myid_shared, 0, cpar%comm_inter, ierr)
+    call mpi_comm_rank(cpar%comm_inter, cpar%myid_inter, ierr)
+    
+
     ! Initialize random number generator
     if (cpar%myid == cpar%root) then
        call rand_init(handle, cpar%base_seed)
@@ -242,9 +255,9 @@ contains
           call mpi_send(j, 1, MPI_INTEGER, i, 98, MPI_COMM_WORLD, ierr)
        end do
     else 
-       call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, status, ierr)
+       call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, mpistat, ierr)
        call rand_init(handle, j)
-       call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, status, ierr)
+       call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, mpistat, ierr)
        call rand_init(handle_noise, j)
     end if
     
@@ -370,7 +383,9 @@ contains
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
-    allocate(cpar%ds_tod_type(n))
+    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n))
+    allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n))
+    allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n))
 
     do i = 1, n
        call int2string(i, itext)
@@ -410,6 +425,11 @@ contains
           call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              !all other tod things
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MAIN_PROCMASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask1(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SMALL_PROCMASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask2(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_filelist(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, par_string=cpar%ds_tod_instfile(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_dets(i))
           end if
        end if
 

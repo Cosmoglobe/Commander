@@ -741,7 +741,7 @@ contains
                    if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
                         & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
                         & nmaps == theta_prev(j)%p%info%nmaps .and. &
-                        & Data(i)%info%pol == theta_prev(j)%p%info%pol) then !
+                        & data(i)%info%pol == theta_prev(j)%p%info%pol) then !
                       theta_p(:,:,j) = theta_prev(j)%p%map
                       cycle
                    end if

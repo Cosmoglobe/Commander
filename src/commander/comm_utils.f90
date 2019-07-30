@@ -25,6 +25,7 @@ module comm_utils
   ! *                                                                   *
   ! *********************************************************************
 
+
 contains
 
   function getlun()
@@ -775,5 +776,93 @@ contains
   end function rand_trunc_gauss
   
   
+  subroutine write_map2(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+    implicit none
+
+    character(len=*),                   intent(in)  :: filename
+    real(dp),         dimension(0:,1:), intent(in)  :: map
+    character(len=*),                   intent(in), optional :: comptype, unit, spectrumfile, ttype
+    real(dp),                           intent(in), optional :: nu_ref
+
+    integer(i4b)   :: npix, nlheader, nmaps, i, nside
+    logical(lgt)   :: exist, polarization
+
+    character(len=80), dimension(1:120)    :: header
+    character(len=16) :: unit_, ttype_
+
+    npix         = size(map(:,1))
+    nside        = nint(sqrt(real(npix,sp)/12.))
+    nmaps        = size(map(0,:))
+    polarization = (nmaps == 3)
+    unit_        = '';       if (present(unit)) unit_  = unit
+    ttype_       = 'Stokes'; if (present(unit)) ttype_ = ttype
+
+
+    !-----------------------------------------------------------------------
+    !                      write the map to FITS file
+    !  This is copied from the synfast.f90 file in the Healpix package
+    !-----------------------------------------------------------------------
+    
+    nlheader = SIZE(header)
+    do i=1,nlheader
+       header(i) = ""
+    enddo
+
+    ! start putting information relative to this code and run
+    call add_card(header)
+    call add_card(header,"COMMENT","-----------------------------------------------")
+    call add_card(header,"COMMENT","     Sky Map Pixelisation Specific Keywords    ")
+    call add_card(header,"COMMENT","-----------------------------------------------")
+    call add_card(header,"PIXTYPE","HEALPIX","HEALPIX Pixelisation")
+    call add_card(header,"ORDERING","RING",  "Pixel ordering scheme, either RING or NESTED")
+    call add_card(header,"NSIDE"   ,nside,   "Resolution parameter for HEALPIX")
+    call add_card(header,"FIRSTPIX",0,"First pixel # (0 based)")
+    call add_card(header,"LASTPIX",npix-1,"Last pixel # (0 based)")
+    call add_card(header,"BAD_DATA",  HPX_DBADVAL ,"Sentinel value given to bad pixels")
+    call add_card(header) ! blank line
+    call add_card(header,"COMMENT","-----------------------------------------------")
+    call add_card(header,"COMMENT","     Data Description Specific Keywords       ")
+    call add_card(header,"COMMENT","-----------------------------------------------")
+    call add_card(header,"POLCCONV","COSMO"," Coord. convention for polarisation (COSMO/IAU)")
+    call add_card(header,"INDXSCHM","IMPLICIT"," Indexing : IMPLICIT or EXPLICIT")
+    call add_card(header,"GRAIN", 0, " Grain of pixel indexing")
+    call add_card(header,"COMMENT","GRAIN=0 : no indexing of pixel data                         (IMPLICIT)")
+    call add_card(header,"COMMENT","GRAIN=1 : 1 pixel index -> 1 pixel data                     (EXPLICIT)")
+    call add_card(header,"COMMENT","GRAIN>1 : 1 pixel index -> data of GRAIN consecutive pixels (EXPLICIT)")
+    call add_card(header) ! blank line
+    call add_card(header,"POLAR",polarization," Polarisation included (True/False)")
+
+    call add_card(header) ! blank line
+    call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
+    call add_card(header,"TUNIT1", unit_,"Map unit")
+    call add_card(header)
+
+    if (polarization) then
+       call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
+       call add_card(header,"TUNIT2", unit_,"Map unit")
+       call add_card(header)
+       
+       call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
+       call add_card(header,"TUNIT3", unit_,"Map unit")
+       call add_card(header)
+    endif
+    call add_card(header,"COMMENT","-----------------------------------------------")
+    call add_card(header,"COMMENT","     Commander Keywords                        ")
+    call add_card(header,"COMMENT","-----------------------------------------------")
+    call add_card(header,"COMMENT","Commander is a code for global CMB analysis    ")
+    call add_card(header,"COMMENT","developed in collaboration between the University")
+    call add_card(header,"COMMENT","of Oslo and Jet Propulsion Laboratory (NASA).  ")
+    call add_card(header,"COMMENT","-----------------------------------------------")
+    if (present(comptype)) call add_card(header,"COMPTYPE",trim(comptype), "Component type")
+    if (present(nu_ref))   call add_card(header,"NU_REF",  nu_ref,         "Reference frequency")
+    if (present(spectrumfile)) call add_card(header,"SPECFILE",  trim(spectrumfile), &
+         & "Reference spectrum")
+    call add_card(header,"COMMENT","-----------------------------------------------")
+
+
+    !call write_bintab(map, npix, nmaps, header, nlheader, filename)
+    call output_map(map, header, "!"//trim(filename))
+
+  end subroutine write_map2
   
 end module comm_utils

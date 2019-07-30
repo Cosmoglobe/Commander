@@ -41,9 +41,9 @@ contains
     real(dp)          :: mem, max_mem, t
     if(.not. status%active) return
     call wall_time(t)
-    mem     = get_mem_use()    /1024d0**3
-    max_mem = get_max_mem_use()/1024d0**3
-    write(str,fmt="(f10.2,i5,f10.5,f10.5,i6,a)") t-status%start_time, status%id, mem, max_mem, getlun(), " " // trim(tag)
+    mem     = get_mem_use2()    /1024d0**3
+    !max_mem = get_max_mem_use()/1024d0**3
+    write(str,fmt="(f10.2,i5,f10.5,i6,a)") t-status%start_time, status%id, mem, getlun(), " " // trim(tag)
     call write_shared_ofile(status%file, str)
     call flush_shared_ofile(status%file)
   end subroutine

@@ -5,7 +5,7 @@ module comm_system_mod
   use healpix_types
   use iso_c_binding
   implicit none
-  integer(i8b), external :: get_mem_use, get_max_mem_use
+  integer(i8b), external :: get_mem_use, get_max_mem_use, get_mem_use2
   integer(i4b), external :: get_pid, open_atomic_file, nfork, popen, svn_revision, ishift, count_set_bits
   logical(lgt), external :: is_dir, mkdir_c, mv_c, rm_c
   integer(i4b), parameter :: SIGINT = 2, SIGSEGV = 11, SIGTERM = 15, SIGBUS = 7
