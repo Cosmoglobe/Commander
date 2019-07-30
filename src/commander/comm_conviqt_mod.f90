@@ -14,7 +14,6 @@ module comm_conviqt_mod
   type :: comm_conviqt
     integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win
     real(dp), allocatable, dimension(:)        :: lnorm
-    !real(dp), allocatable, dimension(:,:)      :: c
     type(shared_2d_dp) :: c
     real(dp) :: psires
     class(comm_mapinfo), pointer :: info
@@ -52,21 +51,8 @@ contains
     complex(spc), allocatable, dimension(:,:) :: alm
     character(len=4) :: id
 
-    !inquire(file='precomp.unf', exist=exist)
-    !if (exist) then
-    !   open(59,file='precomp.unf', form='unformatted')
-    !   read(59) array
-    !   close(59)
-    !else
-       
-
-    !   open(59,file='precomp.unf', form='unformatted')
-    !   write(59) array
-    !   close(59
-    !end if
 
     allocate(constructor)
-
     constructor%lmax  = lmax
     constructor%mmax  = min(beam%info%mmax,lmax)
     constructor%bmax  = bmax
@@ -76,10 +62,6 @@ contains
     constructor%comm  = map%info%comm
     constructor%optim = optim
     nalm_tot          = (lmax+1)*(lmax+2)/2
-!    if(map%info%myid == 0) write(*,*) constructor%lmax, constructor%bmax, constructor%nside, constructor%mmax, constructor%optim
-
- !   call mpi_finalize(ierr)
-  !  stop
 
     !current optimization levels:
     !0 - no optimization
@@ -122,7 +104,6 @@ contains
          & [nmaps,nalm_tot], constructor%alm_beam)
     call sync_shared_2d_spc_alm(constructor%alm_beam, ind, alm)
 
-!    write(*,*) constructor%info%myid, minval(abs(constructor%alm_beam%a)), maxval(abs(constructor%alm_beam%a))
     deallocate(ind, alm)
 
     ! Precompute convolution cube
@@ -155,15 +136,9 @@ contains
 
     ! Get pixel number
     call ang2pix_ring(self%nside, theta, modulo(phi, 2.d0 *pi), pixnum)
-!    call ang2pix_ring(self%nside, theta, modulo(phi + pi, 2.d0 *pi), pixnum)
 
     !unwrap psi
     unwrap = modulo(psi, 2.d0*pi)
-    !if (psi < 0) then
-    !  unwrap = psi + 2*pi
-    !else
-    !  unwrap = psi
-    !end if
 
     if (self%optim == 2) then
        bpsi = max(nint(unwrap / self%psires),0)
@@ -189,11 +164,6 @@ contains
     x1     = psiu * self%psires
     interp = ((self%c%a(pixnum+1, psii+1)) * (x1 - unwrap) + self%c%a(pixnum+1, psiu+1) * (unwrap - x0))/(x1 - x0)
 
-    !interp = 0.d0
-
-    !if( isNaN(interp)) then
-    !  write(*,*) self%c(pixnum+1, psii), self%c(pixnum+1, psiu), interp, theta, phi,psi
-    !end if
 
   end function interp
 
@@ -223,12 +193,6 @@ contains
 
     allocate(alm(0:self%info%nalm-1, 2))
     allocate(mout(0:self%info%np-1, 2))
-
-    !check lmaxes
-!!$    if (beam%info%lmax > map%info%lmax) then
-!!$      write(*,*) "possible problem with not enought ms in precompute_sky"
-!!$      stop
-!!$    endif
 
     ! Compute maps for each m
     do j=0, self%bmax
@@ -270,10 +234,6 @@ contains
       
     end do
 
-    if(map%info%myid == 0) then
-!      write(*,*) 'Done sharp execute', sum(marray)
-    end if
-
     ! Fourier transform in psi direction
     allocate(dt(self%psisteps), dv(0:self%psisteps/2))
     call dfftw_plan_dft_c2r_1d(fft_plan, self%psisteps, dv, dt, fftw_estimate + fftw_unaligned)
@@ -283,10 +243,6 @@ contains
     
     !self%c = 0.d0
     do i=1, np
-        if(map%info%myid == 0) then
-!          write(*,*) 'i=', i, np
-        end if
-
 
       !do fft of data, store to dt
       dv(0)  = marray(i, 0)
@@ -294,24 +250,9 @@ contains
         dv(j) = cmplx(marray(i, j), marray(i, -j))
       end do
 
-      !if(map%info%myid == 6 .and. i == 0) then
-      !  write(*,*) size(dv), self%mmax, size(marray(0,:))
-      !end if
-
-
       call dfftw_execute_dft_c2r(fft_plan, dv, dt)
-      !if(any(isNaN(dt))) then
-      !  write(*,*) dv, dt, map%info%myid
-      !end if
 
-!      dt = dt / self%psisteps
-
-      !copy to c
-      !self%c(self%info%pix(i),0:self%psisteps -1) = dt(1:self%psisteps)
       self%c%a(self%info%pix(i)+1,:) = dt(1:self%psisteps)
-      !if(map%info%myid == 2 .and. sum(self%c) /= 0.d0) then
-      !  write(*,*) 'Executed fft, i = ', i, sum(dv), sum(dt), sum(self%c), size(self%c(pixNum,:)), size(dt)
-      !end if
 
     end do
     call mpi_win_fence(0, self%c%win, ierr)
@@ -322,19 +263,6 @@ contains
     deallocate(dt)
     deallocate(dv)
  
-    !bcast to all cores
-
-    !call mpi_allreduce(MPI_IN_PLACE, self%c, size(self%c), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-
-
-!    if(map%info%myid == 0) write(*,*) 'b'
-!    call mpi_allreduce(MPI_IN_PLACE, self%c, size(self%c), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-!    if(map%info%myid == 0) write(*,*) 'c'
-
-    if(map%info%myid == 0) then
-!      write(*,*) 'Allreduced, sum = ', sum(self%c)
-    end if
-
   end subroutine precompute_sky
 
   ! Note: lnorm is set to 1 here. Todo: Figure out why 
@@ -368,24 +296,8 @@ contains
         v1 = sum(      alm_s *alm_b)
         v2 = 0; if (m_b /= 0) v2 = sum(conjg(alm_s)*alm_b)*mfac
         
-!        if (self%info%myid==23) then
-!!$        if (isNaN(abs(v1))) then
-!           write(*,*) 'v1', l, m, v1, alm_s, alm_b, mfac
-!!$        end if
-!!$        if (isNaN(abs(v2))) then
-!!$           write(*,*) 'v2', i, l, m, v2
-!!$        end if
-!     end if
-
-
         ! Positive spin
         almc = spinsign*self%lnorm(l) * (v1+conjg(v2)*mfac)
-!!$        if (m == 64) then
-!!$           write(*,*) i, l, m, m_b, almc
-!!$           write(*,*) spinsign, self%lnorm(l)
-!!$           write(*,*) alm_b
-!!$           write(*,*) alm_s
-!!$        end if
         if (m == 0) then
            alm(i,1) = real(almc)
         else
@@ -404,15 +316,6 @@ contains
               alm(ineg,2) = imag(almc) * sqrt_two
            end if
         end if
-
-!!$        call map%info%lm2i(l, m, j)        
-!!$        write(*,*) l, m, alm(i,1)/(map%alm(j,1)*exp(-0.5d0*l*(l+1)*(420.d0*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2))
-!!$        !alm(i,1) = map%alm(j,1)*exp(-0.5d0*l*(l+1)*(420.d0*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
-!!$
-!!$        call map%info%lm2i(l, -m, j)        
-!!$        write(*,*) l, -m, alm(ineg,1)/(map%alm(j,1)*exp(-0.5d0*l*(l+1)*(420.d0*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)) 
-!!$        !alm(ineg,1) = map%alm(j,1)*exp(-0.5d0*l*(l+1)*(420.d0*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
-
 
      end do
 
