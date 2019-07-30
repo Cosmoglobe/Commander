@@ -85,7 +85,7 @@ contains
     nmaps_beam = 1
     pol_beam   = .false.
     constructor%slinfo => comm_mapinfo(cpar%comm_chain, nside_beam, lmax_beam, &
-            & nmaps_beam, pol_beam, .false.)
+            & nmaps_beam, pol_beam, .true.)
     allocate(constructor%slbeam(constructor%ndet), constructor%slconv(constructor%ndet))
     do i = 1, constructor%ndet
         constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., .true., trim(constructor%label(i)))
@@ -138,8 +138,8 @@ contains
 
     call rand_init(handle, 243789)
     ! Set up full-sky map structures
-    n_main_iter     = 3
-    chisq_threshold = 2000.d0 
+    n_main_iter     = 1
+    chisq_threshold = 1000000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(map_in,2)
@@ -182,9 +182,15 @@ contains
     ! Compute far sidelobe Conviqt structures
     call wall_time(t1)
     do i = 1, self%ndet
+       call map_in(i,1)%p%remove_MDpoles() !remove mono and dipole components
+       !call map_in(i,1)%p%writeFITS('nodp.fits')
        call map_in(i,1)%p%YtW()  ! Compute sky a_lms
+       !TODO: make this work with shared arrays instead because that makes more
+       !sense
+       call self%slbeam(i)%p%bcast_fullsky_alms()
        if (self%myid == 0) write(*,*) 'precomputing sky', i
        self%slconv(i)%p => comm_conviqt(self%slbeam(i)%p, map_in(i,1)%p, 2)
+       call self%slbeam(i)%p%distribute_alms()
     end do
     call wall_time(t2)
     t_tot(13) = t2-t1
@@ -458,6 +464,7 @@ contains
        !if (self%myid == 0) write(*,*) 'bin        = ', t2-t1
        
     end do
+
     ! Parameter to check if this is first time routine has been 
     first_call = .false.
 
@@ -495,6 +502,7 @@ contains
     call map_out%writeFITS('map.fits')
     call rms_out%writeFITS('rms.fits')
 
+    !stop
     ! Clean up temporary arrays
     deallocate(map_sky, A_map, b_map, procmask, procmask2)
     deallocate(A_abscal, b_abscal)
@@ -908,9 +916,9 @@ contains
        psi_    = psi(j) ! HKE: Should this be defined without the detector angle
        s_sl(j) = slconv%interp(theta, phi, psi_)  ! Commented out until validated
        if(abs(s_sl(j)) > 10.d0) then
-         write(*,*) s_sl(j), pix, theta, phi, psi_
+         !write(*,*) s_sl(j), pix, theta, phi, psi_
        end if
-       s_sl(j) = 0.d0
+       !s_sl(j) = 0.d0
     end do
 
   end subroutine construct_sl_template
