@@ -152,7 +152,8 @@ contains
     character(len=*),  intent(in) :: filename
     logical(lgt),      intent(in) :: output_hdf
     
-    integer(i4b) :: unit, i
+    integer(i4b) :: unit, i, j
+    real(dp), allocatable, dimension(:,:) :: bp_delta
 
     if (cpar%myid /= 0) return
 
@@ -169,8 +170,14 @@ contains
        if (output_hdf) then
           call write_hdf(chainfile, trim(adjustl(iter))//'/gain/'//trim(adjustl(data(i)%label)), &
                & data(i)%gain)
+
+          allocate(bp_delta(0:data(i)%ndet,data(i)%bp(1)%p%npar))
+          do j = 0, data(i)%ndet
+             bp_delta(j,:) = data(i)%bp(j)%p%delta
+          end do
           call write_hdf(chainfile, trim(adjustl(iter))//'/bandpass/'//trim(adjustl(data(i)%label)), &
-               & data(i)%bp(0)%p%delta)
+               & bp_delta)
+          deallocate(bp_delta)
        end if
     end do
     close(unit)
