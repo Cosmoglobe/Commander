@@ -28,6 +28,18 @@ module comm_utils
 
 contains
 
+  function median(array) result(res)
+    implicit none
+    real(dp) :: array(:), res
+    real(dp), dimension(:), allocatable :: tmp
+
+    allocate(tmp(size(array)))
+    tmp = array
+    call QuickSort_real(tmp)
+    res = tmp(size(tmp)/2+1)
+    deallocate(tmp)
+  end function median
+
   function getlun()
     implicit none
     integer(i4b) :: getlun

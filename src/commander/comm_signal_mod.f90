@@ -182,12 +182,13 @@ contains
     implicit none
     type(comm_params), intent(in) :: cpar
 
-    integer(i4b)              :: i
+    integer(i4b)              :: i, j
     character(len=4)          :: ctext
     character(len=6)          :: itext
     character(len=512)        :: chainfile, hdfpath
     class(comm_comp), pointer :: c
     type(hdf_file) :: file
+    real(dp), allocatable, dimension(:,:) :: bp_delta
 
     if (cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') return
 
@@ -212,8 +213,17 @@ contains
           else
              call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
                   & data(i)%gain)
+  
+             allocate(bp_delta(0:data(i)%ndet,data(i)%bp(1)%p%npar))
              call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
-                  & data(i)%bp(0)%p%delta)
+                  & bp_delta)
+             do j = 0, data(i)%ndet
+                data(i)%bp(j)%p%delta = bp_delta(j,:)
+             end do
+             deallocate(bp_delta)
+
+             !call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+             !     & data(i)%bp(0)%p%delta)
           end if
        end do
     end if
@@ -232,7 +242,7 @@ contains
        c => c%next()
     end do
 
-    ! Output TOD parameters
+    ! Initialize TOD parameters
     do i = 1, numband  
        if (trim(cpar%ds_tod_type(i)) == 'none' .or. &
             & .not. data(i)%tod%init_from_HDF) cycle
