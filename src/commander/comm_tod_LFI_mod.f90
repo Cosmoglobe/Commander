@@ -1294,13 +1294,12 @@ contains
     real(dp),                            intent(in)   :: polangle
     real(sp),            dimension(:),   intent(out)   :: s_sl
     
-    integer(i4b) :: i, j, p
-    real(dp)     :: psi_, theta, phi
+    integer(i4b) :: j
+    real(dp)     :: psi_
 
     do j=1, size(pix)
-       call pix2ang_ring(nside, pix(j), theta, phi)
        psi_    = self%psi(psi(j))-polangle 
-       s_sl(j) = slconv%interp(theta, phi, psi_)  
+       s_sl(j) = slconv%interp(pix(j), psi_) 
     end do
 
   end subroutine construct_sl_template
