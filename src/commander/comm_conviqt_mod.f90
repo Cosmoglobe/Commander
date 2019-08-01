@@ -15,6 +15,7 @@ module comm_conviqt_mod
     integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win
     real(dp), allocatable, dimension(:)        :: lnorm
     type(shared_2d_dp) :: c
+    type(shared_1d_int) :: pixLookup
     real(dp) :: psires
     class(comm_mapinfo), pointer :: info
     type(shared_2d_spc) :: alm_beam
@@ -49,6 +50,7 @@ contains
     integer(i4b) :: i, j, k, l, m, ierr, nalm_tot, nalm
     integer(i4b), allocatable, dimension(:)   :: ind
     complex(spc), allocatable, dimension(:,:) :: alm
+    real(dp) :: theta, phi
     character(len=4) :: id
 
 
@@ -121,21 +123,37 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
+
+    !precompute pixel->pixel lookup table
+    call init_shared_1d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
+        & [12*(map%info%nside**2)], constructor%pixLookup)
+
+    if(myid_shared == 0) then
+      do i=0, 12*(map%info%nside**2) -1
+        call pix2ang_ring(map%info%nside, i, theta, phi)
+        call ang2pix_ring(constructor%nside, theta, phi, j)
+        constructor%pixLookup%a(i+1) = j
+      end do
+    end if
+
+    call mpi_win_fence(0, constructor%pixLookup%win, ierr)    
+
   end function constructor
 
 
   !interpolates the precomputed map to the psi angle
-  function interp(self, theta, phi, psi)
+  function interp(self, pix, psi)
     implicit none
     class(comm_conviqt),       intent(in) :: self
-    real(dp),                  intent(in) :: theta, phi, psi
+    integer(i4b),              intent(in) :: pix
+    real(dp),                  intent(in) :: psi
     real(sp)                              :: interp
 
     real(sp)       :: x0, x1, unwrap, bpsi
     integer(i4b)   :: pixnum, psii, psiu
 
     ! Get pixel number
-    call ang2pix_ring(self%nside, theta, modulo(phi, 2.d0 *pi), pixnum)
+    pixnum = self%pixLookup%a(pix+1)
 
     !unwrap psi
     unwrap = modulo(psi, 2.d0*pi)
@@ -145,7 +163,7 @@ contains
        if (bpsi == self%psisteps) bpsi = 0
       interp = self%c%a(pixnum+1, bpsi+1)
       if (isNaN(interp)) then
-         write(*,*) 'nan', theta, phi, psi, pixnum, unwrap, interp
+         write(*,*) 'nan', pix, psi, pixnum, unwrap, interp
       end if
       return
     end if
@@ -240,8 +258,6 @@ contains
     if(fft_plan == 0) then
       write(*,*) 'Failed to create fftw plan, thread ', map%info%myid
     end if
-    
-    !self%c = 0.d0
     do i=1, np
 
       !do fft of data, store to dt
