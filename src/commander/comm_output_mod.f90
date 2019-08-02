@@ -137,7 +137,7 @@ contains
        end if
        do i = 1, numband  
           if (trim(cpar%ds_tod_type(i)) == 'none') cycle
-          call data(i)%tod%dumpToHDF(file, iter)
+          if (associated(data(i)%tod)) call data(i)%tod%dumpToHDF(file, iter)
        end do
     end if
 
@@ -171,7 +171,7 @@ contains
           call write_hdf(chainfile, trim(adjustl(iter))//'/gain/'//trim(adjustl(data(i)%label)), &
                & data(i)%gain)
 
-          allocate(bp_delta(0:data(i)%ndet,data(i)%bp(1)%p%npar))
+          allocate(bp_delta(0:data(i)%ndet,data(i)%bp(0)%p%npar))
           do j = 0, data(i)%ndet
              bp_delta(j,:) = data(i)%bp(j)%p%delta
           end do

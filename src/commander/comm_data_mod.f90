@@ -32,7 +32,7 @@ module comm_data_mod
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
      type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
    contains
-     procedure :: RJ2data
+2     procedure :: RJ2data
      procedure :: apply_proc_mask
   end type comm_data_set
 

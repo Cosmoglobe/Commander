@@ -16,15 +16,10 @@ module comm_tod_mod
      character(len=10) :: label                           ! Detector label
      real(dp)          :: gain, gain_sigma                ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
-     real(dp)          :: samprate                        ! Sample rate in Hz
-     real(dp)          :: polang                          ! Detector polarization angle
-     real(dp)          :: mbang                           ! Main beams angle
-     real(dp)          :: mono                            ! Monopole
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
      logical(lgt)      :: accept
-     integer(i4b)      :: nside                           ! Nside for pixelized pointing
      real(sp),     allocatable, dimension(:)   :: tod     ! Detector values in time domain, (ntod)     
      byte,         allocatable, dimension(:)   :: flag    ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      byte,         allocatable, dimension(:)   :: pix     ! Compressed pixelized pointing, (ntod,nhorn)
@@ -38,7 +33,7 @@ module comm_tod_mod
      real(dp)       :: proctime    = 0.d0                          ! Processing time in seconds
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
-     real(dp)       :: t0                                          ! MJD for first sample; not currently used, so set to zero for now
+     real(dp)       :: t0                                          ! MJD for first sample
      type(huffcode) :: hkey                                        ! Huffman decompression key
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
@@ -49,6 +44,7 @@ module comm_tod_mod
      character(len=512) :: procmaskf1
      character(len=512) :: procmaskf2
      character(len=512) :: instfile
+     character(len=512) :: operation
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: comm_shared, myid_shared                     ! MPI parameters
      integer(i4b) :: comm_inter, myid_inter                     ! MPI parameters
@@ -58,6 +54,10 @@ module comm_tod_mod
      integer(i4b) :: nscan, nscan_tot                              ! Number of scans
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      real(dp)     :: samprate                                     ! Sample rate in Hz
+     real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
+     real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
+     real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
+     integer(i4b)      :: nside                           ! Nside for pixelized pointing
      logical(lgt) :: output_all                                   ! Oitput all samples
      logical(lgt) :: init_from_HDF                                   ! Oitput all samples
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
@@ -76,7 +76,7 @@ module comm_tod_mod
      class(comm_mapinfo), pointer                      :: slinfo   ! Sidelobe map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
-     real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (ndet, ndelta)
+     real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (ndet, npar)
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
@@ -126,22 +126,31 @@ contains
 
     integer(i4b) :: i, j, det, ierr, npsi, nside
     real(dp)     :: t1, t2, psi, fsamp
-    real(dp), allocatable, dimension(:) :: mbang, polang
+    type(hdf_file)     :: file
 
-    if (self%nscan ==0) then
-       call mpi_barrier(self%comm, ierr)
-       return
+    ! Read common fields
+    allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet))
+    self%mono = 0.d0
+    if (self%myid == 0) then
+       call open_hdf_file(self%hdfname(1), file, "r")
+       call read_hdf(file, "common/nside",  self%nside)
+       call read_hdf(file, "common/npsi",  self%npsi)
+       call read_hdf(file, "common/fsamp",  self%samprate)
+!       call read_hdf(file, "common/polang",  self%polang)
+!       call read_hdf(file, "common/mbang",  self%mbang)
+       call close_hdf_file(file)
     end if
+    call mpi_bcast(self%nside,    1,     MPI_INTEGER,          0, self%comm, ierr)
+    call mpi_bcast(self%npsi,     1,     MPI_INTEGER,          0, self%comm, ierr)
+    call mpi_bcast(self%samprate, 1,     MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(self%polang,   self%ndet,  MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(self%mbang,    self%ndet,  MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
 
     call wall_time(t1)
-    allocate(self%scans(self%nscan), mbang(self%ndet), polang(self%ndet))
+    allocate(self%scans(self%nscan))
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self%myid, self%hdfname(i), self%scanid(i), self%ndet, &
-            & detlabels, i>1, npsi, nside, fsamp, mbang, polang)
-       if (i == 1) then
-          self%npsi     = npsi
-          self%samprate = fsamp
-       end if
+            & detlabels)
        do det = 1, self%ndet
           self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
           if (.not. self%scans(i)%d(det)%accept) then
@@ -150,11 +159,6 @@ contains
              write(*,fmt='(a,a)') '    filename = ', &
                   & trim(self%hdfname(i))
           end if
-          self%scans(i)%d(1)%mbang = -22.46 * DEG2RAD 
-          self%scans(i)%d(2)%mbang = -22.46 * DEG2RAD 
-          self%scans(i)%d(3)%mbang =  22.45 * DEG2RAD 
-          self%scans(i)%d(4)%mbang =  22.45 * DEG2RAD 
-          !self%scans(i)%d(:)%mbang =   0.d0
        end do
     end do
 
@@ -168,7 +172,6 @@ contains
        self%cos2psi(i) = cos(2.d0*psi)
     end do
 
-    deallocate(polang, mbang)
     call mpi_barrier(self%comm, ierr)
     call wall_time(t2)
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
@@ -177,21 +180,16 @@ contains
 
   end subroutine read_tod
 
-  subroutine read_hdf_scan(self, myid, filename, scan, ndet, detlabels, use_input, npsi, nside, fsamp, mbang, polang)
+  subroutine read_hdf_scan(self, myid, filename, scan, ndet, detlabels)
     implicit none
     integer(i4b),                   intent(in)    :: myid
     character(len=*),               intent(in)    :: filename
     integer(i4b),                   intent(in)    :: scan, ndet
     class(comm_scan),               intent(inout) :: self
-    logical(lgt),                   intent(in)    :: use_input
-    integer(i4b),                   intent(inout) :: npsi, nside
-    real(dp),                       intent(inout) :: fsamp
-    real(dp), dimension(:),         intent(inout) :: mbang, polang
-
     character(len=*), dimension(:), intent(in)     :: detlabels
 
     integer(i4b)       :: i, j, k, n, m, nhorn, ext(1), ierr
-    real(dp)           :: psi, t1, t2, t3, t4, t_tot(6)
+    real(dp)           :: psi, t1, t2, t3, t4, t_tot(6), scalars(4)
     character(len=6)   :: slabel
     character(len=32)   :: out
     character(len=8)   :: out2
@@ -219,9 +217,7 @@ contains
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
-    !call read_hdf(file, slabel // "/common/time",  self%t0)
-    self%t0 = 0.d0 ! Not currently used, set to zero for now
-    if (.not. use_input) call read_hdf(file, slabel // "/common/npsi",  npsi)
+    call read_hdf(file, slabel // "/common/time",  self%t0)
     call wall_time(t2)
     t_tot(1) = t2-t1
 
@@ -235,20 +231,11 @@ contains
        call wall_time(t1)
        allocate(self%d(i)%tod(m))
        self%d(i)%label = trim(field)
-       call read_hdf(file, slabel // "/" // trim(field) // "/gain",   self%d(i)%gain)
-       call read_hdf(file, slabel // "/" // trim(field) // "/sigma0", self%d(i)%sigma0)
-       call read_hdf(file, slabel // "/" // trim(field) // "/alpha",  self%d(i)%alpha)
-       call read_hdf(file, slabel // "/" // trim(field) // "/fknee",  self%d(i)%fknee)
-       if (.not. use_input) then
-          call read_hdf(file, slabel // "/" // trim(field) // "/polang", polang(i))
-!          call read_hdf(file, slabel // "/" // trim(field) // "/mbang",  mbang(i))
-          call read_hdf(file, slabel // "/common/nside",                 nside)
-          call read_hdf(file, slabel // "/common/fsamp",                 fsamp)
-       end if
-       self%d(i)%polang   = polang(i)
-       self%d(i)%mbang    = mbang(i) * DEG2RAD 
-       self%d(i)%nside    = nside
-       self%d(i)%samprate = fsamp
+       call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
+       self%d(i)%gain   = scalars(1)
+       self%d(i)%sigma0 = scalars(2)
+       self%d(i)%fknee  = scalars(3)
+       self%d(i)%alpha  = scalars(4)
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
@@ -281,16 +268,16 @@ contains
 
     call wall_time(t4)
 
-    if (myid == 0) then
-       write(*,*)
-       write(*,*) '  IO init   = ', t_tot(1)
-       write(*,*) '  IO field  = ', t_tot(2)
-       write(*,*) '  IO scalar = ', t_tot(3)
-       write(*,*) '  IO tod    = ', t_tot(4)
-       write(*,*) '  IO comp   = ', t_tot(5)
-       write(*,*) '  IO huff   = ', t_tot(6)
-       write(*,*) '  IO total  = ', t4-t3
-    end if
+!!$    if (myid == 0) then
+!!$       write(*,*)
+!!$       write(*,*) '  IO init   = ', t_tot(1)
+!!$       write(*,*) '  IO field  = ', t_tot(2)
+!!$       write(*,*) '  IO scalar = ', t_tot(3)
+!!$       write(*,*) '  IO tod    = ', t_tot(4)
+!!$       write(*,*) '  IO comp   = ', t_tot(5)
+!!$       write(*,*) '  IO huff   = ', t_tot(6)
+!!$       write(*,*) '  IO total  = ', t4-t3
+!!$    end if
 
   end subroutine read_hdf_scan
 
@@ -372,7 +359,7 @@ contains
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
 
-    npar = 7
+    npar = 6
     allocate(output(self%nscan_tot,self%ndet,npar))
 
     ! Collect all parameters 
@@ -384,9 +371,8 @@ contains
           output(k,j,2) = self%scans(i)%d(j)%sigma0
           output(k,j,3) = self%scans(i)%d(j)%alpha
           output(k,j,4) = self%scans(i)%d(j)%fknee
-          output(k,j,5) = self%scans(i)%d(j)%polang
-          output(k,j,6) = self%scans(i)%d(j)%mono
-          output(k,j,7) = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+          output(k,j,5) = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+          output(k,j,6) = self%scans(i)%d(j)%chisq
        end do
     end do
 
@@ -406,9 +392,10 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'sigma0', output(:,:,2))
        call write_hdf(chainfile, trim(adjustl(path))//'alpha',  output(:,:,3))
        call write_hdf(chainfile, trim(adjustl(path))//'fknee',  output(:,:,4))
-       call write_hdf(chainfile, trim(adjustl(path))//'polang', output(:,:,5))
-       call write_hdf(chainfile, trim(adjustl(path))//'mono',   output(:,:,6))
-       call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,7))
+       call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,5))
+       call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
+       call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
+       call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
     end if
 
@@ -427,7 +414,7 @@ contains
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
 
-    npar = 7
+    npar = 5
     allocate(output(self%nscan_tot,self%ndet,npar))
 
     if (self%myid == 0) then
@@ -437,15 +424,19 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
        call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,3))
        call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,4))
-       call read_hdf(chainfile, trim(adjustl(path))//'polang',   output(:,:,5))
-       call read_hdf(chainfile, trim(adjustl(path))//'mono',     output(:,:,6))
-       call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,7))
+       call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,5))
+       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
+       call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
     end if
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
     call mpi_bcast(self%bp_delta, size(self%bp_delta), MPI_DOUBLE_PRECISION, 0, &
+         & self%comm, ierr)
+    call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
+         & self%comm, ierr)
+    call mpi_bcast(self%mono, size(self%mono), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
 
     do j = 1, self%ndet
@@ -455,9 +446,7 @@ contains
           self%scans(i)%d(j)%sigma0 = output(k,j,2)
           self%scans(i)%d(j)%alpha  = output(k,j,3)
           self%scans(i)%d(j)%fknee  = output(k,j,4)
-          self%scans(i)%d(j)%polang = output(k,j,5)
-          self%scans(i)%d(j)%mono   = output(k,j,6)
-          self%scans(i)%d(j)%accept = output(k,j,7) == 1.d0
+          self%scans(i)%d(j)%accept = output(k,j,5) == 1.d0
        end do
     end do
 

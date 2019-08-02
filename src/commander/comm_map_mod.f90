@@ -199,7 +199,8 @@ contains
     call QuickSort_int(p_new%pix)
 
     ! Select m's
-    p_new%nm = 0
+    p_new%nm   = 0
+    p_new%nalm = 0
     do m = myid, lmax, nprocs
        p_new%nm   = p_new%nm   + 1
        if (m == 0) then
@@ -297,9 +298,9 @@ contains
           call constructor_map%readFITS(filename, udgrade=udgrade)
        end if
     else
-       constructor_map%map = 0.d0
+       if (info%np > 0) constructor_map%map = 0.d0
     end if
-    constructor_map%alm = 0.d0
+    if (info%nalm > 0) constructor_map%alm = 0.d0
     
   end function constructor_map
 
