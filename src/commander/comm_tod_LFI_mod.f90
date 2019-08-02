@@ -71,7 +71,7 @@ contains
     class(comm_mapinfo),     target     :: info
     class(comm_LFI_tod),     pointer    :: constructor
 
-    integer(i4b) :: i, j, l, m, nside_beam, lmax_beam, nmaps_beam, ndelta
+    integer(i4b) :: i, j, l, m, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
     type(hdf_file) :: h5_file
@@ -171,6 +171,14 @@ contains
        call close_hdf_file(h5_file)
     end if
 
+    ! Lastly, create a vector pointing table for fast look-up for orbital dipole
+    np_vec = 12*constructor%scans(1)%d(1)%nside**2 !npix
+    allocate(constructor%pix2vec(3,0:np_vec-1))
+    do i = 0,np_vec
+       call pix2vec_ring(constructor%scans(1)%d(1)%nside, i, &
+            & constructor%pix2vec(:,i))
+    end do
+           
   end function constructor
 
   !**************************************************
@@ -866,13 +874,12 @@ contains
     do i = 1,self%ndet
        if (.not. self%scans(ind)%d(i)%accept) cycle
        do j=1,self%scans(ind)%ntod !length of the tod
-          if(pix(j, i) < 0 .or. pix(j,i) > 12*(self%nside**2)) then
-            !write(*,*) pix(j, i), self%scans(ind)%d(i)%nside
-            cycle
-        end if
-          call pix2vec_ring(self%nside, pix(j,i), &
-               & pix_dir)
-          b_dot = dot_product(self%scans(ind)%v_sun, pix_dir)/c
+          if(pix(j, i) < 0 .or. pix(j,i) > 12*(self%scans(ind)%d(i)%nside**2)) then
+             !write(*,*) pix(j, i), self%scans(ind)%d(i)%nside
+             cycle
+          end if
+          
+          b_dot = dot_product(self%scans(ind)%v_sun, self%pix2vec(:,pix(j,i)))/c
           s_orb(j,i) = T_CMB  * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
