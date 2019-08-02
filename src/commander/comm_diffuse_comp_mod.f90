@@ -177,6 +177,7 @@ contains
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
+!       write(*,*) i, 'ndet = ', data(i)%ndet, shape(self%F), info%nside
        do j = 0, data(i)%ndet
           self%F(i,j)%p    => comm_map(info)
           self%F_null(i,j) =  .false.
@@ -1886,14 +1887,14 @@ contains
 
     if (present(band)) then
        do i = 1, data(band)%info%nmaps
-          do j = 0, data(band)%tod%ndet
+          do j = 0, data(band)%ndet
              call self%F_int(i,band,j)%p%update(pol=i)
           end do
        end do
     else
        do k = 1, numband
           do i = 1, data(k)%info%nmaps
-             do j = 0, data(k)%tod%ndet
+             do j = 0, data(k)%ndet
                 call self%F_int(i,k,j)%p%update(pol=i)
              end do
           end do
