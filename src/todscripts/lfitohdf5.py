@@ -111,7 +111,7 @@ def make_od(freq, od, args, outbuf):
             mainbeamangs.append(math.radians(mbangs[horn]))
 
     #make detector names lookup
-    outFile.create_dataset(prefix + '/det', data=detNames)
+    outFile.create_dataset(prefix + '/det', data=np.string_(detNames[0:-2]))
 
     #make polarization angle
     outFile.create_dataset(prefix + '/polang', data=polangs)

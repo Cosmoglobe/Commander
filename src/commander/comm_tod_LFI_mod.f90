@@ -752,6 +752,8 @@ contains
        end if
     end if
 
+    !stop
+
     ! Clean up temporary arrays
     deallocate(A_map, b_map)
     deallocate(A_abscal, b_abscal, chisq_S)
