@@ -129,16 +129,41 @@ contains
     real(dp)     :: t1, t2, psi, fsamp
     type(hdf_file)     :: file
 
+    real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
+    character(len=1024)                           :: det_buf
+    character(len=128), dimension(:), allocatable :: dets
+
+
     ! Read common fields
     allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%hdfname(1), file, "r")
+       allocate(polang_buf(self%ndet), mbang_buf(self%ndet), dets(self%ndet))
+
+
+       !TODO: figure out how to make this work
+       !call read_hdf(file, "/common/det",    det_buf)
+       write(det_buf, *) "27M, 27S, 28M, 28S"
+       call get_tokens(det_buf, ',', dets)
        call read_hdf(file, "common/nside",  self%nside)
        call read_hdf(file, "common/npsi",  self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
-!       call read_hdf(file, "common/polang",  self%polang)
-!       call read_hdf(file, "common/mbang",  self%mbang)
+       call read_hdf(file, "common/polang",  self%polang)
+       call read_hdf(file, "common/mbang",  self%mbang)
+
+       do i = 1, self%ndet
+         do j = 1, self%ndet
+           if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
+             exit
+           end if
+         end do
+         self%polang(i) = polang_buf(j)
+         self%mbang(i) = mbang_buf(j)
+       end do
+       deallocate(polang_buf, mbang_buf, dets)
+
+
        call close_hdf_file(file)
     end if
     call mpi_bcast(self%nside,    1,     MPI_INTEGER,          0, self%comm, ierr)
@@ -197,9 +222,9 @@ contains
     character(len=128) :: field
     integer(hid_t)     :: nfield, err, obj_type
     type(hdf_file)     :: file
-    integer(i4b), allocatable, dimension(:) :: hsymb
-    real(dp),     allocatable, dimension(:) :: buffer_sp
-    integer(i4b), allocatable, dimension(:) :: htree
+    integer(i4b), allocatable, dimension(:)       :: hsymb
+    real(dp),     allocatable, dimension(:)       :: buffer_sp
+    integer(i4b), allocatable, dimension(:)       :: htree
 
     call wall_time(t3)
     t_tot = 0.d0
@@ -233,10 +258,10 @@ contains
        allocate(self%d(i)%tod(m))
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-       self%d(i)%gain   = scalars(1)
+       self%d(i)%gain = scalars(1)
        self%d(i)%sigma0 = scalars(2)
-       self%d(i)%fknee  = scalars(3)
-       self%d(i)%alpha  = scalars(4)
+       self%d(i)%fknee = scalars(3)
+       self%d(i)%alpha = scalars(4)
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
