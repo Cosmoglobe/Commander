@@ -172,11 +172,10 @@ contains
     end if
 
     ! Lastly, create a vector pointing table for fast look-up for orbital dipole
-    np_vec = 12*constructor%scans(1)%d(1)%nside**2 !npix
+    np_vec = 12*constructor%nside**2 !npix
     allocate(constructor%pix2vec(3,0:np_vec-1))
-    do i = 0,np_vec
-       call pix2vec_ring(constructor%scans(1)%d(1)%nside, i, &
-            & constructor%pix2vec(:,i))
+    do i = 0, np_vec-1
+       call pix2vec_ring(constructor%nside, i, constructor%pix2vec(:,i))
     end do
            
   end function constructor
@@ -236,7 +235,7 @@ contains
     call wall_time(t1)
     correct_sl      = .false.
     chisq_threshold = 7.d0
-    n_main_iter     = 3
+    n_main_iter     = 4
     !chisq_threshold = 20000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -342,8 +341,8 @@ contains
        do_oper(samp_acal)    = (main_iter == n_main_iter  ) .and. .not. first
        do_oper(prep_bp)      = (main_iter == n_main_iter-2) .and. .not. first
        do_oper(samp_bp)      = (main_iter == n_main_iter-1) .and. .not. first
-       do_oper(prep_G)       = .false. !(main_iter == n_main_iter-3) .and. .not. first
-       do_oper(samp_G)       = .false. !(main_iter == n_main_iter-2) .and. .not. first
+       do_oper(prep_G)       = (main_iter == n_main_iter-3) .and. .not. first
+       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. first
        do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = do_oper(bin_map)             .and. .not. first
        do_oper(sub_sl)       = correct_sl
@@ -623,7 +622,7 @@ contains
                 end if
              end do
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
-             if (self%myid == 0) write(*,*) 'bin = ', t2-t1
+             !if (self%myid == 0) write(*,*) 'bin = ', t2-t1
           end if
 
           ! Clean up
@@ -874,11 +873,6 @@ contains
     do i = 1,self%ndet
        if (.not. self%scans(ind)%d(i)%accept) cycle
        do j=1,self%scans(ind)%ntod !length of the tod
-          if(pix(j, i) < 0 .or. pix(j,i) > 12*(self%scans(ind)%d(i)%nside**2)) then
-             !write(*,*) pix(j, i), self%scans(ind)%d(i)%nside
-             cycle
-          end if
-          
           b_dot = dot_product(self%scans(ind)%v_sun, self%pix2vec(:,pix(j,i)))/c
           s_orb(j,i) = T_CMB  * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
