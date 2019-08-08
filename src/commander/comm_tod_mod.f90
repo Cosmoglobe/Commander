@@ -62,8 +62,8 @@ module comm_tod_mod
      logical(lgt) :: init_from_HDF                                   ! Oitput all samples
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
-     real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
-     real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi) 
+     real(dp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
+     real(dp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi) 
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans

@@ -86,7 +86,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_all    = .true.
+    constructor%output_all    = .false.
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -205,7 +205,7 @@ contains
     real(dp),     allocatable, dimension(:,:)     :: A_map
     integer(i4b), allocatable, dimension(:,:)     :: nhit
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
-    integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
+    integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag, pind
     logical(lgt), save :: first = .true.
     logical(lgt) :: correct_sl
     character(len=512) :: prefix, postfix, Sfilename
@@ -243,18 +243,10 @@ contains
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
-    ncol            = nmaps+ndet-1
-    n_A             = nmaps*(nmaps+1)/2 + 4*(ndet-1)
-    allocate(A_map(n_A,0:npix-1))
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(smap_sky(0:ndet, ndelta)) 
     allocate(chisq_S(ndet,2))
     allocate(slist(self%nscan))
-    nout = 1; if (self%output_all) nout = 7
-    allocate(outmaps(nout), b_map(nout,ncol,0:npix-1))
-    do i = 1, nout
-       outmaps(i)%p => comm_map(map_out%info)
-    end do
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -350,6 +342,21 @@ contains
 
        ! Perform pre-loop operations
        if (do_oper(bin_map) .or. do_oper(prep_bp)) then
+          if (do_oper(bin_map)) then
+             ncol = nmaps
+             n_A  = nmaps*(nmaps+1)/2
+             nout = 1; if (self%output_all) nout = 7
+             allocate(outmaps(nout))
+             do i = 1, nout
+                outmaps(i)%p => comm_map(map_out%info)
+             end do
+          else
+             ncol = nmaps + ndet - 1
+             n_A  = nmaps*(nmaps+1)/2 + 4*(ndet-1)
+             nout = 2
+          end if
+          if (allocated(A_map)) deallocate(A_map, b_map)
+          allocate(A_map(n_A,0:npix-1), b_map(nout,ncol,0:npix-1))
           A_map = 0.d0; b_map = 0.d0         
        end if
 
@@ -402,7 +409,6 @@ contains
           ndet = self%ndet
           
           ! Set up local data structure for current scan
-          allocate(d_calib(nout,ntod, ndet))      ! Calibrated TOD in uKcmb
           allocate(n_corr(ntod, ndet))       ! Correlated noise in V
           allocate(s_sl(ntod, ndet))         ! Sidelobe in uKcm
           allocate(s_sky(ntod, ndet))        ! Sky signal in uKcmb
@@ -579,55 +585,38 @@ contains
           ! Compute binned map 
           if (do_oper(bin_map) .or. do_oper(prep_bp)) then
              call wall_time(t1)
-             if (self%output_all .and. do_oper(bin_map)) then
-                do j = 1, ndet
-                   inv_gain       = 1.d0 / self%scans(i)%d(j)%gain
-                   d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
-                        & inv_gain - s_tot(:,j) + s_sky(:,j) - s_sb(:,j)
+             allocate(d_calib(nout,ntod, ndet)) 
+             do j = 1, ndet
+                inv_gain       = 1.d0 / self%scans(i)%d(j)%gain
+                d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
+                     & inv_gain - s_tot(:,j) + s_sky(:,j) - s_sb(:,j)
+                if (self%output_all .and. do_oper(bin_map)) then
                    d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_sb(:,j) ! Residual
                    d_calib(3,:,j) = n_corr(:,j) * inv_gain
                    d_calib(4,:,j) = s_sb(:,j)                         
                    d_calib(5,:,j) = s_mono(:,j)
                    d_calib(6,:,j) = s_orb(:,j)
                    d_calib(7,:,j) = s_sl(:,j)
-                end do
-             else if (do_oper(prep_bp)) then
-                do j = 1, ndet
-                   inv_gain       = 1.d0 / self%scans(i)%d(j)%gain
-                   d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
-                        & inv_gain - s_tot(:,j) + s_sky(:,j) - s_sb(:,j)
+                else if (do_oper(prep_bp)) then
                    d_calib(2,:,j) = d_calib(1,:,j) + s_sb(:,j) - s_sb_prop(:,j)
-                end do
-             else
-                do j = 1, ndet
-                   inv_gain       = 1.d0 / self%scans(i)%d(j)%gain
-                   d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
-                        & inv_gain - s_tot(:,j) + s_sky(:,j) - s_sb(:,j)
-                end do
-             end if
+                end if
+             end do
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                if (do_oper(prep_bp)) then
-                   call self%compute_binned_map(d_calib(1:2,:,j), pix(:,j), &
-                        & psi(:,j), flag(:,j), A_map, b_map(1:2,:,:), i, j, .true.)
-                else if (do_oper(samp_mono)) then
-                   call self%compute_binned_map(d_calib(:,:,j), pix(:,j), &
-                        & psi(:,j), flag(:,j), A_map, b_map, i, j, .false., b_mono(:,:,j))
-                else
-                   call self%compute_binned_map(d_calib(:,:,j), pix(:,j), &
-                        & psi(:,j), flag(:,j), A_map, b_map, i, j, .false.)
-                end if
+                call self%compute_binned_map(d_calib(:,:,j), pix(:,j), &
+                     & psi(:,j), flag(:,j), A_map, b_map, i, j, do_oper(prep_bp))
              end do
+             deallocate(d_calib)
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
-             !if (self%myid == 0) write(*,*) 'bin = ', t2-t1
+             if (self%myid == 0) write(*,*) 'bin = ', t2-t1, i, main_iter
           end if
 
           ! Clean up
           call wall_time(t1)
-          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, d_calib)
+          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot)
           deallocate(mask, mask2, pix, psi, flag, s_sb, s_sky_prop, s_sb_prop, s_buf, s_mono)
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
@@ -1366,17 +1355,22 @@ contains
     real(dp),            dimension(1:,0:),    intent(inout), optional :: b_mono
     logical(lgt),                             intent(in)    :: comp_S
 
-    integer(i4b) :: i, j, t, pix_, off, nout
-    real(dp)     :: psi_, inv_sigmasq
+    integer(i4b) :: i, j, t, pix_, off, nout, psi_
+    real(dp)     :: inv_sigmasq
+    real(dp), allocatable, dimension(:) :: d
 
     nout        = size(b,dim=1)
     inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
+    off         = 6 + 4*(det-1)
+    allocate(d(nout))
+
     do t = 1, self%scans(scan)%ntod
 
        if (iand(flag(t),6111248) .ne. 0) cycle
 
        pix_    = pix(t)
        psi_    = psi(t)
+       d       = data(:,t)
        
        A(1,pix_) = A(1,pix_) + 1.d0                                  * inv_sigmasq
        A(2,pix_) = A(2,pix_) + self%cos2psi(psi_)                    * inv_sigmasq
@@ -1386,9 +1380,9 @@ contains
        A(6,pix_) = A(6,pix_) + self%sin2psi(psi_)**2                 * inv_sigmasq
 
        do i = 1, nout
-          b(i,1,pix_) = b(i,1,pix_) + data(i,t)                      * inv_sigmasq
-          b(i,2,pix_) = b(i,2,pix_) + data(i,t) * self%cos2psi(psi_) * inv_sigmasq
-          b(i,3,pix_) = b(i,3,pix_) + data(i,t) * self%sin2psi(psi_) * inv_sigmasq
+          b(i,1,pix_) = b(i,1,pix_) + d(i)                      * inv_sigmasq
+          b(i,2,pix_) = b(i,2,pix_) + d(i) * self%cos2psi(psi_) * inv_sigmasq
+          b(i,3,pix_) = b(i,3,pix_) + d(i) * self%sin2psi(psi_) * inv_sigmasq
        end do
 
        if (present(b_mono)) then
@@ -1398,17 +1392,18 @@ contains
        end if
 
        if (comp_S .and. det < self%ndet) then
-          off           = 6 + 4*(det-1)
           A(off+1,pix_) = A(off+1,pix_) + 1.d0               * inv_sigmasq 
           A(off+2,pix_) = A(off+2,pix_) + self%cos2psi(psi_) * inv_sigmasq
           A(off+3,pix_) = A(off+3,pix_) + self%sin2psi(psi_) * inv_sigmasq
           A(off+4,pix_) = A(off+4,pix_) + 1.d0               * inv_sigmasq
           do i = 1, nout
-             b(i,det+3,pix_) = b(i,det+3,pix_) + data(i,t) * inv_sigmasq 
+             b(i,det+3,pix_) = b(i,det+3,pix_) + d(i) * inv_sigmasq 
           end do
        end if
 
     end do
+
+    deallocate(d)
 
   end subroutine compute_binned_map
 
@@ -1438,13 +1433,13 @@ contains
     class(comm_mapinfo), pointer :: info
     class(comm_map), pointer :: smap
 
-    myid  = outmaps(1)%p%info%myid
-    nprocs= outmaps(1)%p%info%nprocs
-    comm  = outmaps(1)%p%info%comm
-    np0   = outmaps(1)%p%info%np
+    myid  = self%myid
+    nprocs= self%numprocs
+    comm  = self%comm
+    np0   = self%info%np
     nout  = size(b,dim=1)
-    nmaps = size(outmaps(1)%p%map, dim=2)
-    ndet  = size(b,dim=2)-nmaps+1
+    nmaps = self%info%nmaps
+    ndet  = self%ndet
     if (present(chisq_S)) then
        ncol  = nmaps+ndet-1
        n_A   = nmaps*(nmaps+1)/2 + 4*(ndet-1)
