@@ -1827,7 +1827,7 @@ contains
 
                    end if
                 end do
-                stop
+                ! there was a spurious STOP here
                 fg_components(i)%S_1D(k,1,l) = get_bp_avg_spectrum(l, s)
              end do
              deallocate(s)
