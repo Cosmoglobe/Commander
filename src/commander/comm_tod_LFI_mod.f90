@@ -86,7 +86,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_all    = .false.
+    constructor%output_all    = .true.
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -611,7 +611,7 @@ contains
              end do
              deallocate(d_calib)
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
-             if (self%myid == 0) write(*,*) 'bin = ', t2-t1, i, main_iter
+             !if (self%myid == 0) write(*,*) 'bin = ', t2-t1, i, main_iter
           end if
 
           ! Clean up
