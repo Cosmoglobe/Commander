@@ -125,7 +125,7 @@ contains
     class(comm_tod),                intent(inout)  :: self
     character(len=*), dimension(:), intent(in)     :: detlabels
 
-    integer(i4b) :: i, j, det, ierr, npsi, nside
+    integer(i4b) :: i, j, det, ierr, npsi, nside, ndet_tot
     real(dp)     :: t1, t2, psi, fsamp
     type(hdf_file)     :: file
 
@@ -139,31 +139,40 @@ contains
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%hdfname(1), file, "r")
-       allocate(polang_buf(self%ndet), mbang_buf(self%ndet), dets(self%ndet))
 
 
        !TODO: figure out how to make this work
-       !call read_hdf(file, "/common/det",    det_buf)
-       write(det_buf, *) "27M, 27S, 28M, 28S"
+       call read_hdf_string(file, "/common/det",    det_buf)
+       !write(det_buf, *) "27M, 27S, 28M, 28S"
+       !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
+       ndet_tot = num_tokens(det_buf, ",")
+       allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
        call get_tokens(det_buf, ',', dets)
+       !write(*,*) ndet_tot
        call read_hdf(file, "common/nside",  self%nside)
-       call read_hdf(file, "common/npsi",  self%npsi)
+       call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
-       call read_hdf(file, "common/polang",  self%polang)
-       call read_hdf(file, "common/mbang",  self%mbang)
+       call read_hdf(file, "common/polang", polang_buf)
+       call read_hdf(file, "common/mbang",  mbang_buf)      
+
+!!$          do j = 1, ndet_tot
+!!$             write(*,*) j, trim(dets(j))
+!!$          end do
 
        do i = 1, self%ndet
-         do j = 1, self%ndet
-           if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
-             exit
-           end if
-         end do
-         self%polang(i) = polang_buf(j)
-         self%mbang(i) = mbang_buf(j)
+          do j = 1, ndet_tot
+             if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
+                exit
+             end if
+          end do
+          if (j > ndet_tot) then
+             write(*,*) ' Error -- detector not found in HDF file: ', trim(adjustl(detlabels(i)))
+             stop
+          end if
+          self%polang(i) = polang_buf(j)
+          self%mbang(i) = mbang_buf(j)
        end do
        deallocate(polang_buf, mbang_buf, dets)
-
-
        call close_hdf_file(file)
     end if
     call mpi_bcast(self%nside,    1,     MPI_INTEGER,          0, self%comm, ierr)

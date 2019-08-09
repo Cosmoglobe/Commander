@@ -244,6 +244,35 @@ contains
     call h5tclose_f(dtype, file%status)
   end subroutine read_hdf_opaque
 
+  subroutine read_hdf_string(file, setname, val)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: setname
+    character(len=*), intent(out) :: val
+
+    integer(i4b), parameter :: mlen=10000
+    integer(hid_t)  :: dtype, dset, filetype, space
+    integer(size_t), dimension(1)  :: len
+    integer(hsize_t), dimension(1:2)  :: data_dims
+    integer         :: hdferr
+    character(mlen), allocatable, dimension(:) :: rdata
+
+    call open_hdf_set(file, setname)
+    CALL H5Dget_type_f(file%sethandle, filetype, hdferr)
+    !CALL H5Dget_space_f(file%sethandle, space, hdferr)
+    ALLOCATE(rdata(1))
+    len=mlen
+    data_dims = [mlen,1]
+    !CALL h5dread_vl_f(file%sethandle, filetype, rdata, data_dims, len, hdferr, space)
+    CALL h5dread_vl_f(file%sethandle, filetype, rdata, data_dims, len, hdferr)
+    val = rdata(1)
+    DEALLOCATE(rdata)
+    !CALL h5dclose_f(file%sethandle , hdferr)
+    !CALL h5sclose_f(space, hdferr)
+    CALL H5Tclose_f(filetype, hdferr)
+    call close_hdf_set(file)
+  end subroutine read_hdf_string
+
 
 
   ! *****************************************************

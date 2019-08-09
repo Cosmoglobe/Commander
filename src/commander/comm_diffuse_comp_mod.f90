@@ -727,43 +727,69 @@ contains
           if (i /= band) cycle
        end if
 
+       ! Compute spectral parameters at the correct resolution for this channel
+       if (self%npar > 0) then
+          nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
+          allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
+          
+          do j = 1, self%npar
+             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
+                  & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
+             t    => comm_map(info)
+             if (self%lmax_ind >= 0) then
+                t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
+                call t%Y_scalar
+             else
+                call wall_time(t1)
+                call self%theta(j)%p%udgrade(t)
+                call wall_time(t2)
+                !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
+             end if
+             theta_p(:,:,j) = t%map
+             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
+             theta_prev(j)%p => comm_map(t)
+             call t%dealloc()
+          end do
+       end if
+
+
        do l = 0, data(i)%ndet
           
           ! Don't update null mixing matrices
           if (self%F_null(i,l)) cycle
           
-          ! Compute spectral parameters at the correct resolution for this channel
-          if (self%npar > 0) then
-             nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
-             allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
-             
-             do j = 1, self%npar
-                if (.false. .and. associated(theta_prev(j)%p)) then
-                   if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
-                        & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
-                        & nmaps == theta_prev(j)%p%info%nmaps .and. &
-                        & data(i)%info%pol == theta_prev(j)%p%info%pol) then !
-                      theta_p(:,:,j) = theta_prev(j)%p%map
-                      cycle
-                   end if
-                end if
-                info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
-                t    => comm_map(info)
-                if (self%lmax_ind >= 0) then
-                   t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-                   call t%Y_scalar
-                else
-                   call wall_time(t1)
-                   call self%theta(j)%p%udgrade(t)
-                   call wall_time(t2)
-                   !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
-                end if
-                theta_p(:,:,j) = t%map
-                if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
-                theta_prev(j)%p => comm_map(t)
-                call t%dealloc()
-             end do
-          end if
+!!$          ! Compute spectral parameters at the correct resolution for this channel
+!!$          if (self%npar > 0) then
+!!$             nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
+!!$             allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
+!!$             
+!!$             do j = 1, self%npar
+!!$                if (.false. .and. associated(theta_prev(j)%p)) then
+!!$                   if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
+!!$                        & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
+!!$                        & nmaps == theta_prev(j)%p%info%nmaps .and. &
+!!$                        & data(i)%info%pol == theta_prev(j)%p%info%pol) then !
+!!$                      theta_p(:,:,j) = theta_prev(j)%p%map
+!!$                      cycle
+!!$                   end if
+!!$                end if
+!!$                info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
+!!$                t    => comm_map(info)
+!!$                if (self%lmax_ind >= 0) then
+!!$                   t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
+!!$                   call t%Y_scalar
+!!$                else
+!!$                   call wall_time(t1)
+!!$                   call self%theta(j)%p%udgrade(t)
+!!$                   call wall_time(t2)
+!!$                   !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
+!!$                end if
+!!$                theta_p(:,:,j) = t%map
+!!$                if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
+!!$                theta_prev(j)%p => comm_map(t)
+!!$                call t%dealloc()
+!!$             end do
+!!$          end if
           
           
           ! Loop over all pixels, computing mixing matrix for each
@@ -860,7 +886,6 @@ contains
           
           end do
 
-          if (allocated(theta_p)) deallocate(theta_p)
           call wall_time(t2)
           !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
                 
@@ -882,6 +907,7 @@ contains
 !!$       end if
     
        end do
+       if (allocated(theta_p)) deallocate(theta_p)
     end do
     do j = 1, self%npar
        if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
