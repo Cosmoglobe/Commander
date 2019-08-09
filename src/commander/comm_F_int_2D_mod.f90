@@ -91,17 +91,17 @@ contains
        end do
     end do
     call wall_time(t4)
-    !if (comp%myid == 0) write(*,*) 'a = ', real(t4-t3,sp)
+    !if (self%comp%myid == 0) write(*,*) 'a = ', real(t4-t3,sp)
     call wall_time(t3)
     call mpi_allreduce(F, Fp,            n*n, MPI_DOUBLE_PRECISION, MPI_SUM, self%comp%comm, ierr)
     call wall_time(t4)
-    !if (comp%myid == 0) write(*,*) 'b = ', real(t4-t3,sp)
+    !if (self%comp%myid == 0) write(*,*) 'b = ', real(t4-t3,sp)
 
     ! Precompute spline object
     call wall_time(t3)
     call splie2_full_precomp_mpi(self%comp%comm, self%x, self%y, Fp, self%coeff)
     call wall_time(t4)
-    !if (comp%myid == 0) write(*,*) 'c = ', real(t4-t3,sp)
+    !if (self%comp%myid == 0) write(*,*) 'c = ', real(t4-t3,sp)
     
     call wall_time(t2)
     !if (comp%myid == 0) write(*,*) 'sum = ', sum(abs(constructor%coeff)), real(t2-t1,sp)
