@@ -68,22 +68,12 @@ contains
     constructor%type    = cpar%ds_noise_format(id_abs)
     constructor%nmaps   = info%nmaps
     constructor%pol     = info%nmaps == 3
-!    call wall_time(t1)
-!    constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
-!    call wall_time(t2)
-!    if (info%myid == 0) write(*,*) 'read = ', t2-t1
     if (id_smooth == 0) then
        constructor%nside   = info%nside
        constructor%np      = info%np
        constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
-       call wall_time(t1)
        call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), mask, regnoise)
-       call wall_time(t2)
-!       if (info%myid == 0) write(*,*) 'uniformize = ', t2-t1
-       call wall_time(t1)
        constructor%siN%map = constructor%siN%map * mask%map ! Apply mask
-       call wall_time(t2)
-!       if (info%myid == 0) write(*,*) 'apply_mask = ', t2-t1
        if (present(procmask)) then
           where (procmask%map < 0.5d0)
              constructor%siN%map = constructor%siN%map * 20.d0 ! Boost noise by 20 in processing mask
@@ -95,19 +85,13 @@ contains
             & constructor%nmaps, constructor%pol)
        constructor%nside   = info_smooth%nside
        constructor%np      = info_smooth%np
-       call wall_time(t1)
        constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
-       call wall_time(t2)
-!       if (info%myid == 0) write(*,*) 'read = ', t2-t1
     end if
-    call wall_time(t1)
     where (constructor%siN%map > 0.d0) 
        constructor%siN%map = 1.d0 / constructor%siN%map
     elsewhere
        constructor%siN%map = 0.d0
     end where
-    call wall_time(t2)
-!    if (info%myid == 0) write(*,*) 'siN = ', t2-t1
 
     ! Set siN to its mean; useful for debugging purposes
     if (cpar%set_noise_to_mean) then
@@ -128,7 +112,6 @@ contains
     end if
 
     ! Compute alpha_nu for pseudo-inverse preconditioner
-    call wall_time(t1)
     if (id_smooth == 0 .and. trim(cpar%cg_precond) == 'pseudoinv') then
        allocate(constructor%alpha_nu(constructor%nmaps))
        invW_tau     => comm_map(constructor%siN)
@@ -158,8 +141,6 @@ contains
           end if
        end if
     end if
-    call wall_time(t2)
-!    if (info%myid == 0) write(*,*) 'precond = ', t2-t1
 
   end function constructor
 

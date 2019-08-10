@@ -45,6 +45,7 @@ module comm_tod_mod
      character(len=512) :: procmaskf2
      character(len=512) :: instfile
      character(len=512) :: operation
+     character(len=512) :: outdir
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: comm_shared, myid_shared                     ! MPI parameters
      integer(i4b) :: comm_inter, myid_inter                     ! MPI parameters

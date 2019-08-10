@@ -211,7 +211,7 @@ contains
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
 
     ndelta      = 2
-    sigma_delta = 0.1d0 ! BP delta step size in GHz
+    sigma_delta = 0.02d0 ! BP delta step size in GHz
 
     do i = 1, numband  
        if (trim(cpar%ds_tod_type(i)) == 'none') cycle
