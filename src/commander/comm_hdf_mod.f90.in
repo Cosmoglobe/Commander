@@ -259,18 +259,19 @@ contains
 
     call open_hdf_set(file, setname)
     CALL H5Dget_type_f(file%sethandle, filetype, hdferr)
-    !CALL H5Dget_space_f(file%sethandle, space, hdferr)
+    CALL H5Dget_space_f(file%sethandle, space, hdferr)
     ALLOCATE(rdata(1))
     len=mlen
     data_dims = [mlen,1]
-    !CALL h5dread_vl_f(file%sethandle, filetype, rdata, data_dims, len, hdferr, space)
-    CALL h5dread_vl_f(file%sethandle, filetype, rdata, data_dims, len, hdferr)
+    CALL h5dread_vl_f(file%sethandle, filetype, rdata, data_dims, len, hdferr, space)
+    !CALL h5dread_vl_f(file%sethandle, filetype, rdata, data_dims, len, hdferr)
     val = rdata(1)
     DEALLOCATE(rdata)
     !CALL h5dclose_f(file%sethandle , hdferr)
-    !CALL h5sclose_f(space, hdferr)
-    CALL H5Tclose_f(filetype, hdferr)
     call close_hdf_set(file)
+    CALL h5sclose_f(space, hdferr)
+    CALL H5Tclose_f(filetype, hdferr)
+    
   end subroutine read_hdf_string
 
 

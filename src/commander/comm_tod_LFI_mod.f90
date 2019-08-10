@@ -190,9 +190,10 @@ contains
     character(len=*),                      intent(in)    :: chaindir
     integer(i4b),                          intent(in)    :: chain, iter
     type(planck_rng),                      intent(inout) :: handle
-    type(map_ptr),       dimension(:,:),   intent(inout) :: map_in            ! (ndet,ndelta)
-    real(dp),            dimension(:,:,:), intent(inout) :: delta             ! (ndet,npar,ndelta) BP corrections
-    class(comm_map),                       intent(inout) :: map_out, rms_out  ! Combined output map and rms
+    type(map_ptr),       dimension(:,:),   intent(inout) :: map_in       ! (ndet,ndelta)
+    real(dp),            dimension(:,:,:), intent(inout) :: delta        ! (ndet,npar,ndelta) BP corrections
+    class(comm_map),                       intent(inout) :: map_out      ! Combined output map
+    class(comm_map),                       intent(inout) :: rms_out      ! Combined output rms
 
     integer(i4b) :: i, j, k, l, ntod, ndet, nside, npix, nmaps, naccept, ntot, ns
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, scanfile, ncol, n_A, nout
@@ -606,11 +607,6 @@ contains
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
              call wall_time(t1)
-!!$             do j = 1, ndet
-!!$                if (.not. self%scans(i)%d(j)%accept) cycle
-!!$                call self%compute_binned_map(d_calib(:,:,j), pix(:,j), &
-!!$                     & psi(:,j), flag(:,j), A_map, b_map, i, j, do_oper(prep_bp))
-!!$             end do
              if (do_oper(samp_mono)) then
                 call self%compute_binned_map(d_calib, pix, &
                      & psi, flag, A_map, b_map, i, do_oper(prep_bp), b_mono=b_mono)
@@ -620,7 +616,6 @@ contains
              end if
              deallocate(d_calib)
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
-             !if (self%myid == 0) write(*,*) 'bin = ', t2-t1, i, main_iter
           end if
 
           ! Clean up
