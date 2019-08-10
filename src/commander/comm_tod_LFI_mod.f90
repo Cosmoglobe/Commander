@@ -90,6 +90,7 @@ contains
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
+    constructor%outdir        = cpar%outdir
 
     datadir = trim(cpar%datadir)//'/' 
     constructor%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
@@ -234,7 +235,7 @@ contains
     ! Set up full-sky map structures
     call wall_time(t1)
     correct_sl      = .false.
-    chisq_threshold = 7.d0
+    chisq_threshold = 10.d0 !7.d0
     n_main_iter     = 4
     !chisq_threshold = 20000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
@@ -247,6 +248,7 @@ contains
     allocate(smap_sky(0:ndet, ndelta)) 
     allocate(chisq_S(ndet,2))
     allocate(slist(self%nscan))
+    slist = ''
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -604,11 +606,18 @@ contains
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
              call wall_time(t1)
-             do j = 1, ndet
-                if (.not. self%scans(i)%d(j)%accept) cycle
-                call self%compute_binned_map(d_calib(:,:,j), pix(:,j), &
-                     & psi(:,j), flag(:,j), A_map, b_map, i, j, do_oper(prep_bp))
-             end do
+!!$             do j = 1, ndet
+!!$                if (.not. self%scans(i)%d(j)%accept) cycle
+!!$                call self%compute_binned_map(d_calib(:,:,j), pix(:,j), &
+!!$                     & psi(:,j), flag(:,j), A_map, b_map, i, j, do_oper(prep_bp))
+!!$             end do
+             if (do_oper(samp_mono)) then
+                call self%compute_binned_map(d_calib, pix, &
+                     & psi, flag, A_map, b_map, i, do_oper(prep_bp), b_mono=b_mono)
+             else
+                call self%compute_binned_map(d_calib, pix, &
+                     & psi, flag, A_map, b_map, i, do_oper(prep_bp))
+             end if
              deallocate(d_calib)
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
              !if (self%myid == 0) write(*,*) 'bin = ', t2-t1, i, main_iter
@@ -1075,10 +1084,6 @@ contains
        self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
     end if
 
-    if(isNaN(self%scans(scan_id)%d(det)%gain)) then
-      write(*,*) "Gain estimate", sum(s_ref), sum(d_only_wn), sum(self%scans(scan_id)%d(det)%tod), sum(n_corr), sum(mask), ata, curr_gain, curr_sigma
-    end if
-
     deallocate(d_only_wn)
 
   end subroutine sample_gain
@@ -1174,9 +1179,6 @@ contains
             & self%scans(scan)%d(det)%gain - s_sub(i) 
        A_abs = A_abs + S_orb(i) * inv_sigmasq * mask(i) * S_orb(i)
        b_abs = b_abs + S_orb(i) * inv_sigmasq * mask(i) * data
-       if(abs(A_abs) < 1.d0) then
-         !write(*,*) "accumulate gain", A_abs, b_abs, mask(i), inv_sigmasq, data, S_orb(i)
-       end if
     end do
 
   end subroutine accumulate_absgain_from_orbital
@@ -1217,7 +1219,7 @@ contains
     do j = 1, self%ndet
        do i = 1, self%nscan
           if(isNaN(dgain(j))) then
-            !write(*,*) "sample absgain", dgain(j), self%scans(i)%d(j)%gain
+            write(*,*) "sample absgain", dgain(j), self%scans(i)%d(j)%gain
             dgain(j) = 1.d0
           end if
           self%scans(i)%d(j)%gain = dgain(j) * self%scans(i)%d(j)%gain
@@ -1344,33 +1346,33 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine compute_binned_map(self, data, pix, psi, flag, A, b, scan, det, comp_S, b_mono)
+  subroutine compute_binned_map(self, data, pix, psi, flag, A, b, scan, comp_S, b_mono)
     implicit none
     class(comm_LFI_tod),                      intent(in)    :: self
-    integer(i4b),                             intent(in)    :: scan, det
-    real(sp),            dimension(1:,1:),    intent(in)    :: data
-    integer(i4b),        dimension(1:),       intent(in)    :: pix, psi, flag
+    integer(i4b),                             intent(in)    :: scan
+    real(sp),            dimension(1:,1:,1:),    intent(in)    :: data
+    integer(i4b),        dimension(1:,1:),       intent(in)    :: pix, psi, flag
     real(dp),            dimension(1:,0:),    intent(inout) :: A
     real(dp),            dimension(1:,1:,0:), intent(inout) :: b
-    real(dp),            dimension(1:,0:),    intent(inout), optional :: b_mono
+    real(dp),            dimension(1:,0:,1:),    intent(inout), optional :: b_mono
     logical(lgt),                             intent(in)    :: comp_S
 
-    integer(i4b) :: i, j, t, pix_, off, nout, psi_
+    integer(i4b) :: det, i, j, t, pix_, off, nout, psi_
     real(dp)     :: inv_sigmasq
-    real(dp), allocatable, dimension(:) :: d
 
     nout        = size(b,dim=1)
-    inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
-    off         = 6 + 4*(det-1)
-    allocate(d(nout))
 
+    do det = 1, self%ndet
+       if (.not. self%scans(scan)%d(det)%accept) cycle
+    off         = 6 + 4*(det-1)
+    inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
     do t = 1, self%scans(scan)%ntod
 
-       if (iand(flag(t),6111248) .ne. 0) cycle
+       if (iand(flag(t,det),6111248) .ne. 0) cycle
 
-       pix_    = pix(t)
-       psi_    = psi(t)
-       d       = data(:,t)
+       pix_    = pix(t,det)
+       psi_    = psi(t,det)
+       !d       = data(:,t,det)
        
        A(1,pix_) = A(1,pix_) + 1.d0                                  * inv_sigmasq
        A(2,pix_) = A(2,pix_) + self%cos2psi(psi_)                    * inv_sigmasq
@@ -1379,16 +1381,17 @@ contains
        A(5,pix_) = A(5,pix_) + self%cos2psi(psi_)*self%sin2psi(psi_) * inv_sigmasq
        A(6,pix_) = A(6,pix_) + self%sin2psi(psi_)**2                 * inv_sigmasq
 
+       !dir$ ivdep
        do i = 1, nout
-          b(i,1,pix_) = b(i,1,pix_) + d(i)                      * inv_sigmasq
-          b(i,2,pix_) = b(i,2,pix_) + d(i) * self%cos2psi(psi_) * inv_sigmasq
-          b(i,3,pix_) = b(i,3,pix_) + d(i) * self%sin2psi(psi_) * inv_sigmasq
+          b(i,1,pix_) = b(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
+          b(i,2,pix_) = b(i,2,pix_) + data(i,t,det) * self%cos2psi(psi_) * inv_sigmasq
+          b(i,3,pix_) = b(i,3,pix_) + data(i,t,det) * self%sin2psi(psi_) * inv_sigmasq
        end do
 
        if (present(b_mono)) then
-          b_mono(1,pix_) = b_mono(1,pix_) +                      inv_sigmasq
-          b_mono(2,pix_) = b_mono(2,pix_) + self%cos2psi(psi_) * inv_sigmasq
-          b_mono(3,pix_) = b_mono(3,pix_) + self%sin2psi(psi_) * inv_sigmasq
+          b_mono(1,pix_,det) = b_mono(1,pix_,det) +                      inv_sigmasq
+          b_mono(2,pix_,det) = b_mono(2,pix_,det) + self%cos2psi(psi_) * inv_sigmasq
+          b_mono(3,pix_,det) = b_mono(3,pix_,det) + self%sin2psi(psi_) * inv_sigmasq
        end if
 
        if (comp_S .and. det < self%ndet) then
@@ -1397,13 +1400,13 @@ contains
           A(off+3,pix_) = A(off+3,pix_) + self%sin2psi(psi_) * inv_sigmasq
           A(off+4,pix_) = A(off+4,pix_) + 1.d0               * inv_sigmasq
           do i = 1, nout
-             b(i,det+3,pix_) = b(i,det+3,pix_) + d(i) * inv_sigmasq 
+             b(i,det+3,pix_) = b(i,det+3,pix_) + data(i,t,det) * inv_sigmasq 
           end do
        end if
 
     end do
+ end do
 
-    deallocate(d)
 
   end subroutine compute_binned_map
 
@@ -1699,9 +1702,10 @@ contains
     if (self%myid == 0) then
        call int2string(self%myid, pid)
        unit = getlun()
-       open(unit,file='newlist_debug.txt', recl=512)
+       open(unit,file=trim(self%outdir)//'/filelist.txt', recl=512)
        write(unit,*) sum(self%nscanprproc)
        do i = 1, self%nscan
+          if (trim(slist(i)) == '') cycle
           write(unit,*) trim(slist(i))
        end do
        deallocate(slist)
@@ -1710,6 +1714,7 @@ contains
           allocate(slist(ns))
           call mpi_recv(slist, 512*ns, MPI_CHARACTER, j, 98, self%comm, mpistat, ierr)
           do i = 1, ns
+             if (trim(slist(i)) == '') cycle
              write(unit,*) trim(slist(i))
           end do
           deallocate(slist)

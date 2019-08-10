@@ -104,7 +104,7 @@ libcommander.a : $(COBJS)
 	$(MPF90) $(F90COMP) -c $<
 
 %.o : %.f90
-	$(MPF90) $(F90COMP) -c -CB $<
+	$(MPF90) $(F90COMP) -c $<
 
 %.o : %.f
 	$(MPF77) $(FCOMP) -c $<
