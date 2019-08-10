@@ -15,6 +15,7 @@ module comm_N_rms_mod
      procedure :: sqrtInvN => matmulSqrtInvN_1map
      procedure :: rms      => returnRMS
      procedure :: rms_pix  => returnRMSpix
+     procedure :: update_N => update_N_rms
   end type comm_N_rms
 
   interface comm_N_rms
@@ -25,15 +26,6 @@ module comm_N_rms_mod
      type(comm_N_rms), pointer :: p
   end type comm_N_rms_ptr
 
-
-
-!!$  interface matmulInvN
-!!$     module procedure matmulInvN_1map, matmulInvN_2map
-!!$  end interface matmulInvN
-!!$  
-!!$  interface matmulSqrtInvN
-!!$     module procedure matmulSqrtInvN_1map, matmulSqrtInvN_2map
-!!$  end interface matmulSqrtInvN
   
 contains
 
@@ -42,42 +34,41 @@ contains
   !**************************************************
   function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask)
     implicit none
+    class(comm_N_rms),                  pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
     type(comm_mapinfo), target,         intent(in)    :: info
     integer(i4b),                       intent(in)    :: id, id_abs, id_smooth
     class(comm_map),                    intent(in)    :: mask
     type(planck_rng),                   intent(inout) :: handle
-    real(dp), dimension(0:,1:),         intent(out)   :: regnoise
-    class(comm_N_rms),                  pointer       :: constructor
+    real(dp), dimension(0:,1:),         intent(out),         optional :: regnoise
     class(comm_map),                    pointer, intent(in), optional :: procmask
 
     integer(i4b)       :: i, ierr, tmp, nside_smooth
     real(dp)           :: sum_tau, sum_tau2, sum_noise, npix, t1, t2
-    character(len=512) :: dir, cache
-    character(len=4)   :: itext
+    character(len=512) :: dir
     type(comm_mapinfo), pointer :: info_smooth
-    class(comm_map),    pointer :: invW_tau
+
     
     ! General parameters
     allocate(constructor)
-    call int2string(info%myid, itext)
-    dir   = trim(cpar%datadir) // '/'
-    cache = trim(dir) // 'invNlm_' // trim(cpar%ds_label(id)) // '_proc' // itext // '.unf'
+    dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
-    constructor%type    = cpar%ds_noise_format(id_abs)
-    constructor%nmaps   = info%nmaps
-    constructor%pol     = info%nmaps == 3
+    constructor%type              = cpar%ds_noise_format(id_abs)
+    constructor%nmaps             = info%nmaps
+    constructor%pol               = info%nmaps == 3
+    constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
+    constructor%set_noise_to_mean = cpar%set_noise_to_mean
+    constructor%cg_precond        = cpar%cg_precond
     if (id_smooth == 0) then
        constructor%nside   = info%nside
        constructor%np      = info%np
-       constructor%siN     => comm_map(info, trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
-       call uniformize_rms(handle, constructor%siN, cpar%ds_noise_uni_fsky(id_abs), mask, regnoise)
-       constructor%siN%map = constructor%siN%map * mask%map ! Apply mask
        if (present(procmask)) then
-          where (procmask%map < 0.5d0)
-             constructor%siN%map = constructor%siN%map * 20.d0 ! Boost noise by 20 in processing mask
-          end where
+          call constructor%update_N(handle, mask, regnoise, procmask=procmask, &
+               & filename=trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
+       else
+          call constructor%update_N(handle, mask, regnoise, &
+               & filename=trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
        end if
     else
        tmp         =  getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth)
@@ -86,63 +77,110 @@ contains
        constructor%nside   = info_smooth%nside
        constructor%np      = info_smooth%np
        constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+
+       where (constructor%siN%map > 0.d0) 
+          constructor%siN%map = 1.d0 / constructor%siN%map
+       elsewhere
+          constructor%siN%map = 0.d0
+       end where
+
+       ! Set siN to its mean; useful for debugging purposes
+       if (cpar%set_noise_to_mean) then
+          do i = 1, constructor%nmaps
+             sum_noise = sum(constructor%siN%map(:,i))
+             npix      = size(constructor%siN%map(:,i))
+             call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             constructor%siN%map(:,i) = sum_noise/npix
+          end do
+       end if
+
     end if
-    where (constructor%siN%map > 0.d0) 
-       constructor%siN%map = 1.d0 / constructor%siN%map
+
+  end function constructor
+
+
+  subroutine update_N_rms(self, handle, mask, regnoise, procmask, filename, map)
+    implicit none
+    class(comm_N_rms),                   intent(inout)          :: self
+    type(planck_rng),                    intent(inout)          :: handle
+    class(comm_map),                     intent(in)             :: mask
+    real(dp),          dimension(0:,1:), intent(out)            :: regnoise
+    class(comm_map),                     intent(in),   optional :: procmask
+    character(len=*),                    intent(in),   optional :: filename
+    class(comm_map),                     intent(in),   optional :: map
+
+    integer(i4b) :: i, ierr
+    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix, t1, t2
+    class(comm_map),    pointer :: invW_tau
+
+    if (present(filename)) then
+       self%siN     => comm_map(mask%info, filename)
+    else
+       self%siN%map = map%map
+    end if
+    call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
+    self%siN%map = self%siN%map * mask%map ! Apply mask
+    if (present(procmask)) then
+       where (procmask%map < 0.5d0)
+          self%siN%map = self%siN%map * 20.d0 ! Boost noise by 20 in processing mask
+       end where
+    end if
+
+    where (self%siN%map > 0.d0) 
+       self%siN%map = 1.d0 / self%siN%map
     elsewhere
-       constructor%siN%map = 0.d0
+       self%siN%map = 0.d0
     end where
 
     ! Set siN to its mean; useful for debugging purposes
-    if (cpar%set_noise_to_mean) then
-       do i = 1, constructor%nmaps
-          sum_noise = sum(constructor%siN%map(:,i))
-          npix      = size(constructor%siN%map(:,i))
-          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          constructor%siN%map(:,i) = sum_noise/npix
+    if (self%set_noise_to_mean) then
+       do i = 1, self%nmaps
+          sum_noise = sum(self%siN%map(:,i))
+          npix      = size(self%siN%map(:,i))
+          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
+          self%siN%map(:,i) = sum_noise/npix
        end do
     end if
 
-    ! Set up diagonal covariance matrix
-    if (id_smooth == 0 .and. trim(cpar%cg_precond) == 'diagonal') then
-       constructor%invN_diag     => comm_map(info)
-       constructor%invN_diag%map = constructor%siN%map**2
-       call compute_invN_lm(cache, constructor%invN_diag)
-    end if
-
-    ! Compute alpha_nu for pseudo-inverse preconditioner
-    if (id_smooth == 0 .and. trim(cpar%cg_precond) == 'pseudoinv') then
-       allocate(constructor%alpha_nu(constructor%nmaps))
-       invW_tau     => comm_map(constructor%siN)
+    if (trim(self%cg_precond) == 'diagonal') then
+       ! Set up diagonal covariance matrix
+       if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(mask%info)
+       self%invN_diag%map = self%siN%map**2
+       call compute_invN_lm(self%invN_diag)
+    else if (trim(self%cg_precond) == 'pseudoinv') then
+       ! Compute alpha_nu for pseudo-inverse preconditioner
+       if (.not. allocated(self%alpha_nu)) allocate(self%alpha_nu(self%nmaps))
+       invW_tau     => comm_map(self%siN)
        invW_tau%map =  invW_tau%map**2
        call invW_tau%Yt()
        call invW_tau%Y()
        ! Temperature
        sum_tau  = sum(invW_tau%map(:,1))
        sum_tau2 = sum(invW_tau%map(:,1)**2)
-       call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-       call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
        if (sum_tau > 0.d0) then
-          constructor%alpha_nu(1) = sqrt(sum_tau2/sum_tau)
+          self%alpha_nu(1) = sqrt(sum_tau2/sum_tau)
        else
-          constructor%alpha_nu(1) = 0.d0
+          self%alpha_nu(1) = 0.d0
        end if
 
-       if (constructor%nmaps == 3) then
+       if (self%nmaps == 3) then
           sum_tau  = sum(invW_tau%map(:,2:3))
           sum_tau2 = sum(invW_tau%map(:,2:3)**2)
-          call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
           if (sum_tau > 0.d0) then
-             constructor%alpha_nu(2:3) = sqrt(sum_tau2/sum_tau)
+             self%alpha_nu(2:3) = sqrt(sum_tau2/sum_tau)
           else
-             constructor%alpha_nu(2:3) = 0.d0
+             self%alpha_nu(2:3) = 0.d0
           end if
        end if
     end if
 
-  end function constructor
+  end subroutine update_N_rms
 
   ! Return map_out = invN * map
   subroutine matmulInvN_1map(self, map)

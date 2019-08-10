@@ -19,7 +19,7 @@ module comm_data_mod
      integer(i4b)                 :: ndet
 
      class(comm_mapinfo), pointer :: info
-     class(comm_map),     pointer :: map
+     class(comm_map),     pointer :: map                     ! Input + regnoise
      class(comm_map),     pointer :: res
      class(comm_map),     pointer :: mask
      class(comm_map),     pointer :: procmask, procmask2
@@ -32,8 +32,8 @@ module comm_data_mod
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
      type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
    contains
-2     procedure :: RJ2data
-     procedure :: apply_proc_mask
+     procedure :: RJ2data
+     !procedure :: apply_proc_mask
   end type comm_data_set
 
   integer(i4b) :: numband
@@ -63,16 +63,16 @@ contains
     n = 0
     do i = 1, numband_tot
        if (.not. cpar%ds_active(i)) cycle
-       n                   = n+1
-       data(n)%id_abs      = i
-       data(n)%label       = cpar%ds_label(i)
-       data(n)%period      = cpar%ds_period(i)
-       data(n)%unit        = cpar%ds_unit(i)
-       data(n)%sample_gain = cpar%ds_sample_gain(i)
-       data(n)%gain_comp   = cpar%ds_gain_calib_comp(i)
-       data(n)%gain_lmin   = cpar%ds_gain_lmin(i)
-       data(n)%gain_lmax   = cpar%ds_gain_lmax(i)
-       data(n)%comp_sens    = cpar%ds_component_sensitivity(i)
+       n                      = n+1
+       data(n)%id_abs         = i
+       data(n)%label          = cpar%ds_label(i)
+       data(n)%period         = cpar%ds_period(i)
+       data(n)%unit           = cpar%ds_unit(i)
+       data(n)%sample_gain    = cpar%ds_sample_gain(i)
+       data(n)%gain_comp      = cpar%ds_gain_calib_comp(i)
+       data(n)%gain_lmin      = cpar%ds_gain_lmin(i)
+       data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
+       data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
@@ -82,28 +82,13 @@ contains
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
        call get_mapfile(cpar, i, mapfile)
-       !data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_mapfile(i)), mask_misspix=mask_misspix)
        data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
-
-!       call data(n)%map%writeFITS('data.fits')
-
-!!$       data(n)%res => comm_map(data(n)%map)
-!!$       call data(n)%res%writeFITS('res1.fits')
-!!$       call data(n)%res%YtW()
-!!$       call data(n)%res%Y()
-!!$       call data(n)%res%writeFITS('res2.fits')
-!!$       data(n)%res%map = data(n)%map%map - data(n)%res%map
-!!$       call data(n)%res%writeFITS('res3.fits')
-!       call mpi_finalize(ierr)
-!       stop
 
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
           data(n)%procmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
                & udgrade=.true.)
-          !data(n)%map%map = data(n)%map%map * data(n)%procmask%map
-          !call smooth_inside_procmask(data(n), cpar%ds_fwhm_proc)
        end if
        data(n)%res  => comm_map(data(n)%map)
        call update_status(status, "data_map")
@@ -147,7 +132,6 @@ contains
                & data(n)%B%r_max)
        end if
        if (cpar%only_pol) data(n)%mask%map(:,1) = 0.d0
-       data(n)%map%map  = data(n)%map%map  * data(n)%mask%map ! Apply mask to map to avoid surprises
        call update_status(status, "data_mask")
        deallocate(mask_misspix)
 
@@ -166,6 +150,7 @@ contains
        case default
           call report_error("Unknown noise format: " // trim(cpar%ds_noise_format(i)))
        end select
+       data(n)%map%map = data(n)%map%map * data(n)%mask%map
        call update_status(status, "data_N")
 
        ! Initialize TOD structures
@@ -217,7 +202,7 @@ contains
                 data(n)%N_smooth(j)%p => tmp
              end select
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
-             data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle, regnoise)
+             data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
              nullify(data(n)%N_smooth(j)%p)
           end if
@@ -345,39 +330,39 @@ contains
 
   end subroutine apply_source_mask
 
-  subroutine smooth_inside_procmask(data, fwhm)
-    implicit none
-    class(comm_data_set), intent(in) :: data
-    real(dp),             intent(in) :: fwhm
+!!$  subroutine smooth_inside_procmask(data, fwhm)
+!!$    implicit none
+!!$    class(comm_data_set), intent(in) :: data
+!!$    real(dp),             intent(in) :: fwhm
+!!$
+!!$    integer(i4b) :: i, j
+!!$    real(dp)     :: w
+!!$    class(comm_mapinfo), pointer :: info
+!!$    class(comm_map),     pointer :: map
+!!$
+!!$    map => comm_map(data%map)
+!!$    call map%smooth(fwhm)
+!!$    do j = 1, data%map%info%nmaps
+!!$       do i = 0, data%map%info%np-1
+!!$          w = data%procmask%map(i,j)
+!!$          data%map%map(i,j) = w * data%map%map(i,j) + (1.d0-w) * map%map(i,j)
+!!$       end do
+!!$    end do
+!!$    deallocate(map)
+!!$
+!!$  end subroutine smooth_inside_procmask
 
-    integer(i4b) :: i, j
-    real(dp)     :: w
-    class(comm_mapinfo), pointer :: info
-    class(comm_map),     pointer :: map
-
-    map => comm_map(data%map)
-    call map%smooth(fwhm)
-    do j = 1, data%map%info%nmaps
-       do i = 0, data%map%info%np-1
-          w = data%procmask%map(i,j)
-          data%map%map(i,j) = w * data%map%map(i,j) + (1.d0-w) * map%map(i,j)
-       end do
-    end do
-    deallocate(map)
-
-  end subroutine smooth_inside_procmask
-
-  subroutine apply_proc_mask(self, map)
-    implicit none
-    class(comm_data_set), intent(in)    :: self
-    class(comm_map),      intent(inout) :: map
-
-    if (.not. associated(self%procmask)) return
-    where (self%procmask%map < 1.d0)  ! Apply processing mask
-       map%map = -1.6375d30
-    end where
-
-  end subroutine apply_proc_mask
+!!$  subroutine apply_proc_mask(self, map)
+!!$    implicit none
+!!$    class(comm_data_set), intent(in)    :: self
+!!$    class(comm_map),      intent(inout) :: map
+!!$
+!!$    if (.not. associated(self%procmask)) return
+!!$    where (self%procmask%map < 1.d0)  ! Apply processing mask
+!!$       map%map = -1.6375d30
+!!$    end where
+!!$
+!!$  end subroutine apply_proc_mask
 
   subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out)
     implicit none

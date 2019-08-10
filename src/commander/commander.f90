@@ -207,11 +207,12 @@ contains
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
     real(dp)     :: sigma_delta, t1, t2
     real(dp),      allocatable, dimension(:,:,:) :: delta
-    real(dp),      allocatable, dimension(:,:)   :: eta
+    real(dp),      allocatable, dimension(:,:)   :: eta, regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
+    class(comm_map), pointer :: rms
 
     ndelta      = 2
-    sigma_delta = 0.02d0 ! BP delta step size in GHz
+    sigma_delta = 0.1d0 ! BP delta step size in GHz
 
     do i = 1, numband  
        if (trim(cpar%ds_tod_type(i)) == 'none') cycle
@@ -236,10 +237,7 @@ contains
                 data(i)%bp(j)%p%delta = delta(j,:,k)
                 call data(i)%bp(j)%p%update_tau(delta(j,:,k))
              end do
-             call wall_time(t1)
              call update_mixing_matrices(i, update_F_int=.true.)       
-             call wall_time(t2)
-             !if (cpar%myid == 0) write(*,*) 'mixmat time = ', t2-t1
           else
              do j = 1, data(i)%tod%ndet
                 delta(j,:,k) = data(i)%bp(j)%p%delta
@@ -254,15 +252,25 @@ contains
              s_sky(j,k)%p => comm_map(data(i)%info)
              call get_sky_signal(i, j, s_sky(j,k)%p)  
           end do
-!!$          if (data(i)%info%myid == 0) then
-!!$             write(*,*) delta(1,k), s_sky(1,k)%p%map(100,1)
-!!$          end if
        end do
-!!$       call mpi_finalize(ierr)
-!!$       stop
 
-       ! Process TOD, get new map and rms map
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, data(i)%N%siN)
+       ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
+       ! Needs in-code computation of smoothed RMS maps, so long-term..
+       rms => comm_map(data(i)%info)
+       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+
+       ! Update rms and data maps
+       allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+       if (associated(data(i)%procmask)) then
+          call data(i)%N%update_N(handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+       else
+          call data(i)%N%update_N(handle, data(i)%mask, regnoise, map=rms)
+       end if
+       if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
+       data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
+       data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
+       deallocate(regnoise)
+       call rms%dealloc
 
        ! Update mixing matrices based on new bandpasses
        do j = 1, data(i)%tod%ndet

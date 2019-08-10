@@ -97,7 +97,8 @@ module comm_tod_mod
        type(planck_rng),                    intent(inout) :: handle
        type(map_ptr),     dimension(:,:),   intent(inout) :: map_in            
        real(dp),          dimension(:,:,:), intent(inout) :: delta
-       class(comm_map),                     intent(inout) :: map_out, rms_out  
+       class(comm_map),                     intent(inout) :: map_out
+       class(comm_map),                     intent(inout) :: rms_out  
      end subroutine process_tod
   end interface
 

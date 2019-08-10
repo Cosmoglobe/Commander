@@ -11,6 +11,9 @@ module comm_N_mod
      character(len=512)       :: type
      integer(i4b)             :: nside, nmaps, np
      logical(lgt)             :: pol
+     logical(lgt)             :: set_noise_to_mean
+     character(len=512)       :: cg_precond
+     real(dp)                 :: uni_fsky
      real(dp), allocatable, dimension(:) :: alpha_nu ! (T,Q,U)
      class(comm_map), pointer :: invN_diag
      class(comm_map), pointer :: siN
@@ -21,6 +24,7 @@ module comm_N_mod
      procedure(matmulSqrtInvN), deferred :: sqrtInvN
      procedure(returnRMS),      deferred :: rms
      procedure(returnRMSpix),   deferred :: rms_pix
+     procedure(update_N),       deferred :: update_N
   end type comm_N
 
   abstract interface
@@ -64,14 +68,27 @@ module comm_N_mod
        integer(i4b),    intent(in)    :: pix, pol
        real(dp)                       :: returnRMSpix
      end function returnRMSpix
+
+     ! Update noise model
+     subroutine update_N(self, handle, mask, regnoise, procmask, filename, map)
+       import comm_N, comm_map, dp, planck_rng
+       implicit none
+       class(comm_N),                      intent(inout)          :: self
+       type(planck_rng),                   intent(inout)          :: handle
+       class(comm_map),                    intent(in)             :: mask
+       real(dp),         dimension(0:,1:), intent(out)            :: regnoise
+       class(comm_map),                    intent(in),   optional :: procmask
+       character(len=*),                   intent(in),   optional :: filename
+       class(comm_map),                    intent(in),   optional :: map
+     end subroutine update_N
+
   end interface
 
 contains
 
-  subroutine compute_invN_lm(cache, invN_diag)
+  subroutine compute_invN_lm(invN_diag)
     implicit none
 
-    character(len=*), intent(in)    :: cache
     class(comm_map),  intent(inout) :: invN_diag
 
     real(dp)     :: l0min, l0max, l1min, l1max, npix, checksum, t1, t2
@@ -80,30 +97,6 @@ contains
     complex(dpc) :: val(invN_diag%info%nmaps)
     real(dp), allocatable, dimension(:)   :: threej_symbols, threej_symbols_m0
     real(dp), allocatable, dimension(:,:) :: N_lm, a_l0
-
-    ! Check if we are all ready to read precomputed structure
-    unit = getlun()
-    inquire(file=trim(cache), exist=exist)
-    if (exist) then
-       open(unit, file=trim(cache), form='unformatted')
-       read(unit) checksum
-       if (checksum > 0.d0) then
-          exist = abs(sum(abs(invN_diag%map))-checksum)/abs(checksum) < 1d-6
-       else 
-          exist = sum(abs(invN_diag%map)) == 0.d0
-       end if
-       close(unit)
-    end if
-    call mpi_allreduce(MPI_IN_PLACE, exist, 1, MPI_LOGICAL, MPI_LAND, invN_diag%info%comm, ier)
-
-    ! If all agree, read from disk. If not, recompute from scratch
-    if (exist) then
-       open(unit, file=trim(cache), form='unformatted')
-       read(unit) checksum
-       read(unit) invN_diag%alm
-       close(unit)
-       return
-    end if
 
     lmax      = invN_diag%info%lmax
     twolmaxp2 = 2*lmax+2
@@ -161,14 +154,6 @@ contains
 
     invN_diag%alm = N_lm
     !write(*,*) sum(abs(invN_diag%alm))
-
-    ! Write cache file to disk
-    if (.true.) then
-       open(unit, file=trim(cache), form='unformatted')
-       write(unit) sum(abs(invN_diag%map))    ! Check-sum
-       write(unit) invN_diag%alm
-       close(unit)
-    end if
 
     deallocate(N_lm, a_l0)
     
