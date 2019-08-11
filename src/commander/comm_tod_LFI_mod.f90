@@ -86,7 +86,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_all    = .true.
+    constructor%output_n_maps = 4
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -199,7 +199,7 @@ contains
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, scanfile, ncol, n_A, nout
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold, delta_temp, chisq_tot
     real(dp)     :: t_tot(22), inv_gain
-    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_sb, s_sky_prop, s_sb_prop, s_mono, s_buf, s_tot
+    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp, s_sky_prop, s_bp_prop, s_mono, s_buf, s_tot
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
     real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
@@ -348,7 +348,7 @@ contains
           if (do_oper(bin_map)) then
              ncol = nmaps
              n_A  = nmaps*(nmaps+1)/2
-             nout = 1; if (self%output_all) nout = 7
+             nout = self%output_n_maps
              allocate(outmaps(nout))
              do i = 1, nout
                 outmaps(i)%p => comm_map(map_out%info)
@@ -416,8 +416,8 @@ contains
           allocate(s_sl(ntod, ndet))         ! Sidelobe in uKcm
           allocate(s_sky(ntod, ndet))        ! Sky signal in uKcmb
           allocate(s_sky_prop(ntod, ndet))   ! Sky signal in uKcmb
-          allocate(s_sb(ntod, ndet))         ! Signal minus mean
-          allocate(s_sb_prop(ntod, ndet))    ! Signal minus mean
+          allocate(s_bp(ntod, ndet))         ! Signal minus mean
+          allocate(s_bp_prop(ntod, ndet))    ! Signal minus mean
           allocate(s_orb(ntod, ndet))        ! Orbital dipole in uKcmb
           allocate(s_mono(ntod, ndet))       ! Monopole correction in uKcmb
           allocate(s_buf(ntod, ndet))       ! Buffer
@@ -456,14 +456,14 @@ contains
           call wall_time(t1)
           if (do_oper(bin_map) .or. do_oper(prep_bp)) then 
              call self%project_sky(smap_sky(:,1), pix, psi, flag, &
-                  & sprocmask%a, i, s_sky, mask, s_sb=s_sb)  
+                  & sprocmask%a, i, s_sky, mask, s_bp=s_bp)  
           else 
              call self%project_sky(smap_sky(:,1), pix, psi, flag, &
                   & sprocmask%a, i, s_sky, mask)
           end if
           if (do_oper(prep_bp)) then
              call self%project_sky(smap_sky(:,2), pix, psi, flag, &
-                  & sprocmask%a, i, s_sky_prop, mask, s_sb=s_sb_prop)  
+                  & sprocmask%a, i, s_sky_prop, mask, s_bp=s_bp_prop)  
           end if
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           call update_status(status, "tod_project")
@@ -592,16 +592,15 @@ contains
              do j = 1, ndet
                 inv_gain       = 1.d0 / self%scans(i)%d(j)%gain
                 d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
-                     & inv_gain - s_tot(:,j) + s_sky(:,j) - s_sb(:,j)
-                if (self%output_all .and. do_oper(bin_map)) then
-                   d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_sb(:,j) ! Residual
-                   d_calib(3,:,j) = n_corr(:,j) * inv_gain
-                   d_calib(4,:,j) = s_sb(:,j)                         
-                   d_calib(5,:,j) = s_mono(:,j)
-                   d_calib(6,:,j) = s_orb(:,j)
-                   d_calib(7,:,j) = s_sl(:,j)
-                else if (do_oper(prep_bp)) then
-                   d_calib(2,:,j) = d_calib(1,:,j) + s_sb(:,j) - s_sb_prop(:,j)
+                     & inv_gain - s_tot(:,j) + s_sky(:,j) - s_bp(:,j)
+                if (do_oper(bin_map) .and. nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_bp(:,j) ! Residual
+                if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = n_corr(:,j) * inv_gain
+                if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
+                if (do_oper(bin_map) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
+                if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
+                if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
+                if (do_oper(prep_bp)) then
+                   d_calib(2,:,j) = d_calib(1,:,j) + s_bp(:,j) - s_bp_prop(:,j)
                 end if
              end do
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
@@ -621,7 +620,7 @@ contains
           ! Clean up
           call wall_time(t1)
           deallocate(n_corr, s_sl, s_sky, s_orb, s_tot)
-          deallocate(mask, mask2, pix, psi, flag, s_sb, s_sky_prop, s_sb_prop, s_buf, s_mono)
+          deallocate(mask, mask2, pix, psi, flag, s_bp, s_sky_prop, s_bp_prop, s_buf, s_mono)
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
           call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
@@ -697,14 +696,12 @@ contains
     call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
     call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
-    if (self%output_all) then
-       call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-       call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-       call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
-       call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
-       call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-       call outmaps(7)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-    end if
+    if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
+    if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+    if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
+    if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
+    if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
+    if (self%output_n_maps > 6) call outmaps(7)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
 
     if (first) then
        call mpi_reduce(ntot,    i, 1, MPI_INTEGER, MPI_SUM, &
@@ -789,7 +786,7 @@ contains
     integer(i4b),        dimension(:),  intent(out) :: pix, psi, flag
 
     integer(i4b) :: i, j
-    character(len=6) :: stext
+    character(len=6) :: stext, dtext
 
     call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
     call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi)
@@ -802,11 +799,21 @@ contains
     end do
     psi = modulo(psi,4096)
 
+!!$    call int2string(scan,stext)
+!!$    call int2string(det,dtext)
+!!$    open(58,file='psi'//stext//'_'//dtext//'.dat')
+!!$    do j = 1, self%scans(scan)%ntod
+!!$       if (pix(j) == 6285034) then
+!!$          write(58,*) scan, psi(j), j
+!!$       end if
+!!$    end do
+!!$    close(58)
+
   end subroutine decompress_pointing_and_flags
 
   ! Sky signal template
   subroutine project_sky(self, map, pix, psi, flag, pmask, scan_id, &
-       & s_sky, tmask, s_sb)
+       & s_sky, tmask, s_bp)
     implicit none
     class(comm_LFI_tod),                    intent(in)  :: self
     integer(i4b),        dimension(0:),     intent(in)  :: pmask
@@ -815,7 +822,7 @@ contains
     integer(i4b),        dimension(:,:),    intent(in)  :: flag
     integer(i4b),                           intent(in)  :: scan_id
     real(sp),            dimension(:,:),    intent(out) :: s_sky, tmask
-    real(sp),            dimension(:,:),    intent(out), optional :: s_sb
+    real(sp),            dimension(:,:),    intent(out), optional :: s_bp
 
     integer(i4b) :: i, ierr,det
     real(sp)     :: s
@@ -833,14 +840,14 @@ contains
        end do
     end do
 
-    if (present(s_sb)) then
+    if (present(s_bp)) then
        do det = 1, self%ndet
           if (.not. self%scans(scan_id)%d(det)%accept) cycle
           do i = 1, self%scans(scan_id)%ntod
              s =    map(0)%a(1,pix(i,det)+1) + &
                   & map(0)%a(2,pix(i,det)+1) * self%cos2psi(psi(i,det)) + &
                   & map(0)%a(3,pix(i,det)+1) * self%sin2psi(psi(i,det))
-             s_sb(i,det)  = s_sky(i,det) - s
+             s_bp(i,det)  = s_sky(i,det) - s
           end do
        end do
     end if

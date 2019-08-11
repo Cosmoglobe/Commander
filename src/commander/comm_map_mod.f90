@@ -992,6 +992,14 @@ contains
        call info%i2lm(i,l,m)
        call self%info%lm2i(l,m,j)
        if (j == -1) cycle
+!!$       if (j > size(self%alm,1)) then
+!!$          write(*,*) 'a', self%info%lmax, l, m, j
+!!$          write(*,*) 'b', info%lmax, l, m, i
+!!$       end if
+!!$       if (i > size(alm,1)) then
+!!$          write(*,*) 'c', self%info%lmax, l, m, j, size(self%alm,1)
+!!$          write(*,*) 'd', info%lmax, l, m, i, size(alm,1)
+!!$       end if
        do q = 1, min(self%info%nmaps, info%nmaps)
           self%alm(j,q) = self%alm(j,q) + alm(i,q)
        end do

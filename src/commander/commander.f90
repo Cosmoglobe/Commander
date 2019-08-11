@@ -212,7 +212,7 @@ contains
     class(comm_map), pointer :: rms
 
     ndelta      = 2
-    sigma_delta = 0.1d0 ! BP delta step size in GHz
+    sigma_delta = 0.03d0 ! BP delta step size in GHz
 
     do i = 1, numband  
        if (trim(cpar%ds_tod_type(i)) == 'none') cycle
@@ -253,6 +253,8 @@ contains
              call get_sky_signal(i, j, s_sky(j,k)%p)  
           end do
        end do
+
+!       call s_sky(1,1)%p%writeFITS('sky.fits')
 
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
