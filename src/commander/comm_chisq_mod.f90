@@ -198,15 +198,16 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
+          !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
           alm     = c%getBand(band, alm_out=.true., det=det)
 !!$          if (c%x%info%myid == 0) then
 !!$             write(*,*) c%label
 !!$             write(*,*) shape(alm)
 !!$             write(*,*) shape(map_out%alm)
 !!$          end if
-!!$          write(*,*) c%x%info%nalm, map_diff%info%nalm, c%x%info%nmaps, map_diff%info%nmaps
-          call map_diff%add_alm(alm, c%x%info)
+          !write(*,*) c%x%info%nalm, map_diff%info%nalm, c%x%info%nmaps, map_diff%info%nmaps
+!          call map_diff%add_alm(alm, c%x%info)
+          map_diff%alm = map_diff%alm + alm
           deallocate(alm)
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))

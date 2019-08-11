@@ -59,8 +59,8 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
-     logical(lgt) :: output_all                                   ! Oitput all samples
-     logical(lgt) :: init_from_HDF                                   ! Oitput all samples
+     integer(i4b) :: output_n_maps                                ! Output n_maps
+     logical(lgt) :: init_from_HDF                                   ! Read from HDF file
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
      real(dp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
