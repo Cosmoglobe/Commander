@@ -201,6 +201,193 @@ contains
   end subroutine insertion_sort
 
 
+
+  ! This routine sorts an integer array, according to distances given
+  ! by the additional array dist
+  subroutine QuickSort_int_dist(numbers, dist)
+    implicit none
+
+    integer(i4b), dimension(:)  :: numbers
+    integer(i4b), dimension(:)  :: dist
+
+    call quick_sort_int_dist(numbers, dist, 1, size(numbers))
+    call insertion_sort_int_dist(numbers, dist)
+  end subroutine QuickSort_int_dist
+
+  recursive subroutine quick_sort_int_dist(numbers, dist, left, right)
+    implicit none
+    
+    integer(i4b), dimension(:)   :: numbers
+    integer(i4b), dimension(:)   :: dist
+    integer(i4b)                 :: left, right
+
+    integer(i4b)  :: i,j, itemp
+    integer(i4b)  :: pivot, rtemp
+
+    if (left+10 < right) then
+
+       call median3_int_dist(numbers, dist, left, right, pivot)
+
+       i = left; j = right-1
+
+       i = i+1
+       do while (dist(i)<pivot)
+          i = i+1
+       end do
+       
+       j = j-1
+       do while (dist(j)>pivot)
+          j = j-1
+       end do
+       
+       itemp = numbers(i)
+       rtemp = dist(i)
+          
+       numbers(i) = numbers(j)
+       dist(i)    = dist(j)
+
+       numbers(j) = itemp
+       dist(j)    = rtemp
+
+       do while (j>i)
+          i = i+1
+          do while (dist(i)<pivot)
+             i = i+1
+          end do
+    
+          j = j-1
+          do while (dist(j)>pivot)
+             j = j-1
+          end do
+
+          itemp = numbers(i)
+          rtemp = dist(i)
+
+          numbers(i) = numbers(j)
+          dist(i)    = dist(j)
+
+          numbers(j) = itemp
+          dist(j)    = rtemp
+       end do
+
+       ! Undo last swap
+       itemp = numbers(i)
+       rtemp = dist(i)
+
+       numbers(i) = numbers(j)
+       dist(i)    = dist(j)
+
+       numbers(j) = itemp
+       dist(j)    = rtemp
+
+       ! Restore pivot  
+       itemp = numbers(i)
+       rtemp = dist(i)
+
+       numbers(i) = numbers(right-1)
+       dist(i)    = dist(right-1)
+
+       numbers(right-1) = itemp
+       dist(right-1)    = rtemp
+          
+       call quick_sort_int_dist(numbers, dist, left, i-1)
+       call quick_sort_int_dist(numbers, dist, i+1, right)
+    end if
+  end subroutine quick_sort_int_dist
+
+  subroutine median3_int_dist(numbers, dist, left, right, pivot)
+    implicit none
+
+    integer(i4b)                  :: left, right
+    integer(i4b)                  :: pivot
+    integer(i4b), dimension(:)    :: numbers
+    integer(i4b), dimension(:)    :: dist
+
+    integer(i4b)                  :: center, itemp
+    integer(i4b)                  :: rtemp
+
+    center = (left+right)/2
+
+    if (dist(left)>dist(center)) then
+       itemp = numbers(left)
+       rtemp = dist(left)
+
+       numbers(left) = numbers(center)
+       dist(left)    = dist(center)
+
+       numbers(center) = itemp
+       dist(center)    = rtemp
+    end if
+    
+    if (dist(left) > dist(right)) then
+       itemp = numbers(left)
+       rtemp = dist(left)
+
+       numbers(left) = numbers(right)
+       dist(left)    = dist(right)
+
+       numbers(right) = itemp
+       dist(right)    = rtemp
+    end if
+
+    if (dist(center) > dist(right)) then
+       itemp = numbers(center)
+       rtemp = dist(center)
+
+       numbers(center) = numbers(right)
+       dist(center)    = dist(right)
+
+       numbers(right) = itemp
+       dist(right)    = rtemp
+    end if
+
+    pivot = dist(center)
+
+    ! Swap the pivot away
+    itemp = numbers(center)
+    rtemp = dist(center)
+
+    numbers(center) = numbers(right-1)
+    dist(center)    = dist(right-1)
+
+    numbers(right-1) = itemp
+    dist(right-1)    = rtemp
+  end subroutine median3_int_dist
+
+  subroutine insertion_sort_int_dist(numbers, dist)
+    implicit none
+
+    integer(i4b), dimension(:)   :: numbers
+    integer(i4b), dimension(:)   :: dist
+
+    integer(i4b)  :: length, i, j
+    integer(i4b)  :: itemp
+    integer(i4b)  :: rtemp
+
+    length = size(numbers)
+
+    do i = 2, length
+       j = i
+
+       itemp = numbers(i)
+       rtemp = dist(i)
+
+       do while (rtemp < dist(j-1))
+          dist(j) = dist(j-1)
+          numbers(j) = numbers(j-1)
+          j = j-1
+
+          if (j == 1) then
+             exit
+          end if
+       end do
+
+       dist(j) = rtemp
+       numbers(j) = itemp
+    end do
+  end subroutine insertion_sort_int_dist
+
+
   !*****************************************************************************
 
 

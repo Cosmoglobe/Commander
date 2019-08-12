@@ -212,7 +212,7 @@ contains
     class(comm_map), pointer :: rms
 
     ndelta      = 2
-    sigma_delta = 0.03d0 ! BP delta step size in GHz
+    sigma_delta = 0.01d0 ! BP delta step size in GHz
 
     do i = 1, numband  
        if (trim(cpar%ds_tod_type(i)) == 'none') cycle
