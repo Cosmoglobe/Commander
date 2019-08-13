@@ -110,7 +110,7 @@ contains
     do l = 1, 3
        do i = 1, numband
           if (l > 1) then
-             do m = 0:constructor%ndet
+             do m = 0,constructor%ndet
                 constructor%F_int(l,i,m)%p => constructor%F_int(l-1,i,m)%p
              end do
              cycle
