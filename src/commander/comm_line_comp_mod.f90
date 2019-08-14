@@ -38,7 +38,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_line_comp), pointer   :: constructor
 
-    integer(i4b) :: i, j, k, l, nline, b, n, ierr
+    integer(i4b) :: i, j, k, l, m, nline, b, n, ierr
     real(dp)     :: f
     logical(lgt) :: ref_exist
     character(len=512), allocatable, dimension(:) :: label
@@ -110,7 +110,9 @@ contains
     do l = 1, 3
        do i = 1, numband
           if (l > 1) then
-             constructor%F_int(l,i,j)%p => constructor%F_int(l-1,i,j)%p
+             do m = 0,constructor%ndet
+                constructor%F_int(l,i,m)%p => constructor%F_int(l-1,i,m)%p
+             end do
              cycle
           end if
           if (any(constructor%ind2band == i)) then
@@ -121,7 +123,7 @@ contains
              j = j+1
           else
              do k = 0, data(i)%ndet
-                constructor%F_int(l,i,j)%p => comm_F_line(constructor, data(i)%bp(k)%p, .false., 0.d0, j)
+                constructor%F_int(l,i,k)%p => comm_F_line(constructor, data(i)%bp(k)%p, .false., 0.d0, j)
              end do
           end if
        end do
