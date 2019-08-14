@@ -71,10 +71,11 @@ contains
     class(comm_mapinfo),     target     :: info
     class(comm_LFI_tod),     pointer    :: constructor
 
-    integer(i4b) :: i, j, l, m, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec
+    integer(i4b) :: i, j, k, l, m, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
     type(hdf_file) :: h5_file
+    integer(i4b), allocatable, dimension(:) :: pix
 
     ! Set up LFI specific parameters
     allocate(constructor)
@@ -91,6 +92,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
+    call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     datadir = trim(cpar%datadir)//'/' 
     constructor%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
@@ -178,7 +180,44 @@ contains
     do i = 0, np_vec-1
        call pix2vec_ring(constructor%nside, i, constructor%pix2vec(:,i))
     end do
-           
+
+    ! Construct observed pixel array
+    allocate(constructor%pix2ind(0:12*constructor%nside**2-1))
+    constructor%pix2ind = -1
+    do i = 1, constructor%nscan
+       allocate(pix(constructor%scans(i)%ntod))          
+       do j = 1, constructor%ndet
+          call huffman_decode(constructor%scans(i)%hkey, &
+               constructor%scans(i)%d(j)%pix, pix)
+          constructor%pix2ind(pix(1)) = 1
+          do k = 2, constructor%scans(i)%ntod
+             pix(k)  = pix(k-1)  + pix(k)
+             constructor%pix2ind(pix(k)) = 1
+          end do
+       end do
+       deallocate(pix)
+    end do
+    constructor%nobs = count(constructor%pix2ind == 1) 
+    allocate(constructor%ind2pix(constructor%nobs))
+    j = 1
+    do i = 0, 12*constructor%nside**2-1
+       if (constructor%pix2ind(i) == 1) then
+          constructor%ind2pix(j) = i 
+          constructor%pix2ind(i) = j
+          j = j+1
+       end if
+    end do
+    if (constructor%myid == 0) then
+       write(*,*) '  TOD-map filling factor = ', &
+            & constructor%nobs/(12.*constructor%nside**2)
+    end if
+
+!!$    do i = 1, constructor%nobs
+!!$       write(*,*) i, constructor%ind2pix(i)
+!!$    end do
+!!$    call mpi_finalize(i)
+!!$    stop
+
   end function constructor
 
   !**************************************************
@@ -195,7 +234,7 @@ contains
     class(comm_map),                       intent(inout) :: map_out      ! Combined output map
     class(comm_map),                       intent(inout) :: rms_out      ! Combined output rms
 
-    integer(i4b) :: i, j, k, l, ntod, ndet, nside, npix, nmaps, naccept, ntot, ns
+    integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet, nside, npix, nmaps, naccept, ntot, ns
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, scanfile, ncol, n_A, nout
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold, delta_temp, chisq_tot
     real(dp)     :: t_tot(22), inv_gain
@@ -219,6 +258,8 @@ contains
     character(5)                                  :: istr
     type(shared_1d_int) :: sprocmask, sprocmask2
     type(shared_2d_sp), allocatable, dimension(:,:) :: smap_sky
+    type(shared_2d_dp) :: sA_map
+    type(shared_3d_dp) :: sb_map, sb_mono
     class(comm_map), pointer :: map_sl, map_sl2, condmap
     class(map_ptr), allocatable, dimension(:) :: outmaps
     class(comm_mapinfo), pointer :: info_sl2, info_sl_map
@@ -245,6 +286,8 @@ contains
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
+    chunk_size      = npix/self%numprocs_shared
+    if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size+1
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(smap_sky(0:ndet, ndelta)) 
     allocate(chisq_S(ndet,2))
@@ -359,13 +402,30 @@ contains
              nout = 2
           end if
           if (allocated(A_map)) deallocate(A_map, b_map)
-          allocate(A_map(n_A,0:npix-1), b_map(nout,ncol,0:npix-1))
+          allocate(A_map(n_A,self%nobs), b_map(nout,ncol,self%nobs))
           A_map = 0.d0; b_map = 0.d0         
+          if (sA_map%init) call dealloc_shared_2d_dp(sA_map)
+          call init_shared_2d_dp(self%myid_shared, self%comm_shared, &
+               & self%myid_inter, self%comm_inter, [n_A,npix], sA_map)
+          call mpi_win_fence(0, sA_map%win, ierr)
+          if (sA_map%myid_shared == 0) sA_map%a = 0.d0
+          call mpi_win_fence(0, sA_map%win, ierr)
+          if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
+          call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
+               & self%myid_inter, self%comm_inter, [nout,ncol,npix], sb_map)
+          call mpi_win_fence(0, sb_map%win, ierr)
+          if (sb_map%myid_shared == 0) sb_map%a = 0.d0
+          call mpi_win_fence(0, sb_map%win, ierr)
        end if
 
        if (do_oper(samp_mono)) then
-          allocate(b_mono(nmaps,0:npix-1,ndet), sys_mono(nmaps,nmaps+ndet,0:self%info%np-1))
+          allocate(b_mono(nmaps,self%nobs,ndet), sys_mono(nmaps,nmaps+ndet,0:self%info%np-1))
           b_mono = 0.d0
+          call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
+               & self%myid_inter, self%comm_inter, [nmaps,npix,ndet], sb_mono)
+          call mpi_win_fence(0, sb_mono%win, ierr)
+          if (sb_map%myid_shared == 0) sb_mono%a = 0.d0
+          call mpi_win_fence(0, sb_mono%win, ierr)
        end if
 
        if (do_oper(sel_data)) then
@@ -377,7 +437,6 @@ contains
        end if
 
        if (do_oper(samp_acal)) then
-          call mpi_barrier(self%comm, ierr)
           call wall_time(t1)
           call self%sample_absgain_from_orbital(A_abscal, b_abscal)
           call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
@@ -401,7 +460,7 @@ contains
        ! Perform main analysis loop
        do i = 1, self%nscan
 
-          call update_status(status, "tod_loop1")
+          !call update_status(status, "tod_loop1")
           call wall_time(t7)
 
           if (.not. any(self%scans(i)%d%accept)) cycle
@@ -450,7 +509,7 @@ contains
           end do
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
-          call update_status(status, "tod_decomp")
+          !call update_status(status, "tod_decomp")
           
           ! Construct sky signal template
           call wall_time(t1)
@@ -466,13 +525,13 @@ contains
                   & sprocmask%a, i, s_sky_prop, mask, s_bp=s_bp_prop)  
           end if
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
-          call update_status(status, "tod_project")
+          !call update_status(status, "tod_project")
           
           ! Construct orbital dipole template
           call wall_time(t1)
           call self%compute_orbital_dipole(i, pix, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
-          call update_status(status, "tod_orb")
+          !call update_status(status, "tod_orb")
            
           ! Construct sidelobe template 
           call wall_time(t1)
@@ -633,27 +692,43 @@ contains
                      & '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp)
              end if
           end if
-          call update_status(status, "tod_loop2")
+          !call update_status(status, "tod_loop2")
 
        end do
 
        ! Output total chisquare
        call wall_time(t7)
-       if (.false.) then
-          do j = 1, ndet
-             chisq_tot = self%get_total_chisq(j)
-             if (self%myid == 0) then
-                write(*,fmt='(a,i4,a,i4,a,f12.1)') 'iter = ', main_iter, &
-                     & ', det = ', j, ' -- chisq = ', chisq_tot  
-             end if
-          end do
-       end if
  
        if (do_oper(prep_bp)) then
-          call mpi_barrier(self%comm, ierr)
           call wall_time(t1)
+          do i = 0, self%numprocs_shared-1
+             start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
+             end_chunk   = min(start_chunk+chunk_size-1,npix-1)
+             do while (start_chunk < npix)
+                if (self%pix2ind(start_chunk) /= -1) exit
+                start_chunk = start_chunk+1
+             end do
+             do while (end_chunk >= start_chunk)
+                if (self%pix2ind(end_chunk) /= -1) exit
+                end_chunk = end_chunk-1
+             end do
+             if (start_chunk < npix)       start_chunk = self%pix2ind(start_chunk)
+             if (end_chunk >= start_chunk) end_chunk   = self%pix2ind(end_chunk)
+
+             call mpi_win_fence(0, sA_map%win, ierr)
+             call mpi_win_fence(0, sb_map%win, ierr)
+             do j = start_chunk, end_chunk
+                sA_map%a(:,self%ind2pix(j)+1) = sA_map%a(:,self%ind2pix(j)+1) + &
+                     & A_map(:,j)
+                sb_map%a(:,:,self%ind2pix(j)+1) = sb_map%a(:,:,self%ind2pix(j)+1) + &
+                     & b_map(:,:,j)
+             end do
+          end do
+          call mpi_win_fence(0, sA_map%win, ierr)
+          call mpi_win_fence(0, sb_map%win, ierr)
+
           Sfilename = trim(prefix) // 'Smap'// trim(postfix) 
-          call self%finalize_binned_map(handle, A_map, b_map(1:2,:,:), outmaps, &
+          call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, &
                & rms_out, chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
           call wall_time(t2); t_tot(10) = t_tot(10) + t2-t1
        end if
@@ -661,7 +736,6 @@ contains
 
     end do
     call wall_time(t4)
-
 
     ! Output latest scan list with new timing information
     if (do_oper(output_slist)) then
@@ -671,15 +745,48 @@ contains
     end if
 
     ! Solve combined map, summed over all pixels 
-    call mpi_barrier(self%comm, ierr)
     call wall_time(t1)
+    do i = 0, self%numprocs_shared-1
+       start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
+       end_chunk   = min(start_chunk+chunk_size-1,npix-1)
+       do while (start_chunk < npix)
+          if (self%pix2ind(start_chunk) /= -1) exit
+          start_chunk = start_chunk+1
+       end do
+       do while (end_chunk >= start_chunk)
+          if (self%pix2ind(end_chunk) /= -1) exit
+          end_chunk = end_chunk-1
+       end do
+       if (start_chunk < npix)       start_chunk = self%pix2ind(start_chunk)
+       if (end_chunk >= start_chunk) end_chunk   = self%pix2ind(end_chunk)
+
+       call mpi_win_fence(0, sA_map%win, ierr)
+       call mpi_win_fence(0, sb_map%win, ierr)
+       do j = start_chunk, end_chunk
+          sA_map%a(:,self%ind2pix(j)+1) = sA_map%a(:,self%ind2pix(j)+1) + &
+               & A_map(:,j)
+          sb_map%a(:,:,self%ind2pix(j)+1) = sb_map%a(:,:,self%ind2pix(j)+1) + &
+                  & b_map(:,:,j)
+       end do
+       if (do_oper(samp_mono)) then
+          call mpi_win_fence(0, sb_mono%win, ierr)
+          do j = start_chunk, end_chunk
+             sb_mono%a(:,self%ind2pix(j)+1,:) = sb_mono%a(:,self%ind2pix(j)+1,:) + &
+                  & b_mono(:,j,:)
+          end do
+       end if
+    end do
+    call mpi_win_fence(0, sA_map%win, ierr)
+    call mpi_win_fence(0, sb_map%win, ierr)
+    if (do_oper(samp_mono)) call mpi_win_fence(0, sb_mono%win, ierr)
+
     if (do_oper(samp_mono)) then
        condmap => comm_map(self%info)
-       call self%finalize_binned_map(handle, A_map, b_map, outmaps, rms_out, b_mono=b_mono, sys_mono=sys_mono, condmap=condmap)
+       call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono, condmap=condmap)
        call condmap%writeFITS("cond.fits")
        call condmap%dealloc()
     else
-       call self%finalize_binned_map(handle, A_map, b_map, outmaps, rms_out)
+       call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out)
     end if
     map_out%map = outmaps(1)%p%map
 
@@ -747,6 +854,9 @@ contains
     ! Clean up temporary arrays
     deallocate(A_map, b_map)
     deallocate(A_abscal, b_abscal, chisq_S)
+    call dealloc_shared_2d_dp(sA_map)
+    call dealloc_shared_3d_dp(sb_map)
+    if (sb_mono%init) call dealloc_shared_3d_dp(sb_mono)
     if (allocated(b_mono)) deallocate(b_mono)
     if (allocated(sys_mono)) deallocate(sys_mono)
     do i = 1, nout
@@ -1354,9 +1464,9 @@ contains
     integer(i4b),                             intent(in)    :: scan
     real(sp),            dimension(1:,1:,1:),    intent(in)    :: data
     integer(i4b),        dimension(1:,1:),       intent(in)    :: pix, psi, flag
-    real(dp),            dimension(1:,0:),    intent(inout) :: A
-    real(dp),            dimension(1:,1:,0:), intent(inout) :: b
-    real(dp),            dimension(1:,0:,1:),    intent(inout), optional :: b_mono
+    real(dp),            dimension(1:,1:),    intent(inout) :: A
+    real(dp),            dimension(1:,1:,1:), intent(inout) :: b
+    real(dp),            dimension(1:,1:,1:),    intent(inout), optional :: b_mono
     logical(lgt),                             intent(in)    :: comp_S
 
     integer(i4b) :: det, i, j, t, pix_, off, nout, psi_
@@ -1366,54 +1476,240 @@ contains
 
     do det = 1, self%ndet
        if (.not. self%scans(scan)%d(det)%accept) cycle
-    off         = 6 + 4*(det-1)
-    inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
-    do t = 1, self%scans(scan)%ntod
-
-       if (iand(flag(t,det),6111248) .ne. 0) cycle
-
-       pix_    = pix(t,det)
-       psi_    = psi(t,det)
-       !d       = data(:,t,det)
-       
-       A(1,pix_) = A(1,pix_) + 1.d0                                  * inv_sigmasq
-       A(2,pix_) = A(2,pix_) + self%cos2psi(psi_)                    * inv_sigmasq
-       A(3,pix_) = A(3,pix_) + self%cos2psi(psi_)**2                 * inv_sigmasq
-       A(4,pix_) = A(4,pix_) + self%sin2psi(psi_)                    * inv_sigmasq
-       A(5,pix_) = A(5,pix_) + self%cos2psi(psi_)*self%sin2psi(psi_) * inv_sigmasq
-       A(6,pix_) = A(6,pix_) + self%sin2psi(psi_)**2                 * inv_sigmasq
-
-       !dir$ ivdep
-       do i = 1, nout
-          b(i,1,pix_) = b(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
-          b(i,2,pix_) = b(i,2,pix_) + data(i,t,det) * self%cos2psi(psi_) * inv_sigmasq
-          b(i,3,pix_) = b(i,3,pix_) + data(i,t,det) * self%sin2psi(psi_) * inv_sigmasq
-       end do
-
-       if (present(b_mono)) then
-          b_mono(1,pix_,det) = b_mono(1,pix_,det) +                      inv_sigmasq
-          b_mono(2,pix_,det) = b_mono(2,pix_,det) + self%cos2psi(psi_) * inv_sigmasq
-          b_mono(3,pix_,det) = b_mono(3,pix_,det) + self%sin2psi(psi_) * inv_sigmasq
-       end if
-
-       if (comp_S .and. det < self%ndet) then
-          A(off+1,pix_) = A(off+1,pix_) + 1.d0               * inv_sigmasq 
-          A(off+2,pix_) = A(off+2,pix_) + self%cos2psi(psi_) * inv_sigmasq
-          A(off+3,pix_) = A(off+3,pix_) + self%sin2psi(psi_) * inv_sigmasq
-          A(off+4,pix_) = A(off+4,pix_) + 1.d0               * inv_sigmasq
+       off         = 6 + 4*(det-1)
+       inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
+       do t = 1, self%scans(scan)%ntod
+          
+          if (iand(flag(t,det),6111248) .ne. 0) cycle
+          
+          pix_    = self%pix2ind(pix(t,det))
+          psi_    = psi(t,det)
+          
+          A(1,pix_) = A(1,pix_) + 1.d0                                  * inv_sigmasq
+          A(2,pix_) = A(2,pix_) + self%cos2psi(psi_)                    * inv_sigmasq
+          A(3,pix_) = A(3,pix_) + self%cos2psi(psi_)**2                 * inv_sigmasq
+          A(4,pix_) = A(4,pix_) + self%sin2psi(psi_)                    * inv_sigmasq
+          A(5,pix_) = A(5,pix_) + self%cos2psi(psi_)*self%sin2psi(psi_) * inv_sigmasq
+          A(6,pix_) = A(6,pix_) + self%sin2psi(psi_)**2                 * inv_sigmasq
+          
           do i = 1, nout
-             b(i,det+3,pix_) = b(i,det+3,pix_) + data(i,t,det) * inv_sigmasq 
+             b(i,1,pix_) = b(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
+             b(i,2,pix_) = b(i,2,pix_) + data(i,t,det) * self%cos2psi(psi_) * inv_sigmasq
+             b(i,3,pix_) = b(i,3,pix_) + data(i,t,det) * self%sin2psi(psi_) * inv_sigmasq
           end do
-       end if
-
+          
+          if (present(b_mono)) then
+             b_mono(1,pix_,det) = b_mono(1,pix_,det) +                      inv_sigmasq
+             b_mono(2,pix_,det) = b_mono(2,pix_,det) + self%cos2psi(psi_) * inv_sigmasq
+             b_mono(3,pix_,det) = b_mono(3,pix_,det) + self%sin2psi(psi_) * inv_sigmasq
+          end if
+          
+          if (comp_S .and. det < self%ndet) then
+             A(off+1,pix_) = A(off+1,pix_) + 1.d0               * inv_sigmasq 
+             A(off+2,pix_) = A(off+2,pix_) + self%cos2psi(psi_) * inv_sigmasq
+             A(off+3,pix_) = A(off+3,pix_) + self%sin2psi(psi_) * inv_sigmasq
+             A(off+4,pix_) = A(off+4,pix_) + 1.d0               * inv_sigmasq
+             do i = 1, nout
+                b(i,det+3,pix_) = b(i,det+3,pix_) + data(i,t,det) * inv_sigmasq 
+             end do
+          end if
+          
+       end do
     end do
- end do
-
 
   end subroutine compute_binned_map
 
 
-  subroutine finalize_binned_map(self, handle, A, b, outmaps, rms, chisq_S, Sfile, mask, b_mono, sys_mono, condmap)
+  subroutine finalize_binned_map(self, handle, sA_map, sb_map, outmaps, rms, chisq_S, Sfile, mask, sb_mono, sys_mono, condmap)
+    implicit none
+    class(comm_LFI_tod),                  intent(in)    :: self
+    type(planck_rng),                     intent(inout) :: handle
+    type(shared_2d_dp), intent(inout) :: sA_map
+    type(shared_3d_dp), intent(inout) :: sb_map
+    class(map_ptr),  dimension(1:),       intent(inout) :: outmaps
+    class(comm_map),                      intent(inout) :: rms
+    real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
+    character(len=*),                     intent(in),    optional :: Sfile
+    integer(i4b),    dimension(0:),       intent(in),    optional :: mask
+    type(shared_3d_dp), intent(inout), optional :: sb_mono
+    real(dp),        dimension(1:,1:,0:), intent(out),   optional :: sys_mono
+    class(comm_map),                      intent(inout), optional :: condmap
+
+    integer(i4b) :: i, j, k, l, nmaps, np, ierr, ndet, ncol, n_A, off
+    integer(i4b) :: det, nout, np0, comm, myid, nprocs
+    real(dp), allocatable, dimension(:,:)   :: A_inv
+    real(dp), allocatable, dimension(:,:,:) :: b_tot, buffer_b
+    real(dp), allocatable, dimension(:)     :: buffer, W, eta
+    real(dp), allocatable, dimension(:,:)   :: A_tot, buffer_A
+    integer(i4b), allocatable, dimension(:) :: pix
+    class(comm_mapinfo), pointer :: info
+    class(comm_map), pointer :: smap
+
+    myid  = self%myid
+    nprocs= self%numprocs
+    comm  = self%comm
+    np0   = self%info%np
+    nout  = size(sb_map%a,dim=1)
+    nmaps = self%info%nmaps
+    ndet  = self%ndet
+    if (present(chisq_S)) then
+       ncol  = nmaps+ndet-1
+       n_A   = nmaps*(nmaps+1)/2 + 4*(ndet-1)
+    else
+       ncol  = nmaps
+       n_A   = nmaps*(nmaps+1)/2
+    end if
+
+    ! Collect contributions from all nodes
+    call update_status(status, "tod_final1")
+    call mpi_win_fence(0, sA_map%win, ierr)
+    if (sA_map%myid_shared == 0) then
+       call mpi_allreduce(MPI_IN_PLACE, sA_map%a, size(sA_map%a), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
+    end if
+    call mpi_win_fence(0, sA_map%win, ierr)
+    call mpi_win_fence(0, sb_map%win, ierr)
+    if (sb_map%myid_shared == 0) then
+       call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
+    end if
+    call mpi_win_fence(0, sb_map%win, ierr)
+    if (present(sb_mono)) then
+       call mpi_win_fence(0, sb_mono%win, ierr)
+       if (sb_mono%myid_shared == 0) then
+          call mpi_allreduce(MPI_IN_PLACE, sb_mono%a, size(sb_mono%a), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, sb_mono%comm_inter, ierr)
+       end if
+       call mpi_win_fence(0, sb_mono%win, ierr)
+    end if
+
+!!$    if (self%myid == 0) then
+!!$       do i = 1, size(sA_map%a,2)
+!!$          if (any(sA_map%a(:,i) /= 0.d0)) then
+!!$             write(*,*) 'pix = ', i-1
+!!$             write(*,*) 'A   = ', sA_map%a(:,i)
+!!$             write(*,*) 'b   = ', sb_map%a(:,:,i)
+!!$          end if
+!!$       end do
+!!$    end if
+!!$    call mpi_finalize(i)
+!!$    stop
+
+    allocate(A_tot(n_A,0:np0-1), b_tot(nout,ncol,0:np0-1), W(ncol), eta(nmaps))
+    A_tot = sA_map%a(:,self%info%pix+1)
+    b_tot = sb_map%a(:,:,self%info%pix+1)
+    if (present(sb_mono)) then
+       do j = 1, ndet
+          sys_mono(:,nmaps+j,:) = sb_mono%a(:,self%info%pix+1,j)
+       end do
+    end if
+    call update_status(status, "tod_final2")
+
+
+    ! Solve for local map and rms
+    if (present(Sfile)) then
+       info => comm_mapinfo(self%comm, self%info%nside, 0, ndet-1, .false.)
+       smap => comm_map(info)
+    end if
+    allocate(A_inv(ncol,ncol))
+    A_inv   = 0.d0
+    !if (present(chisq_S)) smap%map = 0.d0
+    if (present(chisq_S)) chisq_S = 0.d0
+    do i = 0, np0-1
+       if (all(b_tot(1,:,i) == 0.d0)) cycle
+
+!!$       if (self%info%pix(i) == 100) then
+!!$          write(*,*) i, self%info%pix(i)
+!!$          write(*,*) 'A', A_tot(:,i)
+!!$          write(*,*) 'a', b_tot(:,:,i)
+!!$       end if
+
+       A_inv(1,1) = A_tot(1,i)
+       A_inv(2,1) = A_tot(2,i)
+       A_inv(1,2) = A_inv(2,1)
+       A_inv(2,2) = A_tot(3,i)
+       A_inv(3,1) = A_tot(4,i)
+       A_inv(1,3) = A_inv(3,1)
+       A_inv(3,2) = A_tot(5,i)
+       A_inv(2,3) = A_inv(3,2)
+       A_inv(3,3) = A_tot(6,i)
+       if (present(chisq_S)) then
+          do det = 1, ndet-1
+             off           = 6 + 4*(det-1)
+             A_inv(1,    3+det) = A_tot(off+1,i)
+             A_inv(3+det,1    ) = A_inv(1,3+det)
+             A_inv(2,    3+det) = A_tot(off+2,i)
+             A_inv(3+det,2    ) = A_inv(2,3+det)
+             A_inv(3,    3+det) = A_tot(off+3,i)
+             A_inv(3+det,3    ) = A_inv(3,3+det)
+             A_inv(3+det,3+det) = A_tot(off+4,i)
+          end do
+       end if
+
+       if (present(condmap)) then
+          call get_eigenvalues(A_inv, W)
+          condmap%map(i,1) = log10(max(abs(maxval(W)/minval(W)),1.d0))
+       end if
+       
+       call invert_singular_matrix(A_inv, 1d-12)
+       do k = 1, nout
+          b_tot(k,1:ncol,i) = matmul(A_inv,b_tot(k,1:ncol,i))
+       end do
+!!$       if (self%info%pix(i) == 100) then
+!!$          write(*,*) 'b', b_tot(:,:,i)
+!!$       end if 
+
+       if (present(sb_mono)) sys_mono(1:nmaps,1:nmaps,i) = A_inv(1:nmaps,1:nmaps)
+       if (present(Sfile)) then
+          do j = 1, ndet-1
+             smap%map(i,j) = b_tot(1,nmaps+j,i) / sqrt(A_inv(nmaps+j,nmaps+j))
+          end do
+       end if
+       if (present(chisq_S)) then
+          if (mask(self%info%pix(i+1)) == 0) cycle
+          do j = 1, ndet-1
+             if (A_inv(nmaps+j,nmaps+j) == 0.d0) cycle
+             chisq_S(j,1) = chisq_S(j,1) + b_tot(1,nmaps+j,i)**2 / A_inv(nmaps+j,nmaps+j)
+             chisq_S(j,2) = chisq_S(j,2) + b_tot(2,nmaps+j,i)**2 / A_inv(nmaps+j,nmaps+j)
+          end do
+       else
+          do j = 1, nmaps
+             rms%map(i,j) = sqrt(A_inv(j,j))  * 1.d6 ! uK
+             do k = 1, nout
+                outmaps(k)%p%map(i,j) = b_tot(k,j,i) * 1.d6 ! uK
+             end do
+             if (trim(self%operation) == 'sample') then
+                ! Add random fluctuation
+                call compute_hermitian_root(A_inv, 0.5d0)
+                do l = 1, nmaps
+                   eta(l) = rand_gauss(handle)
+                end do
+                outmaps(k)%p%map(i,:) = outmaps(k)%p%map(i,:) + matmul(A_inv,eta)
+             end if
+          end do
+       end if
+    end do
+
+    if (present(chisq_S)) then
+       if (myid == 0) then
+          call mpi_reduce(mpi_in_place, chisq_S, size(chisq_S), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+       else
+          call mpi_reduce(chisq_S,      chisq_S, size(chisq_S), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
+       end if
+
+       if (present(Sfile)) call smap%writeFITS(trim(Sfile))
+    end if
+
+    if (present(Sfile)) call smap%dealloc
+
+    deallocate(A_inv,A_tot,b_tot, W, eta)
+
+  end subroutine finalize_binned_map
+
+
+  subroutine finalize_binned_map2(self, handle, A, b, outmaps, rms, chisq_S, Sfile, mask, b_mono, sys_mono, condmap)
     implicit none
     class(comm_LFI_tod),                  intent(in)    :: self
     type(planck_rng),                     intent(inout) :: handle
@@ -1461,7 +1757,7 @@ contains
        if (myid == i) np = np0
        call mpi_bcast(np, 1,  MPI_INTEGER, i, comm, ierr)
        allocate(pix(np))
-       if (myid == i) pix = rms%info%pix
+       if (myid == i) pix = self%info%pix
        call mpi_bcast(pix, np,  MPI_INTEGER, i, comm, ierr)
        call mpi_reduce(A(1:n_A,pix), A_tot, n_A*np, MPI_DOUBLE_PRECISION, MPI_SUM, i, comm, ierr)
        call mpi_reduce(b(1:nout,1:ncol,pix), b_tot, ncol*np*nout, MPI_DOUBLE_PRECISION, MPI_SUM, i, comm, ierr)
@@ -1532,7 +1828,7 @@ contains
           end do
        end if
        if (present(chisq_S)) then
-          if (mask(rms%info%pix(i+1)) == 0) cycle
+          if (mask(self%info%pix(i+1)) == 0) cycle
           do j = 1, ndet-1
              if (A_inv(nmaps+j,nmaps+j) == 0.d0) cycle
              chisq_S(j,1) = chisq_S(j,1) + b_tot(1,nmaps+j,i)**2 / A_inv(nmaps+j,nmaps+j)
@@ -1572,7 +1868,7 @@ contains
 
     deallocate(A_inv,A_tot,b_tot, W, eta)
 
-  end subroutine finalize_binned_map
+  end subroutine finalize_binned_map2
 
 
 !!$  subroutine sample_bp2(self, delta, map_sky, handle, chisq_S)

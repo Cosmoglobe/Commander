@@ -47,8 +47,8 @@ module comm_tod_mod
      character(len=512) :: operation
      character(len=512) :: outdir
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
-     integer(i4b) :: comm_shared, myid_shared                     ! MPI parameters
-     integer(i4b) :: comm_inter, myid_inter                     ! MPI parameters
+     integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
+     integer(i4b) :: comm_inter, myid_inter                       ! MPI parameters
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
@@ -59,6 +59,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
+     integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
      logical(lgt) :: init_from_HDF                                   ! Read from HDF file
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
@@ -79,6 +80,7 @@ module comm_tod_mod
      class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (ndet, npar)
+     integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
