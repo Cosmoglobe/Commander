@@ -1007,7 +1007,7 @@ contains
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
     real(sp),          dimension(:,:), intent(out)    :: n_corr
-    integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads, meanrange, start, last
+    integer(i4b) :: i, j, k, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads, meanrange, start, last
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate, gain, mean
     real(sp),     allocatable, dimension(:) :: dt
@@ -1040,9 +1040,9 @@ contains
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
       
-       if(isNaN(sum(d_prime))) then
-         !write(*,*) 'dprime', sum(self%scans(scan)%d(i)%tod), sum(S_sl(:,i)), sum(S_sky(:,i)), sum(S_orb(:,i)), gain
-       end if
+       ! if(isNaN(sum(d_prime))) then
+       !   !write(*,*) 'dprime', sum(self%scans(scan)%d(i)%tod), sum(S_sl(:,i)), sum(S_sky(:,i)), sum(S_orb(:,i)), gain
+       ! end if
  
        
        ! if (i == 4 .and. scan == 1) then
@@ -1060,24 +1060,36 @@ contains
        sigma_0 = self%scans(scan)%d(i)%sigma0 * gain
        do j = 1,ntod
           if (mask(j,i) == 0.d0) then
+             m = 1
              start = max(j - meanrange, 1)
              last = min(j + meanrange, ntod)
-             if (sum(mask(start:last, i)) > 2) then
-                mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
-             else
-                start = max(j - meanrange * 4, 1)
-                last = min(j + meanrange * 4, ntod)
-!                write(*,*) "wider mean area needed", sum(mask(start:last, i))
-                if(sum(mask(start:last, i)) == 0.d0) then 
-                !  write(*,*) sum(d_prime(start:last)), sum(mask(start:last, i)), start, last, i, sum(S_sl(:,i))
-                  mean = 0.d0
-                else
-                  mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+             do while (sum(mask(start:last, i)) < 2) 
+                ! Widen the search for unmasked pixels
+                m = m * 2
+                start = max(j - meanrange * m, 1)
+                last = min(j + meanrange * m, ntod)
+                if (meanrange * m > ntod) then
+                   write(*,*) "Entire scan masked (this should not happen), see sample_n_corr", ntod, i, j, m
+                   start = 1
+                   last = ntod
+                   exit
                 end if
-                if(isNaN(mean)) then
-                  mean = 0.d0
-                end if
-             end if
+             end do
+             mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+             ! else
+!                 start = max(j - meanrange * 4, 1)
+!                 last = min(j + meanrange * 4, ntod)
+! !                write(*,*) "wider mean area needed", sum(mask(start:last, i))
+!                 if(sum(mask(start:last, i)) == 0.d0) then 
+!                 !  write(*,*) sum(d_prime(start:last)), sum(mask(start:last, i)), start, last, i, sum(S_sl(:,i))
+!                   mean = 0.d0
+!                 else
+!                   mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+!                 end if
+!                 if(isNaN(mean)) then
+!                   mean = 0.d0
+!                 end if
+!              end if
              
              !if(isNaN(d_prime(j)) .or. isNaN(mean)) then
              !  d_prime(j) = 0.d0
@@ -1106,9 +1118,9 @@ contains
 
        dt(1:ntod)           = d_prime(:)
        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-       if(isNaN(sum(dt))) then
-         !write(*,*) sum(dt), sum(d_prime(:))
-       end if
+       ! if(isNaN(sum(dt))) then
+       !   !write(*,*) sum(dt), sum(d_prime(:))
+       ! end if
 
        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
        samprate = self%samprate
@@ -1117,14 +1129,26 @@ contains
        nu_knee  = self%scans(scan)%d(i)%fknee
        do l = 1, n-1                                                      
           nu = l*(samprate/2)/(n-1)
-          dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
+          if (trim(self%operation) == "sample") then
+             dv(l) = (dv(l) + sigma_0 * (rand_gauss(handle)  &
+                   + sqrt((nu/(nu_knee))**(-alpha)) * rand_gauss(handle)))& 
+                   * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha)) 
+          else
+             dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
+          end if
        end do
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        dt          = dt / (2*ntod)
-       n_corr(:,i) = dt(1:ntod)
-       if(isNaN(sum(n_corr(:,i)))) then
-         !write(*,*) sum(dt), sum(dv)
+       n_corr(:,i) = dt(1:ntod) 
+
+       if (trim(self%operation) == "sample") then
+          do m = 1, ntod
+             n_corr(m,i) = n_corr(m,i) + rand_gauss(handle) * sigma_0
+          end do
        end if
+       ! if(isNaN(sum(n_corr(:,i)))) then
+       !   !write(*,*) sum(dt), sum(dv)
+       ! end if
 
        ! if (i == 1 .and. scan == 1) then
        !    open(22, file="tod.unf", form="unformatted")
