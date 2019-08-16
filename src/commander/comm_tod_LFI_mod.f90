@@ -92,6 +92,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
+    constructor%first_call    = .true.
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     datadir = trim(cpar%datadir)//'/' 
@@ -234,11 +235,13 @@ contains
     class(comm_map),                       intent(inout) :: map_out      ! Combined output map
     class(comm_map),                       intent(inout) :: rms_out      ! Combined output rms
 
-    integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet, nside, npix, nmaps, naccept, ntot, ns
+    integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
+    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ns
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, scanfile, ncol, n_A, nout
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold, delta_temp, chisq_tot
     real(dp)     :: t_tot(22), inv_gain
-    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp, s_sky_prop, s_bp_prop, s_mono, s_buf, s_tot
+    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
+    real(sp),     allocatable, dimension(:,:)     :: s_sky_prop, s_bp_prop, s_mono, s_buf, s_tot
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
     real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
@@ -247,15 +250,14 @@ contains
     integer(i4b), allocatable, dimension(:,:)     :: nhit
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
     integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag, pind
-    logical(lgt), save :: first = .true.
-    logical(lgt) :: correct_sl
+    logical(lgt)       :: correct_sl
     character(len=512) :: prefix, postfix, Sfilename
     character(len=4)   :: ctext
     character(len=6)   :: samptext
     character(len=512), allocatable, dimension(:) :: slist
-    character(len=8) :: id, stext
-    character(len=1) :: did
-    character(5)                                  :: istr
+    character(len=8)   :: id, stext
+    character(len=1)   :: did
+    character(len=5)   :: istr
     type(shared_1d_int) :: sprocmask, sprocmask2
     type(shared_2d_sp), allocatable, dimension(:,:) :: smap_sky
     type(shared_2d_dp) :: sA_map
@@ -373,16 +375,16 @@ contains
           
        ! Select operations for current iteration
        do_oper(bin_map)      = (main_iter == n_main_iter  )
-       do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       first
+       do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       do_oper(prep_acal)    = (main_iter == n_main_iter-1) .and. .not. first
-       do_oper(samp_acal)    = (main_iter == n_main_iter  ) .and. .not. first
-       do_oper(prep_bp)      = (main_iter == n_main_iter-2) .and. .not. first
-       do_oper(samp_bp)      = (main_iter == n_main_iter-1) .and. .not. first
-       do_oper(prep_G)       = (main_iter == n_main_iter-3) .and. .not. first
-       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. first
+       do_oper(prep_acal)    = (main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter  ) .and. .not. self%first_call
+       do_oper(prep_bp)      = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_bp)      = (main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(prep_G)       = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
-       do_oper(samp_mono)    = do_oper(bin_map)             .and. .not. first
+       do_oper(samp_mono)    = do_oper(bin_map)             .and. .not. self%first_call
        do_oper(sub_sl)       = correct_sl
        do_oper(output_slist) = mod(iter, 10) == 0
 
@@ -781,10 +783,11 @@ contains
     if (do_oper(samp_mono)) call mpi_win_fence(0, sb_mono%win, ierr)
 
     if (do_oper(samp_mono)) then
-       condmap => comm_map(self%info)
-       call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono, condmap=condmap)
-       call condmap%writeFITS("cond.fits")
-       call condmap%dealloc()
+       call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono)
+!!$       condmap => comm_map(self%info)
+!!$       call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono, condmap=condmap)
+!!$       call condmap%writeFITS("cond.fits")
+!!$       call condmap%dealloc()
     else
        call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out)
     end if
@@ -810,7 +813,7 @@ contains
     if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 6) call outmaps(7)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
 
-    if (first) then
+    if (self%first_call) then
        call mpi_reduce(ntot,    i, 1, MPI_INTEGER, MPI_SUM, &
             & self%numprocs/2, self%info%comm, ierr)
        ntot = i
@@ -841,7 +844,7 @@ contains
        write(*,*) '  Time bin        = ', t_tot(8)
        write(*,*) '  Time scanlist   = ', t_tot(20)
        write(*,*) '  Time final      = ', t_tot(10)
-       if (first) then
+       if (self%first_call) then
           write(*,*) '  Time total      = ', t6-t5, &
                & ', accept rate = ', real(naccept,sp) / ntot
        else
@@ -881,7 +884,7 @@ contains
     call update_status(status, "tod_end")
 
     ! Parameter to check if this is first time routine has been 
-    first = .false.
+    self%first_call = .false.
 
   end subroutine process_LFI_tod
 
@@ -1612,7 +1615,6 @@ contains
        smap => comm_map(info)
     end if
     allocate(A_inv(ncol,ncol))
-    A_inv   = 0.d0
     !if (present(chisq_S)) smap%map = 0.d0
     if (present(chisq_S)) chisq_S = 0.d0
     do i = 0, np0-1
@@ -1624,6 +1626,7 @@ contains
 !!$          write(*,*) 'a', b_tot(:,:,i)
 !!$       end if
 
+       A_inv      = 0.d0
        A_inv(1,1) = A_tot(1,i)
        A_inv(2,1) = A_tot(2,i)
        A_inv(1,2) = A_inv(2,1)
