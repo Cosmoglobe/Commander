@@ -1141,11 +1141,6 @@ contains
        dt          = dt / (2*ntod)
        n_corr(:,i) = dt(1:ntod) 
 
-       if (trim(self%operation) == "sample") then
-          do m = 1, ntod
-             n_corr(m,i) = n_corr(m,i) + rand_gauss(handle) * sigma_0
-          end do
-       end if
        ! if(isNaN(sum(n_corr(:,i)))) then
        !   !write(*,*) sum(dt), sum(dv)
        ! end if
