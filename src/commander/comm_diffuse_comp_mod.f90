@@ -261,7 +261,7 @@ contains
                    if (l > p2%lmax_amp) cycle
                    mat(k1,k2) = mat(k1,k2) + &
                         & data(q)%N%invN_diag%alm(i2,j) * &  ! invN_{lm,lm}
-                        & data(q)%B%b_l(l,j)**2 * &          ! b_l^2
+                        & data(q)%B(0)%p%b_l(l,j)**2 * &          ! b_l^2
                         & p1%F_mean(q,0,j) * p2%F_mean(q,0,j)    ! F(c1)*F(c2)
                 end do
              end do
@@ -623,7 +623,7 @@ contains
                 if (l > diffComps(k)%p%lmax_amp) cycle
                 if (diffComps(k)%p%cg_samp_group /= samp_group) cycle
                 mat(q,k) = data(q)%N%alpha_nu(j) * &
-                          & data(q)%B%b_l(l,j) * &
+                          & data(q)%B(0)%p%b_l(l,j) * &
                           & diffComps(k)%p%F_mean(q,0,j)
 
                 if (trim(diffComps(k)%p%Cl%type) /= 'none') then
@@ -983,7 +983,7 @@ contains
     end if
        
     ! Convolve with band-specific beam
-    call data(band)%B%conv(trans=.false., map=m)
+    call data(band)%B(d)%p%conv(trans=.false., map=m)
     if (.not. alm_out_) call m%Y()
 
     ! Return correct data product
@@ -1042,7 +1042,7 @@ contains
        m%map = map%map(:,1:nmaps)
        call m%Yt()
     end if
-    call data(band)%B%conv(trans=.true., map=m)
+    call data(band)%B(d)%p%conv(trans=.true., map=m)
     
     if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
        do i = 1, nmaps

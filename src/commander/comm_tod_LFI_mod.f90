@@ -53,6 +53,7 @@ module comm_tod_LFI_mod
      procedure     :: get_total_chisq
      procedure     :: output_scan_list
      procedure     :: finalize_binned_map
+     procedure     :: symmetrize_flags
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -125,9 +126,18 @@ contains
     allocate(constructor%stokes(constructor%nmaps))
     allocate(constructor%w(constructor%nmaps,constructor%nhorn,constructor%ndet))
     allocate(constructor%label(constructor%ndet))
+    allocate(constructor%partner(constructor%ndet))
     constructor%stokes = [1,2,3]
     constructor%w      = 1.d0
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+    do i = 1, constructor%ndet
+       if (mod(i,2) == 1) then
+          constructor%partner(i) = i+1
+       else
+          constructor%partner(i) = i-1
+       end if
+    end do
+
 
     if (trim(cpar%ds_bpmodel(id_abs)) == 'additive_shift') then
        ndelta = 1
@@ -142,18 +152,22 @@ contains
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
 
-    if (.true.) then
-       ! Initialize far sidelobe beams
-       call open_hdf_file(constructor%instfile, h5_file, 'r')
-       nside_beam = 128
-       nmaps_beam = 3
-       pol_beam   = .true.
-       call read_hdf(h5_file, trim(adjustl(constructor%label(1)))//'/'//'sllmax', lmax_beam)
-       constructor%slinfo => comm_mapinfo(cpar%comm_chain, nside_beam, lmax_beam, &
-            & nmaps_beam, pol_beam)
-       allocate(constructor%slbeam(constructor%ndet), constructor%slconv(constructor%ndet))
-       do i = 1, constructor%ndet
-          constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., .true., trim(constructor%label(i)))
+    ! Initialize beams
+    allocate(constructor%fwhm(constructor%ndet))
+    allocate(constructor%elip(constructor%ndet))
+    allocate(constructor%psi_ell(constructor%ndet))
+    
+    call open_hdf_file(constructor%instfile, h5_file, 'r')
+    nside_beam = 128
+    nmaps_beam = 3
+    pol_beam   = .true.
+    call read_hdf(h5_file, trim(adjustl(constructor%label(1)))//'/'//'sllmax', lmax_beam)
+    constructor%slinfo => comm_mapinfo(cpar%comm_chain, nside_beam, lmax_beam, &
+         & nmaps_beam, pol_beam)
+    allocate(constructor%slbeam(constructor%ndet), constructor%slconv(constructor%ndet))
+    do i = 1, constructor%ndet
+       constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., .true., &
+            & trim(constructor%label(i)))
 
 !!$          call constructor%slbeam(i)%p%Y
 !!$          call constructor%slbeam(i)%p%writeFITS("beam.fits")
@@ -170,11 +184,15 @@ contains
 !!$                constructor%slbeam(i)%p%alm(j,1) = 0.d0
 !!$             end if
 !!$          end do
-
-       end do
-       call close_hdf_file(h5_file)
-    end if
-
+    end do
+    
+    do i = 1, constructor%ndet
+       call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
+       call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'elip', constructor%elip(i))
+       call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'psi_ell', constructor%psi_ell(i))
+    end do
+    call close_hdf_file(h5_file)
+ 
     ! Lastly, create a vector pointing table for fast look-up for orbital dipole
     np_vec = 12*constructor%nside**2 !npix
     allocate(constructor%pix2vec(3,0:np_vec-1))
@@ -509,6 +527,7 @@ contains
              call self%decompress_pointing_and_flags(i, j, pix(:,j), &
                   & psi(:,j), flag(:,j))
           end do
+          call self%symmetrize_flags(flag)
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
           !call update_status(status, "tod_decomp")
@@ -525,6 +544,11 @@ contains
           if (do_oper(prep_bp)) then
              call self%project_sky(smap_sky(:,2), pix, psi, flag, &
                   & sprocmask%a, i, s_sky_prop, mask, s_bp=s_bp_prop)  
+          end if
+          if (do_oper(sel_data)) then
+             do j = 1, ndet
+                if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
+             end do
           end if
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
@@ -616,6 +640,11 @@ contains
                    cycle
                 else
                    naccept = naccept + 1
+                end if
+             end do
+             do j = 1, ndet
+                if (.not. self%scans(i)%d(j)%accept) then
+                   self%scans(i)%d(self%partner(j))%accept = .false.
                 end if
              end do
              call wall_time(t2); t_tot(15) = t_tot(15) + t2-t1
@@ -1009,6 +1038,7 @@ contains
     real(sp),          dimension(:,:), intent(out)    :: n_corr
     integer(i4b) :: i, j, k, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads, meanrange, start, last
     integer*8    :: plan_fwd, plan_back
+    logical(lgt) :: recompute
     real(sp)     :: sigma_0, alpha, nu_knee, nu, samprate, gain, mean
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
@@ -1059,23 +1089,30 @@ contains
 
        sigma_0 = self%scans(scan)%d(i)%sigma0 * gain
        do j = 1,ntod
-          if (mask(j,i) == 0.d0) then
-             m = 1
-             start = max(j - meanrange, 1)
-             last = min(j + meanrange, ntod)
-             do while (sum(mask(start:last, i)) < 2) 
-                ! Widen the search for unmasked pixels
-                m = m * 2
-                start = max(j - meanrange * m, 1)
-                last = min(j + meanrange * m, ntod)
-                if (meanrange * m > ntod) then
-                   write(*,*) "Entire scan masked (this should not happen), see sample_n_corr", ntod, i, j, m
-                   start = 1
-                   last = ntod
-                   exit
-                end if
-             end do
-             mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+          if (mask(j,i) == 0.) then
+             recompute = .true.
+             if (j > 1) then
+                if (mask(j-1,i) == 0.) recompute = .false.
+             end if
+
+             if (recompute) then
+                m = 1
+                start = max(j - meanrange, 1)
+                last = min(j + meanrange, ntod)
+                do while (sum(mask(start:last, i)) < 2) 
+                   ! Widen the search for unmasked pixels
+                   m = m * 2
+                   start = max(j - meanrange * m, 1)
+                   last = min(j + meanrange * m, ntod)
+                   if (meanrange * m > ntod) then
+                      write(*,*) "Entire scan masked (this should not happen), see sample_n_corr", ntod, i, j, m
+                      start = 1
+                      last = ntod
+                      exit
+                   end if
+                end do
+                mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+             end if
              ! else
 !                 start = max(j - meanrange * 4, 1)
 !                 last = min(j + meanrange * 4, ntod)
@@ -2145,6 +2182,23 @@ contains
     deallocate(mono0, mono_prop)
 
   end subroutine sample_mono
+
+  subroutine symmetrize_flags(self, flag)
+    implicit none
+    class(comm_LFI_tod),                      intent(inout) :: self
+    integer(i4b),         dimension(1:,1:),   intent(inout) :: flag
+
+    integer(i4b) :: i, det
+
+    do det = 1, self%ndet
+       do i = 1, size(flag,2)
+          if (iand(flag(i,det),6111248) .ne. 0) then
+             flag(i,self%partner(det)) = flag(i,det)
+          end if
+       end do
+    end do
+
+  end subroutine symmetrize_flags
 
   subroutine validate_psi(scan, psi)
     implicit none

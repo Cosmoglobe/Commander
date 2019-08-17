@@ -5,7 +5,7 @@ module comm_B_mod
   implicit none
 
   private
-  public comm_B
+  public comm_B, B_ptr
 
   type, abstract :: comm_B
      ! Data variables
@@ -39,6 +39,10 @@ module comm_B_mod
        class(comm_map), intent(inout) :: map
      end subroutine matmulInvB
   end interface
+
+  type B_ptr
+     class(comm_B), pointer :: p
+  end type B_ptr
 
   ! Local variables
   integer(i4b), parameter :: n_beam = 1000  ! Number of sample point in beam spline

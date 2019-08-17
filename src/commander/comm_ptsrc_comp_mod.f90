@@ -674,7 +674,7 @@ contains
              else if (trim(trim(cpar%ds_btheta_file(i))) == 'none') then
                 ! Build template internally from b_l
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
-                     & self%src(j)%T(i), bl=data(i)%B%b_l)
+                     & self%src(j)%T(i), bl=data(i)%B(0)%p%b_l)
              else if (filename(n-3:n) == '.dat' .or. filename(n-3:n) == '.txt') then
                 ! Build template internally from b_l
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &

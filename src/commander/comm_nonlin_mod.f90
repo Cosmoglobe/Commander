@@ -177,7 +177,7 @@ contains
                    ! Fit is done with downgraded data
                    info  => comm_mapinfo(data(i)%res%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
                         & data(i)%res%info%nmaps, data(i)%res%info%pol)
-                   call smooth_map(info, .false., data(i)%B%b_l, data(i)%res, &
+                   call smooth_map(info, .false., data(i)%B(0)%p%b_l, data(i)%res, &
                         & data(i)%B_smooth(smooth_scale)%p%b_l, res_smooth(i)%p)
                    rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
                 end if
@@ -198,8 +198,8 @@ contains
                 ! Smooth to the beam of the last native channel
                 info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, c%x%info%lmax, &
                      & c%x%info%nmaps, c%x%info%pol)
-                call smooth_map(info, .true., data(id_native)%B%b_l*0.d0+1.d0, c%x, &  
-                     & data(id_native)%B%b_l, c%x_smooth)
+                call smooth_map(info, .true., data(id_native)%B(0)%p%b_l*0.d0+1.d0, c%x, &  
+                     & data(id_native)%B(0)%p%b_l, c%x_smooth)
              else if (status_amp == 2) then
                 ! Smooth to the common FWHM
                 info  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
@@ -223,8 +223,8 @@ contains
                    info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
                         & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
                    call smooth_map(info, .false., &
-                        & data(id_native)%B%b_l*0.d0+1.d0, c%theta(k)%p, &  
-                        & data(id_native)%B%b_l,           c%theta_smooth(k)%p)
+                        & data(id_native)%B(0)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                        & data(id_native)%B(0)%p%b_l,           c%theta_smooth(k)%p)
                 else if (status_amp == 2) then ! Common FWHM resolution
                    info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
                         & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
