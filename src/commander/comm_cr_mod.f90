@@ -520,7 +520,7 @@ contains
 
        ! Convolve with transpose beam
        call map%Yt()
-       call data(i)%B%conv(trans=.true., map=map)
+       call data(i)%B(0)%p%conv(trans=.true., map=map)
 
        ! Multiply with (transpose and component specific) mixing matrix, and
        ! insert into correct segment
@@ -652,7 +652,7 @@ contains
 
   end subroutine cr_computeRHS
 
-  recursive function cr_matmulA(x, samp_group)
+  function cr_matmulA(x, samp_group)
     implicit none
 
     real(dp),     dimension(1:),     intent(in)  :: x

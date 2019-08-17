@@ -55,10 +55,12 @@ module comm_tod_mod
      integer(i4b) :: nhorn                                        ! Number of horns
      integer(i4b) :: nscan, nscan_tot                              ! Number of scans
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
+
      real(dp)     :: samprate                                     ! Sample rate in Hz
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
+     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameters
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
@@ -72,6 +74,7 @@ module comm_tod_mod
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
+     integer(i4b),       allocatable, dimension(:)      :: partner ! Partner detector; for symmetrizing flags     
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask ! Mask for gain and n_corr

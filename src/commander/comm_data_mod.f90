@@ -26,7 +26,7 @@ module comm_data_mod
      class(comm_map),     pointer :: gainmask
      class(comm_tod),     pointer :: tod
      class(comm_N),       pointer :: N
-     class(comm_B),       pointer :: B
+     class(B_ptr),         allocatable, dimension(:) :: B
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
@@ -101,10 +101,26 @@ contains
           end if
        end if
 
+       ! Initialize TOD structures
+       data(n)%ndet = 0
+       if (cpar%enable_TOD_analysis) then
+          if (trim(cpar%ds_tod_type(n)) == 'LFI') then
+             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info)
+          else
+             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(n))
+             stop
+          end if
+          data(n)%ndet = data(n)%tod%ndet
+       end if
+
        ! Initialize beam structures
+       allocate(data(n)%B(0:data(n)%ndet)) 
        select case (trim(cpar%ds_beamtype(i)))
        case ('b_l')
-          data(n)%B => comm_B_bl(cpar, data(n)%info, n, i)
+          data(n)%B(0)%p => comm_B_bl(cpar, data(n)%info, n, i)
+          do j = 1, data(n)%ndet
+             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
+          end do
        case default
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
        end select
@@ -129,7 +145,7 @@ contains
        data(n)%mask%map = data(n)%mask%map * mask_misspix
        if (trim(cpar%ds_sourcemask) /= 'none') then
           call apply_source_mask(data(n)%mask, trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask), &
-               & data(n)%B%r_max)
+               & data(n)%B(0)%p%r_max)
        end if
        if (cpar%only_pol) data(n)%mask%map(:,1) = 0.d0
        call update_status(status, "data_mask")
@@ -153,17 +169,6 @@ contains
        data(n)%map%map = data(n)%map%map * data(n)%mask%map
        call update_status(status, "data_N")
 
-       ! Initialize TOD structures
-       data(n)%ndet = 0
-       if (cpar%enable_TOD_analysis) then
-          if (trim(cpar%ds_tod_type(n)) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info)
-          else
-             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(n))
-             stop
-          end if
-          data(n)%ndet = data(n)%tod%ndet
-       end if
 
        ! Initialize bandpass structures; 0 is full freq, i is detector
        allocate(data(n)%bp(0:data(n)%ndet)) 
