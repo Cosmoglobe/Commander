@@ -99,6 +99,7 @@ contains
   
     call mpi_win_fence(0, arr%win, ierr)
     call mpi_win_free(arr%win, ierr)
+!    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
 
@@ -165,6 +166,7 @@ contains
   
     call mpi_win_fence(0, arr%win, ierr)
     call mpi_win_free(arr%win, ierr)
+!    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
 
@@ -212,6 +214,7 @@ contains
   
     call mpi_win_fence(0, arr%win, ierr)
     call mpi_win_free(arr%win, ierr)
+!    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
 
@@ -280,6 +283,7 @@ contains
   
     call mpi_win_fence(0, arr%win, ierr)
     call mpi_win_free(arr%win, ierr)
+!    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
 
@@ -348,6 +352,7 @@ contains
   
     call mpi_win_fence(0, arr%win, ierr)
     call mpi_win_free(arr%win, ierr)
+!    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
 

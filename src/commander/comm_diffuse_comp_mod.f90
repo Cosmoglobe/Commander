@@ -700,7 +700,7 @@ contains
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
     real(dp),        allocatable, dimension(:)     :: nu, s, buffer
     class(comm_mapinfo),          pointer          :: info
-    class(comm_map),              pointer          :: t, t0
+    class(comm_map),              pointer          :: t
     class(map_ptr),  allocatable, dimension(:)     :: theta_prev
 
     if (trim(self%type) == 'md') return
@@ -715,10 +715,10 @@ contains
     end if
     
     ! Compute mixing matrix
-    allocate(theta_prev(self%npar))
-    do j = 1, self%npar
-       nullify(theta_prev(j)%p)
-    end do
+!!$    allocate(theta_prev(self%npar))
+!!$    do j = 1, self%npar
+!!$       nullify(theta_prev(j)%p)
+!!$    end do
 
     do i = 1, numband
        
@@ -746,8 +746,8 @@ contains
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = t%map
-             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
-             theta_prev(j)%p => comm_map(t)
+!!$             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
+!!$             theta_prev(j)%p => comm_map(t)
              call t%dealloc()
           end do
        end if
@@ -909,10 +909,10 @@ contains
        end do
        if (allocated(theta_p)) deallocate(theta_p)
     end do
-    do j = 1, self%npar
-       if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
-    end do
-    deallocate(theta_prev)
+!!$    do j = 1, self%npar
+!!$       if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
+!!$    end do
+!!$    deallocate(theta_prev)
 
     call update_status(status, "mixupdate2 " // trim(self%label))
 

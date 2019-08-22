@@ -31,6 +31,7 @@ contains
              chisq_sub => comm_map(chisq_map%info)
              call res%udgrade(chisq_sub)
              chisq_map%map = chisq_map%map + chisq_sub%map * (res%info%npix/chisq_sub%info%npix)
+             call chisq_sub%dealloc()
           end if
           if (present(chisq_fullsky)) chisq_fullsky = chisq_fullsky + sum(res%map)
           call res%dealloc()
