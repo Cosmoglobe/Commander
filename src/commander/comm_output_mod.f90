@@ -60,8 +60,10 @@ contains
     call update_status(status, "output_chain")
 
     ! Output instrumental parameters
+    !write(*,*) 'a', cpar%myid_chain
     call output_inst_params(cpar, file, itext, &
          & trim(cpar%outdir)//'/instpar_'//trim(postfix)//'.dat', output_hdf)
+    !write(*,*) 'b', cpar%myid_chain
 
     call update_status(status, "output_inst")
 
@@ -131,7 +133,7 @@ contains
     call update_status(status, "output_sig")
 
     ! Output TOD parameters
-    if (output_hdf) then
+    if (output_hdf .and. cpar%enable_TOD_analysis) then
        if (cpar%myid_chain == 0) then
           call create_hdf_group(file, trim(adjustl(itext))//'/tod')
        end if

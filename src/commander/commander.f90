@@ -126,6 +126,10 @@ program commander
 !!$  data(1)%bp(3)%p%delta(1) = -0.201403
 !!$  data(1)%bp(4)%p%delta(1) =  0.029275
 !!$  !data(1)%bp(:)%p%delta(1) = data(1)%bp(:)%p%delta(1) - mean(data(1)%bp(:)%p%delta(1))
+
+!!$  data(1)%bp(0)%p%delta(1) = -0.25d0
+!!$  data(2)%bp(0)%p%delta(1) = -0.46d0
+!!$  data(3)%bp(0)%p%delta(1) =  1.78d0
   call update_mixing_matrices(update_F_int=.true.)       
 
   ! Run Gibbs loop
@@ -205,51 +209,62 @@ contains
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
-    real(dp)     :: sigma_delta, t1, t2
+    real(dp)     :: sigma_delta, t1, t2, dnu_prop
     real(dp),      allocatable, dimension(:,:,:) :: delta
-    real(dp),      allocatable, dimension(:,:)   :: eta, regnoise
+    real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
     class(comm_map), pointer :: rms
 
     ndelta      = 2
-    sigma_delta = 0.01d0 ! BP delta step size in GHz
+    sigma_delta = 0.005d0 ! BP delta step size in GHz
 
     do i = 1, numband  
        if (trim(cpar%ds_tod_type(i)) == 'none') cycle
 
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
-       allocate(s_sky(data(i)%tod%ndet,ndelta))
-       allocate(delta(data(i)%tod%ndet,npar,ndelta))
+       ndet = data(i)%tod%ndet
+       allocate(s_sky(ndet,ndelta))
+       allocate(delta(0:ndet,npar,ndelta))
        do k = 1, ndelta
           ! Propose new bandpass shifts, and compute mixing matrices
           if (k > 1) then
              if (cpar%myid == 0) then
                 do l = 1, npar
-                   do j = 1, data(i)%tod%ndet
-                      delta(j,l,k) = data(i)%bp(j)%p%delta(l) + sigma_delta * rand_gauss(handle)
-                   end do
-                   delta(:,l,k) = delta(:,l,k) - mean(delta(:,l,k))
+                   if (.true. .or. mod(iter,2) == 0) then
+                      ! Propose only relative changes between detectors, keeping the mean constant
+                      delta(0,l,k) = data(i)%bp(0)%p%delta(l)
+                      do j = 1, ndet
+                         delta(j,l,k) = data(i)%bp(j)%p%delta(l) + sigma_delta * rand_gauss(handle)
+                      end do
+                      delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
+                   else
+                      ! Propose only an overall shift in the total bandpass, keeping relative differences constant
+                      dnu_prop     = sigma_delta * rand_gauss(handle)
+                      do j = 0, ndet
+                         delta(j,l,k) = data(i)%bp(j)%p%delta(l) + dnu_prop
+                      end do
+                   end if
                 end do
              end if
-             call mpi_bcast(delta(:,:,k), data(i)%tod%ndet*npar, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
-             do j = 1, data(i)%tod%ndet
+             call mpi_bcast(delta(:,:,k), (data(i)%tod%ndet+1)*npar, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
+             do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
                 call data(i)%bp(j)%p%update_tau(delta(j,:,k))
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
           else
-             do j = 1, data(i)%tod%ndet
+             do j = 0, ndet
                 delta(j,:,k) = data(i)%bp(j)%p%delta
              end do
              do l = 1, npar
-                delta(:,l,k) = delta(:,l,k) - mean(delta(:,l,k))
+                delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
              end do
           end if
           
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
-             s_sky(j,k)%p => comm_map(data(i)%info)
+             !s_sky(j,k)%p => comm_map(data(i)%info)
              call get_sky_signal(i, j, s_sky(j,k)%p)  
           end do
        end do
@@ -275,13 +290,18 @@ contains
        call rms%dealloc
 
        ! Update mixing matrices based on new bandpasses
-       do j = 1, data(i)%tod%ndet
+       do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
           call data(i)%bp(j)%p%update_tau(delta(j,:,1))
        end do
        call update_mixing_matrices(i, update_F_int=.true.)       
 
        ! Clean up temporary data structures
+       do k = 1, ndelta
+          do j = 1, data(i)%tod%ndet
+             call s_sky(j,k)%p%dealloc
+          end do
+       end do
        deallocate(s_sky, delta)
     end do
 

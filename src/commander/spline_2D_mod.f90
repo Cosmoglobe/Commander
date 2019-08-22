@@ -24,7 +24,6 @@ contains
     integer(i4b) :: i, j, k, m, n, numprocs, myid, ierr
     real(dp), allocatable, dimension(:)   :: y2
     real(dp), allocatable, dimension(:,:) :: df_dx, df_dy, ddf_dxdy
-    real(dp), allocatable, dimension(:,:,:,:) :: buffer
 
     real(dp),              dimension(16,16) :: a
     real(dp),              dimension(16)    :: b, z

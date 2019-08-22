@@ -177,6 +177,7 @@ contains
           else
              self%alpha_nu(2:3) = 0.d0
           end if
+          call invW_tau%dealloc()
        end if
     end if
 

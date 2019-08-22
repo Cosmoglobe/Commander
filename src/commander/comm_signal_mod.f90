@@ -243,12 +243,14 @@ contains
     end do
 
     ! Initialize TOD parameters
-    do i = 1, numband  
-       if (trim(cpar%ds_tod_type(i)) == 'none' .or. &
-            & .not. data(i)%tod%init_from_HDF) cycle
-       if (cpar%myid == 0) write(*,*) ' Initializing TOD par from chain = ', trim(data(i)%tod%freq)
-       call data(i)%tod%initHDF(file, cpar%init_samp)
-    end do
+    if (cpar%enable_TOD_analysis) then
+       do i = 1, numband  
+          if (trim(cpar%ds_tod_type(i)) == 'none' .or. &
+               & .not. data(i)%tod%init_from_HDF) cycle
+          if (cpar%myid == 0) write(*,*) ' Initializing TOD par from chain = ', trim(data(i)%tod%freq)
+          call data(i)%tod%initHDF(file, cpar%init_samp)
+       end do
+    end if
 
 
     ! Close HDF file
