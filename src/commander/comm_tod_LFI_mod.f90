@@ -149,6 +149,7 @@ contains
        stop
     end if
     allocate(constructor%bp_delta(0:constructor%ndet,ndelta))
+    allocate(constructor%sigma_bp(0:constructor%ndet,ndelta))
 
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
@@ -515,12 +516,12 @@ contains
           allocate(flag(ntod, ndet))         ! Decompressed flags
           
           ! Initializing arrays to zero
-          n_corr      = 0.d0
-          s_sl        = 0.d0
-          s_sky       = 0.d0
-          s_sky_prop  = 0.d0
-          s_orb       = 0.d0
-          s_mono      = 0.d0
+          !n_corr      = 0.d0
+          !s_sl        = 0.d0
+          !s_sky       = 0.d0
+          !s_sky_prop  = 0.d0
+          !s_orb       = 0.d0
+          !s_mono      = 0.d0
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
           
           ! --------------------
@@ -578,6 +579,11 @@ contains
                      & nside, pix(:,j), psi(:,j), s_sl(:,j), &
                      & self%mbang(j)+self%polang(j))
              end do
+          else
+             do j = 1, ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
+                s_sl(:,j) = 0.
+             end do
           end if
           call wall_time(t2); t_tot(12) = t_tot(12) + t2-t1
 
@@ -595,6 +601,8 @@ contains
              call wall_time(t1)
              call self%sample_n_corr(handle, i, mask, s_tot, n_corr)
              call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
+          else
+             n_corr = 0.
           end if
              
           ! Compute noise spectrum
@@ -959,16 +967,16 @@ contains
     integer(i4b) :: i, j
     character(len=6) :: stext, dtext
 
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi)
-    call huffman_decode(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, imod=self%npsi-1)
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
-    do j = 2, self%scans(scan)%ntod
-       pix(j)  = pix(j-1)  + pix(j)
-       psi(j)  = psi(j-1)  + psi(j)
-       flag(j) = flag(j-1) + flag(j)
-    end do
-    psi = modulo(psi,4096)
+!!$    do j = 2, self%scans(scan)%ntod
+!!$       pix(j)  = pix(j-1)  + pix(j)
+!!$       psi(j)  = psi(j-1)  + psi(j)
+!!$       flag(j) = flag(j-1) + flag(j)
+!!$    end do
+!!$    psi = modulo(psi,4096)
 
 !!$    call int2string(scan,stext)
 !!$    call int2string(det,dtext)
