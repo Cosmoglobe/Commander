@@ -132,6 +132,11 @@ program commander
 !!$  data(3)%bp(0)%p%delta(1) =  1.78d0
   call update_mixing_matrices(update_F_int=.true.)       
 
+  data(1)%tod%sigma_bp = 0.001d0
+  data(2)%tod%sigma_bp = 0.003d0
+  data(3)%tod%sigma_bp = 0.005d0
+  
+
   ! Run Gibbs loop
   first_sample = 1
   do iter = first_sample, cpar%num_gibbs_iter
@@ -209,14 +214,13 @@ contains
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
-    real(dp)     :: sigma_delta, t1, t2, dnu_prop
+    real(dp)     :: t1, t2, dnu_prop
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
     class(comm_map), pointer :: rms
 
     ndelta      = 2
-    sigma_delta = 0.005d0 ! BP delta step size in GHz
 
     do i = 1, numband  
        if (trim(cpar%ds_tod_type(i)) == 'none') cycle
@@ -235,12 +239,12 @@ contains
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
                       do j = 1, ndet
-                         delta(j,l,k) = data(i)%bp(j)%p%delta(l) + sigma_delta * rand_gauss(handle)
+                         delta(j,l,k) = data(i)%bp(j)%p%delta(l) + data(i)%tod%sigma_bp(j,l) * rand_gauss(handle)
                       end do
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
                    else
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant
-                      dnu_prop     = sigma_delta * rand_gauss(handle)
+                      dnu_prop     = data(i)%tod%sigma_bp(0,l) * rand_gauss(handle)
                       do j = 0, ndet
                          delta(j,l,k) = data(i)%bp(j)%p%delta(l) + dnu_prop
                       end do
