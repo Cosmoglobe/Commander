@@ -20,12 +20,13 @@ module comm_tod_mod
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
      logical(lgt)      :: accept
-     real(sp),     allocatable, dimension(:)   :: tod     ! Detector values in time domain, (ntod)     
-     byte,         allocatable, dimension(:)   :: flag    ! Compressed detector flag; 0 is accepted, /= 0 is rejected
-     byte,         allocatable, dimension(:)   :: pix     ! Compressed pixelized pointing, (ntod,nhorn)
-     byte,         allocatable, dimension(:)   :: psi     ! Compressed polarization angle, (ntod,nhorn)
-     real(dp),     allocatable, dimension(:)   :: N_psd   ! Noise power spectrum density; in uncalibrated units
-     real(dp),     allocatable, dimension(:)   :: nu_psd  ! Noise power spectrum bins; in Hz
+     real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)     
+     byte,         allocatable, dimension(:)  :: flag       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
+     byte,         allocatable, dimension(:)  :: pix        ! Compressed pixelized pointing, (ntod,nhorn)
+     byte,         allocatable, dimension(:)  :: psi        ! Compressed polarization angle, (ntod,nhorn)
+     real(dp),     allocatable, dimension(:)  :: log_n_psd  ! Noise power spectrum density; in uncalibrated units
+     real(dp),     allocatable, dimension(:)  :: log_n_psd2 ! Second derivative (for spline)
+     real(dp),     allocatable, dimension(:)  :: log_nu     ! Noise power spectrum bins; in Hz
   end type comm_detscan
 
   type :: comm_scan
