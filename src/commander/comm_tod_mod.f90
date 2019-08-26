@@ -61,7 +61,8 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
-     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameters
+     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
+     real(dp), allocatable, dimension(:,:)   :: sigma_bp                         ! RMS for bandpass sampler
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
