@@ -101,6 +101,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
      character(len=512), allocatable, dimension(:)   :: ds_tod_dets
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_initHDF
+     integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -386,7 +387,7 @@ contains
     allocate(cpar%ds_component_sensitivity(n))
     allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_initHDF(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n))
-    allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n))
+    allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
 
     do i = 1, n
        call int2string(i, itext)
@@ -429,6 +430,8 @@ contains
              call get_parameter_hashtable(htbl, 'BAND_TOD_MAIN_PROCMASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask1(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_SMALL_PROCMASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask2(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_filelist(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_START_SCANID'//itext, len_itext=len_itext, par_int=cpar%ds_tod_scanrange(i,1))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_END_SCANID'//itext, len_itext=len_itext, par_int=cpar%ds_tod_scanrange(i,2))
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, par_string=cpar%ds_tod_instfile(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_dets(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, par_lgt=cpar%ds_tod_initHDF(i))
