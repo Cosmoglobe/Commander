@@ -15,9 +15,10 @@ contains
     class(comm_map), intent(inout), optional :: chisq_map
     real(dp),        intent(out),   optional :: chisq_fullsky
 
-    integer(i4b) :: i, j, k, p, ierr
+    integer(i4b) :: i, j, k, p, ierr, nmaps
     real(dp)     :: t1, t2
     class(comm_map), pointer :: res, chisq_sub
+    class(comm_mapinfo), pointer :: info
 
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
@@ -28,9 +29,12 @@ contains
           res%map = res%map**2
           
           if (present(chisq_map)) then
-             chisq_sub => comm_map(chisq_map%info)
+             info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+             chisq_sub => comm_map(info)
              call res%udgrade(chisq_sub)
-             chisq_map%map = chisq_map%map + chisq_sub%map * (res%info%npix/chisq_sub%info%npix)
+             do j = 1, data(i)%info%nmaps
+                chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (res%info%npix/chisq_sub%info%npix)
+             end do
              call chisq_sub%dealloc()
           end if
           if (present(chisq_fullsky)) chisq_fullsky = chisq_fullsky + sum(res%map)

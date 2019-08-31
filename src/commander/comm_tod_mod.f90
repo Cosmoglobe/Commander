@@ -54,6 +54,7 @@ module comm_tod_mod
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
      integer(i4b) :: nscan, nscan_tot                              ! Number of scans
+     integer(i4b) :: first_scan, last_scan
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
 
      real(dp)     :: samprate                                     ! Sample rate in Hz
@@ -72,6 +73,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi) 
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
+     real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
@@ -341,12 +343,25 @@ contains
     np = self%numprocs
     if (self%myid == 0) then
        unit = getlun()
+
+       n_tot = 0
        open(unit, file=trim(filelist))
-       read(unit,*) n_tot
+       read(unit,*) n
+       do i = 1, n
+          read(unit,*) j
+          if (j >= self%first_scan .and. j <= self%last_scan) n_tot = n_tot+1
+       end do
+       close(unit)
+
+       open(unit, file=trim(filelist))
+       read(unit,*) n
        allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1))
-       do i = 1, n_tot
-          id(i) = i
-          read(unit,*) scanid(i), filename(i), weight(i)
+       j = 1
+       do i = 1, n
+          read(unit,*) scanid(j), filename(j), weight(j)
+          if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
+          id(j) = j
+          j     = j+1
        end do
 
        ! Sort according to weight

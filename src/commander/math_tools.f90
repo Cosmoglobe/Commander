@@ -216,7 +216,13 @@ contains
     allocate(Atmp(m,n), work(lwork), S(min(m,n)), U(m,m), Vt(n,n))
     Atmp = A
     call DGESVD('A', 'A', m, n, Atmp, m, S, U, m, VT, n, work, lwork, info)
-    if (info /= 0) write(*,*) 'Error DGESVD = ', info
+    if (info /= 0) then
+       do i = 1, m
+          write(*,*) real(A(i,:),sp)
+       end do
+       write(*,*) 'Error DGESVD = ', info
+       stop
+    end if
 
     ! Invert S
     do i = min(m,n), 1, -1
