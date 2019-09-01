@@ -149,23 +149,24 @@ contains
           out%map = 0.d0
           select type (c)
           class is (comm_diffuse_comp)
-             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
-             alm     = c%getBand(i, alm_out=.true.)
-             call out%add_alm(alm, c%x%info)
+             !allocate(alm(0:data(i)%info%nalm-1,data(i)%info%nmaps))
+             !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
+             out%alm = c%getBand(i, alm_out=.true.)
+             !call out%add_alm(alm, c%x%info)
              call out%Y()
-             deallocate(alm)
+             !deallocate(alm)
           class is (comm_ptsrc_comp)
-             allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
-             map     = c%getBand(i)
-             out%map = out%map + map
-             deallocate(map)
+             !allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
+             out%map     = c%getBand(i)
+             !out%map = out%map + map
+             !deallocate(map)
           class is (comm_template_comp)
              if (c%band /= i) skip = .true.
              if (.not. skip) then
-                allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
-                map     = c%getBand(i)
-                out%map = out%map + map
-                deallocate(map)
+                !allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
+                out%map     = c%getBand(i)
+                !out%map = out%map + map
+                !deallocate(map)
              end if
           end select
           filename = trim(outdir)//'/'//trim(c%label)//'_'//trim(data(i)%label)//'_'//trim(postfix)//'.fits'
