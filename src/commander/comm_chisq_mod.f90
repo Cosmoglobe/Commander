@@ -15,9 +15,10 @@ contains
     class(comm_map), intent(inout), optional :: chisq_map
     real(dp),        intent(out),   optional :: chisq_fullsky
 
-    integer(i4b) :: i, j, k, p, ierr
+    integer(i4b) :: i, j, k, p, ierr, nmaps
     real(dp)     :: t1, t2
     class(comm_map), pointer :: res, chisq_sub
+    class(comm_mapinfo), pointer :: info
 
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
@@ -28,9 +29,12 @@ contains
           res%map = res%map**2
           
           if (present(chisq_map)) then
-             chisq_sub => comm_map(chisq_map%info)
+             info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+             chisq_sub => comm_map(info)
              call res%udgrade(chisq_sub)
-             chisq_map%map = chisq_map%map + chisq_sub%map * (res%info%npix/chisq_sub%info%npix)
+             do j = 1, data(i)%info%nmaps
+                chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (res%info%npix/chisq_sub%info%npix)
+             end do
              call chisq_sub%dealloc()
           end if
           if (present(chisq_fullsky)) chisq_fullsky = chisq_fullsky + sum(res%map)
@@ -145,23 +149,24 @@ contains
           out%map = 0.d0
           select type (c)
           class is (comm_diffuse_comp)
-             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
-             alm     = c%getBand(i, alm_out=.true.)
-             call out%add_alm(alm, c%x%info)
+             !allocate(alm(0:data(i)%info%nalm-1,data(i)%info%nmaps))
+             !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
+             out%alm = c%getBand(i, alm_out=.true.)
+             !call out%add_alm(alm, c%x%info)
              call out%Y()
-             deallocate(alm)
+             !deallocate(alm)
           class is (comm_ptsrc_comp)
-             allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
-             map     = c%getBand(i)
-             out%map = out%map + map
-             deallocate(map)
+             !allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
+             out%map     = c%getBand(i)
+             !out%map = out%map + map
+             !deallocate(map)
           class is (comm_template_comp)
              if (c%band /= i) skip = .true.
              if (.not. skip) then
-                allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
-                map     = c%getBand(i)
-                out%map = out%map + map
-                deallocate(map)
+                !allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
+                out%map     = c%getBand(i)
+                !out%map = out%map + map
+                !deallocate(map)
              end if
           end select
           filename = trim(outdir)//'/'//trim(c%label)//'_'//trim(data(i)%label)//'_'//trim(postfix)//'.fits'

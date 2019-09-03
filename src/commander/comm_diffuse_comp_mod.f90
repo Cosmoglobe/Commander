@@ -619,8 +619,10 @@ contains
           mat = 0.d0
           do q = 1, numband
              if (l > data(q)%info%lmax) cycle
+             if (j > data(q)%info%nmaps) cycle
              do k = 1, npre
                 if (l > diffComps(k)%p%lmax_amp) cycle
+                if (j > diffComps(k)%p%nmaps) cycle
                 if (diffComps(k)%p%cg_samp_group /= samp_group) cycle
                 mat(q,k) = data(q)%N%alpha_nu(j) * &
                           & data(q)%B(0)%p%b_l(l,j) * &
@@ -628,6 +630,14 @@ contains
 
                 if (trim(diffComps(k)%p%Cl%type) /= 'none') then
                    mat(q,k) = mat(q,k)*sqrt(diffComps(k)%p%Cl%getCl(l,j))
+                end if
+                if (mat(q,k) /= mat(q,k)) then
+                   if (trim(diffComps(k)%p%Cl%type) /= 'none') then
+                      write(*,*) q, j, l, k, data(q)%N%alpha_nu(j), data(q)%B(0)%p%b_l(l,j), diffComps(k)%p%F_mean(q,0,j),diffComps(k)%p%Cl%getCl(l,j)
+                   else
+                      write(*,*) q, j, l, k, data(q)%N%alpha_nu(j), data(q)%B(0)%p%b_l(l,j), diffComps(k)%p%F_mean(q,0,j)
+                   end if
+
                 end if
              end do
           end do
@@ -699,8 +709,8 @@ contains
     logical(lgt) :: precomp, mixmatnull ! NEW
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
     real(dp),        allocatable, dimension(:)     :: nu, s, buffer
-    class(comm_mapinfo),          pointer          :: info
-    class(comm_map),              pointer          :: t
+    class(comm_mapinfo),          pointer          :: info, info_tp
+    class(comm_map),              pointer          :: t, tp
     class(map_ptr),  allocatable, dimension(:)     :: theta_prev
 
     if (trim(self%type) == 'md') return
@@ -741,7 +751,12 @@ contains
                 call t%Y_scalar
              else
                 call wall_time(t1)
-                call self%theta(j)%p%udgrade(t)
+                info_tp => comm_mapinfo(self%theta(j)%p%info%comm, self%theta(j)%p%info%nside, &
+                     & self%theta(j)%p%info%lmax, nmaps, nmaps==3)
+                tp    => comm_map(info_tp)
+                tp%map(:,1:nmaps) = self%theta(j)%p%map(:,1:nmaps)
+                call tp%udgrade(t)
+                call tp%dealloc()
                 call wall_time(t2)
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
@@ -856,7 +871,7 @@ contains
              end if
              
              ! Polarization
-             if (self%nmaps == 3) then
+             if (self%nmaps == 3 .and. data(i)%info%nmaps == 3) then
                 ! Stokes Q
                 if (self%npar == 0) then
                    self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
@@ -891,7 +906,7 @@ contains
                 
           ! Compute mixing matrix average; for preconditioning only
           allocate(buffer(self%nmaps))
-          do j = 1, self%nmaps
+          do j = 1, min(self%nmaps, data(i)%info%nmaps)
              self%F_mean(i,l,j) = sum(self%F(i,l)%p%map(:,j))
           end do
           call mpi_allreduce(self%F_mean(i,l,:), buffer, self%nmaps, &

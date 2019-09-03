@@ -96,6 +96,8 @@ contains
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
     constructor%first_call    = .true.
+    constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
+    constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     datadir = trim(cpar%datadir)//'/' 
@@ -408,7 +410,7 @@ contains
        do_oper(prep_G)       = (main_iter == n_main_iter-3) .and. .not. self%first_call
        do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
-       do_oper(samp_mono)    = do_oper(bin_map)             .and. .not. self%first_call
+       do_oper(samp_mono)    = .false. !do_oper(bin_map)             .and. .not. self%first_call
        do_oper(sub_sl)       = correct_sl
        do_oper(output_slist) = mod(iter, 10) == 0
 
@@ -464,7 +466,7 @@ contains
 
        if (do_oper(samp_acal)) then
           call wall_time(t1)
-          call self%sample_absgain_from_orbital(A_abscal, b_abscal)
+          call self%sample_absgain_from_orbital(handle, A_abscal, b_abscal)
           call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
        end if
 
@@ -592,7 +594,7 @@ contains
           call wall_time(t1)
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             s_mono(:,j) = self%mono(j)
+             s_mono(:,j) = 0.  !self%mono(j)
           end do
           s_tot = s_sky + s_sl + s_orb + s_mono
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
@@ -1259,13 +1261,11 @@ contains
     ata           = sum(mask*s_ref**2)
     curr_gain     = sum(mask * d_only_wn * s_ref) / ata            
     curr_sigma    = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)  
+    self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
     if (trim(self%operation) == 'optimize') then
-       self%scans(scan_id)%d(det)%gain       = curr_gain
-       self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
+       self%scans(scan_id)%d(det)%gain = curr_gain
     else
-       ! TODO: Add fluctuation
-       self%scans(scan_id)%d(det)%gain       = curr_gain
-       self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
+       self%scans(scan_id)%d(det)%gain = curr_gain + curr_sigma*rand_gauss(handle)
     end if
 
     deallocate(d_only_wn)
@@ -1368,9 +1368,10 @@ contains
   end subroutine accumulate_absgain_from_orbital
 
   ! Sample absolute gain from orbital dipole alone 
-  subroutine sample_absgain_from_orbital(self, A_abs, b_abs)
+  subroutine sample_absgain_from_orbital(self, handle, A_abs, b_abs)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
+    type(planck_rng),                  intent(inout)  :: handle
     real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
 
     integer(i4b) :: i, j, ierr
@@ -1387,8 +1388,9 @@ contains
     if (self%myid == 0) then
        sigma = 1.d0/sqrt(A)
        dgain = b/A
-       if (.false.) then
+       if (trim(self%operation) == 'sample') then
           ! Add fluctuation term if requested
+          dgain = dgain + sigma * rand_gauss(handle)
        end if
        do j = 1, self%ndet
           write(*,fmt='(a,i5,a,3f8.3)') 'Orb gain -- d = ', j, ', dgain = ', &
@@ -1908,14 +1910,14 @@ contains
              do k = 1, nout
                 outmaps(k)%p%map(i,j) = b_tot(k,j,i) * 1.d6 ! uK
              end do
-             if (trim(self%operation) == 'sample') then
-                ! Add random fluctuation
-                call compute_hermitian_root(A_inv, 0.5d0)
-                do l = 1, nmaps
-                   eta(l) = rand_gauss(handle)
-                end do
-                outmaps(k)%p%map(i,:) = outmaps(k)%p%map(i,:) + matmul(A_inv,eta)
-             end if
+!!$             if (trim(self%operation) == 'sample') then
+!!$                ! Add random fluctuation
+!!$                call compute_hermitian_root(A_inv, 0.5d0)
+!!$                do l = 1, nmaps
+!!$                   eta(l) = rand_gauss(handle)
+!!$                end do
+!!$                outmaps(k)%p%map(i,:) = outmaps(k)%p%map(i,:) + matmul(A_inv,eta)
+!!$             end if
           end do
        end if
     end do
@@ -2021,8 +2023,8 @@ contains
        end if
        if (accept) cc = cp
        if (.true. .or. mod(iter,2) == 0) then
-          write(*,fmt='(a,f16.1,a,f10.1)') 'Rel bp c0 = ', cp, &
-               & ', diff = ', diff
+          write(*,fmt='(a,f16.1,a,f10.1,l1)') 'Rel bp c0 = ', cp, &
+               & ', diff = ', diff, accept
        else
           write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cp, &
                & ', diff = ', diff
@@ -2105,25 +2107,40 @@ contains
     class(comm_map),                       intent(in)    :: res, rms, mask
 
     integer(i4b) :: i, j, k, nstep, nmaps, ndet, ierr
-    real(dp)     :: t1, t2, s(3), b(3), sigma, chisq, chisq0, chisq_prop
-    logical(lgt) :: accept
-    real(dp), allocatable, dimension(:) :: mono0, mono_prop
+    real(dp)     :: t1, t2, s(3), b(3), alpha, sigma, chisq, chisq0, chisq_prop, naccept
+    logical(lgt) :: accept, first_call
+    real(dp), allocatable, dimension(:)   :: mono0, mono_prop, mu, eta
+    real(dp), allocatable, dimension(:,:) :: samples
 
     call wall_time(t1)
 
-    nstep = 500
+    first_call = .not. allocated(self%L_prop_mono)
     sigma = 0.03d-6 ! RMS proposal in K
+    alpha = 1.2d0   ! Covariance matrix scaling factor
     nmaps = size(sys_mono, dim=1)
     ndet  = size(sys_mono, dim=2)-nmaps
-    allocate(mono0(ndet), mono_prop(ndet))
+    allocate(mono0(ndet), mono_prop(ndet), eta(ndet), mu(ndet))
  
     ! Initialize monopoles on existing values
     if (self%myid == 0) then
        do j = 1, ndet
           mono0(j) = self%mono(j)
        end do
+
+       if (first_call) then
+          allocate(self%L_prop_mono(ndet,ndet))
+          self%L_prop_mono = 0.d0
+          do i = 1, ndet
+             self%L_prop_mono(i,i) = sigma
+          end do
+          nstep = 100000
+          allocate(samples(ndet,nstep))
+       else
+          nstep = 1000
+       end if
     end if
     call mpi_bcast(mono0, ndet,  MPI_DOUBLE_PRECISION, 0, res%info%comm, ierr)
+    call mpi_bcast(nstep,    1,  MPI_INTEGER,          0, res%info%comm, ierr)
 
     ! Compute chisquare for old values; only include Q and U in evaluation; 
     ! add old correction to output map
@@ -2140,13 +2157,16 @@ contains
     end do
     call mpi_reduce(chisq, chisq0, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, res%info%comm, ierr)
 
+    naccept = 0
+    if (res%info%myid == 0) open(78,file='mono.dat', recl=1024)
     do i = 1, nstep
 
        ! Propose new monopoles; force zero average
        if (res%info%myid == 0) then
           do j = 1, ndet
-             mono_prop(j) = mono0(j) + sigma * rand_gauss(handle)
+             eta(j) = rand_gauss(handle)
           end do
+          mono_prop = mono0     + matmul(self%L_prop_mono, eta)
           mono_prop = mono_prop - mean(mono_prop)
        end if
        call mpi_bcast(mono_prop, ndet,  MPI_DOUBLE_PRECISION, 0, res%info%comm, ierr)
@@ -2181,19 +2201,38 @@ contains
        if (accept) then
           mono0  = mono_prop
           chisq0 = chisq_prop
+          naccept = naccept + 1
        end if
+       if (res%info%myid == 0) write(78,*) i, chisq0, mono0
+       if (first_call) samples(:,i) = mono0
 
     end do
+    if (res%info%myid == 0) close(78)
+
+    if (first_call .and. res%info%myid == 0) then
+       do i = 1, ndet
+          mu(i) = mean(samples(i,:))
+          do j = 1, i
+             self%L_prop_mono(i,j) = mean((samples(i,:)-mu(i))*(samples(j,:)-mu(j)))
+          end do
+!          write(*,*) real(self%L_prop_mono(i,:),sp) 
+       end do
+       call compute_hermitian_root(self%L_prop_mono, 0.5d0)
+       !call cholesky_decompose_single(self%L_prop_mono)
+       self%L_prop_mono = alpha * self%L_prop_mono
+       deallocate(samples)
+    end if
+
 
     ! Update parameters
     self%mono = mono0
 
     call wall_time(t2)
     if (res%info%myid == 0) then
-       write(*,*) 'Time for monopole sampling = ', t2-t1
+       write(*,fmt='(a,f8.3,a,f8.3)') 'Time for monopole sampling = ', t2-t1, ', accept = ', naccept/nstep
     end if
 
-    deallocate(mono0, mono_prop)
+    deallocate(mono0, mono_prop, eta, mu)
 
   end subroutine sample_mono
 

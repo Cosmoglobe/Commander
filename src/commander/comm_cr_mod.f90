@@ -533,19 +533,25 @@ contains
           select type (c)
           class is (comm_diffuse_comp)
              info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, c%lmax_amp, &
-                  & c%nmaps, data(i)%info%pol)
+                  & c%nmaps, c%nmaps==3)
              Tm     => comm_map(info)
              if (c%F_null(i,0)) then
                 Tm%alm = 0.d0
              else
                 call map%alm_equal(Tm)
                 if (c%lmax_ind == 0) then
-                   do j = 1, min(c%x%info%nmaps, Tm%info%nmaps)
+                   do j = 1, c%nmaps
                       Tm%alm(:,j) = Tm%alm(:,j) * c%F_mean(i,0,j)
                    end do
                 else
                    call Tm%Y()
-                   Tm%map = c%F(i,0)%p%map * Tm%map
+                   do j = 1, c%nmaps
+                      if (j <= data(i)%info%nmaps) then
+                         Tm%map(:,j) = c%F(i,0)%p%map(:,j) * Tm%map(:,j)
+                      else
+                         Tm%map(:,j) = 0.d0
+                      end if
+                   end do
                    call Tm%YtW()
                 end if
              end if
