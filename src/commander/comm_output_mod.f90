@@ -14,7 +14,7 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i, hdferr, ierr
+    integer(i4b)                 :: i, j, hdferr, ierr
     real(dp)                     :: chisq, t1, t2, t3, t4
     logical(lgt), save           :: first_call=.true.
     logical(lgt)                 :: exist, init
@@ -109,9 +109,12 @@ contains
              call data(i)%N%sqrtInvN(map)
              map%map = map%map**2
              
-             chisq_sub => comm_map(chisq_map%info)
+             info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+             chisq_sub => comm_map(info)
              call map%udgrade(chisq_sub)
-             chisq_map%map = chisq_map%map + chisq_sub%map * (map%info%npix/chisq_sub%info%npix)
+             do j = 1, data(i)%info%nmaps
+                chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+             end do
              call chisq_sub%dealloc()
           end if
           call map%dealloc()
