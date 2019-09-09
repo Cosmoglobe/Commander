@@ -717,7 +717,18 @@ contains
              end do
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
-             call wall_time(t1)
+             ! trygve
+!!$             if (do_oper(bin_map) .and. iter==2 .and. ndet == 4 .and. self%scanid(i) == 5000) then
+!!$                open(78,file='tod_pid5000.dat', recl=1024)
+!!$                do j = 1, ntod
+!!$                   write(78,*) j, self%scans(i)%d(1)%tod(j), mask(j,1), d_calib(:,j,1)
+!!$                end do
+!!$                close(78)
+!!$             end if
+!!$             call wall_time(t1)
+!!$             call mpi_finalize(ierr)
+!!$             stop
+
              if (do_oper(samp_mono)) then
                 call self%compute_binned_map(d_calib, pix, &
                      & psi, flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
