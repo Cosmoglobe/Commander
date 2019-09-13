@@ -181,6 +181,7 @@ contains
        call open_hdf_file(filename, file, "r")
        call get_size_hdf(file, trim(label) // "/bandpass", ext)
        m = ext(1)
+
        allocate(x(m), y(m))
        call read_hdf(file, trim(label) // "/bandpassx",x)
        call read_hdf(file, trim(label) // "/bandpass", y)

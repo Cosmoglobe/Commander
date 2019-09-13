@@ -305,7 +305,7 @@ contains
     call wall_time(t1)
     correct_sl      = .false.
     chisq_threshold = 10.d0 !7.d0
-    n_main_iter     = 4
+    n_main_iter     = 3
     !chisq_threshold = 20000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -403,13 +403,13 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       do_oper(prep_acal)    = (main_iter == n_main_iter-1) .and. .not. self%first_call
-       do_oper(samp_acal)    = (main_iter == n_main_iter  ) .and. .not. self%first_call
-       do_oper(prep_relbp)   = (main_iter == n_main_iter-2) .and. .not. self%first_call !.and. mod(iter,2) == 0
+       do_oper(prep_acal)    = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(samp_acal)    = .false. !(main_iter == n_main_iter  ) .and. .not. self%first_call
+       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call !.and. mod(iter,2) == 0
        do_oper(prep_absbp)   = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call !.and. mod(iter,2) == 1
-       do_oper(samp_bp)      = (main_iter == n_main_iter-1) .and. .not. self%first_call
-       do_oper(prep_G)       = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
+       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = .false. !do_oper(bin_map)             .and. .not. self%first_call
        do_oper(sub_sl)       = correct_sl
@@ -721,7 +721,25 @@ contains
              end do
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
+
+             ! trygve
+
+
+!!$             if (do_oper(bin_map) .and. iter==2 .and. ndet == 4 .and. self%scanid(i) == 5000) then
+!!$                open(78,file='tod_pid5000.dat', recl=1024)
+!!$                do j = 1, ntod
+!!$                   write(78,*) j, self%scans(i)%d(1)%tod(j), mask(j,1), d_calib(:,j,1)
+!!$                end do
+!!$                close(78)
+!!$             end if
+!!$             call wall_time(t1)
+!!$             call mpi_finalize(ierr)
+!!$             stop
+
+
+
              call wall_time(t1)
+
              if (do_oper(samp_mono)) then
                 call self%compute_binned_map(d_calib, pix, &
                      & psi, flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
@@ -758,6 +776,7 @@ contains
  
        if (do_oper(prep_relbp)) then
           call wall_time(t1)
+          call update_status(status, "tod_share1")
           do i = 0, self%numprocs_shared-1
              start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
              end_chunk   = min(start_chunk+chunk_size-1,npix-1)
@@ -783,11 +802,13 @@ contains
           end do
           call mpi_win_fence(0, sA_map%win, ierr)
           call mpi_win_fence(0, sb_map%win, ierr)
+          call update_status(status, "tod_share2")
 
           Sfilename = trim(prefix) // 'Smap'// trim(postfix) 
           call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, &
                & rms_out, chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
           call wall_time(t2); t_tot(10) = t_tot(10) + t2-t1
+          call update_status(status, "tod_share3")
        end if
        call update_status(status, "tod_prepbp")
 
@@ -809,6 +830,7 @@ contains
     call update_status(status, "shared1")
     if (sA_map%init) then
        do i = 0, self%numprocs_shared-1
+          !call update_status(status, "tod_share_loop")
           start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
           end_chunk   = min(start_chunk+chunk_size-1,npix-1)
           do while (start_chunk < npix)
@@ -877,6 +899,7 @@ contains
        if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
        if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
        if (self%output_n_maps > 6) call outmaps(7)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+       call update_status(status, "finalize3")
 
     end if
 
