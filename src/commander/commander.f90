@@ -132,9 +132,9 @@ program commander
 !!$  data(3)%bp(0)%p%delta(1) =  1.78d0
   call update_mixing_matrices(update_F_int=.true.)       
 
-!  data(1)%tod%sigma_bp = 0.001d0
-!  if (size(data)>1) data(2)%tod%sigma_bp = 0.003d0
-!  if (size(data)>2) data(3)%tod%sigma_bp = 0.005d0
+  data(1)%tod%sigma_bp = 0.001d0
+  if (size(data)>1) data(2)%tod%sigma_bp = 0.003d0
+  if (size(data)>2) data(3)%tod%sigma_bp = 0.005d0
   
 
   ! Run Gibbs loop
@@ -269,7 +269,7 @@ contains
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
-             call get_sky_signal(i, j, s_sky(j,k)%p)  
+             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
           end do
        end do
 
