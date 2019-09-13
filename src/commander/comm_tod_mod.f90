@@ -57,6 +57,7 @@ module comm_tod_mod
      integer(i4b) :: nscan, nscan_tot                              ! Number of scans
      integer(i4b) :: first_scan, last_scan
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
+     integer(i4b) :: flag0
 
      real(dp)     :: samprate                                     ! Sample rate in Hz
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle

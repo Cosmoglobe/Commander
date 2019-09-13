@@ -98,6 +98,7 @@ contains
     constructor%first_call    = .true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
+    constructor%flag0         = 6111232
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     datadir = trim(cpar%datadir)//'/' 
@@ -411,6 +412,7 @@ contains
        do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = .false. !do_oper(bin_map)             .and. .not. self%first_call
+       do_oper(samp_N_par)    = .false.
        do_oper(sub_sl)       = correct_sl
        do_oper(output_slist) = mod(iter, 10) == 0
 
@@ -566,6 +568,17 @@ contains
           end if
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
+
+!!$          if (self%myid == 0) then
+!!$             open(58,file='flag.dat', recl=1024)
+!!$             do j = 1, ntod
+!!$                write(58,*) j, flag(j,1), mask(j,1)
+!!$             end do
+!!$             close(58)
+!!$          end if
+!!$          call mpi_finalize(ierr)
+!!$          stop
+
           
           ! Construct orbital dipole template
           call wall_time(t1)
@@ -647,7 +660,7 @@ contains
              do j = 1, ndet
                 ntot= ntot + 1
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                if (count(iand(flag(:,j),6111248) .ne. 0) > 0.1*ntod) then
+                if (count(iand(flag(:,j),self%flag0) .ne. 0) > 0.1*ntod) then
                    !write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
                     !    & self%scanid(i), j, ', more than 10% flagged samples'
                    self%scans(i)%d(j)%accept = .false.
@@ -717,13 +730,13 @@ contains
              end do
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
-!!$             if (do_oper(bin_map) .and. iter==2 .and. ndet == 4 .and. self%scanid(i) == 5000) then
-!!$                open(78,file='tod_pid5000.dat', recl=1024)
-!!$                do j = 1, ntod
-!!$                   write(78,*) j, self%scans(i)%d(1)%tod(j), mask(j,1), d_calib(:,j,1)
-!!$                end do
-!!$                close(78)
-!!$             end if
+             if (do_oper(bin_map) .and. iter==2 .and. ndet == 4 .and. self%scanid(i) == 5000) then
+                open(78,file='tod_pid5000.dat', recl=1024)
+                do j = 1, ntod
+                   write(78,*) j, self%scans(i)%d(1)%tod(j), mask(j,1), d_calib(:,j,1)
+                end do
+                close(78)
+             end if
 
              call wall_time(t1)
              if (do_oper(samp_mono)) then
@@ -1030,7 +1043,7 @@ contains
                        & map(det)%a(2,pix(i,det)+1) * self%cos2psi(psi(i,det)) + &
                        & map(det)%a(3,pix(i,det)+1) * self%sin2psi(psi(i,det))
           tmask(i,det) = pmask(pix(i,det)) 
-          if (iand(flag(i,det),6111248) .ne. 0) tmask(i,det) = 0.
+          if (iand(flag(i,det),self%flag0) .ne. 0) tmask(i,det) = 0.
        end do
     end do
 
@@ -1726,7 +1739,7 @@ contains
        inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
        do t = 1, self%scans(scan)%ntod
           
-          if (iand(flag(t,det),6111248) .ne. 0) cycle
+          if (iand(flag(t,det),self%flag0) .ne. 0) cycle
           
           pix_    = self%pix2ind(pix(t,det))
           psi_    = psi(t,det)
@@ -2258,7 +2271,7 @@ contains
 
     do det = 1, self%ndet
        do i = 1, size(flag,2)
-          if (iand(flag(i,det),6111248) .ne. 0) then
+          if (iand(flag(i,det),self%flag0) .ne. 0) then
              flag(i,self%partner(det)) = flag(i,det)
           end if
        end do
