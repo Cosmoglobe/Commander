@@ -264,15 +264,48 @@ contains
     len=mlen
     data_dims = [mlen,1]
     CALL h5dread_vl_f(file%sethandle, filetype, rdata, data_dims, len, hdferr, space)
-    !CALL h5dread_vl_f(file%sethandle, filetype, rdata, data_dims, len, hdferr)
-    val = rdata(1)
+        val = rdata(1)
     DEALLOCATE(rdata)
-    !CALL h5dclose_f(file%sethandle , hdferr)
     call close_hdf_set(file)
     CALL h5sclose_f(space, hdferr)
     CALL H5Tclose_f(filetype, hdferr)
     
   end subroutine read_hdf_string
+
+
+  subroutine read_hdf_string2(file, setname, val, n)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: setname
+    character(len=*), intent(out) :: val
+    integer(i4b),     intent(out) :: n
+
+    integer(i4b), parameter :: mlen=10000
+    integer(hid_t)  :: dtype, dset, filetype, space, memtype
+    INTEGER(SIZE_T) :: size
+    integer(size_t), dimension(1)  :: len
+    integer(hsize_t), dimension(1:2)  :: data_dims
+    INTEGER(HSIZE_T), DIMENSION(1:1) :: dims = (/mlen/)
+    INTEGER(HSIZE_T), DIMENSION(1:1) :: maxdims
+    integer         :: hdferr
+    !character(len=mlen), dimension(1) :: rdata
+    character(len=mlen) :: rdata
+
+    call open_hdf_set(file, setname)
+    CALL H5Dget_type_f(file%sethandle, filetype, hdferr)
+    CALL H5Tget_size_f(filetype, size, hdferr)
+    CALL H5Dget_space_f(file%sethandle, space, hdferr)
+    CALL H5Sget_simple_extent_dims_f(space, dims, maxdims, hdferr)
+
+    call h5dread_f(file%sethandle, filetype, rdata, dims, hdferr, H5S_ALL_F, H5S_ALL_F, H5P_DEFAULT_F)
+    val = rdata(1:size)
+    n   = size
+
+    call close_hdf_set(file)
+    CALL h5sclose_f(space, hdferr)
+    CALL H5Tclose_f(filetype, hdferr)
+    
+  end subroutine read_hdf_string2
 
 
 
