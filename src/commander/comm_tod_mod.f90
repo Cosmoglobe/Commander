@@ -138,7 +138,7 @@ contains
     class(comm_tod),                intent(inout)  :: self
     character(len=*), dimension(:), intent(in)     :: detlabels
 
-    integer(i4b) :: i, j, det, ierr, npsi, nside, ndet_tot
+    integer(i4b) :: i, j, n, det, ierr, npsi, nside, ndet_tot
     real(dp)     :: t1, t2, psi, fsamp
     type(hdf_file)     :: file
 
@@ -155,12 +155,16 @@ contains
 
 
        !TODO: figure out how to make this work
-       call read_hdf_string(file, "/common/det",    det_buf)
+       call read_hdf_string2(file, "/common/det",    det_buf, n)
+       !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       ndet_tot = num_tokens(det_buf, ",")
+       ndet_tot = num_tokens(det_buf(1:n), ",")
        allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
-       call get_tokens(det_buf, ',', dets)
+       call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
+!!$       do i = 1, ndet_tot
+!!$          write(*,*) i, trim(adjustl(dets(i)))
+!!$       end do
        !write(*,*) ndet_tot
        call read_hdf(file, "common/nside",  self%nside)
        call read_hdf(file, "common/npsi",   self%npsi)

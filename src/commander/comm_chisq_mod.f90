@@ -182,15 +182,18 @@ contains
 
   end subroutine output_signals_per_band
 
-  subroutine get_sky_signal(band, det, map_out)
+  subroutine get_sky_signal(band, det, map_out, mono)
     implicit none
     integer(i4b),    intent(in)     :: band, det
     class(comm_map), pointer        :: map_out
+    logical(lgt), optional          :: mono 
 
-    logical(lgt) :: skip
+    logical(lgt) :: skip, mono_
     class(comm_map),  pointer :: map_diff
     class(comm_comp), pointer :: c
     real(dp),     allocatable, dimension(:,:) :: map, alm
+    
+    mono_ = .true.; if (present(mono)) mono_=mono 
 
     ! Allocate map
     map_out  => comm_map(data(band)%info)  
@@ -202,6 +205,10 @@ contains
     map_out%map  = 0.d0
     map_diff%alm = 0.d0
     do while (associated(c))
+       if (.not. mono_ .and. trim(c%type)=="md") then
+          c => c%next()
+          cycle
+       end if
        select type (c)
        class is (comm_diffuse_comp)
           !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          

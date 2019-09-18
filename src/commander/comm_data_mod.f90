@@ -104,14 +104,16 @@ contains
        ! Initialize TOD structures
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
-          if (trim(cpar%ds_tod_type(n)) == 'LFI') then
+          if (trim(cpar%ds_tod_type(i)) == 'LFI') then
              data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info)
+             data(n)%ndet = data(n)%tod%ndet
+          else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else
-             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(n))
+             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(i))
              stop
           end if
-          data(n)%ndet = data(n)%tod%ndet
        end if
+       
 
        ! Initialize beam structures
        allocate(data(n)%B(0:data(n)%ndet)) 
@@ -171,8 +173,10 @@ contains
 
 
        ! Initialize bandpass structures; 0 is full freq, i is detector
-       allocate(data(n)%bp(0:data(n)%ndet)) 
+       allocate(data(n)%bp(0:data(n)%ndet))
+
        data(n)%bp(0)%p => comm_bp(cpar, n, i, data(n)%label)
+       
        do j = 1, data(n)%ndet
           data(n)%bp(j)%p => comm_bp(cpar, n, i, data(n)%tod%label(j))
        end do
@@ -215,9 +219,7 @@ contains
 
     end do
     numband = n
-    if (cpar%myid == 0 .and. cpar%verbosity > 0) &
-         & write(*,fmt='(a,i5)') '  Number of active data sets = ', numband
-    
+
     ! Sort bands according to nominal frequency
     allocate(ind_ds(numband), nu(numband))
     do i = 1, numband
