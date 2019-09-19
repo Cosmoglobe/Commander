@@ -182,7 +182,7 @@ contains
     implicit none
     type(comm_params), intent(in) :: cpar
 
-    integer(i4b)              :: i, j
+    integer(i4b)              :: i, j, ext(2)
     character(len=4)          :: ctext
     character(len=6)          :: itext
     character(len=512)        :: chainfile, hdfpath
@@ -214,16 +214,19 @@ contains
              call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
                   & data(i)%gain)
   
-             allocate(bp_delta(0:data(i)%ndet,data(i)%bp(1)%p%npar))
+             call get_size_hdf(file, trim(adjustl(itext))//'/bandpass/'//&
+                  & trim(adjustl(data(i)%label)), ext)
+             if (data(i)%ndet > ext(1)-1) then
+                write(*,*) 'Error -- init HDF file does not contain enough bandpass information'
+                stop
+             end if
+             allocate(bp_delta(0:ext(1)-1,ext(2)))
              call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
                   & bp_delta)
              do j = 0, data(i)%ndet
                 data(i)%bp(j)%p%delta = bp_delta(j,:)
              end do
              deallocate(bp_delta)
-
-             !call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
-             !     & data(i)%bp(0)%p%delta)
           end if
        end do
     end if

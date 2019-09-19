@@ -266,7 +266,8 @@ contains
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold, delta_temp, chisq_tot
     real(dp)     :: t_tot(22), inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
-    real(sp),     allocatable, dimension(:,:)     :: s_sky_prop, s_bp_prop, s_mono, s_buf, s_tot
+    real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot
+    real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
     real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
@@ -297,17 +298,13 @@ contains
     t_tot   = 0.d0
     call wall_time(t5)
 
-    if (self%myid == 0) then
-       write(*,*) 'delta in 1=', real(delta(:,1,1),sp)
-       write(*,*) 'delta in 2=', real(delta(:,1,2),sp)
-    end if
 
     ! Set up full-sky map structures
     call wall_time(t1)
     correct_sl      = .false.
     chisq_threshold = 10.d0 !7.d0
     n_main_iter     = 3
-    !chisq_threshold = 1000.d0 
+    !chisq_threshold = 10000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -318,7 +315,7 @@ contains
     if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size+1
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(smap_sky(0:ndet, ndelta)) 
-    allocate(chisq_S(ndet,2))
+    allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
     slist   = ''
 
@@ -327,6 +324,12 @@ contains
     prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
+    if (self%myid == 0) then
+       do k = 1, ndelta
+          write(*,*) 'delta in =', real(delta(:,1,k),sp)
+       end do
+    end if
+!!$
 !!$    call int2string(iter, istr)
 !!$    do j = 1, map_in(1,1)%p%info%nmaps
 !!$       do i = 0, map_in(1,1)%p%info%np-1
@@ -430,7 +433,7 @@ contains
           else
              ncol = nmaps + ndet - 1
              n_A  = nmaps*(nmaps+1)/2 + 4*(ndet-1)
-             nout = 2
+             nout = ndelta
           end if
           if (allocated(A_map)) deallocate(A_map, b_map)
           allocate(A_map(n_A,self%nobs), b_map(nout,ncol,self%nobs))
@@ -505,21 +508,21 @@ contains
           ndet = self%ndet
           
           ! Set up local data structure for current scan
-          allocate(n_corr(ntod, ndet))       ! Correlated noise in V
-          allocate(s_sl(ntod, ndet))         ! Sidelobe in uKcm
-          allocate(s_sky(ntod, ndet))        ! Sky signal in uKcmb
-          allocate(s_sky_prop(ntod, ndet))   ! Sky signal in uKcmb
-          allocate(s_bp(ntod, ndet))         ! Signal minus mean
-          allocate(s_bp_prop(ntod, ndet))    ! Signal minus mean
-          allocate(s_orb(ntod, ndet))        ! Orbital dipole in uKcmb
-          allocate(s_mono(ntod, ndet))       ! Monopole correction in uKcmb
-          allocate(s_buf(ntod, ndet))       ! Buffer
-          allocate(s_tot(ntod, ndet))       ! Sum of all sky compnents
-          allocate(mask(ntod, ndet))         ! Processing mask in time
-          allocate(mask2(ntod, ndet))        ! Processing mask in time
-          allocate(pix(ntod, ndet))          ! Decompressed pointing
-          allocate(psi(ntod, ndet))          ! Decompressed pol angle
-          allocate(flag(ntod, ndet))         ! Decompressed flags
+          allocate(n_corr(ntod, ndet))                 ! Correlated noise in V
+          allocate(s_sl(ntod, ndet))                   ! Sidelobe in uKcm
+          allocate(s_sky(ntod, ndet))                  ! Sky signal in uKcmb
+          allocate(s_sky_prop(ntod, ndet,2:ndelta))    ! Sky signal in uKcmb
+          allocate(s_bp(ntod, ndet))                   ! Signal minus mean
+          allocate(s_bp_prop(ntod, ndet, 2:ndelta))    ! Signal minus mean
+          allocate(s_orb(ntod, ndet))                  ! Orbital dipole in uKcmb
+          allocate(s_mono(ntod, ndet))                 ! Monopole correction in uKcmb
+          allocate(s_buf(ntod, ndet))                  ! Buffer
+          allocate(s_tot(ntod, ndet))                  ! Sum of all sky compnents
+          allocate(mask(ntod, ndet))                   ! Processing mask in time
+          allocate(mask2(ntod, ndet))                  ! Processing mask in time
+          allocate(pix(ntod, ndet))                    ! Decompressed pointing
+          allocate(psi(ntod, ndet))                    ! Decompressed pol angle
+          allocate(flag(ntod, ndet))                   ! Decompressed flags
           
           ! Initializing arrays to zero
           !n_corr      = 0.d0
@@ -556,11 +559,15 @@ contains
                   & sprocmask%a, i, s_sky, mask)
           end if
           if (do_oper(prep_relbp)) then
-             call self%project_sky(smap_sky(:,2), pix, psi, flag, &
-                  & sprocmask2%a, i, s_sky_prop, mask2, s_bp=s_bp_prop)  
+             do j = 2, ndelta
+                call self%project_sky(smap_sky(:,j), pix, psi, flag, &
+                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
+             end do
           else if (do_oper(prep_absbp)) then
-             call self%project_sky(smap_sky(:,2), pix, psi, flag, &
-                  & sprocmask2%a, i, s_sky_prop, mask2)  
+             do j = 2, ndelta
+                call self%project_sky(smap_sky(:,j), pix, psi, flag, &
+                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
+             end do
           end if
           if (do_oper(sel_data)) then
              do j = 1, ndet
@@ -692,11 +699,13 @@ contains
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
-                call self%compute_chisq(i, j, mask2(:,j), s_sky(:,j), &
-                     & s_buf(:,j), n_corr(:,j),  s_sky_prop(:,j))
                 chisq_S(j,1) = chisq_S(j,1) + self%scans(i)%d(j)%chisq_masked
-                chisq_S(j,2) = chisq_S(j,2) + self%scans(i)%d(j)%chisq_prop
+                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
+                do k = 2, ndelta
+                   call self%compute_chisq(i, j, mask2(:,j), s_sky(:,j), &
+                        & s_buf(:,j), n_corr(:,j),  s_sky_prop(:,j,k))
+                   chisq_S(j,k) = chisq_S(j,k) + self%scans(i)%d(j)%chisq_prop
+                end do
              end do
              call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
           end if
@@ -729,7 +738,9 @@ contains
                 if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
                 if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
                 if (do_oper(prep_relbp)) then
-                   d_calib(2,:,j) = d_calib(1,:,j) + s_bp(:,j) - s_bp_prop(:,j)
+                   do k = 2, ndelta
+                      d_calib(k,:,j) = d_calib(1,:,j) + s_bp(:,j) - s_bp_prop(:,j,k)
+                   end do
                 end if
              end do
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
@@ -1859,7 +1870,7 @@ contains
     real(dp),        dimension(1:,1:,0:), intent(out),   optional :: sys_mono
     class(comm_map),                      intent(inout), optional :: condmap
 
-    integer(i4b) :: i, j, k, l, nmaps, np, ierr, ndet, ncol, n_A, off
+    integer(i4b) :: i, j, k, l, nmaps, np, ierr, ndet, ncol, n_A, off, ndelta
     integer(i4b) :: det, nout, np0, comm, myid, nprocs
     real(dp), allocatable, dimension(:,:)   :: A_inv
     real(dp), allocatable, dimension(:,:,:) :: b_tot
@@ -1876,8 +1887,9 @@ contains
     nmaps = self%info%nmaps
     ndet  = self%ndet
     if (present(chisq_S)) then
-       ncol  = nmaps+ndet-1
-       n_A   = nmaps*(nmaps+1)/2 + 4*(ndet-1)
+       ndelta = size(chisq_S,2)
+       ncol   = nmaps+ndet-1
+       n_A    = nmaps*(nmaps+1)/2 + 4*(ndet-1)
     else
        ncol  = nmaps
        n_A   = nmaps*(nmaps+1)/2
@@ -1992,8 +2004,9 @@ contains
           if (mask(self%info%pix(i+1)) == 0) cycle
           do j = 1, ndet-1
              if (A_inv(nmaps+j,nmaps+j) == 0.d0) cycle
-             chisq_S(j,1) = chisq_S(j,1) + b_tot(1,nmaps+j,i)**2 / A_inv(nmaps+j,nmaps+j)
-             chisq_S(j,2) = chisq_S(j,2) + b_tot(2,nmaps+j,i)**2 / A_inv(nmaps+j,nmaps+j)
+             do k = 1, ndelta
+                chisq_S(j,k) = chisq_S(j,k) + b_tot(k,nmaps+j,i)**2 / A_inv(nmaps+j,nmaps+j)
+             end do
           end do
        else
           do j = 1, nmaps
@@ -2098,38 +2111,47 @@ contains
     type(planck_rng),                         intent(inout)  :: handle
     real(dp),            dimension(1:,1:),    intent(in)     :: chisq_S
 
-    integer(i4b) :: i, j, ierr
+    integer(i4b) :: i, j, k, ierr, ndelta, current
     logical(lgt) :: accept
     real(dp)     :: chisq_prop, chisq_curr, cp, cc, accept_rate, diff
 
     if (self%myid == 0) then
-       cp          = sum(chisq_S(:,2))
-       cc          = sum(chisq_S(:,1))
-       diff        = cp-cc
-       accept_rate = exp(-0.5d0*diff)  
-       if (trim(self%operation) == 'optimize') then
-          accept = cp <= cc
-       else
-          accept = (rand_uni(handle) < accept_rate)
-       end if
-       if (accept) cc = cp
+       ndelta  = size(chisq_S,2)
+       write(*,*) 'ndelta =', ndelta
+       current = 1
+       do k = 2, ndelta
+          cp          = sum(chisq_S(:,k))
+          cc          = sum(chisq_S(:,current))
+          diff        = cp-cc
+          accept_rate = exp(-0.5d0*diff)  
+          if (trim(self%operation) == 'optimize') then
+             accept = cp <= cc
+          else
+             accept = (rand_uni(handle) < accept_rate)
+          end if
+          write(*,*) k, cp, cc, accept
+          if (accept) then
+             cc = cp
+             current = k
+          end if
+       end do
        if (.true. .or. mod(iter,2) == 0) then
-          write(*,fmt='(a,f16.1,a,f10.1,l1)') 'Rel bp c0 = ', cp, &
-               & ', diff = ', diff, accept
+          write(*,fmt='(a,f16.1,a,f10.1,l3,i5)') 'Rel bp c0 = ', cp, &
+               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1, current
        else
           write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cp, &
-               & ', diff = ', diff
+               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
        end if
     end if
 
     ! Broadcast new saved data
-    call mpi_bcast(accept, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
-    if (accept) then
+    call mpi_bcast(current, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
+    if (current /= 1) then
        ! Set current to proposal
        do i = 0, self%ndet
-          if (self%myid_shared == 0) smap_sky(i,1)%a = smap_sky(i,2)%a
+          if (self%myid_shared == 0) smap_sky(i,1)%a = smap_sky(i,current)%a
        end do
-       delta(:,:,1) =  delta(:,:,2)
+       delta(:,:,1) =  delta(:,:,current)
     end if
     
   end subroutine sample_bp
