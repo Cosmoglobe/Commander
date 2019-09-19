@@ -180,8 +180,8 @@ contains
           do j = 0, data(i)%ndet
              bp_delta(j,:) = data(i)%bp(j)%p%delta
           end do
-          call write_hdf(chainfile, trim(adjustl(iter))//'/bandpass/'//trim(adjustl(data(i)%label)), &
-               & bp_delta)
+          call write_hdf(chainfile, trim(adjustl(iter))//'/bandpass/'//&
+               & trim(adjustl(data(i)%label)//'_det'), bp_delta)
           deallocate(bp_delta)
        end if
     end do

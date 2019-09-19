@@ -130,6 +130,10 @@ program commander
 !!$  data(1)%bp(0)%p%delta(1) = -0.25d0
 !!$  data(2)%bp(0)%p%delta(1) = -0.46d0
 !!$  data(3)%bp(0)%p%delta(1) =  1.78d0
+
+!  data(3)%bp(:)%p%delta(1) = [0.0000000E+00, -0.4382578,      0.2149430,      0.2781695, &    
+!  &0.3937442,     -0.1373535,      0.7933468,     -0.1363882,     -0.2766700, &    
+! & -3.2755874E-02,  0.4420846,     -0.3259141,     -0.7749488    ] 
   call update_mixing_matrices(update_F_int=.true.)       
 
 !  data(1)%tod%sigma_bp = 0.1d0
@@ -137,8 +141,8 @@ program commander
 !  if (size(data)>2) data(3)%tod%sigma_bp = 0.1d0
 
   data(1)%tod%sigma_bp = 0.01d0
-  if (size(data)>1) data(2)%tod%sigma_bp = 0.01d0
-  if (size(data)>2) data(3)%tod%sigma_bp = 0.01d0
+!!$  if (size(data)>1) data(2)%tod%sigma_bp = 0.01d0
+!!$  if (size(data)>2) data(3)%tod%sigma_bp = 0.01d0
 
   ! Run Gibbs loop
   first_sample = 1
