@@ -188,6 +188,7 @@ contains
     class(comm_map), pointer        :: map_out
     logical(lgt), optional          :: mono 
 
+    integer(i4b) :: i
     logical(lgt) :: skip, mono_
     class(comm_map),  pointer :: map_diff
     class(comm_comp), pointer :: c

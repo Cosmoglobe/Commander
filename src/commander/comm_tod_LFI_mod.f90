@@ -154,10 +154,12 @@ contains
        stop
     end if
     allocate(constructor%bp_delta(0:constructor%ndet,ndelta))
-    allocate(constructor%sigma_bp(0:constructor%ndet,ndelta))
 
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
+
+    ! Initialize bandpass mean and proposal matrix
+    call constructor%initialize_bp_covar(trim(datadir)//cpar%ds_tod_bp_init(id_abs))
 
     ! Initialize beams
     allocate(constructor%fwhm(constructor%ndet))
@@ -302,9 +304,9 @@ contains
     ! Set up full-sky map structures
     call wall_time(t1)
     correct_sl      = .false.
-    chisq_threshold = 10.d0 !7.d0
+    chisq_threshold = 30.d0 !7.d0
     n_main_iter     = 3
-    !chisq_threshold = 10000.d0 
+    !chisq_threshold = 1000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -329,7 +331,7 @@ contains
           write(*,*) 'delta in =', real(delta(:,1,k),sp)
        end do
     end if
-!!$
+
 !!$    call int2string(iter, istr)
 !!$    do j = 1, map_in(1,1)%p%info%nmaps
 !!$       do i = 0, map_in(1,1)%p%info%np-1
@@ -2117,7 +2119,6 @@ contains
 
     if (self%myid == 0) then
        ndelta  = size(chisq_S,2)
-       write(*,*) 'ndelta =', ndelta
        current = 1
        do k = 2, ndelta
           cp          = sum(chisq_S(:,k))
@@ -2129,17 +2130,17 @@ contains
           else
              accept = (rand_uni(handle) < accept_rate)
           end if
-          write(*,*) k, cp, cc, accept
+          !write(*,*) k, cp, cc, accept
           if (accept) then
              cc = cp
              current = k
           end if
        end do
        if (.true. .or. mod(iter,2) == 0) then
-          write(*,fmt='(a,f16.1,a,f10.1,l3,i5)') 'Rel bp c0 = ', cp, &
-               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1, current
+          write(*,fmt='(a,f16.1,a,f10.1,l3)') 'Rel bp c0 = ', cc, &
+               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1
        else
-          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cp, &
+          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cc, &
                & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
        end if
     end if

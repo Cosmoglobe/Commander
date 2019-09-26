@@ -17,6 +17,7 @@ module comm_data_mod
      character(len=128)           :: gain_comp
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
+     character(len=128)           :: tod_type
 
      class(comm_mapinfo), pointer :: info
      class(comm_map),     pointer :: map                     ! Input + regnoise
@@ -73,6 +74,7 @@ contains
        data(n)%gain_lmin      = cpar%ds_gain_lmin(i)
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
+       data(n)%tod_type       = cpar%ds_tod_type(i)
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
@@ -104,12 +106,12 @@ contains
        ! Initialize TOD structures
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
-          if (trim(cpar%ds_tod_type(i)) == 'LFI') then
+          if (trim(data(n)%tod_type) == 'LFI') then
              data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else
-             write(*,*) 'Unrecognized TOD experiment type = ', trim(cpar%ds_tod_type(i))
+             write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
           end if
        end if

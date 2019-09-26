@@ -64,6 +64,7 @@ module comm_map_mod
      procedure     :: writeFITS
      procedure     :: readFITS
      procedure     :: readHDF
+     procedure     :: readHDF_mmax
      procedure     :: dealloc => deallocate_comm_map
      procedure     :: alm_equal
      procedure     :: add_alm
@@ -340,10 +341,9 @@ contains
       !bcast mmax to all cores
 
       info%mmax = mmax
-
-      call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName) // '/T', .false., mmax=mmax, pol=1)
-      call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName) // '/E', .false., mmax=mmax, pol=2)
-      call constructor_alms%readHDF(h5_file, label // '/' // trim(fieldName) // '/B', .false., mmax=mmax, pol=3)
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(fieldName) // '/T', mmax, 1)
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(fieldName) // '/E', mmax, 2)
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(fieldName) // '/B', mmax, 3)
     else 
       nalm = 123543225
       allocate(tempalms(nalm, 4, 3))
@@ -760,14 +760,13 @@ contains
     
   end subroutine readFITS
 
-  subroutine readHDF(self, hdffile, hdfpath, read_map, mmax, pol)
+  subroutine readHDF(self, hdffile, hdfpath, read_map)
     implicit none
 
     class(comm_map),        intent(inout) :: self
     type(hdf_file),         intent(in)    :: hdffile
     character(len=*),       intent(in)    :: hdfpath
     logical(lgt),           intent(in)    :: read_map
-    integer(i4b), optional, intent(in)    :: mmax, pol
 
     integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
     real(dp),     allocatable, dimension(:,:) :: alms, map
@@ -776,7 +775,7 @@ contains
 
     lmax  = self%info%lmax
     npix  = self%info%npix
-    nmaps = 1 ! self%info%nmaps ! FIX THIS
+    nmaps = self%info%nmaps
     nalm = (lmax+1)**2
     
     if (.not. read_map) then
@@ -784,11 +783,50 @@ contains
       allocate(alms(0:nalm-1,nmaps))
       if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
       call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-      if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
       do i = 0, self%info%nalm-1
         call self%info%i2lm(i, l, m)
         j = l**2 + l + m
-        self%alm(i,pol) = alms(j,1)
+        self%alm(i,:) = alms(j,:)
+      end do
+      deallocate(alms)
+    else
+      ! Only the root actually reads from disk; data are distributed via MPI
+      allocate(map(0:npix-1,nmaps))
+      if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), map)
+      call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+      do i = 1, nmaps
+         self%map(:,i) = map(self%info%pix,i)
+      end do
+      deallocate(map)
+    end if
+  end subroutine readHDF
+
+  subroutine readHDF_mmax(self, hdffile, hdfpath, mmax, pol)
+    implicit none
+    
+    class(comm_map),        intent(inout) :: self
+    type(hdf_file),         intent(in)    :: hdffile
+    character(len=*),       intent(in)    :: hdfpath
+    integer(i4b),           intent(in)    :: mmax, pol
+
+    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
+    real(dp),     allocatable, dimension(:,:) :: alms, map
+    integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+
+    lmax  = self%info%lmax
+    nmaps = 1 
+    nalm = (lmax+1)**2
+    
+    ! Only the root actually reads from disk; data are distributed via MPI
+    allocate(alms(0:nalm-1,nmaps))
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
+    call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
+    do i = 0, self%info%nalm-1
+       call self%info%i2lm(i, l, m)
+       j = l**2 + l + m
+       self%alm(i,pol) = alms(j,1)
 !!$        self%alm(i,:) = alms(j,:)
 !!$        self%info%lm(1,i) = l
 !!$        self%info%lm(2,i) = m
@@ -800,22 +838,11 @@ contains
         !  self%alm(i,:) = exp(-0.d5 * l * (l+1) *(( 0.d0017/(8.d0* log(2.d0)) ) ** 2)) / 1000.d0
         !end if
         !write(*,*) i, j, l, m, self%alm(i,:)
-      end do
-      deallocate(alms)
-    else
-      if(present(mmax)) then
-        write(*,*) 'Mmax present when reading map in readHDF, field '// hdfpath
-      end if
-      ! Only the root actually reads from disk; data are distributed via MPI
-      allocate(map(0:npix-1,nmaps))
-      if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), map)
-      call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-      do i = 1, nmaps
-         self%map(:,i) = map(self%info%pix,i)
-      end do
-      deallocate(map)
-    end if
-  end subroutine readHDF
+    end do
+    deallocate(alms)
+
+  end subroutine readHDF_mmax
+
 
   subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
     implicit none

@@ -93,6 +93,10 @@ program commander
   call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
   call initialize_from_chain(cpar);        call update_status(status, "init_from_chain")
 
+  ! Make sure TOD and BP modules agree on initial bandpass parameters
+  call synchronize_bp_delta
+  call update_mixing_matrices(update_F_int=.true.)       
+
   if (cpar%output_input_model) then
      if (cpar%myid == 0) write(*,*) 'Outputting input model to sample number 999999'
      call output_FITS_sample(cpar, 999999, .false.)
@@ -131,16 +135,15 @@ program commander
 !!$  data(2)%bp(0)%p%delta(1) = -0.46d0
 !!$  data(3)%bp(0)%p%delta(1) =  1.78d0
 
-!  data(3)%bp(:)%p%delta(1) = [0.0000000E+00, -0.4382578,      0.2149430,      0.2781695, &    
-!  &0.3937442,     -0.1373535,      0.7933468,     -0.1363882,     -0.2766700, &    
-! & -3.2755874E-02,  0.4420846,     -0.3259141,     -0.7749488    ] 
-  call update_mixing_matrices(update_F_int=.true.)       
+  ! Initialize bandpass parameters and covariance matrices
+
+
 
 !  data(1)%tod%sigma_bp = 0.1d0
 !  if (size(data)>1) data(2)%tod%sigma_bp = 0.1d0
 !  if (size(data)>2) data(3)%tod%sigma_bp = 0.1d0
 
-  data(1)%tod%sigma_bp = 0.01d0
+!!$  data(1)%tod%sigma_bp = 0.01d0
 !!$  if (size(data)>1) data(2)%tod%sigma_bp = 0.01d0
 !!$  if (size(data)>2) data(3)%tod%sigma_bp = 0.01d0
 
@@ -155,8 +158,10 @@ program commander
      end if
 
      ! Process TOD structures
-     if (cpar%enable_TOD_analysis) call process_TOD(cpar, cpar%mychain, iter, handle)
-
+     if (cpar%enable_TOD_analysis) then
+        call process_TOD(cpar, cpar%mychain, iter, handle)
+        !if (iter == 1) call process_TOD(cpar, cpar%mychain, iter, handle)
+     end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      if (cpar%sample_signal_amplitudes) then
@@ -222,21 +227,23 @@ contains
 
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
     real(dp)     :: t1, t2, dnu_prop
+    real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
     class(comm_map), pointer :: rms
 
-    ndelta      = 2
+    ndelta      = cpar%num_bp_prop + 1
 
     do i = 1, numband  
-       if (trim(cpar%ds_tod_type(i)) == 'none') cycle
+       if (trim(data(i)%tod_type) == 'none') cycle
 
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
        allocate(s_sky(ndet,ndelta))
        allocate(delta(0:ndet,npar,ndelta))
+       allocate(eta(ndet))
        do k = 1, ndelta
           ! Propose new bandpass shifts, and compute mixing matrices
           if (k > 1) then
@@ -246,12 +253,15 @@ contains
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
                       do j = 1, ndet
-                         delta(j,l,k) = data(i)%bp(j)%p%delta(l) + data(i)%tod%sigma_bp(j,l) * rand_gauss(handle)
+                         eta(j) = rand_gauss(handle)
                       end do
-                      delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
+                      eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
+                      delta(1:ndet,l,k) = data(i)%bp(1:ndet)%p%delta(l) + eta
+                      delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
+                           & data(i)%bp(0)%p%delta(l)
                    else
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant
-                      dnu_prop     = data(i)%tod%sigma_bp(0,l) * rand_gauss(handle)
+                      dnu_prop = data(i)%tod%prop_bp_mean(l) * rand_gauss(handle)
                       do j = 0, ndet
                          delta(j,l,k) = data(i)%bp(j)%p%delta(l) + dnu_prop
                       end do
@@ -278,6 +288,7 @@ contains
              !s_sky(j,k)%p => comm_map(data(i)%info)
              call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
           end do
+
        end do
 
 !       call s_sky(1,1)%p%writeFITS('sky.fits')
@@ -313,7 +324,7 @@ contains
              call s_sky(j,k)%p%dealloc
           end do
        end do
-       deallocate(s_sky, delta)
+       deallocate(s_sky, delta, eta)
     end do
 
   end subroutine process_TOD
