@@ -104,6 +104,8 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_tod_bp_init
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_initHDF
      integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
+     integer(i4b),       allocatable, dimension(:)   :: ds_tod_tot_numscan
+     integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -391,6 +393,7 @@ contains
     allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_initHDF(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
+    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n))
 
     do i = 1, n
        call int2string(i, itext)
@@ -435,6 +438,8 @@ contains
              call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_filelist(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_START_SCANID'//itext, len_itext=len_itext, par_int=cpar%ds_tod_scanrange(i,1))
              call get_parameter_hashtable(htbl, 'BAND_TOD_END_SCANID'//itext, len_itext=len_itext, par_int=cpar%ds_tod_scanrange(i,2))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_TOT_NUMSCAN'//itext, len_itext=len_itext, par_int=cpar%ds_tod_tot_numscan(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, par_int=cpar%ds_tod_flag(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, par_string=cpar%ds_tod_instfile(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_dets(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, par_lgt=cpar%ds_tod_initHDF(i))
@@ -1113,6 +1118,8 @@ contains
     
     ! Check that all dataset files exist
     do i = 1, cpar%numband
+       if (.not. cpar%ds_active(i)) cycle
+
        call validate_file(trim(datadir)//trim(cpar%ds_mapfile(i)))           ! Map file
        if (trim(cpar%ds_maskfile(i)) /= 'fullsky') &
             & call validate_file(trim(datadir)//trim(cpar%ds_maskfile(i)))   ! Mask file
@@ -1128,17 +1135,26 @@ contains
           if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none' .and. trim(cpar%ds_noise_rms_smooth(i,j))/= 'native') &
                & call validate_file(trim(datadir)//trim(cpar%ds_noise_rms_smooth(i,j)))  ! Smoothed RMS file
        end do
+
+       if (cpar%enable_TOD_analysis .and. trim(cpar%ds_tod_type(i)) /= 'none') then
+          call validate_file(trim(datadir)//trim(cpar%ds_tod_procmask1(i)))  ! Procmask1
+          call validate_file(trim(datadir)//trim(cpar%ds_tod_procmask2(i)))  ! Procmask2
+          call validate_file(trim(datadir)//trim(cpar%ds_tod_filelist(i)))   ! Filelist
+          call validate_file(trim(datadir)//trim(cpar%ds_tod_instfile(i)))   ! Instrument file, RIMO
+          call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
+       end if
+
     end do
 
     ! Instrument data base
     if (trim(cpar%cs_inst_parfile) /= 'none') &
-         & call validate_file(trim(datadir)//trim(cpar%cs_inst_parfile))   ! Instrument data base
+         & call validate_file(trim(datadir)//trim(cpar%cs_inst_parfile))  ! Instrument data base
     if (trim(cpar%ds_sourcemask) /= 'none') &
-         & call validate_file(trim(datadir)//trim(cpar%ds_sourcemask))   ! Source mask
+         & call validate_file(trim(datadir)//trim(cpar%ds_sourcemask))    ! Source mask
     if (trim(cpar%ds_procmask) /= 'none') &
-         & call validate_file(trim(datadir)//trim(cpar%ds_procmask))   ! Source mask
+         & call validate_file(trim(datadir)//trim(cpar%ds_procmask))      ! Source mask
     if (trim(cpar%ds_procmask2) /= 'none') &
-         & call validate_file(trim(datadir)//trim(cpar%ds_procmask2))   ! Source mask
+         & call validate_file(trim(datadir)//trim(cpar%ds_procmask2))     ! Source mask
 
     ! Check component files
     do i = 1, cpar%cs_ncomp_tot

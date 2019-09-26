@@ -99,7 +99,8 @@ contains
     constructor%first_call    = .true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
-    constructor%flag0         = 6111232
+    constructor%flag0         = cpar%ds_tod_flag(id_abs)
+    constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     datadir = trim(cpar%datadir)//'/' 
