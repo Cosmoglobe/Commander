@@ -64,7 +64,8 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
-     real(dp), allocatable, dimension(:,:)   :: sigma_bp                         ! RMS for bandpass sampler
+     real(dp), allocatable, dimension(:,:,:) :: prop_bp         ! proposal matrix, L(ndet,ndet,ndelta),  for bandpass sampler
+     real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
@@ -88,13 +89,15 @@ module comm_tod_mod
      class(comm_mapinfo), pointer                      :: slinfo   ! Sidelobe map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
-     real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (ndet, npar)
+     real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
      procedure                        :: dumpToHDF
      procedure                        :: initHDF
+     procedure                        :: get_det_id
+     procedure                        :: initialize_bp_covar
      procedure(process_tod), deferred :: process_tod
   end type comm_tod
 
@@ -518,6 +521,94 @@ contains
     deallocate(output)
  
   end subroutine initHDF
+
+  function get_det_id(self, label)
+    implicit none
+    class(comm_tod),                intent(inout) :: self
+    character(len=*),               intent(in)    :: label
+    integer(i4b)                                  :: get_det_id
+
+    integer(i4b) :: i
+
+    do i = 1, self%ndet
+       if (trim(adjustl(label)) == trim(adjustl(self%label(i)))) then
+          get_det_id = i
+          return
+       end if
+    end do
+
+    write(*,*) 'Error: Requested detector ', trim(label), ' not found'
+    stop
+
+  end function get_det_id
+
+  subroutine initialize_bp_covar(self, filename)
+    implicit none
+    class(comm_tod),   intent(inout) :: self
+    character(len=*),  intent(in)    :: filename
+
+    integer(i4b) :: i, j, k, ndet, npar, n, unit, par
+    real(dp)     :: val
+    character(len=16)   :: label, det1, det2
+    character(len=1024) :: line
+
+    unit = getlun()
+    ndet = self%ndet
+    npar = size(self%bp_delta,2)
+
+    allocate(self%prop_bp(ndet,ndet,npar))
+    allocate(self%prop_bp_mean(npar))
+    self%prop_bp      = 0.d0
+    self%prop_bp_mean = 0.d0
+
+    write(*,*) trim(filename)
+    open(unit,file=trim(filename))
+    do while (.true.)
+       read(unit,'(a)',end=34) line
+       line = trim(adjustl(line))
+       if (self%myid == 0) write(*,*) trim(line)
+       if (line(1:1) == ' ' .or. line(1:1) == '#') then
+          cycle
+       else if (line(1:4) == 'INIT') then
+          read(line,*) label, det1, par, val
+          if (self%myid == 0) write(*,*) trim(label), trim(det1), par, val
+          if (trim(adjustl(det1)) == 'MEAN') then
+             self%bp_delta(0,par) = val
+          else
+             j = self%get_det_id(det1)
+             self%bp_delta(j,par) = val
+          end if
+       else if (line(1:4) == 'PROP') then
+          read(line,*) label, det1, det2, par, val
+          if (self%myid == 0) write(*,*) trim(label), trim(det1), trim(det2), par, val
+          if (trim(adjustl(det1)) == 'MEAN') then
+             self%prop_bp_mean(par) = sqrt(val)
+          else
+             j = self%get_det_id(det1)
+             if (trim(adjustl(det2)) == trim(adjustl(det1))) then
+                k = j
+             else
+                k = self%get_det_id(det2)
+             end if
+             if (self%myid == 0) write(*,*) j,k,par
+             self%prop_bp(j,k,par) = val
+             self%prop_bp(k,j,par) = val
+          end if
+       else
+          write(*,*) 'Unsupported entry in ', trim(filename)
+          write(*,*) trim(adjustl(line))
+          stop
+       end if
+       
+    end do
+34  close(unit)
+       
+    ! Compute square root; mean will be projected out after proposal generation
+    do par = 1, npar
+       call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
+    end do
+
+  end subroutine initialize_bp_covar
 
 
 end module comm_tod_mod

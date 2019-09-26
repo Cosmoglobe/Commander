@@ -52,10 +52,10 @@ contains
 
     ! Update preconditioner
     call wall_time(t1)
-    call update_status(status, "cr2")
+    !call update_status(status, "cr2")
     call update_precond(samp_group, samp_group /= samp_group_prev)
     samp_group_prev = samp_group
-    call update_status(status, "cr3")
+    !call update_status(status, "cr3")
     call wall_time(t2)
     if (cpar%myid == root .and. cpar%verbosity > 2) then
        write(*,fmt='(a,f8.2)') '    CG initialize preconditioner, time = ', real(t2-t1,sp)
@@ -148,16 +148,16 @@ contains
           c => c%next()
        end do
     end if
-    call update_status(status, "cr4")
+    !call update_status(status, "cr4")
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
-    call update_status(status, "cr5")
+    !call update_status(status, "cr5")
     d  = cr_invM(r)
-    call update_status(status, "cr6")
+    !call update_status(status, "cr6")
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
-    call update_status(status, "cr7")
+    !call update_status(status, "cr7")
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(b))
-    call update_status(status, "cr8")
+    !call update_status(status, "cr8")
 
     ! Set up convergence criterion
     if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
@@ -173,7 +173,7 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
 
-       call update_status(status, "cg1")
+       !call update_status(status, "cg1")
        
        ! Check convergence
        if (mod(i,cpar%cg_check_conv_freq) == 0) then
@@ -189,7 +189,7 @@ contains
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
        end if
        
-       call update_status(status, "cg2")
+       !call update_status(status, "cg2")
    
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
@@ -204,7 +204,7 @@ contains
           r = r - alpha*q
        end if
 
-       call update_status(status, "cg3")
+       !call update_status(status, "cg3")
        call wall_time(t3)
        s         = cr_invM(r)
        call wall_time(t4)
@@ -213,7 +213,7 @@ contains
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
-       call update_status(status, "cg4")
+       !call update_status(status, "cg4")
 
        if (cpar%output_cg_freq > 0) then
           if (mod(i,cpar%output_cg_freq) == 0) then
@@ -262,7 +262,7 @@ contains
              call cr_x2amp(samp_group, x)
           end if
        end if
-       call update_status(status, "cg5")
+       !call update_status(status, "cg5")
 
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
@@ -285,7 +285,7 @@ contains
           end if
        end if
 
-       call update_status(status, "cg6")
+       !call update_status(status, "cg6")
 
     end do
 
@@ -326,7 +326,7 @@ contains
        end select
        c => c%next()
     end do
-    call update_status(status, "cr8")
+    !call update_status(status, "cr8")
 
     if (i >= maxiter .and. trim(cpar%cg_conv_crit) /= 'fixed_iter') then
        write(*,*) 'ERROR: Convergence in CG search not reached within maximum'
@@ -673,16 +673,16 @@ contains
     real(dp),        allocatable, dimension(:,:) :: alm, m, pamp
 
     ! Initialize output array
-    call update_status(status, "A1")
+    !call update_status(status, "A1")
     allocate(y(ncr), sqrtS_x(ncr))
     y = 0.d0
     myid = data(1)%map%info%myid
 
     ! Multiply with sqrt(S)
     call wall_time(t1)
-    call update_status(status, "A2")
+    !call update_status(status, "A2")
     sqrtS_x = x
-    call update_status(status, "A3")
+    !call update_status(status, "A3")
     c       => compList
     do while (associated(c))
        if (c%cg_samp_group /= samp_group) then
@@ -694,9 +694,9 @@ contains
           if (trim(c%cltype) /= 'none') then
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
              call cr_extract_comp(c%id, sqrtS_x, alm)
-             call update_status(status, "A4")
+             !call update_status(status, "A4")
              call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)
-             call update_status(status, "A5")
+             !call update_status(status, "A5")
              call cr_insert_comp(c%id, .false., alm, sqrtS_x)
              deallocate(alm)
           end if
@@ -744,12 +744,12 @@ contains
              call pmap%set_alm(alm,c%x%info)
              allocate(m(0:data(i)%info%nalm-1,data(i)%info%nmaps))
              !allocate(m(0:c%x%info%nalm-1,c%x%info%nmaps))
-             call update_status(status, "A6")
+             !call update_status(status, "A6")
              m = c%getBand(i, amp_in=pmap%alm, alm_out=.true.)
-             call update_status(status, "A7")
+             !call update_status(status, "A7")
              map%alm = map%alm + m
              !call map%add_alm(m, c%x%info)
-             call update_status(status, "A8")
+             !call update_status(status, "A8")
              deallocate(alm, m)
           class is (comm_ptsrc_comp)
              call cr_extract_comp(c%id, sqrtS_x, pamp)
@@ -766,11 +766,11 @@ contains
           end select
           c => c%next()
        end do
-       call update_status(status, "A9")
+       !call update_status(status, "A9")
        call map%Y()                    ! Diffuse components
-       call update_status(status, "A10")
+       !call update_status(status, "A10")
        map%map = map%map + pmap%map    ! Add compact objects
-       call update_status(status, "A11")
+       !call update_status(status, "A11")
        !write(*,*) 'c', sum(abs(pmap%map))
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
@@ -779,14 +779,14 @@ contains
        call wall_time(t1)
        call data(i)%N%InvN(map)
        call wall_time(t2)
-       call update_status(status, "A12")
+       !call update_status(status, "A12")
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'invN time = ', real(t2-t1,sp)
 
        ! Project summed map into components, ie., row-wise matrix elements
        call wall_time(t1)
        c   => compList
        call map%Yt()             ! Prepare for diffuse components
-       call update_status(status, "A13")
+       !call update_status(status, "A13")
        do while (associated(c))
           if (c%cg_samp_group /= samp_group) then
              c => c%next()
@@ -795,9 +795,9 @@ contains
           select type (c)
           class is (comm_diffuse_comp)
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
-             call update_status(status, "A14")
+             !call update_status(status, "A14")
              alm = c%projectBand(i, map, alm_in=.true.)
-             call update_status(status, "A15")
+             !call update_status(status, "A15")
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
           class is (comm_ptsrc_comp)
@@ -819,7 +819,7 @@ contains
        call map%dealloc()
        call pmap%dealloc()
     end do
-    call update_status(status, "A16")
+    !call update_status(status, "A16")
 
     ! Add prior term and multiply with sqrt(S) for relevant components
     call wall_time(t1)
@@ -835,9 +835,9 @@ contains
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
              ! Multiply with sqrt(Cl)
              call cr_extract_comp(c%id, y, alm)
-             call update_status(status, "A17")
+             !call update_status(status, "A17")
              call c%Cl%sqrtS(alm=alm, info=c%x%info)
-             call update_status(status, "A18")
+             !call update_status(status, "A18")
              call cr_insert_comp(c%id, .false., alm, y)
              ! Add (unity) prior term
              call cr_extract_comp(c%id, x, alm)
@@ -881,9 +881,9 @@ contains
 
     ! Return result and clean up
     call wall_time(t1)
-    call update_status(status, "A19")
+    !call update_status(status, "A19")
     cr_matmulA = y
-    call update_status(status, "A20")
+    !call update_status(status, "A20")
     deallocate(y, sqrtS_x)
     call wall_time(t2)
     !    write(*,*) 'f', t2-t1

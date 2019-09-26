@@ -328,5 +328,20 @@ contains
     end do
 
   end subroutine sample_partialsky_tempamps
+
+
+  subroutine synchronize_bp_delta
+    implicit none
+
+    integer(i4b) :: i, j
+
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       do j = 0, data(i)%ndet
+          data(i)%bp(j)%p%delta = data(i)%tod%bp_delta(j,:)
+       end do
+    end do
+
+  end subroutine synchronize_bp_delta
   
 end module comm_signal_mod

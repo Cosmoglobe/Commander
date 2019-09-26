@@ -57,6 +57,7 @@ module comm_param_mod
      logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
      integer(i4b)       :: num_ind_cycle
+     integer(i4b)       :: num_bp_prop
 
      ! Data parameters
      integer(i4b)       :: numband
@@ -100,6 +101,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_tod_filelist
      character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
      character(len=512), allocatable, dimension(:)   :: ds_tod_dets
+     character(len=512), allocatable, dimension(:)   :: ds_tod_bp_init
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_initHDF
      integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
 
@@ -334,6 +336,7 @@ contains
 
     if (cpar%enable_TOD_analysis) then
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file)
+       call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
     end if
 
     allocate(cpar%fwhm_smooth(cpar%num_smooth_scales))
@@ -386,7 +389,7 @@ contains
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
     allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_initHDF(n))
-    allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n))
+    allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
 
     do i = 1, n
@@ -435,6 +438,7 @@ contains
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, par_string=cpar%ds_tod_instfile(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_dets(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, par_lgt=cpar%ds_tod_initHDF(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, par_string=cpar%ds_tod_bp_init(i))
           end if
        end if
 

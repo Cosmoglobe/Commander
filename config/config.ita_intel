@@ -94,7 +94,8 @@ export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio
 
 # The include and linking commands for cfitsio.
 export SHARP_INCLUDE := 
-export SHARP_LINK := -L/mn/stornext/u3/hke/local/src/libsharp-1.0.0/.libs/ -lsharp
+#export SHARP_LINK := -L/mn/stornext/u3/hke/local/src/libsharp-1.0.0/.libs/ -lsharp
+export SHARP_LINK := -L/mn/stornext/u3/hke/local/src/libsharp_updated/libsharp/auto/lib/ -lsharp
 
 
 # =============== LAPACK Linking =================
