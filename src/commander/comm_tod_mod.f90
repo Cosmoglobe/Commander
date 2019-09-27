@@ -175,6 +175,7 @@ contains
        call read_hdf(file, "common/polang", polang_buf)
        call read_hdf(file, "common/mbang",  mbang_buf)      
 
+
 !!$          do j = 1, ndet_tot
 !!$             write(*,*) j, trim(dets(j))
 !!$          end do
@@ -362,6 +363,11 @@ contains
        end do
        close(unit)
 
+       if (n_tot == 0) then
+          write(*,*) 'Error: No accepted scans in filelist: ', trim(filelist)
+          stop
+       end if
+
        open(unit, file=trim(filelist))
        read(unit,*) n
        allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1))
@@ -371,7 +377,9 @@ contains
           if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
           id(j) = j
           j     = j+1
+          if (j > n_tot) exit
        end do
+       close(unit)
 
        ! Sort according to weight
        pweight = 0.d0
@@ -393,7 +401,6 @@ contains
     call mpi_bcast(proc,         n_tot,  MPI_INTEGER,   0, self%comm, ierr)
 
     self%nscan     = count(proc == self%myid)
-    self%nscan_tot = maxval(scanid)
     allocate(self%scanid(self%nscan), self%hdfname(self%nscan))
     j = 1
     do i = 1, n_tot
@@ -561,17 +568,14 @@ contains
     self%prop_bp      = 0.d0
     self%prop_bp_mean = 0.d0
 
-    write(*,*) trim(filename)
     open(unit,file=trim(filename))
     do while (.true.)
        read(unit,'(a)',end=34) line
        line = trim(adjustl(line))
-       if (self%myid == 0) write(*,*) trim(line)
        if (line(1:1) == ' ' .or. line(1:1) == '#') then
           cycle
        else if (line(1:4) == 'INIT') then
           read(line,*) label, det1, par, val
-          if (self%myid == 0) write(*,*) trim(label), trim(det1), par, val
           if (trim(adjustl(det1)) == 'MEAN') then
              self%bp_delta(0,par) = val
           else
@@ -580,7 +584,6 @@ contains
           end if
        else if (line(1:4) == 'PROP') then
           read(line,*) label, det1, det2, par, val
-          if (self%myid == 0) write(*,*) trim(label), trim(det1), trim(det2), par, val
           if (trim(adjustl(det1)) == 'MEAN') then
              self%prop_bp_mean(par) = sqrt(val)
           else
@@ -590,13 +593,11 @@ contains
              else
                 k = self%get_det_id(det2)
              end if
-             if (self%myid == 0) write(*,*) j,k,par
              self%prop_bp(j,k,par) = val
              self%prop_bp(k,j,par) = val
           end if
        else
           write(*,*) 'Unsupported entry in ', trim(filename)
-          write(*,*) trim(adjustl(line))
           stop
        end if
        

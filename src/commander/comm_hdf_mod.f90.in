@@ -25,7 +25,8 @@ module comm_hdf_mod
 
   type hdf_file
      character(len=512) :: filename, setname
-     integer(hid_t)     :: filehandle, sethandle, status
+     integer(hid_t)     :: filehandle, sethandle
+     integer            :: status
   end type hdf_file
 
   interface read_hdf
@@ -377,7 +378,7 @@ contains
     type(hdf_file)                               :: file
     character(len=*),                 intent(in) :: setname
     integer(i4b),     dimension(:),   intent(in) :: ext
-    integer(i4b)                                 :: type_id
+    integer(hid_t)                               :: type_id
     integer(hid_t) :: space
     if (trim(file%setname) /= trim(setname)) call close_hdf_set(file)
     file%setname = setname
@@ -395,7 +396,7 @@ contains
     implicit none
     type(hdf_file)   :: file
     character(len=*) :: group
-    integer(i4b)     :: gid
+    integer(hid_t)   :: gid
     call h5gcreate_f(file%filehandle, group, gid, file%status)
     call h5gclose_f(gid, file%status)
   end subroutine
