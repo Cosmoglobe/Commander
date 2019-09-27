@@ -82,7 +82,7 @@ export MPFCLIBS := -qopenmp
 # instead of lowercase (*.mod).
 #export FORTRAN_UPPER := 1
 
-export LOCAL=/mn/stornext/u3/hke/owl/local
+export LOCAL=/mn/stornext/u3/hke/local_intel
 
 # =============== CFITSIO Linking ================
 
@@ -108,7 +108,8 @@ export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH)/lib/intel64 -L$(MKLPAT
 
 
 # ================ Healpix linking ================
-export HEALPIX := /mn/stornext/u3/hke/owl/local/src/dagsshealpix
+#export HEALPIX := /mn/stornext/u3/hke/owl/local/src/dagsshealpix
+export HEALPIX := /mn/stornext/u3/hke/local_intel/src/Healpix_3.50
 export HEALPIX_INCLUDE := -I$(HEALPIX)/include
 export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/sigurdkn/local/include
@@ -120,7 +121,7 @@ export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
 
 
 # =============== HDF ============================                              
-export LOCAL=/mn/stornext/u3/hke/owl/local
+#export LOCAL=/mn/stornext/u3/hke/owl/local
 export HDF_LINK := -L$(LOCAL)/lib -lhdf5_fortran -lhdf5
 export HDF_LINK_CPP := -L$(LOCAL)/lib -lhdf5_cpp -lhdf5
 export HDF_INCLUDE := -I$(LOCAL)/include

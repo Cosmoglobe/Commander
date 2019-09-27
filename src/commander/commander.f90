@@ -95,7 +95,6 @@ program commander
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   if (cpar%enable_tod_analysis) call synchronize_bp_delta
-
   call update_mixing_matrices(update_F_int=.true.)       
 
   if (cpar%output_input_model) then
