@@ -175,6 +175,7 @@ contains
        call read_hdf(file, "common/polang", polang_buf)
        call read_hdf(file, "common/mbang",  mbang_buf)      
 
+
 !!$          do j = 1, ndet_tot
 !!$             write(*,*) j, trim(dets(j))
 !!$          end do
@@ -362,6 +363,11 @@ contains
        end do
        close(unit)
 
+       if (n_tot == 0) then
+          write(*,*) 'Error: No accepted scans in filelist: ', trim(filelist)
+          stop
+       end if
+
        open(unit, file=trim(filelist))
        read(unit,*) n
        allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1))
@@ -371,7 +377,9 @@ contains
           if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
           id(j) = j
           j     = j+1
+          if (j > n_tot) exit
        end do
+       close(unit)
 
        ! Sort according to weight
        pweight = 0.d0
