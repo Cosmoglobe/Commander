@@ -1,6 +1,6 @@
 
-COBJS  := d1mach.o drc3jj.o hashtbl.o powell_mod.o comm_hdf_mod.o sharp.o sort_utils.o math_tools.o locate_mod.o spline_1D_mod.o \
-          spline_2D_mod.o InvSamp_mod.o comm_system_backend.o comm_system_mod.o comm_map_mod.o \
+COBJS  := d1mach.o drc3jj.o hashtbl.o hashtbl_4Dmap.o powell_mod.o comm_hdf_mod.o sharp.o sort_utils.o math_tools.o locate_mod.o spline_1D_mod.o \
+          spline_2D_mod.o InvSamp_mod.o comm_system_backend.o comm_system_mod.o comm_map_mod.o comm_4D_map_mod.o \
           comm_defs.o comm_conviqt_mod.o \
 	  comm_utils.o comm_shared_arr_mod.o comm_huffman_mod.o comm_cr_utils.o comm_cr_precond_mod.o \
           comm_shared_output_mod.o comm_status_mod.o \
@@ -80,7 +80,8 @@ comm_cr_mod.o :            comm_data_mod.o comm_comp_mod.o \
                            comm_template_comp_mod.o comm_diffuse_comp_mod.o comm_output_mod.o
 comm_chisq_mod.o :         comm_data_mod.o comm_comp_mod.o
 comm_output_mod.o :        comm_comp_mod.o comm_hdf_mod.o comm_Cl_mod.o
-comm_tod_LFI_mod.o :       comm_tod_mod.o comm_shared_arr_mod.o comm_conviqt_mod.o
+comm_4D_map_mod.o :        hashtbl_4Dmap.o
+comm_tod_LFI_mod.o :       comm_tod_mod.o comm_shared_arr_mod.o comm_conviqt_mod.o comm_4D_map_mod.o
 commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_chisq_mod.o \
                            comm_output_mod.o
 

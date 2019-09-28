@@ -10,6 +10,7 @@ module comm_tod_LFI_mod
   use comm_fft_mod
   use comm_shared_arr_mod
   use spline_1D_mod
+  use comm_4D_map_mod
   implicit none
 
   private
@@ -101,6 +102,7 @@ contains
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
+    constructor%output_4D_map = cpar%output_4D_map
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     if (constructor%first_scan > constructor%last_scan) then
@@ -140,6 +142,7 @@ contains
     allocate(constructor%w(constructor%nmaps,constructor%nhorn,constructor%ndet))
     allocate(constructor%label(constructor%ndet))
     allocate(constructor%partner(constructor%ndet))
+    allocate(constructor%horn_id(constructor%ndet))
     constructor%stokes = [1,2,3]
     constructor%w      = 1.d0
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -149,6 +152,7 @@ contains
        else
           constructor%partner(i) = i-1
        end if
+       constructor%horn_id(i) = (i+1)/2
     end do
 
 
@@ -286,9 +290,9 @@ contains
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
     integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag, pind
     logical(lgt)       :: correct_sl
-    character(len=512) :: prefix, postfix, Sfilename
+    character(len=512) :: prefix, postfix, Sfilename, prefix4D
     character(len=4)   :: ctext
-    character(len=6)   :: samptext
+    character(len=6)   :: samptext, scantext
     character(len=512), allocatable, dimension(:) :: slist
     character(len=8)   :: id, stext
     character(len=1)   :: did
@@ -313,7 +317,7 @@ contains
     correct_sl      = .false.
     chisq_threshold = 30.d0 !7.d0
     n_main_iter     = 3
-    !chisq_threshold = 1000.d0 
+    chisq_threshold = 1000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -752,6 +756,18 @@ contains
                    end do
                 end if
              end do
+            
+             if (do_oper(bin_map) .and. self%output_4D_map) then
+                ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
+                call int2string(self%scanid(i), scantext)
+                prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
+                call output_4D_maps(prefix4D, postfix, self%nside, self%npsi, self%label, self%horn_id, &
+                     & real(self%polang*180/pi,sp), &
+                     & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
+                     & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0))
+             end if
+
+
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
 !!$             if (do_oper(bin_map) .and. iter==2 .and. ndet == 4 .and. self%scanid(i) == 5000) then

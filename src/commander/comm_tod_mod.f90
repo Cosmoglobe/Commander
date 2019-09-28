@@ -70,6 +70,7 @@ module comm_tod_mod
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
      logical(lgt) :: init_from_HDF                                   ! Read from HDF file
+     logical(lgt) :: output_4D_map                                ! Output 4D maps
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
      real(dp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
@@ -80,7 +81,8 @@ module comm_tod_mod
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
-     integer(i4b),       allocatable, dimension(:)      :: partner ! Partner detector; for symmetrizing flags     
+     integer(i4b),       allocatable, dimension(:)     :: partner ! Partner detector; for symmetrizing flags     
+     integer(i4b),       allocatable, dimension(:)     :: horn_id  ! Internal horn number per detector
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask ! Mask for gain and n_corr
