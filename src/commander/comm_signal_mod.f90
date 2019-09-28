@@ -88,7 +88,6 @@ contains
     allocate(ind_comp(ncomp,3))
     ncr = 0
     i   = 1
-    ind_comp(i,:) = [1,0]
     c => compList
     do while (associated(c))       
        ind_comp(i,1) = ncr+1
