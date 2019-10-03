@@ -206,7 +206,6 @@ program commander
 !!$  end if
 
   call initialize_fg_mod(mychain, comm_chain, comm_alms, rng_handle, paramfile)
-
   if (.false.) then
      if (myid_chain == root) then
         write(*,*) 'Writing debug spectra'
@@ -1225,13 +1224,21 @@ contains
     real(dp)     :: s1, s2, nu, nu_min, nu_max
 
     real(dp),     allocatable, dimension(:) :: spec
-    real(dp), dimension(15) :: bands = [0.408d0, 23.d0, 31.d0, 41d0, 61d0, 94d0, 30d0, 44d0, 70d0, 100d0, &
-         & 143d0, 217d0, 353d0, 545d0, 857d0]
+    real(dp), dimension(17) :: bands = [0.408d0, 23.d0, 31.d0, 41d0, 61d0, 94d0, 30d0, 44d0, 70d0, 100d0, &
+         & 143d0, 217d0, 353d0, 545d0, 857d0, 1249d0, 2998d0]
 
     allocate(spec(numband))
     if (.true.) then
 
-       s1 = compute_physical_dust_spectrum(353.d0,0.d0,545.d0,[0.d0, 0.d0])
+       n      = 1000
+       nu_min = 10d0
+       nu_max = 3000d0
+       open(50,file='spec_test.dat')
+       do i = 1, n
+          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+          write(50,*) nu, compute_physical_dust_spectrum(nu,0.d0,fg_components(1)%us,545.d9,fg_components(1)%S_phys_dust, fg_components(1)%S_dust_coeff, [0.d0,0.d0])
+       end do
+       close(50)
        stop
 !!$       open(58,file='bands.dat')
 !!$       do i = 1, 15

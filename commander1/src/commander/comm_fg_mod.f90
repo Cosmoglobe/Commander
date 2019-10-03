@@ -1198,7 +1198,7 @@ contains
           !   write(*,*) x_def(i)
           !end if
           res(i) = x_def(i) ! Set amplitudes to previous value
-          ! x_def has all initial aplitude values stored
+          ! x_def has all initial amplitude values stored
           ! Does it contain the right stuff though?
           cycle
        else if (trim(fg_components(i)%type) /= 'freefree_EM') then
@@ -1359,7 +1359,7 @@ contains
     call mpi_bcast(fg_amp0,      size(fg_amp0),      MPI_DOUBLE_PRECISION, root, comm_chain, ierr)
     call mpi_bcast(cdir,         len(cdir),          MPI_CHARACTER,        root, comm_chain, ierr)
     my_fg_amp = -1.d60
-    write(*,*) "ENFORCING POS AMPLITUDES"
+    ! write(*,*) "ENFORCING POS AMPLITUDES"
     nval = count(inv_N(:,1,1) /= 0.d0)
     allocate(mask2map(nval))
     j = 1
@@ -1442,7 +1442,7 @@ contains
                    burnin = 0.1*nstep
                    allocate(samples(num_fg_comp,nstep))
                    
-                   ! Run test chain
+                  ! Run test chain
                    do c = 1, nstep
                       do f = 1, num_fg_comp
                          !if (.not. fg_components(f)%enforce_positive_amplitude) cycle
@@ -1611,7 +1611,9 @@ contains
                 p(j,1) = xi
              end do
           end do
-          write(*,*) "Enforcing positive amplitude"
+          if (myid_chain == root) then
+             ! write(*,*) "Enforcing positive amplitude"
+          endif
           my_fg_amp(i,1,:) = p(:,1)
 
           chisq = 0.d0
