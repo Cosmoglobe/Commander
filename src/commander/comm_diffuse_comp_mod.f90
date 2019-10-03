@@ -1161,7 +1161,7 @@ contains
     if (npre_int <= 0) return
     
     ! Reformat linear array into y(npre,nalm,nmaps) structure
-    call update_status(status, "pseudo1")
+!    call update_status(status, "pseudo1")
     allocate(y(npre_int,0:info_pre%nalm-1,info_pre%nmaps))
     allocate(z(npre_int,0:info_pre%nalm-1,info_pre%nmaps))
     y = 0.d0
@@ -1180,7 +1180,7 @@ contains
     ! Frequency-dependent terms
     z = 0.d0
     do k = 1, numband
-       call update_status(status, "pseudo2")
+!       call update_status(status, "pseudo2")
        invN_x => comm_map(data(k)%info)
        nmaps  =  data(k)%info%nmaps
        
@@ -1200,15 +1200,15 @@ contains
        end do
        !!$OMP END DO
        !!$OMP END PARALLEL
-       call update_status(status, "pseudo3")
+!       call update_status(status, "pseudo3")
 
        ! Multiply by T
        call invN_x%WY
-       call update_status(status, "pseudo4")
+!       call update_status(status, "pseudo4")
        call data(k)%N%N(invN_x)
-       call update_status(status, "pseudo5")
+!       call update_status(status, "pseudo5")
        call invN_x%YtW
-       call update_status(status, "pseudo6")
+!       call update_status(status, "pseudo6")
        do i = 1, nmaps
           invN_x%alm(:,i) = invN_x%alm(:,i) * data(k)%N%alpha_nu(i)**2
        end do
@@ -1229,13 +1229,13 @@ contains
        end do
        !!$OMP END DO
        !!$OMP END PARALLEL
-       call update_status(status, "pseudo7")
+!       call update_status(status, "pseudo7")
 
        call invN_x%dealloc()
     end do
 
     ! Prior terms
-    call update_status(status, "pseudo7.1")
+!    call update_status(status, "pseudo7.1")
     call wall_time(t1)
     !!$OMP PARALLEL DEFAULT(shared) PRIVATE(i,l,k,j,m,w,w2,p)
     allocate(w(npre_int), w2(npre_int))
@@ -1266,7 +1266,7 @@ contains
     !!$OMP END PARALLEL
     call wall_time(t2)
     !if (info_pre%myid == 0 .or. info_pre%myid == 25) write(*,*) info_pre%myid, ', nalm = ', info_pre%nalm, real(t2-t1,sp)
-    call update_status(status, "pseudo8")
+!    call update_status(status, "pseudo8")
 
     ! Reformat z(npre,nalm,nmaps) structure into linear array
     do i = 1, npre_int
@@ -1282,7 +1282,7 @@ contains
        call cr_insert_comp(diffComps(ii)%p%id, .false., alm, x)
        deallocate(alm)
     end do
-    call update_status(status, "pseudo9")
+!    call update_status(status, "pseudo9")
     
     deallocate(y, z)
 

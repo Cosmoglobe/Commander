@@ -38,6 +38,7 @@ module comm_param_mod
      logical(lgt)       :: only_pol
      logical(lgt)       :: enable_TOD_analysis
      logical(lgt)       :: output_4D_map
+     logical(lgt)       :: include_tod_zodi
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
      real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
      integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
@@ -341,6 +342,7 @@ contains
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP',     par_lgt=cpar%output_4D_map)
+       call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
     end if
 
     allocate(cpar%fwhm_smooth(cpar%num_smooth_scales))

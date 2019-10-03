@@ -11,12 +11,13 @@ module comm_tod_LFI_mod
   use comm_shared_arr_mod
   use spline_1D_mod
   use comm_4D_map_mod
+  use comm_zodi_mod
   implicit none
 
   private
   public comm_LFI_tod
 
-  integer(i4b), parameter :: N_test      = 16
+  integer(i4b), parameter :: N_test      = 17
   integer(i4b), parameter :: samp_N      = 1
   integer(i4b), parameter :: prep_G      = 15
   integer(i4b), parameter :: samp_G      = 2
@@ -33,6 +34,7 @@ module comm_tod_LFI_mod
   integer(i4b), parameter :: output_slist = 12 
   integer(i4b), parameter :: samp_mono   = 13
   integer(i4b), parameter :: sub_sl      = 14
+  integer(i4b), parameter :: sub_zodi    = 17
   logical(lgt), dimension(N_test) :: do_oper
 
 
@@ -103,6 +105,7 @@ contains
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     constructor%output_4D_map = cpar%output_4D_map
+    constructor%subtract_zodi = cpar%include_TOD_zodi
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     if (constructor%first_scan > constructor%last_scan) then
@@ -279,7 +282,7 @@ contains
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold, delta_temp, chisq_tot
     real(dp)     :: t_tot(22), inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
-    real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot
+    real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
     real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
@@ -431,6 +434,7 @@ contains
        do_oper(samp_mono)    = .false. !do_oper(bin_map)             .and. .not. self%first_call
        !do_oper(samp_N_par)    = .false.
        do_oper(sub_sl)       = correct_sl
+       do_oper(sub_zodi)     = self%subtract_zodi
        do_oper(output_slist) = mod(iter, 10) == 0
 
        ! Perform pre-loop operations
@@ -531,6 +535,7 @@ contains
           allocate(s_mono(ntod, ndet))                 ! Monopole correction in uKcmb
           allocate(s_buf(ntod, ndet))                  ! Buffer
           allocate(s_tot(ntod, ndet))                  ! Sum of all sky compnents
+          allocate(s_zodi(ntod, ndet))                 ! Zodical light
           allocate(mask(ntod, ndet))                   ! Processing mask in time
           allocate(mask2(ntod, ndet))                  ! Processing mask in time
           allocate(pix(ntod, ndet))                    ! Decompressed pointing
@@ -606,7 +611,14 @@ contains
           call self%compute_orbital_dipole(i, pix, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
-           
+
+          ! Construct zodical light template
+          if (do_oper(sub_zodi)) then
+             call compute_zodi_template(self%nside, pix, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
+          else
+             s_zodi = 0.
+          end if
+          
           ! Construct sidelobe template 
           call wall_time(t1)
           if (do_oper(sub_sl)) then
@@ -758,6 +770,13 @@ contains
              end do
             
              if (do_oper(bin_map) .and. self%output_4D_map) then
+
+                open(58,file='map4d.dat',recl=1024)
+                do j = 1, ntod
+                   write(58,*) j, pix(j,1),  psi(j,1)-1, iand(flag(j,1),self%flag0), d_calib(1,j,1)
+                end do
+                close(58)
+
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
                 call int2string(self%scanid(i), scantext)
                 prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
