@@ -58,7 +58,10 @@ module comm_fg_component_mod
      real(dp)                                      :: nu_peak
      real(dp)                                      :: nu_flat, frac_flat
      real(dp)                                      :: dbeta, nu_break
+     real(dp), allocatable, dimension(:)           :: us
      real(dp), allocatable, dimension(:,:)         :: S_nu_ref
+     real(dp), allocatable, dimension(:,:)         :: S_phys_dust
+     real(dp), allocatable, dimension(:,:,:,:)     :: S_dust_coeff
      real(dp), pointer,     dimension(:)           :: S_tabulated
      logical(lgt), pointer, dimension(:)           :: sample_S_tab   
      logical(lgt), allocatable, dimension(:)       :: optimize_prior
@@ -92,8 +95,10 @@ contains
     character(len=2)   :: i_text, j_text
     logical(lgt)       :: exist, apply_par_rms_smooth, optimize_priors
     character(len=128) :: paramname, filename_spectrum, filename, chaindir, maskname
+    character(len=128) :: filename_emission, filename_u
     character(len=5000) :: line
     real(dp), allocatable, dimension(:)       :: freq
+    real(dp), pointer,     dimension(:)       :: u_array
     real(dp), pointer,     dimension(:,:)     :: spectrum
     real(dp), allocatable, dimension(:,:)     :: mask
     real(dp), allocatable, dimension(:,:,:,:) :: my_grid
@@ -293,18 +298,19 @@ contains
           fg_components(i)%ind_unit(1) = 'erg/s/sr/cm^2'
           fg_components(i)%ttype(1)    = 'Intensity'
           fg_components(i)%npar        = 1
-          allocate(fg_components(i)%priors(fg_components(i)%npar,1))
+          allocate(fg_components(i)%priors(1,3))
           allocate(fg_components(i)%gauss_prior(1,2))
           allocate(fg_components(i)%par(numgrid,1))
           allocate(fg_components(i)%S_1D(numgrid,2,numband))
 
-          paramname = 'INITIALIZATION_MODE' // i_text
-          call get_parameter(paramfile, paramname, par_string=fg_components(i)%init_mode)
+          call get_parameter(paramfile, 'INITIALIZATION_MODE' // i_text, par_string=fg_components(i)%init_mode)
           call get_parameter(paramfile, 'DEFAULT_U' // i_text, par_dp=fg_components(i)%priors(1,3))
+
           call get_parameter(paramfile, 'U_PRIOR_UNIFORM_LOW' // i_text, &
                & par_dp=fg_components(i)%priors(1,1))
           call get_parameter(paramfile, 'U_PRIOR_UNIFORM_HIGH' // i_text, &
                & par_dp=fg_components(i)%priors(1,2))
+
           if (fg_components(i)%priors(1,3) .lt. -3 .or. fg_components(i)%priors(1,3) .gt. 6) then
              write(*,*) 'Error: Prior outside of sampling range for parameter no. ', i
              call mpi_finalize(ierr)
@@ -320,6 +326,25 @@ contains
                & i_text, par_dp=fg_components(i)%gauss_prior(1,1))
           call get_parameter(paramfile, 'U_PRIOR_GAUSSIAN_STDDEV' // &
                & i_text, par_dp=fg_components(i)%gauss_prior(1,2))
+
+          paramname = 'EMISSION_FILENAME' // i_text
+          call get_parameter(paramfile, paramname, par_string=filename_emission)
+          paramname = 'U_FILENAME' // i_text
+          call get_parameter(paramfile, paramname, par_string=filename_u)
+          call read_phys_dust_spectrum(filename_emission, filename_u, spectrum, u_array, fg_components(i)%nu_ref)
+
+          allocate(fg_components(i)%S_phys_dust(size(spectrum,1),size(spectrum,2)))
+          allocate(fg_components(i)%S_dust_coeff(4,4,size(spectrum,1),size(spectrum,2)))
+          allocate(fg_components(i)%us(size(spectrum,1)-1))
+
+          fg_components(i)%S_phys_dust(:,:)  = spectrum
+          fg_components(i)%us(:)             = u_array(:)
+
+          deallocate(spectrum)
+          deallocate(u_array)
+
+          call splie2_full_precomp(fg_components(i)%us(:), log(fg_components(i)%S_phys_dust(1,:)), &
+               & fg_components(i)%S_phys_dust(2:,:), fg_components(i)%S_dust_coeff)
 
        else if (trim(fg_components(i)%type) == 'freefree_EM') then
 
@@ -1252,10 +1277,9 @@ contains
     else if (trim(fg_comp%type) == 'one-component_dust') then
        get_ideal_fg_spectrum = compute_one_comp_dust_spectrum(nu, fg_comp%nu_ref, &
             & p(1), p(2), fg_comp%nu_flat, fg_comp%frac_flat, fg_comp%p_rms)
-
     else if (trim(fg_comp%type) == 'physical_dust') then                         
-       get_ideal_fg_spectrum = compute_physical_dust_spectrum(nu, p(1), fg_comp%nu_ref, fg_comp%p_rms)
-
+       get_ideal_fg_spectrum = compute_physical_dust_spectrum(nu, p(1), fg_comp%us, & 
+            fg_comp%nu_ref, fg_comp%S_phys_dust, fg_comp%S_dust_coeff, fg_comp%p_rms)
     else if (trim(fg_comp%type) == 'power_law') then
        get_ideal_fg_spectrum = compute_power_law_spectrum(nu, fg_comp%nu_ref, &
             & p(1), p(2), fg_comp%p_rms)
@@ -1550,42 +1574,29 @@ contains
 
   end function compute_magnetic_dust_spectrum
 
-  function compute_physical_dust_spectrum(nu, u, nu_ref, rms)
+  function compute_physical_dust_spectrum(nu, u, u_array, nu_ref, S, S_coeff, rms)
     implicit none
 
-    real(dp),               intent(in)        :: nu, u, nu_ref
-    real(dp), dimension(:), intent(in)        :: rms
-    real(dp)                                  :: compute_physical_dust_spectrum, norm
+    real(dp),                 intent(in)      :: nu, u, nu_ref
+    real(dp), dimension(:),   intent(in)      :: rms, u_array
+    real(dp), dimension(:,:), intent(in)      :: S
+    real(dp), dimension(:,:,:,:), intent(in)  :: S_coeff
+    real(dp)                                  :: compute_physical_dust_spectrum
 
-    integer(i4b)                              :: n_lam, n_u, i
-    real(dp), allocatable, dimension(:)       :: us, nus
-    real(dp), allocatable, dimension(:,:)     :: em_RJ
-    real(dp), allocatable, dimension(:,:,:,:) :: em_coeff
+    real(dp)    :: nu_low, nu_high
 
-    n_lam     = 500    ! Number of wavelengths in model
-    n_u       = 181    ! Number of log_10(U) values in model
+    nu_low = minval(S(1,:)); nu_high = maxval(S(1,:))
+    if (nu < nu_low .or. nu > nu_high) then
+       compute_physical_dust_spectrum = 0.d0
+    else
+       compute_physical_dust_spectrum = exp(splin2_full_precomp(u_array, log(S(1,:)), S_coeff, u, log(nu)))
+       if (myid_chain == root) then
+          if (compute_physical_dust_spectrum < 0.d0) then
+             write(*,*) compute_physical_dust_spectrum, u, nu
+          end if
+       end if
+    end if
 
-    allocate(us(n_u), nus(n_lam))
-    allocate(em_RJ(n_lam,n_u), em_coeff(4,4,n_lam,n_u))
-
-    open(30,file='model_uvals.dat')
-    open(31,file='model_nu.dat')
-    open(32,file='model_matrix_RJ.dat',form='unformatted')
-    do i=1,n_u
-       read(30,fmt='(E31.24)') us(i) 
-    end do
-    do i=1,n_lam
-       read(31,fmt='(E31.24)')  nus(i)
-    end do
-    read(32) em_RJ
-    close(30)
-    close(31)
-    close(32)
-
-    call splie2_full_precomp(nus, us, em_RJ, em_coeff)
-    
-    norm = splin2_full_precomp(nus, us, em_coeff, nu_ref, 0.d0)
-    compute_physical_dust_spectrum = splin2_full_precomp(nus, us, em_coeff, nu, u)/norm
   end function compute_physical_dust_spectrum
 
 
@@ -1821,13 +1832,15 @@ contains
                            & fg_components(i)%par(k,1),fg_components(i)%S_nu_ref, &
                            & fg_components(i)%p_rms)
                    else if (trim(fg_components(i)%type) == 'physical_dust') then
-                      s(j) = compute_physical_dust_spectrum(nu, fg_components(i)%par(k,1), fg_components(i)%nu_ref,&
-                           & fg_components(i)%p_rms)
-
-
+                      s(j) = compute_physical_dust_spectrum(nu, fg_components(i)%par(k,1), &
+                           & fg_components(i)%us, fg_components(i)%nu_ref, fg_components(i)%S_phys_dust, &
+                           & fg_components(i)%S_dust_coeff, fg_components(i)%p_rms)
                    end if
                 end do
+<<<<<<< HEAD
+=======
                 ! there was a spurious STOP here
+>>>>>>> 29f9c9534ddf6bb36aa605276d86f381ebdcb76d
                 fg_components(i)%S_1D(k,1,l) = get_bp_avg_spectrum(l, s)
              end do
              deallocate(s)
@@ -2031,6 +2044,61 @@ contains
     end if
 
   end subroutine read_spectrum
+
+  ! Routine for reading a physical dust model file in RJ units (frequency is in Hz)
+  subroutine read_phys_dust_spectrum(emission_file, u_file, spectrum, u_array, nu_ref)
+    implicit none
+
+    character(len=128),                         intent(in)  :: emission_file, u_file
+    real(dp),           pointer, dimension(:,:)             :: spectrum
+    real(dp),           pointer, dimension(:)               :: u_array
+    real(dp),                                   intent(in)  :: nu_ref
+
+    real(dp)                                  :: S_ref
+    integer(i4b)                              :: i, j, unit, unit2, n_nu, n_u
+    real(dp), allocatable, dimension(:)       :: u, nu
+    real(dp), allocatable, dimension(:,:)     :: em_RJ, emission
+    real(dp), allocatable, dimension(:,:,:,:) :: em_coeff
+
+    unit  = getlun()
+    open(unit, file=trim(emission_file))
+    
+    unit2 = getlun()
+    open(unit2, file=trim(u_file))
+        
+    n_nu    = 500
+    n_u     = 181
+
+    allocate(spectrum(n_u+1, n_nu))
+    allocate(u_array(n_u))
+    allocate(u(n_u), nu(n_nu))
+    allocate(emission(n_u, n_nu))
+    allocate(em_RJ(n_u+1, n_nu), em_coeff(4, 4, n_u, n_nu))
+
+    read(unit,*) ((em_RJ(i,j), i=1,n_u+1), j=1,n_nu)
+
+    do i = 1, n_u
+       read(unit2,fmt='(E31.24)') u(i)
+    end do
+
+    do i = 1, n_nu
+       nu(i) = em_RJ(1,i)
+       do j = 1, n_u
+          emission(j,i) = log(em_RJ(j+1,i))!/maxval(em_RJ(j+1,:)))
+       end do
+    end do
+
+    u_array        = u
+    spectrum(1,:)  = nu(:)
+    spectrum(2:,:) = emission(:,:)
+
+    deallocate(u)
+    deallocate(nu)
+    deallocate(emission)
+    deallocate(em_RJ)
+    deallocate(em_coeff)
+
+  end subroutine read_phys_dust_spectrum
 
   subroutine set_fg_params_equal(fg_par1, fg_par2)
     implicit none
