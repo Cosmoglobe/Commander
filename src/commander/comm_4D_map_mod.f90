@@ -83,7 +83,9 @@ contains
     real(sp),              dimension(:,:), intent(in) :: tod
     integer(i4b),          dimension(:,:), intent(in) :: mask
 
-    integer(i4b) :: i, j, h, horn, nhorn, ndet
+    integer(i4b) :: i, j, h, horn, nhorn, ndet, pid(1), nsamp(1)
+    integer(i8b) :: sample_offset(1)
+    real(dp)     :: scet(1), ecet(1)
     integer(i4b), allocatable, dimension(:) :: d
     character(len=1)   :: itext
     character(len=16)  :: dlabel
@@ -135,17 +137,6 @@ contains
        dlabel   = detlabel(d(1))
        filename = trim(prefix) // "_" // dlabel(1:2) // trim(postfix)
 
-       allocate(ttype(ndet+3), tform(ndet+3), tunit(ndet+3))
-       ttype(1:3) = ['pixel', 'ipsi', 'weight']
-       tform(1:3) = ['1J',    '1I',   '1E'    ]
-       tunit(1:3) = ['none',  'none', 'none'  ]
-       do j = 1, ndet
-          call int2string(j, itext)
-          ttype(3+j) = 'signal'//itext
-          tform(3+j) = '1E'
-          tunit(3+j) = 'none'
-       end do
-
        status    = 0
        readwrite = 1
        blocksize = 1
@@ -181,10 +172,20 @@ contains
           call ftpkye(unit,"SIG"//itext,    sigma0(i),  6,     "White noise RMS (K_cmb)", status)
        end do
 
+       allocate(ttype(ndet+3), tform(ndet+3), tunit(ndet+3))
+       ttype(1:3) = ['pixel', 'ipsi', 'weight']
+       tform(1:3) = ['1J',    '1I',   '1E'    ]
+       tunit(1:3) = ['none',  'none', 'none'  ]
+       do j = 1, ndet
+          call int2string(j, itext)
+          ttype(3+j) = 'signal'//itext
+          tform(3+j) = '1E'
+          tunit(3+j) = 'none'
+       end do
 
        call ftmahd(unit,1,hdutype,status)
        call ftcrhd(unit,status)
-       
+
        tfields = 3+ndet
        nrows   = map4D%n
        extname = 'xtension'
@@ -213,6 +214,39 @@ contains
        call ftpkye(unit,"psipol2",  psi0(2),   6, "Sigma for detector 2",                      status)
        call ftpkys(unit,"Coordsys", 'G',          "Coordinate system",                         status)
        call ftpkyl(unit,"Calibrated", .true.,     "",                                          status)
+
+
+       !call ftmahd(unit,2,hdutype,status)
+       call ftcrhd(unit,status)
+
+       ttype(1:5) = ['pointingID', 'sample_offset', 'nsamples_PID', 'start_SCET', 'end_SCET']
+       tform(1:5) = ['1J',         '1K',            '1J',           '1D',         '1D'      ]
+       tunit(1:5) = ['none',       'none',          'none',         'mus',        'mus'     ]
+             
+       tfields = 5
+       nrows   = 1
+       extname = 'xtension'
+       varidat = 0
+       call ftphbn(unit,nrows,tfields,ttype,tform,tunit,extname,varidat,status)
+
+       frow   = 1
+       felem  = 1
+       colnum = 1
+       pid = 0
+       call ftpclj(unit,colnum,frow,felem,nrows,pid,status)  
+       colnum = 2
+       sample_offset = 0
+       call ftpclk(unit,colnum,frow,felem,nrows,sample_offset,status)  
+       colnum = 3
+       nsamp  = 0
+       call ftpclj(unit,colnum,frow,felem,nrows,nsamp,status)  
+       colnum = 4
+       scet(1)  = 0
+       call ftpcld(unit,colnum,frow,felem,nrows,scet,status)  
+       colnum = 5
+       ecet(1)  = 0
+       call ftpcld(unit,colnum,frow,felem,nrows,ecet,status)  
+
        call ftclos(unit, status)
        call ftfiou(unit, status)
 

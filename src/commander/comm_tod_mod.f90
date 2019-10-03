@@ -6,6 +6,7 @@ module comm_tod_mod
   use comm_fft_mod
   use comm_huffman_mod
   use comm_conviqt_mod
+  use comm_zodi_mod
   USE ISO_C_BINDING
   implicit none
 
@@ -71,6 +72,7 @@ module comm_tod_mod
      integer(i4b) :: output_n_maps                                ! Output n_maps
      logical(lgt) :: init_from_HDF                                   ! Read from HDF file
      logical(lgt) :: output_4D_map                                ! Output 4D maps
+     logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
      real(dp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
@@ -130,6 +132,7 @@ contains
     if (initialized) return
 
     call initialize_fft_mod(cpar)
+    if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
 
   end subroutine initialize_tod_mod
 
