@@ -71,11 +71,11 @@ contains
   !**************************************************
   !             Output routines
   !**************************************************
-  subroutine output_4D_maps(prefix, postfix, nside, npsi, detlabel, horn_id, psi0, sigma0, &
+  subroutine output_4D_maps(prefix, postfix, scanid, nside, npsi, detlabel, horn_id, psi0, sigma0, &
        & pixel, psi, tod, mask)
     implicit none
     character(len=*),                      intent(in) :: prefix, postfix
-    integer(i4b),                          intent(in) :: nside, npsi
+    integer(i4b),                          intent(in) :: scanid, nside, npsi
     character(len=*),      dimension(:),   intent(in) :: detlabel
     integer(i4b),          dimension(:),   intent(in) :: horn_id
     real(sp),              dimension(:),   intent(in) :: psi0, sigma0
@@ -197,7 +197,7 @@ contains
        colnum = 1
        call ftpclj(unit,colnum,frow,felem,nrows,map4D%pixel,status)  
        colnum = 2
-       call ftpcli(unit,colnum,frow,felem,nrows,map4D%ipsi,status)  
+       call ftpcli(unit,colnum,frow,felem,nrows,int(map4D%ipsi,i2b),status)  
        colnum = 3
        call ftpcle(unit,colnum,frow,felem,nrows,map4D%weight,status)  
        do j = 1, ndet
@@ -232,13 +232,13 @@ contains
        frow   = 1
        felem  = 1
        colnum = 1
-       pid = 0
+       pid = scanid
        call ftpclj(unit,colnum,frow,felem,nrows,pid,status)  
        colnum = 2
        sample_offset = 0
        call ftpclk(unit,colnum,frow,felem,nrows,sample_offset,status)  
        colnum = 3
-       nsamp  = 0
+       nsamp  = map4D%n
        call ftpclj(unit,colnum,frow,felem,nrows,nsamp,status)  
        colnum = 4
        scet(1)  = 0

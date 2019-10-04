@@ -771,17 +771,17 @@ contains
             
              if (do_oper(bin_map) .and. self%output_4D_map) then
 
-                open(58,file='map4d.dat',recl=1024)
-                do j = 1, ntod
-                   write(58,*) j, pix(j,1),  psi(j,1)-1, iand(flag(j,1),self%flag0), d_calib(1,j,1)
-                end do
-                close(58)
+!!$                open(58,file='map4d.dat',recl=1024)
+!!$                do j = 1, ntod
+!!$                   write(58,*) j, pix(j,1),  psi(j,1)-1, iand(flag(j,1),self%flag0), d_calib(1,j,1)
+!!$                end do
+!!$                close(58)
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
                 call int2string(self%scanid(i), scantext)
                 prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
-                call output_4D_maps(prefix4D, postfix, self%nside, self%npsi, self%label, self%horn_id, &
-                     & real(self%polang*180/pi,sp), &
+                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
+                     & self%label, self%horn_id, real(self%polang*180/pi,sp), &
                      & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
                      & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0))
              end if
@@ -813,7 +813,7 @@ contains
 
           ! Clean up
           call wall_time(t1)
-          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot)
+          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi)
           deallocate(mask, mask2, pix, psi, flag, s_bp, s_sky_prop, s_bp_prop, s_buf, s_mono)
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 

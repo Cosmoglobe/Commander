@@ -224,10 +224,10 @@ contains
     end do
 
     ! Precompute trigonometric functions
-    allocate(self%sin2psi(0:self%npsi-1), self%cos2psi(0:self%npsi-1))
-    allocate(self%psi(0:self%npsi-1))
-    do i = 0, self%npsi-1
-       psi             = (i+0.5d0)*2.d0*pi/real(self%npsi,dp)
+    allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
+    allocate(self%psi(self%npsi))
+    do i = 1, self%npsi
+       psi             = (i-0.5d0)*2.d0*pi/real(self%npsi,dp)
        self%psi(i)     = psi
        self%sin2psi(i) = sin(2.d0*psi)
        self%cos2psi(i) = cos(2.d0*psi)
