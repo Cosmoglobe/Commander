@@ -13,6 +13,8 @@ module comm_4D_map_mod
      integer(i4b),      allocatable, dimension(:)   :: pixel, ipsi
      real(sp),          allocatable, dimension(:)   :: weight
      real(sp),          allocatable, dimension(:,:) :: map
+   contains
+     procedure :: dealloc => deallocate_4D_map
   end type comm_4D_map
 
   interface comm_4D_map
@@ -72,7 +74,7 @@ contains
   !             Output routines
   !**************************************************
   subroutine output_4D_maps(prefix, postfix, scanid, nside, npsi, detlabel, horn_id, psi0, sigma0, &
-       & pixel, psi, tod, mask)
+       & pixel, psi, tod, mask, accept)
     implicit none
     character(len=*),                      intent(in) :: prefix, postfix
     integer(i4b),                          intent(in) :: scanid, nside, npsi
@@ -82,6 +84,7 @@ contains
     integer(i4b),          dimension(:,:), intent(in) :: pixel, psi
     real(sp),              dimension(:,:), intent(in) :: tod
     integer(i4b),          dimension(:,:), intent(in) :: mask
+    logical(lgt),          dimension(:),   intent(in) :: accept
 
     integer(i4b) :: i, j, h, horn, nhorn, ndet, pid(1), nsamp(1)
     integer(i8b) :: sample_offset(1)
@@ -124,11 +127,22 @@ contains
           end if
        end do
        
+       ! Check that current detectors are accepted
+       if (any(.not. accept(d))) then
+          deallocate(d)
+          cycle
+       end if
+          
        if (psi0(d(2)) /= 0.d0) then
           write(*,*) 'Error: psi0 for second detector is non-zero'
           stop
        end if
        
+!!$       if (any(pixel(:,d(2)) < 0)) then
+!!$          write(*,*) scanid
+!!$          write(*,*) pixel(:,d(2))
+!!$       end if
+
        ! Construct 4D map for current horn
        map4D => comm_4D_map(nside, npsi, detlabel(d), psi0(d), pixel(:,d(2)), psi(:,d(2)), &
             & tod(:,d), mask(:,d))
@@ -214,6 +228,9 @@ contains
        call ftpkye(unit,"psipol2",  psi0(2),   6, "Sigma for detector 2",                      status)
        call ftpkys(unit,"Coordsys", 'G',          "Coordinate system",                         status)
        call ftpkyl(unit,"Calibrated", .true.,     "",                                          status)
+       call ftpkyj(unit,"horn",     horn,         "Internal horn ID number",                   status)
+       call ftpkyj(unit,"firstPointingID", scanid, "",                                         status)
+       call ftpkyj(unit,"lastPointingID",  scanid, "",                                         status)
 
 
        !call ftmahd(unit,2,hdutype,status)
@@ -250,9 +267,25 @@ contains
        call ftclos(unit, status)
        call ftfiou(unit, status)
 
+       call map4D%dealloc
        deallocate(d, ttype, tform, tunit)
     end do
 
   end subroutine output_4D_maps
+
+  subroutine deallocate_4D_map(self)
+    implicit none
+    class(comm_4D_map), intent(inout)  :: self
+
+    if (allocated(self%detlabel)) deallocate(self%detlabel)
+    if (allocated(self%psi0))     deallocate(self%psi0)
+    if (allocated(self%pixel))    deallocate(self%pixel)
+    if (allocated(self%ipsi))     deallocate(self%ipsi)
+    if (allocated(self%weight))   deallocate(self%weight)
+    if (allocated(self%map))      deallocate(self%map)
+
+  end subroutine deallocate_4D_map
+
+
 
 end module comm_4D_map_mod
