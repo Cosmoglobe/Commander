@@ -104,7 +104,7 @@ contains
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
-    constructor%output_4D_map = cpar%output_4D_map
+    constructor%output_4D_map = cpar%output_4D_map_nth_iter
     constructor%subtract_zodi = cpar%include_TOD_zodi
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
@@ -769,7 +769,7 @@ contains
                 end if
              end do
             
-             if (do_oper(bin_map) .and. self%output_4D_map) then
+             if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
 
 !!$                open(58,file='map4d.dat',recl=1024)
 !!$                do j = 1, ntod
@@ -783,7 +783,8 @@ contains
                 call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
                      & self%label, self%horn_id, real(self%polang*180/pi,sp), &
                      & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-                     & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0))
+                     & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0), &
+                     & self%scans(i)%d(:)%accept)
              end if
 
 
@@ -865,8 +866,8 @@ contains
           call update_status(status, "tod_share2")
 
           Sfilename = trim(prefix) // 'Smap'// trim(postfix) 
-          call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, &
-               & rms_out, chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+          call self%finalize_binned_map(handle, sA_map, sb_map, &
+               & rms_out, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
           call wall_time(t2); t_tot(10) = t_tot(10) + t2-t1
           call update_status(status, "tod_share3")
        end if
@@ -928,13 +929,13 @@ contains
 
        call update_status(status, "finalize1")
        if (do_oper(samp_mono)) then
-          call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono)
+          call self%finalize_binned_map(handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
 !!$       condmap => comm_map(self%info)
 !!$       call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono, condmap=condmap)
 !!$       call condmap%writeFITS("cond.fits")
 !!$       call condmap%dealloc()
        else
-          call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out)
+          call self%finalize_binned_map(handle, sA_map, sb_map, rms_out, outmaps=outmaps)
        end if
 
        call update_status(status, "finalize2")
@@ -1899,14 +1900,14 @@ contains
   end subroutine compute_binned_map
 
 
-  subroutine finalize_binned_map(self, handle, sA_map, sb_map, outmaps, rms, chisq_S, Sfile, mask, sb_mono, sys_mono, condmap)
+  subroutine finalize_binned_map(self, handle, sA_map, sb_map, rms, outmaps, chisq_S, Sfile, mask, sb_mono, sys_mono, condmap)
     implicit none
     class(comm_LFI_tod),                  intent(in)    :: self
     type(planck_rng),                     intent(inout) :: handle
     type(shared_2d_dp), intent(inout) :: sA_map
     type(shared_3d_dp), intent(inout) :: sb_map
-    class(map_ptr),  dimension(1:),       intent(inout) :: outmaps
     class(comm_map),                      intent(inout) :: rms
+    class(map_ptr),  dimension(1:),       intent(inout), optional :: outmaps
     real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
     character(len=*),                     intent(in),    optional :: Sfile
     integer(i4b),    dimension(0:),       intent(in),    optional :: mask
@@ -2055,9 +2056,11 @@ contains
        else
           do j = 1, nmaps
              rms%map(i,j) = sqrt(A_inv(j,j))  * 1.d6 ! uK
-             do k = 1, nout
-                outmaps(k)%p%map(i,j) = b_tot(k,j,i) * 1.d6 ! uK
-             end do
+             if (present(outmaps)) then
+                do k = 1, nout
+                   outmaps(k)%p%map(i,j) = b_tot(k,j,i) * 1.d6 ! uK
+                end do
+             end if
 !!$             if (trim(self%operation) == 'sample') then
 !!$                ! Add random fluctuation
 !!$                call compute_hermitian_root(A_inv, 0.5d0)

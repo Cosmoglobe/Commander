@@ -71,7 +71,7 @@ module comm_tod_mod
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
      logical(lgt) :: init_from_HDF                                   ! Read from HDF file
-     logical(lgt) :: output_4D_map                                ! Output 4D maps
+     integer(i4b) :: output_4D_map                                ! Output 4D maps
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
