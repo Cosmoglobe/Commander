@@ -76,8 +76,8 @@ contains
 
     allocate(constructor%lnorm(0:lmax))
     do l = 0, lmax
-       !constructor%lnorm(l) = 0.5d0*sqrt(4.d0*pi/(2.d0*l+1.d0))
-       constructor%lnorm(l) = 1.d0 
+       constructor%lnorm(l) = 0.5d0*sqrt(4.d0*pi/(2.d0*l+1.d0))
+       !constructor%lnorm(l) = 1.d0 
     end do
 
     constructor%info => comm_mapinfo(map%info%comm, nside, lmax, nmaps, nmaps==3)
@@ -114,10 +114,11 @@ contains
     !allocate(constructor%c(0:constructor%npix-1, 0:constructor%psisteps-1))
 
     call constructor%precompute_sky(beam, map)
+
 !!$    if (map%info%myid == 0) then
-!!$       do i = 0, constructor%psisteps-1
+!!$       do i = 1, constructor%psisteps
 !!$          call int2string(i,id)
-!!$          call write_map2('c'//id//'.fits', constructor%c(:,i:i))
+!!$          call write_map2('c'//id//'.fits', constructor%c%a(:,i:i))
 !!$       end do
 !!$    end if
 !!$    call mpi_finalize(ierr)
@@ -156,7 +157,7 @@ contains
     pixnum = self%pixLookup%a(pix+1)
 
     !unwrap psi
-    unwrap = modulo(psi, 2.d0*pi)
+    unwrap = modulo(-psi, 2.d0*pi)
 
     if (self%optim == 2) then
        bpsi = max(nint(unwrap / self%psires),0)
@@ -203,7 +204,6 @@ contains
     real(dp),       allocatable, dimension(:)     :: dt
     complex(dpc),   allocatable, dimension(:)     :: dv
 
-
     np = self%info%np
 
     allocate(marray(np, -self%bmax:self%bmax))
@@ -217,9 +217,12 @@ contains
 
        call self%get_alms(j, map, alm)
 
+!       write(*,*) j, sum(abs(alm))
+       if (j == 1) then
        do k = 0, self%info%nalm-1
 !          write(*,*) j, self%info%lm(:,k), alm(k,1)
        end do
+    end if
 
        if (j == 0) then
           call sharp_execute(SHARP_Y, j, 1, alm(:,1:1), self%info%alm_info, &
@@ -227,9 +230,9 @@ contains
           marray(:, j) = mout(:,1)
        else
           call sharp_execute(SHARP_Y, j, 2, alm(:,1:2), self%info%alm_info, &
-               & mout(:,1:2), self%info%geom_info_P, comm=self%comm)
+               & mout(:,1:2), self%info%geom_info_T, comm=self%comm)
 
-!!$          ! Rotate by 90 degrees in psi
+          ! Rotate by 90 degrees in psi
 !!$          sign1 = 1; sign2 = -1; quadrant = modulo(j,4)
 !!$          if (iand(quadrant,1)) then
 !!$             marray(:,j) = mout(:,1)
@@ -245,6 +248,7 @@ contains
 
           marray(:, j) = mout(:,1)
           marray(:,-j) = mout(:,2)
+
        end if
       if(map%info%myid == 0 .and. .false.) then
         write(*,*) 'Sharp  execute, m=', j, sum(mout(:,1:2)), sum(alm(:,1:2))
@@ -296,13 +300,12 @@ contains
     spinsign = 1; if (m_b /= 0) spinsign = -1
     sqrt_two = sqrt(2.d0)
 
+    alm = 0.d0
     do i = 0, self%info%nalm-1
         l  = self%info%lm(1,i)
         m  = self%info%lm(2,i)
         if (m < 0) cycle ! Do negative m at the same time as positive m
         call self%info%lm2i(l,-m,ineg)
-        alm(i,   :) = 0.d0
-        alm(ineg,:) = 0.d0
         if (l < m_b) cycle
         mfac = 1; if (iand(m,1) /= 0) mfac = -1 
 
@@ -323,8 +326,7 @@ contains
 
         if (m_b > 0) then
            ! Negative spin
-           almc = -spinsign*self%lnorm(l) * (v1-conjg(v2)*mfac)
-           !almc = -cmplx(0,1)*spinsign*self%lnorm(l) * (v1-conjg(v2)*mfac)
+           almc = -cmplx(0,1)*spinsign*self%lnorm(l) * (v1-conjg(v2)*mfac)
            if (m == 0) then
               alm(i,2) = real(almc)
            else
@@ -332,7 +334,6 @@ contains
               alm(ineg,2) = imag(almc) * sqrt_two
            end if
         end if
-
      end do
 
   end subroutine get_alms
@@ -343,7 +344,6 @@ contains
     implicit none
     class(comm_conviqt), intent(inout) :: self
 
-!    deallocate(self%c)
     deallocate(self%lnorm)
     call dealloc_shared_2d_spc(self%alm_beam)
     call dealloc_shared_2d_dp(self%c)

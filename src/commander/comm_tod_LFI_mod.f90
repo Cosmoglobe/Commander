@@ -94,7 +94,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_n_maps = 2
+    constructor%output_n_maps = 7
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -191,6 +191,10 @@ contains
     do i = 1, constructor%ndet
        constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., .true., &
             & trim(constructor%label(i)))
+
+!!$       call constructor%slbeam(i)%p%readFITS('beam8.fits')
+!!$       constructor%slbeam(i)%p%map = constructor%slbeam(i)%p%map / (3.1789e-7*4*pi)
+!!$       call constructor%slbeam(i)%p%YtW
 
 !!$          call constructor%slbeam(i)%p%Y
 !!$          call constructor%slbeam(i)%p%writeFITS("beam.fits")
@@ -317,7 +321,7 @@ contains
 
     ! Set up full-sky map structures
     call wall_time(t1)
-    correct_sl      = .false.
+    correct_sl      = .true. ! .false.
     chisq_threshold = 30.d0 !7.d0
     n_main_iter     = 3
     chisq_threshold = 1000.d0 
@@ -392,9 +396,11 @@ contains
 
     ! Compute far sidelobe Conviqt structures
     call wall_time(t1)
-!!$map_in(1,1)%p%map = 0
-!!$if (self%myid == 32) map_in(1,1)%p%map(5200,1) = 1
-!!$call map_in(1,1)%p%writeFITS("in.fits")
+!map_in(1,1)%p%map = 0
+!if (self%myid == 110) map_in(1,1)%p%map(5200,1) = 1
+!if (self%myid == 0) map_in(1,1)%p%map(40000,1) = 1
+!if (self%myid == 32) map_in(1,1)%p%map(5200,1) = 1
+!call map_in(1,1)%p%writeFITS("in.fits")
     if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
     do i = 1, self%ndet
        if (.not. correct_sl) exit
