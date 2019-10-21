@@ -202,10 +202,10 @@ contains
     real(dp), dimension(:,:), intent(in)  :: A
     real(dp), dimension(:,:), intent(out) :: Across
 
-    integer(i4b) :: i, m, n, lwork, info, q
+    integer(i4b) :: i, j, m, n, lwork, info, q
     real(dp)     :: threshold
     real(dp),     allocatable, dimension(:)   :: work, S
-    real(dp),     allocatable, dimension(:,:) :: Atmp, U, Vt
+    real(dp),     allocatable, dimension(:,:) :: Atmp, U, Vt, Sigma
     
     threshold = 1d-12
     m = size(A,1)
@@ -213,7 +213,7 @@ contains
     lwork = 2*max(1,3*min(m,n)+max(m,n),5*min(m,n))
 
     ! Compute SVD factorization
-    allocate(Atmp(m,n), work(lwork), S(min(m,n)), U(m,m), Vt(n,n))
+    allocate(Atmp(m,n), work(lwork), S(min(m,n)), U(m,m), Vt(n,n), Sigma(n,m))
     Atmp = A
     call DGESVD('A', 'A', m, n, Atmp, m, S, U, m, VT, n, work, lwork, info)
     if (info /= 0) then
@@ -225,23 +225,35 @@ contains
     end if
 
     ! Invert S
+    Sigma = 0.d0
     do i = min(m,n), 1, -1
        if (abs(S(i)) > threshold*abs(S(1))) then
           !write(*,*) S(i), threshold, S(1)
-          S(i) = 1.d0/S(i)
+          Sigma(i,i) = 1.d0/S(i)
        else
-          S(i) = 0.d0
+          Sigma(i,i) = 0.d0
        end if
     end do
 
-    ! Multiply S^+ with Vt
-    do i = 1, min(m,n)
-       Vt(i,:) = S(i)*Vt(i,:)
-    end do
+!!$    ! Multiply S^+ with Vt
+!!$    do i = 1, min(m,n)
+!!$       Vt(i,:) = S(i)*Vt(i,:)
+!!$    end do
+!!$
+!!$    Across = matmul(transpose(Vt), transpose(U))
 
-    Across = matmul(transpose(Vt), transpose(U))
+    ! Multiply transposr(Vt) with S^+
+!!$    Across = 0.d0
+!!$    do i = 1, min(m,n)
+!!$       do j = 1, min(m,n)
+!!$          Across(i,j) = Vt(j,i) * S(j)
+!!$       end do
+!!$    end do
 
-    deallocate(Atmp, work, S, U, Vt)
+    Sigma = matmul(transpose(Vt), Sigma)
+    Across = matmul(Sigma, transpose(U))
+
+    deallocate(Atmp, work, S, U, Vt, Sigma)
 
   end subroutine compute_pseudo_inverse
 

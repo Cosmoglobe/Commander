@@ -61,6 +61,7 @@ module comm_tod_mod
      integer(i4b) :: flag0
 
      real(dp)     :: samprate                                     ! Sample rate in Hz
+     real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
@@ -150,13 +151,14 @@ contains
     real(dp)     :: t1, t2, psi, fsamp
     type(hdf_file)     :: file
 
+    integer(i4b), dimension(:), allocatable       :: ns   
     real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
     character(len=1024)                           :: det_buf
     character(len=128), dimension(:), allocatable :: dets
 
 
     ! Read common fields
-    allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet))
+    allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%hdfname(1), file, "r")
@@ -222,6 +224,25 @@ contains
           end if
        end do
     end do
+
+    ! Initialize mean gain
+    allocate(ns(self%ndet))
+    self%gain0 = 0.d0
+    ns         = 0
+    do i = 1, self%nscan
+       do j = 1, self%ndet 
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
+          ns(j)         = ns(j) + 1
+       end do
+    end do
+    call mpi_allreduce(MPI_IN_PLACE, self%gain0, self%ndet, &
+         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet, &
+         & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
+    where (ns > 0)
+       self%gain0 = self%gain0 / ns
+    end where
 
     ! Precompute trigonometric functions
     allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
@@ -475,6 +496,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,5))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
+       call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
     end if

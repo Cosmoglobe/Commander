@@ -501,12 +501,12 @@ contains
 
     path = trim(adjustl(hdfpath))//trim(adjustl(self%label)) // '/'
     if (self%myid == 0) then
-       call read_hdf(hdffile, trim(adjustl(path))//'/amp', self%x)
+       call read_hdf(hdffile, trim(adjustl(path))//'amp', self%x)
        self%x = self%x/self%cg_scale
     end if
        
     allocate(theta(self%nsrc,self%nmaps,self%npar))
-    call read_hdf(hdffile, trim(adjustl(path))//'/specind', theta)
+    call read_hdf(hdffile, trim(adjustl(path))//'specind', theta)
 
     do i = 1, self%nsrc
        do j = 1, self%nmaps
@@ -612,6 +612,7 @@ contains
           self%src(i)%P_x(:,2)       = amp_rms / self%cg_scale
           self%src(i)%P_theta(:,:,1) = beta
           self%src(i)%P_theta(:,:,2) = beta_rms
+          self%src(i)%theta_rms      = 0.d0
           !self%src(i)%P_x(:,1) = 0.d0
           !self%src(i)%P_x(:,2) = 0.d0 !1.d12
 
@@ -1340,7 +1341,7 @@ contains
     n                   = 101
     n_ok                = 50
     n_gibbs             = 10
-    if (first_call .and. self%burn_in) n_gibbs = 1000
+    if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
 
     if (trim(operation) == 'optimize') then
@@ -1509,7 +1510,7 @@ contains
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
     do iter = 1, n_gibbs
 
-       if (self%myid == 0) write(*,*) iter, n_gibbs
+       !if (self%myid == 0) write(*,*) iter, n_gibbs
 
        ! Sample spectral parameters
        do j = 1, self%npar
@@ -1741,7 +1742,7 @@ contains
 
              !if (self%myid == 0) write(*,*) 'amp = ', real(amp(k,p),sp), real(mu,sp), real(sigma,sp)
              !if (self%myid == 0 .and. k == self%nsrc) write(68,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
-             if (self%myid == 0 .and. iter==n_gibbs) write(*,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
+             !if (self%myid == 0 .and. iter==n_gibbs) write(*,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              
           end do
        end do
@@ -1880,7 +1881,7 @@ contains
     else
        do k = 1, numband
           do i = 1, data(k)%info%nmaps
-             do j = 0, data(k)%tod%ndet
+             do j = 0, data(k)%ndet
                 call self%F_int(i,k,j)%p%update(pol=i)
              end do
           end do

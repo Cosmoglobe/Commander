@@ -324,7 +324,7 @@ contains
     correct_sl      = .true. ! .false.
     chisq_threshold = 30.d0 !7.d0
     n_main_iter     = 3
-    chisq_threshold = 1000.d0 
+    !chisq_threshold = 1000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -437,7 +437,7 @@ contains
        do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
        do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
-       do_oper(samp_mono)    = .false. !do_oper(bin_map)             .and. .not. self%first_call
+       do_oper(samp_mono)    = .false. !do_oper(bin_map)             !.and. .not. self%first_call
        !do_oper(samp_N_par)    = .false.
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
@@ -646,7 +646,7 @@ contains
           call wall_time(t1)
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             s_mono(:,j) = 0.  !self%mono(j)
+             s_mono(:,j) = self%mono(j)
           end do
           s_tot = s_sky + s_sl + s_orb + s_mono
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
@@ -1389,9 +1389,9 @@ contains
 
     allocate(d_only_wn(size(s_ref)))
 
-    d_only_wn     = self%scans(scan_id)%d(det)%tod - n_corr
+    d_only_wn     = self%scans(scan_id)%d(det)%tod - n_corr - self%gain0(det)*s_ref
     ata           = sum(mask*s_ref**2)
-    curr_gain     = sum(mask * d_only_wn * s_ref) / ata            
+    curr_gain     = sum(mask * d_only_wn * s_ref) / ata + self%gain0(det)
     curr_sigma    = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)  
     self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
     if (trim(self%operation) == 'optimize') then
@@ -1399,6 +1399,8 @@ contains
     else
        self%scans(scan_id)%d(det)%gain = curr_gain + curr_sigma*rand_gauss(handle)
     end if
+
+    !if (det == 1) self%scans(scan_id)%d(det)%gain = self%scans(scan_id)%d(det)%gain * 0.996
 
     deallocate(d_only_wn)
 
@@ -1418,7 +1420,7 @@ contains
     
     ndet       = self%ndet
     nscan_tot  = self%nscan_tot
-    binsize    = 100
+    binsize    = 1000
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2), vals(binsize))
@@ -1542,6 +1544,7 @@ contains
           end if
           self%scans(i)%d(j)%gain = dgain(j) * self%scans(i)%d(j)%gain
        end do
+       self%gain0(j)  = dgain(j) * self%gain0(j)
     end do
 
     deallocate(A, b, dgain, sigma)

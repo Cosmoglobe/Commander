@@ -958,25 +958,34 @@ contains
   end subroutine udgrade
 
 
-  subroutine smooth(self, fwhm)
+  subroutine smooth(self, fwhm, fwhm_pol)
     implicit none
     class(comm_map), intent(inout)    :: self
     real(dp),        intent(in)       :: fwhm
+    real(dp),        intent(in), optional       :: fwhm_pol
 
     integer(i4b) :: i, j, l, m
-    real(dp)     :: sigma, bl, fact_pol
+    real(dp)     :: sigma, sigma_pol, bl, fact_pol
     real(dp), allocatable, dimension(:,:) :: m_in, m_out
 
-    if (fwhm <= 0.d0) return
+    if (fwhm <= 0.d0 .and. .not. present(fwhm_pol)) return
 
     call self%YtW
     sigma    = fwhm * pi/180.d0/60.d0 / sqrt(8.d0*log(2.d0))
-    fact_pol = exp(2.d0*sigma**2)
+    if (present(fwhm_pol)) then
+       sigma_pol = fwhm_pol * pi/180.d0/60.d0 / sqrt(8.d0*log(2.d0))
+    else
+       sigma_pol = sigma
+    end if
+    fact_pol = exp(2.d0*sigma_pol**2)
     do i = 0, self%info%nalm-1
        call self%info%i2lm(i,l,m)
        do j = 1, self%info%nmaps
-          bl = exp(-0.5*l*(l+1)*sigma**2)
-          if (j > 1) bl = bl * fact_pol
+          if (j == 1) then
+             bl = exp(-0.5*l*(l+1)*sigma**2)
+          else
+             bl = exp(-0.5*l*(l+1)*sigma_pol**2) * fact_pol
+          end if
           self%alm(i,j) = self%alm(i,j) * bl
        end do
     end do
