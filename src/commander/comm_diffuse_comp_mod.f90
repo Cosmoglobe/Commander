@@ -173,6 +173,7 @@ contains
     call update_status(status, "init_pre_mix")
     self%ndet = maxval(data%ndet)
     allocate(self%F(numband,0:self%ndet), self%F_mean(numband,0:self%ndet,self%nmaps), self%F_null(numband,0:self%ndet))
+    self%F_mean = 0.d0
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
@@ -252,12 +253,15 @@ contains
           do q = 1, numband
              call data(q)%info%lm2i(l,m,i2)
              if (i2 == -1) cycle
+             if (j > data(q)%info%nmaps) cycle
              do k1 = 1, npre
                 p1 => diffComps(k1)%p
                 if (l > p1%lmax_amp) cycle
+                if (j > p1%nmaps) cycle
                 do k2 = 1, npre
                    p2 => diffComps(k2)%p
                    if (l > p2%lmax_amp) cycle
+                   if (j > p2%nmaps) cycle
                    mat(k1,k2) = mat(k1,k2) + &
                         & data(q)%N%invN_diag%alm(i2,j) * &  ! invN_{lm,lm}
                         & data(q)%B(0)%p%b_l(l,j)**2 * &          ! b_l^2
@@ -518,6 +522,21 @@ contains
 !!$    call mpi_finalize(i)
 !!$    stop
 
+
+    ! Nullify elements that are not involved in current sample group
+    do j = 1, info_pre%nmaps
+       do i = 0, info_pre%nalm-1
+          if (P_cr%invM_diff(i,j)%n == 0) cycle                
+          do k1 = 1, npre
+             if (diffComps(k1)%p%cg_samp_group == samp_group) cycle
+             p = P_cr%invM_diff(i,j)%comp2ind(k1)
+             if (p == -1) cycle
+             P_cr%invM_diff(i,j)%M(p,:) = 0.d0
+             P_cr%invM_diff(i,j)%M(:,p) = 0.d0
+          end do
+       end do
+    end do
+
     ! Print out worst condition number in first call
     call wall_time(t1)
     if (first_call .and. output_cg_eigenvals) then
@@ -546,7 +565,8 @@ contains
           unit = getlun()
           open(unit, file=trim(outdir)//'/precond_eigenvals.dat', recl=1024)
           do l = 0, lmax_pre
-             write(unit,fmt='(i8,2e16.8)') l, cond(l), W_min(l)
+             !write(unit,fmt='(i8,2e16.8)') l, cond(l), W_min(l)
+             write(unit,*) l, cond(l), W_min(l)
           end do
           close(unit)
        end if
@@ -556,22 +576,6 @@ contains
     end if
     call wall_time(t2)
     !write(*,*) 'eigen = ', t2-t1
-
-    ! Nullify elements that are not involved in current sample group
-    do j = 1, info_pre%nmaps
-       do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n == 0) cycle                
-          do k1 = 1, npre
-             if (diffComps(k1)%p%cg_samp_group == samp_group) cycle
-             do k2 = 1, npre
-                if (diffComps(k2)%p%cg_samp_group == samp_group) cycle
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
-                P_cr%invM_diff(i,j)%M(p,q) = 0.d0
-             end do
-          end do
-       end do
-    end do
 
     ! Invert matrix
     call wall_time(t1)

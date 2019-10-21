@@ -52,8 +52,8 @@ contains
     tol = TOLERANCE; if (present(tolerance_)) tol = tolerance_
     if (use_precomputed_grid_) then
        n    = size(x_in)
-       x_n  = x_in
-       S_n  = lnL_in
+       x_n(1:n) = x_in
+       S_n(1:n) = lnL_in
     else
        n        = size(x_in)
        x_n(1:n) = x_in

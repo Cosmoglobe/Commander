@@ -273,6 +273,7 @@ contains
 
     allocate(F(nbin))
     do j = 1, rms%info%nmaps
+       if (all(mask%map(:,j) < 0.5d0)) cycle
        ! Find pixel histogram across cores
        limits(1) = minval(rms%map(:,j), mask%map(:,j) > 0.5d0)
        limits(2) = maxval(rms%map(:,j), mask%map(:,j) > 0.5d0)
