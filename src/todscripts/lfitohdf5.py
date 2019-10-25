@@ -28,7 +28,11 @@ def main():
 
     parser.add_argument('--freqs', type=int, nargs='+', default=[30, 44, 70], help='which lfi frequencies to operate on')
 
-    parser.add_argument('--ods', type=int, nargs=2, default=[91, 1540], help='the operational days to operate on')
+    parser.add_argument('--ods', type=int, nargs=2, default=[91, 1604], help='the operational days to operate on')
+
+    parser.add_argument('--no-compress', action='store_true', default=False, help='Produce uncompressed data output')
+
+    parser.add_argument('--restart', action='store_true', default=False, help="restart from a previous run that didn't finish")
 
     in_args = parser.parse_args()
 
@@ -52,11 +56,13 @@ def main():
 
     #write file lists 
     for freq in in_args.freqs:
-        outfile = open(os.path.join(in_args.out_dir, 'filelist_' + str(freq) + '.txt'), 'w')
-        for buf in outbufs[freq].values():
-            outfile.write(buf)
+        if (in_args.ods[0] is 91 and in_args.ods[1] is 1604):
+            outfile = open(os.path.join(in_args.out_dir, 'filelist_' + str(freq) + '.txt'), 'w')
+            for buf in outbufs[freq].values():
+                #print(buf, len(buf))
+                outfile.write(buf)
 
-        outfile.close()
+            outfile.close()
 
 
 def make_od(freq, od, args, outbuf):
@@ -75,9 +81,29 @@ def make_od(freq, od, args, outbuf):
 
     outName = os.path.join(args.out_dir, 'LFI_0' + str(freq) + '_' + str(od).zfill(6) + '.h5')
 
-    outFile = h5py.File(outName, 'w')
+    try:
+        exFile = h5py.File(os.path.join(args.planck_dir, 'LFI_0' + str(freq) + '_' + str(horns[freq][0]) + '_L2_002_OD' + str(od).zfill(4) +'.h5'), 'r')
+    except (OSError):
+        return
 
-    exFile = h5py.File(os.path.join(args.planck_dir, 'LFI_0' + str(freq) + '_' + str(horns[freq][0]) + '_L2_002_OD' + str(od).zfill(4) +'.h5'), 'r')
+    if(args.restart and os.path.exists(outName)):
+        for pid, index in zip(exFile['AHF_info/PID'], range(len(exFile['AHF_info/PID']))):     
+            startIndex = np.where(exFile['Time/OBT'] > exFile['AHF_info/PID_start'][index])
+            endIndex = np.where(exFile['Time/OBT'] > exFile['AHF_info/PID_end'][index])
+            if len(startIndex[0]) > 0:
+                pid_start = startIndex[0][0]
+            else:#catch days with no pids
+                continue
+            if len(endIndex[0]) is not 0:
+                pid_end = endIndex[0][0]
+            else:#catch final pid per od
+                pid_end = len(exFile['Time/OBT'])
+            if pid_start == pid_end:#catch chunks with no data like od 1007
+                continue
+            outbuf['id' + str(pid)] = str(pid) + ' "' + outName + '" ' + '1\n'
+        return
+
+    outFile = h5py.File(outName, 'w')
 
     rimo = fits.open(args.rimo)
 
@@ -226,7 +252,10 @@ def make_od(freq, od, args, outbuf):
                 if (len(flagArray) > 0):
                     delta = np.diff(flagArray)
                     delta = np.insert(delta, 0, flagArray[0])
-                    outFile.create_dataset(prefix + '/flag', data=np.void(bytes(h.byteCode(delta))))
+                    if(args.no_compress):
+                        outFile.create_dataset(prefix+'/flag', data=flagArray)
+                    else:
+                        outFile.create_dataset(prefix + '/flag', data=np.void(bytes(h.byteCode(delta))))
                 
                 #outFile.create_dataset(prefix + '/flag', data=flagArray, compression='gzip', shuffle=True)
 
@@ -237,7 +266,12 @@ def make_od(freq, od, args, outbuf):
                 if len(pixels > 0):
                     delta = np.diff(pixels)
                     delta = np.insert(delta, 0, pixels[0])
-                    outFile.create_dataset(prefix + '/pix', data=np.void(bytes(h.byteCode(delta))))
+                    if(args.no_compress):
+                        outFile.create_dataset(prefix+'/pix', data=pixels)
+                        outFile.create_dataset(prefix+'/theta', data=newTheta)
+                        outFile.create_dataset(prefix+'/phi', data=newPhi) 
+                    else:
+                        outFile.create_dataset(prefix + '/pix', data=np.void(bytes(h.byteCode(delta))))
                                 
                 #outFile.create_dataset(prefix + '/pix', data=pixels, compression='gzip', shuffle=True)
 
@@ -249,16 +283,19 @@ def make_od(freq, od, args, outbuf):
 
                 psiIndexes = np.digitize(psiArray, psiBins)
                 
-                if(pid == 3798 and horn == 28 and hornType == 'M'):
-                    print(len(psiIndexes))
-                    np.set_printoptions(threshold=sys.maxsize)
-                    for i in range(4000):
-                        print(i, psiArray[i], psiIndexes[i])
+                #if(pid == 3798 and horn == 28 and hornType == 'M'):
+                #    print(len(psiIndexes))
+                #    np.set_printoptions(threshold=sys.maxsize)
+                #    for i in range(4000):
+                #        print(i, psiArray[i], psiIndexes[i])
 
                 if(len(psiIndexes) > 0):
                     delta = np.diff(psiIndexes)
-                    delta = np.insert(delta, 0, psiIndexes[0]) 
-                    outFile.create_dataset(prefix + '/psi', data=np.void(bytes(h.byteCode(delta))))
+                    delta = np.insert(delta, 0, psiIndexes[0])
+                    if(args.no_compress):
+                        outFile.create_dataset(prefix + '/psi', data=psiArray)
+                    else:
+                        outFile.create_dataset(prefix + '/psi', data=np.void(bytes(h.byteCode(delta))))
                 
                 #outFile.create_dataset(prefix + '/psi', data=psiIndexes, compression='gzip', shuffle=True)
 
@@ -270,7 +307,10 @@ def make_od(freq, od, args, outbuf):
                     gainFile = fits.open(os.path.join(args.gains_dir, 'LFI_0' + str(freq) + '_LFI' + str(horn) + hornType + '_001.fits'))
                     gain=1.0/gainFile[1].data.GAIN[np.where(gainFile[1].data.PID == pid)]
                     gainFile.close()
- 
+                #TODO: fix this
+                if(gain.size == 0):
+                    gain = [0.06]
+         
                 #make white noise
                 sigma0 = rimo[1].data.field('net')[rimo_i] * math.sqrt(fsamp)
 
@@ -280,6 +320,7 @@ def make_od(freq, od, args, outbuf):
                 #make 1/f noise exponent 
                 alpha = rimo[1].data.field('alpha')[rimo_i]
 
+                #print(gain, sigma0, fknee, alpha)
                 outFile.create_dataset(prefix + '/scalars', data=np.array([gain, sigma0, fknee, alpha]).flatten())
                 outFile[prefix + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
 
