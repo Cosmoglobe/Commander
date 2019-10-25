@@ -136,7 +136,9 @@ program commander
 !!$  data(3)%bp(0)%p%delta(1) =  1.78d0
 
   ! Initialize bandpass parameters and covariance matrices
-
+!  data(3)%bp%p%delta(1) =  [0.0000000E+00, -0.4607293,      0.2249896 ,     0.3114151,    &
+!  & 0.4158896,     -0.1479049 ,     0.8185435 ,    -0.1549835 ,    -0.2939563, &    
+! & -7.3387255E-03 , 0.4147546 ,    -0.3412309  ,   -0.7794487]
 
 
 !  data(1)%tod%sigma_bp = 0.1d0

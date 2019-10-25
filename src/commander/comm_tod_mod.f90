@@ -530,6 +530,7 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
     end if
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &
@@ -539,6 +540,8 @@ contains
     call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
     call mpi_bcast(self%mono, size(self%mono), MPI_DOUBLE_PRECISION, 0, &
+         & self%comm, ierr)
+    call mpi_bcast(self%gain0, size(self%gain0), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
 
     do j = 1, self%ndet
