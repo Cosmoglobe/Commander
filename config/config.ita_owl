@@ -52,7 +52,7 @@ export MPCC := mpicc
 # Fortran 90 compiler flags
 #export F90FLAGS := -O3 -traceback 
 #
-export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384 -fpe0  #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
+export F90FLAGS := -O3 -traceback  -assume byterecl -heap-arrays 16384 -fpe0 -CB  #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
 #export F90FLAGS := -g -C -traceback -qopenmp -check all,noarg_temp_created -fpe0
 #export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx -qopenmp
 #export F90FLAGS := -fast -traceback -qopenmp

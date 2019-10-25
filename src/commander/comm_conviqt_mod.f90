@@ -77,7 +77,6 @@ contains
     allocate(constructor%lnorm(0:lmax))
     do l = 0, lmax
        constructor%lnorm(l) = 0.5d0*sqrt(4.d0*pi/(2.d0*l+1.d0))
-       !constructor%lnorm(l) = 1.d0 
     end do
 
     constructor%info => comm_mapinfo(map%info%comm, nside, lmax, nmaps, nmaps==3)
@@ -111,19 +110,15 @@ contains
     ! Precompute convolution cube
     call init_shared_2d_dp(myid_shared, comm_shared, myid_inter, comm_inter, &
          & [constructor%npix,constructor%psisteps], constructor%c)
-    !allocate(constructor%c(0:constructor%npix-1, 0:constructor%psisteps-1))
 
-    call constructor%precompute_sky(beam, map)
+    call constructor%precompute_sky(map)
 
-!!$    if (map%info%myid == 0) then
-!!$       do i = 1, constructor%psisteps
-!!$          call int2string(i,id)
-!!$          call write_map2('c'//id//'.fits', constructor%c%a(:,i:i))
-!!$       end do
-!!$    end if
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
+    !if (map%info%myid == 0) then
+    !   do i = 0, constructor%psisteps-1
+    !      call int2string(i,id)
+    !      call write_map2('c'//id//'.fits', constructor%c%a(:,i:i+1))
+    !   end do    
+    !end if
 
     !precompute pixel->pixel lookup table
     call init_shared_1d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
@@ -164,7 +159,8 @@ contains
        if (bpsi == self%psisteps) bpsi = 0
       interp = self%c%a(pixnum+1, bpsi+1)
       if (isNaN(interp)) then
-         write(*,*) 'nan', pix, psi, pixnum, unwrap, interp
+         write(*,*) 'nan in sl interpolation', pix, psi, pixnum, unwrap, interp
+         stop
       end if
       return
     end if
@@ -188,10 +184,10 @@ contains
 
   !precomputes the maps and stores to the allocated array
   !TODO: handle polarized sidelobes?
-  subroutine precompute_sky(self, beam, map)
+  subroutine precompute_sky(self, map)
     implicit none
     class(comm_conviqt),                          intent(inout) :: self
-    class(comm_map),                              intent(in)    :: beam, map ! Must contain alms
+    class(comm_map),                              intent(in)    :: map ! Must contain alms
 
     integer(i4b) :: i,j,k,np,l,m,m_s, m_b, pixNum, q,u, ierr
     integer(i4b) :: sign1, sign2, quadrant
@@ -203,6 +199,7 @@ contains
     real(c_double), allocatable, dimension(:,:)   :: mout
     real(dp),       allocatable, dimension(:)     :: dt
     complex(dpc),   allocatable, dimension(:)     :: dv
+    complex(dpc) :: alm_test
 
     np = self%info%np
 
@@ -212,39 +209,34 @@ contains
     allocate(alm(0:self%info%nalm-1, 2))
     allocate(mout(0:self%info%np-1, 2))
 
+    
+
     ! Compute maps for each m
     do j=0, self%bmax
 
        call self%get_alms(j, map, alm)
 
-!       write(*,*) j, sum(abs(alm))
-       if (j == 1) then
-       do k = 0, self%info%nalm-1
-!          write(*,*) j, self%info%lm(:,k), alm(k,1)
-       end do
-    end if
-
        if (j == 0) then
-          call sharp_execute(SHARP_Y, j, 1, alm(:,1:1), self%info%alm_info, &
+          call sharp_execute(SHARP_Y, 0, 1, alm(:,1:1), self%info%alm_info, &
                & mout(:,1:1), self%info%geom_info_T, comm=self%comm)
-          marray(:, j) = mout(:,1)
+          marray(:, 0) = mout(:,1)
        else
           call sharp_execute(SHARP_Y, j, 2, alm(:,1:2), self%info%alm_info, &
                & mout(:,1:2), self%info%geom_info_T, comm=self%comm)
 
           ! Rotate by 90 degrees in psi
-!!$          sign1 = 1; sign2 = -1; quadrant = modulo(j,4)
-!!$          if (iand(quadrant,1)) then
-!!$             marray(:,j) = mout(:,1)
-!!$             mout(:,1)   = mout(:,2)
-!!$             mout(:,2)   = marray(:,j)
-!!$             sign2       = sign1
-!!$             sign1       = -sign1
-!!$          end if
-!!$          if (quadrant==1 .or. quadrant == 2) sign1 = -sign1
-!!$          if (quadrant==2 .or. quadrant == 3) sign2 = -sign2
-!!$          if (sign1 /= 1) mout(:,1) = -mout(:,1)
-!!$          if (sign2 /= 1) mout(:,2) = -mout(:,2)
+          sign1 = 1; sign2 = -1; quadrant = modulo(j,4)
+          if (iand(quadrant,1)) then
+             marray(:,j) = mout(:,1)
+             mout(:,1)   = mout(:,2)
+             mout(:,2)   = marray(:,j)
+             sign2       = sign1
+             sign1       = -sign1
+          end if
+          if (quadrant==1 .or. quadrant == 2) sign1 = -sign1
+          if (quadrant==2 .or. quadrant == 3) sign2 = -sign2
+          if (sign1 /= 1) mout(:,1) = -mout(:,1)
+          if (sign2 /= 1) mout(:,2) = -mout(:,2)
 
           marray(:, j) = mout(:,1)
           marray(:,-j) = mout(:,2)
@@ -312,15 +304,20 @@ contains
         j = (l-1)*l/2 + l + m_b + 1
         alm_b = self%alm_beam%a(:,j)
         call map%get_alm_TEB( l, m,   .true., alm_s)
+        !if (l == 0 .and. m == 0) write(*,*) alm_b, alm_s
         v1 = sum(      alm_s *alm_b)
-        v2 = 0; if (m_b /= 0) v2 = sum(conjg(alm_s)*alm_b)*mfac
+        !THIS WAS THE LINE THAT WAS WRONG
+        !I FOUND IT
+        !HAHAHAHAHAHA
+        !v2 = 0; if (m_b /= 0) 
+        v2 = sum(conjg(alm_s)*alm_b)*mfac
         
         ! Positive spin
         almc = spinsign*self%lnorm(l) * (v1+conjg(v2)*mfac)
         if (m == 0) then
            alm(i,1) = real(almc)
         else
-           alm(i,1)    = real(almc) * sqrt_two
+           alm(i,1) = real(almc) * sqrt_two
            alm(ineg,1) = imag(almc) * sqrt_two
         end if
 
@@ -330,7 +327,7 @@ contains
            if (m == 0) then
               alm(i,2) = real(almc)
            else
-              alm(i,2)    = real(almc) * sqrt_two
+              alm(i,2) = real(almc) * sqrt_two
               alm(ineg,2) = imag(almc) * sqrt_two
            end if
         end if

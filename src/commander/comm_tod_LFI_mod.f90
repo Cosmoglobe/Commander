@@ -191,6 +191,21 @@ contains
     do i = 1, constructor%ndet
        constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., .true., &
             & trim(constructor%label(i)))
+       !constructor%slbeam(i)%p%map(:,1) = 0.d0
+       !do j = 0, constructor%slbeam(i)%p%info%np -1
+       !  if (real(constructor%slbeam(i)%p%info%pix(j+1), dp) == constructor%slbeam(i)%p%info%npix/2.d0) then
+           !constructor%slbeam(i)%p%map(j,1) =constructor%slbeam(i)%p%info%pix(j+1)
+       !    constructor%slbeam(i)%p%map(j,1) = 1.d0
+       !  end if
+       !end do
+       call constructor%slbeam(i)%p%YtW()
+       !constructor%slbeam(i)%p%alm = constructor%slbeam(i)%p%alm/(12.d0/pi)
+       !call constructor%slbeam(i)%p%Yt()
+       !do j = 0, constructor%slbeam(i)%p%info%nalm-1
+       !  l = constructor%slbeam(i)%p%info%lm(1,j)
+       !  constructor%slbeam(i)%p%alm(j,1) = constructor%slbeam(i)%p%alm(j,1)* &
+       !    & exp(-0.5d0 * l * (l+1) * (0.122/sqrt(8*log(2.d0)))**2)
+       !end do
 
 !!$       call constructor%slbeam(i)%p%readFITS('beam8.fits')
 !!$       constructor%slbeam(i)%p%map = constructor%slbeam(i)%p%map / (3.1789e-7*4*pi)
@@ -308,9 +323,9 @@ contains
     type(shared_2d_sp), allocatable, dimension(:,:) :: smap_sky
     type(shared_2d_dp) :: sA_map
     type(shared_3d_dp) :: sb_map, sb_mono
-    class(comm_map), pointer :: map_sl, map_sl2, condmap
+    class(comm_map), pointer :: map_sl, map_sl2, condmap, map_fake
     class(map_ptr), allocatable, dimension(:) :: outmaps
-    class(comm_mapinfo), pointer :: info_sl2, info_sl_map
+    class(comm_mapinfo), pointer :: info_sl2, info_sl_map, fake_mapinfo
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -322,9 +337,8 @@ contains
     ! Set up full-sky map structures
     call wall_time(t1)
     correct_sl      = .true. ! .false.
-    chisq_threshold = 30.d0 !7.d0
+    chisq_threshold = 7.d0
     n_main_iter     = 3
-    !chisq_threshold = 1000.d0 
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -407,10 +421,37 @@ contains
 
        !call map_in(i,1)%p%remove_MDpoles() !remove mono and dipole components
        !call map_in(i,1)%p%writeFITS('nodp.fits')
+       !map_in(i,1)%p%map = 0.d0
+       !do j = 1, map_in(i,1)%p%info%np
+       !  if (map_in(i,1)%p%info%pix(j) == int(map_in(i,1)%p%info%npix/2.d0 - 1000)) then
+       !    map_in(i,1)%p%map(j,1) = 1.d0
+       !  end if
+       !end do
+       !call map_in(i,1)%p%writefits('test_fits_out.fits')
+
+       !TODO: figure out why this is rotated
        call map_in(i,1)%p%YtW()  ! Compute sky a_lms
+
+       !fake nside = 1 make to debug sidelobe alms
+       !fake_mapinfo => comm_mapinfo(self%comm, 2, 5, 3, .true.) 
+       !map_fake=> comm_map(fake_mapinfo)
+       !map_fake%map = 0.d0
+       !do j = 0, map_fake%info%np - 1
+         !if (map_fake%info%pix(j+1) == 20) then
+       !    map_fake%map(j,1) =map_fake%info%pix(j+1)
+         !end if
+       !end do 
+       !call map_fake%YtW()
+
+       !self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+       !     & self%myid_inter, self%comm_inter, 2, 5, 3, 5, &
+       !     & self%slbeam(i)%p, map_fake, 2)
+
+
        self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-            & self%myid_inter, self%comm_inter, 128, 256, 3, 256, &
+            & self%myid_inter, self%comm_inter, 128, 100, 3, 100, &
             & self%slbeam(i)%p, map_in(i,1)%p, 2)
+
     end do
     call wall_time(t2); t_tot(13) = t2-t1
 
@@ -1009,7 +1050,7 @@ contains
        end if
     end if
 
-    !stop
+    stop
 
     ! Clean up temporary arrays
     deallocate(A_abscal, b_abscal, chisq_S)

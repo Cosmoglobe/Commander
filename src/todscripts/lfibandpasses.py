@@ -2,6 +2,7 @@ import h5py
 import os
 import healpy as hp
 import numpy as np
+import math
 from astropy.io import fits
 
 def main():
@@ -14,6 +15,13 @@ def main():
     beamDir = '/mn/stornext/d16/cmbco/bp/data/beamalms/totalAlm'
 
     horns = {30:[27, 28], 44:[24, 25, 26], 70:[18, 19, 20, 21, 22, 23]}
+
+    #fwhm, elipticity and psi_ell from https://www.aanda.org/articles/aa/full_html/2016/10/aa25809-15/T6.html
+    fwhms = {'18M':13.44, '18S':13.5, '19M':13.14, '19S':13.07, '20M':12.84, '20S':12.84, '21M':12.77, '21S':12.87, '22M':12.92, '22S':12.97, '23M':13.35, '23S':13.36, '24M':23.18, '24S':23.04, '25M':30.23, '25S':30.94, '26M':30.29, '26S':30.64, '27M':32.02, '27S':33.11, '28M':33.1, '28S':33.09}
+
+    elips = {'18M':1.23, '18S':1.27, '19M':1.25, '19S':1.28, '20M':1.27, '20S':1.29, '21M':1.28, '21S':1.29, '22M':1.27, '22S':1.28, '23M':1.23, '23S':1.28, '24M':1.39, '24S':1.34, '25M':1.19, '25S':1.19, '26M':1.19, '26S':1.19, '27M':1.37, '27S':1.38, '28M':1.37, '28S':1.37}
+
+    psis = {'18M':85, '18S':86, '19M':78, '19S':79, '20M':71, '20S':72, '21M':107, '21S':106, '22M':101, '22S':101, '23M':92, '23S':92, '24M':89, '24S':89, '25M':114, '25S':117, '26M':62, '26S':61, '27M':101, '27S':101, '28M':78, '28S':78}
 
     outFile = h5py.File(os.path.join(outDir, 'LFI_instrument.h5'), 'w')
 
@@ -56,6 +64,11 @@ def main():
                 outFile.create_dataset(prefix + '/beamlmax', data=[getLmax(len(beamData), mmax_b)])
                 outFile.create_dataset(prefix + '/slmmax', data=[mmax_s])
                 outFile.create_dataset(prefix + '/sllmax', data=[getLmax(len(slData), mmax_s)]) 
+    
+                #beam parameters
+                outFile.create_dataset(prefix + '/fwhm', data=[fwhms[str(horn) + hornType]])
+                outFile.create_dataset(prefix + '/elip', data=[elips[str(horn) + hornType]])
+                outFile.create_dataset(prefix + '/psi_ell', data=[math.radians(psis[str(horn) + hornType])])
 
                 print(prefix)
  

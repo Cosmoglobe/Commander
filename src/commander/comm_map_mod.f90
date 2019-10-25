@@ -345,26 +345,11 @@ contains
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(fieldName) // '/E', mmax, 2)
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(fieldName) // '/B', mmax, 3)
     else 
-      nalm = 123543225
-      allocate(tempalms(nalm, 4, 3))
-      allocate(header(10, 3))
+      constructor_alms%alm = 0.d0
+      mmax = info%lmax
 
-      !TODO: this fits call doesn't seem to work properly for some reason
-      call fits2alms("/mn/stornext/d16/cmbco/bp/data/beamalms/sl/sl_030_27_x_qucs-raa.alm", nalm, tempalms, 3, header, 10, 3)
-
-      do i = 0, nalm
-        l = tempalms(i, 1, 1)
-        m = tempalms(i, 2, 1)
-        call constructor_alms%info%lm2i(l, m, j)
-        constructor_alms%alm(j,:) = sqrt(2.d0) * tempalms(i,3,1)
-        call constructor_alms%info%lm2i(l, -m, j)
-        constructor_alms%alm(j,:) = sqrt(2.d0) * tempalms(i,4,1)
-      end do
-
-      deallocate(header)
-      deallocate(tempalms)
     end if
-
+    info%mmax = mmax
     constructor_alms%map = 0.d0
 
   end function constructor_alms
@@ -653,10 +638,12 @@ contains
        deallocate(p, map)
 
     else
+
        call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
        call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
        call mpi_send(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
             & self%info%comm, ierr)
+
 
        if (present(hdffile)) then
           call mpi_send(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)
