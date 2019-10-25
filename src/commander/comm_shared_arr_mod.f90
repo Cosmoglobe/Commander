@@ -54,6 +54,16 @@ module comm_shared_arr_mod
      integer(i4b), pointer,     dimension(:)  :: a
   end type shared_1d_int
 
+  type shared_2d_int
+     logical(lgt) :: init = .false.
+     integer(i4b) :: myid_shared, comm_shared, myid_inter, comm_inter
+     !integer(i4b) :: win, wsize, disp_unit
+     integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
+     type(C_PTR)  :: baseptr
+     integer(i4b), allocatable, dimension(:)   :: arrshape
+     integer(i4b), pointer,     dimension(:,:)  :: a
+  end type shared_2d_int
+
 
 contains
 
@@ -377,6 +387,59 @@ contains
     call mpi_win_fence(0, arr%win, ierr)
 
   end subroutine sync_shared_1d_int_map
+
+
+
+  subroutine init_shared_2d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
+       & n, arr)
+    implicit none
+    integer(i4b),       intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),       intent(in)  :: n(:)
+    type(shared_2d_int), intent(out) :: arr
+
+    integer(i4b) :: ierr
+
+    arr%myid_shared = myid_shared
+    arr%comm_shared = comm_shared
+    arr%myid_inter  = myid_inter
+    arr%comm_inter  = comm_inter
+    arr%init        = .true.
+    
+    if (arr%myid_shared == 0) then
+       arr%wsize = 4*product(n)
+    else
+       arr%wsize = 0
+    end if
+    allocate(arr%arrshape(2))
+    arr%arrshape  = n
+    arr%disp_unit = 1
+    call mpi_win_allocate_shared(arr%wsize, arr%disp_unit, MPI_INFO_NULL, &
+         & arr%comm_shared, arr%baseptr, arr%win, ierr)
+    if (arr%myid_shared /= 0) then
+       call mpi_win_shared_query(arr%win, 0, arr%wsize, arr%disp_unit, &
+            & arr%baseptr, ierr)
+    end if
+    call c_f_pointer(arr%baseptr, arr%a, arr%arrshape)
+
+    if (arr%myid_shared == 0) arr%a = 0
+    call mpi_win_fence(0, arr%win, ierr)
+
+
+  end subroutine init_shared_2d_int
+
+  subroutine dealloc_shared_2d_int(arr)
+    implicit none
+    type(shared_2d_int), intent(inout) :: arr
+
+    integer(i4b) :: ierr
+  
+    call mpi_win_fence(0, arr%win, ierr)
+    call mpi_win_free(arr%win, ierr)
+    nullify(arr%a)
+    deallocate(arr%arrshape)
+
+  end subroutine dealloc_shared_2d_int
+
 
 
 
