@@ -1491,7 +1491,7 @@ contains
        call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_alm', .false.)
        call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_map', .true.)    ! Read amplitudes
        do i = 1, self%x%info%nmaps
-         self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_ * self%cg_scale)
+         self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale)
        end do
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&

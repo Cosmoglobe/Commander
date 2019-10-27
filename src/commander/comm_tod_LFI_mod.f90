@@ -94,7 +94,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_n_maps = 2 !7
+    constructor%output_n_maps = 7
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -337,10 +337,10 @@ contains
 
     ! Set up full-sky map structures
     call wall_time(t1)
-    correct_sl      = .true. ! .false.
-    chisq_threshold = 30.d0 !7.d0
-    n_main_iter     = 4
-    !chisq_threshold = 1000.d0 
+    correct_sl      = .false.
+    chisq_threshold = 7.d0
+    n_main_iter     = 3
+    chisq_threshold = 30.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -458,11 +458,11 @@ contains
        !     & self%myid_inter, self%comm_inter, 2, 5, 3, 5, &
        !     & self%slbeam(i)%p, map_fake, 2)
 
-
+!       write(*,*) i, 'a', sum(abs(map_in(i,1)%p%alm))
        self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
             & self%myid_inter, self%comm_inter, 128, 100, 3, 100, &
             & self%slbeam(i)%p, map_in(i,1)%p, 2)
-
+!       write(*,*) i, 'b', sum(abs(self%slconv(i)%p%c%a))
     end do
     call wall_time(t2); t_tot(13) = t2-t1
 
@@ -481,13 +481,13 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       do_oper(prep_acal)    = (main_iter == n_main_iter-1) .and. .not. self%first_call
-       do_oper(samp_acal)    = (main_iter == n_main_iter  ) .and. .not. self%first_call
-       do_oper(prep_relbp)   = (main_iter == n_main_iter-2) .and. .not. self%first_call !.and. mod(iter,2) == 0
+       do_oper(prep_acal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(prep_relbp)   = .false. !(main_iter == n_main_iter-3) .and. .not. self%first_call !.and. mod(iter,2) == 0
        do_oper(prep_absbp)   = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call !.and. mod(iter,2) == 1
-       do_oper(samp_bp)      = (main_iter == n_main_iter-1) .and. .not. self%first_call
-       do_oper(prep_G)       = (main_iter == n_main_iter-3) !.and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-2) !.and. .not. self%first_call
+       do_oper(samp_bp)      = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(prep_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = .false. !do_oper(bin_map)             !.and. .not. self%first_call
        !do_oper(samp_N_par)    = .false.
@@ -685,6 +685,7 @@ contains
                 call self%construct_sl_template(self%slconv(j)%p, i, &
                      & nside, pix(:,j), psi(:,j), s_sl(:,j), &
                      & self%mbang(j)+self%polang(j))
+                !if (self%myid == 0) write(*,*) j, sum(abs(s_sl(:,j)))
              end do
           else
              do j = 1, ndet
@@ -1568,7 +1569,8 @@ contains
 
     inv_sigmasq = (1.d0 / self%scans(scan)%d(det)%sigma0)**2
     do i = 1, self%scans(scan)%ntod
-       data  = self%scans(scan)%d(det)%tod(i) - n_corr(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
+       !data  = self%scans(scan)%d(det)%tod(i) - n_corr(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
+       data  = self%scans(scan)%d(det)%tod(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
        A_abs = A_abs + s_orb(i) * inv_sigmasq * mask(i) * s_orb(i)
        b_abs = b_abs + s_orb(i) * inv_sigmasq * mask(i) * data
     end do
