@@ -198,7 +198,7 @@ contains
        !    constructor%slbeam(i)%p%map(j,1) = 1.d0
        !  end if
        !end do
-       call constructor%slbeam(i)%p%YtW()
+       !call constructor%slbeam(i)%p%YtW()
        !constructor%slbeam(i)%p%alm = constructor%slbeam(i)%p%alm/(12.d0/pi)
        !call constructor%slbeam(i)%p%Yt()
        !do j = 0, constructor%slbeam(i)%p%info%nalm-1
