@@ -94,7 +94,7 @@ program commander
   call initialize_from_chain(cpar);        call update_status(status, "init_from_chain")
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
-  if (cpar%enable_tod_analysis) call synchronize_bp_delta
+  if (cpar%enable_tod_analysis) call synchronize_bp_delta(cpar%cs_init_inst_hdf)
   call update_mixing_matrices(update_F_int=.true.)       
 
   if (cpar%output_input_model) then
@@ -151,6 +151,7 @@ program commander
 
   ! Run Gibbs loop
   first_sample = 1
+  call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
   do iter = first_sample, cpar%num_gibbs_iter
 
      if (cpar%myid == 0) then

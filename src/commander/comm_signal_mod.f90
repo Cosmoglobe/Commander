@@ -329,16 +329,28 @@ contains
   end subroutine sample_partialsky_tempamps
 
 
-  subroutine synchronize_bp_delta
+  subroutine synchronize_bp_delta(initHDF)
     implicit none
+    logical(lgt), intent(in) :: initHDF
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, ndet
+    real(dp)     :: mu
 
     do i = 1, numband
        if (trim(data(i)%tod_type) == 'none') cycle
-       do j = 0, data(i)%ndet
+       ndet = data(i)%ndet
+       do j = 1, ndet
           data(i)%bp(j)%p%delta = data(i)%tod%bp_delta(j,:)
        end do
+       if (initHDF) then
+          data(i)%bp(0)%p%delta = data(i)%tod%bp_delta(0,:)
+       else
+          do j = 1, size(data(i)%bp(0)%p%delta)
+             mu = mean(data(i)%tod%bp_delta(1:data(i)%ndet,j))
+             data(i)%tod%bp_delta(1:ndet,j) = data(i)%tod%bp_delta(1:ndet,j) - &
+                  & mu + data(i)%bp(0)%p%delta(j)
+          end do
+       end if
     end do
 
   end subroutine synchronize_bp_delta
