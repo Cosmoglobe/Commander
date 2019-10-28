@@ -51,7 +51,7 @@ module comm_param_mod
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
      logical(lgt)       :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
-     logical(lgt)       :: sample_signal_amplitudes
+     logical(lgt)       :: sample_signal_amplitudes, sample_specind
      
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
@@ -333,6 +333,7 @@ contains
     call get_parameter_hashtable(htbl, 'OUTPUT_SIGNALS_PER_BAND',  par_lgt=cpar%output_sig_per_band)
 
     call get_parameter_hashtable(htbl, 'SAMPLE_SIGNAL_AMPLITUDES', par_lgt=cpar%sample_signal_amplitudes)
+    call get_parameter_hashtable(htbl, 'SAMPLE_SPECTRAL_INDICES',  par_lgt=cpar%sample_specind)
 
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 

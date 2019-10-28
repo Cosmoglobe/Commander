@@ -574,8 +574,7 @@ contains
        end if
     end do
 
-    write(*,*) 'Error: Requested detector ', trim(label), ' not found'
-    stop
+    get_det_id = -1
 
   end function get_det_id
 
@@ -610,7 +609,7 @@ contains
              self%bp_delta(0,par) = val
           else
              j = self%get_det_id(det1)
-             self%bp_delta(j,par) = val
+             if (j > 0) self%bp_delta(j,par) = val
           end if
        else if (line(1:4) == 'PROP') then
           read(line,*) label, det1, det2, par, val
@@ -618,11 +617,13 @@ contains
              self%prop_bp_mean(par) = sqrt(val)
           else
              j = self%get_det_id(det1)
+             if (j < 0) cycle
              if (trim(adjustl(det2)) == trim(adjustl(det1))) then
                 k = j
              else
                 k = self%get_det_id(det2)
              end if
+             if (k < 0) cycle
              self%prop_bp(j,k,par) = val
              self%prop_bp(k,j,par) = val
           end if

@@ -198,7 +198,7 @@ contains
        !    constructor%slbeam(i)%p%map(j,1) = 1.d0
        !  end if
        !end do
-       !call constructor%slbeam(i)%p%YtW()
+       call constructor%slbeam(i)%p%YtW()
        !constructor%slbeam(i)%p%alm = constructor%slbeam(i)%p%alm/(12.d0/pi)
        !call constructor%slbeam(i)%p%Yt()
        !do j = 0, constructor%slbeam(i)%p%info%nalm-1
@@ -337,7 +337,7 @@ contains
 
     ! Set up full-sky map structures
     call wall_time(t1)
-    correct_sl      = .false.
+    correct_sl      = .false. !.true.
     chisq_threshold = 7.d0
     n_main_iter     = 3
     chisq_threshold = 30.d0
@@ -731,7 +731,10 @@ contains
           if (do_oper(prep_G)) then
              call wall_time(t1)
              do j = 1, ndet
-                if (.not. self%scans(i)%d(j)%accept) cycle
+                if (.not. self%scans(i)%d(j)%accept) then
+                   self%scans(i)%d(j)%gain = 0.d0
+                   cycle
+                end if
                 call self%sample_gain(handle, j, i, n_corr(:, j), mask(:,j), &
                      & s_tot(:, j))
              end do
@@ -802,6 +805,16 @@ contains
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+
+
+!!$                call int2string(self%scanid(i), scantext)
+!!$                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
+!!$                write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
+!!$                do k = 1, ntod, 60
+!!$                   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
+!!$                end do
+!!$                close(78)
+
                 call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
                      & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
                      & A_abscal(j), b_abscal(j))
@@ -1537,6 +1550,7 @@ contains
           where (g(:,j,1) > 0)
              g(:,j,1) = g(:,j,1) - g0/ntot + self%gain0(j)
           end where
+          !write(*,*) 'smooth', real(g0/ntot,sp), real(self%gain0(j),sp)
 
        end do
     end if
@@ -1563,17 +1577,42 @@ contains
     real(sp),          dimension(:), intent(in)     :: n_corr
     real(dp),                        intent(inout)  :: A_abs, b_abs
 
-    integer(i4b) :: i
-    real(dp)     :: data          
+    integer(i4b) :: i, n
+    real(dp)     :: data, mu, A(3,3), b(3), chisq
     real(dp)     :: inv_sigmasq   
 
+    n = size(s_orb) - mod(size(s_orb), int(60.d0*self%samprate))
+
     inv_sigmasq = (1.d0 / self%scans(scan)%d(det)%sigma0)**2
-    do i = 1, self%scans(scan)%ntod
+    mu = sum(mask(1:n)*(self%scans(scan)%d(det)%tod(1:n) - self%scans(scan)%d(det)%gain * s_sub(1:n)))/sum(mask(1:n))
+    A = 0.d0; b = 0.d0
+    chisq = 0.d0
+    do i = 1, n !self%scans(scan)%ntod
        !data  = self%scans(scan)%d(det)%tod(i) - n_corr(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
-       data  = self%scans(scan)%d(det)%tod(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
-       A_abs = A_abs + s_orb(i) * inv_sigmasq * mask(i) * s_orb(i)
-       b_abs = b_abs + s_orb(i) * inv_sigmasq * mask(i) * data
+       data  = self%scans(scan)%d(det)%tod(i) 
+       A(1,1) = A(1,1) + s_orb(i) * inv_sigmasq * mask(i) * s_orb(i)
+       A(2,1) = A(2,1) + s_sub(i) * inv_sigmasq * mask(i) * s_orb(i)
+       A(3,1) = A(3,1) +            inv_sigmasq * mask(i) * s_orb(i)
+       A(2,2) = A(2,2) + s_sub(i) * inv_sigmasq * mask(i) * s_sub(i)
+       A(3,2) = A(3,2) +            inv_sigmasq * mask(i) * s_sub(i)
+       A(3,3) = A(3,3) +            inv_sigmasq * mask(i) 
+
+       b(1)   = b(1)   + s_orb(i) * inv_sigmasq * mask(i) * data
+       b(2)   = b(2)   + s_sub(i) * inv_sigmasq * mask(i) * data
+       b(3)   = b(3)   +            inv_sigmasq * mask(i) * data
     end do
+    call invert_matrix(A, cholesky=.true.)
+    b = matmul(A,b)
+
+!!$    do i = 1, n 
+!!$       data  = self%scans(scan)%d(det)%tod(i) - b(2) * s_sub(i) - b(3) * mu - b(1) * s_orb(i)
+!!$       chisq = chisq + data**2 * inv_sigmasq * mask(i) 
+!!$    end do
+!!$
+!!$    write(*,*) 'abscal', self%scanid(scan), real(b(1),sp), real(sqrt(1/A(1,1)),sp), real(chisq/sum(mask(1:n)),sp)
+
+    A_abs = A_abs + 1    / A(1,1)
+    b_abs = b_abs + b(1) / A(1,1)
 
   end subroutine accumulate_absgain_from_orbital
 
