@@ -162,6 +162,7 @@ contains
          write(*,*) 'nan in sl interpolation', pix, psi, pixnum, unwrap, interp
          stop
       end if
+      !write(*,*) "Interp: ", interp
       return
     end if
 
@@ -178,7 +179,6 @@ contains
     x0     = psii * self%psires
     x1     = psiu * self%psires
     interp = ((self%c%a(pixnum+1, psii+1)) * (x1 - unwrap) + self%c%a(pixnum+1, psiu+1) * (unwrap - x0))/(x1 - x0)
-
 
   end function interp
 
