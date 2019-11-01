@@ -339,7 +339,7 @@ contains
     call wall_time(t1)
     correct_sl      = .true.
     chisq_threshold = 7.d0
-    n_main_iter     = 3
+    n_main_iter     = 4
     chisq_threshold = 30.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -481,15 +481,15 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       do_oper(prep_acal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_acal)    = (main_iter == n_main_iter-1) .and. .not. self%first_call
-       do_oper(prep_relbp)   = .false. !(main_iter == n_main_iter-3) .and. .not. self%first_call !.and. mod(iter,2) == 0
+       do_oper(prep_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call !.and. mod(iter,2) == 0
        do_oper(prep_absbp)   = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call !.and. mod(iter,2) == 1
-       do_oper(samp_bp)      = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(prep_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-0) .and. .not. self%first_call
+       do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
+       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
-       do_oper(samp_mono)    = .false. !do_oper(bin_map)             !.and. .not. self%first_call
+       do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        !do_oper(samp_N_par)    = .false.
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
@@ -707,7 +707,7 @@ contains
           ! Fit correlated noise
           if (do_oper(samp_N)) then
              call wall_time(t1)
-             call self%sample_n_corr(handle, i, mask, s_tot, n_corr)
+             call self%sample_n_corr(handle, i, mask, s_tot-s_mono, n_corr)
              !if (do_oper(bin_map)) write(*,*) 'b', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod/self%scans(i)%d(1)%gain
              call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
@@ -818,6 +818,10 @@ contains
                 call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
                      & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
                      & A_abscal(j), b_abscal(j))
+
+!!$                call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
+!!$                     & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
+!!$                     & A_abscal(j), b_abscal(j))
              end do
              call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
           end if
@@ -833,7 +837,7 @@ contains
                      & inv_gain - s_tot(:,j) + s_sky(:,j) - s_bp(:,j)
                 if (do_oper(bin_map) .and. nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_bp(:,j) ! Residual
                 !if (do_oper(bin_map) .and. nout > 1) write(*,*) sum(d_calib(2,:,j))/ntod 
-                if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = n_corr(:,j) * inv_gain
+                if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
                 if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
                 if (do_oper(bin_map) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
                 if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
@@ -1578,31 +1582,44 @@ contains
     real(dp),                        intent(inout)  :: A_abs, b_abs
 
     integer(i4b) :: i, n
-    real(dp)     :: data, mu, A(3,3), b(3), chisq
+    real(dp)     :: data, A(2,2), b(2), chisq
     real(dp)     :: inv_sigmasq   
 
     n = size(s_orb) - mod(size(s_orb), int(60.d0*self%samprate))
 
     inv_sigmasq = (1.d0 / self%scans(scan)%d(det)%sigma0)**2
-    mu = sum(mask(1:n)*(self%scans(scan)%d(det)%tod(1:n) - self%scans(scan)%d(det)%gain * s_sub(1:n)))/sum(mask(1:n))
     A = 0.d0; b = 0.d0
-    chisq = 0.d0
     do i = 1, n !self%scans(scan)%ntod
        !data  = self%scans(scan)%d(det)%tod(i) - n_corr(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
-       data  = self%scans(scan)%d(det)%tod(i) 
+       data  = self%scans(scan)%d(det)%tod(i) - self%scans(scan)%d(det)%gain * s_sub(i) - (self%scans(scan)%d(det)%gain-self%gain0(det)) * s_orb(i)
        A(1,1) = A(1,1) + s_orb(i) * inv_sigmasq * mask(i) * s_orb(i)
-       A(2,1) = A(2,1) + s_sub(i) * inv_sigmasq * mask(i) * s_orb(i)
-       A(3,1) = A(3,1) +            inv_sigmasq * mask(i) * s_orb(i)
-       A(2,2) = A(2,2) + s_sub(i) * inv_sigmasq * mask(i) * s_sub(i)
-       A(3,2) = A(3,2) +            inv_sigmasq * mask(i) * s_sub(i)
-       A(3,3) = A(3,3) +            inv_sigmasq * mask(i) 
+       A(2,1) = A(2,1) +            inv_sigmasq * mask(i) * s_orb(i)
+       A(2,2) = A(2,2) +            inv_sigmasq * mask(i) 
 
        b(1)   = b(1)   + s_orb(i) * inv_sigmasq * mask(i) * data
-       b(2)   = b(2)   + s_sub(i) * inv_sigmasq * mask(i) * data
-       b(3)   = b(3)   +            inv_sigmasq * mask(i) * data
+       b(2)   = b(2)   +            inv_sigmasq * mask(i) * data
     end do
     call invert_matrix(A, cholesky=.true.)
     b = matmul(A,b)
+
+!!$    A = 0.d0; b = 0.d0
+!!$    chisq = 0.d0
+!!$    do i = 1, n !self%scans(scan)%ntod
+!!$       !data  = self%scans(scan)%d(det)%tod(i) - n_corr(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
+!!$       data  = self%scans(scan)%d(det)%tod(i) 
+!!$       A(1,1) = A(1,1) + s_orb(i) * inv_sigmasq * mask(i) * s_orb(i)
+!!$       A(2,1) = A(2,1) + s_sub(i) * inv_sigmasq * mask(i) * s_orb(i)
+!!$       A(3,1) = A(3,1) +            inv_sigmasq * mask(i) * s_orb(i)
+!!$       A(2,2) = A(2,2) + s_sub(i) * inv_sigmasq * mask(i) * s_sub(i)
+!!$       A(3,2) = A(3,2) +            inv_sigmasq * mask(i) * s_sub(i)
+!!$       A(3,3) = A(3,3) +            inv_sigmasq * mask(i) 
+!!$
+!!$       b(1)   = b(1)   + s_orb(i) * inv_sigmasq * mask(i) * data
+!!$       b(2)   = b(2)   + s_sub(i) * inv_sigmasq * mask(i) * data
+!!$       b(3)   = b(3)   +            inv_sigmasq * mask(i) * data
+!!$    end do
+!!$    call invert_matrix(A, cholesky=.true.)
+!!$    b = matmul(A,b)
 
 !!$    do i = 1, n 
 !!$       data  = self%scans(scan)%d(det)%tod(i) - b(2) * s_sub(i) - b(3) * mu - b(1) * s_orb(i)
@@ -2493,7 +2510,7 @@ contains
           chisq0 = chisq_prop
           naccept = naccept + 1
        end if
-       if (res%info%myid == 0) write(78,*) i, chisq0, mono0
+       if (res%info%myid == 0 .and. mod(i,100) == 0) write(78,*) i, chisq0, mono0
        if (first_call) samples(:,i) = mono0
 
     end do
