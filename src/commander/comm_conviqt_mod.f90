@@ -152,7 +152,8 @@ contains
     pixnum = self%pixLookup%a(pix+1)
 
     !unwrap psi
-    unwrap = modulo(-psi, 2.d0*pi)
+    !unwrap = modulo(-psi, 2.d0*pi)
+    unwrap = modulo(psi, 2.d0*pi)
 
     if (self%optim == 2) then
        bpsi = max(nint(unwrap / self%psires),0)
@@ -225,18 +226,18 @@ contains
                & mout(:,1:2), self%info%geom_info_T, comm=self%comm)
 
           ! Rotate by 90 degrees in psi
-          sign1 = 1; sign2 = -1; quadrant = modulo(j,4)
-          if (iand(quadrant,1)) then
-             marray(:,j) = mout(:,1)
-             mout(:,1)   = mout(:,2)
-             mout(:,2)   = marray(:,j)
-             sign2       = sign1
-             sign1       = -sign1
-          end if
-          if (quadrant==1 .or. quadrant == 2) sign1 = -sign1
-          if (quadrant==2 .or. quadrant == 3) sign2 = -sign2
-          if (sign1 /= 1) mout(:,1) = -mout(:,1)
-          if (sign2 /= 1) mout(:,2) = -mout(:,2)
+!!$          sign1 = 1; sign2 = -1; quadrant = modulo(j,4)
+!!$          if (iand(quadrant,1)) then
+!!$             marray(:,j) = mout(:,1)
+!!$             mout(:,1)   = mout(:,2)
+!!$             mout(:,2)   = marray(:,j)
+!!$             sign2       = sign1
+!!$             sign1       = -sign1
+!!$          end if
+!!$          if (quadrant==1 .or. quadrant == 2) sign1 = -sign1
+!!$          if (quadrant==2 .or. quadrant == 3) sign2 = -sign2
+!!$          if (sign1 /= 1) mout(:,1) = -mout(:,1)
+!!$          if (sign2 /= 1) mout(:,2) = -mout(:,2)
 
           marray(:, j) = mout(:,1)
           marray(:,-j) = mout(:,2)

@@ -110,7 +110,7 @@ contains
           data(band)%gain = min(max(gain_new, data(band)%gain-MAX_DELTA_G), data(band)%gain+MAX_DELTA_G)
        end if
 
-       ! Distribute new gaxins
+       ! Distribute new gains
        call mpi_bcast(data(band)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(band)%info%comm, ierr)
 
        call invN_sig%dealloc()
