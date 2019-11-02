@@ -177,9 +177,10 @@ contains
     end if
   end subroutine add_to_complist
 
-  subroutine initialize_from_chain(cpar)
+  subroutine initialize_from_chain(cpar, init_samp)
     implicit none
-    type(comm_params), intent(in) :: cpar
+    type(comm_params), intent(in)           :: cpar
+    integer(i4b),      intent(in), optional :: init_samp
 
     integer(i4b)              :: i, j, ext(2)
     character(len=4)          :: ctext
@@ -193,7 +194,11 @@ contains
 
     ! Open HDF file
     call int2string(cpar%mychain,   ctext)
-    call int2string(cpar%init_samp, itext)
+    if (present(init_samp)) then
+       call int2string(init_samp, itext)
+    else
+       call int2string(cpar%init_samp, itext)
+    end if
     if (trim(cpar%chain_prefix) == trim(cpar%init_chain_prefix)) then
        chainfile = trim(adjustl(cpar%outdir)) // '/' // trim(adjustl(cpar%chain_prefix)) // &
             & '_c' // trim(adjustl(ctext)) // '.h5'
@@ -233,8 +238,7 @@ contains
     ! Initialize component parameters
     c   => compList
     do while (associated(c))
-
-       if (.not. c%init_from_HDF) then
+       if (.not. c%init_from_HDF .or. (present(init_samp) .and. trim(c%type) == 'cmb')) then
           c => c%next()
           cycle
        end if
