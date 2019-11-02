@@ -28,6 +28,8 @@ module comm_param_mod
 
      ! Global parameters
      character(len=24)  :: operation
+     logical(lgt)       :: resamp_CMB
+     integer(i4b)       :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
      integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
      integer(i4b)       :: num_gibbs_iter, num_ml_iter, init_samp
      integer(i4b)       :: nskip_filelist
@@ -204,6 +206,20 @@ contains
     call read_global_params_hash(htable,cpar)
     call read_data_params_hash(htable,cpar)
     call read_component_params_hash(htable,cpar)
+
+    ! Override parameter choices if user if RESAMPLE_CMB = .true.
+    if (cpar%resamp_CMB) then
+       cpar%operation           = 'sample'     ! Force sampling
+       cpar%cg_precond          = 'diagonal'   ! Use diagonal precond to fill in the mask
+       cpar%enable_TOD_analysis = .false.      ! Disable TOD analysis
+       cpar%sample_specind      = .false.      ! Disable non-linear parameter fitting
+       cpar%num_gibbs_iter      = (cpar%last_samp_resamp-cpar%first_samp_resamp+1)*cpar%numsamp_per_resamp
+       do i = 1, cpar%cs_ncomp_tot
+          if (trim(cpar%cs_type(i)) /= 'cmb') then
+             cpar%cs_cg_samp_group(i) = 0   ! Disable all other components than CMB from CG search
+          end if
+       end do
+    end if
     
     !Deallocate hash table
     call free_hash_tbl_sll(htable)
@@ -289,6 +305,7 @@ contains
     
     call get_parameter_hashtable(htbl, 'VERBOSITY',                par_int=cpar%verbosity)
     call get_parameter_hashtable(htbl, 'OPERATION',                par_string=cpar%operation)
+    call get_parameter_hashtable(htbl, 'RESAMPLE_CMB',             par_lgt=cpar%resamp_CMB)
 
     call get_parameter_hashtable(htbl, 'BASE_SEED',                par_int=cpar%base_seed)
     !call get_parameter_hashtable(htbl, 'BASE_SEED_NOISE',          par_int=cpar%base_seed_noise)
@@ -344,6 +361,12 @@ contains
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER', par_int=cpar%output_4D_map_nth_iter)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
+    end if
+
+    if (cpar%resamp_CMB) then
+       call get_parameter_hashtable(htbl, 'FIRST_SAMPLE_FOR_CMB_RESAMP',   par_int=cpar%first_samp_resamp)
+       call get_parameter_hashtable(htbl, 'LAST_SAMPLE_FOR_CMB_RESAMP',    par_int=cpar%last_samp_resamp)
+       call get_parameter_hashtable(htbl, 'NUM_SUBSAMP_PER_MAIN_SAMPLE',   par_int=cpar%numsamp_per_resamp)
     end if
 
     allocate(cpar%fwhm_smooth(cpar%num_smooth_scales))

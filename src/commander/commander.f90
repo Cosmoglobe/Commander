@@ -31,7 +31,7 @@ program commander
   ! *                                                                   *
   ! *********************************************************************
 
-  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group
+  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp
   real(dp)            :: t0, t1, t2, t3, dbp
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
@@ -92,8 +92,6 @@ program commander
   call initialize_data_mod(cpar, handle);  call update_status(status, "init_data")
   call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
   call initialize_from_chain(cpar);        call update_status(status, "init_from_chain")
-  !write(*,*) 'Setting K and Ka gain to 1'
-  !data(6:7)%gain = 1.d0
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   if (cpar%enable_tod_analysis) call synchronize_bp_delta(cpar%cs_init_inst_hdf)
@@ -124,32 +122,7 @@ program commander
      write(*,fmt='(a,f12.3,a)') '   Time to read data = ', t2-t1, ' sec'
      write(*,*) '   Starting Gibbs sampling'
   end if
-  ! Initialize output structures
 
-!!$  dbp = 0.
-!!$  data(1)%bp(1)%p%delta(1) = -0.018238
-!!$  data(1)%bp(2)%p%delta(1) =  0.190366
-!!$  data(1)%bp(3)%p%delta(1) = -0.201403
-!!$  data(1)%bp(4)%p%delta(1) =  0.029275
-!!$  !data(1)%bp(:)%p%delta(1) = data(1)%bp(:)%p%delta(1) - mean(data(1)%bp(:)%p%delta(1))
-
-!!$  data(1)%bp(0)%p%delta(1) = -0.25d0
-!!$  data(2)%bp(0)%p%delta(1) = -0.46d0
-!!$  data(3)%bp(0)%p%delta(1) =  1.78d0
-
-  ! Initialize bandpass parameters and covariance matrices
-!  data(3)%bp%p%delta(1) =  [0.0000000E+00, -0.4607293,      0.2249896 ,     0.3114151,    &
-!  & 0.4158896,     -0.1479049 ,     0.8185435 ,    -0.1549835 ,    -0.2939563, &    
-! & -7.3387255E-03 , 0.4147546 ,    -0.3412309  ,   -0.7794487]
-
-
-!  data(1)%tod%sigma_bp = 0.1d0
-!  if (size(data)>1) data(2)%tod%sigma_bp = 0.1d0
-!  if (size(data)>2) data(3)%tod%sigma_bp = 0.1d0
-
-!!$  data(1)%tod%sigma_bp = 0.01d0
-!!$  if (size(data)>1) data(2)%tod%sigma_bp = 0.01d0
-!!$  if (size(data)>2) data(3)%tod%sigma_bp = 0.01d0
 
   ! Run Gibbs loop
   first_sample = 1
@@ -162,10 +135,19 @@ program commander
         write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
 
+     ! Initialize on existing sample if RESAMPLE_CMB = .true.
+     if (.false. .and. cpar%resamp_CMB) then
+        if (mod(iter-1,cpar%numsamp_per_resamp) == 0) then
+           curr_samp = (iter-1)/cpar%numsamp_per_resamp+cpar%first_samp_resamp
+           if (cpar%myid == 0) write(*,*) 'Re-initializing on sample ', curr_samp
+           call initialize_from_chain(cpar, init_samp=curr_samp)
+           call update_mixing_matrices(update_F_int=.true.)       
+        end if
+     end if
+
      ! Process TOD structures
      if (cpar%enable_TOD_analysis) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
-        !if (iter == 1) call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
