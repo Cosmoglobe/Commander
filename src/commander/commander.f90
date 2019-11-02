@@ -92,6 +92,8 @@ program commander
   call initialize_data_mod(cpar, handle);  call update_status(status, "init_data")
   call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
   call initialize_from_chain(cpar);        call update_status(status, "init_from_chain")
+  !write(*,*) 'Setting K and Ka gain to 1'
+  !data(6:7)%gain = 1.d0
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   if (cpar%enable_tod_analysis) call synchronize_bp_delta(cpar%cs_init_inst_hdf)
@@ -307,9 +309,9 @@ contains
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
        if (associated(data(i)%procmask)) then
-          call data(i)%N%update_N(handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+          call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
        else
-          call data(i)%N%update_N(handle, data(i)%mask, regnoise, map=rms)
+          call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
        end if
        if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
        data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise

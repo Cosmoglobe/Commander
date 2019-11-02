@@ -66,6 +66,10 @@ contains
     select case (trim(constructor%unit))
     case ('uK_cmb')
        constructor%RJ2unit_ = data(band)%bp(0)%p%a2t
+    case ('mK_cmb')
+       constructor%RJ2unit_ = data(band)%bp(0)%p%a2t * 1d-3
+    case ('K_cmb')
+       constructor%RJ2unit_ = data(band)%bp(0)%p%a2t * 1d-6
     case ('MJy/sr') 
        constructor%RJ2unit_ = data(band)%bp(0)%p%a2t / data(band)%bp(0)%p%f2t
     case ('uK_RJ') 

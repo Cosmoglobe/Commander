@@ -9,14 +9,14 @@ module comm_N_mod
   type, abstract :: comm_N
      ! Data variables
      character(len=512)       :: type
-     integer(i4b)             :: nside, nmaps, np
+     integer(i4b)             :: nside, nmaps, np, npix, myid, comm, nprocs
      logical(lgt)             :: pol
      logical(lgt)             :: set_noise_to_mean
      character(len=512)       :: cg_precond
      real(dp)                 :: uni_fsky
      real(dp), allocatable, dimension(:) :: alpha_nu ! (T,Q,U)
      class(comm_map), pointer :: invN_diag
-     class(comm_map), pointer :: siN
+     class(comm_mapinfo), pointer :: info
    contains
      ! Data procedures
      procedure(matmulInvN),     deferred :: invN
@@ -70,15 +70,16 @@ module comm_N_mod
      end function returnRMSpix
 
      ! Update noise model
-     subroutine update_N(self, handle, mask, regnoise, procmask, filename, map)
-       import comm_N, comm_map, dp, planck_rng
+     subroutine update_N(self, info, handle, mask, regnoise, procmask, noisefile, map)
+       import comm_N, comm_mapinfo, comm_map, dp, planck_rng
        implicit none
        class(comm_N),                      intent(inout)          :: self
        type(planck_rng),                   intent(inout)          :: handle
-       class(comm_map),                    intent(in)             :: mask
-       real(dp),         dimension(0:,1:), intent(out)            :: regnoise
+       class(comm_mapinfo),                intent(in)             :: info
+       class(comm_map),                    intent(in),   optional :: mask
+       real(dp),         dimension(0:,1:), intent(out),  optional :: regnoise
        class(comm_map),                    intent(in),   optional :: procmask
-       character(len=*),                   intent(in),   optional :: filename
+       character(len=*),                   intent(in),   optional :: noisefile
        class(comm_map),                    intent(in),   optional :: map
      end subroutine update_N
 

@@ -167,6 +167,9 @@ contains
           end if
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
+       case ('QUcov') 
+          data(n)%N       => comm_N_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+               & data(n)%procmask)
        case default
           call report_error("Unknown noise format: " // trim(cpar%ds_noise_format(i)))
        end select
@@ -251,6 +254,10 @@ contains
     select case (trim(self%unit))
     case ('uK_cmb') 
        RJ2data = self%bp(d)%p%a2t
+    case ('mK_cmb') 
+       RJ2data = self%bp(d)%p%a2t * 1d-3
+    case ('K_cmb') 
+       RJ2data = self%bp(d)%p%a2t * 1d-6
     case ('MJy/sr') 
        RJ2data = self%bp(d)%p%a2t / self%bp(d)%p%f2t
     case ('y_SZ') 
