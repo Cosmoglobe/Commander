@@ -15,7 +15,7 @@ module comm_map_mod
 !  include "mpif.h"
       
   private
-  public comm_map, comm_mapinfo, map_ptr
+  public comm_map, comm_mapinfo, map_ptr, write_map
 
 
   type :: comm_mapinfo
@@ -831,13 +831,14 @@ contains
   end subroutine readHDF_mmax
 
 
-  subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+  subroutine write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile,nest)
     implicit none
 
     character(len=*),                   intent(in)  :: filename
     real(dp),         dimension(0:,1:), intent(in)  :: map
     character(len=*),                   intent(in), optional :: comptype, unit, spectrumfile, ttype
     real(dp),                           intent(in), optional :: nu_ref
+    logical(lgt),                       intent(in), optional :: nest
 
     integer(i4b)   :: npix, nlheader, nmaps, i, nside
     logical(lgt)   :: exist, polarization
@@ -869,7 +870,11 @@ contains
     call add_card(header,"COMMENT","     Sky Map Pixelisation Specific Keywords    ")
     call add_card(header,"COMMENT","-----------------------------------------------")
     call add_card(header,"PIXTYPE","HEALPIX","HEALPIX Pixelisation")
-    call add_card(header,"ORDERING","RING",  "Pixel ordering scheme, either RING or NESTED")
+    if (present(nest)) then
+       call add_card(header,"ORDERING","NESTED",  "Pixel ordering scheme, either RING or NESTED")
+    else
+       call add_card(header,"ORDERING","RING",  "Pixel ordering scheme, either RING or NESTED")
+    end if
     call add_card(header,"NSIDE"   ,nside,   "Resolution parameter for HEALPIX")
     call add_card(header,"FIRSTPIX",0,"First pixel # (0 based)")
     call add_card(header,"LASTPIX",npix-1,"Last pixel # (0 based)")

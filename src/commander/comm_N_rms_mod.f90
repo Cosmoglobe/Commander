@@ -8,6 +8,7 @@ module comm_N_rms_mod
   public comm_N_rms, comm_N_rms_ptr
   
   type, extends (comm_N) :: comm_N_rms
+     class(comm_map), pointer :: siN
    contains
      ! Data procedures
      procedure :: invN     => matmulInvN_1map
@@ -60,15 +61,16 @@ contains
     constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
+    constructor%info              => info
     if (id_smooth == 0) then
        constructor%nside   = info%nside
        constructor%np      = info%np
        if (present(procmask)) then
-          call constructor%update_N(handle, mask, regnoise, procmask=procmask, &
-               & filename=trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
+          call constructor%update_N(info, handle, mask, regnoise, procmask=procmask, &
+               & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
        else
-          call constructor%update_N(handle, mask, regnoise, &
-               & filename=trim(dir)//trim(cpar%ds_noise_rms(id_abs)))
+          call constructor%update_N(info, handle, mask, regnoise, &
+               & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
        end if
     else
        tmp         =  getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth)
@@ -100,22 +102,23 @@ contains
   end function constructor
 
 
-  subroutine update_N_rms(self, handle, mask, regnoise, procmask, filename, map)
+  subroutine update_N_rms(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
     class(comm_N_rms),                   intent(inout)          :: self
+    class(comm_mapinfo),                 intent(in)             :: info
     type(planck_rng),                    intent(inout)          :: handle
-    class(comm_map),                     intent(in)             :: mask
-    real(dp),          dimension(0:,1:), intent(out)            :: regnoise
+    class(comm_map),                     intent(in),   optional :: mask
+    real(dp),          dimension(0:,1:), intent(out),  optional :: regnoise
     class(comm_map),                     intent(in),   optional :: procmask
-    character(len=*),                    intent(in),   optional :: filename
+    character(len=*),                    intent(in),   optional :: noisefile
     class(comm_map),                     intent(in),   optional :: map
 
     integer(i4b) :: i, ierr
     real(dp)     :: sum_tau, sum_tau2, sum_noise, npix, t1, t2
     class(comm_map),    pointer :: invW_tau
 
-    if (present(filename)) then
-       self%siN     => comm_map(mask%info, filename)
+    if (present(noisefile)) then
+       self%siN     => comm_map(mask%info, noisefile)
     else
        self%siN%map = map%map
     end if

@@ -1,5 +1,7 @@
 module math_tools
   use healpix_types
+  USE OMP_LIB
+
 
   interface invert_matrix
      module procedure invert_matrix_dpc, invert_matrix_dp, invert_matrix_sp
@@ -624,6 +626,94 @@ contains
     deallocate(iwork)
 
   end subroutine compute_hermitian_root
+
+
+  subroutine compute_hermitian_root_with_mask(A, pow, A2, pow2)
+    implicit none
+
+    real(dp),                   intent(in)    :: pow
+    real(dp), dimension(1:,1:), intent(inout) :: A
+    real(dp),                   intent(in),    optional :: pow2
+    real(dp), dimension(1:,1:), intent(inout), optional :: A2
+
+    integer(i8b)     :: i, j, n, liwork, lwork, lda, ldb, info
+    integer(i4b)     :: nomp, nomp_old
+    character(len=1) :: job, uplo
+    real(dp)         :: cutoff_int
+    real(dp),     allocatable, dimension(:,:) :: V
+    real(dp),     allocatable, dimension(:)   :: W, work
+    integer(i4b), allocatable, dimension(:)   :: iwork
+    logical(lgt), allocatable, dimension(:)   :: mask
+
+    job    = 'v'
+    uplo   = 'l'
+    n      = size(A(1,:))
+    lda    = n
+    ldb    = n
+    liwork = 5*n + 3
+    lwork  = 2*n**2 + 6*n + 1
+
+    allocate(mask(n))
+    do i = 1, n
+       mask(i) = (A(i,i) > 0.d0) 
+       if (.not. mask(i)) then
+          A(i,:) = 0.d0
+          A(:,i) = 0.d0
+          A(i,i) = 1.d0
+       end if
+    end do
+
+    ! Perform eigenvalue decomposition
+    allocate(work(lwork))
+    allocate(iwork(liwork))
+    allocate(V(n,n))
+    allocate(W(n))
+    V = A
+    call dsyevd(job, uplo, n, V, lda, W, work, lwork, iwork, liwork, info)
+
+    if (any(W <= 0.d0)) then
+!       write(*,*) 'W = ', W
+       A(1,1) = -1.d30
+       return
+    end if
+
+    ! Re-compose matrix
+    do i = 1, n
+       A(i,:) = W(i)**pow * V(:,i)
+    end do
+    A = matmul(V, A)
+    
+    ! Nullify masked elements
+    do i = 1, n
+       if (.not. mask(i)) then
+          A(i,:) = 0.d0
+          A(:,i) = 0.d0
+       end if
+    end do
+
+    if (present(A2)) then
+       ! Re-compose matrix
+       do i = 1, n
+          A2(i,:) = W(i)**pow2 * V(:,i)
+       end do
+       A2 = matmul(V, A2)
+
+       ! Nullify masked elements
+       do i = 1, n
+          if (.not. mask(i)) then
+             A2(i,:) = 0.d0
+             A2(:,i) = 0.d0
+          end if
+       end do
+    end if
+
+    deallocate(V)
+    deallocate(W)
+    deallocate(work)
+    deallocate(iwork)
+    deallocate(mask)
+
+  end subroutine compute_hermitian_root_with_mask
   
 
   !------------------------------------------------------------------

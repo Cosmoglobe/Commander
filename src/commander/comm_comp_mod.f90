@@ -216,6 +216,10 @@ contains
        select case (trim(self%unit))
        case ('uK_cmb')
           self%RJ2unit_(i) = comp_a2t(self%nu_ref(i))
+       case ('mK_cmb')
+          self%RJ2unit_(i) = comp_a2t(self%nu_ref(i)) * 1d-3
+       case ('K_cmb')
+          self%RJ2unit_(i) = comp_a2t(self%nu_ref(i)) * 1d-6
        case ('MJy/sr') 
           self%RJ2unit_(i) = comp_bnu_prime_RJ(self%nu_ref(i)) * 1e14
        case ('K km/s') 

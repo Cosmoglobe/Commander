@@ -876,5 +876,102 @@ contains
     call output_map(map, header, "!"//trim(filename))
 
   end subroutine write_map2
+
+
+  ! ============================================================================
+  ! "WMAP_Read_NInv" reads a WMAP N-Inverse FITS file.
+  !
+  ! If the output array is  unassociated then this routine will allocate space
+  ! for it.  This is why it is declared as a pointer.  If a destination array is
+  ! supplied then be sure that it is large enough!
+  !
+  ! This routine requires the FITSIO library, available from
+  ! http://heasarc.gsfc.nasa.gov/docs/software/fitsio/fitsio.html
+  !
+  ! Arguments:
+  !	File      - The name of the file.
+  !	Status    - A status code:  0=success.  Most of these are FITS status
+  !	            codes, though memory allocation errors are also passed back
+  !	            unchanged.
+  !	NInv      - The square N-inverse array.
+  !	NElements - The number of elements on each side of NInv.  Optional.
+  !	NPixels   - The number of pixels in the maps that N-inverse applies to.
+  !	            Optional.
+  !
+  ! Written by Michael R. Greason, SSAI, 13 March 2006.
+  ! ============================================================================
+  Subroutine WMAP_Read_NInv (File, Status, NInv, NElements, NPixels)
+    !
+    Implicit None
+    !
+    Character (*),                 Intent(In)	     :: File
+    Integer (Kind=4),              Intent(Out)	     :: Status
+    Real (Kind=4), Dimension(:,:), Pointer               :: NInv
+    Integer (Kind=4),              Intent(Out), Optional :: NElements
+    Integer (Kind=4),              Intent(Out), Optional :: NPixels
+    !
+    Character (80)                 :: comm
+    Integer (Kind=4), Dimension(2) :: naxes
+    Integer (Kind=4)               :: unit, lst, rwmode, tmp, npix
+    Logical                        :: anyf
+    ! ----------------------------------------------------------------------------
+    If (Present(NPixels)  ) NPixels   = 0
+    If (Present(NElements)) NElements = 0
+    Status  = 0
+    !
+    !			Open the FITS file.  Leave it positioned at the
+    !			primary header/data unit (HDU).
+    !
+    rwmode = 0
+    Call FTGIOU (unit, Status)				! Get a free unit #.
+    Call FTOPEN (unit, File, rwmode, tmp, Status)		! Open the file.
+    If (Status .NE. 0) Return
+    !
+    !			How big is the array?
+    !
+    Call FTGISZ (unit, 2, naxes, Status)
+    If ((naxes(1) .LE. 0) .OR. (naxes(1) .NE. naxes(2)) .OR. (Status .NE. 0)) Go To 99
+    !
+    !			How many pixels are in the base map?  Start by looking
+    !			at the NPIX keyword; if that isn't found, use LASTPIX.
+    !			If neither is found, give up!
+    !
+    Call FTGKYJ (unit, 'NPIX', npix, comm, Status)
+    If (Status .NE. 0) Then
+       !
+       Status = 0
+       Call FTGKYJ (unit, 'LASTPIX', npix, comm, Status)
+       If (Status .NE. 0) Go To 99
+       npix = npix + 1
+       !
+    End If
+    !
+    !			Extract data from this first extension table.
+    !
+    If (.NOT. Associated(NInv)) Then
+       Allocate(NInv(naxes(1), naxes(2)), Stat=Status)
+       If (Status .NE. 0) Go To 99
+    End If
+    !
+    tmp = naxes(1) * naxes(2)
+    Call FTGPVE (unit, 0, 1, tmp, 0.0E0, NInv, anyf, Status)
+    !
+    !			Done!  Set the number of pixels, close the FITS file
+    !			and return.
+    !
+    If (Present(NPixels)  ) NPixels   = npix
+    If (Present(NElements)) NElements = naxes(1)
+    !
+99  Continue
+    !
+    lst = 0
+    Call FTCLOS (unit, lst)					! Close the file.
+    Call FTFIOU (unit, lst)					! Release the unit #.
+    If ((lst .NE. 0) .AND. (Status .EQ. 0)) Status = lst
+    !
+    Return
+    ! ----------------------------------------------------------------------------
+  End Subroutine WMAP_Read_NInv
+
   
 end module comm_utils

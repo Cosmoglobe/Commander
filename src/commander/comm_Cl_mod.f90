@@ -103,6 +103,10 @@ contains
        select case (trim(constructor%unit))
        case ('uK_cmb')
           constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l))
+       case ('mK_cmb')
+          constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l)) * 1d-3
+       case ('K_cmb')
+          constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l)) * 1d-6
        case ('MJy/sr') 
           constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1e14
        case ('K km/s') 

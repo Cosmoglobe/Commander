@@ -74,7 +74,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_unit
      character(len=512), allocatable, dimension(:)   :: ds_noise_format
      character(len=512), allocatable, dimension(:)   :: ds_mapfile
-     character(len=512), allocatable, dimension(:)   :: ds_noise_rms
+     character(len=512), allocatable, dimension(:)   :: ds_noisefile
      character(len=512), allocatable, dimension(:,:) :: ds_noise_rms_smooth
      real(dp),           allocatable, dimension(:)   :: ds_noise_uni_fsky
      character(len=512), allocatable, dimension(:)   :: ds_maskfile
@@ -385,7 +385,7 @@ contains
     allocate(cpar%ds_active(n), cpar%ds_label(n))
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
-    allocate(cpar%ds_noise_rms(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
+    allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
     allocate(cpar%ds_noise_rms_smooth(n,cpar%num_smooth_scales))
     allocate(cpar%ds_samp_noiseamp(n), cpar%ds_noise_uni_fsky(n))
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
@@ -411,7 +411,7 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_UNIT'//itext, len_itext=len_itext,            par_string=cpar%ds_unit(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISE_FORMAT'//itext, len_itext=len_itext,    par_string=cpar%ds_noise_format(i))
        call get_parameter_hashtable(htbl, 'BAND_MAPFILE'//itext, len_itext=len_itext,         par_string=cpar%ds_mapfile(i))
-       call get_parameter_hashtable(htbl, 'BAND_NOISE_RMS'//itext, len_itext=len_itext,       par_string=cpar%ds_noise_rms(i))
+       call get_parameter_hashtable(htbl, 'BAND_NOISEFILE'//itext, len_itext=len_itext,       par_string=cpar%ds_noisefile(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISE_UNIFORMIZE_FSKY'//itext, len_itext=len_itext, par_dp=cpar%ds_noise_uni_fsky(i))
        call get_parameter_hashtable(htbl, 'BAND_MASKFILE'//itext, len_itext=len_itext,        par_string=cpar%ds_maskfile(i))
        call get_parameter_hashtable(htbl, 'BAND_MASKFILE_CALIB'//itext, len_itext=len_itext,  par_string=cpar%ds_maskfile_calib(i))
@@ -433,6 +433,7 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_GAIN'//itext, len_itext=len_itext,    par_dp=cpar%ds_defaults(i,GAIN))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_NOISEAMP'//itext, len_itext=len_itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
        call get_parameter_hashtable(htbl, 'BAND_COMPONENT_SENSITIVITY'//itext, len_itext=len_itext, par_string=cpar%ds_component_sensitivity(i))
+
        !read in all TOD parameters
        if (cpar%enable_TOD_analysis) then
           call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
@@ -1126,10 +1127,9 @@ contains
        if (.not. cpar%ds_active(i)) cycle
 
        call validate_file(trim(datadir)//trim(cpar%ds_mapfile(i)))           ! Map file
+       call validate_file(trim(datadir)//trim(cpar%ds_noisefile(i)))         ! Noise file
        if (trim(cpar%ds_maskfile(i)) /= 'fullsky') &
             & call validate_file(trim(datadir)//trim(cpar%ds_maskfile(i)))   ! Mask file
-       if (trim(cpar%ds_noise_format(i)) == 'rms') &
-            & call validate_file(trim(datadir)//trim(cpar%ds_noise_rms(i)))  ! RMS file
        if (trim(cpar%ds_bptype(i)) /= 'delta') &
             & call validate_file(trim(datadir)//trim(cpar%ds_bpfile(i)))     ! Bandpass
        call validate_file(trim(datadir)//trim(cpar%ds_pixwin(i)))            ! Pixel window

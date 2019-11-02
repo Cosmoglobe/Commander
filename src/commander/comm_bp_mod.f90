@@ -11,7 +11,7 @@ module comm_bp_mod
      character(len=512) :: type, model
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, a2sz
+     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta
    contains
      ! Data procedures
@@ -91,10 +91,18 @@ contains
        constructor%threshold = 1.d-5
     case ('dame') 
        constructor%threshold = 0.d0
-       
     case default
        call report_error('Error -- unsupported bandpass type = '//trim(constructor%type))
     end select
+
+    ! Initialize unit scale
+    if (trim(cpar%ds_unit(id_abs)) == 'mK_cmb') then
+       constructor%unit_scale = 1.d-3
+    else if (trim(cpar%ds_unit(id_abs)) == 'K_cmb') then
+       constructor%unit_scale = 1.d-6
+    else
+       constructor%unit_scale = 1.d0
+    end if
 
     ! Initialize raw bandpass
     if (trim(constructor%type) == 'delta') then
@@ -271,6 +279,7 @@ contains
     case ('dame') ! NEW
        SED2F = f(1) * self%a2t
     end select
+    SED2F = SED2F * self%unit_scale
 
   end function SED2F
 

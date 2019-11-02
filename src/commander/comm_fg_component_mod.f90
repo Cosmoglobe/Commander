@@ -895,6 +895,18 @@ contains
        else
           spec2data = 1.d0 / bp(fg_components(comp)%ref_band)%a2t 
        end if
+    else if (trim(intype_) == 'mK_cmb') then
+       if (present(cmb)) then
+          spec2data = 1.d0 / bp(band)%a2t * 1d-3
+       else
+          spec2data = 1.d0 / bp(fg_components(comp)%ref_band)%a2t * 1d-3
+       end if
+    else if (trim(intype_) == 'K_cmb') then
+       if (present(cmb)) then
+          spec2data = 1.d0 / bp(band)%a2t * 1d-6
+       else
+          spec2data = 1.d0 / bp(fg_components(comp)%ref_band)%a2t * 1d-6
+       end if
     else if (trim(intype_) == 'K km/s') then
        spec2data = bp(fg_components(comp)%ref_band)%co2t / bp(fg_components(comp)%ref_band)%a2t
     else if (trim(intype_) == 'MJy/sr') then
@@ -911,6 +923,10 @@ contains
     ! Convert from antenna units to map units
     if (trim(outtype_) == 'uK_cmb') then
        spec2data = spec2data * bp(band)%a2t
+    else if (trim(outtype_) == 'mK_cmb') then
+       spec2data = spec2data * bp(band)%a2t * 1d-3
+    else if (trim(outtype_) == 'K_cmb') then
+       spec2data = spec2data * bp(band)%a2t * 1d-6
     else if (trim(outtype_) == 'MJy/sr') then
        spec2data = spec2data * bp(band)%a2t / bp(band)%f2t
     else if (trim(outtype_) == 'K km/s') then
