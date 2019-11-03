@@ -640,7 +640,7 @@ contains
     integer(i4b)     :: nomp, nomp_old
     character(len=1) :: job, uplo
     real(dp)         :: cutoff_int
-    real(dp),     allocatable, dimension(:,:) :: V
+    real(dp),     allocatable, dimension(:,:) :: V, WVt
     real(dp),     allocatable, dimension(:)   :: W, work
     integer(i4b), allocatable, dimension(:)   :: iwork
     logical(lgt), allocatable, dimension(:)   :: mask
@@ -666,7 +666,7 @@ contains
     ! Perform eigenvalue decomposition
     allocate(work(lwork))
     allocate(iwork(liwork))
-    allocate(V(n,n))
+    allocate(V(n,n), WVt(n,n))
     allocate(W(n))
     V = A
     call dsyevd(job, uplo, n, V, lda, W, work, lwork, iwork, liwork, info)
@@ -679,9 +679,10 @@ contains
 
     ! Re-compose matrix
     do i = 1, n
-       A(i,:) = W(i)**pow * V(:,i)
+       WVt(i,:) = W(i)**pow * V(:,i)
     end do
-    A = matmul(V, A)
+    call dgemm('N','N',n,n,n,1.d0,V,n,WVt,n,0.d0,A,n)
+    !A = matmul(V, A)
     
     ! Nullify masked elements
     do i = 1, n
@@ -694,9 +695,10 @@ contains
     if (present(A2)) then
        ! Re-compose matrix
        do i = 1, n
-          A2(i,:) = W(i)**pow2 * V(:,i)
+          WVt(i,:) = W(i)**pow2 * V(:,i)
        end do
-       A2 = matmul(V, A2)
+       call dgemm('N','N',n,n,n,1.d0,V,n,WVt,n,0.d0,A2,n)
+       !A2 = matmul(V, A2)
 
        ! Nullify masked elements
        do i = 1, n
@@ -707,7 +709,7 @@ contains
        end do
     end if
 
-    deallocate(V)
+    deallocate(V, WVt)
     deallocate(W)
     deallocate(work)
     deallocate(iwork)

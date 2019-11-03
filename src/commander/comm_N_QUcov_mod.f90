@@ -71,7 +71,7 @@ contains
     constructor%comm              = info%comm
     constructor%nprocs            = info%nprocs
     constructor%info              => info
-    call constructor%update_N(info, handle, noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
+    call constructor%update_N(info, handle, mask=mask, noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
 
   end function constructor
 
@@ -90,21 +90,28 @@ contains
     logical(lgt) :: exist
     character(len=512) :: filename
     real(dp)     :: sum_tau, sum_tau2, sum_noise, npix, t1, t2, val
-    real(sp),        dimension(:,:), pointer :: Ninv_sp
-    real(dp),        dimension(:,:), pointer :: Ninv, Ncov, sNinv, buffer
-    class(comm_map),                 pointer :: invW_tau
+    real(sp),        dimension(:,:), pointer     :: Ninv_sp
+    real(dp),        dimension(:,:), allocatable :: Ninv, Ncov, sNinv, buffer, mask_fullsky
+    class(comm_map),                 pointer     :: invW_tau
 
     ! Set up dense QU invN covariance matrix
     allocate(self%iN(2*self%npix,2*self%np), self%siN(2*self%npix,2*self%np), self%Ncov(2*self%npix,2*self%np))
     allocate(buffer(2*self%npix,2*self%npix))
+
+    filename = trim(noisefile)//'_precomp.unf'
+    inquire(file=trim(filename), exist=exist)
+
+    if (.not. exist) then
+       allocate(mask_fullsky(0:self%npix-1,self%nmaps))
+       call mask%bcast_fullsky_map(mask_fullsky)
+    end if
+
     if (self%myid == 0) then
        allocate(Ninv(2*self%npix,2*self%npix))
        allocate(sNinv(2*self%npix,2*self%npix))
        allocate(Ncov(2*self%npix,2*self%npix))
 
        unit = getlun()
-       filename = trim(noisefile)//'_precomp.unf'
-       inquire(file=trim(filename), exist=exist)
        if (exist) then
           write(*,*) '   Reading precomputed matrices from ', trim(filename)
           open(unit,file=trim(filename),form='unformatted')
@@ -126,44 +133,22 @@ contains
              call convert_nest2ring(self%nside, Ninv_sp(i,          1:  self%npix))
              call convert_nest2ring(self%nside, Ninv_sp(i,self%npix+1:2*self%npix))
           end do
-          Ninv = Ninv_sp
+          Ncov = Ninv_sp
           deallocate(Ninv_sp)
 
-!!$    if (self%myid == 0) buffer = Ninv
-!!$    call mpi_bcast(buffer, buffer, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-!!$    do i = 1, 2
-!!$       self%iN(:,(i-1)*self%np+1:i*self%np) = buffer(:,(i-1)*self%npix+info%pix+1)
-!!$    end do
-!!$
-!!$    self%siN_diag => comm_map(info)
-!!$    self%siN_diag%map(:,2) = self%iN(1:3072,1) 
-!!$    self%siN_diag%map(:,3) = self%iN(3073:6144,1) 
-!!$    call write_map('test.fits', self%siN_diag%map)
-!!$    !call self%siN_diag%writeFITS('test.fits', nest=.true.)
-!!$    stop
-!!$
-!!$    self%siN_diag%map(:,1) = 0.d0 ! Set temperature to zero
-!!$    do i = 1, info%np
-!!$       val = self%iN(info%pix(i)+1,i) ! N(Q,Q)
-!!$       if (val > 0.d0) then
-!!$          self%siN_diag%map(i,2) = 1.d0/sqrt(val)
-!!$       else
-!!$          self%siN_diag%map(i,2) = 0.d0
-!!$       end if
-!!$       val = self%Ncov(info%npix+info%pix(i)+1,info%np+i) ! N(U,U)
-!!$       if (val > 0.d0) then
-!!$          self%siN_diag%map(i,3) = 1.d0/sqrt(val)
-!!$       else
-!!$          self%siN_diag%map(i,3) = 0.d0
-!!$       end if
-!!$    end do
-!!$
-!!$    call self%siN_diag%writeFITS('test.fits')
-!!$    stop
-!!$
+          ! Compute N mask and apply Q mask to both fields
+          call invert_matrix_with_mask(Ncov)
+          do i = 1, self%npix
+             if (mask_fullsky(i-1,2) == 0.d0) then
+                Ncov(i,:)           = 0.d0
+                Ncov(:,i)           = 0.d0
+                Ncov(i+self%npix,:) = 0.d0
+                Ncov(:,i+self%npix) = 0.d0
+             end if
+          end do
 
-          sNinv = Ninv
-          call compute_hermitian_root_with_mask(sNinv, 0.5d0, Ncov, -1.d0)
+          Ninv = Ncov
+          call compute_hermitian_root_with_mask(Ninv, -1.d0, sNinv, -0.5d0)
           open(unit,file=trim(filename),form='unformatted')
           write(unit) Ninv
           write(unit) sNinv
@@ -171,6 +156,7 @@ contains
           close(unit)
        end if
     end if
+    if (.not. exist) deallocate(mask_fullsky)
 
     if (self%myid == 0) buffer = Ninv
     call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
@@ -268,6 +254,7 @@ contains
     m(self%np+1:2*self%np) = map%map(:,3)
     invN_m                 = matmul(self%iN, m)
     call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)       
+    map%map(:,1) = 0.d0
     map%map(:,2) = invN_m(self%info%pix+1)
     map%map(:,3) = invN_m(self%npix+self%info%pix+1)
     deallocate(m, invN_m)
@@ -289,6 +276,7 @@ contains
     m(self%np+1:2*self%np) = map%map(:,3)
     invN_m                 = matmul(self%Ncov, m)
     call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)       
+    map%map(:,1) = 0.d0
     map%map(:,2) = invN_m(self%info%pix+1)
     map%map(:,3) = invN_m(self%npix+self%info%pix+1)
     deallocate(m, invN_m)
@@ -309,6 +297,7 @@ contains
     m(self%np+1:2*self%np) = map%map(:,3)
     invN_m                 = matmul(self%siN, m)
     call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)       
+    map%map(:,1) = 0.d0
     map%map(:,2) = invN_m(self%info%pix+1)
     map%map(:,3) = invN_m(self%npix+self%info%pix+1)
     deallocate(m, invN_m)
@@ -330,6 +319,7 @@ contains
     m(self%np+1:2*self%np) = map%map(:,3)
     invN_m                 = matmul(self%iN, m)
     call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)       
+    res%map(:,1) = 0.d0
     res%map(:,2) = invN_m(self%info%pix+1)
     res%map(:,3) = invN_m(self%npix+self%info%pix+1)
     deallocate(m, invN_m)
@@ -350,7 +340,9 @@ contains
     m(1:self%np)           = map%map(:,2)
     m(self%np+1:2*self%np) = map%map(:,3)
     invN_m                 = matmul(self%siN, m)
-    call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)       
+    call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr) 
+
+    res%map(:,1) = 0.d0      
     res%map(:,2) = invN_m(self%info%pix+1)
     res%map(:,3) = invN_m(self%npix+self%info%pix+1)
     deallocate(m, invN_m)
