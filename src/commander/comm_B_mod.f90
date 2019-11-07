@@ -11,6 +11,7 @@ module comm_B_mod
      ! Data variables
      character(len=512)           :: type
      real(dp)                     :: r_max
+     real(dp)                     :: mb_eff
      class(comm_mapinfo), pointer :: info
      real(dp),          allocatable, dimension(:,:) :: b_l
      type(spline_type), allocatable, dimension(:)   :: b_theta  ! {nmaps}

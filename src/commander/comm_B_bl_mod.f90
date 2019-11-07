@@ -12,8 +12,9 @@ module comm_B_bl_mod
   type, extends (comm_B) :: comm_B_bl
    contains
      ! Data procedures
-     procedure :: conv   => matmulB
-     procedure :: deconv => matmulInvB
+     procedure :: conv           => matmulB
+     procedure :: deconv         => matmulInvB
+     procedure :: update         => updateBeam
   end type comm_B_bl
 
   interface comm_B_bl
@@ -29,12 +30,13 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, id_abs, fwhm, nside, pixwin, init_realspace)
+  function constructor(cpar, info, id, id_abs, fwhm, mb_eff, nside, pixwin, init_realspace)
     implicit none
     type(comm_params),                  intent(in)           :: cpar
     type(comm_mapinfo), target,         intent(in)           :: info
     integer(i4b),                       intent(in)           :: id, id_abs
     real(dp),                           intent(in), optional :: fwhm
+    real(dp),                           intent(in), optional :: mb_eff
     character(len=*),                   intent(in), optional :: pixwin
     integer(i4b),                       intent(in), optional :: nside
     logical(lgt),                       intent(in), optional :: init_realspace
@@ -73,6 +75,9 @@ contains
             & pixwin=trim(dir)//trim(cpar%ds_pixwin(id_abs)))
     end if
 
+    ! Multiply with main beam filling factor
+    constructor%mb_eff = 1.d0; if (present(mb_eff)) constructor%mb_eff = mb_eff
+
     ! Initialize real-space profile
 !!$    init_real = .true.; if (present(init_realspace)) init_real = init_realspace
 !!$    if (init_real) then
@@ -93,7 +98,7 @@ contains
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
        if (l <= self%info%lmax) then
-          map%alm(i,:) = map%alm(i,:) * self%b_l(l,:)
+          map%alm(i,:) = map%alm(i,:) * self%b_l(l,:) * self%mb_eff
        else
           map%alm(i,:) = 0.d0
        end if
@@ -114,7 +119,7 @@ contains
        if (l <= self%info%lmax) then
           do j = 1, map%info%nmaps
              if (self%b_l(l,j) > 1.d-12) then
-                map%alm(i,j) = map%alm(i,j) / self%b_l(l,j)
+                map%alm(i,j) = map%alm(i,j) / self%b_l(l,j) / self%mb_eff
              else
                 map%alm(i,j) = 0.d0
              end if
@@ -125,5 +130,16 @@ contains
     end do
 
   end subroutine matmulInvB
+
+  subroutine updateBeam(self, b_l_norm, mb_eff) 
+    implicit none
+    class(comm_B_bl),                   intent(inout)           :: self
+    real(dp),         dimension(0:,1:), intent(in),    optional :: b_l_norm
+    real(dp),                           intent(in),    optional :: mb_eff
+
+    if (present(mb_eff)) self%mb_eff = mb_eff
+    
+  end subroutine updateBeam
+  
   
 end module comm_B_bl_mod

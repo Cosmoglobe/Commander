@@ -238,7 +238,8 @@ contains
           if (k > 1) then
              if (cpar%myid == 0) then
                 do l = 1, npar
-                   if (.true. .or. mod(iter,2) == 0) then
+                   if (mod(iter,2) == 0) then
+                      write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
                       do j = 1, ndet
@@ -249,6 +250,7 @@ contains
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
                            & data(i)%bp(0)%p%delta(l)
                    else
+                      write(*,*) 'absolute',  iter
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant
                       dnu_prop = data(i)%tod%prop_bp_mean(l) * rand_gauss(handle)
                       do j = 0, ndet

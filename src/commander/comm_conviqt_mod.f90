@@ -152,8 +152,8 @@ contains
     pixnum = self%pixLookup%a(pix+1)
 
     !unwrap psi
-    !unwrap = modulo(-psi, 2.d0*pi)
-    unwrap = modulo(psi, 2.d0*pi)
+    unwrap = modulo(-psi, 2.d0*pi)
+    !unwrap = modulo(psi, 2.d0*pi)
 
     if (self%optim == 2) then
        bpsi = max(nint(unwrap / self%psires),0)
