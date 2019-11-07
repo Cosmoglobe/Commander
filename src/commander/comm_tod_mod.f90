@@ -65,7 +65,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
-     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
+     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell, mb_eff                         ! Beam parameter
      real(dp), allocatable, dimension(:,:,:) :: prop_bp         ! proposal matrix, L(ndet,ndet,ndelta),  for bandpass sampler
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
@@ -449,11 +449,12 @@ contains
   end subroutine get_scan_ids
 
 
-  subroutine dumpToHDF(self, chainfile, iter)
+  subroutine dumpToHDF(self, chainfile, iter, map, rms)
     implicit none
     class(comm_tod),                   intent(in)    :: self
     integer(i4b),                      intent(in)    :: iter
     type(hdf_file),                    intent(in)    :: chainfile
+    class(comm_map),                   intent(in)    :: map, rms
 
     integer(i4b)       :: i, j, k, npar, ierr
     character(len=6)   :: itext
@@ -500,6 +501,9 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
     end if
+
+!!$    call map%writeMapToHDF(chainfile, path, 'map')
+!!$    call rms%writeMapToHDF(chainfile, path, 'invN')
 
     deallocate(output)
  

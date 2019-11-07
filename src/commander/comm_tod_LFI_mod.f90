@@ -94,7 +94,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_n_maps = 7
+    constructor%output_n_maps = 3  !7
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -179,6 +179,7 @@ contains
     allocate(constructor%fwhm(constructor%ndet))
     allocate(constructor%elip(constructor%ndet))
     allocate(constructor%psi_ell(constructor%ndet))
+    allocate(constructor%mb_eff(constructor%ndet))
     
     call open_hdf_file(constructor%instfile, h5_file, 'r')
     nside_beam = 128
@@ -232,7 +233,13 @@ contains
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'elip', constructor%elip(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'psi_ell', constructor%psi_ell(i))
+       call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'mbeam_eff', constructor%mb_eff(i))
     end do
+    !constructor%mb_eff(1) = constructor%mb_eff(1)*1.01d0 
+    !constructor%mb_eff(3) = constructor%mb_eff(1)*0.99d0
+    constructor%mb_eff = constructor%mb_eff / mean(constructor%mb_eff)
+    if (constructor%myid == 0) write(*,*) 'mb = ', constructor%mb_eff
+
     call close_hdf_file(h5_file)
  
     ! Lastly, create a vector pointing table for fast look-up for orbital dipole
@@ -339,7 +346,7 @@ contains
     call wall_time(t1)
     correct_sl      = .true.
     chisq_threshold = 7.d0
-    n_main_iter     = 4
+    n_main_iter     = 2  !4
     chisq_threshold = 30.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -474,6 +481,7 @@ contains
     do main_iter = 1, n_main_iter
 
        call wall_time(t7)
+       call update_status(status, "tod_istart")
 
        if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
           
@@ -481,13 +489,13 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       do_oper(prep_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_acal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call !.and. mod(iter,2) == 0
-       do_oper(prep_absbp)   = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call !.and. mod(iter,2) == 1
+       do_oper(prep_acal)    = .false. !(main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
+       do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
-       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(prep_G)       = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        !do_oper(samp_N_par)    = .false.
@@ -682,9 +690,12 @@ contains
           if (do_oper(sub_sl)) then
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
+!!$                call self%construct_sl_template(self%slconv(j)%p, i, &
+!!$                     & nside, pix(:,j), psi(:,j), s_sl(:,j), &
+!!$                     & self%mbang(j)+self%polang(j))
                 call self%construct_sl_template(self%slconv(j)%p, i, &
-                     & nside, pix(:,j), psi(:,j), s_sl(:,j), &
-                     & self%mbang(j)+self%polang(j))
+                     & nside, pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
+                s_sl(:,j) = 2.d0 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
                 !if (self%myid == 0) write(*,*) j, sum(abs(s_sl(:,j)))
              end do
           else
@@ -699,7 +710,9 @@ contains
           call wall_time(t1)
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             s_mono(:,j) = self%mono(j)
+             !s_mono(:,j) = -self%mono(j)
+             !s_mono(:,j) = self%mono(j)
+             s_mono(:,j) = 0.d0 ! Disabled for now
           end do
           s_tot = s_sky + s_sl + s_orb + s_mono
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
@@ -1149,6 +1162,11 @@ contains
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, imod=self%npsi-1)
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
+!!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
+!!$    if (det == 2) psi = modulo(psi + 20,self%npsi)
+!!$    if (det == 3) psi = modulo(psi - 10,self%npsi)
+!!$    if (det == 4) psi = modulo(psi - 15,self%npsi)
+
 !!$    do j = 2, self%scans(scan)%ntod
 !!$       pix(j)  = pix(j-1)  + pix(j)
 !!$       psi(j)  = psi(j-1)  + psi(j)
@@ -1233,7 +1251,7 @@ contains
        if (.not. self%scans(ind)%d(i)%accept) cycle
        do j=1,self%scans(ind)%ntod !length of the tod
           b_dot = dot_product(self%scans(ind)%v_sun, self%pix2vec(:,pix(j,i)))/c
-          s_orb(j,i) = T_CMB  * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
+          s_orb(j,i) = T_CMB  * b_dot !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
@@ -1256,6 +1274,7 @@ contains
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: recompute, use_binned_psd
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, noise, signal
+    real(dp)     :: A(2,2), b(2), x(2)
     real(dp)     :: nu, power
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
@@ -1377,6 +1396,9 @@ contains
 
        do l = 1, n-1                                                      
           nu = l*(samprate/2)/(n-1)
+!!$          if (abs(nu-1.d0/60.d0)*60.d0 < 0.001d0) then
+!!$             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
+!!$          end if
           if ((use_binned_psd) .and. &
                & (allocated(self%scans(scan)%d(i)%log_n_psd))) then
              power = splint(self%scans(scan)%d(i)%log_nu, &
@@ -1418,6 +1440,18 @@ contains
        dt          = dt / (2*ntod)
        !dt          = dt / nfft
        n_corr(:,i) = dt(1:ntod) 
+
+       ! Project out any sky correlated component
+!!$       A(1,1) = sum(s_sub(:,i)*mask(:,i)*s_sub(:,i))
+!!$       A(1,2) = sum(s_sub(:,i)*mask(:,i)           )
+!!$       A(2,1) = A(1,2)
+!!$       A(2,2) = sum(           mask(:,i)           )
+!!$
+!!$       b(1)   = sum(s_sub(:,i)*mask(:,i)*n_corr(:,i)) 
+!!$       b(2)   = sum(           mask(:,i)*n_corr(:,i))
+!!$       call solve_system_real(A, x, b)
+!!$       n_corr(:,i) = n_corr(:,i) - x(1)*s_sub(:,i)
+
        
        !write(*,*) 'a', sum(d_prime-n_corr(:,i))/ntod/gain
 

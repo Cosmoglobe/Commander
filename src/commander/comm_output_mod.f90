@@ -142,7 +142,8 @@ contains
        end if
        do i = 1, numband  
           if (trim(cpar%ds_tod_type(i)) == 'none') cycle
-          if (associated(data(i)%tod)) call data(i)%tod%dumpToHDF(file, iter)
+          if (associated(data(i)%tod)) call data(i)%tod%dumpToHDF(file, iter, &
+               & data(i)%map, data(i)%N%invN_diag)
        end do
     end if
 

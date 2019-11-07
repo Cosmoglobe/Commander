@@ -123,7 +123,7 @@ contains
        case ('b_l')
           data(n)%B(0)%p => comm_B_bl(cpar, data(n)%info, n, i)
           do j = 1, data(n)%ndet
-             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
+             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j), mb_eff=data(n)%tod%mb_eff(j))
           end do
        case default
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
