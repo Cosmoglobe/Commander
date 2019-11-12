@@ -94,7 +94,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_n_maps = 3  !7
+    constructor%output_n_maps = 7
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -235,7 +235,7 @@ contains
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'psi_ell', constructor%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'mbeam_eff', constructor%mb_eff(i))
     end do
-    !constructor%mb_eff(1) = constructor%mb_eff(1)*1.01d0 
+    constructor%mb_eff = 1.d0 
     !constructor%mb_eff(3) = constructor%mb_eff(1)*0.99d0
     constructor%mb_eff = constructor%mb_eff / mean(constructor%mb_eff)
     if (constructor%myid == 0) write(*,*) 'mb = ', constructor%mb_eff
@@ -346,7 +346,7 @@ contains
     call wall_time(t1)
     correct_sl      = .true.
     chisq_threshold = 7.d0
-    n_main_iter     = 2  !4
+    n_main_iter     = 4
     chisq_threshold = 30.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -489,13 +489,13 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       do_oper(prep_acal)    = .false. !(main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(prep_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
        do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
        do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
-       do_oper(prep_G)       = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        !do_oper(samp_N_par)    = .false.
