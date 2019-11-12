@@ -503,6 +503,11 @@ contains
        ! Set up Wiener filter term
        map => compute_residual(i, cg_samp_group=samp_group) 
 
+       ! Apply projection matrix, ie., mask in pixel space and multipoles above lmax in harmonic space
+!!$       map%map = map%map * data(i)%mask%map
+!!$       call map%YtW
+!!$       call map%Y
+
        ! Add channel-dependent white noise fluctuation
        if (trim(operation) == 'sample') then
           call data(i)%N%sqrtInvN(map)           ! Multiply with sqrt(invN)
@@ -556,6 +561,12 @@ contains
                 end if
              end if
              call c%Cl%sqrtS(map=Tm) ! Multiply with sqrt(Cl)
+
+             ! Apply projection operator
+             do l = 0, Tm%info%nalm-1
+                if (Tm%info%lm(1,l) > data(i)%info%lmax) Tm%alm(l,:) = 0.d0
+             end do
+
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
              call Tm%dealloc(clean_info=.true.)
              nullify(info)
@@ -653,6 +664,7 @@ contains
           end if
        end select
        c => c%next()
+
     end do
     nullify(c)
 
@@ -666,7 +678,7 @@ contains
     real(dp),     dimension(size(x))             :: cr_matmulA
 
     real(dp)                  :: t1, t2
-    integer(i4b)              :: i, j, myid
+    integer(i4b)              :: i, j, l, myid
     class(comm_map),  pointer :: map, pmap
     class(comm_comp), pointer :: c
     real(dp),        allocatable, dimension(:)   :: y, sqrtS_x
@@ -741,6 +753,9 @@ contains
           select type (c)
           class is (comm_diffuse_comp)
              call cr_extract_comp(c%id, sqrtS_x, alm)
+             do l = 0, c%x%info%nalm-1
+                if (c%x%info%lm(1,l) > data(i)%info%lmax) alm(l,:) = 0.d0
+             end do
              call pmap%set_alm(alm,c%x%info)
              allocate(m(0:data(i)%info%nalm-1,data(i)%info%nmaps))
              !allocate(m(0:c%x%info%nalm-1,c%x%info%nmaps))
@@ -798,6 +813,9 @@ contains
              !call update_status(status, "A14")
              alm = c%projectBand(i, map, alm_in=.true.)
              !call update_status(status, "A15")
+             do l = 0, c%x%info%nalm-1
+                if (c%x%info%lm(1,l) > data(i)%info%lmax) alm(l,:) = 0.d0
+             end do
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
           class is (comm_ptsrc_comp)

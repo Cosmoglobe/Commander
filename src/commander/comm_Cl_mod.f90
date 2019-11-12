@@ -244,9 +244,10 @@ contains
     self%sqrtS_mat    = 0.d0
     self%sqrtInvS_mat = 0.d0
     do l = 0, self%lmax
+       k = 1
        do i = 1, self%nmaps
           do j = i, self%nmaps
-             k = i*(1-i)/2 + (i-1)*self%nmaps + j
+             !k = i*(1-i)/2 + (i-1)*self%nmaps + j
              if (l == 0) then
                 self%sqrtS_mat(i,j,l) = self%Dl(l,k)
              else
@@ -254,10 +255,21 @@ contains
              end if
              self%sqrtS_mat(i,j,l) = self%sqrtS_mat(i,j,l) / &
                   & (self%RJ2unit(i)*self%RJ2unit(j))
+             self%sqrtS_mat(j,i,l) = self%sqrtS_mat(i,j,l) 
              if (i == j) ok(i) = self%Dl(l,k) > 0.d0
-             if (.not. ok(i)) self%sqrtS_mat(i,j,l) = 1.d0
+             k = k+1
           end do
        end do
+       do i = 1, self%nmaps
+          if (.not. ok(i)) then
+             self%sqrtS_mat(i,:,l) = 0.d0
+             self%sqrtS_mat(:,i,l) = 0.d0
+             self%sqrtS_mat(i,i,l) = 1.d0
+          end if
+       end do
+
+!       if (self%info%myid == 0) write(*,*) l, self%sqrtS_mat(:,:,l)
+       !if (self%info%myid == 0) write(*,*) l, self%sqrtS_mat(1,1,l)*self%sqrtS_mat(2,2,l) - self%sqrtS_mat(2,1,l)*self%sqrtS_mat(1,2,l)
 
        ! Change to RJ units
        !self%sqrtS_mat(:,:,l) = self%sqrtS_mat(:,:,l) / self%RJ2unit**2
@@ -374,13 +386,14 @@ contains
     end if
   end subroutine matmulS
 
-  subroutine matmulSqrtS(self, map, alm, info)
+  subroutine matmulSqrtS(self, map, alm, info, diag)
     implicit none
     class(comm_Cl),                    intent(in)              :: self
     class(comm_map),                   intent(inout), optional :: map
     real(dp),        dimension(0:,1:), intent(inout), optional :: alm
     class(comm_mapinfo),               intent(in),    optional :: info
-    integer(i4b) :: i, l
+    logical(lgt),                      intent(in),    optional :: diag
+    integer(i4b) :: i, l, j
     real(dp)     :: f_apod
     if (trim(self%type) == 'none') then
        if (only_pol) then
@@ -396,14 +409,26 @@ contains
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
           f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
-          map%alm(i,:) = f_apod * matmul(self%sqrtS_mat(:,:,l), map%alm(i,:))
+          if (present(diag)) then
+             do j = 1, self%info%nmaps
+                map%alm(i,j) = f_apod * sqrt(self%S_mat(j,j,l)) * map%alm(i,j)
+             end do
+          else
+             map%alm(i,:) = f_apod * matmul(self%sqrtS_mat(:,:,l), map%alm(i,:))
+          end if
        end do
     else if (present(alm)) then
        do i = 0, info%nalm-1
           l = info%lm(1,i)
           f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
           if (l <= self%lmax) then
-             alm(i,:) = f_apod * matmul(self%sqrtS_mat(:,:,l), alm(i,:))
+             if (present(diag)) then
+                do j = 1, self%info%nmaps
+                   alm(i,j) = f_apod * sqrt(self%S_mat(j,j,l)) * alm(i,j)
+                end do
+             else
+                alm(i,:) = f_apod * matmul(self%sqrtS_mat(:,:,l), alm(i,:))
+             end if
           else
              alm(i,:) = 0.d0
           end if

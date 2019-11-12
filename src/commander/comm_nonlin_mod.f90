@@ -312,7 +312,7 @@ contains
     ! Sample calibration factors
     do i = 1, numband
        if (.not. data(i)%sample_gain) cycle
-       call sample_gain(i, cpar%outdir, cpar%mychain, iter, handle)
+       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, handle)
     end do
 
 

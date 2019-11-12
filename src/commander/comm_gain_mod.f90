@@ -6,10 +6,10 @@ module comm_gain_mod
 
 contains
   
-  subroutine sample_gain(band, outdir, chain, iter, handle)
+  subroutine sample_gain(operation, band, outdir, chain, iter, handle)
     implicit none
     integer(i4b),     intent(in)    :: band
-    character(len=*), intent(in)    :: outdir
+    character(len=*), intent(in)    :: operation, outdir
     integer(i4b),     intent(in)    :: chain, iter
     type(planck_rng), intent(inout) :: handle
 
@@ -89,7 +89,11 @@ contains
        ! Correlate in pixel space with standard likelihood fit
        invN_sig     => comm_map(sig)
        call data(band)%N%invN(invN_sig)! Multiply with (invN)
-       if (associated(data(band)%gainmask)) invN_sig%map = invN_sig%map * data(band)%gainmask%map
+       if (associated(data(band)%gainmask)) then
+          invN_sig%map = invN_sig%map * data(band)%gainmask%map
+          sig%map      = sig%map      * data(band)%gainmask%map
+          res%map      = res%map      * data(band)%gainmask%map
+       end if
 
        !call invN_sig%writeFITS('invN_sig_'//trim(data(band)%label)//'.fits')
 
@@ -101,7 +105,7 @@ contains
           ! Compute mu and sigma from likelihood term
           mu       = mu / sigma
           sigma    = sqrt(1.d0 / sigma)
-          if (.true.) then ! Optimize
+          if (trim(operation) == 'optimize') then ! Optimize
              gain_new = mu
           else
              gain_new = mu + sigma * rand_gauss(handle)
@@ -120,7 +124,7 @@ contains
     data(band)%res%map = res%map - data(band)%gain * sig%map
 
     ! Output residual signal and residual for debugging purposes
-    if (.false.) then
+    if (.true.) then
        call sig%writeFITS('gain_sig_'//trim(data(band)%label)//'.fits')
        call res%writeFITS('gain_res_'//trim(data(band)%label)//'.fits')
     end if

@@ -31,7 +31,7 @@ program commander
   ! *                                                                   *
   ! *********************************************************************
 
-  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp
+  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
@@ -93,6 +93,9 @@ program commander
   call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
   call initialize_from_chain(cpar);        call update_status(status, "init_from_chain")
 
+!write(*,*) 'Setting gain to 1'
+!data(6)%gain = 1.d0
+
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   if (cpar%enable_tod_analysis) call synchronize_bp_delta(cpar%cs_init_inst_hdf)
   call update_mixing_matrices(update_F_int=.true.)       
@@ -126,6 +129,7 @@ program commander
 
   ! Run Gibbs loop
   first_sample = 1
+  tod_freq     = 5
   call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
   do iter = first_sample, cpar%num_gibbs_iter
 
@@ -136,7 +140,7 @@ program commander
      end if
 
      ! Initialize on existing sample if RESAMPLE_CMB = .true.
-     if (.false. .and. cpar%resamp_CMB) then
+     if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0) then
            curr_samp = (iter-1)/cpar%numsamp_per_resamp+cpar%first_samp_resamp
            if (cpar%myid == 0) write(*,*) 'Re-initializing on sample ', curr_samp
@@ -146,7 +150,7 @@ program commander
      end if
 
      ! Process TOD structures
-     if (cpar%enable_TOD_analysis) then
+     if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
@@ -254,17 +258,12 @@ contains
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant
                       dnu_prop = data(i)%tod%prop_bp_mean(l) * rand_gauss(handle)
                       do j = 0, ndet
-                         delta(j,l,k) = data(i)%bp(j)%p%delta(l) + dnu_prop
+                         delta(j,l,k) = delta(j,l,1) + dnu_prop
                       end do
                    end if
                 end do
              end if
              call mpi_bcast(delta(:,:,k), (data(i)%tod%ndet+1)*npar, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
-             do j = 0, ndet
-                data(i)%bp(j)%p%delta = delta(j,:,k)
-                call data(i)%bp(j)%p%update_tau(delta(j,:,k))
-             end do
-             call update_mixing_matrices(i, update_F_int=.true.)       
           else
              do j = 0, ndet
                 delta(j,:,k) = data(i)%bp(j)%p%delta
@@ -273,7 +272,16 @@ contains
                 delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
              end do
           end if
-          
+
+          ! Update mixing matrices
+          if (k > 1 .or. iter == 1) then
+             do j = 0, ndet
+                data(i)%bp(j)%p%delta = delta(j,:,k)
+                call data(i)%bp(j)%p%update_tau(delta(j,:,k))
+             end do
+             call update_mixing_matrices(i, update_F_int=.true.)       
+          end if
+
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)

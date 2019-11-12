@@ -411,7 +411,7 @@ contains
              end do
           end do
           !if (info_pre%myid == 0) write(*,*) 'a', k1, k2, alm(4,1)
-          call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
+          call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre, diag=.true.)
           !if (info_pre%myid == 0) write(*,*) 'b', k1, k2, alm(4,1)
           !call mpi_finalize(j)
           !stop
@@ -449,7 +449,7 @@ contains
              end do
           end do
 !          if (info_pre%myid == 0) write(*,*) 'c', k1, k2, alm(4,1)
-          call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre)
+          call diffComps(k1)%p%Cl%sqrtS(alm=alm, info=info_pre, diag=.true.)
 !          if (info_pre%myid == 0) write(*,*) 'd', k1, k2, alm(4,1)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
