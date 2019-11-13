@@ -502,18 +502,19 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
     end if
 
-!!$    call map%writeMapToHDF(chainfile, path, 'map')
-!!$    call rms%writeMapToHDF(chainfile, path, 'invN')
+    call map%writeMapToHDF(chainfile, path, 'map')
+    call rms%writeMapToHDF(chainfile, path, 'rms')
 
     deallocate(output)
  
   end subroutine dumpToHDF
 
-  subroutine initHDF(self, chainfile, iter)
+  subroutine initHDF(self, chainfile, iter, map, rms)
     implicit none
     class(comm_tod),                   intent(inout) :: self
     integer(i4b),                      intent(in)    :: iter
     type(hdf_file),                    intent(in)    :: chainfile
+    class(comm_map),                   intent(inout) :: map, rms
 
     integer(i4b)       :: i, j, k, npar, ierr
     character(len=6)   :: itext
@@ -558,6 +559,9 @@ contains
           self%scans(i)%d(j)%accept = output(k,j,5) == 1.d0
        end do
     end do
+
+    call map%readMapFromHDF(chainfile, trim(adjustl(path))//'map')
+    call rms%readMapFromHDF(chainfile, trim(adjustl(path))//'rms')
 
     deallocate(output)
  

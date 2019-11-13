@@ -88,10 +88,10 @@ program commander
 
   call update_status(status, "init")
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
-  call initialize_bp_mod(cpar);            call update_status(status, "init_bp")
-  call initialize_data_mod(cpar, handle);  call update_status(status, "init_data")
-  call initialize_signal_mod(cpar);        call update_status(status, "init_signal")
-  call initialize_from_chain(cpar);        call update_status(status, "init_from_chain")
+  call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
+  call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
+  call initialize_from_chain(cpar, handle); call update_status(status, "init_from_chain")
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
@@ -144,7 +144,7 @@ program commander
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0) then
            curr_samp = (iter-1)/cpar%numsamp_per_resamp+cpar%first_samp_resamp
            if (cpar%myid == 0) write(*,*) 'Re-initializing on sample ', curr_samp
-           call initialize_from_chain(cpar, init_samp=curr_samp)
+           call initialize_from_chain(cpar, handle, init_samp=curr_samp)
            call update_mixing_matrices(update_F_int=.true.)       
         end if
      end if

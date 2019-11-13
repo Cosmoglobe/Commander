@@ -177,9 +177,10 @@ contains
     end if
   end subroutine add_to_complist
 
-  subroutine initialize_from_chain(cpar, init_samp)
+  subroutine initialize_from_chain(cpar, handle, init_samp)
     implicit none
     type(comm_params), intent(in)           :: cpar
+    type(planck_rng),  intent(inout)        :: handle
     integer(i4b),      intent(in), optional :: init_samp
 
     integer(i4b)              :: i, j, ext(2)
@@ -188,7 +189,9 @@ contains
     character(len=512)        :: chainfile, hdfpath
     class(comm_comp), pointer :: c
     type(hdf_file) :: file
-    real(dp), allocatable, dimension(:,:) :: bp_delta
+    class(comm_N),      pointer :: N
+    class(comm_map),    pointer :: rms
+    real(dp), allocatable, dimension(:,:) :: bp_delta, regnoise
 
     if (cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') return
 
@@ -254,8 +257,56 @@ contains
           if (trim(data(i)%tod_type) == 'none') cycle
           if (.not. data(i)%tod%init_from_HDF)     cycle
           if (cpar%myid == 0) write(*,*) ' Initializing TOD par from chain = ', trim(data(i)%tod%freq)
-          call data(i)%tod%initHDF(file, cpar%init_samp)
+          N => data(i)%N
+          rms => comm_map(data(i)%info)
+          select type (N)
+          class is (comm_N_rms)
+             call data(i)%tod%initHDF(file, cpar%init_samp, data(i)%map, rms)
+          end select
+
+          ! Update rms and data maps
+          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          if (associated(data(i)%procmask)) then
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+          else
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+          end if
+          if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
+          data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
+          data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
+          deallocate(regnoise)
+          call rms%dealloc
        end do
+    else if (cpar%resamp_CMB) then
+       do i = 1, numband  
+          if (trim(data(i)%tod_type) == 'none') cycle
+          !if (.not. data(i)%tod%init_from_HDF)  cycle
+          if (cpar%myid == 0) write(*,*) ' Initializing map and rms from chain = ', trim(data(i)%label)
+
+          hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
+          rms     => comm_map(data(i)%info)
+          N       => data(i)%N
+          call data(i)%map%readMapFromHDF(file, trim(adjustl(hdfpath))//'map')
+          select type (N)
+          class is (comm_N_rms)
+             call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          end select
+
+          ! Update rms and data maps
+          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          if (associated(data(i)%procmask)) then
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+          else
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+          end if
+          if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
+          data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
+          data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
+          deallocate(regnoise)
+          call rms%dealloc
+
+       end do
+
     end if
 
 

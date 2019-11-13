@@ -24,6 +24,7 @@ contains
     class(comm_mapinfo), pointer :: info
     class(comm_map),     pointer :: map, chisq_map, chisq_sub
     class(comm_comp),    pointer :: c
+    class(comm_N),      pointer :: N
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
 
@@ -142,8 +143,14 @@ contains
        end if
        do i = 1, numband  
           if (trim(cpar%ds_tod_type(i)) == 'none') cycle
-          if (associated(data(i)%tod)) call data(i)%tod%dumpToHDF(file, iter, &
-               & data(i)%map, data(i)%N%invN_diag)
+          if (associated(data(i)%tod)) then
+             N => data(i)%N
+             select type (N)
+             class is (comm_N_rms)
+                call data(i)%tod%dumpToHDF(file, iter, &
+                     & data(i)%map, N%siN)
+             end select
+          end if
        end do
     end if
 

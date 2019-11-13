@@ -63,6 +63,7 @@ module comm_map_mod
      procedure     :: YtW_scalar  => exec_sharp_YtW_scalar
      procedure     :: writeFITS
      procedure     :: writeMaptoHDF
+     procedure     :: readMapFromHDF
      procedure     :: readFITS
      procedure     :: readHDF
      procedure     :: readHDF_mmax
@@ -581,7 +582,6 @@ contains
     if (self%info%myid == 0) then
        npix  = self%info%npix
        nmaps = self%info%nmaps
-       call update_status(status, "hdf1")
        allocate(p(npix), map(0:npix-1,nmaps))
        map(self%info%pix,:) = self%map
        do i = 1, self%info%nprocs-1
@@ -593,22 +593,53 @@ contains
           map(p(1:np),:) = buffer(1:np,:)
           deallocate(buffer)
        end do
-       call update_status(status, "hdf2")
-
-       call write_hdf(hdffile, trim(adjustl(hdfpath)//trim(label)),   map)
-       call update_status(status, "hdf3")
+       call write_hdf(hdffile, trim(adjustl(hdfpath))//trim(label),   map)
        deallocate(p, map)
-
     else
-
        call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
        call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
        call mpi_send(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
             & self%info%comm, ierr)
-
     end if
     
   end subroutine writeMaptoHDF
+
+  subroutine readMapFromHDF(self, hdffile, hdfpath)
+    implicit none
+
+    class(comm_map),  intent(inout) :: self
+    type(hdf_file),   intent(in)    :: hdffile
+    character(len=*), intent(in)    :: hdfpath
+
+    integer(i4b) :: i, j, l, m, nmaps, npix, np, ierr
+    real(dp),     allocatable, dimension(:,:) :: map, buffer
+    integer(i4b), allocatable, dimension(:)   :: p
+    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    
+    ! Only the root actually writes to disk; data are distributed via MPI
+    if (self%info%myid == 0) then
+       npix  = self%info%npix
+       nmaps = self%info%nmaps
+       allocate(p(npix), map(0:npix-1,nmaps))
+       call read_hdf(hdffile, trim(adjustl(hdfpath)), map)
+       self%map = map(self%info%pix,:)
+       do i = 1, self%info%nprocs-1
+          call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+          allocate(buffer(np,nmaps))
+          buffer = map(p(1:np),:) 
+          call mpi_send(buffer,      size(buffer), MPI_DOUBLE_PRECISION, i, 98, &
+            & self%info%comm, ierr)
+          deallocate(buffer)
+       end do
+       deallocate(p, map)
+    else
+       call mpi_send(self%info%np,  1,              MPI_INTEGER,          0, 98, self%info%comm, ierr)
+       call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER,          0, 98, self%info%comm, ierr)
+       call mpi_recv(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, self%info%comm, mpistat, ierr)
+    end if
+    
+  end subroutine readMapFromHDF
 
 
   subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile, &
