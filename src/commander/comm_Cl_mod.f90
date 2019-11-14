@@ -158,8 +158,6 @@ contains
     end if
 
     !constructor%Dl = constructor%Dl / c%RJ2unit_    ! Define prior in output units
-
-
     call constructor%updateS
     
   end function constructor
@@ -569,7 +567,7 @@ contains
 
     do k = 1, self%nbin
        do j = 1, self%nspec
-          if (self%stat(k,j) == '0' .or. self%stat(k,j) == 'C') then
+          if (self%stat(k,j) == '0') then
              self%Dl(self%bins(k,1):self%bins(k,2),j) = 0.d0
              cycle
           end if
@@ -585,29 +583,136 @@ contains
     
   end subroutine binCls
 
-  subroutine sampleCls(self, map)
+  subroutine sampleCls(self, map, handle)
     implicit none
     class(comm_Cl),  intent(inout) :: self
     class(comm_map), intent(in)    :: map
+    type(planck_rng), intent(inout) :: handle
 
     select case (trim(self%type))
     case ('none')
        return
     case ('binned')
-       call sample_Cls_inverse_wishart(self, map)
+       call sample_Cls_inverse_wishart(self, map, handle)
     case ('power_law')
        call sample_Cls_powlaw(self, map)
     case ('exp')
        call sample_Cls_powlaw(self, map)
     end select
+
+    call self%updateS
     
   end subroutine sampleCls
 
-  subroutine sample_Cls_inverse_wishart(self, map)
+  subroutine sample_Cls_inverse_wishart(self, map, handle)
     implicit none
-    class(comm_Cl),  intent(inout) :: self
-    class(comm_map), intent(in)    :: map
+    class(comm_Cl),   intent(inout) :: self
+    class(comm_map),  intent(in)    :: map
+    type(planck_rng), intent(inout) :: handle
 
+    integer(i4b) :: bin, b, i, j, k, l, m, n, p, ind, b1, b2, col, ierr
+    logical(lgt), allocatable, dimension(:,:) :: pattern
+    integer(i4b), allocatable, dimension(:) :: i2p
+    real(dp), allocatable, dimension(:,:)   :: y, y_t
+    real(dp), allocatable, dimension(:,:)   :: C_b
+    real(dp), allocatable, dimension(:,:)   :: sigma, s, sigma_l
+
+    allocate(sigma_l(0:self%lmax,self%nspec))
+
+    call map%getSigmaL(sigma_l)
+
+    if (self%info%myid == 0) then
+       allocate(sigma(self%nmaps,self%nmaps), pattern(self%nmaps,self%nmaps))
+
+       do bin = 1, self%nbin
+          write(*,*) bin, self%stat(bin,:)
+          if (.not. any(self%stat(bin,:) == 'S') .and. .not. any(self%stat(bin,:) == 'M')) cycle
+          
+          sigma = 0.d0
+          n     = 0.d0
+          do l = self%bins(bin,1), self%bins(bin,2)
+             n   = n + 2*l+1
+             k = 1
+             do i = 1, self%nmaps
+                do j = i, self%nmaps
+                   sigma(i,j) = sigma(i,j) + (2*l+1) * sigma_l(l,k) * l*(l+1)/(2.d0*pi)
+                   k          = k+1
+                end do
+             end do
+          end do
+
+          do i = 1, self%nmaps
+             do j = i, self%nmaps
+                sigma(j,i) = sigma(i,j)
+             end do
+          end do
+
+          ! Set up sampling pattern
+          k = 1
+          do i = 1, self%nmaps
+             do j = i, self%nmaps
+                pattern(i,j) = self%stat(bin,k) == 'S' .or. self%stat(bin,k) == 'M'
+                pattern(j,i) = pattern(i,j)
+                k            = k+1
+             end do
+          end do
+          write(*,*) bin, pattern
+
+          ! Keep sampling until all elements have been treated
+          do while (any(pattern))
+             ! Find which elements to include this time
+             do col = 1, self%nmaps
+                if (any(pattern(:,col))) exit
+             end do
+
+             ! Extract the appropriate segment
+             p = count(pattern(:,col))
+             allocate(s(p,p), y(p,1), y_t(1,p), i2p(p), C_b(p,p))
+             j = 1
+             do i = 1, self%nmaps
+                if (pattern(i,col)) then
+                   i2p(j) = i
+                   j      = j+1
+                end if
+             end do
+             s = sigma(i2p,i2p)
+             write(*,*) bin, s
+             call invert_matrix(s)
+             call cholesky_decompose_single(s)
+             
+             ! Draw sample
+             C_b = 0.d0
+             do i = 1, n - p - 1
+                do j = 1, p
+                   y(j,1) = rand_gauss(handle)
+                end do
+                y_t(1,:) = matmul(s, y(:,1))
+                y(:,1)   = y_t(1,:)
+                C_b      = C_b + matmul(y(:,1:1), y_t(1:1,:))
+             end do
+             call invert_matrix(C_b)
+
+             ! Copy information over to output Dl array
+             do i = 1, p
+                do j = i, p
+                   ind = i2p(i)*(1-i2p(i))/2 + (i2p(i)-1)*self%nmaps + i2p(j)
+                   self%Dl(self%bins(bin,1):self%bins(bin,2),ind) = C_b(i,j) 
+                   write(*,*) bin, i, j, C_b(i,j), sigma_l(self%bins(bin,1),ind) * self%bins(bin,1)*(self%bins(bin,1)+1)/2/pi
+                end do
+             end do
+          
+             ! Remove current elements from pattern, and prepare for next round
+             pattern(i2p,i2p) = .false.
+             deallocate(s, y, y_t, i2p, C_b)
+             
+          end do
+       end do
+       deallocate(sigma, pattern)
+    end if
+
+    call mpi_bcast(self%Dl, size(self%Dl), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+
+    deallocate(sigma_l)
 
   end subroutine sample_Cls_inverse_wishart
 
