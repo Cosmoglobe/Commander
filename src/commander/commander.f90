@@ -183,6 +183,7 @@ program commander
      ! Sample instrumental parameters
 
      ! Sample power spectra
+     call sample_powspec(handle)
      
 
      ! Compute goodness-of-fit statistics

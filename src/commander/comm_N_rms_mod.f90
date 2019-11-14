@@ -9,6 +9,7 @@ module comm_N_rms_mod
   
   type, extends (comm_N) :: comm_N_rms
      class(comm_map), pointer :: siN
+     class(comm_map), pointer :: rms0
    contains
      ! Data procedures
      procedure :: invN     => matmulInvN_1map
@@ -118,10 +119,11 @@ contains
     class(comm_map),    pointer :: invW_tau
 
     if (present(noisefile)) then
-       self%siN     => comm_map(mask%info, noisefile)
+       self%rms0     => comm_map(mask%info, noisefile)
     else
-       self%siN%map = map%map
+       self%rms0%map = map%map
     end if
+    self%siN     => comm_map(self%rms0)
     call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
     self%siN%map = self%siN%map * mask%map ! Apply mask
     if (present(procmask)) then

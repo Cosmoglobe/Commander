@@ -148,7 +148,7 @@ contains
              select type (N)
              class is (comm_N_rms)
                 call data(i)%tod%dumpToHDF(file, iter, &
-                     & data(i)%map, N%siN)
+                     & data(i)%map, N%rms0)
              end select
           end if
        end do

@@ -279,6 +279,8 @@ contains
        end do
     else if (cpar%resamp_CMB) then
        do i = 1, numband  
+          cycle
+
           if (trim(data(i)%tod_type) == 'none') cycle
           !if (.not. data(i)%tod%init_from_HDF)  cycle
           if (cpar%myid == 0) write(*,*) ' Initializing map and rms from chain = ', trim(data(i)%label)
@@ -292,6 +294,7 @@ contains
              call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
           end select
 
+
           ! Update rms and data maps
           allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
@@ -302,6 +305,12 @@ contains
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
+
+!!$          call data(i)%map%writeFITS('map.fits')
+!!$          call rms%writeFITS('rms.fits')
+!!$          call mpi_finalize(j)
+!!$          stop
+
           deallocate(regnoise)
           call rms%dealloc
 
@@ -314,6 +323,24 @@ contains
     call close_hdf_file(file)
     
   end subroutine initialize_from_chain
+
+
+  subroutine sample_powspec(handle)
+    implicit none
+
+    type(planck_rng),  intent(inout) :: handle
+    class(comm_comp), pointer :: c
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          call c%Cl%sampleCls(c%x, handle)
+       end select
+       c => c%next()
+    end do
+
+  end subroutine sample_powspec
 
 
   subroutine sample_partialsky_tempamps(cpar, handle)
