@@ -306,6 +306,9 @@ contains
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
              call cr_extract_comp(c%id, x, alm)
              call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)
+             ! Add CMB dipole back again
+             if (cpar%resamp_CMB .and. trim(c%type) == 'cmb') &
+                  & call add_fiducial_CMB_dipole(c%x%info, c%RJ2unit_(1), alm)
              call cr_insert_comp(c%id, .false., alm, x)
              deallocate(alm)
           end if
@@ -331,9 +334,6 @@ contains
        c => c%next()
     end do
     !call update_status(status, "cr8")
-
-    ! Add CMB dipole back again
-    if (cpar%resamp_CMB) call add_CMB_dipole_to_comp
 
     if (i >= maxiter .and. trim(cpar%cg_conv_crit) /= 'fixed_iter') then
        write(*,*) 'ERROR: Convergence in CG search not reached within maximum'
@@ -512,7 +512,7 @@ contains
        map => compute_residual(i, cg_samp_group=samp_group) 
 
        ! Subtract CMB dipole if resamp mode, to avoid large condition numbers; add back later
-       if (resamp_CMB) call subtract_CMB_dipole_from_band(i, map)
+       if (resamp_CMB) call subtract_fiducial_CMB_dipole(i, map)
 
        ! Apply projection matrix, ie., mask in pixel space and multipoles above lmax in harmonic space
 !!$       map%map = map%map * data(i)%mask%map
