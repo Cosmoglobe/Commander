@@ -643,7 +643,7 @@ contains
 
 
   subroutine writeFITS(self, filename, comptype, nu_ref, unit, ttype, spectrumfile, &
-       & hdffile, hdfpath)
+       & hdffile, hdfpath, output_fits, output_hdf_map)
     implicit none
 
     class(comm_map),  intent(in) :: self
@@ -652,34 +652,43 @@ contains
     real(dp),         intent(in), optional :: nu_ref
     type(hdf_file),   intent(in), optional :: hdffile
     character(len=*), intent(in), optional :: hdfpath
+    logical(lgt),     intent(in), optional :: output_fits, output_hdf_map
 
     integer(i4b) :: i, j, l, m, ind, nmaps, npix, np, nlm, ierr
+    logical(lgt) :: output_fits_, output_hdf_map_
     real(dp),     allocatable, dimension(:,:) :: map, alm, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
-    
+
+    output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
+    output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
+
     ! Only the root actually writes to disk; data are distributed via MPI
     npix  = self%info%npix
     nmaps = self%info%nmaps
     if (self%info%myid == 0) then
 
        ! Distribute to other nodes
-       call update_status(status, "fits1")
-       allocate(p(npix), map(0:npix-1,nmaps))
-       map(self%info%pix,:) = self%map
-       do i = 1, self%info%nprocs-1
-          call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
-          call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
-          allocate(buffer(np,nmaps))
-          call mpi_recv(buffer, np*nmaps, &
-               & MPI_DOUBLE_PRECISION, i, 98, self%info%comm, mpistat, ierr)
-          map(p(1:np),:) = buffer(1:np,:)
-          deallocate(buffer)
-       end do
-       call update_status(status, "fits2")
-       call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
-              call update_status(status, "fits3")
+       !call update_status(status, "fits1")
+       if (output_fits_ .or. output_hdf_map_) then
+          allocate(p(npix), map(0:npix-1,nmaps))
+          map(self%info%pix,:) = self%map
+          do i = 1, self%info%nprocs-1
+             call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             allocate(buffer(np,nmaps))
+             call mpi_recv(buffer, np*nmaps, &
+                  & MPI_DOUBLE_PRECISION, i, 98, self%info%comm, mpistat, ierr)
+             map(p(1:np),:) = buffer(1:np,:)
+             deallocate(buffer)
+          end do
+          !call update_status(status, "fits2")
+          if (output_fits_) then
+             call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
+          end if
+          !call update_status(status, "fits3")
+       end if
 
        if (present(hdffile)) then
           allocate(alm(0:(self%info%lmax+1)**2-1,self%info%nmaps))
@@ -704,24 +713,25 @@ contains
              end do
              deallocate(lm, buffer)
           end do
-          call update_status(status, "fits4")
-          call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   alm)
-          call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),   map)
+          !call update_status(status, "fits4")
+          call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   real(alm,sp))
+          if (output_hdf_map_) call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'nmaps'), self%info%nmaps)
-          call update_status(status, "fits5")
+          !call update_status(status, "fits5")
           deallocate(alm)
        end if
 
-       deallocate(p, map)
+       if (output_fits_ .or. output_hdf_map_) deallocate(p, map)
 
     else
 
-       call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
-       call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
-       call mpi_send(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
-            & self%info%comm, ierr)
-
+       if (output_fits_) then
+          call mpi_send(self%info%np,  1,              MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%info%pix, self%info%np,   MPI_INTEGER, 0, 98, self%info%comm, ierr)
+          call mpi_send(self%map,      size(self%map), MPI_DOUBLE_PRECISION, 0, 98, &
+               & self%info%comm, ierr)
+       end if
 
        if (present(hdffile)) then
           call mpi_send(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)

@@ -121,7 +121,7 @@ contains
 
   end function compute_residual
 
-  subroutine subtract_CMB_dipole_from_band(band, map)
+  subroutine subtract_fiducial_CMB_dipole(band, map)
     implicit none
     integer(i4b),    intent(in)    :: band
     class(comm_map), intent(inout) :: map
@@ -168,40 +168,29 @@ contains
     ! Clean up
     nullify(c)
 
-  end subroutine subtract_CMB_dipole_from_band
+  end subroutine subtract_fiducial_CMB_dipole
 
-  subroutine add_CMB_dipole_to_comp
+  subroutine add_fiducial_CMB_dipole(info, RJ2unit, alm)
     implicit none
+    class(comm_mapinfo),                   intent(in)    :: info
+    real(dp),                              intent(in)    :: RJ2unit
+    real(dp),            dimension(0:,1:), intent(inout) :: alm
 
     integer(i4b)        :: i, j, l, m
-    class(comm_comp),    pointer :: c
 
-    ! Compute predicted signal for this band
-    c => compList
-    do while (associated(c))
-       if (trim(c%type) /= 'cmb') then
-          c => c%next()
-          cycle
+    do j = 0, info%nalm-1
+       l = info%lm(1,j)
+       m = info%lm(2,j)
+       if (l == 1 .and. m == -1) then
+          alm(j,1) = alm(j,1) - 4.54107d3 / RJ2unit
+       else if (l==1 .and. m == 0) then
+          alm(j,1) = alm(j,1) + 5.11974d3 / RJ2unit
+       else if (l == 1 .and. m == 1) then
+          alm(j,1) = alm(j,1) + 4.84858d2 / RJ2unit
        end if
-       
-       select type (c)
-       class is (comm_diffuse_comp)
-          do j = 0, c%x%info%nalm-1
-             l = c%x%info%lm(1,j)
-             m = c%x%info%lm(2,j)
-             if (l == 1 .and. m == -1) then
-                c%x%alm(j,1) = c%x%alm(j,1) - 4.54107d3 / c%RJ2unit_(1)
-             else if (l==1 .and. m == 0) then
-                c%x%alm(j,1) = c%x%alm(j,1) + 5.11974d3 / c%RJ2unit_(1)
-             else if (l == 1 .and. m == 1) then
-                c%x%alm(j,1) = c%x%alm(j,1) + 4.84858d2 / c%RJ2unit_(1)
-             end if
-          end do
-       end select
-       c => c%next()
     end do
 
-  end subroutine add_CMB_dipole_to_comp
+  end subroutine add_fiducial_CMB_dipole
 
   subroutine output_signals_per_band(outdir, postfix)
     implicit none

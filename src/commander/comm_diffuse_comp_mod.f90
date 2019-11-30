@@ -1403,7 +1403,7 @@ contains
           map%alm(:,i) = map%alm(:,i) * self%RJ2unit_(i) * self%cg_scale  ! Output in requested units
        end do
 
-       call update_status(status, "writeFITS_2")
+       !call update_status(status, "writeFITS_2")
 
        if (output_hdf) then
           call int2string(iter, itext)
@@ -1411,7 +1411,7 @@ contains
           if (self%x%info%myid == 0) call create_hdf_group(chainfile, trim(adjustl(path)))
        end if
 
-       call update_status(status, "writeFITS_3")
+       !call update_status(status, "writeFITS_3")
 
        filename = trim(self%label) // '_' // trim(postfix) // '.fits'
        call self%B_out%conv(trans=.false., map=map)
@@ -1419,18 +1419,18 @@ contains
        do i = 1, map%info%nmaps
           map%alm(:,i) = self%x%alm(:,i) * self%RJ2unit_(i) * self%cg_scale  ! Replace convolved with original alms
        end do
-       call update_status(status, "writeFITS_4")
+       !call update_status(status, "writeFITS_4")
 
        !call self%apply_proc_mask(map)
 
        if (output_hdf) then
           call map%writeFITS(trim(dir)//'/'//trim(filename), &
-               & hdffile=chainfile, hdfpath=trim(path)//'/amp_')
+               & hdffile=chainfile, hdfpath=trim(path)//'/amp_', output_hdf_map=.false.)
        else
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if
        call map%dealloc()
-       call update_status(status, "writeFITS_5")
+       !call update_status(status, "writeFITS_5")
 
        if (self%output_EB) then
           map => comm_map(self%x)
@@ -1446,7 +1446,7 @@ contains
           call map%writeFITS(trim(dir)//'/'//trim(filename))
           call map%dealloc()
        end if
-       call update_status(status, "writeFITS_6")
+       !call update_status(status, "writeFITS_6")
        
        allocate(sigma_l(0:self%x%info%lmax,self%x%info%nspec))
        call self%x%getSigmaL(sigma_l)
@@ -1463,7 +1463,7 @@ contains
           if (output_hdf) call write_hdf(chainfile, trim(adjustl(path))//'/sigma_l', sigma_l)             
        end if
        deallocate(sigma_l)
-       call update_status(status, "writeFITS_7")
+       !call update_status(status, "writeFITS_7")
 
        ! Write spectral index maps
        do i = 1, self%npar
@@ -1479,7 +1479,7 @@ contains
              call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
           end if
        end do
-       call update_status(status, "writeFITS_8")
+       !call update_status(status, "writeFITS_8")
        
        ! Write mixing matrices
        if (self%output_mixmat) then
@@ -1987,7 +1987,7 @@ contains
     class(comm_diffuse_comp), intent(inout)          :: self
 
     real(dp)                  :: t1, t2
-    integer(i4b)              :: i, j, k, l, m, lp, mp, myid, nalm, ierr, nmaps
+    integer(i4b)              :: i, j, k, l, m, q, lp, mp, myid, nalm, ierr, nmaps
     class(comm_map),     pointer :: map, map2, tot
     class(comm_mapinfo), pointer :: info
     real(dp),        allocatable, dimension(:,:) :: invM, buffer
@@ -2083,14 +2083,16 @@ contains
 !!$    stop
 
     ! Store matrix rows
+    q = 0
     do l = 0, self%lmax_pre_lowl
        do m = -l, l
-          call info%lm2i(l,m,j)
-          k = l**2 + l + m
+          call self%x%info%lm2i(l,m,j)
           if (j >= 0) then
+             k = l**2 + l + m
              do i = 0, nalm-1
-                self%invM_lowl(i,j) = invM(i,k)
+                self%invM_lowl(i,q) = invM(i,k)
              end do
+             q = q+1
           end if
        end do
     end do
@@ -2112,14 +2114,26 @@ contains
     real(dp),                 dimension(0:,1:), intent(in)     :: alm0
 
     real(dp)                  :: t1, t2
-    integer(i4b)              :: i, j, k, l, m, myid, nalm, ntot, ierr
-    real(dp), allocatable, dimension(:) :: y
+    integer(i4b)              :: i, j, k, l, m, q, myid, nalm, ntot, ierr
+    real(dp), allocatable, dimension(:) :: y, yloc
 
     ntot = (self%lmax_pre_lowl+1)**2
     allocate(y(0:ntot-1))
     if (allocated(self%invM_lowl)) then
        nalm = size(self%invM_lowl,2)
-       y    = matmul(self%invM_lowl,alm(0:nalm-1,1))
+       allocate(yloc(0:nalm-1))
+       q   = 0
+       do l = 0, self%lmax_pre_lowl
+          do m = -l, l
+             call self%x%info%lm2i(l,m,j)
+             if (j >= 0) then
+                yloc(q) = alm(j,1)
+                q       = q+1
+             end if
+          end do
+       end do
+       y    = matmul(self%invM_lowl,yloc)
+       deallocate(yloc)
     else
        nalm = 0
        y    = 0.d0
@@ -2127,6 +2141,7 @@ contains
     call mpi_allreduce(MPI_IN_PLACE, y, ntot, MPI_DOUBLE_PRECISION, MPI_SUM, &
          & self%x%info%comm, ierr)
 
+    alm = alm0
     do l = 0, self%lmax_pre_lowl
        do m = -l, l
           call self%x%info%lm2i(l,m,j)
@@ -2136,7 +2151,7 @@ contains
           end if
        end do
     end do
-    alm(nalm:,1) = alm0(nalm:,1)
+
 
     deallocate(y)
 

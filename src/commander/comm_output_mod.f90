@@ -60,18 +60,14 @@ contains
     end if
     call update_status(status, "output_chain")
 
-    ! Output instrumental parameters
-    !write(*,*) 'a', cpar%myid_chain
-    call output_inst_params(cpar, file, itext, &
-         & trim(cpar%outdir)//'/instpar_'//trim(postfix)//'.dat', output_hdf)
-    !write(*,*) 'b', cpar%myid_chain
-
-    call update_status(status, "output_inst")
-
     ! Output component results
     c => compList
     call wall_time(t1)
     do while (associated(c))
+       if (cpar%resamp_CMB .and. trim(c%type) /= 'cmb') then
+          c => c%next()
+          cycle
+       end if
        call c%dumpFITS(iter, file, output_hdf, postfix, cpar%outdir)
        select type (c)
        class is (comm_diffuse_comp)
@@ -85,8 +81,15 @@ contains
        call update_status(status, "output_"//trim(c%label))
        c => c%next()
     end do
-    !call wall_time(t2)
-    !if (cpar%myid == 0) write(*,*) 'components = ', t2-t1
+    if (cpar%resamp_CMB) then
+       if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
+       return
+    end if
+
+    ! Output instrumental parameters
+    call output_inst_params(cpar, file, itext, &
+         & trim(cpar%outdir)//'/instpar_'//trim(postfix)//'.dat', output_hdf)
+    call update_status(status, "output_inst")
 
     ! Output channel-specific residual maps
     if (cpar%output_residuals .or. cpar%output_chisq) then
