@@ -9,15 +9,18 @@ module comm_N_rms_mod
   
   type, extends (comm_N) :: comm_N_rms
      class(comm_map), pointer :: siN
+     class(comm_map), pointer :: siN_lowres
      class(comm_map), pointer :: rms0
    contains
      ! Data procedures
-     procedure :: invN     => matmulInvN_1map
-     procedure :: N        => matmulN_1map
-     procedure :: sqrtInvN => matmulSqrtInvN_1map
-     procedure :: rms      => returnRMS
-     procedure :: rms_pix  => returnRMSpix
-     procedure :: update_N => update_N_rms
+
+     procedure :: invN        => matmulInvN_1map
+     procedure :: invN_lowres => matmulInvN_1map_lowres
+     procedure :: N           => matmulN_1map
+     procedure :: sqrtInvN    => matmulSqrtInvN_1map
+     procedure :: rms         => returnRMS
+     procedure :: rms_pix     => returnRMSpix
+     procedure :: update_N    => update_N_rms
   end type comm_N_rms
 
   interface comm_N_rms
@@ -64,8 +67,9 @@ contains
     constructor%cg_precond        = cpar%cg_precond
     constructor%info              => info
     if (id_smooth == 0) then
-       constructor%nside   = info%nside
-       constructor%np      = info%np
+       constructor%nside        = info%nside
+       constructor%nside_lowres = min(info%nside,128)
+       constructor%np           = info%np
        if (present(procmask)) then
           call constructor%update_N(info, handle, mask, regnoise, procmask=procmask, &
                & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
@@ -116,7 +120,8 @@ contains
 
     integer(i4b) :: i, ierr
     real(dp)     :: sum_tau, sum_tau2, sum_noise, npix, t1, t2
-    class(comm_map),    pointer :: invW_tau
+    class(comm_map),     pointer :: invW_tau, iN
+    class(comm_mapinfo), pointer :: info_lowres
 
     if (present(noisefile)) then
        self%rms0     => comm_map(mask%info, noisefile)
@@ -186,6 +191,17 @@ contains
        end if
     end if
 
+    ! Set up lowres map
+    if (.not.associated(self%siN_lowres)) then
+       info_lowres => comm_mapinfo(self%info%comm, self%nside_lowres, 0, self%nmaps, self%pol)
+       self%siN_lowres => comm_map(info_lowres)
+    end if
+    iN => comm_map(self%siN)
+    iN%map = iN%map**2
+    call iN%udgrade(self%siN_lowres)
+    call iN%dealloc()
+    self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_lowres)
+
   end subroutine update_N_rms
 
   ! Return map_out = invN * map
@@ -195,6 +211,14 @@ contains
     class(comm_map),   intent(inout)           :: map
     map%map = (self%siN%map)**2 * map%map
   end subroutine matmulInvN_1map
+
+  ! Return map_out = invN * map
+  subroutine matmulInvN_1map_lowres(self, map)
+    implicit none
+    class(comm_N_rms), intent(in)              :: self
+    class(comm_map),   intent(inout)           :: map
+    map%map = (self%siN_lowres%map)**2 * map%map
+  end subroutine matmulInvN_1map_lowres
 
   ! Return map_out = N * map
   subroutine matmulN_1map(self, map)

@@ -60,6 +60,11 @@ contains
     constructor%comm            = cpar%comm_chain
     constructor%numprocs        = cpar%numprocs_chain
     constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
+    constructor%lmax_pre_lowl   = -1
+    constructor%lmax_def        = -1
+    constructor%nside_def       = 0
+    constructor%fwhm_def        = 0.d0
+
     !constructor%ref_band = band
 
     ! Set up conversion factor between RJ and native component unit

@@ -9,7 +9,7 @@ module comm_N_mod
   type, abstract :: comm_N
      ! Data variables
      character(len=512)       :: type
-     integer(i4b)             :: nside, nmaps, np, npix, myid, comm, nprocs
+     integer(i4b)             :: nside, nside_lowres, nmaps, np, npix, myid, comm, nprocs
      logical(lgt)             :: pol
      logical(lgt)             :: set_noise_to_mean
      character(len=512)       :: cg_precond
@@ -19,12 +19,13 @@ module comm_N_mod
      class(comm_mapinfo), pointer :: info
    contains
      ! Data procedures
-     procedure(matmulInvN),     deferred :: invN
-     procedure(matmulN),        deferred :: N
-     procedure(matmulSqrtInvN), deferred :: sqrtInvN
-     procedure(returnRMS),      deferred :: rms
-     procedure(returnRMSpix),   deferred :: rms_pix
-     procedure(update_N),       deferred :: update_N
+     procedure(matmulInvN),       deferred :: invN
+     procedure(matmulInvNlowres), deferred :: invN_lowres
+     procedure(matmulN),          deferred :: N
+     procedure(matmulSqrtInvN),   deferred :: sqrtInvN
+     procedure(returnRMS),        deferred :: rms
+     procedure(returnRMSpix),     deferred :: rms_pix
+     procedure(update_N),         deferred :: update_N
   end type comm_N
 
   abstract interface
@@ -35,6 +36,14 @@ module comm_N_mod
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
      end subroutine matmulInvN
+
+     ! Return map_out = invN * map
+     subroutine matmulInvNlowres(self, map)
+       import comm_map, comm_N, dp, i4b
+       implicit none
+       class(comm_N),   intent(in)             :: self
+       class(comm_map), intent(inout)          :: map
+     end subroutine matmulInvNlowres
 
      ! Return map_out = N * map
      subroutine matmulN(self, map)

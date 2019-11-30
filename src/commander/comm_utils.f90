@@ -80,6 +80,8 @@ contains
        call fits2cl(beamfile, beam_in, lmax, 4, header)
     else if (present(fwhm)) then
        call gaussbeam(fwhm, lmax, beam_in(0:lmax,1:nmaps))
+       !write(*,*) 'normalize beam to dipole'
+       !beam_in(0:lmax,1) = beam_in(0:lmax,1) / beam_in(1,1)
     else
        beam_in = 1.d0
     end if
