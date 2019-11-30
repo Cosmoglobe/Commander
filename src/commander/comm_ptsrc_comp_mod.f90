@@ -102,7 +102,7 @@ contains
 
     ! Initialize general parameters
     comm_pre                    = cpar%comm_chain
-    myid_pre                    = cpar%myid
+    myid_pre                    = cpar%myid_chain
     numprocs_pre                = cpar%numprocs_chain
     constructor%class           = cpar%cs_class(id_abs)
     constructor%type            = cpar%cs_type(id_abs)
@@ -116,7 +116,7 @@ contains
     constructor%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     allocate(constructor%poltype(1))
     constructor%poltype         = cpar%cs_poltype(1,id_abs)
-    constructor%myid            = cpar%myid
+    constructor%myid            = cpar%myid_chain
     constructor%comm            = cpar%comm_chain
     constructor%numprocs        = cpar%numprocs_chain
     constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
@@ -616,7 +616,7 @@ contains
           !self%src(i)%P_x(:,1) = 0.d0
           !self%src(i)%P_x(:,2) = 0.d0 !1.d12
 
-          ! Check for processing mask; disable source if within mask
+          ! Checkl for processing mask; disable source if within mask
           call ang2pix_ring(data(1)%info%nside, 0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, pix)
           p = locate(data(1)%info%pix, pix)
           if (associated(data(1)%procmask)) then
@@ -1268,6 +1268,8 @@ contains
     class(comm_ptsrc_comp), intent(in) :: self
     integer(i4b),           intent(in) :: band, id, pol
     real(dp)                           :: getScale
+
+    integer(i4b) :: i
 
     if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
        getScale = 1.d-23 * (c/self%nu_ref(pol))**2 / (2.d0*k_b*self%src(id)%T(band)%Omega_b(pol))
