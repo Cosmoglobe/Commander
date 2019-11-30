@@ -333,6 +333,10 @@ contains
 
     c => compList
     do while (associated(c))
+       if (trim(c%type) == 'md') then
+          c => c%next()
+          cycle
+       end if
        select type (c)
        class is (comm_diffuse_comp)
           call c%Cl%sampleCls(c%x, handle)

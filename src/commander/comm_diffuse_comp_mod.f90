@@ -2005,7 +2005,7 @@ contains
     map  => comm_map(info)
     tot  => comm_map(info)
     do l = 0, self%lmax_pre_lowl
-       if (info%myid == 0) write(*,*) '  Low-ell init l = ', l, self%lmax_pre_lowl, trim(self%label)
+       !if (info%myid == 0) write(*,*) '  Low-ell init l = ', l, self%lmax_pre_lowl, trim(self%label)
        do m = -l, l
           ! Set up unit vector
           call info%lm2i(l,m,j)
@@ -2075,7 +2075,7 @@ contains
 
     if (self%x%info%myid == 0) then
        do i = 0, 3
-          write(*,*) real(invM(i,0:3),sp)
+!          write(*,*) real(invM(i,0:3),sp)
        end do
     end if
 

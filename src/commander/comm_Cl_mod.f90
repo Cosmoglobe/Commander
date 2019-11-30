@@ -251,6 +251,7 @@ contains
              else
                 self%sqrtS_mat(i,j,l) = self%Dl(l,k) / (l*(l+1)/(2.d0*pi))
              end if
+             if (self%RJ2unit(i)*self%RJ2unit(j) == 0.d0) write(*,*) trim(self%label), self%info%myid, l, k, i, j, real(self%RJ2unit(i),sp), real(self%RJ2unit(j),sp)
              self%sqrtS_mat(i,j,l) = self%sqrtS_mat(i,j,l) / &
                   & (self%RJ2unit(i)*self%RJ2unit(j))
              self%sqrtS_mat(j,i,l) = self%sqrtS_mat(i,j,l) 
@@ -625,7 +626,6 @@ contains
        allocate(sigma(self%nmaps,self%nmaps), pattern(self%nmaps,self%nmaps))
 
        do bin = 1, self%nbin
-          write(*,*) bin, self%stat(bin,:)
           if (.not. any(self%stat(bin,:) == 'S') .and. .not. any(self%stat(bin,:) == 'M')) cycle
           
           sigma = 0.d0
@@ -656,7 +656,6 @@ contains
                 k            = k+1
              end do
           end do
-          write(*,*) bin, pattern
 
           ! Keep sampling until all elements have been treated
           do while (any(pattern))
@@ -676,7 +675,6 @@ contains
                 end if
              end do
              s = sigma(i2p,i2p)
-             write(*,*) bin, s
              call invert_matrix(s)
              call cholesky_decompose_single(s)
              
@@ -697,7 +695,7 @@ contains
                 do j = i, p
                    ind = i2p(i)*(1-i2p(i))/2 + (i2p(i)-1)*self%nmaps + i2p(j)
                    self%Dl(self%bins(bin,1):self%bins(bin,2),ind) = C_b(i,j) 
-                   write(*,*) bin, i, j, C_b(i,j), sigma_l(self%bins(bin,1),ind) * self%bins(bin,1)*(self%bins(bin,1)+1)/2/pi
+                   !write(*,*) bin, i, j, C_b(i,j), sigma_l(self%bins(bin,1),ind) * self%bins(bin,1)*(self%bins(bin,1)+1)/2/pi
                 end do
              end do
           
