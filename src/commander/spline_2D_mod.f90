@@ -24,6 +24,7 @@ contains
     integer(i4b) :: i, j, k, m, n, numprocs, myid, ierr
     real(dp), allocatable, dimension(:)   :: y2
     real(dp), allocatable, dimension(:,:) :: df_dx, df_dy, ddf_dxdy
+    real(dp), allocatable, dimension(:,:,:) :: buffer
 
     real(dp),              dimension(16,16) :: a
     real(dp),              dimension(16)    :: b, z
@@ -181,15 +182,18 @@ contains
     !if (myid == 0) write(*,*) 'q4 = ', real(t2-t1,sp)
 
     call wall_time(t1)    
-    !allocate(buffer(4,4,m,n))
+    allocate(buffer(4,4,n))
     !call mpi_allreduce(coeff, buffer, size(coeff), MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
     do j = 0, numprocs-1
        do i = 1+j, m-1, numprocs
-          call mpi_bcast(coeff(:,:,i,:), 16*n, MPI_DOUBLE_PRECISION, j, comm, ierr)
+          if (myid == j) buffer = coeff(:,:,i,:)
+          call mpi_bcast(buffer, 16*n, MPI_DOUBLE_PRECISION, j, comm, ierr)
+          coeff(:,:,i,:) = buffer
        end do
     end do
     !coeff = buffer
     call wall_time(t2)
+    deallocate(buffer)
     !if (myid == 0) write(*,*) 'q5 = ', real(t2-t1,sp)
 
 

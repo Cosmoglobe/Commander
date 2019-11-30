@@ -139,6 +139,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_mask
      real(dp),           allocatable, dimension(:)     :: cs_latmask
      character(len=512), allocatable, dimension(:)     :: cs_indmask
+     character(len=512), allocatable, dimension(:)     :: cs_defmask
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
@@ -517,7 +518,7 @@ contains
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
-    allocate(cpar%cs_latmask(n))
+    allocate(cpar%cs_latmask(n), cpar%cs_defmask(n))
     allocate(cpar%cs_indmask(n), cpar%cs_amp_rms_scale(n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
@@ -586,6 +587,12 @@ contains
              cpar%cs_latmask(i) = -1.d0
           end if
           cpar%cs_indmask(i) = 'fullsky'
+
+          if (cpar%resamp_CMB .and. trim(cpar%cs_type(i)) == 'cmb') then
+             call get_parameter_hashtable(htbl, 'COMP_DEFLATION_MASK'//itext, len_itext=len_itext,            par_string=cpar%cs_defmask(i))
+          else
+             cpar%cs_defmask(i) = 'fullsky'
+          end if
 
           select case (trim(cpar%cs_type(i)))
           case ('power_law')

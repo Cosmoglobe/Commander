@@ -93,12 +93,14 @@ contains
     logical(lgt),     intent(in)    :: trans
     class(comm_map),  intent(inout) :: map
 
-    integer(i4b) :: i, l
+    integer(i4b) :: i, j, l
 
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
        if (l <= self%info%lmax) then
-          map%alm(i,:) = map%alm(i,:) * self%b_l(l,:) * self%mb_eff
+          do j = 1, min(self%info%nmaps, map%info%nmaps)
+             map%alm(i,j) = map%alm(i,j) * self%b_l(l,j) * self%mb_eff
+          end do
        else
           map%alm(i,:) = 0.d0
        end if
@@ -117,7 +119,7 @@ contains
     do i = 0, map%info%nalm-1
        l = map%info%lm(1,i)
        if (l <= self%info%lmax) then
-          do j = 1, map%info%nmaps
+          do j = 1, min(self%info%nmaps, map%info%nmaps)
              if (self%b_l(l,j) > 1.d-12) then
                 map%alm(i,j) = map%alm(i,j) / self%b_l(l,j) / self%mb_eff
              else

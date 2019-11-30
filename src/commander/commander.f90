@@ -130,6 +130,7 @@ program commander
   ! Run Gibbs loop
   first_sample = 1
   tod_freq     = 5
+
   call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
   do iter = first_sample, cpar%num_gibbs_iter
 

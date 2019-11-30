@@ -1538,7 +1538,7 @@ contains
     
     ndet       = self%ndet
     nscan_tot  = self%nscan_tot
-    binsize    = 100
+    binsize    = 300
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2), vals(binsize))

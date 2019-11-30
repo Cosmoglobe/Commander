@@ -121,6 +121,88 @@ contains
 
   end function compute_residual
 
+  subroutine subtract_CMB_dipole_from_band(band, map)
+    implicit none
+    integer(i4b),    intent(in)    :: band
+    class(comm_map), intent(inout) :: map
+
+    integer(i4b)        :: i, j, l, m
+    class(comm_mapinfo), pointer :: info
+    class(comm_map),     pointer     :: dipole
+    real(dp),            allocatable, dimension(:,:) :: alm
+    class(comm_comp),    pointer :: c
+
+    ! Compute predicted signal for this band
+    c => compList
+    do while (associated(c))
+       if (trim(c%type) /= 'cmb') then
+          c => c%next()
+          cycle
+       end if
+       
+       select type (c)
+       class is (comm_diffuse_comp)
+          dipole => comm_map(data(band)%info)
+          allocate(alm(0:data(band)%info%nalm-1,data(band)%info%nmaps))
+          alm = 0.d0
+          do j = 0, data(band)%info%nalm-1
+             l = data(band)%info%lm(1,j)
+             m = data(band)%info%lm(2,j)
+             if (l == 1 .and. m == -1) then
+                alm(j,1) = -4.54107d3 / c%RJ2unit_(1)
+             else if (l==1 .and. m == 0) then
+                alm(j,1) = 5.119744d3 / c%RJ2unit_(1)
+             else if (l == 1 .and. m == 1) then
+                alm(j,1) = 4.848587d2 / c%RJ2unit_(1)
+             end if
+          end do
+          dipole%alm = c%getBand(band, amp_in=alm, alm_out=.true.)
+          call dipole%Y()
+          map%map = map%map - dipole%map
+          deallocate(alm)
+          call dipole%dealloc()
+       end select
+       c => c%next()
+    end do
+
+    ! Clean up
+    nullify(c)
+
+  end subroutine subtract_CMB_dipole_from_band
+
+  subroutine add_CMB_dipole_to_comp
+    implicit none
+
+    integer(i4b)        :: i, j, l, m
+    class(comm_comp),    pointer :: c
+
+    ! Compute predicted signal for this band
+    c => compList
+    do while (associated(c))
+       if (trim(c%type) /= 'cmb') then
+          c => c%next()
+          cycle
+       end if
+       
+       select type (c)
+       class is (comm_diffuse_comp)
+          do j = 0, c%x%info%nalm-1
+             l = c%x%info%lm(1,j)
+             m = c%x%info%lm(2,j)
+             if (l == 1 .and. m == -1) then
+                c%x%alm(j,1) = c%x%alm(j,1) - 4.54107d3 / c%RJ2unit_(1)
+             else if (l==1 .and. m == 0) then
+                c%x%alm(j,1) = c%x%alm(j,1) + 5.11974d3 / c%RJ2unit_(1)
+             else if (l == 1 .and. m == 1) then
+                c%x%alm(j,1) = c%x%alm(j,1) + 4.84858d2 / c%RJ2unit_(1)
+             end if
+          end do
+       end select
+       c => c%next()
+    end do
+
+  end subroutine add_CMB_dipole_to_comp
+
   subroutine output_signals_per_band(outdir, postfix)
     implicit none
     character(len=*), intent(in) :: outdir, postfix

@@ -14,12 +14,13 @@ module comm_N_QUcov_mod
      class(comm_map), pointer                     :: siN_diag
    contains
      ! Data procedures
-     procedure :: invN     => matmulInvN_1map
-     procedure :: N        => matmulN_1map
-     procedure :: sqrtInvN => matmulSqrtInvN_1map
-     procedure :: rms      => returnRMS
-     procedure :: rms_pix  => returnRMSpix
-     procedure :: update_N => update_N_QUcov
+     procedure :: invN        => matmulInvN_1map
+     procedure :: invN_lowres => matmulInvN_1map
+     procedure :: N           => matmulN_1map
+     procedure :: sqrtInvN    => matmulSqrtInvN_1map
+     procedure :: rms         => returnRMS
+     procedure :: rms_pix     => returnRMSpix
+     procedure :: update_N    => update_N_QUcov
   end type comm_N_QUcov
 
   interface comm_N_QUcov
