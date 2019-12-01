@@ -611,9 +611,11 @@ contains
     class(comm_map),  intent(in)    :: map
     type(planck_rng), intent(inout) :: handle
 
-    integer(i4b) :: bin, b, i, j, k, l, m, n, p, ind, b1, b2, col, ierr
+    integer(i4b) :: bin, b, i, j, k, l, m, n, p, ind, b1, b2, col, ierr, n_attempt
+    logical(lgt) :: posdef
     logical(lgt), allocatable, dimension(:,:) :: pattern
     integer(i4b), allocatable, dimension(:) :: i2p
+    real(dp), allocatable, dimension(:)     :: W
     real(dp), allocatable, dimension(:,:)   :: y, y_t
     real(dp), allocatable, dimension(:,:)   :: C_b
     real(dp), allocatable, dimension(:,:)   :: sigma, s, sigma_l
@@ -666,7 +668,7 @@ contains
 
              ! Extract the appropriate segment
              p = count(pattern(:,col))
-             allocate(s(p,p), y(p,1), y_t(1,p), i2p(p), C_b(p,p))
+             allocate(s(p,p), y(p,1), y_t(1,p), i2p(p), C_b(p,p), W(p))
              j = 1
              do i = 1, self%nmaps
                 if (pattern(i,col)) then
@@ -679,14 +681,25 @@ contains
              call cholesky_decompose_single(s)
              
              ! Draw sample
-             C_b = 0.d0
-             do i = 1, n - p - 1
-                do j = 1, p
-                   y(j,1) = rand_gauss(handle)
+             C_b       = 0.d0
+             posdef    = .false.
+             n_attempt = 0
+             do while (.not. posdef)
+                do i = 1, n - p - 1
+                   do j = 1, p
+                      y(j,1) = rand_gauss(handle)
+                   end do
+                   y_t(1,:) = matmul(s, y(:,1))
+                   y(:,1)   = y_t(1,:)
+                   C_b      = C_b + matmul(y(:,1:1), y_t(1:1,:))
                 end do
-                y_t(1,:) = matmul(s, y(:,1))
-                y(:,1)   = y_t(1,:)
-                C_b      = C_b + matmul(y(:,1:1), y_t(1:1,:))
+                call get_eigenvalues(C_b, W)
+                posdef    = all(W > 1d-12)
+                n_attempt = n_attempt+1
+                if (n_attempt > 100) then
+                   write(*,*) 'Error: Failed to sample positive definite C_b matrix in 100 attempts'
+                   stop
+                end if
              end do
              call invert_matrix(C_b)
 
@@ -701,7 +714,7 @@ contains
           
              ! Remove current elements from pattern, and prepare for next round
              pattern(i2p,i2p) = .false.
-             deallocate(s, y, y_t, i2p, C_b)
+             deallocate(s, y, y_t, i2p, C_b, W)
              
           end do
        end do
