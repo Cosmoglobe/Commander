@@ -56,7 +56,7 @@ contains
        call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
        if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
        call create_hdf_group(file, trim(adjustl(itext)))
-       call create_hdf_group(file, trim(adjustl(itext))//'/md')             
+       if (.not. cpar%resamp_CMB) call create_hdf_group(file, trim(adjustl(itext))//'/md')
     end if
     call update_status(status, "output_chain")
 
