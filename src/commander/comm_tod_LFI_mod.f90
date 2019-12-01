@@ -17,12 +17,14 @@ module comm_tod_LFI_mod
   private
   public comm_LFI_tod
 
-  integer(i4b), parameter :: N_test      = 17
+  integer(i4b), parameter :: N_test      = 19
   integer(i4b), parameter :: samp_N      = 1
   integer(i4b), parameter :: prep_G      = 15
   integer(i4b), parameter :: samp_G      = 2
   integer(i4b), parameter :: prep_acal   = 3
   integer(i4b), parameter :: samp_acal   = 4
+  integer(i4b), parameter :: prep_rcal   = 18
+  integer(i4b), parameter :: samp_rcal   = 19
   integer(i4b), parameter :: prep_relbp  = 5
   integer(i4b), parameter :: prep_absbp  = 16
   integer(i4b), parameter :: samp_bp     = 11
@@ -44,7 +46,7 @@ module comm_tod_LFI_mod
      procedure     :: compute_binned_map
      procedure     :: project_sky
      procedure     :: compute_orbital_dipole
-     procedure     :: sample_gain
+     procedure     :: sample_gain_per_scan
      procedure     :: sample_smooth_gain
      procedure     :: sample_n_corr
      procedure     :: sample_bp
@@ -53,8 +55,9 @@ module comm_tod_LFI_mod
      procedure     :: compute_chisq
      procedure     :: sample_noise_psd
      procedure     :: decompress_pointing_and_flags
-     procedure     :: accumulate_absgain_from_orbital
-     procedure     :: sample_absgain_from_orbital
+     procedure     :: accumulate_abscal
+     procedure     :: sample_abscal_from_orbital
+     procedure     :: sample_relcal
      procedure     :: sample_mono
      procedure     :: get_total_chisq
      procedure     :: output_scan_list
@@ -346,7 +349,7 @@ contains
     call wall_time(t1)
     correct_sl      = .true.
     chisq_threshold = 7.d0
-    n_main_iter     = 4
+    n_main_iter     = 5
     chisq_threshold = 30.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -489,13 +492,15 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       do_oper(prep_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_acal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
        do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
-       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        !do_oper(samp_N_par)    = .false.
@@ -549,13 +554,19 @@ contains
           naccept = 0; ntot    = 0
        end if
 
-       if (do_oper(prep_acal)) then
+       if (do_oper(prep_acal) .or. do_oper(prep_rcal)) then
           A_abscal = 0.d0; b_abscal = 0.d0
        end if
 
        if (do_oper(samp_acal)) then
           call wall_time(t1)
-          call self%sample_absgain_from_orbital(handle, A_abscal, b_abscal)
+          call self%sample_abscal_from_orbital(handle, A_abscal, b_abscal)
+          call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+       end if
+
+       if (do_oper(samp_rcal)) then
+          call wall_time(t1)
+          call self%sample_relcal(handle, A_abscal, b_abscal)
           call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
        end if
 
@@ -748,7 +759,7 @@ contains
                    self%scans(i)%d(j)%gain = 0.d0
                    cycle
                 end if
-                call self%sample_gain(handle, j, i, n_corr(:, j), mask(:,j), &
+                call self%sample_gain_per_scan(handle, j, i, n_corr(:, j), mask(:,j), &
                      & s_tot(:, j))
              end do
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
@@ -813,11 +824,17 @@ contains
           end if
 
           ! Prepare for absolute calibration
-          if (do_oper(prep_acal)) then
+          if (do_oper(prep_acal) .or. do_oper(prep_rcal)) then
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+
+                ! Eirik: Set up proper residuals for absolute or relative calibration, respectively
+                if (do_oper(prep_acal)) then
+                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+                else if (do_oper(prep_rcal)) then
+                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+                end if
 
 
 !!$                call int2string(self%scanid(i), scantext)
@@ -828,7 +845,7 @@ contains
 !!$                end do
 !!$                close(78)
 
-                call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
+                call self%accumulate_abscal(i, j, mask(:,j),&
                      & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
                      & A_abscal(j), b_abscal(j))
 
@@ -1494,7 +1511,8 @@ contains
 
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
-  subroutine sample_gain(self, handle, det, scan_id, n_corr, mask, s_ref)
+  ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
+  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
     type(planck_rng),                  intent(inout)  :: handle
@@ -1522,11 +1540,12 @@ contains
 
     deallocate(d_only_wn)
 
-  end subroutine sample_gain
+  end subroutine sample_gain_per_scan
 
 
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
+  ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
   subroutine sample_smooth_gain(self)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
@@ -1605,8 +1624,9 @@ contains
     deallocate(g, vals)
 
   end subroutine sample_smooth_gain
-
-  subroutine accumulate_absgain_from_orbital(self, scan, det, mask, s_sub, &
+  
+  ! Haavard: Remove current monopole fit, and replace inv_sigmasq with a proper invN(alpha,fknee) multiplication
+  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
        & s_orb, n_corr, A_abs, b_abs)
     implicit none
     class(comm_LFI_tod),             intent(in)     :: self
@@ -1665,10 +1685,11 @@ contains
     A_abs = A_abs + 1    / A(1,1)
     b_abs = b_abs + b(1) / A(1,1)
 
-  end subroutine accumulate_absgain_from_orbital
+  end subroutine accumulate_abscal
 
   ! Sample absolute gain from orbital dipole alone 
-  subroutine sample_absgain_from_orbital(self, handle, A_abs, b_abs)
+  ! Eirik: Change this routine to sample only *one* number for all detectors, not one number per detector; put the result in self%gain0(0)
+  subroutine sample_abscal_from_orbital(self, handle, A_abs, b_abs)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
     type(planck_rng),                  intent(inout)  :: handle
@@ -1715,7 +1736,58 @@ contains
 
     deallocate(A, b, gain0, sigma)
 
-  end subroutine sample_absgain_from_orbital
+  end subroutine sample_abscal_from_orbital
+
+  ! Sample absolute gain from orbital dipole alone 
+  ! Eirik: Change this routine to sample the constant offset per radiometer; put the result in self%gain0(i)
+  subroutine sample_relcal(self, handle, A_abs, b_abs)
+    implicit none
+    class(comm_LFI_tod),               intent(inout)  :: self
+    type(planck_rng),                  intent(inout)  :: handle
+    real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
+
+    integer(i4b) :: i, j, ierr
+    real(dp), allocatable, dimension(:) :: A, b, gain0, sigma
+
+    ! Collect contributions from all cores
+    allocate(A(self%ndet), b(self%ndet), gain0(self%ndet), sigma(self%ndet))
+    call mpi_reduce(A_abs, A, self%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & self%info%comm, ierr)
+    call mpi_reduce(b_abs, b, self%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & self%info%comm, ierr)
+
+    ! Compute gain update and distribute to all cores
+    if (self%myid == 0) then
+       sigma = 1.d0/sqrt(A)
+       gain0 = b/A
+       if (trim(self%operation) == 'sample') then
+          ! Add fluctuation term if requested
+          do j = 1, self%ndet
+             gain0(j) = gain0(j) + sigma(j) * rand_gauss(handle)
+          end do
+       end if
+       do j = 1, self%ndet
+          write(*,fmt='(a,i5,a,2f8.3)') 'Orb gain -- d = ', j, ', dgain = ', &
+               & 100*(gain0(j)-self%gain0(j))/self%gain0(j), (gain0(j)-self%gain0(j))/sigma(j)
+       end do
+    end if
+    call mpi_bcast(gain0, self%ndet,  MPI_DOUBLE_PRECISION, 0, &
+         & self%info%comm, ierr)
+
+    do j = 1, self%ndet
+       do i = 1, self%nscan
+          if(isNaN(gain0(j))) then
+            write(*,*) "sample absgain", gain0(j)
+            stop
+          end if
+          self%scans(i)%d(j)%gain = self%scans(i)%d(j)%gain + gain0(j) - self%gain0(j)
+       end do
+       self%gain0(j)  = gain0(j)
+    end do
+
+    deallocate(A, b, gain0, sigma)
+
+  end subroutine sample_relcal
   
   !construct a sidelobe template in the time domain
   subroutine construct_sl_template(self, slconv, scan_id, nside, pix, psi, s_sl, polangle)

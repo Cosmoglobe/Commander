@@ -158,7 +158,7 @@ contains
 
 
     ! Read common fields
-    allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(self%ndet))
+    allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(0:self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%hdfname(1), file, "r")
@@ -240,8 +240,9 @@ contains
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet, &
          & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
+    self%gain0(0) = sum(self%gain0)/sum(ns)
     where (ns > 0)
-       self%gain0 = self%gain0 / ns
+       self%gain0 = self%gain0 / ns - self%gain0(0)
     end where
 
     ! Precompute trigonometric functions
