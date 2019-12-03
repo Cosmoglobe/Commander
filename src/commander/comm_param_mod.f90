@@ -33,12 +33,13 @@ module comm_param_mod
      integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
      integer(i4b)       :: num_gibbs_iter, num_ml_iter, init_samp
      integer(i4b)       :: nskip_filelist
-     character(len=512) :: chain_prefix, init_chain_prefix
+     character(len=512) :: chain_status, init_chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
      character(len=512) :: fft_magic_number_file
      logical(lgt)       :: only_pol
      logical(lgt)       :: enable_TOD_analysis
+     integer(i4b)       :: tod_freq
      integer(i4b)       :: output_4D_map_nth_iter
      logical(lgt)       :: include_tod_zodi
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
@@ -226,10 +227,11 @@ contains
     call free_hash_tbl_sll(htable)
   end subroutine read_comm_params
 
-  subroutine initialize_mpi_struct(cpar, handle, handle_noise)
+  subroutine initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng)
     implicit none
     type(comm_params), intent(inout) :: cpar
     type(planck_rng),  intent(out)   :: handle, handle_noise
+    integer(i4b),      intent(in), optional :: reinit_rng
 
     integer(i4b) :: i, j, m, n, ierr, mpistat(MPI_STATUS_SIZE)
     integer(i4b), allocatable, dimension(:,:) :: ind
@@ -240,36 +242,45 @@ contains
     !call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
     !call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
     !cpar%root = 0
-    cpar%numchain = min(cpar%numchain, cpar%numprocs)
+    if (.not. (present(reinit_rng))) then
+       cpar%numchain = min(cpar%numchain, cpar%numprocs)
 
-    allocate(ind(0:cpar%numprocs-1,2))
-    n = 0
-    do i = 1, cpar%numchain
-       m = cpar%numprocs / cpar%numchain
-       if ((cpar%numprocs-(cpar%numprocs/cpar%numchain)*cpar%numchain) >= i) m = m+1
-       ind(n:n+m-1,1) = i
-       do j = 0, m-1
-          ind(n+j,2) = j
+       allocate(ind(0:cpar%numprocs-1,2))
+       n = 0
+       do i = 1, cpar%numchain
+          m = cpar%numprocs / cpar%numchain
+          if ((cpar%numprocs-(cpar%numprocs/cpar%numchain)*cpar%numchain) >= i) m = m+1
+          ind(n:n+m-1,1) = i
+          do j = 0, m-1
+             ind(n+j,2) = j
+          end do
+          n = n+m
        end do
-       n = n+m
-    end do
 
-    cpar%mychain    = ind(cpar%myid,1)
-    cpar%myid_chain = ind(cpar%myid,2)
+       cpar%mychain    = ind(cpar%myid,1)
+       cpar%myid_chain = ind(cpar%myid,2)
 
-    call mpi_comm_split(MPI_COMM_WORLD, cpar%mychain, cpar%myid_chain, cpar%comm_chain,  ierr) 
-    call mpi_comm_size(cpar%comm_chain, cpar%numprocs_chain, ierr)
+       call mpi_comm_split(MPI_COMM_WORLD, cpar%mychain, cpar%myid_chain, cpar%comm_chain,  ierr) 
+       call mpi_comm_size(cpar%comm_chain, cpar%numprocs_chain, ierr)
 
-    !Communicators for shared memory access
-    call mpi_comm_split_type(cpar%comm_chain, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, cpar%comm_shared, ierr) 
-    call mpi_comm_rank(cpar%comm_shared, cpar%myid_shared, ierr)
-    call mpi_comm_split(cpar%comm_chain, cpar%myid_shared, 0, cpar%comm_inter, ierr)
-    call mpi_comm_rank(cpar%comm_inter, cpar%myid_inter, ierr)
-    
+       !Communicators for shared memory access
+       call mpi_comm_split_type(cpar%comm_chain, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, cpar%comm_shared, ierr) 
+       call mpi_comm_rank(cpar%comm_shared, cpar%myid_shared, ierr)
+       call mpi_comm_split(cpar%comm_chain, cpar%myid_shared, 0, cpar%comm_inter, ierr)
+       call mpi_comm_rank(cpar%comm_inter, cpar%myid_inter, ierr)
+
+       deallocate(ind)
+    end if
 
     ! Initialize random number generator
     if (cpar%myid == cpar%root) then
        call rand_init(handle, cpar%base_seed)
+       if (present(reinit_rng)) then
+          do i = 1, reinit_rng
+             j = nint(rand_uni(handle)*1000000.d0)
+             call rand_init(handle, j)
+          end do
+       end if
        do i = 1, cpar%numprocs-1
           j = nint(rand_uni(handle)*1000000.d0)
           call mpi_send(j, 1, MPI_INTEGER, i, 98, MPI_COMM_WORLD, ierr)
@@ -286,8 +297,6 @@ contains
        call rand_init(handle_noise, j)
     end if
     
-    deallocate(ind)
-
   end subroutine initialize_mpi_struct
   
   ! ********************************************************
@@ -315,7 +324,7 @@ contains
     call get_parameter_hashtable(htbl, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
     call get_parameter_hashtable(htbl, 'NSKIP_FILELIST',           par_int=cpar%nskip_filelist)
     call get_parameter_hashtable(htbl, 'NUM_ITER_WITH_ML_SEARCH',  par_int=cpar%num_ml_iter)
-    call get_parameter_hashtable(htbl, 'CHAIN_PREFIX',             par_string=cpar%chain_prefix)
+    call get_parameter_hashtable(htbl, 'CHAIN_STATUS',             par_string=cpar%chain_status)
     call get_parameter_hashtable(htbl, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
     call get_parameter_hashtable(htbl, 'INIT_SAMPLE_NUMBER',       par_int=cpar%init_samp)
     call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
@@ -360,6 +369,7 @@ contains
     if (cpar%enable_TOD_analysis) then
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
+       call get_parameter_hashtable(htbl, 'NUM_GIBBS_STEPS_PER_TOD_SAMPLE', par_int=cpar%tod_freq)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER', par_int=cpar%output_4D_map_nth_iter)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
     end if
