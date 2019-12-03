@@ -177,11 +177,12 @@ contains
     end if
   end subroutine add_to_complist
 
-  subroutine initialize_from_chain(cpar, handle, init_samp)
+  subroutine initialize_from_chain(cpar, handle, init_samp, init_from_output)
     implicit none
     type(comm_params), intent(in)           :: cpar
     type(planck_rng),  intent(inout)        :: handle
     integer(i4b),      intent(in), optional :: init_samp
+    logical(lgt),      intent(in), optional :: init_from_output
 
     integer(i4b)              :: i, j, ext(2)
     character(len=4)          :: ctext
@@ -193,7 +194,8 @@ contains
     class(comm_map),    pointer :: rms
     real(dp), allocatable, dimension(:,:) :: bp_delta, regnoise
 
-    if (cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') return
+    if ((cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') .and. &
+         & .not. present(init_from_output)) return
 
     ! Open HDF file
     call int2string(cpar%mychain,   ctext)
@@ -202,14 +204,31 @@ contains
     else
        call int2string(cpar%init_samp, itext)
     end if
-    if (trim(cpar%chain_prefix) == trim(cpar%init_chain_prefix)) then
-       chainfile = trim(adjustl(cpar%outdir)) // '/' // trim(adjustl(cpar%chain_prefix)) // &
+    if (present(init_from_output)) then
+       chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
             & '_c' // trim(adjustl(ctext)) // '.h5'
     else
        chainfile = trim(adjustl(cpar%init_chain_prefix))
     end if
     call open_hdf_file(chainfile, file, 'r')
     
+    if (cpar%resamp_CMB .and. present(init_from_output)) then
+    ! Initialize CMB component parameters
+       c   => compList
+       do while (associated(c))
+          if (trim(c%type) /= 'cmb') then
+             c => c%next()
+             cycle
+          end if
+          call update_status(status, "init_chain_"//trim(c%label))
+          if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
+          call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
+          c => c%next()
+       end do
+       call close_hdf_file(file)
+       return
+    end if
+
     ! Initialize instrumental parameters
     call update_status(status, "init_chain_inst")
     if (cpar%cs_init_inst_hdf) then
@@ -325,13 +344,15 @@ contains
   end subroutine initialize_from_chain
 
 
-  subroutine sample_powspec(handle)
+  subroutine sample_powspec(handle, ok)
     implicit none
-
     type(planck_rng),  intent(inout) :: handle
+    logical(lgt),      intent(out)   :: ok
+
     class(comm_comp), pointer :: c
 
-    c => compList
+    ok = .true.
+    c  => compList
     do while (associated(c))
        if (trim(c%type) == 'md') then
           c => c%next()
@@ -339,7 +360,7 @@ contains
        end if
        select type (c)
        class is (comm_diffuse_comp)
-          call c%Cl%sampleCls(c%x, handle)
+          call c%Cl%sampleCls(c%x, handle, ok)
        end select
        c => c%next()
     end do

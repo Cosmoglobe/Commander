@@ -33,6 +33,7 @@ program commander
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
+  logical(lgt)        :: ok
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
 
@@ -127,12 +128,20 @@ program commander
   end if
 
 
-  ! Run Gibbs loop
-  first_sample = 1
-  tod_freq     = 5
+  ! Prepare chains 
+  call init_chain_file(cpar, first_sample)
+  if (first_sample == 1) then
+     call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
+  else
+     ! Re-initialise seeds and reinitialize
+     call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
+     call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true.)
+     first_sample = first_sample+1
+  end if
 
-  call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
-  do iter = first_sample, cpar%num_gibbs_iter
+  ! Run Gibbs loop
+  iter = first_sample
+  do while (iter <= cpar%num_gibbs_iter)
 
      if (cpar%myid == 0) then
         call wall_time(t1)
@@ -140,7 +149,7 @@ program commander
         write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
 
-     ! Initialize on existing sample if RESAMPLE_CMB = .true.
+     ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0) then
            curr_samp = (iter-1)/cpar%numsamp_per_resamp+cpar%first_samp_resamp
@@ -184,14 +193,20 @@ program commander
      ! Sample instrumental parameters
 
      ! Sample power spectra
-     call sample_powspec(handle)
+     call sample_powspec(handle, ok)
      
 
-     ! Compute goodness-of-fit statistics
-     
-     if (cpar%myid == 0) then
-        call wall_time(t2)
-        write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+     call wall_time(t2)
+     if (ok) then
+        if (cpar%myid == 0) then
+           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+        end if
+        iter = iter+1
+     else
+        if (cpar%myid == 0) then
+           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,*) 'SAMPLE REJECTED'
+        end if        
      end if
      
   end do

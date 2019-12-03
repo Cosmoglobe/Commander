@@ -253,6 +253,7 @@ contains
     class(comm_diffuse_comp), pointer :: p1, p2
     real(dp),     allocatable, dimension(:,:) :: mat
 
+    call update_status(status, "init_diffpre1")
     if (npre == 0) return
     if (allocated(P_cr%invM_diff)) return
     
@@ -271,6 +272,7 @@ contains
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
+    call update_status(status, "init_diffpre2")
     
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
@@ -323,6 +325,7 @@ contains
     deallocate(ind, mat)
     !!$OMP END PARALLEL
     call wall_time(t2)
+    call update_status(status, "init_diffpre3")
 
   end subroutine initDiffPrecond_diagonal
 
@@ -1523,8 +1526,9 @@ contains
        end do
     else
        path = trim(adjustl(hdfpath))//trim(adjustl(self%label))
+       call self%Cl%initHDF(hdffile, path)
        call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_alm', .false.)
-       call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_map', .true.)    ! Read amplitudes
+       !call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_map', .true.)    ! Read amplitudes
        do i = 1, self%x%info%nmaps
          self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale)
        end do
@@ -2001,11 +2005,11 @@ contains
     allocate(invM(0:nalm-1,0:nalm-1), buffer(0:nalm-1,0:nalm-1))
     invM = 0.d0
 
-    info => comm_mapinfo(self%comm, 2, 2*self%lmax_pre_lowl, self%nmaps, .false.)
+    info => comm_mapinfo(self%comm, 2, 2*self%lmax_pre_lowl, self%nmaps, nmaps==3)
     map  => comm_map(info)
     tot  => comm_map(info)
     do l = 0, self%lmax_pre_lowl
-       if (info%myid == 0) write(*,*) '  Low-ell init l = ', l, self%lmax_pre_lowl, trim(self%label)
+       !if (info%myid == 0) write(*,*) '  Low-ell init l = ', l, self%lmax_pre_lowl, trim(self%label)
        do m = -l, l
           ! Set up unit vector
           call info%lm2i(l,m,j)

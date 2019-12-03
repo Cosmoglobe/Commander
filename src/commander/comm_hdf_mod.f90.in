@@ -99,6 +99,7 @@ contains
 
     ! Open file in either read or write mode
     file%filename = filename
+    file%status   = 0
     if (mode == 'r') then
        call h5fopen_f(file%filename, H5F_ACC_RDONLY_F, file%filehandle, file%status)
     else if (mode == 'w') then
@@ -197,7 +198,15 @@ contains
     implicit none
     type(hdf_file) :: file
     character(len=*), intent(in)  :: setname
+    TYPE(h5o_info_t) :: object_info
+    integer(i4b) :: hdferr
     {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(out) :: val
+    call h5eset_auto_f(0, hdferr)
+    call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
+    if (hdferr /= 0) then
+       write(*,*) 'Warning: HDF field does not exist =', trim(setname)
+       return
+    end if
     call open_hdf_set(file, setname)
     call h5dread_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)

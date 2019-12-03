@@ -26,6 +26,7 @@ module comm_Cl_mod
      character(len=512)           :: outdir
      integer(i4b)                 :: lmax, nmaps, nspec, l_apod
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+     logical(lgt)                 :: only_pol
      real(dp)                     :: nu_ref(3), RJ2unit(3)
      real(dp),         allocatable, dimension(:,:)   :: Dl
      real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat, sqrtInvS_mat
@@ -50,6 +51,7 @@ module comm_Cl_mod
      procedure :: read_Cl_file
      procedure :: binCls
      procedure :: writeFITS
+     procedure :: initHDF
      procedure :: updatePowlaw
      procedure :: updateExponential
      procedure :: updateGaussian
@@ -95,7 +97,7 @@ contains
     constructor%outdir = cpar%outdir
     datadir            = cpar%datadir
     nmaps              = constructor%nmaps
-    only_pol           = cpar%only_pol
+    constructor%only_pol = cpar%only_pol
 
     ! Set up conversion factor between RJ and native component unit
     ! D_l is defined in component units, while S, invS etc are defined in RJ
@@ -140,19 +142,19 @@ contains
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
     else if (trim(constructor%type) == 'exp') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updateExponential(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+       call constructor%updateExponential(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
     else if (trim(constructor%type) == 'gauss') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updateGaussian(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+       call constructor%updateGaussian(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
     else
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
@@ -163,18 +165,17 @@ contains
   end function constructor
 
 
-  subroutine updatePowlaw(self, amp, beta, only_pol)
+  subroutine updatePowlaw(self, amp, beta)
     implicit none
-    class(comm_Cl),                intent(inout) :: self
-    real(dp),       dimension(1:), intent(in)    :: amp, beta
-    logical(lgt),                  intent(in)    :: only_pol
+    class(comm_Cl),                intent(inout)        :: self
+    real(dp),       dimension(1:), intent(in), optional :: amp, beta
 
     integer(i4b) :: i, j, l, i_min
     
-    self%amp   = amp
-    self%beta  = beta
+    if (present(amp))  self%amp   = amp
+    if (present(beta)) self%beta  = beta
     self%Dl    = 0.d0
-    i_min      = 1; if (only_pol) i_min = 2
+    i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
@@ -185,18 +186,17 @@ contains
 
   end subroutine updatePowlaw
 
-  subroutine updateExponential(self, amp, beta, only_pol)
+  subroutine updateExponential(self, amp, beta)
     implicit none
     class(comm_Cl),                intent(inout) :: self
-    real(dp),       dimension(1:), intent(in)    :: amp, beta
-    logical(lgt),                  intent(in)    :: only_pol
+    real(dp),       dimension(1:), intent(in), optional    :: amp, beta
 
     integer(i4b) :: i, j, l, i_min
     
-    self%amp   = amp
-    self%beta  = beta
+    if (present(amp))  self%amp   = amp
+    if (present(beta)) self%beta  = beta
     self%Dl    = 0.d0
-    i_min      = 1; if (only_pol) i_min = 2
+    i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
@@ -207,18 +207,17 @@ contains
 
   end subroutine updateExponential
 
-  subroutine updateGaussian(self, amp, beta, only_pol)
+  subroutine updateGaussian(self, amp, beta)
     implicit none
     class(comm_Cl),                intent(inout) :: self
-    real(dp),       dimension(1:), intent(in)    :: amp, beta
-    logical(lgt),                  intent(in)    :: only_pol
+    real(dp),       dimension(1:), intent(in), optional :: amp, beta
 
     integer(i4b) :: i, j, l, i_min
     
-    self%amp   = amp
-    self%beta  = beta
+    if (present(amp))  self%amp   = amp
+    if (present(beta)) self%beta  = beta
     self%Dl    = 0.d0
-    i_min      = 1; if (only_pol) i_min = 2
+    i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 0, self%lmax
@@ -584,32 +583,34 @@ contains
     
   end subroutine binCls
 
-  subroutine sampleCls(self, map, handle)
+  subroutine sampleCls(self, map, handle, ok)
     implicit none
     class(comm_Cl),  intent(inout) :: self
     class(comm_map), intent(in)    :: map
     type(planck_rng), intent(inout) :: handle
+    logical(lgt),     intent(inout) :: ok
 
     select case (trim(self%type))
     case ('none')
        return
     case ('binned')
-       call sample_Cls_inverse_wishart(self, map, handle)
+       call sample_Cls_inverse_wishart(self, map, handle, ok)
     case ('power_law')
-       call sample_Cls_powlaw(self, map)
+       call sample_Cls_powlaw(self, map, ok)
     case ('exp')
-       call sample_Cls_powlaw(self, map)
+       call sample_Cls_powlaw(self, map, ok)
     end select
 
-    call self%updateS
+    if (ok) call self%updateS
     
   end subroutine sampleCls
 
-  subroutine sample_Cls_inverse_wishart(self, map, handle)
+  subroutine sample_Cls_inverse_wishart(self, map, handle, ok)
     implicit none
     class(comm_Cl),   intent(inout) :: self
     class(comm_map),  intent(in)    :: map
     type(planck_rng), intent(inout) :: handle
+    logical(lgt),     intent(inout) :: ok
 
     integer(i4b) :: bin, b, i, j, k, l, m, n, p, ind, b1, b2, col, ierr, n_attempt
     logical(lgt) :: posdef
@@ -677,6 +678,12 @@ contains
                 end if
              end do
              s = sigma(i2p,i2p)
+             if (all(s == 0.d0)) then
+                pattern(i2p,i2p) = .false.
+                deallocate(s, y, y_t, i2p, C_b, W)
+                cycle
+             end if
+
              call invert_matrix(s)
              call cholesky_decompose_single(s)
              
@@ -697,10 +704,15 @@ contains
                 posdef    = all(W > 1d-12)
                 n_attempt = n_attempt+1
                 if (n_attempt > 100) then
-                   write(*,*) 'Error: Failed to sample positive definite C_b matrix in 100 attempts'
-                   stop
+                   write(*,*) 'Error: Failed to sample positive definite C_b matrix in 100 attempts, bin = ', bin
+                   ok = .false.
+                   exit
                 end if
              end do
+             if (.not. ok) then
+                deallocate(s, y, y_t, i2p, C_b, W)
+                exit
+             end if
              call invert_matrix(C_b)
 
              ! Copy information over to output Dl array
@@ -717,21 +729,23 @@ contains
              deallocate(s, y, y_t, i2p, C_b, W)
              
           end do
+          if (.not. ok) exit
        end do
        deallocate(sigma, pattern)
     end if
 
+    call mpi_bcast(ok,      1,             MPI_LOGICAL,          0, self%info%comm, ierr)
     call mpi_bcast(self%Dl, size(self%Dl), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
     deallocate(sigma_l)
 
   end subroutine sample_Cls_inverse_wishart
 
-  subroutine sample_Cls_powlaw(self, map)
+  subroutine sample_Cls_powlaw(self, map, ok)
     implicit none
     class(comm_Cl),  intent(inout) :: self
     class(comm_map), intent(in)    :: map
-    
+    logical(lgt),     intent(inout) :: ok    
     
   end subroutine sample_Cls_powlaw
 
@@ -841,6 +855,34 @@ contains
     end if
     
   end subroutine write_powlaw_to_FITS
+
+
+  subroutine initHDF(self, hdffile, hdfpath)
+    implicit none
+    class(comm_Cl),   intent(inout) :: self
+    type(hdf_file),   intent(in)    :: hdffile
+    character(len=*), intent(in)    :: hdfpath
+
+    if (trim(self%type) == 'none') return
+
+    select case (trim(self%type))
+    case ('none')
+       return
+    case ('binned')
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl', self%Dl)
+    case ('power_law')
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+       call self%updatePowLaw()
+    case ('exp')
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+       call self%updateExponential()
+    end select
+    call self%updateS()
+
+  end subroutine initHDF
+
 
   subroutine write_sigma_l(filename, sigma_l)
     implicit none

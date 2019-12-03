@@ -7,6 +7,55 @@ module comm_output_mod
 
 contains
 
+  subroutine init_chain_file(cpar, iter)
+    implicit none
+    
+    type(comm_params), intent(in)  :: cpar
+    integer(i4b),      intent(out) :: iter
+
+    integer(i4b)                 :: i, j, hdferr, ierr
+    logical(lgt)                 :: exist
+    character(len=4)             :: ctext
+    character(len=6)             :: itext
+    character(len=512)           :: postfix, chainfile, hdfpath
+    type(hdf_file)   :: file
+    TYPE(h5o_info_t) :: object_info
+
+    call int2string(cpar%mychain, ctext)
+    chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
+         & '_c' // trim(adjustl(ctext)) // '.h5'
+
+    ! Delete existing chain file if necessary; create new file if necessary; open file
+    iter = 1
+    if (cpar%myid_chain == 0) then
+       inquire(file=trim(chainfile), exist=exist)
+       if (trim(cpar%chain_status) == 'new' .or. .not. exist) then
+          if (exist) call rm(trim(chainfile))
+          call open_hdf_file(chainfile, file, 'w')
+          call close_hdf_file(file)
+       else if (trim(cpar%chain_status) == 'append') then
+          call open_hdf_file(chainfile, file, 'r')
+          exist = .true.
+          do while (exist)
+             call int2string(iter, itext)
+             call h5eset_auto_f(0, hdferr)
+             call h5oget_info_by_name_f(file%filehandle, itext, object_info, hdferr)
+             exist = (hdferr == 0)
+             if (exist) iter = iter+1
+          end do
+          iter = max(1,iter-1)
+          write(*,*) '  Continuing chain '//ctext// ' on iteration ', iter
+          call close_hdf_file(file)          
+       else
+          write(*,*) 'Unsupported chain mode =', trim(cpar%chain_status)
+          call mpi_finalize(ierr)
+          stop
+       end if
+    end if
+    call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
+
+  end subroutine init_chain_file
+
   subroutine output_FITS_sample(cpar, iter, output_hdf)
     implicit none
     
@@ -16,7 +65,6 @@ contains
 
     integer(i4b)                 :: i, j, hdferr, ierr
     real(dp)                     :: chisq, t1, t2, t3, t4
-    logical(lgt), save           :: first_call=.true.
     logical(lgt)                 :: exist, init
     character(len=4)             :: ctext
     character(len=6)             :: itext
@@ -33,23 +81,30 @@ contains
     call int2string(cpar%mychain, ctext)
     call int2string(iter,         itext)
     postfix = 'c'//ctext//'_k'//itext
-    chainfile = trim(adjustl(cpar%outdir)) // '/' // trim(adjustl(cpar%chain_prefix)) // &
+    chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
          & '_c' // trim(adjustl(ctext)) // '.h5'
 
-    ! Delete existing chain file if necessary; create new file if necessary; open file
-    if (first_call .and. cpar%myid_chain == 0 .and. output_hdf) then
-       if (trim(cpar%init_chain_prefix) /= trim(cpar%chain_prefix)) then
-          inquire(file=trim(chainfile), exist=exist)
-          if (exist) call rm(trim(chainfile))
-       end if
-       inquire(file=trim(chainfile), exist=exist)
-       if (.not. exist) then
-          call open_hdf_file(chainfile, file, 'w')
-          call close_hdf_file(file)
-       end if
-       first_call = .false.
-    end if
+!!$    ! Delete existing chain file if necessary; create new file if necessary; open file
+!!$    if (first_call .and. cpar%myid_chain == 0 .and. output_hdf) then
+!!$       if (trim(cpar%chain_status) == 'new') then
+!!$          inquire(file=trim(chainfile), exist=exist)
+!!$          if (exist) call rm(trim(chainfile))
+!!$       else if (trim(cpar%chain_status) == 'append') then
+!!$          
+!!$       else
+!!$          write(*,*) 'Unsupported chain mode =', trim(cpar%chain_status)
+!!$          call mpi_finalize(ierr)
+!!$          stop
+!!$       end if
+!!$       inquire(file=trim(chainfile), exist=exist)
+!!$       if (.not. exist) then
+!!$          call open_hdf_file(chainfile, file, 'w')
+!!$          call close_hdf_file(file)
+!!$       end if
+!!$       first_call = .false.
+!!$    end if
     if (cpar%myid_chain == 0 .and. output_hdf) then
+       inquire(file=trim(chainfile), exist=exist)
        call open_hdf_file(chainfile, file, 'b')
        ! Delete group if it already exists
        call h5eset_auto_f(0, hdferr)
