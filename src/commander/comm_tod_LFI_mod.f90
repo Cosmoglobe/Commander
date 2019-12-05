@@ -1667,7 +1667,6 @@ contains
   end subroutine accumulate_abscal
 
   ! Sample absolute gain from orbital dipole alone 
-  ! Eirik: Change this routine to sample only *one* number for all detectors, not one number per detector; put the result in self%gain0(0)
   subroutine sample_abscal_from_orbital(self, handle, A_abs, b_abs)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
@@ -1675,7 +1674,7 @@ contains
     real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
 
     integer(i4b) :: i, j, ierr
-    real(dp), allocatable, dimension(:) :: A, b, gain0, sigma
+    real(dp), allocatable, dimension(:) :: A, b
 
     ! Collect contributions from all cores
     allocate(A(self%ndet), b(self%ndet), gain0(self%ndet), sigma(self%ndet))
@@ -1686,34 +1685,14 @@ contains
 
     ! Compute gain update and distribute to all cores
     if (self%myid == 0) then
-       sigma = 1.d0/sqrt(A)
-       gain0 = b/A
+       self%gain0(0) = b/A
        if (trim(self%operation) == 'sample') then
           ! Add fluctuation term if requested
-          do j = 1, self%ndet
-             gain0(j) = gain0(j) + sigma(j) * rand_gauss(handle)
-          end do
+          self%gain0(0) = gain0(0) + 1.d0/sqrt(A) * rand_gauss(handle)
        end if
-       do j = 1, self%ndet
-          write(*,fmt='(a,i5,a,2f8.3)') 'Orb gain -- d = ', j, ', dgain = ', &
-               & 100*(gain0(j)-self%gain0(j))/self%gain0(j), (gain0(j)-self%gain0(j))/sigma(j)
-       end do
     end if
-    call mpi_bcast(gain0, self%ndet,  MPI_DOUBLE_PRECISION, 0, &
+    call mpi_bcast(self%gain0(0), self%ndet,  MPI_DOUBLE_PRECISION, 0, &
          & self%info%comm, ierr)
-
-    do j = 1, self%ndet
-       do i = 1, self%nscan
-          if(isNaN(gain0(j))) then
-            write(*,*) "sample absgain", gain0(j)
-            stop
-          end if
-          self%scans(i)%d(j)%gain = self%scans(i)%d(j)%gain + gain0(j) - self%gain0(j)
-       end do
-       self%gain0(j)  = gain0(j)
-    end do
-
-    deallocate(A, b, gain0, sigma)
 
   end subroutine sample_abscal_from_orbital
 
