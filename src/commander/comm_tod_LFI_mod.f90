@@ -831,9 +831,11 @@ contains
 
                 ! Eirik: Set up proper residuals for absolute or relative calibration, respectively
                 if (do_oper(prep_acal)) then
-                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+!                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+                   s_buf(:, j) = self%gain0(0) * (s_tot(:, j) - s_orb(:, j)) + (self%gain0(j) + self%scans(i)%d(j)%gain) * s_tot(:, j)
                 else if (do_oper(prep_rcal)) then
-                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+!                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+                   s_buf(:,j) = (self%gain0(0) + self%scans(i)%d(j)%gain) * s_tot(:, j)
                 end if
 
 
@@ -1512,55 +1514,46 @@ contains
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
-  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
+!  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
+   subroutine calculate_gain_mean_std_per_scan(self, s_tot, invn, mask)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
-    type(planck_rng),                  intent(inout)  :: handle
-    integer(i4b),                      intent(in)     :: det, scan_id
-    real(sp),            dimension(:), intent(in)     :: n_corr, mask, s_ref
-    real(dp),            allocatable,  dimension(:)   :: d_only_wn
-    real(dp)                                          :: curr_gain, ata
-    real(dp)                                          :: curr_sigma
+      real(sp),             dimension(:), intent(in)    :: s_tot, mask 
+      real(sp),             dimension(:), intent(in)    :: invn ! Haavard: to be changed with a two-dimensional vector
+      real(dp), allocatable, dimension(:)           :: residual
 
-    allocate(d_only_wn(size(s_ref)))
+    allocate(residual(size(s_tot))
 
-    d_only_wn     = self%scans(scan_id)%d(det)%tod - n_corr - self%gain0(det)*s_ref
-    ata           = sum(mask*s_ref**2)
-!    write(*,*) trim(self%label(det)), det, self%scanid(scan_id), sum(mask * d_only_wn * s_ref) / ata 
-    curr_gain     = sum(mask * d_only_wn * s_ref) / ata + self%gain0(det)
-    curr_sigma    = self%scans(scan_id)%d(det)%sigma0 / sqrt(ata)  
-    self%scans(scan_id)%d(det)%gain_sigma = curr_sigma
-    if (trim(self%operation) == 'optimize') then
-       self%scans(scan_id)%d(det)%gain = curr_gain
-    else
-       self%scans(scan_id)%d(det)%gain = curr_gain + curr_sigma*rand_gauss(handle)
-    end if
+    residual = self%scans(scan_id)%d(det)%tod - (self%gain0(0) + self%gain0(det)) * s_tot
 
-    !if (det == 1) self%scans(scan_id)%d(det)%gain = self%scans(scan_id)%d(det)%gain * 0.996
+    ! Haavard: This must be changed with a proper invn multiplication
+    self%scans(scan_id)%d(det)%gain = sum(mask *s_tot * invn * residual)
+    self%scans(scan_id)%d(det)%gain_sigma = sum(mask * s_tot * invn * s_tot)
 
-    deallocate(d_only_wn)
+    deallocate(residual)
 
-  end subroutine sample_gain_per_scan
+  end subroutine calculate_gain_mean_std_per_scan
 
 
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  subroutine sample_smooth_gain(self)
+  subroutine sample_smooth_gain(self, inv_gain_covar, detector, handle)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
+    real(sp), dimension(:, :), intent(in): inv_gain_covar ! To be replaced by proper matrix
+    type(planck_rng),                  intent(inout)  :: handle
 
-    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, binsize, nbin, b1, b2, n, ntot
-    real(dp)     :: g0
-    real(dp), allocatable, dimension(:)     :: vals
+    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot
+    real(dp), allocatable, dimension(:, :)     :: lhs
     real(dp), allocatable, dimension(:,:,:) :: g
-    
+
     ndet       = self%ndet
     nscan_tot  = self%nscan_tot
-    binsize    = 300
 
     ! Collect all gain estimates on the root processor
-    allocate(g(nscan_tot,ndet,2), vals(binsize))
+    allocate(g(nscan_tot,ndet,2))
+    allocate(lhs(nscan_tot), rhs(nscan_tot))
     g = 0.d0
     do j = 1, ndet
        do i = 1, self%nscan
@@ -1578,37 +1571,22 @@ contains
             & 0, self%comm, ierr)
     end if
 
-
-    ! Perform joint sampling/smoothing
     if (self%myid == 0) then
-       nbin = nscan_tot/binsize+1
        do j = 1, ndet
-          g0   = 0.d0
-          ntot = 0
-          do i = 1, nbin
-             b1 = (i-1)*binsize+1
-             b2 = min(i*binsize,nscan_tot)
-             if (count(g(b1:b2,j,1) > 0) <= 1) cycle
-             
-             n  = 0
-             do k = b1, b2
-                if (g(k,j,1) == 0) cycle
-                g0 = g0 + g(k,j,1)
-                n  = n+1
-                ntot = ntot + 1
-                vals(n) = g(k,j,1)
-             end do
-             where (g(b1:b2,j,1) > 0)
-                g(b1:b2,j,1) = median(vals(1:n)) 
-             end where
-          end do
-          
-          ! Enforce zero mean for fluctuations
-          where (g(:,j,1) > 0)
-             g(:,j,1) = g(:,j,1) - g0/ntot + self%gain0(j)
-          end where
-          !write(*,*) 'smooth', real(g0/ntot,sp), real(self%gain0(j),sp)
-
+         lhs = inv_gain_covar(j, :)
+         rhs = 0.d0
+         do i = 1, self%nscan
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            k = self%scanid(i)
+            ! To be replaced by proper matrix multiplications
+            lhs(k) = lhs(k) + g(k, j, 2)
+            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle)
+            g(k, j, 1) = rhs(k) / lhs(k)
+         end do
+         ! Make sure fluctuations sum up to zero
+         where (g(:, j, 1) > 0)
+            g(:,j,1) = g(:,j,1) - sum(g(:, j, 1)) / size(g(:, j, 1))
+         end where
        end do
     end if
 
@@ -1621,7 +1599,7 @@ contains
        end do
     end do
 
-    deallocate(g, vals)
+    deallocate(g, lhs, rhs)
 
   end subroutine sample_smooth_gain
   
@@ -1645,7 +1623,8 @@ contains
     A = 0.d0; b = 0.d0
     do i = 1, n !self%scans(scan)%ntod
        !data  = self%scans(scan)%d(det)%tod(i) - n_corr(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
-       data  = self%scans(scan)%d(det)%tod(i) - self%scans(scan)%d(det)%gain * s_sub(i) - (self%scans(scan)%d(det)%gain-self%gain0(det)) * s_orb(i)
+       !data  = self%scans(scan)%d(det)%tod(i) - self%scans(scan)%d(det)%gain * s_sub(i) - (self%scans(scan)%d(det)%gain-self%gain0(det)) * s_orb(i)
+       data = self%scans(scan)%d(det)%tod(i) - s_sub(i)
        A(1,1) = A(1,1) + s_orb(i) * inv_sigmasq * mask(i) * s_orb(i)
        A(2,1) = A(2,1) +            inv_sigmasq * mask(i) * s_orb(i)
        A(2,2) = A(2,2) +            inv_sigmasq * mask(i) 
