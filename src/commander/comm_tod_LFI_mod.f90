@@ -1688,7 +1688,7 @@ contains
        self%gain0(0) = b/A
        if (trim(self%operation) == 'sample') then
           ! Add fluctuation term if requested
-          self%gain0(0) = gain0(0) + 1.d0/sqrt(A) * rand_gauss(handle)
+          self%gain0(0) = self%gain0(0) + 1.d0/sqrt(A) * rand_gauss(handle)
        end if
     end if
     call mpi_bcast(self%gain0(0), self%ndet,  MPI_DOUBLE_PRECISION, 0, &
@@ -1705,45 +1705,36 @@ contains
     real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
 
     integer(i4b) :: i, j, ierr
-    real(dp), allocatable, dimension(:) :: A, b, gain0, sigma
+    real(dp), allocatable, dimension(:) :: A, b, rhs, x
+    real(dp), allocatable, dimension(:, :) :: coeff_matrix
 
     ! Collect contributions from all cores
-    allocate(A(self%ndet), b(self%ndet), gain0(self%ndet), sigma(self%ndet))
+    allocate(A(self%ndet), b(self%ndet), rhs(self%ndet+1), x(self%ndet+1))
+    allocate(coeff_matrix(self%ndet+1, self%ndet+1))
     call mpi_reduce(A_abs, A, self%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
          & self%info%comm, ierr)
     call mpi_reduce(b_abs, b, self%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
          & self%info%comm, ierr)
 
-    ! Compute gain update and distribute to all cores
+    coeff_matrix = 0.d0
+    rhs = 0.d0
     if (self%myid == 0) then
-       sigma = 1.d0/sqrt(A)
-       gain0 = b/A
-       if (trim(self%operation) == 'sample') then
-          ! Add fluctuation term if requested
-          do j = 1, self%ndet
-             gain0(j) = gain0(j) + sigma(j) * rand_gauss(handle)
-          end do
-       end if
        do j = 1, self%ndet
-          write(*,fmt='(a,i5,a,2f8.3)') 'Orb gain -- d = ', j, ', dgain = ', &
-               & 100*(gain0(j)-self%gain0(j))/self%gain0(j), (gain0(j)-self%gain0(j))/sigma(j)
+         coeff_matrix(j, j) = A(j)
+         rhs(j) = b(j) + sqrt(A(j)) * rand_gauss(handle)
+         coeff_matrix(j, self%ndet+1) = 0.5d0
+         coeff_matrix(self%ndet+1, j) = 1
        end do
+       coeff_matrix(self%ndet+1, self%ndet+1) = 0.d0
+       rhs(self%ndet+1) = 0.d0
+       call solve_system_real(coeff_matrix, x, rhs)
+       
     end if
-    call mpi_bcast(gain0, self%ndet,  MPI_DOUBLE_PRECISION, 0, &
-         & self%info%comm, ierr)
+    call mpi_bcast(x, self%ndet+1, MPI_DOUBLE_PRECISION, 0, &
+       & self%info%comm, ierr)
 
-    do j = 1, self%ndet
-       do i = 1, self%nscan
-          if(isNaN(gain0(j))) then
-            write(*,*) "sample absgain", gain0(j)
-            stop
-          end if
-          self%scans(i)%d(j)%gain = self%scans(i)%d(j)%gain + gain0(j) - self%gain0(j)
-       end do
-       self%gain0(j)  = gain0(j)
-    end do
-
-    deallocate(A, b, gain0, sigma)
+!    self%gain(1:self%ndet) = x(1:self%ndet)
+    deallocate(coeff_matrix, rhs, A, b, x)
 
   end subroutine sample_relcal
   
