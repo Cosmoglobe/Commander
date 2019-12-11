@@ -5,7 +5,7 @@ module InvSamp_mod
   implicit none
 
   integer(i4b), parameter          :: INVSAMP_MAX_NUM_EVALS = 1000
-  integer(i4b), parameter, private :: N_SPLINE              = 1000
+  integer(i4b), parameter, private :: N_SPLINE              = 10000
   real(dp),     parameter, private :: DELTA_LNL             = 12.5d0 ! Five sigma
   integer(i4b), parameter, private :: MIN_NUM_ACTIVE_POINT  = 50
   real(dp),     parameter, private :: TOLERANCE             = 1d-2
@@ -70,36 +70,54 @@ contains
              S_n(i) = lnL(x_n(i))
           end do
        end if
-       
+
        ! Check that peak is bounded; if not do a golden ratio search
        do while (S_n(1) > S_n(2) .and. x_n(1) > prior_(1))
-          x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), prior_(1))
+          !x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), 0.5d0*(x_n(1)+prior_(1)))
+          x_new = 0.5d0*(x_n(1)+prior_(1))
           y_new = lnL(x_new)
           call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
        end do
-       
+
        do while (S_n(n) > S_n(n-1) .and. x_n(n) < prior_(2))
           x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
           y_new = lnL(x_new)
-          call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+!          if (maxval(S_n)-y_new < 100.d0) then
+!             prior_(2) = x_new 
+!          else
+          !write(*,*) x_new, y_new
+             call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+!          end if
        end do
        if (stat /= 0) return
-       
+
        ! Check that we bound the 5-sigma range, ie., delta_chisq = 25 => delta lnL = 12.5
        lnL_peak = maxval(S_n(1:n))
        do while (lnL_peak-S_n(1) < DELTA_LNL .and. x_n(1) > prior_(1))
-          x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), prior_(1))
+          x_new = 0.5d0*(x_n(1)+prior_(1))
+!          x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), prior_(1))
           y_new = lnL(x_new)
-          call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+!          if (maxval(S_n)-y_new < 100.d0) then
+!             prior_(1) = x_new 
+!          else
+             call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+!          end if
        end do
-       
+
        do while (lnL_peak-S_n(n) < DELTA_LNL .and. x_n(n) < prior_(2))
           x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
           y_new = lnL(x_new)
-          call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+!          if (maxval(S_n)-y_new < 100.d0) then
+!             prior_(2) = x_new 
+!          else
+             call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+!          end if
        end do
        if (stat /= 0) return
-       
+
+!       write(*,*) x_n(1:n)
+!       write(*,*) S_n(1:n)
+
        ! Refine grid until we have a sufficiently accurate solution
        epsilon = 1.d30
        iter = 0
@@ -117,18 +135,22 @@ contains
                 y_new        = lnL(x_new)
                 y_new_spline = splint(x_spline(1:m), S_spline(1:m), S_n2(1:m), x_new)
                 epsilon      = max(abs(y_new-y_new_spline), epsilon)
-                call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+                if (abs(y_new-y_new_spline) > tol) then
+                   call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+                end if
              end if
              if (stat /= 0) exit
           end do
+!          write(*,*) iter, epsilon, n
           
-          if (iter > 10) then
+          if (iter > 100) then
              stat = stat+1
-!!$             open(69,file='p_inv.dat')
-!!$             do i = 1, n
-!!$                write(69,*) x_n(i), S_n(i)
-!!$             end do
-!!$             close(69)
+             open(69,file='p_inv.dat')
+             do i = 1, n
+                write(69,*) x_n(i), S_n(i)
+             end do
+             close(69)
+             stop
              exit
           end if
           if (stat /= 0) exit
@@ -181,7 +203,8 @@ contains
           F(1) = 0.d0
           F(2) = dx * 0.5d0*(P(1) + P(2))
           do j = 3, N_SPLINE
-             F(j) = F(j-2) + dx * (P(j-2)/3.d0 + 4.d0*P(j-1)/3.d0 + P(j)/3.d0)
+             !F(j) = F(j-2) + dx * (P(j-2)/3.d0 + 4.d0*P(j-1)/3.d0 + P(j)/3.d0)
+             F(j) = F(j-1) + dx * 0.5d0*(P(j-1) + P(j))
           end do
           P = P / F(N_SPLINE)
           F = F / F(N_SPLINE)

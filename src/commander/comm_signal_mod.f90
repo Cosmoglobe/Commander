@@ -462,4 +462,130 @@ contains
 
   end subroutine synchronize_bp_delta
   
+
+  subroutine sample_joint_alm_Cl(handle)
+    implicit none
+    type(planck_rng), intent(inout) :: handle
+
+    integer(i4b) :: i, j, n, bin, pos, ierr
+    logical(lgt) :: posdef, accept
+    real(dp)     :: chisq_old, chisq_prop, U
+    real(dp), allocatable, dimension(:)   :: Dl_old, Dl_prop, eta
+    real(dp), allocatable, dimension(:,:) :: alm_prop, alm_old
+    class(comm_comp), pointer :: c
+    class(comm_map),  pointer :: res
+    
+    ! Initialize residual maps
+    chisq_old = 0.d0
+    do i = 1, numband
+       res             => compute_residual(i)
+!!$       write(*,*) sum(abs(res%map))
+!!$       call mpi_finalize(ierr)
+!!$       stop
+
+       data(i)%res%map =  res%map
+       chisq_old       =  chisq_old + data(i)%chisq()
+!!$       write(*,*) chisq_old
+!!$       call mpi_finalize(ierr)
+!!$       stop
+       call res%dealloc()
+       nullify(res)
+    end do
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+
+          ! Add CMB 
+          do i = 1, numband
+             data(i)%c_old     => comm_map(data(i)%info)
+             data(i)%c_prop    => comm_map(data(i)%info)
+             data(i)%c_old%map =  c%getBand(i)
+          end do
+
+          allocate(alm_prop(0:c%x%info%nalm-1,0:c%x%info%nmaps))
+          allocate(alm_old(0:c%x%info%nalm-1,0:c%x%info%nmaps))
+          do bin = 1, c%Cl%nbin2
+             if (trim(c%Cl%type) /= 'binned') cycle
+             if (trim(c%Cl%bins2(bin)%stat) /= 'M') cycle
+
+             n = c%Cl%bins2(bin)%ntot
+if (c%x%info%myid ==0) write(*,*) bin, n
+             pos = 0
+             allocate(Dl_old(n), Dl_prop(n), eta(n))
+             call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_old, pos, .false.)
+             if (c%x%info%myid ==0) then   
+                do i = 1, n
+                   eta(i) = rand_gauss(handle)
+                end do
+                Dl_prop = Dl_old + matmul(c%Cl%bins2(bin)%M_prop, eta)
+                posdef = c%Cl%check_posdef(bin, Dl_prop)
+             end if
+             call mpi_bcast(posdef, 1, MPI_LOGICAL, 0, c%x%info%comm, ierr)
+             if (c%x%info%myid ==0) write(*,*) 'posdef', bin, c%Cl%bins2(bin)%lmin, posdef
+             if (posdef) then
+                call mpi_bcast(Dl_prop, n, MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
+
+                ! Compute rescaled alms
+                alm_old  = c%x%alm
+                alm_prop = c%x%alm
+                pos      = 0
+                call c%Cl%sqrtInvS(alm=alm_prop, info=c%x%info)
+                call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_prop, pos, .true.)
+                call c%Cl%updateS
+                call c%Cl%sqrtS(alm=alm_prop, info=c%x%info)
+                c%x%alm = alm_prop
+
+                ! Compute proposal chisquare
+                chisq_prop = 0.d0
+                do i = 1, numband
+                   data(i)%c_prop%map =  c%getBand(i)
+                   data(i)%res%map    =  data(i)%res%map + data(i)%c_old%map - data(i)%c_prop%map
+                   chisq_prop         =  chisq_prop      + data(i)%chisq()
+                end do
+
+                ! Apply Metropolis rule, and update data structures
+                if (c%x%info%myid == 0) then
+                   accept = rand_uni(handle) < exp(-0.5d0*(chisq_prop-chisq_old))
+                   write(*,*) 'Old   = ', bin, real(Dl_old,sp)
+                   write(*,*) 'Prop  = ', bin, real(Dl_prop,sp)
+                   write(*,*) 'chisq = ', chisq_old, chisq_prop, accept
+                end if
+!!$                call mpi_finalize(ierr)
+!!$                stop
+
+                call mpi_bcast(accept, 1, MPI_LOGICAL, 0, c%x%info%comm, ierr)
+                if (accept) then
+                   chisq_old = chisq_prop
+                   do i = 1, numband
+                      data(i)%c_old%map = data(i)%c_prop%map 
+                   end do
+                else
+                   c%x%alm = alm_old
+                   pos     = 0
+                   call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_old, pos, .true.)
+                   call c%Cl%updateS
+                   do i = 1, numband
+                      data(i)%res%map   = data(i)%res%map - data(i)%c_old%map + data(i)%c_prop%map
+                   end do
+                end if
+
+             end if
+             deallocate(Dl_old, Dl_prop, eta)
+          end do
+          deallocate(alm_prop, alm_old)
+
+          do i = 1, numband
+             call data(i)%c_old%dealloc()
+             call data(i)%c_prop%dealloc() 
+          end do
+
+       end select
+       c => c%next()
+    end do
+
+  end subroutine sample_joint_alm_Cl
+
+
 end module comm_signal_mod

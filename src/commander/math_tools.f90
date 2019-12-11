@@ -53,12 +53,13 @@ contains
   end subroutine invert_matrix_dpc
 
 
-  subroutine invert_matrix_dp(matrix, cholesky, status)
+  subroutine invert_matrix_dp(matrix, cholesky, status, ln_det)
     implicit none
 
     real(dp), dimension(1:,1:), intent(inout)         :: matrix
     logical(lgt),               intent(in),  optional :: cholesky
     integer(i4b),               intent(out), optional :: status
+    real(dp),                   intent(out), optional :: ln_det
 
     integer(i4b)     :: i, j, n, lda, info, lwork
     logical(lgt)     :: use_cholesky
@@ -78,6 +79,17 @@ contains
 
     if (use_cholesky) then
        call DPOTRF(uplo, n, matrix, lda, info)
+       if (present(ln_det)) then
+          ln_det = 0.d0
+          do i = 1, n
+             if (matrix(i,i) > 0.d0) then
+                ln_det = ln_det + 2.d0*log(matrix(i,i))
+             else
+                ln_det = -1.d30
+                exit
+             end if
+          end do
+       end if
     else
        call DGETRF(n, n, matrix, lda, ipiv, info)
     end if
@@ -1139,6 +1151,132 @@ contains
 
   end function corr_erf
 
+  subroutine compute_inv_Cl_and_determ(cls, inv_Cl, log_det_Cl)
+    implicit none
+
+    real(dp), dimension(1:,1:), intent(in)  :: cls
+    real(dp), dimension(1:,1:), intent(out) :: inv_Cl
+    real(dp),                   intent(out) :: log_det_Cl
+
+    integer(i4b) :: i, p
+
+    p = size(cls(1,:))
+
+    if (p == 1) then
+
+       inv_Cl(1,1) = 1.d0 / cls(1,1)
+       log_det_Cl  = log(cls(1,1))
+
+    else if (p == 2) then
+
+       inv_Cl(1,1) =  cls(2,2)
+       inv_Cl(1,2) = -cls(1,2)
+       inv_Cl(2,1) = -cls(2,1)
+       inv_Cl(2,2) =  cls(1,1)
+       inv_Cl      = inv_Cl / (cls(1,1)*cls(2,2) - cls(2,1)**2)
+
+       log_det_Cl  = log(cls(1,1)*cls(2,2) - cls(2,1)**2)
+
+    else if (p == 3) then
+
+       ! Cholesky decompose Cl
+       inv_Cl = 0.d0
+       
+       inv_Cl(1,1) = sqrt(cls(1,1))
+       inv_Cl(2,1) = cls(1,2) / inv_Cl(1,1)
+       inv_Cl(3,1) = cls(1,3) / inv_Cl(1,1)
+       inv_Cl(2,2) = sqrt(cls(2,2) - inv_Cl(2,1)**2)
+!       write(*,*) real(cls(2,3),sp), real(inv_Cl(2,1),sp), real(inv_Cl(3,1),sp), real(inv_Cl(2,2),sp)
+       inv_Cl(3,2) = (cls(2,3) - inv_Cl(2,1)*inv_Cl(3,1)) / inv_Cl(2,2)
+       inv_Cl(3,3) = sqrt(cls(3,3) - inv_Cl(3,1)**2 - inv_Cl(3,2)**2)
+       
+       log_det_Cl = 2.d0 * (log(inv_Cl(1,1)) + log(inv_Cl(2,2)) + log(inv_Cl(3,3)))
+       
+       inv_Cl(1,1) = 1.d0 / inv_Cl(1,1)
+       inv_Cl(2,2) = 1.d0 / inv_Cl(2,2)
+       inv_Cl(3,3) = 1.d0 / inv_Cl(3,3)
+       
+       inv_Cl(3,1) = inv_Cl(3,2)*inv_Cl(2,1) * inv_Cl(1,1)*inv_Cl(2,2)*inv_Cl(3,3) - &
+            & inv_Cl(3,1) * inv_Cl(1,1) * inv_Cl(3,3)
+       inv_Cl(3,2) = -inv_Cl(3,2) * inv_Cl(2,2)*inv_Cl(3,3)
+       inv_Cl(2,1) = -inv_Cl(2,1) * inv_Cl(1,1)*inv_Cl(2,2)
+       
+       inv_Cl(1,1) = inv_Cl(1,1)**2 + inv_Cl(2,1)**2 + inv_Cl(3,1)**2
+       inv_Cl(1,2) = inv_Cl(2,1)*inv_Cl(2,2) + inv_Cl(3,1)*inv_Cl(3,2)
+       inv_Cl(1,3) = inv_Cl(3,1)*inv_Cl(3,3)
+       inv_Cl(2,1) = inv_Cl(2,1)*inv_Cl(2,2) + inv_Cl(3,2)*inv_Cl(3,1)
+       inv_Cl(2,2) = inv_Cl(2,2)**2 + inv_Cl(3,2)**2
+       inv_Cl(2,3) = inv_Cl(3,2) * inv_Cl(3,3)
+       inv_Cl(3,1) = inv_Cl(3,1) * inv_Cl(3,3)
+       inv_Cl(3,2) = inv_Cl(3,2) * inv_Cl(3,3)
+       inv_Cl(3,3) = inv_Cl(3,3)**2
+
+    end if
+
+  end subroutine compute_inv_Cl_and_determ
+
+
+  function log_det(cls)
+    implicit none
+
+    real(dp), dimension(1:,1:),   intent(in)  :: cls
+    real(dp)                                  :: log_det
+
+    integer(i4b) :: i, p
+
+    real(dp), allocatable, dimension(:,:) :: m
+
+    p = size(cls(1,:))
+
+    if (p == 1) then
+
+       log_det = log(cls(1,1))
+
+    else if (p == 2) then
+
+       log_det = log(cls(1,1)*cls(2,2) - cls(2,1)**2)
+
+    else if (p == 3) then
+
+       allocate(m(p,p))
+       
+       ! Cholesky decompose Cl
+       m(1,1) = sqrt(cls(1,1))
+       m(2,1) = cls(1,2) / m(1,1)
+       m(3,1) = cls(1,3) / m(1,1)
+       m(2,2) = sqrt(cls(2,2) - m(2,1)**2)
+       m(3,2) = (cls(2,3) - m(2,1)*m(3,1)) / m(2,2)
+       m(3,3) = sqrt(cls(3,3) - m(3,1)**2 - m(3,2)**2)
+       
+       log_det = 2.d0 * (log(m(1,1)) + log(m(2,2)) + log(m(3,3)))
+       
+       deallocate(m)
+       
+    end if
+    
+  end function log_det
+
+
+  function trace_sigma_inv_Cl(sigma, inv_Cl)
+    implicit none
+
+    real(dp), dimension(1:,1:), intent(in) :: sigma, inv_Cl
+    real(dp)                               :: trace_sigma_inv_Cl
+    
+    integer(i4b) :: i, j, nmaps
+
+    nmaps = size(sigma(:,1))
+
+    trace_sigma_inv_Cl = 0.d0
+    do i = 1, nmaps
+       do j = 1, nmaps
+          trace_sigma_inv_Cl = trace_sigma_inv_Cl + sigma(i,j) * inv_Cl(j,i)
+       end do
+    end do
+
+  end function trace_sigma_inv_Cl
+
+
 !!$  real(dp) function gammln(xx)
 !!$    implicit none
 !!$
@@ -1246,13 +1384,10 @@ contains
 
     call dpotrf( 'L', N, A, N, stat )
 
-    if (stat /= 0) then
-       if (present(ierr)) then
-          ierr = stat
-       else
-          write(*,*) 'Cholesky decomposition failed. stat = ', stat
-          stop
-       end if
+    if (present(ierr)) ierr = stat
+    if (stat /= 0 .and. .not. present(ierr)) then
+       write(*,*) 'Cholesky decomposition failed. stat = ', stat
+       stop
     end if
 
     if (stat == 0) then

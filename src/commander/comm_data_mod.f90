@@ -22,6 +22,7 @@ module comm_data_mod
      class(comm_mapinfo), pointer :: info
      class(comm_map),     pointer :: map                     ! Input + regnoise
      class(comm_map),     pointer :: res
+     class(comm_map),     pointer :: c_old, c_prop
      class(comm_map),     pointer :: mask
      class(comm_map),     pointer :: procmask, procmask2
      class(comm_map),     pointer :: gainmask
@@ -34,6 +35,7 @@ module comm_data_mod
      type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data
+     procedure :: chisq => get_chisq
      !procedure :: apply_proc_mask
   end type comm_data_set
 
@@ -239,6 +241,26 @@ contains
 
   end subroutine initialize_data_mod
 
+  function get_chisq(self)
+    implicit none
+    class(comm_data_set), intent(in)           :: self
+    real(dp)                                   :: get_chisq
+
+    integer(i4b) :: ierr
+    real(dp)     :: chisq
+    class(comm_map), pointer :: invN_res
+    
+    invN_res => comm_map(self%res)
+!    write(*,*) 'a', sum(abs(self%res%map))
+    call self%N%invN(invN_res)
+!    write(*,*) 'b', sum(abs(invN_res%map))
+    chisq = sum(self%res%map*invN_res%map)
+!    write(*,*) 'c', chisq
+    call mpi_allreduce(chisq, get_chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+!    write(*,*) 'c', get_chisq
+    call invN_res%dealloc()
+
+  end function get_chisq
 
   function RJ2data(self, det)
     implicit none

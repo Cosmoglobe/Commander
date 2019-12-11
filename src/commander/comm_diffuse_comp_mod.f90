@@ -967,6 +967,7 @@ contains
 !!$    end do
 !!$    deallocate(theta_prev)
 
+
     call update_status(status, "mixupdate2 " // trim(self%label))
 
     ! Request preconditioner update
@@ -2586,5 +2587,7 @@ contains
     deallocate(x, t, f, psi, phi, b0)
 
   end subroutine setup_needlets
+
+
 
 end module comm_diffuse_comp_mod

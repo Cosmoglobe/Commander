@@ -1231,34 +1231,53 @@ contains
 
   end subroutine add
 
-  subroutine getSigmaL(self, sigma_l)
+  subroutine getSigmaL(self, sigma_l_vec, sigma_l_mat)
     implicit none
-    class(comm_map),                   intent(in)  :: self
-    real(dp),        dimension(0:,1:), intent(out) :: sigma_l
+    class(comm_map),                      intent(in)            :: self
+    real(dp),        dimension(0:,1:),    intent(out), optional :: sigma_l_vec
+    real(dp),        dimension(1:,1:,0:), intent(out), optional :: sigma_l_mat
 
     integer(i4b) :: l, m, i, j, k, ind, nspec, lmax, nmaps, ierr
 
     lmax  = self%info%lmax
     nmaps = self%info%nmaps
     nspec = nmaps*(nmaps+1)/2
-    sigma_l = 0.d0
+    if (present(sigma_l_vec)) sigma_l_vec = 0.d0
+    if (present(sigma_l_mat)) sigma_l_mat = 0.d0
     do ind = 0, self%info%nalm-1
        call self%info%i2lm(ind,l,m)
        k   = 1
        do i = 1, nmaps
           do j = i, nmaps
-             sigma_l(l,k) = sigma_l(l,k) + self%alm(ind,i)*self%alm(ind,j)
+             if (present(sigma_l_vec)) &
+                & sigma_l_vec(l,k) = sigma_l_vec(l,k) + self%alm(ind,i)*self%alm(ind,j)
+             if (present(sigma_l_mat)) &
+                & sigma_l_mat(i,j,l) = sigma_l_mat(i,j,l) + self%alm(ind,i)*self%alm(ind,j)
              k            = k+1
           end do
        end do
     end do
 
-    call mpi_allreduce(MPI_IN_PLACE, sigma_l, size(sigma_l), MPI_DOUBLE_PRECISION, &
-         & MPI_SUM, self%info%comm, ierr)
+    if (present(sigma_l_vec)) then
+       call mpi_allreduce(MPI_IN_PLACE, sigma_l_vec, size(sigma_l_vec), MPI_DOUBLE_PRECISION, &
+            & MPI_SUM, self%info%comm, ierr)
+       do l = 0, lmax
+          sigma_l_vec(l,:) = sigma_l_vec(l,:) / real(2*l+1,dp)
+       end do
+    end if
 
-    do l = 0, lmax
-       sigma_l(l,:) = sigma_l(l,:) / real(2*l+1,dp)
-    end do
+    if (present(sigma_l_mat)) then
+       call mpi_allreduce(MPI_IN_PLACE, sigma_l_mat, size(sigma_l_mat), MPI_DOUBLE_PRECISION, &
+            & MPI_SUM, self%info%comm, ierr)
+       do l = 0, lmax
+          do i = 1, nmaps
+             do j = i, nmaps
+                sigma_l_mat(i,j,l) = sigma_l_mat(i,j,l) / real(2*l+1,dp)
+                sigma_l_mat(j,i,l) = sigma_l_mat(i,j,l) 
+             end do
+          end do
+       end do
+    end if
 
   end subroutine getSigmaL
 

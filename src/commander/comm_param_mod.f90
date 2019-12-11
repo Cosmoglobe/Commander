@@ -215,7 +215,7 @@ contains
        cpar%cg_precond          = 'diagonal'   ! Use diagonal precond to fill in the mask
        cpar%enable_TOD_analysis = .false.      ! Disable TOD analysis
        cpar%sample_specind      = .false.      ! Disable non-linear parameter fitting
-       cpar%num_gibbs_iter      = (cpar%last_samp_resamp-cpar%first_samp_resamp+1)*cpar%numsamp_per_resamp
+       !cpar%num_gibbs_iter      = (cpar%last_samp_resamp-cpar%first_samp_resamp+1)*cpar%numsamp_per_resamp
        do i = 1, cpar%cs_ncomp_tot
           if (trim(cpar%cs_type(i)) /= 'cmb') then
              cpar%cs_cg_samp_group(i) = 0   ! Disable all other components than CMB from CG search
