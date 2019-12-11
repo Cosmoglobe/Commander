@@ -1,13 +1,31 @@
 program sharp_test
   use comm_map_mod
   use comm_param_mod
+  use ARS_mod
   implicit none
 
   integer(i4b)         :: i, j, n, nside, lmax, nmaps, myid, comm, numprocs, ierr
-  real(dp)             :: t1, t2
+  real(dp)             :: t1, t2, x0, x1
   class(comm_map), pointer      :: map
   class(comm_mapinfo), pointer :: info
   real(dp), allocatable, dimension(:) :: arr1, arr2
+  type(planck_rng) :: handle
+
+  x0 = 900.d0
+  n  = 1000
+  call rand_init(handle)
+
+  open(58,file='x.dat')
+  do i = 1, n
+     x1 = sample_ARS(handle, lnL, [500.d0, 1000.d0, 2000.d0], x0=x0)
+     write(58,*) i, x1
+     write(*,*) i, x1
+     x0 = x1
+  end do
+  close(58)
+
+  stop
+
 
   n = 1
   nside = 2048
@@ -48,5 +66,19 @@ program sharp_test
 
 
   call mpi_finalize(ierr)
+
+contains
+
+       function lnL(x)
+         use healpix_types
+         implicit none
+         real(dp), intent(in) :: x
+         real(dp)             :: lnL
+
+         lnL = -2.5d0 * (1000.d0/x + log(x)) 
+         write(*,*) x, lnL
+
+       end function lnL
+
 
 end program sharp_test

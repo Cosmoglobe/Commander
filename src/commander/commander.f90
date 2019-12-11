@@ -173,7 +173,16 @@ program commander
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
         end do
+
+        ! Perform joint alm-Cl Metropolis move
+        do i = 1, 10
+           if (cpar%resamp_CMB) call sample_joint_alm_Cl(handle)
+        end do
+
      end if
+
+     ! Sample power spectra
+     call sample_powspec(handle, ok)
 
      ! Output sample to disk
      call output_FITS_sample(cpar, iter, .true.)
@@ -192,8 +201,6 @@ program commander
 
      ! Sample instrumental parameters
 
-     ! Sample power spectra
-     call sample_powspec(handle, ok)
      
 
      call wall_time(t2)
