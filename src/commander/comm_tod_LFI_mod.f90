@@ -1512,14 +1512,19 @@ contains
   end subroutine sample_n_corr
 
 
-  subroutine multiply_inv_N(self, handle, scan, inp, res)
+  ! Routine for multiplying a set of timestreams with inverse noise covariance 
+  ! matrix. inp and res have dimensions (ntime,ndet,ninput), where ninput is 
+  ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
+  ! Here inp and res are assumed to be already allocated. 
+
+  subroutine multiply_inv_N(self, scan, inp, res)
     implicit none
-    class(comm_LFI_tod),               intent(in)     :: self
-    type(planck_rng),                  intent(inout)  :: handle
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: inp 
-    real(sp),          dimension(:,:), intent(out)    :: res 
+    class(comm_LFI_tod),                 intent(in)     :: self
+    integer(i4b),                        intent(in)     :: scan
+    real(sp),          dimension(:,:,:), intent(in)     :: inp ! input 
+    real(sp),          dimension(:,:,:), intent(out)    :: res ! result
     integer(i4b) :: i, l, n, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: ninput
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
     real(dp)     :: nu
@@ -1528,8 +1533,9 @@ contains
     
     ntod = size(inp, 1)
     ndet = size(inp, 2)
+    ninput = size(inp, 3)
     nomp = omp_get_max_threads()
-
+    
     n = ntod + 1
     
     call sfftw_init_threads(err)
@@ -1540,7 +1546,7 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
     
-    !$OMP PARALLEL PRIVATE(i,l,dt,dv,nu,sigma_0,alpha,nu_knee,inp,res)
+    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,inp,res)
     allocate(dt(2*ntod), dv(0:n-1))
     
     !$OMP DO SCHEDULE(guided)
@@ -1550,20 +1556,22 @@ contains
        sigma_0  = self%scans(scan)%d(i)%sigma0
        alpha    = self%scans(scan)%d(i)%alpha
        nu_knee  = self%scans(scan)%d(i)%fknee
-       noise = 2.0 * ntod * sigma_0 ** 2
+       noise    = 2.0 * ntod * sigma_0 ** 2
        
-       dt(1:ntod)           = d(:,i)
-       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-       
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-       do l = 1, n-1                                                      
-          nu = l*(samprate/2)/(n-1)
-          signal = noise * (nu/(nu_knee))**(alpha)
-          dv(l) = dv(l) * 1.d0/(noise + signal)   
+       do j = 1, ninput
+          dt(1:ntod)           = inp(:,i,j)
+          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+
+          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          do l = 1, n-1                                                      
+             nu = l*(samprate/2)/(n-1)
+             signal = noise * (nu/(nu_knee))**(alpha)
+             dv(l) = dv(l) * 1.d0/(noise + signal)   
+          end do
+          call sfftw_execute_dft_c2r(plan_back, dv, dt)
+          dt          = dt / (2*ntod)
+          res(:,i,j)  = dt(1:ntod) 
        end do
-       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-       dt          = dt / (2*ntod)
-       res(:,i) = dt(1:ntod) 
     end do
     !$OMP END DO                                                          
     deallocate(dt, dv)
