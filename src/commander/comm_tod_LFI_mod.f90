@@ -46,7 +46,7 @@ module comm_tod_LFI_mod
      procedure     :: compute_binned_map
      procedure     :: project_sky
      procedure     :: compute_orbital_dipole
-     procedure     :: sample_gain_per_scan
+     procedure     :: calculate_gain_mean_std_per_scan
      procedure     :: sample_smooth_gain
      procedure     :: sample_n_corr
      procedure     :: sample_bp
@@ -59,6 +59,7 @@ module comm_tod_LFI_mod
      procedure     :: sample_abscal_from_orbital
      procedure     :: sample_relcal
      procedure     :: sample_mono
+     procedure     :: multiply_inv_n
      procedure     :: get_total_chisq
      procedure     :: output_scan_list
      procedure     :: finalize_binned_map
@@ -312,8 +313,10 @@ contains
     real(dp)     :: t_tot(22), inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
     real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
+    real(sp),     allocatable, dimension(:,:)     :: sorb_invN, stot_invN
     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
+    real(sp),     allocatable, dimension(:,:,:)   :: temp_buffer
     real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
     real(dp),     allocatable, dimension(:,:)     :: chisq_S
@@ -492,11 +495,11 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
+!       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
        do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+!       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
        do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+!       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
        do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
        do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
@@ -554,32 +557,14 @@ contains
           naccept = 0; ntot    = 0
        end if
 
-       if (do_oper(prep_acal) .or. do_oper(prep_rcal)) then
+       if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
           A_abscal = 0.d0; b_abscal = 0.d0
-       end if
-
-       if (do_oper(samp_acal)) then
-          call wall_time(t1)
-          call self%sample_abscal_from_orbital(handle, A_abscal, b_abscal)
-          call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
-       end if
-
-       if (do_oper(samp_rcal)) then
-          call wall_time(t1)
-          call self%sample_relcal(handle, A_abscal, b_abscal)
-          call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
        end if
 
        if (do_oper(samp_bp)) then
           call wall_time(t1)
           call self%sample_bp(iter, delta, smap_sky, handle, chisq_S)
           call wall_time(t2); t_tot(17) = t_tot(17) + t2-t1
-       end if
-
-       if (do_oper(samp_G)) then
-          call wall_time(t1)
-          call self%sample_smooth_gain()
-          call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
        end if
 
        if (do_oper(prep_absbp)) then
@@ -612,6 +597,8 @@ contains
           allocate(s_mono(ntod, ndet))                 ! Monopole correction in uKcmb
           allocate(s_buf(ntod, ndet))                  ! Buffer
           allocate(s_tot(ntod, ndet))                  ! Sum of all sky compnents
+          allocate(sorb_invN(ntod, ndet))              ! s_orb * invN
+          allocate(stot_invN(ntod, ndet))              ! s_tot * invN
           allocate(s_zodi(ntod, ndet))                 ! Zodical light
           allocate(mask(ntod, ndet))                   ! Processing mask in time
           allocate(mask2(ntod, ndet))                  ! Processing mask in time
@@ -631,6 +618,7 @@ contains
           ! --------------------
           ! Analyze current scan
           ! --------------------
+
          
           ! Decompress pointing, psi and flags for current scan
           call wall_time(t1)
@@ -728,6 +716,16 @@ contains
           s_tot = s_sky + s_sl + s_orb + s_mono
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
+          if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
+             allocate(temp_buffer(ntod, ndet, 2))
+             temp_buffer(:, :, 1) = s_orb
+             temp_buffer(:, :, 2) = s_tot
+             call self%multiply_inv_N(i, temp_buffer)
+             sorb_invN = temp_buffer(:, :, 1)
+             stot_invN = temp_buffer(:, :, 2)
+             deallocate(temp_buffer)
+          end if
+
           ! Fit correlated noise
           if (do_oper(samp_N)) then
              call wall_time(t1)
@@ -752,15 +750,14 @@ contains
           end if
 
           ! Fit gain 
-          if (do_oper(prep_G)) then
+          if (do_oper(samp_G)) then
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) then
                    self%scans(i)%d(j)%gain = 0.d0
                    cycle
                 end if
-                call self%sample_gain_per_scan(handle, j, i, n_corr(:, j), mask(:,j), &
-                     & s_tot(:, j))
+                call self%calculate_gain_mean_std_per_scan(i, j, stot_invN(:, j), mask(:, j), s_tot(:, j))
              end do
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
@@ -824,16 +821,16 @@ contains
           end if
 
           ! Prepare for absolute calibration
-          if (do_oper(prep_acal) .or. do_oper(prep_rcal)) then
+          if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
 
                 ! Eirik: Set up proper residuals for absolute or relative calibration, respectively
-                if (do_oper(prep_acal)) then
+                if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    s_buf(:, j) = self%gain0(0) * (s_tot(:, j) - s_orb(:, j)) + (self%gain0(j) + self%scans(i)%d(j)%gain) * s_tot(:, j)
-                else if (do_oper(prep_rcal)) then
+                else if (do_oper(samp_rcal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    s_buf(:,j) = (self%gain0(0) + self%scans(i)%d(j)%gain) * s_tot(:, j)
                 end if
@@ -848,7 +845,7 @@ contains
 !!$                close(78)
 
                 call self%accumulate_abscal(i, j, mask(:,j),&
-                     & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
+                     & s_buf(:,j), s_orb(:,j), sorb_invN(:, j), &
                      & A_abscal(j), b_abscal(j))
 
 !!$                call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
@@ -947,6 +944,26 @@ contains
           !call update_status(status, "tod_loop2")
 
        end do
+
+       if (do_oper(samp_acal)) then
+          call wall_time(t1)
+          call self%sample_abscal_from_orbital(handle, A_abscal, b_abscal)
+          call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+       end if
+
+       if (do_oper(samp_rcal)) then
+          call wall_time(t1)
+          call self%sample_relcal(handle, A_abscal, b_abscal)
+          call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+       end if
+
+       if (do_oper(samp_G)) then
+          call wall_time(t1)
+!          allocate(inv_gain_covar(self%ndet, self%nscan, self%nscan))
+!          inv_gain_covar = 0.d0
+          call self%sample_smooth_gain(handle)
+          call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
+       end if
 
        ! Output total chisquare
        call wall_time(t7)
@@ -1517,13 +1534,12 @@ contains
   ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
   ! Here inp and res are assumed to be already allocated. 
 
-  subroutine multiply_inv_N(self, scan, inp, res)
+  subroutine multiply_inv_N(self, scan, buffer)
     implicit none
     class(comm_LFI_tod),                 intent(in)     :: self
     integer(i4b),                        intent(in)     :: scan
-    real(sp),          dimension(:,:,:), intent(in)     :: inp ! input 
-    real(sp),          dimension(:,:,:), intent(out)    :: res ! result
-    integer(i4b) :: i, l, n, nomp, ntod, ndet, err, omp_get_max_threads
+    real(sp),          dimension(:,:,:), intent(inout)     :: buffer !input/output
+    integer(i4b) :: i, j, l, n, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: ninput
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
@@ -1531,9 +1547,9 @@ contains
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     
-    ntod = size(inp, 1)
-    ndet = size(inp, 2)
-    ninput = size(inp, 3)
+    ntod = size(buffer, 1)
+    ndet = size(buffer, 2)
+    ninput = size(buffer, 3)
     nomp = omp_get_max_threads()
     
     n = ntod + 1
@@ -1546,7 +1562,7 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
     
-    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,inp,res)
+    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee, buffer)
     allocate(dt(2*ntod), dv(0:n-1))
     
     !$OMP DO SCHEDULE(guided)
@@ -1559,7 +1575,7 @@ contains
        noise    = 2.0 * ntod * sigma_0 ** 2
        
        do j = 1, ninput
-          dt(1:ntod)           = inp(:,i,j)
+          dt(1:ntod)           = buffer(:,i,j)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
@@ -1570,7 +1586,7 @@ contains
           end do
           call sfftw_execute_dft_c2r(plan_back, dv, dt)
           dt          = dt / (2*ntod)
-          res(:,i,j)  = dt(1:ntod) 
+          buffer(:,i,j)  = dt(1:ntod) 
        end do
     end do
     !$OMP END DO                                                          
@@ -1586,20 +1602,22 @@ contains
   ! estimate of the stationary sky
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
-   subroutine calculate_gain_mean_std_per_scan(self, s_tot, invn, mask)
+!   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
+   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, stot_invN, mask, s_tot)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
-      real(sp),             dimension(:), intent(in)    :: s_tot, mask 
-      real(sp),             dimension(:), intent(in)    :: invn ! Haavard: to be changed with a two-dimensional vector
+      real(sp),             dimension(:), intent(in)    :: stot_invN, mask, s_tot
+      integer(i4b),                       intent(in)    :: scan_id, det
       real(dp), allocatable, dimension(:)           :: residual
 
-    allocate(residual(size(s_tot))
+    allocate(residual(size(stot_invN)))
 
-    residual = self%scans(scan_id)%d(det)%tod - (self%gain0(0) + self%gain0(det)) * s_tot
+   residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
+         & self%gain0(det)) * s_tot) * mask
 
-    ! Haavard: This must be changed with a proper invn multiplication
-    self%scans(scan_id)%d(det)%gain = sum(mask *s_tot * invn * residual)
-    self%scans(scan_id)%d(det)%gain_sigma = sum(mask * s_tot * invn * s_tot)
+    ! Get a proper invn multiplication from Haavard's routine here
+    self%scans(scan_id)%d(det)%gain = sum((mask * stot_invN) * residual)
+    self%scans(scan_id)%d(det)%gain_sigma = sum((mask * stot_invN) * s_tot)
 
     deallocate(residual)
 
@@ -1609,14 +1627,14 @@ contains
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  subroutine sample_smooth_gain(self, inv_gain_covar, detector, handle)
+  subroutine sample_smooth_gain(self, handle)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
-    real(sp), dimension(:, :), intent(in): inv_gain_covar ! To be replaced by proper matrix
     type(planck_rng),                  intent(inout)  :: handle
 
+!    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot
-    real(dp), allocatable, dimension(:, :)     :: lhs
+    real(dp), allocatable, dimension(:)     :: lhs, rhs
     real(dp), allocatable, dimension(:,:,:) :: g
 
     ndet       = self%ndet
@@ -1644,14 +1662,15 @@ contains
 
     if (self%myid == 0) then
        do j = 1, ndet
-         lhs = inv_gain_covar(j, :)
+         lhs = 0.d0
          rhs = 0.d0
          do i = 1, self%nscan
             if (.not. self%scans(i)%d(j)%accept) cycle
             k = self%scanid(i)
             ! To be replaced by proper matrix multiplications
             lhs(k) = lhs(k) + g(k, j, 2)
-            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle)
+!            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
+            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(g(k, j, 2)) * rand_gauss(handle)
             g(k, j, 1) = rhs(k) / lhs(k)
          end do
          ! Make sure fluctuations sum up to zero
@@ -1675,65 +1694,29 @@ contains
   end subroutine sample_smooth_gain
   
   ! Haavard: Remove current monopole fit, and replace inv_sigmasq with a proper invN(alpha,fknee) multiplication
-  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
-       & s_orb, n_corr, A_abs, b_abs)
+!  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
+!       & s_orb, A_abs, b_abs)
+   subroutine accumulate_abscal(self, scan, det, mask, s_sub, s_orb, sorb_invN, A_abs, b_abs)
     implicit none
     class(comm_LFI_tod),             intent(in)     :: self
     integer(i4b),                    intent(in)     :: scan, det
     real(sp),          dimension(:), intent(in)     :: mask, s_sub, s_orb
-    real(sp),          dimension(:), intent(in)     :: n_corr
+    real(sp),          dimension(:), intent(in)     :: sorb_invN
     real(dp),                        intent(inout)  :: A_abs, b_abs
 
-    integer(i4b) :: i, n
-    real(dp)     :: data, A(2,2), b(2), chisq
-    real(dp)     :: inv_sigmasq   
+    real(dp), allocatable, dimension(:)     :: residual
+    real(dp)     ::  A, b
 
-    n = size(s_orb) - mod(size(s_orb), int(60.d0*self%samprate))
+    allocate(residual(size(s_sub)))
 
-    inv_sigmasq = (1.d0 / self%scans(scan)%d(det)%sigma0)**2
-    A = 0.d0; b = 0.d0
-    do i = 1, n !self%scans(scan)%ntod
-       !data  = self%scans(scan)%d(det)%tod(i) - n_corr(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
-       !data  = self%scans(scan)%d(det)%tod(i) - self%scans(scan)%d(det)%gain * s_sub(i) - (self%scans(scan)%d(det)%gain-self%gain0(det)) * s_orb(i)
-       data = self%scans(scan)%d(det)%tod(i) - s_sub(i)
-       A(1,1) = A(1,1) + s_orb(i) * inv_sigmasq * mask(i) * s_orb(i)
-       A(2,1) = A(2,1) +            inv_sigmasq * mask(i) * s_orb(i)
-       A(2,2) = A(2,2) +            inv_sigmasq * mask(i) 
+    residual = self%scans(scan)%d(det)%tod - s_sub
 
-       b(1)   = b(1)   + s_orb(i) * inv_sigmasq * mask(i) * data
-       b(2)   = b(2)   +            inv_sigmasq * mask(i) * data
-    end do
-    call invert_matrix(A, cholesky=.true.)
-    b = matmul(A,b)
+    A = sum(sorb_invN * s_orb * mask)
+    b = sum(sorb_invN * residual * mask)
 
-!!$    A = 0.d0; b = 0.d0
-!!$    chisq = 0.d0
-!!$    do i = 1, n !self%scans(scan)%ntod
-!!$       !data  = self%scans(scan)%d(det)%tod(i) - n_corr(i) - self%scans(scan)%d(det)%gain * s_sub(i) 
-!!$       data  = self%scans(scan)%d(det)%tod(i) 
-!!$       A(1,1) = A(1,1) + s_orb(i) * inv_sigmasq * mask(i) * s_orb(i)
-!!$       A(2,1) = A(2,1) + s_sub(i) * inv_sigmasq * mask(i) * s_orb(i)
-!!$       A(3,1) = A(3,1) +            inv_sigmasq * mask(i) * s_orb(i)
-!!$       A(2,2) = A(2,2) + s_sub(i) * inv_sigmasq * mask(i) * s_sub(i)
-!!$       A(3,2) = A(3,2) +            inv_sigmasq * mask(i) * s_sub(i)
-!!$       A(3,3) = A(3,3) +            inv_sigmasq * mask(i) 
-!!$
-!!$       b(1)   = b(1)   + s_orb(i) * inv_sigmasq * mask(i) * data
-!!$       b(2)   = b(2)   + s_sub(i) * inv_sigmasq * mask(i) * data
-!!$       b(3)   = b(3)   +            inv_sigmasq * mask(i) * data
-!!$    end do
-!!$    call invert_matrix(A, cholesky=.true.)
-!!$    b = matmul(A,b)
-
-!!$    do i = 1, n 
-!!$       data  = self%scans(scan)%d(det)%tod(i) - b(2) * s_sub(i) - b(3) * mu - b(1) * s_orb(i)
-!!$       chisq = chisq + data**2 * inv_sigmasq * mask(i) 
-!!$    end do
-!!$
-!!$    write(*,*) 'abscal', self%scanid(scan), real(b(1),sp), real(sqrt(1/A(1,1)),sp), real(chisq/sum(mask(1:n)),sp)
-
-    A_abs = A_abs + 1    / A(1,1)
-    b_abs = b_abs + b(1) / A(1,1)
+    A_abs = A_abs + A
+    b_abs = b_abs + b
+    deallocate(residual)
 
   end subroutine accumulate_abscal
 
@@ -1748,7 +1731,7 @@ contains
     real(dp), allocatable, dimension(:) :: A, b
 
     ! Collect contributions from all cores
-    allocate(A(self%ndet), b(self%ndet), gain0(self%ndet), sigma(self%ndet))
+    allocate(A(self%ndet), b(self%ndet))
     call mpi_reduce(A_abs, A, self%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
          & self%info%comm, ierr)
     call mpi_reduce(b_abs, b, self%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
@@ -1756,10 +1739,10 @@ contains
 
     ! Compute gain update and distribute to all cores
     if (self%myid == 0) then
-       self%gain0(0) = b/A
+       self%gain0(0) = sum(b)/sum(A)
        if (trim(self%operation) == 'sample') then
           ! Add fluctuation term if requested
-          self%gain0(0) = self%gain0(0) + 1.d0/sqrt(A) * rand_gauss(handle)
+          self%gain0(0) = self%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
     end if
     call mpi_bcast(self%gain0(0), self%ndet,  MPI_DOUBLE_PRECISION, 0, &
