@@ -1441,8 +1441,10 @@ contains
              ! dv(l) = (signal * dv(l) + signal * sqrt(noise) * rand_gauss(handle)  &
              !      +  noise * sqrt(signal) * rand_gauss(handle))& 
              !      * 1.d0/(signal + noise)
-             dv(l) = (dv(l) + sqrt(noise) * rand_gauss(handle)  &
-                  +  noise * sqrt(1.0 / signal) * rand_gauss(handle))& 
+             dv(l) = (dv(l) + sqrt(noise) &
+                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.d0) &
+                  + noise * sqrt(1.0 / signal) &
+                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.d0))& 
                   * 1.d0/(1.d0 + noise / signal)
           else
              !dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
