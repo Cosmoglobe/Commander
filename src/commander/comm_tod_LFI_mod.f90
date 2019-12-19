@@ -927,7 +927,7 @@ contains
 
           ! Clean up
           call wall_time(t1)
-          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi)
+          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi, sorb_invN, stot_invN)
           deallocate(mask, mask2, pix, psi, flag, s_bp, s_sky_prop, s_bp_prop, s_buf, s_mono)
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
@@ -1562,7 +1562,7 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
     
-    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee, buffer)
+    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,noise,signal)
     allocate(dt(2*ntod), dv(0:n-1))
     
     !$OMP DO SCHEDULE(guided)
@@ -1603,7 +1603,7 @@ contains
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, stot_invN, mask, s_tot)
+   subroutine calculate_gain_mean_std_per_scan(self, scan_id, det, stot_invN, mask, s_tot)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
       real(sp),             dimension(:), intent(in)    :: stot_invN, mask, s_tot
@@ -2285,6 +2285,13 @@ contains
 
        if (present(condmap)) then
           call get_eigenvalues(A_inv, W)
+          if (self%info%myid == 0) then
+!             if (maxval(W) == 0.d0 .or. minval(W) == 0.d0) then
+                write(*, *), 'A_inv: ', A_inv
+                write(*, *), 'W', W
+!             end if
+          end if
+
           condmap%map(i,1) = log10(max(abs(maxval(W)/minval(W)),1.d0))
        end if
        
@@ -2438,13 +2445,13 @@ contains
              current = k
           end if
        end do
-       if (.true. .or. mod(iter,2) == 0) then
-          write(*,fmt='(a,f16.1,a,f10.1,l3)') 'Rel bp c0 = ', cc, &
-               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1
-       else
-          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cc, &
-               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
-       end if
+!       if (.true. .or. mod(iter,2) == 0) then
+!          write(*,fmt='(a,f16.1,a,f10.1,l3)') 'Rel bp c0 = ', cc, &
+!               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1
+!       else
+!          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cc, &
+!               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
+!       end if
     end if
 
     ! Broadcast new saved data
