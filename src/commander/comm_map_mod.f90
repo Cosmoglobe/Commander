@@ -775,8 +775,8 @@ contains
        ! Read map and convert to RING format if necessary
        allocate(map(0:self%info%npix-1,self%info%nmaps))
        if (present(udgrade)) then
-          allocate(map_in(0:npix-1,nmaps))
-          call input_map(filename, map_in, npix, nmaps)
+          allocate(map_in(0:npix-1,self%info%nmaps))
+          call input_map(filename, map_in, npix, self%info%nmaps)
           if (ordering == 1) then
              call udgrade_ring(map_in, nside, map, nside_out=self%info%nside)
           else

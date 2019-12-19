@@ -70,6 +70,9 @@ contains
        constructor%nside        = info%nside
        constructor%nside_lowres = min(info%nside,128)
        constructor%np           = info%np
+       if (cpar%ds_regnoise(id_abs) /= 'none') then
+          constructor%rms_reg => comm_map(constructor%info, trim(dir)//'/'//trim(cpar%ds_regnoise(id_abs)))
+       end if
        if (present(procmask)) then
           call constructor%update_N(info, handle, mask, regnoise, procmask=procmask, &
                & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
@@ -127,6 +130,9 @@ contains
        self%rms0     => comm_map(mask%info, noisefile)
     else
        self%rms0%map = map%map
+    end if
+    if (associated(self%rms_reg)) then
+       self%rms0%map = sqrt(self%rms0%map**2 + self%rms_reg%map**2) 
     end if
     self%siN     => comm_map(self%rms0)
     call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)

@@ -78,6 +78,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_noise_format
      character(len=512), allocatable, dimension(:)   :: ds_mapfile
      character(len=512), allocatable, dimension(:)   :: ds_noisefile
+     character(len=512), allocatable, dimension(:)   :: ds_regnoise
      character(len=512), allocatable, dimension(:,:) :: ds_noise_rms_smooth
      real(dp),           allocatable, dimension(:)   :: ds_noise_uni_fsky
      character(len=512), allocatable, dimension(:)   :: ds_maskfile
@@ -420,6 +421,7 @@ contains
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
     allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
+    allocate(cpar%ds_regnoise(n))
     allocate(cpar%ds_noise_rms_smooth(n,cpar%num_smooth_scales))
     allocate(cpar%ds_samp_noiseamp(n), cpar%ds_noise_uni_fsky(n))
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
@@ -437,6 +439,7 @@ contains
     do i = 1, n
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'INCLUDE_BAND'//itext, len_itext=len_itext,         par_lgt=cpar%ds_active(i))
+       if (.not. cpar%ds_active(i)) cycle
        call get_parameter_hashtable(htbl, 'BAND_OBS_PERIOD'//itext, len_itext=len_itext,      par_int=cpar%ds_period(i))
        call get_parameter_hashtable(htbl, 'BAND_LABEL'//itext, len_itext=len_itext,           par_string=cpar%ds_label(i))
        call get_parameter_hashtable(htbl, 'BAND_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%ds_polarization(i))
@@ -446,6 +449,7 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_NOISE_FORMAT'//itext, len_itext=len_itext,    par_string=cpar%ds_noise_format(i))
        call get_parameter_hashtable(htbl, 'BAND_MAPFILE'//itext, len_itext=len_itext,         par_string=cpar%ds_mapfile(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISEFILE'//itext, len_itext=len_itext,       par_string=cpar%ds_noisefile(i))
+       call get_parameter_hashtable(htbl, 'BAND_REG_NOISEFILE'//itext, len_itext=len_itext,       par_string=cpar%ds_regnoise(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISE_UNIFORMIZE_FSKY'//itext, len_itext=len_itext, par_dp=cpar%ds_noise_uni_fsky(i))
        call get_parameter_hashtable(htbl, 'BAND_MASKFILE'//itext, len_itext=len_itext,        par_string=cpar%ds_maskfile(i))
        call get_parameter_hashtable(htbl, 'BAND_MASKFILE_CALIB'//itext, len_itext=len_itext,  par_string=cpar%ds_maskfile_calib(i))

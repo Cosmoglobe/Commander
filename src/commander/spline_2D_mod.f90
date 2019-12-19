@@ -383,13 +383,14 @@ contains
     b_y = max(min(int((y0-y(1))*inv_h_y)+1,n-1),1)
 
 
-    if (x0 < x(1) .or. x0 > x(m)) then
-       write(*,fmt='(a,3f8.3)') 'splin2_full_precomp -- Warning: x0 out of bounds = ', x(1), x0, x(m), x(m+14)
+    if (x0 < x(1) .or. x0-x(m) > 1.d-12) then
+       !write(*,fmt='(a,3f8.3)') 'splin2_full_precomp -- Warning: x0 out of bounds = ', x(1), x0, x(m),
+       write(*,*) 'splin2_full_precomp -- Warning: x0 out of bounds = ', x(1), x0, x(m), x0-x(m)
        splin2_full_precomp = 0.d0
        return
     end if
 
-    if (y0 < y(1) .or. y0 > y(n)) then
+    if (y0 < y(1) .or. y0-y(n) > 1d-12) then
        write(*,fmt='(a,3f8.3)') 'splin2_full_precomp -- Warning: y0 out of bounds = ', y(1), y0, y(n)
        splin2_full_precomp = 0.d0
        return

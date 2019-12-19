@@ -23,7 +23,7 @@ module comm_ptsrc_comp_mod
   !            Compact object class
   !**************************************************
   type Tnu
-     integer(i4b) :: nside, np, nmaps
+     integer(i4b) :: nside, nside_febecop, np, nmaps
      integer(i4b), allocatable, dimension(:,:) :: pix     ! Pixel list, both absolute and relative
      real(dp),     allocatable, dimension(:,:) :: map     ! (0:np-1,nmaps)
      real(dp),     allocatable, dimension(:,:) :: F       ! Mixing matrix (nmaps,ndet)
@@ -45,7 +45,7 @@ module comm_ptsrc_comp_mod
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale, amp_rms_scale
-     integer(i4b)       :: nside, nsrc, ncr_tot, ndet
+     integer(i4b)       :: nside, nside_febecop, nsrc, ncr_tot, ndet
      logical(lgt)       :: apply_pos_prior, burn_in
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
@@ -111,6 +111,7 @@ contains
     constructor%nmaps           = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
     constructor%nu_ref          = cpar%cs_nu_ref(id_abs,:)
     constructor%nside           = cpar%cs_nside(id_abs)
+    constructor%nside_febecop   = 1024
     constructor%outprefix       = trim(cpar%cs_label(id_abs))
     constructor%cg_scale        = cpar%cs_cg_scale(id_abs)
     constructor%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
@@ -488,7 +489,7 @@ contains
     type(hdf_file),            intent(in)    :: hdffile
     character(len=*),          intent(in)    :: hdfpath
 
-    integer(i4b)       :: i, j, p
+    integer(i4b)       :: i, j, k, p
     real(dp)           :: md(4)
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: theta
@@ -510,7 +511,9 @@ contains
 
     do i = 1, self%nsrc
        do j = 1, self%nmaps
-          self%src(i)%theta(:,j) = theta(i,j,:) 
+          do k = 1, self%npar
+             self%src(i)%theta(k,j) = max(self%p_uni(1,k),min(self%p_uni(2,k),theta(i,j,k))) 
+          end do
        end do
     end do
     deallocate(theta)
@@ -583,6 +586,10 @@ contains
        if (line(1:1) == '#' .or. trim(line) == '') cycle
        read(line,*) glon, glat, amp, amp_rms, beta, beta_rms, id_ptsrc
        amp_rms = amp_rms * self%amp_rms_scale ! Adjust listed RMS by given value
+       do j = 1, npar
+          beta(j,:) = max(self%p_uni(1,j),min(self%p_uni(2,j),beta(j,:)))
+       end do
+       if (trim(cpar%cs_type(id_abs)) == 'fir') amp = 0.d0
        ! Check for too close neighbours
        skip_src = .false.
        call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
@@ -613,6 +620,9 @@ contains
           self%src(i)%P_theta(:,:,1) = beta
           self%src(i)%P_theta(:,:,2) = beta_rms
           self%src(i)%theta_rms      = 0.d0
+          do j = 1, numband
+             self%src(i)%T(j)%nside_febecop = data(j)%info%nside
+          end do
           !self%src(i)%P_x(:,1) = 0.d0
           !self%src(i)%P_x(:,2) = 0.d0 !1.d12
 
@@ -713,41 +723,99 @@ contains
     integer(i4b),       intent(in)    :: band
     type(Tnu),          intent(inout) :: T
 
-    integer(i4b)      :: i, j, n, pix, ext(1), ierr, m(1)
+    integer(i4b)      :: i, j, k, n, m, p, q, pix, ext(1), ierr
     character(len=128) :: itext
     type(hdf_file)    :: file
-    integer(i4b), allocatable, dimension(:)   :: ind
+    integer(i4b), allocatable, dimension(:)   :: ind, ind_in, nsamp
     integer(i4b), allocatable, dimension(:,:) :: mypix
-    real(dp),     allocatable, dimension(:,:) :: b, mybeam
+    real(dp),     allocatable, dimension(:,:) :: b, b_in, mybeam
     real(dp),     allocatable, dimension(:)   :: buffer
 
     if (myid_pre == 0) then
        ! Find center pixel number for current source
-       call ang2pix_ring(T%nside, 0.5d0*pi-glat, glon, pix)
+       call ang2pix_ring(T%nside_febecop, 0.5d0*pi-glat, glon, pix)
 
        ! Find number of pixels in beam
        write(itext,*) pix
        if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
        call open_hdf_file(filename, file, 'r')
        call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
-       n = ext(1)
+       m = ext(1)
 
        ! Read full beam from file
-       allocate(ind(n), b(n,T%nmaps), mypix(n,2), mybeam(n,T%nmaps))
-       call read_hdf(file, trim(adjustl(itext))//'/indices', ind)
-       call read_hdf(file, trim(adjustl(itext))//'/values',  b)
+       allocate(ind_in(m), b_in(m,T%nmaps))
+       call read_hdf(file, trim(adjustl(itext))//'/indices', ind_in)
+       call read_hdf(file, trim(adjustl(itext))//'/values',  b_in)
        call close_hdf_file(file)
+
+       if (T%nside == T%nside_febecop) then
+          n = m
+          allocate(ind(n), b(n,T%nmaps))
+          ind = ind_in
+          b   = b_in
+       else if (T%nside > T%nside_febecop) then
+          q = (T%nside/T%nside_febecop)**2
+          n = q*m
+          allocate(ind(n), b(n,T%nmaps))
+          k = 1
+          do i = 1, m
+             call ring2nest(T%nside_febecop, ind_in(i), j)
+             do p = q*j, q*j-1
+                call nest2ring(T%nside, p, ind(k))
+                b(k,:) = b_in(i,:)
+                k      = k+1
+             end do
+             write(*,*) 'Needs sorting'
+             stop
+          end do
+       else if (T%nside < T%nside_febecop) then
+          q = (T%nside_febecop/T%nside)**2
+          n = 0
+          allocate(ind(m), b(m,T%nmaps), nsamp(m))
+          nsamp = 0
+          b     = 0.d0
+          do i = 1, m
+             call ring2nest(T%nside_febecop, ind_in(i), j)
+             j = j / q
+             call nest2ring(T%nside, j, p)
+             do k = 1, n
+                if (ind(k) == p) then
+                   b(k,:)   = b(k,:)   + b_in(i,:)
+                   nsamp(k) = nsamp(k) + 1
+                   exit
+                end if
+             end do
+             if (k > n) then
+                do k = 1, n
+                   if (ind(k) > p) exit
+                end do
+                ind(k+1:n+1)   = ind(k:n)
+                b(k+1:n+1,:)   = b(k:n,:)
+                nsamp(k+1:n+1) = nsamp(k:n)
+                ind(k)         = p
+                b(k,:)         = b_in(i,:)
+                nsamp(k)       = 1
+                n              = n + 1
+             end if
+          end do
+          do k = 1, n
+             b(k,:) = b(k,:) / nsamp(k)
+          end do
+          deallocate(nsamp)
+       end if
+       deallocate(ind_in, b_in)
 
        ! Distribute information
        call mpi_bcast(n,   1, MPI_INTEGER, 0, comm_pre, ierr)
     else
        call mpi_bcast(n, 1, MPI_INTEGER, 0, comm_pre, ierr)
-       allocate(ind(n), b(n,T%nmaps), mypix(n,2), mybeam(n,T%nmaps))
+       allocate(ind(n), b(n,T%nmaps))
     end if
-    call mpi_bcast(ind, size(ind), MPI_INTEGER,          0, comm_pre, ierr)
-    call mpi_bcast(b,   size(b),   MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
+    call mpi_bcast(ind(1:n), n,         MPI_INTEGER,          0, comm_pre, ierr)
+    call mpi_bcast(b(1:n,:), n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
 
     ! Find number of pixels belonging to current processor
+    allocate(mypix(n,2), mybeam(n,T%nmaps))
     T%np = 0
     i    = 1
     j    = locate(data(band)%info%pix, ind(i))

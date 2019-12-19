@@ -16,6 +16,7 @@ module comm_N_mod
      real(dp)                 :: uni_fsky
      real(dp), allocatable, dimension(:) :: alpha_nu ! (T,Q,U)
      class(comm_map), pointer :: invN_diag
+     class(comm_map), pointer :: rms_reg
      class(comm_mapinfo), pointer :: info
    contains
      ! Data procedures
