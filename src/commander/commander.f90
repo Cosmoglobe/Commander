@@ -130,11 +130,13 @@ program commander
 
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
+  !first_sample = 98
   if (first_sample == 1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
   else
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
+     first_sample = 455
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true.)
      first_sample = first_sample+1
   end if
@@ -152,7 +154,7 @@ program commander
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0) then
-           curr_samp = (iter-1)/cpar%numsamp_per_resamp+cpar%first_samp_resamp
+           curr_samp = mod((iter-1)/cpar%numsamp_per_resamp,cpar%last_samp_resamp-cpar%first_samp_resamp+1) + cpar%first_samp_resamp
            if (cpar%myid == 0) write(*,*) 'Re-initializing on sample ', curr_samp
            call initialize_from_chain(cpar, handle, init_samp=curr_samp)
            call update_mixing_matrices(update_F_int=.true.)       
