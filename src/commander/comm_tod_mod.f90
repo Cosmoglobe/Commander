@@ -537,6 +537,15 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
+
+       ! Redefine gains; should be removed when proper initfiles are available
+       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
+       !write(*,*) self%gain0(0), minval(output(:,:,1)), maxval(output(:,:,1))
+       !stop
+       do i = 1, self%ndet
+          self%gain0(i) = sum(output(:,i,1))/count(output(:,i,1)>0.d0) - self%gain0(0)
+          output(:,i,1) = output(:,i,1) - (self%gain0(0) + self%gain0(i))
+       end do
     end if
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &

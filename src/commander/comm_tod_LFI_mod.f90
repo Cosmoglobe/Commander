@@ -103,7 +103,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
-    constructor%first_call    = .true.
+    constructor%first_call    = .false.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
@@ -830,9 +830,11 @@ contains
                 if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    s_buf(:, j) = self%gain0(0) * (s_tot(:, j) - s_orb(:, j)) + (self%gain0(j) + self%scans(i)%d(j)%gain) * s_tot(:, j)
+                   call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_orb(:,j), sorb_invN(:, j), A_abscal(j), b_abscal(j))
                 else if (do_oper(samp_rcal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    s_buf(:,j) = (self%gain0(0) + self%scans(i)%d(j)%gain) * s_tot(:, j)
+                   call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_tot(:,j), stot_invN(:, j), A_abscal(j), b_abscal(j))
                 end if
 
 
@@ -844,9 +846,6 @@ contains
 !!$                end do
 !!$                close(78)
 
-                call self%accumulate_abscal(i, j, mask(:,j),&
-                     & s_buf(:,j), s_orb(:,j), sorb_invN(:, j), &
-                     & A_abscal(j), b_abscal(j))
 
 !!$                call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
 !!$                     & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
@@ -1581,6 +1580,7 @@ contains
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          dv(0) = 0.d0
           do l = 1, n-1                                                      
              nu = l*(samprate/2)/(n-1)
              signal = noise * (nu/(nu_knee))**(alpha)
@@ -1611,15 +1611,27 @@ contains
       real(sp),             dimension(:), intent(in)    :: stot_invN, mask, s_tot
       integer(i4b),                       intent(in)    :: scan_id, det
       real(dp), allocatable, dimension(:)           :: residual
+      real(sp) :: g_old
 
     allocate(residual(size(stot_invN)))
+    g_old = self%scans(scan_id)%d(det)%gain 
 
+!   residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
+!         & self%gain0(det)) * s_tot) * mask
    residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
-         & self%gain0(det)) * s_tot) * mask
+         & self%gain0(det)) * s_tot) !* mask
 
     ! Get a proper invn multiplication from Haavard's routine here
-    self%scans(scan_id)%d(det)%gain = sum((mask * stot_invN) * residual)
-    self%scans(scan_id)%d(det)%gain_sigma = sum((mask * stot_invN) * s_tot)
+!    self%scans(scan_id)%d(det)%gain = sum((mask * stot_invN) * residual)
+!    self%scans(scan_id)%d(det)%gain_sigma = sum((mask * stot_invN) * s_tot)
+    self%scans(scan_id)%d(det)%gain = sum(stot_invN * residual)
+    self%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
+!    if (self%scans(scan_id)%d(det)%gain_sigma < 0) then
+!       write(*,*) 's', sum(mask * stot_invN * s_tot), sum(stot_invN * s_tot)
+!    end if
+
+    write(*,*) det, scan_id, real(self%scans(scan_id)%d(det)%gain/self%scans(scan_id)%d(det)%gain_sigma,sp), real(self%gain0(0),sp), real(self%gain0(det),sp), real(g_old,sp)
+
 
     deallocate(residual)
 
@@ -1746,6 +1758,7 @@ contains
           ! Add fluctuation term if requested
           self%gain0(0) = self%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
+       write(*,*) 'abscal = ', self%gain0(0)
     end if
     call mpi_bcast(self%gain0(0), self%ndet,  MPI_DOUBLE_PRECISION, 0, &
          & self%info%comm, ierr)
@@ -1785,11 +1798,12 @@ contains
        rhs(self%ndet+1) = 0.d0
        call solve_system_real(coeff_matrix, x, rhs)
        
+       write(*,*) 'relcal = ', real(x,sp)
     end if
     call mpi_bcast(x, self%ndet+1, MPI_DOUBLE_PRECISION, 0, &
        & self%info%comm, ierr)
 
-!    self%gain(1:self%ndet) = x(1:self%ndet)
+    self%gain0(1:self%ndet) = x(1:self%ndet)
     deallocate(coeff_matrix, rhs, A, b, x)
 
   end subroutine sample_relcal
@@ -2286,15 +2300,18 @@ contains
        end if
 
        if (present(condmap)) then
-          call get_eigenvalues(A_inv, W)
-          if (self%info%myid == 0) then
+          call get_eigenvalues(A_inv,W)
+          if (minval(W) < 0.d0) then
 !             if (maxval(W) == 0.d0 .or. minval(W) == 0.d0) then
                 write(*, *), 'A_inv: ', A_inv
                 write(*, *), 'W', W
 !             end if
           end if
-
-          condmap%map(i,1) = log10(max(abs(maxval(W)/minval(W)),1.d0))
+          if (minval(W) > 0) then
+             condmap%map(i,1) = log10(max(abs(maxval(W)/minval(W)),1.d0))
+          else
+             condmap%map(i,1) = 30.d0
+          end if
        end if
        
        call invert_singular_matrix(A_inv, 1d-12)
