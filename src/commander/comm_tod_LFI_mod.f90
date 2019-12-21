@@ -50,8 +50,7 @@ module comm_tod_LFI_mod
      procedure     :: sample_smooth_gain
      procedure     :: sample_n_corr
      procedure     :: sample_bp
-     procedure     :: compute_cleaned_tod
-     procedure     :: construct_sl_template
+!     procedure     :: compute_cleaned_tod
      procedure     :: compute_chisq
      procedure     :: sample_noise_psd
      procedure     :: decompress_pointing_and_flags
@@ -61,7 +60,6 @@ module comm_tod_LFI_mod
      procedure     :: sample_mono
      procedure     :: multiply_inv_n
      procedure     :: get_total_chisq
-     procedure     :: output_scan_list
      procedure     :: finalize_binned_map
      procedure     :: symmetrize_flags
   end type comm_LFI_tod
@@ -310,7 +308,7 @@ contains
     integer(i4b) :: nside, npix, nmaps, naccept, ntot, ns
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, scanfile, ncol, n_A, nout
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold, delta_temp, chisq_tot
-    real(dp)     :: t_tot(22), inv_gain
+    real(dp)     :: t_tot(22), gain, inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
     real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
     real(sp),     allocatable, dimension(:,:)     :: sorb_invN, stot_invN
@@ -492,20 +490,20 @@ contains
        if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
           
        ! Select operations for current iteration
-       do_oper(bin_map)      = (main_iter == n_main_iter  )
-       do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
-       do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-!       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
-       do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
 !       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
 !       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+!       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
+       do_oper(samp_N)       = (main_iter >= n_main_iter-1)
        do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
        do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
-       do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
+       do_oper(bin_map)      = (main_iter == n_main_iter  )
+       do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
+       do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
        !do_oper(samp_N_par)    = .false.
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
@@ -573,6 +571,11 @@ contains
 
        call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
 
+!!$       if (self%myid == 0) then
+!!$          write(*,*) 'gain = ', self%scans(4)%d(2)%gain, self%gain0(0), self%gain0(2), self%scans(4)%d(2)%dgain
+!!$       end if
+
+
        ! Perform main analysis loop
        do i = 1, self%nscan
 
@@ -618,7 +621,6 @@ contains
           ! --------------------
           ! Analyze current scan
           ! --------------------
-
          
           ! Decompress pointing, psi and flags for current scan
           call wall_time(t1)
@@ -716,6 +718,7 @@ contains
           s_tot = s_sky + s_sl + s_orb + s_mono
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
+          ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
              allocate(temp_buffer(ntod, ndet, 2))
              temp_buffer(:, :, 1) = s_orb
@@ -724,6 +727,54 @@ contains
              sorb_invN = temp_buffer(:, :, 1)
              stot_invN = temp_buffer(:, :, 2)
              deallocate(temp_buffer)
+          end if
+
+          ! Prepare for absolute calibration
+          if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
+             call wall_time(t1)
+             do j = 1, ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
+
+                ! Eirik: Set up proper residuals for absolute or relative calibration, respectively
+                if (do_oper(samp_acal)) then
+!                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+                   s_buf(:, j) = self%gain0(0) * (s_tot(:, j) - s_orb(:, j)) + (self%gain0(j) + self%scans(i)%d(j)%dgain) * s_tot(:, j)
+                   call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_orb(:,j), sorb_invN(:, j), A_abscal(j), b_abscal(j))
+                else if (do_oper(samp_rcal)) then
+!                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+                   s_buf(:,j) = (self%gain0(0) + self%scans(i)%d(j)%dgain) * s_tot(:, j)
+                   call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_tot(:,j), stot_invN(:, j), A_abscal(j), b_abscal(j))
+                end if
+
+
+!!$                call int2string(self%scanid(i), scantext)
+!!$                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
+!!$                write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
+!!$                do k = 1, ntod, 60
+!!$                   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
+!!$                end do
+!!$                close(78)
+
+
+!!$                call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
+!!$                     & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
+!!$                     & A_abscal(j), b_abscal(j))
+             end do
+             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
+          end if
+
+          ! Fit gain 
+          if (do_oper(samp_G)) then
+             call wall_time(t1)
+             do j = 1, ndet
+                if (.not. self%scans(i)%d(j)%accept) then
+                   self%scans(i)%d(j)%gain  = 0.d0
+                   self%scans(i)%d(j)%dgain = 0.d0
+                   cycle
+                end if
+                call self%calculate_gain_mean_std_per_scan(i, j, stot_invN(:, j), mask(:, j), s_tot(:, j))
+             end do
+             call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
           ! Fit correlated noise
@@ -747,19 +798,6 @@ contains
              ! stop
              ! end do
              call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
-          end if
-
-          ! Fit gain 
-          if (do_oper(samp_G)) then
-             call wall_time(t1)
-             do j = 1, ndet
-                if (.not. self%scans(i)%d(j)%accept) then
-                   self%scans(i)%d(j)%gain = 0.d0
-                   cycle
-                end if
-                call self%calculate_gain_mean_std_per_scan(i, j, stot_invN(:, j), mask(:, j), s_tot(:, j))
-             end do
-             call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
           
           ! Compute chisquare
@@ -820,46 +858,13 @@ contains
              call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
           end if
 
-          ! Prepare for absolute calibration
-          if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
-             call wall_time(t1)
-             do j = 1, ndet
-                if (.not. self%scans(i)%d(j)%accept) cycle
-
-                ! Eirik: Set up proper residuals for absolute or relative calibration, respectively
-                if (do_oper(samp_acal)) then
-!                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
-                   s_buf(:, j) = self%gain0(0) * (s_tot(:, j) - s_orb(:, j)) + (self%gain0(j) + self%scans(i)%d(j)%gain) * s_tot(:, j)
-                   call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_orb(:,j), sorb_invN(:, j), A_abscal(j), b_abscal(j))
-                else if (do_oper(samp_rcal)) then
-!                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
-                   s_buf(:,j) = (self%gain0(0) + self%scans(i)%d(j)%gain) * s_tot(:, j)
-                   call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_tot(:,j), stot_invN(:, j), A_abscal(j), b_abscal(j))
-                end if
-
-
-!!$                call int2string(self%scanid(i), scantext)
-!!$                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
-!!$                write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
-!!$                do k = 1, ntod, 60
-!!$                   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
-!!$                end do
-!!$                close(78)
-
-
-!!$                call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
-!!$                     & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
-!!$                     & A_abscal(j), b_abscal(j))
-             end do
-             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
-          end if
 
           ! Compute binned map 
           if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
              call wall_time(t1)
              allocate(d_calib(nout,ntod, ndet)) 
              do j = 1, ndet
-                inv_gain       = 1.d0 / self%scans(i)%d(j)%gain
+                inv_gain = 1.d0 / self%scans(i)%d(j)%gain
                 !if (j==1) write(*,*) 'c', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod*inv_gain
                 d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
                      & inv_gain - s_tot(:,j) + s_sky(:,j) - s_bp(:,j)
@@ -1552,6 +1557,18 @@ contains
     ndet = size(buffer, 2)
     ninput = size(buffer, 3)
     nomp = omp_get_max_threads()
+
+    
+    do i = 1, ndet
+       if (.not. self%scans(scan)%d(i)%accept) cycle
+       sigma_0  = self%scans(scan)%d(i)%sigma0
+       do j = 1, ninput
+          buffer(:,i,j) = buffer(:,i,j) / sigma_0**2
+          buffer(:,i,j) = buffer(:,i,j) - mean(1.d0*buffer(:,i,j))
+       end do
+    end do
+    return
+
     
     n = ntod + 1
     
@@ -1619,18 +1636,18 @@ contains
 !   residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
 !         & self%gain0(det)) * s_tot) * mask
    residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
-         & self%gain0(det)) * s_tot) !* mask
+         & self%gain0(det)) * s_tot) * mask
 
     ! Get a proper invn multiplication from Haavard's routine here
-!    self%scans(scan_id)%d(det)%gain = sum((mask * stot_invN) * residual)
-!    self%scans(scan_id)%d(det)%gain_sigma = sum((mask * stot_invN) * s_tot)
-    self%scans(scan_id)%d(det)%gain = sum(stot_invN * residual)
-    self%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
+    self%scans(scan_id)%d(det)%dgain      = sum(mask * stot_invN * residual)
+    self%scans(scan_id)%d(det)%gain_sigma = sum(mask * stot_invN * s_tot)
+!    self%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
+!    self%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
 !    if (self%scans(scan_id)%d(det)%gain_sigma < 0) then
 !       write(*,*) 's', sum(mask * stot_invN * s_tot), sum(stot_invN * s_tot)
 !    end if
 
-    write(*,*) det, scan_id, real(self%scans(scan_id)%d(det)%gain/self%scans(scan_id)%d(det)%gain_sigma,sp), real(self%gain0(0),sp), real(self%gain0(det),sp), real(g_old,sp)
+    !write(*,*) det, scan_id, real(self%scans(scan_id)%d(det)%dgain/self%scans(scan_id)%d(det)%gain_sigma,sp), real(self%gain0(0),sp), real(self%gain0(det),sp), real(g_old,sp)
 
 
     deallocate(residual)
@@ -1648,6 +1665,7 @@ contains
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot
+    real(dp)     :: mu, denom
     real(dp), allocatable, dimension(:)     :: lhs, rhs
     real(dp), allocatable, dimension(:,:,:) :: g
 
@@ -1662,7 +1680,7 @@ contains
        do i = 1, self%nscan
           k        = self%scanid(i)
           if (.not. self%scans(i)%d(j)%accept) cycle
-          g(k,j,1) = self%scans(i)%d(j)%gain
+          g(k,j,1) = self%scans(i)%d(j)%dgain
           g(k,j,2) = self%scans(i)%d(j)%gain_sigma
        end do
     end do
@@ -1678,18 +1696,28 @@ contains
        do j = 1, ndet
          lhs = 0.d0
          rhs = 0.d0
-         do i = 1, self%nscan
-            if (.not. self%scans(i)%d(j)%accept) cycle
-            k = self%scanid(i)
+         mu  = 0.d0
+         denom = 0.d0
+         do k = 1, self%nscan_tot
+            if (g(k,j,2) <= 0.d0) then
+               g(k,j,1) = 0.d0
+               cycle
+            end if
             ! To be replaced by proper matrix multiplications
-            lhs(k) = lhs(k) + g(k, j, 2)
+            lhs(k) = g(k, j, 2)
 !            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
-            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(g(k, j, 2)) * rand_gauss(handle)
+            ! HKE: Disabling fluctuations for now 
+            rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
             g(k, j, 1) = rhs(k) / lhs(k)
+            mu         = mu + g(k, j, 1) * g(k,j,2)
+            denom      = denom + 1.d0 * g(k,j,2)
+            !write(*,*) j, k, g(k,j,1)
          end do
          ! Make sure fluctuations sum up to zero
-         where (g(:, j, 1) > 0)
-            g(:,j,1) = g(:,j,1) - sum(g(:, j, 1)) / size(g(:, j, 1))
+         mu = mu / denom
+         !write(*,*) 'mu = ', mu
+         where (g(:, j, 2) > 0)
+            g(:,j,1) = g(:,j,1) - mu
          end where
        end do
     end if
@@ -1699,7 +1727,9 @@ contains
     do j = 1, ndet
        do i = 1, self%nscan
           k        = self%scanid(i)
-          self%scans(i)%d(j)%gain = g(k,j,1)
+          self%scans(i)%d(j)%dgain = g(k,j,1)
+          self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j) + g(k,j,1)
+          !write(*,*) j, i,  self%scans(i)%d(j)%gain 
        end do
     end do
 
@@ -1763,6 +1793,12 @@ contains
     call mpi_bcast(self%gain0(0), self%ndet,  MPI_DOUBLE_PRECISION, 0, &
          & self%info%comm, ierr)
 
+    do j = 1, self%nscan
+       do i = 1, self%ndet
+          self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
+       end do
+    end do
+
   end subroutine sample_abscal_from_orbital
 
   ! Sample absolute gain from orbital dipole alone 
@@ -1806,47 +1842,34 @@ contains
     self%gain0(1:self%ndet) = x(1:self%ndet)
     deallocate(coeff_matrix, rhs, A, b, x)
 
+    do j = 1, self%nscan
+       do i = 1, self%ndet
+          self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
+       end do
+    end do
+
   end subroutine sample_relcal
   
-  !construct a sidelobe template in the time domain
-  subroutine construct_sl_template(self, slconv, scan_id, nside, pix, psi, s_sl, polangle)
-    implicit none
-    class(comm_LFI_tod),                 intent(in)    :: self
-    class(comm_conviqt),                 intent(in)    :: slconv
-    integer(i4b),                        intent(in)    :: scan_id, nside
-    integer(i4b),        dimension(:),   intent(in)    :: pix, psi
-    real(dp),                            intent(in)   :: polangle
-    real(sp),            dimension(:),   intent(out)   :: s_sl
-    
-    integer(i4b) :: j
-    real(dp)     :: psi_
-
-    do j=1, size(pix)
-       psi_    = self%psi(psi(j))-polangle 
-       s_sl(j) = slconv%interp(pix(j), psi_) 
-    end do
-
-  end subroutine construct_sl_template
 
   !compute the cleaned TOD from the computed TOD components
-  subroutine compute_cleaned_tod(self, ntod, scan_num, s_sub, &
-       & n_corr, d_calib)
-    implicit none
-    class(comm_LFI_tod),               intent(in)    :: self
-    integer(i4b),                      intent(in)    :: ntod, scan_num
-    real(sp),          dimension(:,:), intent(in)    :: s_sub
-    real(sp),          dimension(:,:), intent(in)    :: n_corr
-    real(sp),          dimension(:,:), intent(out)   :: d_calib
-
-    integer(i4b) :: i
-
-    !cleaned calibrated data = (rawTOD - corrNoise)/gain - orbitalDipole - sideLobes
-    do i=1, self%ndet
-       if (.not. self%scans(scan_num)%d(i)%accept) cycle
-      d_calib(:,i) = (self%scans(scan_num)%d(i)%tod - n_corr(:,i)) / &
-           & self%scans(scan_num)%d(i)%gain - s_sub(:,i)
-    end do
-  end subroutine compute_cleaned_tod
+!!$  subroutine compute_cleaned_tod(self, ntod, scan_num, s_sub, &
+!!$       & n_corr, d_calib)
+!!$    implicit none
+!!$    class(comm_LFI_tod),               intent(in)    :: self
+!!$    integer(i4b),                      intent(in)    :: ntod, scan_num
+!!$    real(sp),          dimension(:,:), intent(in)    :: s_sub
+!!$    real(sp),          dimension(:,:), intent(in)    :: n_corr
+!!$    real(sp),          dimension(:,:), intent(out)   :: d_calib
+!!$
+!!$    integer(i4b) :: i
+!!$
+!!$    !cleaned calibrated data = (rawTOD - corrNoise)/gain - orbitalDipole - sideLobes
+!!$    do i=1, self%ndet
+!!$       if (.not. self%scans(scan_num)%d(i)%accept) cycle
+!!$      d_calib(:,i) = (self%scans(scan_num)%d(i)%tod - n_corr(:,i)) / &
+!!$           & self%scans(scan_num)%d(i)%gain - s_sub(:,i)
+!!$    end do
+!!$  end subroutine compute_cleaned_tod
 
 
   ! Compute chisquare
@@ -2506,40 +2529,6 @@ contains
 
   end function get_total_chisq
 
-  subroutine output_scan_list(self, slist)
-    implicit none
-    class(comm_LFI_tod),                           intent(in)    :: self
-    character(len=512), allocatable, dimension(:), intent(inout) :: slist
-
-    integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr
-    character(len=4) :: pid
-
-    if (self%myid == 0) then
-       call int2string(self%myid, pid)
-       unit = getlun()
-       open(unit,file=trim(self%outdir)//'/filelist.txt', recl=512)
-       write(unit,*) sum(self%nscanprproc)
-       do i = 1, self%nscan
-          if (trim(slist(i)) == '') cycle
-          write(unit,*) trim(slist(i))
-       end do
-       deallocate(slist)
-       do j = 1, self%numprocs-1
-          ns = self%nscanprproc(j)
-          allocate(slist(ns))
-          call mpi_recv(slist, 512*ns, MPI_CHARACTER, j, 98, self%comm, mpistat, ierr)
-          do i = 1, ns
-             if (trim(slist(i)) == '') cycle
-             write(unit,*) trim(slist(i))
-          end do
-          deallocate(slist)
-       end do
-       close(unit)
-    else
-       call mpi_send(slist, 512*self%nscan, MPI_CHARACTER, 0, 98, self%comm, ierr)
-       deallocate(slist)
-    end if
-  end subroutine output_scan_list
 
   subroutine sample_mono(self, handle, sys_mono, res, rms, mask)
     implicit none
@@ -2695,17 +2684,17 @@ contains
 
   end subroutine symmetrize_flags
 
-  subroutine validate_psi(scan, psi)
-    implicit none
-    integer(i4b),                 intent(in)    :: scan
-    integer(i4b), dimension(:,:), intent(inout) :: psi
-
-    integer(i4b) :: i, j, ntod, diff0, diff
-    logical(lgt) :: ok
-    character(len=6) :: stext
-
-
-    ntod = size(psi, dim=1)
+!!$  subroutine validate_psi(scan, psi)
+!!$    implicit none
+!!$    integer(i4b),                 intent(in)    :: scan
+!!$    integer(i4b), dimension(:,:), intent(inout) :: psi
+!!$
+!!$    integer(i4b) :: i, j, ntod, diff0, diff
+!!$    logical(lgt) :: ok
+!!$    character(len=6) :: stext
+!!$
+!!$
+!!$    ntod = size(psi, dim=1)
 
 !!$    diff0 = psi(1,1)-psi(1,2)
 !!$    diff  = psi(1,3)-psi(1,4)
@@ -2718,57 +2707,57 @@ contains
 !!$
 !!$    return
 
-    diff0 = smallest_angle(psi(1,1), psi(1,2))
-    do i = 2, ntod
-       diff = smallest_angle(psi(i,1), psi(i,2))
-       ok = abs(diff-diff0) < 50 
-       if (.not. ok) then
-          write(*,*) 'Potential psi problem in scan = ', scan, ', det = 1 or 2', diff0, diff, i
-          call int2string(scan, stext)
-          open(58,file='error12_'//stext//'.txt')
-          do j = 1, ntod
-             diff = smallest_angle(psi(j,1), psi(j,2))
-             write(58,*) j, psi(j,1), psi(j,2), diff
-          end do
-          close(58)
-          exit
-       end if
-    end do
+!!$    diff0 = smallest_angle(psi(1,1), psi(1,2))
+!!$    do i = 2, ntod
+!!$       diff = smallest_angle(psi(i,1), psi(i,2))
+!!$       ok = abs(diff-diff0) < 50 
+!!$       if (.not. ok) then
+!!$          write(*,*) 'Potential psi problem in scan = ', scan, ', det = 1 or 2', diff0, diff, i
+!!$          call int2string(scan, stext)
+!!$          open(58,file='error12_'//stext//'.txt')
+!!$          do j = 1, ntod
+!!$             diff = smallest_angle(psi(j,1), psi(j,2))
+!!$             write(58,*) j, psi(j,1), psi(j,2), diff
+!!$          end do
+!!$          close(58)
+!!$          exit
+!!$       end if
+!!$    end do
+!!$
+!!$    diff0 = smallest_angle(psi(1,3), psi(1,4))
+!!$    do i = 2, ntod
+!!$       diff = smallest_angle(psi(i,3), psi(i,4))
+!!$       ok = abs(diff-diff0) < 10 
+!!$       if (.not. ok) then
+!!$          write(*,*) 'Potential psi problem in scan = ', scan, ', det = 3 or 4', diff0, diff, i
+!!$          call int2string(scan, stext)
+!!$          open(58,file='error34_'//stext//'.txt')
+!!$          do j = 1, ntod
+!!$             diff = smallest_angle(psi(j,3), psi(j,4))
+!!$             write(58,*) j, psi(j,3), psi(j,4), diff
+!!$          end do
+!!$          close(58)
+!!$
+!!$          exit
+!!$       end if
+!!$    end do
+!!$
+!!$  end subroutine validate_psi
 
-    diff0 = smallest_angle(psi(1,3), psi(1,4))
-    do i = 2, ntod
-       diff = smallest_angle(psi(i,3), psi(i,4))
-       ok = abs(diff-diff0) < 10 
-       if (.not. ok) then
-          write(*,*) 'Potential psi problem in scan = ', scan, ', det = 3 or 4', diff0, diff, i
-          call int2string(scan, stext)
-          open(58,file='error34_'//stext//'.txt')
-          do j = 1, ntod
-             diff = smallest_angle(psi(j,3), psi(j,4))
-             write(58,*) j, psi(j,3), psi(j,4), diff
-          end do
-          close(58)
-
-          exit
-       end if
-    end do
-
-  end subroutine validate_psi
-
-  function smallest_angle(x, y)
-    integer(i4b), intent(in) :: x, y
-    integer(i4b)             :: smallest_angle
-
-    integer(i4b) :: a, b
-
-    a = modulo(x-y, 4096)
-    b = modulo(y-x, 4096)
-    if (a < b) then
-       smallest_angle = -a
-    else
-       smallest_angle =  b
-    end if
-
-  end function smallest_angle
+!!$  function smallest_angle(x, y)
+!!$    integer(i4b), intent(in) :: x, y
+!!$    integer(i4b)             :: smallest_angle
+!!$
+!!$    integer(i4b) :: a, b
+!!$
+!!$    a = modulo(x-y, 4096)
+!!$    b = modulo(y-x, 4096)
+!!$    if (a < b) then
+!!$       smallest_angle = -a
+!!$    else
+!!$       smallest_angle =  b
+!!$    end if
+!!$
+!!$  end function smallest_angle
 
 end module comm_tod_LFI_mod
