@@ -2474,7 +2474,7 @@ contains
        do k = 2, ndelta
           cp          = sum(chisq_S(:,k))
           cc          = sum(chisq_S(:,current))
-          diff        = cp-cc
+          diff        = min(cp-cc,0.d0)
           accept_rate = exp(-0.5d0*diff)  
           if (trim(self%operation) == 'optimize') then
              accept = cp <= cc
