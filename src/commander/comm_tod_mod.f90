@@ -15,7 +15,7 @@ module comm_tod_mod
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
-     real(dp)          :: gain, gain_sigma                ! Gain; assumed constant over scan
+     real(dp)          :: gain, dgain, gain_sigma         ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
@@ -104,6 +104,8 @@ module comm_tod_mod
      procedure                        :: get_det_id
      procedure                        :: initialize_bp_covar
      procedure(process_tod), deferred :: process_tod
+     procedure                        :: construct_sl_template
+     procedure                        :: output_scan_list
   end type comm_tod
 
   abstract interface
@@ -215,6 +217,8 @@ contains
        call read_hdf_scan(self%scans(i), self%myid, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels)
        do det = 1, self%ndet
+          self%scans(i)%d(det)%dgain = self%scans(i)%d(det)%gain - self%gain0(0) - self%gain0(det)
+
           self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
           if (.not. self%scans(i)%d(det)%accept) then
              write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
@@ -544,7 +548,6 @@ contains
        !stop
        do i = 1, self%ndet
           self%gain0(i) = sum(output(:,i,1))/count(output(:,i,1)>0.d0) - self%gain0(0)
-          output(:,i,1) = output(:,i,1) - (self%gain0(0) + self%gain0(i))
        end do
     end if
 
@@ -563,6 +566,7 @@ contains
        do i = 1, self%nscan
           k             = self%scanid(i)
           self%scans(i)%d(j)%gain   = output(k,j,1)
+          self%scans(i)%d(j)%dgain  = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%sigma0 = output(k,j,2)
           self%scans(i)%d(j)%alpha  = output(k,j,3)
           self%scans(i)%d(j)%fknee  = output(k,j,4)
@@ -659,6 +663,62 @@ contains
     end do
 
   end subroutine initialize_bp_covar
+
+
+  !construct a sidelobe template in the time domain
+  subroutine construct_sl_template(self, slconv, scan_id, nside, pix, psi, s_sl, polangle)
+    implicit none
+    class(comm_tod),                     intent(in)    :: self
+    class(comm_conviqt),                 intent(in)    :: slconv
+    integer(i4b),                        intent(in)    :: scan_id, nside
+    integer(i4b),        dimension(:),   intent(in)    :: pix, psi
+    real(dp),                            intent(in)   :: polangle
+    real(sp),            dimension(:),   intent(out)   :: s_sl
+    
+    integer(i4b) :: j
+    real(dp)     :: psi_
+
+    do j=1, size(pix)
+       psi_    = self%psi(psi(j))-polangle 
+       s_sl(j) = slconv%interp(pix(j), psi_) 
+    end do
+
+  end subroutine construct_sl_template
+
+  subroutine output_scan_list(self, slist)
+    implicit none
+    class(comm_tod),                               intent(in)    :: self
+    character(len=512), allocatable, dimension(:), intent(inout) :: slist
+
+    integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr
+    character(len=4) :: pid
+
+    if (self%myid == 0) then
+       call int2string(self%myid, pid)
+       unit = getlun()
+       open(unit,file=trim(self%outdir)//'/filelist.txt', recl=512)
+       write(unit,*) sum(self%nscanprproc)
+       do i = 1, self%nscan
+          if (trim(slist(i)) == '') cycle
+          write(unit,*) trim(slist(i))
+       end do
+       deallocate(slist)
+       do j = 1, self%numprocs-1
+          ns = self%nscanprproc(j)
+          allocate(slist(ns))
+          call mpi_recv(slist, 512*ns, MPI_CHARACTER, j, 98, self%comm, mpistat, ierr)
+          do i = 1, ns
+             if (trim(slist(i)) == '') cycle
+             write(unit,*) trim(slist(i))
+          end do
+          deallocate(slist)
+       end do
+       close(unit)
+    else
+       call mpi_send(slist, 512*self%nscan, MPI_CHARACTER, 0, 98, self%comm, ierr)
+       deallocate(slist)
+    end if
+  end subroutine output_scan_list
 
 
 end module comm_tod_mod
