@@ -1664,17 +1664,19 @@ contains
     type(planck_rng),                  intent(inout)  :: handle
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
-    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot
+    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot, binsize
+    integer(i4b) :: nbin
     real(dp)     :: mu, denom
-    real(dp), allocatable, dimension(:)     :: lhs, rhs
+    real(dp), allocatable, dimension(:)     :: lhs, rhs, vals
     real(dp), allocatable, dimension(:,:,:) :: g
 
     ndet       = self%ndet
     nscan_tot  = self%nscan_tot
+    binsize = 100
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
-    allocate(lhs(nscan_tot), rhs(nscan_tot))
+    allocate(lhs(nscan_tot), rhs(nscan_tot), vals(binsize))
     g = 0.d0
     do j = 1, ndet
        do i = 1, self%nscan
@@ -1693,25 +1695,42 @@ contains
     end if
 
     if (self%myid == 0) then
+       nbin = nscan_tot / binsize + 1
        do j = 1, ndet
          lhs = 0.d0
          rhs = 0.d0
          mu  = 0.d0
          denom = 0.d0
-         do k = 1, self%nscan_tot
-            if (g(k,j,2) <= 0.d0) then
-               g(k,j,1) = 0.d0
-               cycle
-            end if
-            ! To be replaced by proper matrix multiplications
-            lhs(k) = g(k, j, 2)
-!            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
-            ! HKE: Disabling fluctuations for now 
-            rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
-            g(k, j, 1) = rhs(k) / lhs(k)
-            mu         = mu + g(k, j, 1) * g(k,j,2)
-            denom      = denom + 1.d0 * g(k,j,2)
-            !write(*,*) j, k, g(k,j,1)
+         ! Doing binning for now, but should use proper covariance sampling
+         do i = 1, nbin
+            b1 = (i-1) * binsize + 1
+            b2 = min(i * binsize, nscan_tot)
+            if (count(g(b1:b2, j, 1) > 0) <= 1) cycle
+            n = 0
+            do k = b1, b2
+               if (g(k,j,2) <= 0.d0) then
+                  g(k,j,1) = 0.d0
+                  cycle
+               end if
+               if (g(k,j,1) == 0) cycle
+               n = n + 1
+               ! To be replaced by proper matrix multiplications
+               lhs(k) = g(k, j, 2)
+   !            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
+               ! HKE: Disabling fluctuations for now 
+               rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
+!               g(k, j, 1) = rhs(k) / lhs(k)
+               vals(n) = rhs(k) / lhs(k)
+            end do
+            where (g(b1:b2, j, 1) > 0)
+               g(b1:b2, j, 1) = median(vals(1:n))
+            end where
+            do k = 1, nscan_tot
+               if (g(k, j, 2) <= 0.d0) cycle
+               mu         = mu + g(k, j, 1) * g(k,j,2)
+               denom      = denom + 1.d0 * g(k,j,2)
+               !write(*,*) j, k, g(k,j,1)
+            end do
          end do
          ! Make sure fluctuations sum up to zero
          mu = mu / denom
