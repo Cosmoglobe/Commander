@@ -106,6 +106,7 @@ module comm_tod_mod
      procedure(process_tod), deferred :: process_tod
      procedure                        :: construct_sl_template
      procedure                        :: output_scan_list
+     procedure                        :: multiply_inv_n
   end type comm_tod
 
   abstract interface
@@ -719,6 +720,106 @@ contains
        deallocate(slist)
     end if
   end subroutine output_scan_list
+
+
+  ! Routine for multiplying a set of timestreams with inverse noise covariance 
+  ! matrix. inp and res have dimensions (ntime,ndet,ninput), where ninput is 
+  ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
+  ! Here inp and res are assumed to be already allocated. 
+
+  subroutine multiply_inv_N(self, scan, buffer)
+    implicit none
+    class(comm_tod),                     intent(in)     :: self
+    integer(i4b),                        intent(in)     :: scan
+    real(sp),          dimension(:,:,:), intent(inout)     :: buffer !input/output
+    integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: ninput
+    integer*8    :: plan_fwd, plan_back
+    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
+    real(dp)     :: nu
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
+    
+    ntod = size(buffer, 1)
+    ndet = size(buffer, 2)
+    ninput = size(buffer, 3)
+    nomp = omp_get_max_threads()
+
+!!$ !   if (self%myid == 0) open(58,file='invN1.dat')
+!!$    allocate(dt(ntod))
+!!$    do i = 1, ndet
+!!$       if (.not. self%scans(scan)%d(i)%accept) cycle
+!!$       sigma_0  = self%scans(scan)%d(i)%sigma0
+!!$       do j = 1, ninput
+!!$          dt = buffer(:,i,j) / sigma_0**2
+!!$          dt = dt - mean(1.d0*dt)
+!!$          buffer(:,i,j) = dt
+!!$       end do
+!!$    end do
+!!$    deallocate(dt)
+!!$!    if (self%myid == 0) close(58)
+!!$    return
+
+    
+    n = ntod + 1
+    
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
+
+    allocate(dt(2*ntod), dv(0:n-1))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
+    deallocate(dt, dv)
+    
+!    if (self%myid == 0) open(58,file='invN2.dat')
+    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,noise,signal)
+    allocate(dt(2*ntod), dv(0:n-1))
+    
+    !$OMP DO SCHEDULE(guided)
+    do i = 1, ndet
+       if (.not. self%scans(scan)%d(i)%accept) cycle
+       samprate = self%samprate
+       sigma_0  = self%scans(scan)%d(i)%sigma0
+       alpha    = self%scans(scan)%d(i)%alpha
+       nu_knee  = self%scans(scan)%d(i)%fknee
+       !noise    = 2.0 * ntod * sigma_0 ** 2
+       noise    = sigma_0 ** 2
+       
+       do j = 1, ninput
+          dt(1:ntod)           = buffer(:,i,j)
+          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+
+          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          dv(0) = 0.d0
+          do l = 1, n-1                                                      
+             nu = l*(samprate/2)/(n-1)
+             signal = noise * (nu/(nu_knee))**(alpha)
+             dv(l) = dv(l) * 1.d0/(noise + signal)   
+          end do
+          call sfftw_execute_dft_c2r(plan_back, dv, dt)
+          dt          = dt / (2*ntod)
+
+!!$          if (self%myid == 0 .and. i==1 .and. j==1) then
+!!$             do k = 1, ntod
+!!$                write(58,*) k, dt(k)/dt(30000), buffer(k,i,j)/buffer(30000,i,j)
+!!$             end do
+!!$          end if
+
+          buffer(:,i,j)  = dt(1:ntod) 
+
+       end do
+    end do
+    !$OMP END DO                                                          
+    deallocate(dt, dv)
+    !$OMP END PARALLEL
+!    if (self%myid == 0) close(58)
+
+    call sfftw_destroy_plan(plan_fwd)                                           
+    call sfftw_destroy_plan(plan_back)                                          
+
+!!$    call mpi_finalize(i)
+!!$    stop
+  end subroutine multiply_inv_N
 
 
 end module comm_tod_mod
