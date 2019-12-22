@@ -60,7 +60,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
 
-     real(dp)     :: samprate                                     ! Sample rate in Hz
+     real(dp)     :: samprate, samprate_gain                      ! Sample rate in Hz
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
@@ -107,6 +107,7 @@ module comm_tod_mod
      procedure                        :: construct_sl_template
      procedure                        :: output_scan_list
      procedure                        :: multiply_inv_n
+     procedure                        :: downsample_tod
   end type comm_tod
 
   abstract interface
@@ -727,13 +728,13 @@ contains
   ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
   ! Here inp and res are assumed to be already allocated. 
 
-  subroutine multiply_inv_N(self, scan, buffer)
+  subroutine multiply_inv_N(self, scan, buffer, sampfreq)
     implicit none
     class(comm_tod),                     intent(in)     :: self
     integer(i4b),                        intent(in)     :: scan
-    real(sp),          dimension(:,:,:), intent(inout)     :: buffer !input/output
+    real(sp),          dimension(:,:),   intent(inout)     :: buffer !input/output
+    real(dp),                            intent(in), optional :: sampfreq
     integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads
-    integer(i4b) :: ninput
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
     real(dp)     :: nu
@@ -742,7 +743,6 @@ contains
     
     ntod = size(buffer, 1)
     ndet = size(buffer, 2)
-    ninput = size(buffer, 3)
     nomp = omp_get_max_threads()
 
 !!$ !   if (self%myid == 0) open(58,file='invN1.dat')
@@ -778,15 +778,18 @@ contains
     !$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
-       samprate = self%samprate
+       if (present(sampfreq)) then
+          samprate = sampfreq
+       else
+          samprate = self%samprate
+       end if
        sigma_0  = self%scans(scan)%d(i)%sigma0
        alpha    = self%scans(scan)%d(i)%alpha
        nu_knee  = self%scans(scan)%d(i)%fknee
        !noise    = 2.0 * ntod * sigma_0 ** 2
        noise    = sigma_0 ** 2
        
-       do j = 1, ninput
-          dt(1:ntod)           = buffer(:,i,j)
+          dt(1:ntod)           = buffer(:,i)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
@@ -805,9 +808,8 @@ contains
 !!$             end do
 !!$          end if
 
-          buffer(:,i,j)  = dt(1:ntod) 
+          buffer(:,i)  = dt(1:ntod) 
 
-       end do
     end do
     !$OMP END DO                                                          
     deallocate(dt, dv)
@@ -820,6 +822,55 @@ contains
 !!$    call mpi_finalize(i)
 !!$    stop
   end subroutine multiply_inv_N
+
+  subroutine downsample_tod(self, tod_in, ext, tod_out, mask)
+    implicit none
+    class(comm_tod),                    intent(in)     :: self
+    real(sp), dimension(:),             intent(in)     :: tod_in
+    integer(i4b),                       intent(inout)  :: ext(2)
+    real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
+    real(sp), dimension(:),             intent(in),  optional :: mask
+ 
+    integer(i4b) :: i, j, k, l, n, step, nomp, ntod, ndet, err, w, npad
+
+    ntod = size(tod_in)
+    npad = 5
+    step = int(self%samprate/self%samprate_gain)
+    w    = 2*step    ! Boxcar window width
+    n    = int(ntod / step) + 1
+    if (.not. present(tod_out)) then
+       ext = [-npad, n+npad]
+       return
+    end if
+
+    do i = -npad, n+npad
+       j = max(i*step - w, 1)
+       k = min(i*step + w, ntod)
+
+       if (j > k) then
+          tod_out(i) = 0.
+       else
+          !write(*,*) i, shape(tod_in), j, k 
+          tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / (2*w+1)
+       end if
+       !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))
+    end do
+
+!!$    if (self%myid == 0) then
+!!$       open(58, file='filter.dat')
+!!$!       do i = 1, ntod
+!!$!          write(58,*) i, tod_in(i)
+!!$!       end do
+!!$!       write(58,*)
+!!$       do i = -npad, n+npad
+!!$          write(58,*) i*step, tod_out(i)
+!!$       end do
+!!$       close(58)
+!!$    end if
+!!$    call mpi_finalize(i)
+!!$    stop
+
+  end subroutine downsample_tod
 
 
 end module comm_tod_mod

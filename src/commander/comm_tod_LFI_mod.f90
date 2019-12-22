@@ -107,6 +107,7 @@ contains
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     constructor%output_4D_map = cpar%output_4D_map_nth_iter
     constructor%subtract_zodi = cpar%include_TOD_zodi
+    constructor%samprate_gain = 1.d0  ! Lowres samprate in Hz
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     if (constructor%first_scan > constructor%last_scan) then
@@ -304,13 +305,13 @@ contains
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
 
     integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
-    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ns
+    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ns, ext(2)
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, scanfile, ncol, n_A, nout
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold, delta_temp, chisq_tot
     real(dp)     :: t_tot(22), gain, inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
     real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
-    real(sp),     allocatable, dimension(:,:)     :: sorb_invN, stot_invN
+    real(sp),     allocatable, dimension(:,:)     :: s_invN, s_lowres
     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
     real(sp),     allocatable, dimension(:,:,:)   :: temp_buffer
@@ -599,8 +600,6 @@ contains
           allocate(s_mono(ntod, ndet))                 ! Monopole correction in uKcmb
           allocate(s_buf(ntod, ndet))                  ! Buffer
           allocate(s_tot(ntod, ndet))                  ! Sum of all sky compnents
-          allocate(sorb_invN(ntod, ndet))              ! s_orb * invN
-          allocate(stot_invN(ntod, ndet))              ! s_tot * invN
           allocate(s_zodi(ntod, ndet))                 ! Zodical light
           allocate(mask(ntod, ndet))                   ! Processing mask in time
           allocate(mask2(ntod, ndet))                  ! Processing mask in time
@@ -719,18 +718,24 @@ contains
 
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
-             allocate(temp_buffer(ntod, ndet, 2))
-             temp_buffer(:, :, 1) = s_orb
-             temp_buffer(:, :, 2) = s_tot
-             call self%multiply_inv_N(i, temp_buffer)
-             sorb_invN = temp_buffer(:, :, 1)
-             stot_invN = temp_buffer(:, :, 2)
-
+             call self%downsample_tod(s_orb(:,1), ext)
+             allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
+             allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
+             do j = 1, ndet
+                if (do_oper(samp_G) .or. do_oper(samp_rcal)) then
+                   call self%downsample_tod(s_tot(:,j), ext, &
+                        & s_lowres(:,j), mask(:,j))
+                else
+                   call self%downsample_tod(s_orb(:,j), ext, &
+                        & s_lowres(:,j), mask(:,j))
+                end if
+             end do
+             s_invN = s_lowres
+             call self%multiply_inv_N(i, s_invN, sampfreq=self%samprate_gain)
+             !write(*,*) i, sum(abs(s_lowres)), sum(abs(s_invN))
              !if (self%myid == 0) write(*,*) 'sum', sum(abs(sorb_invN))
 !!$             call mpi_finalize(ierr)
 !!$             stop
-
-             deallocate(temp_buffer)
           end if
 
           ! Prepare for absolute calibration
@@ -743,13 +748,12 @@ contains
                 if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    s_buf(:, j) = self%gain0(0) * (s_tot(:, j) - s_orb(:, j)) + (self%gain0(j) + self%scans(i)%d(j)%dgain) * s_tot(:, j)
-                   call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_orb(:,j), sorb_invN(:, j), A_abscal(j), b_abscal(j))
+
                 else if (do_oper(samp_rcal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    s_buf(:,j) = (self%gain0(0) + self%scans(i)%d(j)%dgain) * s_tot(:, j)
-                   call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_tot(:,j), stot_invN(:, j), A_abscal(j), b_abscal(j))
                 end if
-
+                call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_lowres(:,j), s_invN(:, j), A_abscal(j), b_abscal(j))
 
 !!$                call int2string(self%scanid(i), scantext)
 !!$                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
@@ -776,7 +780,7 @@ contains
                    self%scans(i)%d(j)%dgain = 0.d0
                    cycle
                 end if
-                call self%calculate_gain_mean_std_per_scan(i, j, stot_invN(:, j), mask(:, j), s_tot(:, j))
+                call self%calculate_gain_mean_std_per_scan(i, j, s_invN(:, j), mask(:, j), s_lowres(:, j), s_tot(:,j))
              end do
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
@@ -935,7 +939,9 @@ contains
 
           ! Clean up
           call wall_time(t1)
-          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi, sorb_invN, stot_invN)
+          if (allocated(s_lowres)) deallocate(s_lowres)
+          if (allocated(s_invN)) deallocate(s_invN)
+          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi)
           deallocate(mask, mask2, pix, psi, flag, s_bp, s_sky_prop, s_bp_prop, s_buf, s_mono)
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
@@ -1546,30 +1552,30 @@ contains
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(self, scan_id, det, stot_invN, mask, s_tot)
+   subroutine calculate_gain_mean_std_per_scan(self, scan_id, det, s_invN, mask, s_ref, s_tot)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
-      real(sp),             dimension(:), intent(in)    :: stot_invN, mask, s_tot
+      real(sp),             dimension(:), intent(in)    :: s_invN, mask, s_ref, s_tot
       integer(i4b),                       intent(in)    :: scan_id, det
-      real(dp), allocatable, dimension(:)           :: residual
+      real(sp), allocatable, dimension(:)           :: residual
       real(sp) :: g_old
 
-      integer(i4b) :: i, p, q
+      integer(i4b) :: i, p, q, ext(2)
 
-      p = 5000 ! Buffer width
-      q = size(mask)-p
-
-    allocate(residual(size(stot_invN)))
-    g_old = self%scans(scan_id)%d(det)%gain 
+!    allocate(residual(size(stot_invN)))
+      !g_old = self%scans(scan_id)%d(det)%gain 
 
 !   residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
 !         & self%gain0(det)) * s_tot) * mask
-   residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
-         & self%gain0(det)) * s_tot) * mask
+ 
+    call self%downsample_tod(s_tot, ext)    
+    allocate(residual(ext(1):ext(2)))
+    call self%downsample_tod(real(self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
+         & self%gain0(det)) * s_tot,sp), ext, residual, mask)
 
     ! Get a proper invn multiplication from Haavard's routine here
-    self%scans(scan_id)%d(det)%dgain      = sum(mask(p:q) * stot_invN(p:q) * residual(p:q))
-    self%scans(scan_id)%d(det)%gain_sigma = sum(mask(p:q) * stot_invN(p:q) * s_tot(p:q))
+    self%scans(scan_id)%d(det)%dgain      = sum(s_invN * residual)
+    self%scans(scan_id)%d(det)%gain_sigma = sum(s_invN * s_ref)
 !    self%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
 !    self%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
 !    if (self%scans(scan_id)%d(det)%gain_sigma < 0) then
@@ -1604,7 +1610,7 @@ contains
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot
     integer(i4b) :: nbin, currstart, currend
-    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain
+    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot
     real(dp), allocatable, dimension(:)     :: lhs, rhs
     real(dp), allocatable, dimension(:,:,:) :: g
 
@@ -1637,34 +1643,27 @@ contains
          lhs = 0.d0
          rhs = 0.d0
          k = 0
-         do while (k <= nscan_tot)
-            k = k + 1
-            if (g(k, j, 2) <= 0.d0) then
-               g(k, j, 1) = 0.d0
-               cycle
-            end if
-            if (g(k, j, 1) == 0) cycle
-            sum_inv_sigma_squared = g(k, j, 2)
-            sum_weighted_gain = g(k, j, 1) / g(k, j, 2)
+         do while (k < nscan_tot)
+            k         = k + 1
             currstart = k
-            do while (1 / sqrt(sum_inv_sigma_squared) > 0.001 .and. k <= nscan_tot)
+            !if (g(k, j, 2) <= 0.d0) cycle
+            sum_inv_sigma_squared = g(k, j, 2)
+            sum_weighted_gain     = g(k, j, 1) !/ g(k, j, 2)
+            do while (sqrt(sum_inv_sigma_squared) < 1000. .and. k < nscan_tot)
                k = k + 1
-               if (g(k, j, 2) <= 0.d0) then
-                  g(k, j, 1) = 0.d0
-                  cycle
-               end if
-               if (g(k, j, 1) == 0) cycle
-               sum_weighted_gain = sum_weighted_gain + g(k, j, 1) / g(k, j, 2)
+               sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
                sum_inv_sigma_squared = sum_inv_sigma_squared + g(k, j, 2)
             end do
             currend = k
-            where (g(currstart:currend, j, 2) > 0)
-               g(currstart:currend, j, 1) = sum_weighted_gain / sum_inv_sigma_squared
-            end where
+            g_tot = sum_weighted_gain / sum_inv_sigma_squared
+            !write(*,*) currstart, currend, g_tot, 1 / sqrt(sum_inv_sigma_squared)
+            if (trim(self%operation) == 'sample') then
+               ! Add fluctuation term if requested
+               g_tot = g_tot + rand_gauss(handle) / sqrt(sum_inv_sigma_squared)
+            end if
+            !write(*,*) currstart, currend, nscan_tot, g_tot 
+            g(currstart:currend, j, 1) = g_tot 
          end do
-
-
-
 
          ! Doing binning for now, but should use proper covariance sampling
 !         do i = 1, nbin
@@ -1704,10 +1703,8 @@ contains
          mu = mu / denom
 
          ! Make sure fluctuations sum up to zero
-         write(*,*) 'mu = ', mu
-         where (g(:, j, 2) > 0)
-            g(:,j,1) = g(:,j,1) - mu
-         end where
+         !write(*,*) 'mu = ', mu
+         g(:,j,1) = g(:,j,1) - mu
        end do
     end if
 
@@ -1716,7 +1713,7 @@ contains
     do j = 1, ndet
        do i = 1, self%nscan
           k        = self%scanid(i)
-          if (g(k, j, 2) <= 0.d0) cycle
+          !if (g(k, j, 2) <= 0.d0) cycle
           self%scans(i)%d(j)%dgain = g(k,j,1)
           self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j) + g(k,j,1)
           !write(*,*) j, k,  self%scans(i)%d(j)%gain 
@@ -1733,42 +1730,29 @@ contains
   ! Haavard: Remove current monopole fit, and replace inv_sigmasq with a proper invN(alpha,fknee) multiplication
 !  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
 !       & s_orb, A_abs, b_abs)
-   subroutine accumulate_abscal(self, scan, det, mask, s_sub, s_orb, sorb_invN, A_abs, b_abs)
+   subroutine accumulate_abscal(self, scan, det, mask, s_sub, s_ref, s_invN, A_abs, b_abs)
     implicit none
     class(comm_LFI_tod),             intent(in)     :: self
     integer(i4b),                    intent(in)     :: scan, det
-    real(sp),          dimension(:), intent(in)     :: mask, s_sub, s_orb
-    real(sp),          dimension(:), intent(in)     :: sorb_invN
+    real(sp),          dimension(:), intent(in)     :: mask, s_sub, s_ref
+    real(sp),          dimension(:), intent(in)     :: s_invN
     real(dp),                        intent(inout)  :: A_abs, b_abs
 
-    real(dp), allocatable, dimension(:)     :: residual
+    real(sp), allocatable, dimension(:)     :: residual
     real(dp)     ::  A, b
-    integer(i4b) :: i, p, q
+    integer(i4b) :: i, p, q, ext(2)
 
-    p = 5000 ! Buffer width
-    q = size(mask)-p
+!    p = 5000 ! Buffer width
+!    q = size(mask)-p
+    call self%downsample_tod(s_sub, ext)    
+    allocate(residual(ext(1):ext(2)))
+    call self%downsample_tod(self%scans(scan)%d(det)%tod-s_sub, &
+         & ext, residual, mask)
 
-    allocate(residual(size(s_sub)))
+    A = sum(s_invN * s_ref)
+    b = sum(s_invN * residual)
 
-    residual = self%scans(scan)%d(det)%tod - s_sub
-
-    A = sum(sorb_invN(p:q) * s_orb(p:q) * mask(p:q))
-    b = sum(sorb_invN(p:q) * residual(p:q) * mask(p:q))
-
-!    if (det == 1) write(*,*) self%scanid(scan), b/A, '  # absgain', real(A,sp), real(b,sp)
-
-!    if (A < 0) then
-!       if (self%myid == 0) then
-!          write(*, *), "HEY"
-!          open(58, file='A.dat')
-!          do i = p, q
-!             if (mask(i) > 0.5) write(58,*) i, sorb_invN(i), s_orb(i) 
-!          end do
-!          close(58)
-!       end if
-!       stop
-!    end if
-
+    !if (det == 1) write(*,*) self%scanid(scan), b/A, '  # absgain', real(A,sp), real(b,sp)
 
     A_abs = A_abs + A
     b_abs = b_abs + b
