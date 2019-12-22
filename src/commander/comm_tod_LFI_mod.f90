@@ -58,7 +58,6 @@ module comm_tod_LFI_mod
      procedure     :: sample_abscal_from_orbital
      procedure     :: sample_relcal
      procedure     :: sample_mono
-     procedure     :: multiply_inv_n
      procedure     :: get_total_chisq
      procedure     :: finalize_binned_map
      procedure     :: symmetrize_flags
@@ -377,10 +376,10 @@ contains
        end do
     end if
 
-!!$    do i = 1, self%ndet
-!!$       filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
-!!$       call map_in(i,1)%p%writeFITS(filename)
-!!$    end do
+    do i = 1, self%ndet
+       filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
+       call map_in(i,1)%p%writeFITS(filename)
+    end do
 !!$    deallocate(A_abscal, smap_sky, chisq_S, slist)
 !!$    return
 
@@ -726,6 +725,11 @@ contains
              call self%multiply_inv_N(i, temp_buffer)
              sorb_invN = temp_buffer(:, :, 1)
              stot_invN = temp_buffer(:, :, 2)
+
+             !if (self%myid == 0) write(*,*) 'sum', sum(abs(sorb_invN))
+!!$             call mpi_finalize(ierr)
+!!$             stop
+
              deallocate(temp_buffer)
           end if
 
@@ -1535,86 +1539,6 @@ contains
   end subroutine sample_n_corr
 
 
-  ! Routine for multiplying a set of timestreams with inverse noise covariance 
-  ! matrix. inp and res have dimensions (ntime,ndet,ninput), where ninput is 
-  ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
-  ! Here inp and res are assumed to be already allocated. 
-
-  subroutine multiply_inv_N(self, scan, buffer)
-    implicit none
-    class(comm_LFI_tod),                 intent(in)     :: self
-    integer(i4b),                        intent(in)     :: scan
-    real(sp),          dimension(:,:,:), intent(inout)     :: buffer !input/output
-    integer(i4b) :: i, j, l, n, nomp, ntod, ndet, err, omp_get_max_threads
-    integer(i4b) :: ninput
-    integer*8    :: plan_fwd, plan_back
-    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
-    real(dp)     :: nu
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
-    
-    ntod = size(buffer, 1)
-    ndet = size(buffer, 2)
-    ninput = size(buffer, 3)
-    nomp = omp_get_max_threads()
-
-    
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       sigma_0  = self%scans(scan)%d(i)%sigma0
-       do j = 1, ninput
-          buffer(:,i,j) = buffer(:,i,j) / sigma_0**2
-          buffer(:,i,j) = buffer(:,i,j) - mean(1.d0*buffer(:,i,j))
-       end do
-    end do
-    return
-
-    
-    n = ntod + 1
-    
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
-
-    allocate(dt(2*ntod), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
-    deallocate(dt, dv)
-    
-    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,noise,signal)
-    allocate(dt(2*ntod), dv(0:n-1))
-    
-    !$OMP DO SCHEDULE(guided)
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       samprate = self%samprate
-       sigma_0  = self%scans(scan)%d(i)%sigma0
-       alpha    = self%scans(scan)%d(i)%alpha
-       nu_knee  = self%scans(scan)%d(i)%fknee
-       noise    = 2.0 * ntod * sigma_0 ** 2
-       
-       do j = 1, ninput
-          dt(1:ntod)           = buffer(:,i,j)
-          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          dv(0) = 0.d0
-          do l = 1, n-1                                                      
-             nu = l*(samprate/2)/(n-1)
-             signal = noise * (nu/(nu_knee))**(alpha)
-             dv(l) = dv(l) * 1.d0/(noise + signal)   
-          end do
-          call sfftw_execute_dft_c2r(plan_back, dv, dt)
-          dt          = dt / (2*ntod)
-          buffer(:,i,j)  = dt(1:ntod) 
-       end do
-    end do
-    !$OMP END DO                                                          
-    deallocate(dt, dv)
-    !$OMP END PARALLEL
-
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
-  end subroutine multiply_inv_N
 
 
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
@@ -1630,6 +1554,11 @@ contains
       real(dp), allocatable, dimension(:)           :: residual
       real(sp) :: g_old
 
+      integer(i4b) :: i, p, q
+
+      p = 5000 ! Buffer width
+      q = size(mask)-p
+
     allocate(residual(size(stot_invN)))
     g_old = self%scans(scan_id)%d(det)%gain 
 
@@ -1639,13 +1568,22 @@ contains
          & self%gain0(det)) * s_tot) * mask
 
     ! Get a proper invn multiplication from Haavard's routine here
-    self%scans(scan_id)%d(det)%dgain      = sum(mask * stot_invN * residual)
-    self%scans(scan_id)%d(det)%gain_sigma = sum(mask * stot_invN * s_tot)
+    self%scans(scan_id)%d(det)%dgain      = sum(mask(p:q) * stot_invN(p:q) * residual(p:q))
+    self%scans(scan_id)%d(det)%gain_sigma = sum(mask(p:q) * stot_invN(p:q) * s_tot(p:q))
 !    self%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
 !    self%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
 !    if (self%scans(scan_id)%d(det)%gain_sigma < 0) then
 !       write(*,*) 's', sum(mask * stot_invN * s_tot), sum(stot_invN * s_tot)
 !    end if
+
+!!$    if (self%scans(scan_id)%d(det)%dgain/self%scans(scan_id)%d(det)%gain_sigma > 5.) then
+!!$       open(58, file='tod.dat')
+!!$       do i = p, q
+!!$          if (mask(i) > 0.5) write(58,*) i, residual(i), s_tot(i)*0.001 
+!!$       end do
+!!$       close(58)
+!!$       stop
+!!$    end if
 
     !write(*,*) det, scan_id, real(self%scans(scan_id)%d(det)%dgain/self%scans(scan_id)%d(det)%gain_sigma,sp), real(self%gain0(0),sp), real(self%gain0(det),sp), real(g_old,sp)
 
@@ -1699,13 +1637,11 @@ contains
        do j = 1, ndet
          lhs = 0.d0
          rhs = 0.d0
-         mu  = 0.d0
-         denom = 0.d0
          ! Doing binning for now, but should use proper covariance sampling
          do i = 1, nbin
             b1 = (i-1) * binsize + 1
             b2 = min(i * binsize, nscan_tot)
-            if (count(g(b1:b2, j, 1) > 0) <= 1) cycle
+            if (count(g(b1:b2, j, 2) > 0) <= 1) cycle
             n = 0
             do k = b1, b2
                if (g(k,j,2) <= 0.d0) then
@@ -1721,20 +1657,25 @@ contains
                rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
 !               g(k, j, 1) = rhs(k) / lhs(k)
                vals(n) = rhs(k) / lhs(k)
+               if (abs(vals(n)) > 0.05d0) vals(n) = 0.d0
             end do
-            where (g(b1:b2, j, 1) > 0)
+            where (g(b1:b2, j, 2) > 0)
                g(b1:b2, j, 1) = median(vals(1:n))
             end where
-            do k = 1, nscan_tot
-               if (g(k, j, 2) <= 0.d0) cycle
-               mu         = mu + g(k, j, 1) * g(k,j,2)
-               denom      = denom + 1.d0 * g(k,j,2)
-               !write(*,*) j, k, g(k,j,1)
-            end do
          end do
-         ! Make sure fluctuations sum up to zero
+
+         mu  = 0.d0
+         denom = 0.d0
+         do k = 1, nscan_tot
+            if (g(k, j, 2) <= 0.d0) cycle
+            mu         = mu + g(k, j, 1) * g(k,j,2)
+            denom      = denom + 1.d0 * g(k,j,2)
+!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
+         end do
          mu = mu / denom
-         !write(*,*) 'mu = ', mu
+
+         ! Make sure fluctuations sum up to zero
+         write(*,*) 'mu = ', mu
          where (g(:, j, 2) > 0)
             g(:,j,1) = g(:,j,1) - mu
          end where
@@ -1746,11 +1687,15 @@ contains
     do j = 1, ndet
        do i = 1, self%nscan
           k        = self%scanid(i)
+          if (g(k, j, 2) <= 0.d0) cycle
           self%scans(i)%d(j)%dgain = g(k,j,1)
           self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j) + g(k,j,1)
-          !write(*,*) j, i,  self%scans(i)%d(j)%gain 
+          !write(*,*) j, k,  self%scans(i)%d(j)%gain 
        end do
     end do
+
+!!$    call mpi_finalize(ierr)
+!!$    stop
 
     deallocate(g, lhs, rhs)
 
@@ -1769,13 +1714,31 @@ contains
 
     real(dp), allocatable, dimension(:)     :: residual
     real(dp)     ::  A, b
+    integer(i4b) :: i, p, q
+
+    p = 5000 ! Buffer width
+    q = size(mask)-p
 
     allocate(residual(size(s_sub)))
 
     residual = self%scans(scan)%d(det)%tod - s_sub
 
-    A = sum(sorb_invN * s_orb * mask)
-    b = sum(sorb_invN * residual * mask)
+    A = sum(sorb_invN(p:q) * s_orb(p:q) * mask(p:q))
+    b = sum(sorb_invN(p:q) * residual(p:q) * mask(p:q))
+
+    if (det == 1) write(*,*) self%scanid(scan), b/A, '  # absgain', real(A,sp), real(b,sp)
+
+    if (A < 0) then
+       if (self%myid == 0) then
+          open(58, file='A.dat')
+          do i = p, q
+             if (mask(i) > 0.5) write(58,*) i, sorb_invN(i), s_orb(i) 
+          end do
+          close(58)
+       end if
+       stop
+    end if
+
 
     A_abs = A_abs + A
     b_abs = b_abs + b
@@ -1817,6 +1780,9 @@ contains
           self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
        end do
     end do
+
+!!$    call mpi_finalize(ierr)
+!!$    stop
 
   end subroutine sample_abscal_from_orbital
 
