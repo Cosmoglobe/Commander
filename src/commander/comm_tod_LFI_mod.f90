@@ -1602,19 +1602,18 @@ contains
     type(planck_rng),                  intent(inout)  :: handle
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
-    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot, binsize
-    integer(i4b) :: nbin
-    real(dp)     :: mu, denom
-    real(dp), allocatable, dimension(:)     :: lhs, rhs, vals
+    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot
+    integer(i4b) :: nbin, currstart, currend
+    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain
+    real(dp), allocatable, dimension(:)     :: lhs, rhs
     real(dp), allocatable, dimension(:,:,:) :: g
 
     ndet       = self%ndet
     nscan_tot  = self%nscan_tot
-    binsize = 100
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
-    allocate(lhs(nscan_tot), rhs(nscan_tot), vals(binsize))
+    allocate(lhs(nscan_tot), rhs(nscan_tot))
     g = 0.d0
     do j = 1, ndet
        do i = 1, self%nscan
@@ -1633,36 +1632,66 @@ contains
     end if
 
     if (self%myid == 0) then
-       nbin = nscan_tot / binsize + 1
+!       nbin = nscan_tot / binsize + 1
        do j = 1, ndet
          lhs = 0.d0
          rhs = 0.d0
-         ! Doing binning for now, but should use proper covariance sampling
-         do i = 1, nbin
-            b1 = (i-1) * binsize + 1
-            b2 = min(i * binsize, nscan_tot)
-            if (count(g(b1:b2, j, 2) > 0) <= 1) cycle
-            n = 0
-            do k = b1, b2
-               if (g(k,j,2) <= 0.d0) then
-                  g(k,j,1) = 0.d0
+         k = 0
+         do while (k <= nscan_tot)
+            k = k + 1
+            if (g(k, j, 2) <= 0.d0) then
+               g(k, j, 1) = 0.d0
+               cycle
+            end if
+            if (g(k, j, 1) == 0) cycle
+            sum_inv_sigma_squared = g(k, j, 2)
+            sum_weighted_gain = g(k, j, 1) / g(k, j, 2)
+            currstart = k
+            do while (1 / sqrt(sum_inv_sigma_squared) > 0.001 .and. k <= nscan_tot)
+               k = k + 1
+               if (g(k, j, 2) <= 0.d0) then
+                  g(k, j, 1) = 0.d0
                   cycle
                end if
-               if (g(k,j,1) == 0) cycle
-               n = n + 1
-               ! To be replaced by proper matrix multiplications
-               lhs(k) = g(k, j, 2)
-   !            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
-               ! HKE: Disabling fluctuations for now 
-               rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
-!               g(k, j, 1) = rhs(k) / lhs(k)
-               vals(n) = rhs(k) / lhs(k)
-               if (abs(vals(n)) > 0.05d0) vals(n) = 0.d0
+               if (g(k, j, 1) == 0) cycle
+               sum_weighted_gain = sum_weighted_gain + g(k, j, 1) / g(k, j, 2)
+               sum_inv_sigma_squared = sum_inv_sigma_squared + g(k, j, 2)
             end do
-            where (g(b1:b2, j, 2) > 0)
-               g(b1:b2, j, 1) = median(vals(1:n))
+            currend = k
+            where (g(currstart:currend, j, 2) > 0)
+               g(currstart:currend, j, 1) = sum_weighted_gain / sum_inv_sigma_squared
             end where
          end do
+
+
+
+
+         ! Doing binning for now, but should use proper covariance sampling
+!         do i = 1, nbin
+!            b1 = (i-1) * binsize + 1
+!            b2 = min(i * binsize, nscan_tot)
+!            if (count(g(b1:b2, j, 2) > 0) <= 1) cycle
+!            n = 0
+!            do k = b1, b2
+!               if (g(k,j,2) <= 0.d0) then
+!                  g(k,j,1) = 0.d0
+!                  cycle
+!               end if
+!               if (g(k,j,1) == 0) cycle
+!               n = n + 1
+!               ! To be replaced by proper matrix multiplications
+!               lhs(k) = g(k, j, 2)
+!   !            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
+!               ! HKE: Disabling fluctuations for now 
+!               rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
+!!               g(k, j, 1) = rhs(k) / lhs(k)
+!               vals(n) = rhs(k) / lhs(k)
+!               if (abs(vals(n)) > 0.05d0) vals(n) = 0.d0
+!            end do
+!            where (g(b1:b2, j, 2) > 0)
+!               g(b1:b2, j, 1) = median(vals(1:n))
+!            end where
+!         end do
 
          mu  = 0.d0
          denom = 0.d0
@@ -1726,18 +1755,19 @@ contains
     A = sum(sorb_invN(p:q) * s_orb(p:q) * mask(p:q))
     b = sum(sorb_invN(p:q) * residual(p:q) * mask(p:q))
 
-    if (det == 1) write(*,*) self%scanid(scan), b/A, '  # absgain', real(A,sp), real(b,sp)
+!    if (det == 1) write(*,*) self%scanid(scan), b/A, '  # absgain', real(A,sp), real(b,sp)
 
-    if (A < 0) then
-       if (self%myid == 0) then
-          open(58, file='A.dat')
-          do i = p, q
-             if (mask(i) > 0.5) write(58,*) i, sorb_invN(i), s_orb(i) 
-          end do
-          close(58)
-       end if
-       stop
-    end if
+!    if (A < 0) then
+!       if (self%myid == 0) then
+!          write(*, *), "HEY"
+!          open(58, file='A.dat')
+!          do i = p, q
+!             if (mask(i) > 0.5) write(58,*) i, sorb_invN(i), s_orb(i) 
+!          end do
+!          close(58)
+!       end if
+!       stop
+!    end if
 
 
     A_abs = A_abs + A
