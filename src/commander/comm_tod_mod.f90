@@ -464,6 +464,7 @@ contains
     class(comm_map),                   intent(in)    :: map, rms
 
     integer(i4b)       :: i, j, k, npar, ierr
+    real(dp)           :: mu
     character(len=6)   :: itext
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
@@ -494,6 +495,16 @@ contains
     end if
 
     if (self%myid == 0) then
+       ! Fill in defaults
+       do j = 1, self%ndet
+          do i = 1, 4
+             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
+             where (output(:,j,i) == 0.d0) 
+                output(:,j,i) = mu
+             end where
+          end do
+       end do
+
        call int2string(iter, itext)
        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
        call create_hdf_group(chainfile, trim(adjustl(path)))
