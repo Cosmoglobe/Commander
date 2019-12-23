@@ -621,7 +621,11 @@ contains
           self%src(i)%P_theta(:,:,2) = beta_rms
           self%src(i)%theta_rms      = 0.d0
           do j = 1, numband
-             self%src(i)%T(j)%nside_febecop = data(j)%info%nside
+             if (cpar%cs_output_ptsrc_beam(id_abs)) then
+                self%src(i)%T(j)%nside_febecop = self%nside_febecop
+             else
+                self%src(i)%T(j)%nside_febecop = data(j)%info%nside
+             end if
           end do
           !self%src(i)%P_x(:,1) = 0.d0
           !self%src(i)%P_x(:,2) = 0.d0 !1.d12
@@ -676,13 +680,14 @@ contains
              call read_febecop_beam(cpar, tempfile, data(i)%label, &
                   & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))             
           else
+             !write(*,*) i, trim(data(i)%label), trim(cpar%ds_btheta_file(i))
              filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(data(i)%id_abs))
              n        = len(trim(adjustl(filename)))
              if (filename(n-2:n) == '.h5') then
                 ! Read precomputed Febecop beam from HDF file
                 call read_febecop_beam(cpar, filename, 'none', &
                      & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))
-             else if (trim(trim(cpar%ds_btheta_file(i))) == 'none') then
+             else if (trim(cpar%ds_btheta_file(id_abs)) == 'none') then
                 ! Build template internally from b_l
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
                      & self%src(j)%T(i), bl=data(i)%B(0)%p%b_l)

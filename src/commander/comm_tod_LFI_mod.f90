@@ -1576,6 +1576,9 @@ contains
     ! Get a proper invn multiplication from Haavard's routine here
     self%scans(scan_id)%d(det)%dgain      = sum(s_invN * residual)
     self%scans(scan_id)%d(det)%gain_sigma = sum(s_invN * s_ref)
+    if (self%scans(scan_id)%d(det)%gain_sigma < 0.d0) then
+       write(*,*) 'Warning: Not positive definite invN = ', self%scanid(scan_id), det, self%scans(scan_id)%d(det)%gain_sigma
+    end if
 !    self%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
 !    self%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
 !    if (self%scans(scan_id)%d(det)%gain_sigma < 0) then
@@ -1647,20 +1650,24 @@ contains
             k         = k + 1
             currstart = k
             !if (g(k, j, 2) <= 0.d0) cycle
-            sum_inv_sigma_squared = g(k, j, 2)
+            sum_inv_sigma_squared = max(g(k, j, 2),0.d0)
             sum_weighted_gain     = g(k, j, 1) !/ g(k, j, 2)
             do while (sqrt(sum_inv_sigma_squared) < 1000. .and. k < nscan_tot)
                k = k + 1
                sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
-               sum_inv_sigma_squared = sum_inv_sigma_squared + g(k, j, 2)
+               sum_inv_sigma_squared = sum_inv_sigma_squared + max(g(k, j, 2),0.d0)
             end do
             currend = k
-            g_tot = sum_weighted_gain / sum_inv_sigma_squared
-            !write(*,*) currstart, currend, g_tot, 1 / sqrt(sum_inv_sigma_squared)
-            if (trim(self%operation) == 'sample') then
-               ! Add fluctuation term if requested
-               g_tot = g_tot + rand_gauss(handle) / sqrt(sum_inv_sigma_squared)
+            if (sum_inv_sigma_squared > 0.d0) then
+               g_tot = sum_weighted_gain / sum_inv_sigma_squared
+               if (trim(self%operation) == 'sample') then
+                  ! Add fluctuation term if requested
+                  g_tot = g_tot + rand_gauss(handle) / sqrt(sum_inv_sigma_squared)
+               end if
+            else
+               g_tot = 0.d0
             end if
+            !write(*,*) currstart, currend, g_tot, 1 / sqrt(sum_inv_sigma_squared)
             !write(*,*) currstart, currend, nscan_tot, g_tot 
             g(currstart:currend, j, 1) = g_tot 
          end do

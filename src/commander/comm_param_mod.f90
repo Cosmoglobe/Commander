@@ -297,7 +297,7 @@ contains
        call mpi_recv(j, 1, MPI_INTEGER, cpar%root, 98, MPI_COMM_WORLD, mpistat, ierr)
        call rand_init(handle_noise, j)
     end if
-    
+
   end subroutine initialize_mpi_struct
   
   ! ********************************************************
