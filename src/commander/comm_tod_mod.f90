@@ -219,8 +219,6 @@ contains
        call read_hdf_scan(self%scans(i), self%myid, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels)
        do det = 1, self%ndet
-          self%scans(i)%d(det)%dgain = self%scans(i)%d(det)%gain - self%gain0(0) - self%gain0(det)
-
           self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
           if (.not. self%scans(i)%d(det)%accept) then
              write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
@@ -232,7 +230,7 @@ contains
     end do
 
     ! Initialize mean gain
-    allocate(ns(self%ndet))
+    allocate(ns(0:self%ndet))
     self%gain0 = 0.d0
     ns         = 0
     do i = 1, self%nscan
@@ -242,14 +240,20 @@ contains
           ns(j)         = ns(j) + 1
        end do
     end do
-    call mpi_allreduce(MPI_IN_PLACE, self%gain0, self%ndet, &
+    call mpi_allreduce(MPI_IN_PLACE, self%gain0, self%ndet+1, &
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-    call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet, &
+    call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
          & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
     self%gain0(0) = sum(self%gain0)/sum(ns)
     where (ns > 0)
        self%gain0 = self%gain0 / ns - self%gain0(0)
     end where
+
+    do i = 1, self%nscan
+       do j = 1, self%ndet 
+          self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
+       end do
+    end do
 
     ! Precompute trigonometric functions
     allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
@@ -799,6 +803,11 @@ contains
        nu_knee  = self%scans(scan)%d(i)%fknee
        !noise    = 2.0 * ntod * sigma_0 ** 2
        noise    = sigma_0 ** 2
+
+       if (noise <= 0.d0) then
+          buffer(:,i) = 0.d0
+          cycle
+       end if
        
           dt(1:ntod)           = buffer(:,i)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)

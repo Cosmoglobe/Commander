@@ -184,7 +184,7 @@ contains
     integer(i4b),      intent(in), optional :: init_samp
     logical(lgt),      intent(in), optional :: init_from_output
 
-    integer(i4b)              :: i, j, ext(2)
+    integer(i4b)              :: i, j, ext(2), initsamp
     character(len=4)          :: ctext
     character(len=6)          :: itext
     character(len=512)        :: chainfile, hdfpath
@@ -199,21 +199,19 @@ contains
 
     ! Open HDF file
     call int2string(cpar%mychain,   ctext)
-    if (present(init_samp)) then
-       call int2string(init_samp, itext)
-    else
-       call int2string(cpar%init_samp, itext)
-    end if
+    initsamp = cpar%init_samp; if (present(init_samp)) initsamp = init_samp
+    call int2string(initsamp, itext)
     if (present(init_from_output)) then
        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
             & '_c' // trim(adjustl(ctext)) // '.h5'
     else
        chainfile = trim(adjustl(cpar%init_chain_prefix))
     end if
+    !write(*,*) 'chainfile', trim(chainfile)
     call open_hdf_file(chainfile, file, 'r')
     
     if (cpar%resamp_CMB .and. present(init_from_output)) then
-    ! Initialize CMB component parameters
+    ! Initialize CMB component parameters; only once before starting Gibbs
        c   => compList
        do while (associated(c))
           if (trim(c%type) /= 'cmb') then
@@ -280,7 +278,7 @@ contains
           rms => comm_map(data(i)%info)
           select type (N)
           class is (comm_N_rms)
-             call data(i)%tod%initHDF(file, cpar%init_samp, data(i)%map, rms)
+             call data(i)%tod%initHDF(file, initsamp, data(i)%map, rms)
           end select
 
           ! Update rms and data maps

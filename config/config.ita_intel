@@ -53,7 +53,7 @@ export MPCC := mpiicc
 #export F90FLAGS := -O3 -traceback 
 #
 #export F90FLAGS := -fpe0 -C -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp #-qopt-report=5 -prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
-export F90FLAGS := -march=native -O3 -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl #-qopt-report=5 -prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
+export F90FLAGS := -fpe0 -march=native -O3 -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl #-qopt-report=5 -prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
 #export F90FLAGS := -fpe0 -O3 -xHost -no-prec-div -fp-model source -g -traceback  -assume byterecl -heap-arrays 16384  #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
 #export F90FLAGS := -O3  -qopt-report=5 #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
 #export F90FLAGS := -O3 -traceback -qopenmp -qopt-report=5 -parallel
