@@ -100,7 +100,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
-    constructor%first_call    = .false.
+    constructor%first_call    = .true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
@@ -350,8 +350,8 @@ contains
     call wall_time(t1)
     correct_sl      = .true.
     chisq_threshold = 7.d0
-    n_main_iter     = 5
-    chisq_threshold = 30.d0
+    n_main_iter     = 4
+    chisq_threshold = 3000.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -490,16 +490,17 @@ contains
        if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
           
        ! Select operations for current iteration
-       do_oper(samp_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
 !       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
 !       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
 !       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
-       do_oper(samp_N)       = (main_iter >= n_main_iter-1)
-       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
-       do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
-       do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
+       do_oper(samp_N)       = (main_iter >= n_main_iter-0)
+       do_oper(samp_N_par)   = do_oper(samp_N)
+       do_oper(prep_relbp)   = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
+       do_oper(prep_absbp)   = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
+       do_oper(samp_bp)      = .false. !(main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
@@ -652,11 +653,16 @@ contains
                      & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
              end do
           end if
-          if (do_oper(sel_data)) then
+          if (main_iter == 1 .and. self%first_call) then
              do j = 1, ndet
                 if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
+                if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
              end do
           end if
+          do j = 1, ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(j), j, self%scans(i)%d(j)%sigma0
+          end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
 
@@ -695,7 +701,8 @@ contains
                 call self%construct_sl_template(self%slconv(j)%p, i, &
                      & nside, pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
                 s_sl(:,j) = 2.d0 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
-                !if (self%myid == 0) write(*,*) j, sum(abs(s_sl(:,j)))
+                !if (sum(abs(s_sl)) > 1.d30) s_sl = 0.
+                !If (self%myid == 0) write(*,*) j, sum(abs(s_sl(:,j)))
              end do
           else
              do j = 1, ndet
@@ -713,8 +720,16 @@ contains
              !s_mono(:,j) = self%mono(j)
              s_mono(:,j) = 0.d0 ! Disabled for now
           end do
-          s_tot = s_sky + s_sl + s_orb + s_mono
+          !write(*,*) main_iter, i, 'sky ', sum(abs(s_sky))
+          !write(*,*) main_iter, i, 'sl  ', sum(abs(s_sl))
+          !write(*,*) main_iter, i, 'orb ', sum(abs(s_orb))
+          !write(*,*) main_iter, i, 'mono', sum(abs(s_mono))
+          do j = 1, ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             s_tot(:,j) = s_sky(:,j) + s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
+          end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
+          !write(*,*) sum(abs(s_sky)), sum(abs(s_sl)), sum(abs(s_orb)), sum(abs(s_mono)), sum(abs(s_tot))
 
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
@@ -722,6 +737,7 @@ contains
              allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
              allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
              do j = 1, ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
                 if (do_oper(samp_G) .or. do_oper(samp_rcal)) then
                    call self%downsample_tod(s_tot(:,j), ext, &
                         & s_lowres(:,j), mask(:,j))
@@ -747,6 +763,7 @@ contains
                 ! Eirik: Set up proper residuals for absolute or relative calibration, respectively
                 if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+                   !write(*,*) self%gain0(0), self%gain0(j), self%scans(i)%d(j)%dgain, sum(abs(s_tot)), sum(abs(s_orb))
                    s_buf(:, j) = self%gain0(0) * (s_tot(:, j) - s_orb(:, j)) + (self%gain0(j) + self%scans(i)%d(j)%dgain) * s_tot(:, j)
 
                 else if (do_oper(samp_rcal)) then
@@ -1399,7 +1416,11 @@ contains
                       exit
                    end if
                 end do
-                mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+                if (sum(mask(start:last, i)) > 0) then
+                   mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+                else
+                   mean = 0.
+                end if
              end if
           ! if (mask(j,i) == 0.) then
           !    recompute = .true.
@@ -1466,7 +1487,9 @@ contains
              signal = noise * (nu/(nu_knee))**(alpha)
           end if
           ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(65,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), ntod*1.d0
-          if (trim(self%operation) == "sample") then
+          if (signal <= 0.d0) then
+             dv(l) = 0.
+          else if (trim(self%operation) == "sample") then
              ! write(*,*) "Sample n_corr"
              ! dv(l) = (dv(l) + sigma_0 * (rand_gauss(handle)  &
              !      + sqrt((nu/(nu_knee))**(-alpha)) * rand_gauss(handle)))& 
@@ -1567,7 +1590,7 @@ contains
 
 !   residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
 !         & self%gain0(det)) * s_tot) * mask
- 
+
     call self%downsample_tod(s_tot, ext)    
     allocate(residual(ext(1):ext(2)))
     call self%downsample_tod(real(self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
@@ -1758,6 +1781,7 @@ contains
 
     A = sum(s_invN * s_ref)
     b = sum(s_invN * residual)
+    !write(*,*) sum(abs(s_sub)), sum(abs(self%scans(scan)%d(det)%tod))
 
     !if (det == 1) write(*,*) self%scanid(scan), b/A, '  # absgain', real(A,sp), real(b,sp)
 
@@ -1905,14 +1929,25 @@ contains
           chisq_prop = chisq_prop + (d0 - g * s_prop(i))**2 
        end if
     end do
-    chisq      = chisq      / self%scans(scan)%d(det)%sigma0**2
 
-    if (present(s_prop)) then
-       chisq_prop = chisq_prop / self%scans(scan)%d(det)%sigma0**2
-       self%scans(scan)%d(det)%chisq_masked = chisq
-       self%scans(scan)%d(det)%chisq_prop   = chisq_prop
+    if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
+       if (present(s_prop)) then
+          self%scans(scan)%d(det)%chisq_masked = 1e4
+          self%scans(scan)%d(det)%chisq_prop   = 1e4
+       else
+          self%scans(scan)%d(det)%chisq        = 1e4
+       end if
+
     else
-       self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
+       chisq      = chisq      / self%scans(scan)%d(det)%sigma0**2
+
+       if (present(s_prop)) then
+          chisq_prop = chisq_prop / self%scans(scan)%d(det)%sigma0**2
+          self%scans(scan)%d(det)%chisq_masked = chisq
+          self%scans(scan)%d(det)%chisq_prop   = chisq_prop
+       else
+          self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
+       end if
     end if
     ! write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
     !      & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0
@@ -1990,7 +2025,7 @@ contains
        ! if ((i == 1) .and. (scan == 1)) then
        !    write(*,*) "sigma0: ", sqrt(s/(n-1))
        ! end if
-       self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
+       if (n > 100) self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
     end do
 
     return
@@ -2151,6 +2186,7 @@ contains
 
     do det = 1, self%ndet
        if (.not. self%scans(scan)%d(det)%accept) cycle
+       !write(*,*) self%scanid(scan), det, self%scans(scan)%d(det)%sigma0
        off         = 6 + 4*(det-1)
        inv_sigmasq = (self%scans(scan)%d(det)%gain/self%scans(scan)%d(det)%sigma0)**2
        do t = 1, self%scans(scan)%ntod
