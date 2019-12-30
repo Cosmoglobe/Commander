@@ -350,7 +350,7 @@ contains
     call wall_time(t1)
     correct_sl      = .true.
     chisq_threshold = 7.d0
-    n_main_iter     = 4
+    n_main_iter     = 5
     chisq_threshold = 3000.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -490,17 +490,17 @@ contains
        if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
           
        ! Select operations for current iteration
-       do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
 !       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
 !       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
 !       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
-       do_oper(samp_N)       = (main_iter >= n_main_iter-0)
+       do_oper(samp_N)       = (main_iter >= n_main_iter-1)
        do_oper(samp_N_par)   = do_oper(samp_N)
-       do_oper(prep_relbp)   = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
-       do_oper(prep_absbp)   = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
-       do_oper(samp_bp)      = .false. !(main_iter == n_main_iter-0) .and. .not. self%first_call
+       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
+       do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
+       do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
@@ -509,6 +509,7 @@ contains
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
        do_oper(output_slist) = mod(iter, 10) == 0
+       !do_oper = .false.
 
        ! Perform pre-loop operations
        if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
@@ -665,17 +666,6 @@ contains
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
-
-!!$          if (self%myid == 0) then
-!!$             open(58,file='flag.dat', recl=1024)
-!!$             do j = 1, ntod
-!!$                write(58,*) j, flag(j,1), mask(j,1)
-!!$             end do
-!!$             close(58)
-!!$          end if
-!!$          call mpi_finalize(ierr)
-!!$          stop
-
           
           ! Construct orbital dipole template
           call wall_time(t1)
@@ -695,9 +685,6 @@ contains
           if (do_oper(sub_sl)) then
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-!!$                call self%construct_sl_template(self%slconv(j)%p, i, &
-!!$                     & nside, pix(:,j), psi(:,j), s_sl(:,j), &
-!!$                     & self%mbang(j)+self%polang(j))
                 call self%construct_sl_template(self%slconv(j)%p, i, &
                      & nside, pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
                 s_sl(:,j) = 2.d0 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
@@ -750,8 +737,8 @@ contains
              call self%multiply_inv_N(i, s_invN, sampfreq=self%samprate_gain)
              !write(*,*) i, sum(abs(s_lowres)), sum(abs(s_invN))
              !if (self%myid == 0) write(*,*) 'sum', sum(abs(sorb_invN))
-!!$             call mpi_finalize(ierr)
-!!$             stop
+             !call mpi_finalize(ierr)
+             !stop
           end if
 
           ! Prepare for absolute calibration
@@ -772,18 +759,14 @@ contains
                 end if
                 call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_lowres(:,j), s_invN(:, j), A_abscal(j), b_abscal(j))
 
-!!$                call int2string(self%scanid(i), scantext)
-!!$                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
-!!$                write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
-!!$                do k = 1, ntod, 60
-!!$                   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
-!!$                end do
-!!$                close(78)
+!                call int2string(self%scanid(i), scantext)
+!                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
+!                write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
+!                do k = 1, ntod, 60
+!                   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
+!                end do
+!                close(78)
 
-
-!!$                call self%accumulate_absgain_from_orbital(i, j, mask(:,j),&
-!!$                     & s_buf(:,j), s_orb(:,j), n_corr(:,j), &
-!!$                     & A_abscal(j), b_abscal(j))
              end do
              call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
           end if
@@ -910,12 +893,6 @@ contains
             
              if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
 
-!!$                open(58,file='map4d.dat',recl=1024)
-!!$                do j = 1, ntod
-!!$                   write(58,*) j, pix(j,1),  psi(j,1)-1, iand(flag(j,1),self%flag0), d_calib(1,j,1)
-!!$                end do
-!!$                close(58)
-
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
                 call int2string(self%scanid(i), scantext)
                 prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
@@ -960,7 +937,10 @@ contains
           if (allocated(s_lowres)) deallocate(s_lowres)
           if (allocated(s_invN)) deallocate(s_invN)
           deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi)
-          deallocate(mask, mask2, pix, psi, flag, s_bp, s_sky_prop, s_bp_prop, s_buf, s_mono)
+          deallocate(s_buf, s_mono)
+          deallocate(s_bp, s_sky_prop, s_bp_prop)
+          deallocate(mask, mask2)
+          deallocate(pix, psi, flag)
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
           call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
@@ -1040,6 +1020,9 @@ contains
 
     end do
     call wall_time(t4)
+
+!!$    call mpi_finalize(ierr)
+!!$    stop
 
 
     ! Output latest scan list with new timing information
@@ -1829,6 +1812,8 @@ contains
 
 !!$    call mpi_finalize(ierr)
 !!$    stop
+
+    deallocate(A, b)
 
   end subroutine sample_abscal_from_orbital
 
