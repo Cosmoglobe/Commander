@@ -163,9 +163,7 @@ program commander
 
      ! Process TOD structures
      if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
-        do i = 1, 3
            call process_TOD(cpar, cpar%mychain, iter, handle)
-        end do
      end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
