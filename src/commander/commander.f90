@@ -136,7 +136,7 @@ program commander
   else
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
-     first_sample = 10
+     !first_sample = 10
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true.)
      first_sample = first_sample+1
   end if
