@@ -39,7 +39,7 @@ contains
     real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev
     real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s, x_out
     real(dp), allocatable, dimension(:,:) :: alm, pamp
-    class(comm_comp),   pointer :: c
+    class(comm_comp),   pointer :: c => null()
 
     root    = 0
     maxiter = cpar%cg_maxiter
@@ -360,7 +360,7 @@ contains
     integer(i4b) :: j, k, n
     real(dp), allocatable, dimension(:)   :: x_out
     real(dp), allocatable, dimension(:,:) :: alm, pamp
-    class(comm_comp),   pointer :: c
+    class(comm_comp),   pointer :: c => null()
 
     n = size(x)
 
@@ -416,7 +416,7 @@ contains
     real(dp), dimension(:), intent(out) :: x
 
     integer(i4b) :: i, ind
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     ! Stack parameters linearly
     ind = 1
@@ -452,7 +452,7 @@ contains
     real(dp), dimension(:), intent(in) :: x
 
     integer(i4b) :: i, ind
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     ind = 1
     c   => compList
@@ -496,9 +496,11 @@ contains
 
     integer(i4b) :: i, j, l, m, k, n, ierr
     real(dp)     :: tmp
-    class(comm_map),     pointer                 :: map, Tm, mu
-    class(comm_comp),    pointer                 :: c
-    class(comm_mapinfo), pointer                 :: info
+    class(comm_map),     pointer                 :: map  => null()
+    class(comm_map),     pointer                 :: Tm   => null()
+    class(comm_map),     pointer                 :: mu   => null()
+    class(comm_comp),    pointer                 :: c    => null()
+    class(comm_mapinfo), pointer                 :: info => null()
     real(dp),        allocatable, dimension(:,:) :: eta, Tp
 
     ! Initialize output vector
@@ -579,7 +581,7 @@ contains
              end do
 
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
-             call Tm%dealloc(clean_info=.true.)
+             call Tm%dealloc()
              nullify(info)
           class is (comm_ptsrc_comp)
              allocate(Tp(c%nsrc,c%nmaps))
@@ -690,8 +692,8 @@ contains
 
     real(dp)                  :: t1, t2
     integer(i4b)              :: i, j, l, myid
-    class(comm_map),  pointer :: map, pmap
-    class(comm_comp), pointer :: c
+    class(comm_map),  pointer :: map => null(), pmap => null()
+    class(comm_comp), pointer :: c => null()
     real(dp),        allocatable, dimension(:)   :: y, sqrtS_x
     real(dp),        allocatable, dimension(:,:) :: alm, m, pamp
 
@@ -929,7 +931,7 @@ contains
     logical(lgt) :: Q_is_active
     real(dp), allocatable, dimension(:,:) :: alm, alm0
     real(dp), allocatable, dimension(:)   :: Qx
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     if (.not. allocated(cr_invM)) allocate(cr_invM(size(x)))
     allocate(Qx(size(x)))
@@ -979,7 +981,7 @@ contains
 
     integer(i4b) :: ierr
     real(dp), allocatable, dimension(:,:) :: alm, Qalm
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     Qx = 0.d0
 
@@ -1008,7 +1010,7 @@ contains
     implicit none
     integer(i4b), intent(in) :: samp_group
     logical(lgt), intent(in) :: force_update
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     logical(lgt), save :: first_call = .true.
 
     ! Set up deflation preconditioner for CMB+diagonal only

@@ -14,10 +14,10 @@ module comm_conviqt_mod
   type :: comm_conviqt
     integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win
     real(dp), allocatable, dimension(:)        :: lnorm
-    type(shared_2d_dp) :: c
+    type(shared_2d_sp) :: c
     type(shared_1d_int) :: pixLookup
-    real(dp) :: psires
-    class(comm_mapinfo), pointer :: info
+    real(sp) :: psires
+    class(comm_mapinfo), pointer :: info => null()
     type(shared_2d_spc) :: alm_beam
   contains
     procedure     :: interp
@@ -31,7 +31,7 @@ module comm_conviqt_mod
   end interface comm_conviqt
 
   type conviqt_ptr
-     class(comm_conviqt), pointer :: p
+     class(comm_conviqt), pointer :: p => null()
   end type conviqt_ptr
 
 contains
@@ -46,12 +46,10 @@ contains
     integer(i4b),                 intent(in) :: optim ! desired optimization flags
     class(comm_conviqt), pointer             :: constructor
 
-    logical(lgt) :: exist
     integer(i4b) :: i, j, k, l, m, ierr, nalm_tot, nalm
     integer(i4b), allocatable, dimension(:)   :: ind
     complex(spc), allocatable, dimension(:,:) :: alm
     real(dp) :: theta, phi
-    character(len=4) :: id
 
 
     allocate(constructor)
@@ -72,7 +70,7 @@ contains
 
     !make this 2^n
     constructor%psisteps = 2*constructor%bmax
-    constructor%psires   = 2.d0*pi/constructor%psisteps
+    constructor%psires   = 2*pi/constructor%psisteps
 
     allocate(constructor%lnorm(0:lmax))
     do l = 0, lmax
@@ -95,9 +93,9 @@ contains
        if (k == -1) cycle
        ind(j) = (l-1)*l/2 + l + m + 1
        if (m == 0) then
-          alm(:,j) = beam%alm(k,:) 
+          alm(:,j) = cmplx(real(beam%alm(k,:),sp),0.0) 
        else
-          alm(:,j) = cmplx(beam%alm(k,:),beam%alm(k+1,:))/sqrt(2.d0) 
+          alm(:,j) = cmplx(real(beam%alm(k,:),sp),real(beam%alm(k+1,:),sp))/sqrt(2.0) 
        end if
        j = j+1
     end do
@@ -108,7 +106,7 @@ contains
     deallocate(ind, alm)
 
     ! Precompute convolution cube
-    call init_shared_2d_dp(myid_shared, comm_shared, myid_inter, comm_inter, &
+    call init_shared_2d_sp(myid_shared, comm_shared, myid_inter, comm_inter, &
          & [constructor%npix,constructor%psisteps], constructor%c)
 
     call constructor%precompute_sky(map)
@@ -145,14 +143,14 @@ contains
     real(dp),                  intent(in) :: psi
     real(sp)                              :: interp
 
-    real(sp)       :: x0, x1, unwrap, bpsi
-    integer(i4b)   :: pixnum, psii, psiu
+    real(sp)       :: x0, x1, unwrap
+    integer(i4b)   :: pixnum, psii, psiu, bpsi
 
     ! Get pixel number
     pixnum = self%pixLookup%a(pix+1)
 
     !unwrap psi
-    unwrap = modulo(-psi, 2.d0*pi)
+    unwrap = modulo(-real(psi,sp), real(2.d0*pi,sp))
     !unwrap = modulo(psi, 2.d0*pi)
 
     if (self%optim == 2) then
@@ -179,7 +177,8 @@ contains
     ! y = (y_0 (x_1 - x) + y_1 (x - x_0))/(x_1 - x_0)
     x0     = psii * self%psires
     x1     = psiu * self%psires
-    interp = ((self%c%a(pixnum+1, psii+1)) * (x1 - unwrap) + self%c%a(pixnum+1, psiu+1) * (unwrap - x0))/(x1 - x0)
+    interp = (self%c%a(pixnum+1, psii+1) * (x1 - unwrap) + &
+         & self%c%a(pixnum+1, psiu+1) * (unwrap - x0))/(x1 - x0)
 
   end function interp
 
@@ -190,17 +189,13 @@ contains
     class(comm_conviqt),                          intent(inout) :: self
     class(comm_map),                              intent(in)    :: map ! Must contain alms
 
-    integer(i4b) :: i,j,k,np,l,m,m_s, m_b, pixNum, q,u, ierr
-    integer(i4b) :: sign1, sign2, quadrant
-    real(dp)     :: theta, phi, psi, one_over_root_two
-    real(dp)     :: alm_b_r, alm_s_r, alm_b_c, alm_s_c
+    integer(i4b) :: i, j, np, ierr
     integer*8    :: fft_plan
     real(dp),       allocatable, dimension(:,:)   :: marray
     real(c_double), allocatable, dimension(:,:) :: alm    
     real(c_double), allocatable, dimension(:,:)   :: mout
     real(dp),       allocatable, dimension(:)     :: dt
     complex(dpc),   allocatable, dimension(:)     :: dv
-    complex(dpc) :: alm_test
 
     np = self%info%np
 
@@ -209,8 +204,6 @@ contains
 
     allocate(alm(0:self%info%nalm-1, 2))
     allocate(mout(0:self%info%np-1, 2))
-
-    
 
     ! Compute maps for each m
     do j=0, self%bmax
@@ -260,12 +253,12 @@ contains
       !do fft of data, store to dt
       dv(0)  = marray(i, 0)
       do j=1, self%bmax
-        dv(j) = cmplx(marray(i, j), marray(i, -j))
+        dv(j) = dcmplx(marray(i, j), marray(i, -j))
       end do
 
       call dfftw_execute_dft_c2r(fft_plan, dv, dt)
 
-      self%c%a(self%info%pix(i)+1,:) = dt(1:self%psisteps)
+      self%c%a(self%info%pix(i)+1,:) = real(dt(1:self%psisteps),sp)
 
     end do
     call mpi_win_fence(0, self%c%win, ierr)
@@ -324,7 +317,7 @@ contains
 
         if (m_b > 0) then
            ! Negative spin
-           almc = -cmplx(0,1)*spinsign*self%lnorm(l) * (v1-conjg(v2)*mfac)
+           almc = -dcmplx(0,1)*spinsign*self%lnorm(l) * (v1-conjg(v2)*mfac)
            if (m == 0) then
               alm(i,2) = real(almc)
            else
@@ -344,7 +337,7 @@ contains
 
     deallocate(self%lnorm)
     call dealloc_shared_2d_spc(self%alm_beam)
-    call dealloc_shared_2d_dp(self%c)
+    call dealloc_shared_2d_sp(self%c)
 
   end subroutine dealloc
 

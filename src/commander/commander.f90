@@ -37,9 +37,9 @@ program commander
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
 
-  type(comm_mapinfo), pointer :: info
-  type(comm_map), pointer :: m
-  class(comm_comp), pointer :: c1
+  type(comm_mapinfo), pointer :: info => null()
+  type(comm_map),     pointer :: m    => null()
+  class(comm_comp),   pointer :: c1   => null()
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
@@ -163,7 +163,9 @@ program commander
 
      ! Process TOD structures
      if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
-        call process_TOD(cpar, cpar%mychain, iter, handle)
+        do i = 1, 3
+           call process_TOD(cpar, cpar%mychain, iter, handle)
+        end do
      end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
@@ -250,7 +252,7 @@ contains
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
-    class(comm_map), pointer :: rms
+    class(comm_map), pointer :: rms => null()
 
     ndelta      = cpar%num_bp_prop + 1
 
@@ -276,7 +278,9 @@ contains
                          eta(j) = rand_gauss(handle)
                       end do
                       eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
-                      delta(1:ndet,l,k) = data(i)%bp(1:ndet)%p%delta(l) + eta
+                      do j = 1, ndet
+                         delta(j,l,k) = data(i)%bp(j)%p%delta(l) + eta(j)
+                      end do
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
                            & data(i)%bp(0)%p%delta(l)
                    else

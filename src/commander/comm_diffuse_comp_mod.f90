@@ -30,15 +30,15 @@ module comm_diffuse_comp_mod
      real(dp), allocatable, dimension(:,:)   :: cls
      real(dp), allocatable, dimension(:,:,:) :: F_mean
 
-     class(comm_map),               pointer     :: mask
-     class(comm_map),               pointer     :: procmask
-     class(comm_map),               pointer     :: indmask
-     class(comm_map),               pointer     :: defmask
-     class(comm_map),               pointer     :: x            ! Spatial parameters
-     class(comm_map),               pointer     :: x_smooth     ! Spatial parameters
-     class(comm_map),               pointer     :: mu           ! Spatial prior mean
-     class(comm_B),                 pointer     :: B_out        ! Output beam
-     class(comm_Cl),                pointer     :: Cl           ! Power spectrum
+     class(comm_map),               pointer     :: mask => null()
+     class(comm_map),               pointer     :: procmask => null()
+     class(comm_map),               pointer     :: indmask => null()
+     class(comm_map),               pointer     :: defmask => null()
+     class(comm_map),               pointer     :: x => null()           ! Spatial parameters
+     class(comm_map),               pointer     :: x_smooth => null()    ! Spatial parameters
+     class(comm_map),               pointer     :: mu => null()          ! Spatial prior mean
+     class(comm_B),                 pointer     :: B_out => null()       ! Output beam
+     class(comm_Cl),                pointer     :: Cl => null()          ! Power spectrum
      class(map_ptr),  dimension(:), allocatable :: theta        ! Spectral parameters
      class(map_ptr),  dimension(:), allocatable :: theta_smooth ! Spectral parameters
      type(map_ptr),   dimension(:,:), allocatable :: F          ! Mixing matrix
@@ -64,7 +64,7 @@ module comm_diffuse_comp_mod
   end type comm_diffuse_comp
 
   type diff_ptr
-     class(comm_diffuse_comp), pointer :: p
+     class(comm_diffuse_comp), pointer :: p => null()
   end type diff_ptr
   
   integer(i4b) :: npre      =  0
@@ -76,13 +76,13 @@ module comm_diffuse_comp_mod
   logical(lgt), private :: only_pol
   character(len=512) :: outdir, precond_type
   integer(i4b),        allocatable, dimension(:) :: ind_pre
-  class(comm_mapinfo), pointer                   :: info_pre
+  class(comm_mapinfo), pointer                   :: info_pre => null()
   class(diff_ptr),     allocatable, dimension(:) :: diffComps
 
   character(len=24), private :: operation
 
   ! Variables for non-linear search
-  class(comm_diffuse_comp), pointer,       private :: c_lnL
+  class(comm_diffuse_comp), pointer,       private :: c_lnL => null()
   integer(i4b),                            private :: k_lnL, p_lnL, id_lnL
   real(dp), allocatable, dimension(:),     private :: a_lnL
   real(dp), allocatable, dimension(:),     private :: theta_lnL        
@@ -99,7 +99,7 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     integer(i4b) :: i, j, ntot, nloc
-    type(comm_mapinfo), pointer :: info, info_def
+    type(comm_mapinfo), pointer :: info => null(), info_def => null()
     
     call self%initComp(cpar, id, id_abs)
 
@@ -249,8 +249,8 @@ contains
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
     integer(i4b), allocatable, dimension(:) :: ind
-    class(comm_comp),         pointer :: c
-    class(comm_diffuse_comp), pointer :: p1, p2
+    class(comm_comp),         pointer :: c => null()
+    class(comm_diffuse_comp), pointer :: p1 => null(), p2 => null()
     real(dp),     allocatable, dimension(:,:) :: mat
 
     call update_status(status, "init_diffpre1")
@@ -337,8 +337,8 @@ contains
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
     integer(i4b), allocatable, dimension(:) :: ind
-    class(comm_comp),         pointer :: c
-    class(comm_diffuse_comp), pointer :: p1, p2
+    class(comm_comp),         pointer :: c => null()
+    class(comm_diffuse_comp), pointer :: p1 => null(), p2 => null()
     real(dp),     allocatable, dimension(:,:) :: mat
 
     if (npre == 0) return
@@ -671,9 +671,11 @@ contains
                 end if
                 if (mat(q,k) /= mat(q,k)) then
                    if (trim(diffComps(k)%p%Cl%type) /= 'none') then
-                      write(*,*) q, j, l, k, data(q)%N%alpha_nu(j), data(q)%B(0)%p%b_l(l,j), diffComps(k)%p%F_mean(q,0,j),diffComps(k)%p%Cl%getCl(l,j)
+                      write(*,*) q, j, l, k, data(q)%N%alpha_nu(j), data(q)%B(0)%p%b_l(l,j), &
+                           & diffComps(k)%p%F_mean(q,0,j),diffComps(k)%p%Cl%getCl(l,j)
                    else
-                      write(*,*) q, j, l, k, data(q)%N%alpha_nu(j), data(q)%B(0)%p%b_l(l,j), diffComps(k)%p%F_mean(q,0,j)
+                      write(*,*) q, j, l, k, data(q)%N%alpha_nu(j), data(q)%B(0)%p%b_l(l,j),&
+                           & diffComps(k)%p%F_mean(q,0,j)
                    end if
 
                 end if
@@ -747,8 +749,8 @@ contains
     logical(lgt) :: precomp, mixmatnull ! NEW
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
     real(dp),        allocatable, dimension(:)     :: nu, s, buffer
-    class(comm_mapinfo),          pointer          :: info, info_tp
-    class(comm_map),              pointer          :: t, tp
+    class(comm_mapinfo),          pointer          :: info => null(), info_tp => null()
+    class(comm_map),              pointer          :: t => null(), tp => null()
     class(map_ptr),  allocatable, dimension(:)     :: theta_prev
 
     if (trim(self%type) == 'md') return
@@ -799,6 +801,7 @@ contains
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = t%map
+             !write(*,*) 'q1', minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
 !!$             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
 !!$             theta_prev(j)%p => comm_map(t)
              call t%dealloc()
@@ -895,13 +898,13 @@ contains
              
              ! Temperature
              if (self%npar > 0) then
-                if (mixmatnull == .true.) then
+                if (mixmatnull) then
                    self%F(i,l)%p%map(j,1) = 0.0
                 else
                    self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
                 end if
              else
-                if (mixmatnull == .true.) then 
+                if (mixmatnull) then 
                    self%F(i,l)%p%map(j,1) = 0.0
                 else
                    self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
@@ -989,7 +992,7 @@ contains
     integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp, d
     logical(lgt) :: alm_out_
     real(dp)     :: t1, t2
-    class(comm_mapinfo), pointer :: info
+    class(comm_mapinfo), pointer :: info 
     class(comm_map),     pointer :: m
 
     alm_out_ = .false.; if (present(alm_out)) alm_out_ = alm_out
@@ -1031,7 +1034,7 @@ contains
           end do
        else
           call m%Y()
-          m%map = m%map * self%F(band,d)%p%map
+          m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
           call m%YtW()
        end if
     end if
@@ -1054,7 +1057,7 @@ contains
        
 
     ! Clean up
-    call m%dealloc(clean_info=.true.)
+    call m%dealloc()
     nullify(info)
 
   end function evalDiffuseBand
@@ -1071,8 +1074,8 @@ contains
 
     integer(i4b) :: i, nmaps, d
     logical(lgt) :: alm_in_
-    class(comm_mapinfo), pointer :: info_in, info_out
-    class(comm_map),     pointer :: m, m_out
+    class(comm_mapinfo), pointer :: info_in => null(), info_out => null()
+    class(comm_map),     pointer :: m       => null(), m_out    => null()
 
     if (self%F_null(band,0)) then
        if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
@@ -1196,7 +1199,7 @@ contains
     real(dp), allocatable, dimension(:)     :: w, w2
     real(dp), allocatable, dimension(:,:)   :: alm
     real(dp), allocatable, dimension(:,:,:) :: y, z
-    class(comm_map), pointer                :: invN_x
+    class(comm_map), pointer                :: invN_x => null()
 
     if (.not. allocated(ind_pre)) return
 
@@ -1348,7 +1351,7 @@ contains
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
     character(len=512) :: filename, path
-    class(comm_map), pointer :: map
+    class(comm_map), pointer :: map => null()
     real(dp), allocatable, dimension(:,:) :: sigma_l
 
     if (trim(self%type) == 'md') then
@@ -1562,12 +1565,14 @@ contains
     type(planck_rng),                        intent(inout)        :: handle
     integer(i4b),                            intent(in)           :: id
 
-    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag, npar, np, nmaps
-    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok
+    integer(i4b) :: i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag, npar, np, nmaps
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
+    real(dp)     :: mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
     real(dp)     :: x(1), theta_min, theta_max
     logical(lgt) :: ok
     logical(lgt), save :: first_call = .true.
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     real(dp),     allocatable, dimension(:)   :: lnL, P_tot, F, theta, a_curr
     real(dp),     allocatable, dimension(:,:) :: amp, buffer
 
@@ -1686,6 +1691,9 @@ contains
     else if (c_lnL%poltype(id_lnL) == 3) then
        p_min = p_lnL
        p_max = p_lnL
+    else
+       write(*,*) 'Unsupported polarization type'
+       stop
     end if
 
 !!$    if (c_lnL%x%info%pix(k_lnL) == 10000) then
@@ -1993,8 +2001,8 @@ contains
 
     real(dp)                  :: t1, t2
     integer(i4b)              :: i, j, k, l, m, q, lp, mp, myid, nalm, ierr, nmaps
-    class(comm_map),     pointer :: map, map2, tot
-    class(comm_mapinfo), pointer :: info
+    class(comm_map),     pointer :: map => null(), map2 => null(), tot => null()
+    class(comm_mapinfo), pointer :: info => null()
     real(dp),        allocatable, dimension(:,:) :: invM, buffer
 
     if (self%lmax_pre_lowl < 0) return
@@ -2170,8 +2178,8 @@ contains
     real(dp)                  :: t1, t2, norm
     integer(i4b)              :: i, j, k, l, m, p, q, lp, mp, myid, nalm, ierr, nmaps, nmax, ndef, nside
     logical(lgt)              :: add
-    class(comm_map),     pointer :: map, map2, tot
-    class(comm_mapinfo), pointer :: info
+    class(comm_map),     pointer :: map => null(), map2 => null(), tot => null()
+    class(comm_mapinfo), pointer :: info => null()
     real(dp),        allocatable, dimension(:,:) :: invM, buffer, Z
     real(dp),        allocatable, dimension(:) :: W
 
@@ -2372,8 +2380,8 @@ contains
     real(dp)                  :: t1, t2
     integer(i4b)              :: i, j, k, l, m, myid, nalm, ntot, ierr, ndef
     real(dp), allocatable, dimension(:) :: y, ytot
-    class(comm_map),     pointer :: map, map2, tot
-    class(comm_mapinfo), pointer :: info
+    class(comm_map),     pointer :: map => null(), map2 => null(), tot => null()
+    class(comm_mapinfo), pointer :: info => null()
 
     Qalm= 0.d0
     if (self%lmax_def < 0) return
@@ -2430,7 +2438,7 @@ contains
     real(dp)     :: B, bl, Bj
     character(len=4) :: ntext
     logical(lgt) :: add
-    class(comm_map),     pointer :: map
+    class(comm_map),     pointer :: map => null()
     real(dp), allocatable, dimension(:) :: x, t, f, psi, phi, b0
     type(spline_type) :: sb, spsi, sphi
 

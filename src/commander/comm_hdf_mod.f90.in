@@ -174,7 +174,7 @@ contains
     call h5sget_simple_extent_dims_f(space, ext_hdf, mext_hdf, file%status)
     call h5sclose_f(space, file%status)
     n = min(size(ext),rank)
-    ext(:n) = ext_hdf(:n)
+    ext(:n) = int(ext_hdf(:n),i4b)
     deallocate(ext_hdf, mext_hdf)
   end subroutine get_size_hdf
 
@@ -261,7 +261,7 @@ contains
     character(len=*), intent(out) :: val
 
     integer(i4b), parameter :: mlen=10000
-    integer(hid_t)  :: dtype, dset, filetype, space
+    integer(hid_t)  :: filetype, space
     integer(size_t), dimension(1)  :: len
     integer(hsize_t), dimension(1:2)  :: data_dims
     integer         :: hdferr
@@ -291,10 +291,10 @@ contains
     integer(i4b),     intent(out) :: n
 
     integer(i4b), parameter :: mlen=10000
-    integer(hid_t)  :: dtype, dset, filetype, space, memtype
+    integer(hid_t)  :: filetype, space
     INTEGER(SIZE_T) :: size
-    integer(size_t), dimension(1)  :: len
-    integer(hsize_t), dimension(1:2)  :: data_dims
+    !integer(size_t), dimension(1)  :: len
+    !integer(hsize_t), dimension(1:2)  :: data_dims
     INTEGER(HSIZE_T), DIMENSION(1:1) :: dims = (/mlen/)
     INTEGER(HSIZE_T), DIMENSION(1:1) :: maxdims
     integer         :: hdferr
@@ -309,7 +309,7 @@ contains
 
     call h5dread_f(file%sethandle, filetype, rdata, dims, hdferr, H5S_ALL_F, H5S_ALL_F, H5P_DEFAULT_F)
     val = rdata(1:size)
-    n   = size
+    n   = int(size,i4b)
 
     call close_hdf_set(file)
     CALL h5sclose_f(space, hdferr)
@@ -446,7 +446,7 @@ contains
   function parse_hdf_slice(slice, ext) result(hslice)
     implicit none
     integer(i4b), intent(in) :: slice(:,:), ext(:)
-    integer(i4b)             :: hslice(3,size(slice,2)), i
+    integer(i4b)             :: hslice(3,size(slice,2))
     hslice = slice
     ! Negative indices count from the end, with -1 being the last valid index
     where(hslice([1,2],:) < 0) hslice([1,2],:) = hslice([1,2],:) + spread(ext,1,2) + 1

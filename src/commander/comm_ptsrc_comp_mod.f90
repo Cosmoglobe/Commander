@@ -67,7 +67,7 @@ module comm_ptsrc_comp_mod
   end interface comm_ptsrc_comp
 
   type ptsrc_ptr
-     class(comm_ptsrc_comp), pointer :: p
+     class(comm_ptsrc_comp), pointer :: p => null()
   end type ptsrc_ptr
   
   integer(i4b) :: ncomp_pre               =   0
@@ -82,9 +82,9 @@ module comm_ptsrc_comp_mod
   character(len=24), private :: operation
 
   ! Variables for non-linear search
-  class(comm_ptsrc_comp), pointer, private :: c_lnL
+  class(comm_ptsrc_comp), pointer, private :: c_lnL => null()
   integer(i4b),                    private :: k_lnL, p_lnL
-  real(dp),                        private :: a_old_lnL
+  real(dp),                        private :: a_old_lnL 
 
 contains
 
@@ -281,6 +281,9 @@ contains
     case ("sz")
        evalSED = 0.d0
        call report_error('SZ not implemented yet')
+    case default
+       write(*,*) 'Unsupported point source type'
+       stop
     end select
     
   end function evalSED
@@ -392,7 +395,7 @@ contains
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
     character(len=512) :: filename, path
-    class(comm_map), pointer :: map
+    class(comm_map), pointer :: map => null()
     real(dp), allocatable, dimension(:,:,:) :: theta
 
     ! Output point source maps for each frequency
@@ -447,13 +450,15 @@ contains
              write(unit,*) '# SED model type      = ', trim(self%type)
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref(1)*1d-9, ' GHz'
              write(unit,*) '# '
-             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)          I_RMS(mJy)  alpha_I beta_I  a_RMS_I   b_RMS_I      chisq     ID'
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)          I_RMS(mJy) '// &
+                  & ' alpha_I beta_I  a_RMS_I   b_RMS_I      chisq     ID'
           else if (trim(self%type) == 'fir') then
              write(unit,*) '# '
              write(unit,*) '# SED model type      = ', trim(self%type)
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref(1)*1d-9, ' GHz'
              write(unit,*) '# '
-             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    I_RMS(mJy)  beta_I      T_I   beta_RMS_I     T_RMS_I      chisq    ID'
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    I_RMS(mJy)  beta_I  '//&
+                  & '    T_I   beta_RMS_I     T_RMS_I      chisq    ID'
           end if
        end if
        do i = 1, self%nsrc
@@ -729,7 +734,7 @@ contains
     type(Tnu),          intent(inout) :: T
 
     integer(i4b)      :: i, j, k, n, m, p, q, pix, ext(1), ierr
-    character(len=128) :: itext
+    character(len=16) :: itext
     type(hdf_file)    :: file
     integer(i4b), allocatable, dimension(:)   :: ind, ind_in, nsamp
     integer(i4b), allocatable, dimension(:,:) :: mypix
@@ -1001,7 +1006,7 @@ contains
        call pix2vec_ring(nside, listpix(i), vec)
        call angdist(vec0, vec, theta)
        if (theta > tmax) then
-          beam(i,j)  = 0.d0
+          beam(i,:)  = 0.d0
           listpix(i) = 0.d0
        else
           do j = 1, T%nmaps
@@ -1094,8 +1099,8 @@ contains
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2, t3, t4
     logical(lgt) :: skip
-    class(comm_comp),         pointer :: c, c1, c2
-    class(comm_ptsrc_comp),   pointer :: pt1, pt2
+    class(comm_comp),         pointer :: c => null(), c1 => null(), c2 => null()
+    class(comm_ptsrc_comp),   pointer :: pt1 => null(), pt2 => null()
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
 
     if (ncomp_pre == 0) return
@@ -1273,8 +1278,8 @@ contains
     logical(lgt)              :: skip
     real(dp), allocatable, dimension(:,:) :: amp
     real(dp), allocatable, dimension(:,:) :: y
-    class(comm_comp),       pointer :: c
-    class(comm_ptsrc_comp), pointer :: pt
+    class(comm_comp),       pointer :: c => null()
+    class(comm_ptsrc_comp), pointer :: pt => null()
 
     if (npre == 0 .or. myid_pre /= 0 .or. .not. apply_ptsrc_precond) return
     
@@ -1346,6 +1351,8 @@ contains
 
     if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
        getScale = 1.d-23 * (c/self%nu_ref(pol))**2 / (2.d0*k_b*self%src(id)%T(band)%Omega_b(pol))
+    else
+       getScale = 1.d0
     end if
 
   end function getScale
@@ -1404,11 +1411,13 @@ contains
     type(planck_rng),                        intent(inout)  :: handle
     integer(i4b),                            intent(in)     :: id
 
-    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
-    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min
+    integer(i4b) :: i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
+    real(dp)     :: mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
     logical(lgt) :: ok
     logical(lgt), save :: first_call = .true.
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
     real(dp),     allocatable, dimension(:,:) :: amp
 
@@ -1505,7 +1514,8 @@ contains
              call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
              call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
              if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot / n_pix_tot-1.d0) / sqrt(0.5d0/n_pix_tot)
-             if (self%myid == 0 .and. mod(k,1000)==0) write(*,*) k, real(a,sp), real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
+             if (self%myid == 0 .and. mod(k,1000)==0) write(*,*) k, real(a,sp), &
+                  & real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
           end do
        end do
        deallocate(theta)

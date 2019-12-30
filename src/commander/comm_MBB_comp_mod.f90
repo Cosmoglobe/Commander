@@ -34,7 +34,7 @@ contains
     class(comm_MBB_comp), pointer   :: constructor
 
     integer(i4b) :: i, j, k
-    type(comm_mapinfo), pointer :: info
+    type(comm_mapinfo), pointer :: info => null()
 
     ! General parameters
     allocate(constructor)

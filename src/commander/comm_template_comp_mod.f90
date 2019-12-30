@@ -32,8 +32,8 @@ module comm_template_comp_mod
      real(dp),  dimension(1,1)  :: x         ! Amplitude
      real(dp),  dimension(2)    :: P         ! Gaussian prior on amplitude (mean,sigma)
      real(dp),  dimension(2)    :: P_cg      ! Gaussian prior on amplitude for CG (mean,sigma)
-     class(comm_map), pointer   :: T         ! Template
-     class(comm_map), pointer   :: mask      ! Template mask
+     class(comm_map), pointer   :: T    => null()   ! Template
+     class(comm_map), pointer   :: mask => null()   ! Template mask
    contains
      procedure :: dumpFITS      => dumpTemplateToFITS
      procedure :: getBand       => evalTemplateBand
@@ -50,7 +50,7 @@ module comm_template_comp_mod
   end interface comm_template_comp
 
   type template_ptr
-     class(comm_template_comp), pointer :: p
+     class(comm_template_comp), pointer :: p => null()
   end type template_ptr
   
   integer(i4b) :: npre         =   0
@@ -123,7 +123,7 @@ contains
     integer(i4b)        :: i, unit
     real(dp)            :: mu, rms, def
     character(len=1024) :: line, label, mapfile, maskfile
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     unit  = getlun()
 
@@ -282,9 +282,9 @@ contains
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2
     logical(lgt) :: skip
-    class(comm_comp),          pointer :: c, c1, c2
-    class(comm_template_comp), pointer :: pt1, pt2
-    class(comm_map),           pointer :: invN_T
+    class(comm_comp),          pointer :: c => null(), c1 => null(), c2 => null()
+    class(comm_template_comp), pointer :: pt1 => null(), pt2 => null()
+    class(comm_map),           pointer :: invN_T => null()
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
 
     if (npre == 0) return
@@ -411,8 +411,8 @@ contains
     logical(lgt)              :: skip
     real(dp),                  allocatable, dimension(:,:) :: amp
     real(dp),                  allocatable, dimension(:)   :: y
-    class(comm_comp),          pointer                     :: c
-    class(comm_template_comp), pointer                     :: pt
+    class(comm_comp),          pointer                     :: c => null() 
+    class(comm_template_comp), pointer                     :: pt => null()
 
     if (npre == 0 .or. myid_pre /= 0) return
     

@@ -48,7 +48,7 @@ module comm_map_mod
      class(comm_map), pointer :: prevLink => null()
 
      ! Data variables
-     class(comm_mapinfo), pointer :: info
+     class(comm_mapinfo), pointer :: info => null()
      real(c_double), allocatable, dimension(:,:) :: map
      real(c_double), allocatable, dimension(:,:) :: alm
    contains
@@ -90,7 +90,7 @@ module comm_map_mod
   end type comm_map
 
   type map_ptr
-     class(comm_map), pointer :: p
+     class(comm_map), pointer :: p => null()
   end type map_ptr
   
   interface comm_mapinfo
@@ -103,7 +103,7 @@ module comm_map_mod
 
 
   ! Library of mapinfos; resident in memory during the analysis
-  class(comm_mapinfo), pointer, private :: mapinfos
+  class(comm_mapinfo), pointer, private :: mapinfos => null()
 
 contains
 
@@ -118,14 +118,14 @@ contains
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
     integer(i4b) :: myid, nprocs, ierr
-    integer(i4b) :: l, m, i, j, k, iring, np, ind 
+    integer(i4b) :: l, m, i, j, k, np, ind 
     real(dp)     :: nullval
     logical(lgt) :: anynull, distval
     integer(i4b), allocatable, dimension(:) :: pixlist
-    real(dp),     allocatable, dimension(:,:) :: weights
+    !real(dp),     allocatable, dimension(:,:) :: weights
     character(len=5)   :: nside_text
     character(len=512) :: weight_file, healpixdir
-    class(comm_mapinfo), pointer :: p, p_prev, p_new
+    class(comm_mapinfo), pointer :: p => null(), p_prev => null(), p_new => null()
 
     if( .not. present(dist)) then
       distval = .true.
@@ -136,7 +136,9 @@ contains
     ! Check if requested mapinfo already exists in library; if so return a link to that object
     p => mapinfos
     do while (associated(p)) 
-       if (p%nside == nside .and. p%lmax == lmax .and. p%nmaps == nmaps .and. p%pol == pol .and. p%dist == distval) then
+       if ((p%nside == nside) .and. (p%lmax == lmax) .and. &
+            & (p%nmaps == nmaps) .and. (p%pol .eqv. pol) .and. (p%dist .eqv. distval)) then
+          !write(*,*) 'Reusing old', nmaps, p%nmaps, nmaps == p%nmaps
           constructor_mapinfo => p
           return
        else
@@ -146,7 +148,7 @@ contains
     end do
 
     ! Set up new mapinfo object
-    if (distval == .false.) then
+    if (.not. distval) then
       myid=0
       nprocs = 1
     else
@@ -270,7 +272,7 @@ contains
     end if
 
     !stop lying to mpi_comm about rank and id
-    if (distval == .false.) then
+    if (.not. distval) then
       call mpi_comm_rank(comm, myid, ierr)
       call mpi_comm_size(comm, nprocs, ierr)
       p_new%myid = myid
@@ -315,10 +317,10 @@ contains
     logical(lgt),                       intent(in)           :: hdf, sidelobe
     class(comm_map),     pointer                      :: constructor_alms
     character(len=10)                                 :: fieldName
-    character(len=80),   dimension(:,:) , allocatable :: header
-    integer(i4b)                                      :: mmax, ierr, i, j, l, m,nalm
+    !character(len=80),   dimension(:,:) , allocatable :: header
+    integer(i4b)                                      :: mmax, ierr
 
-    real(dp), dimension(:,:,:), allocatable           :: tempalms 
+    !real(dp), dimension(:,:,:), allocatable           :: tempalms 
 
     allocate(constructor_alms)
     constructor_alms%info => info
@@ -326,7 +328,7 @@ contains
     allocate(constructor_alms%map(0:info%np-1,info%nmaps))
     allocate(constructor_alms%alm(0:info%nalm-1,info%nmaps))
 
-    if( sidelobe == .true. ) then
+    if( sidelobe ) then
       fieldName = 'sl'
     else 
       fieldName = 'beam'
@@ -334,7 +336,7 @@ contains
 
     info%mmax = 0
 
-    if( hdf == .true. ) then
+    if( hdf ) then
       !write(*,*) 'About to call read_hdf'
       if(info%myid == 0) then
         call read_hdf(h5_file,  trim(label) // '/' // trim(fieldName) // 'mmax', mmax)
@@ -370,19 +372,14 @@ contains
     
   end function constructor_clone
 
-  subroutine deallocate_comm_map(self, clean_info)
+  subroutine deallocate_comm_map(self)
     implicit none
 
     class(comm_map), intent(inout)          :: self
-    logical(lgt),    intent(in),   optional :: clean_info
-    class(comm_map), pointer :: link
+    class(comm_map), pointer :: link => null()
 
-    logical(lgt) :: clean_info_
-
-    clean_info_ = .false. !; if (present(clean_info)) clean_info_ = clean_info ! Never clean info with new library
     if (allocated(self%map)) deallocate(self%map)
     if (allocated(self%alm)) deallocate(self%alm)
-    if (clean_info_ .and. associated(self%info)) call self%info%dealloc()
     nullify(self%info)
 
     if (associated(self%nextLink)) then
@@ -391,7 +388,6 @@ contains
        do while (associated(link))
           if (allocated(link%map)) deallocate(link%map)
           if (allocated(link%alm)) deallocate(link%alm)
-          if (clean_info_ .and. associated(link%info)) call link%info%dealloc()
           nullify(link%info)
           link => link%nextLink
        end do
@@ -478,7 +474,7 @@ contains
     class(comm_map), intent(inout)          :: self
 
     integer(i4b) :: i
-    type(comm_mapinfo), pointer :: info
+    type(comm_mapinfo), pointer :: info => null()
     
     info => comm_mapinfo(self%info%comm, self%info%nside, self%info%lmax, self%info%nmaps, .false.)
 
@@ -573,7 +569,7 @@ contains
     type(hdf_file),   intent(in) :: hdffile
     character(len=*), intent(in) :: hdfpath, label
 
-    integer(i4b) :: i, j, l, m, nmaps, npix, np, ierr
+    integer(i4b) :: i, nmaps, npix, np, ierr
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
@@ -611,7 +607,7 @@ contains
     type(hdf_file),   intent(in)    :: hdffile
     character(len=*), intent(in)    :: hdfpath
 
-    integer(i4b) :: i, j, l, m, nmaps, npix, np, ierr
+    integer(i4b) :: i, nmaps, npix, np, ierr
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
@@ -757,9 +753,9 @@ contains
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
     ! Check file consistency 
-    npix = getsize_fits(trim(filename), ordering=ordering, nside=nside, nmaps=nmaps)
+    npix = int(getsize_fits(trim(filename), ordering=ordering, nside=nside, nmaps=nmaps),i4b)
     if (nmaps < self%info%nmaps) then
-       if (self%info%myid == 0) write(*,*) 'Incorrect nmaps in ' // trim(filename)
+       if (self%info%myid == 0) write(*,*) 'Incorrect nmaps in ' // trim(filename), nmaps, self%info%nmaps
        call mpi_finalize(ierr)
        stop
     end if
@@ -845,8 +841,8 @@ contains
 
     integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
     real(dp),     allocatable, dimension(:,:) :: alms, map
-    integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    !integer(i4b), allocatable, dimension(:)   :: p
+    !integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
     lmax  = self%info%lmax
     npix  = self%info%npix
@@ -884,10 +880,10 @@ contains
     character(len=*),       intent(in)    :: hdfpath
     integer(i4b),           intent(in)    :: mmax, pol
 
-    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
-    real(dp),     allocatable, dimension(:,:) :: alms, map
-    integer(i4b), allocatable, dimension(:)   :: p
-    integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm
+    real(dp),     allocatable, dimension(:,:) :: alms
+    !integer(i4b), allocatable, dimension(:)   :: p
+    !integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
     lmax  = self%info%lmax
     nmaps = 1 
@@ -929,7 +925,7 @@ contains
     logical(lgt),                       intent(in), optional :: nest
 
     integer(i4b)   :: npix, nlheader, nmaps, i, nside
-    logical(lgt)   :: exist, polarization
+    logical(lgt)   :: polarization
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
@@ -1017,21 +1013,57 @@ contains
     class(comm_map), intent(in)    :: self
     class(comm_map), intent(inout) :: map_out
 
-    integer(i4b) :: i, j, ierr
-    real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer
+    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last
+    real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer, tmp
 
     if (self%info%nside == map_out%info%nside) then
        map_out%map = self%map
        return
     end if
+!!$    else if (self%info%nside > map_out%info%nside) then
+!!$       q = (self%info%nside/map_out%info%nside)**2
+!!$       allocate(tmp(0:map_out%info%npix-1,map_out%info%nmaps))
+!!$       allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
+!!$       tmp = 0.d0
+!!$       do i = 0, self%info%np-1
+!!$          call ring2nest(self%info%nside, self%info%pix(i+1), p_nest)
+!!$          p_nest = p_nest/q
+!!$          call nest2ring(map_out%info%nside, p_nest, p_ring)
+!!$          tmp(p_ring,:) = tmp(p_ring,:) + self%map(i,:)
+!!$       end do
+!!$
+!!$ !call mpi_reduce(tmp, buffer, size(tmp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+!!$do i = 0, map_out%info%npix-1
+!!$   call mpi_reduce(tmp(i,:), buffer(i,:), map_out%info%nmaps, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+!!$end do
+!!$
+!!$    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+!!$!call mpi_allreduce(tmp, buffer, size(tmp), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+!!$
+!!$       map_out%map = buffer(map_out%info%pix,:)/q
+!!$       deallocate(tmp,buffer)
+!!$    else if (self%info%nside < map_out%info%nside) then
+!!$       write(*,*) ' Should not be here'
+!!$       stop
+!!$    end if
 
+    bsize = 1000
     allocate(m_in(0:self%info%npix-1,self%info%nmaps))
     allocate(m_out(0:map_out%info%npix-1,map_out%info%nmaps))
     allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
     call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
-    call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+    !call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+i = 0
+do while (i <= map_out%info%npix-1)
+   j = min(i+bsize-1,map_out%info%npix-1)
+   call mpi_reduce(m_out(i:j,:), buffer(i:j,:), size(m_out(i:j,:)), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+   i = i+bsize
+end do
+
+    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+
     map_out%map = buffer(map_out%info%pix,:)
     deallocate(m_in, m_out, buffer)
 
@@ -1046,7 +1078,7 @@ contains
 
     integer(i4b) :: i, j, l, m
     real(dp)     :: sigma, sigma_pol, bl, fact_pol
-    real(dp), allocatable, dimension(:,:) :: m_in, m_out
+    !real(dp), allocatable, dimension(:,:) :: m_in, m_out
 
     if (fwhm <= 0.d0 .and. .not. present(fwhm_pol)) return
 
@@ -1215,7 +1247,7 @@ contains
     class(comm_map)         :: self
     class(comm_map), target :: link
 
-    class(comm_map), pointer :: c
+    class(comm_map), pointer :: c => null()
     
     if (associated(self%nextLink)) then
        c => self%nextLink
@@ -1350,7 +1382,7 @@ contains
     class(comm_map),                    intent(inout) :: self
     real(dp), allocatable, dimension(:,:)             :: alms
     integer(i4b), allocatable, dimension(:,:)         :: lms   
-    real(dp), allocatable, dimension(:,:)             :: buffer
+    !real(dp), allocatable, dimension(:,:)             :: buffer
     integer(i4b)      :: nalm, nmaps, i, ierr, offset
 
     nmaps = self%info%nmaps
@@ -1375,7 +1407,8 @@ contains
         alms(offset:offset + self%info%nalms(i)-1, :) = self%alm
         lms(:, offset:offset+self%info%nalms(i)-1) = self%info%lm
       end if
-      call mpi_bcast(alms(offset:offset + self%info%nalms(i)-1,:), self%info%nalms(i)*nmaps, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
+      call mpi_bcast(alms(offset:offset + self%info%nalms(i)-1,:), &
+           & self%info%nalms(i)*nmaps, MPI_DOUBLE_PRECISION, i, self%info%comm, ierr)
       call mpi_bcast(lms(:,offset:offset+self%info%nalms(i)-1), self%info%nalms(i) * 2, MPI_INTEGER, i, self%info%comm, ierr)
     end do
 
@@ -1435,14 +1468,14 @@ contains
 
     call self%info%lm2i(l, m, ind)
 
-    if(complx == .false.) then
-      alm = cmplx(self%alm(ind, pol), 0.d0)
+    if(.not. complx) then
+      alm = dcmplx(self%alm(ind, pol), 0.d0)
     else
       if(m == 0) then
-        alm = cmplx(self%alm(ind, pol), 0.d0)
+        alm = dcmplx(self%alm(ind, pol), 0.d0)
       else
         call self%info%lm2i(l, -m, ind2)
-        alm = 1.d0 / sqrt(2.d0) * cmplx(self%alm(ind, pol), self%alm(ind2, pol))
+        alm = 1.d0 / sqrt(2.d0) * dcmplx(self%alm(ind, pol), self%alm(ind2, pol))
       end if 
     end if
 
@@ -1462,13 +1495,13 @@ contains
     call self%info%lm2i(l, m, ind)
 
     if(.not. complx) then
-      alm = cmplx(self%alm(ind, :), 0.d0)
+      alm = dcmplx(self%alm(ind,:), 0.d0)
     else
       if(m == 0) then
-        alm = cmplx(self%alm(ind, :), 0.d0)
+        alm = dcmplx(self%alm(ind,:), 0.d0)
       else
         call self%info%lm2i(l, -m, ind2)
-        alm = 1.d0 / sqrt(2.d0) * cmplx(self%alm(ind, :), self%alm(ind2, :))
+        alm = 1.d0 / sqrt(2.d0) * dcmplx(self%alm(ind,:), self%alm(ind2,:))
       end if 
     end if
 
@@ -1482,7 +1515,7 @@ contains
     class(comm_map),                    intent(inout) :: self
     real(dp), allocatable, dimension(:,:)             :: fullmap
     real(dp), allocatable, dimension(:)               :: multipoles, zbounds
-    integer(i4b)                                      :: i, j
+    integer(i4b)                                      :: i
 
     allocate(fullmap(0:self%info%npix -1, self%info%nmaps))
     allocate(multipoles(0:3))

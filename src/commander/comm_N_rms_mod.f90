@@ -8,9 +8,9 @@ module comm_N_rms_mod
   public comm_N_rms, comm_N_rms_ptr
   
   type, extends (comm_N) :: comm_N_rms
-     class(comm_map), pointer :: siN
-     class(comm_map), pointer :: siN_lowres
-     class(comm_map), pointer :: rms0
+     class(comm_map), pointer :: siN        => null()
+     class(comm_map), pointer :: siN_lowres => null()
+     class(comm_map), pointer :: rms0       => null()
    contains
      ! Data procedures
 
@@ -28,7 +28,7 @@ module comm_N_rms_mod
   end interface comm_N_rms
 
   type comm_N_rms_ptr
-     type(comm_N_rms), pointer :: p
+     type(comm_N_rms), pointer :: p => null()
   end type comm_N_rms_ptr
 
   
@@ -49,9 +49,9 @@ contains
     class(comm_map),                    pointer, intent(in), optional :: procmask
 
     integer(i4b)       :: i, ierr, tmp, nside_smooth
-    real(dp)           :: sum_tau, sum_tau2, sum_noise, npix, t1, t2
+    real(dp)           :: sum_noise, npix
     character(len=512) :: dir
-    type(comm_mapinfo), pointer :: info_smooth
+    type(comm_mapinfo), pointer :: info_smooth => null()
 
     
     ! General parameters
@@ -81,7 +81,7 @@ contains
                & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
        end if
     else
-       tmp         =  getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth)
+       tmp         =  int(getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
        info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
             & constructor%nmaps, constructor%pol)
        constructor%nside   = info_smooth%nside
@@ -122,12 +122,12 @@ contains
     class(comm_map),                     intent(in),   optional :: map
 
     integer(i4b) :: i, ierr
-    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix, t1, t2
-    class(comm_map),     pointer :: invW_tau, iN
-    class(comm_mapinfo), pointer :: info_lowres
+    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix
+    class(comm_map),     pointer :: invW_tau => null(), iN => null()
+    class(comm_mapinfo), pointer :: info_lowres => null()
 
     if (present(noisefile)) then
-       self%rms0     => comm_map(mask%info, noisefile)
+       self%rms0     => comm_map(info, noisefile)
     else
        self%rms0%map = map%map
     end if
@@ -154,15 +154,15 @@ contains
        do i = 1, self%nmaps
           sum_noise = sum(self%siN%map(:,i))
           npix      = size(self%siN%map(:,i))
-          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
           self%siN%map(:,i) = sum_noise/npix
        end do
     end if
 
     if (trim(self%cg_precond) == 'diagonal') then
        ! Set up diagonal covariance matrix
-       if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(mask%info)
+       if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info)
        self%invN_diag%map = self%siN%map**2
        call compute_invN_lm(self%invN_diag)
     else if (trim(self%cg_precond) == 'pseudoinv') then
@@ -175,8 +175,8 @@ contains
        ! Temperature
        sum_tau  = sum(invW_tau%map(:,1))
        sum_tau2 = sum(invW_tau%map(:,1)**2)
-       call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
-       call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
        if (sum_tau > 0.d0) then
           self%alpha_nu(1) = sqrt(sum_tau2/sum_tau)
        else
@@ -186,8 +186,8 @@ contains
        if (self%nmaps == 3) then
           sum_tau  = sum(invW_tau%map(:,2:3))
           sum_tau2 = sum(invW_tau%map(:,2:3)**2)
-          call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, mask%info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, sum_tau2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
           if (sum_tau > 0.d0) then
              self%alpha_nu(2:3) = sqrt(sum_tau2/sum_tau)
           else
@@ -246,23 +246,23 @@ contains
     map%map = self%siN%map * map%map
   end subroutine matmulSqrtInvN_1map
 
-  ! Return map_out = invN * map
-  subroutine matmulInvN_2map(self, map, res)
-    implicit none
-    class(comm_N_rms), intent(in)              :: self
-    class(comm_map),   intent(in)              :: map
-    class(comm_map),   intent(inout)           :: res
-    res%map = (self%siN%map)**2 * map%map
-  end subroutine matmulInvN_2map
-  
-  ! Return map_out = sqrtInvN * map
-  subroutine matmulSqrtInvN_2map(self, map, res)
-    implicit none
-    class(comm_N_rms), intent(in)              :: self
-    class(comm_map),   intent(in)              :: map
-    class(comm_map),   intent(inout)           :: res
-    res%map = self%siN%map * map%map
-  end subroutine matmulSqrtInvN_2map
+!!$  ! Return map_out = invN * map
+!!$  subroutine matmulInvN_2map(self, map, res)
+!!$    implicit none
+!!$    class(comm_N_rms), intent(in)              :: self
+!!$    class(comm_map),   intent(in)              :: map
+!!$    class(comm_map),   intent(inout)           :: res
+!!$    res%map = (self%siN%map)**2 * map%map
+!!$  end subroutine matmulInvN_2map
+!!$  
+!!$  ! Return map_out = sqrtInvN * map
+!!$  subroutine matmulSqrtInvN_2map(self, map, res)
+!!$    implicit none
+!!$    class(comm_N_rms), intent(in)              :: self
+!!$    class(comm_map),   intent(in)              :: map
+!!$    class(comm_map),   intent(inout)           :: res
+!!$    res%map = self%siN%map * map%map
+!!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
   subroutine returnRMS(self, res)

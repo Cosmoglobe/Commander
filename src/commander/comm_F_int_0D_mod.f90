@@ -10,7 +10,7 @@ module comm_F_int_0D_mod
 
   type, extends (comm_F_int) :: comm_F_int_0D
      real(dp)                  :: f_precomp
-     class(comm_comp), pointer :: comp
+     class(comm_comp), pointer :: comp => null()
    contains
      ! Data procedures
      procedure :: eval   => evalIntF

@@ -75,7 +75,7 @@ ifndef CFITSIO_LINK
 	export CFITSIO_LINK := -L/usr/local/lib -lcfitsio
 endif
 ifndef LAPACK_LINK
-	export LAPACK_LINK := -L/usr/local/lib -llapack -lblas
+	export LAPACK_LINK := #-L/usr/local/lib -llapack -lblas
 endif
 
 

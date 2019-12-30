@@ -33,13 +33,15 @@ contains
        end function lnL
     end interface
 
-    integer(i4b) :: i, j, k, n, m, iter, stat, ierr, x_peak(1), a, b
-    logical(lgt) :: ok, optimize_, use_precomputed_grid_
+    integer(i4b) :: i, j, n, m, iter, stat, x_peak(1), a, b
+    logical(lgt) :: optimize_, use_precomputed_grid_
     real(dp)     :: prior_(2), x_new, y_new, y_new_spline, lnL_peak, epsilon
     real(dp)     :: dx, x_min, x_max, eta, tol
     real(dp), dimension(INVSAMP_MAX_NUM_EVALS) :: x_n, x_spline
     real(dp), dimension(INVSAMP_MAX_NUM_EVALS) :: S_n, S_n2, S_spline
     real(dp), dimension(N_SPLINE)      :: x, P, F
+
+    sample_InvSamp = 1.d30
 
     stat = 0
     if (present(prior)) then
@@ -89,7 +91,10 @@ contains
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
 !          end if
        end do
-       if (stat /= 0) return
+       if (stat /= 0) then
+          sample_InvSamp = 1.d30
+          return
+       end if
 
        ! Check that we bound the 5-sigma range, ie., delta_chisq = 25 => delta lnL = 12.5
        lnL_peak = maxval(S_n(1:n))
@@ -113,7 +118,10 @@ contains
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
 !          end if
        end do
-       if (stat /= 0) return
+       if (stat /= 0) then
+          sample_InvSamp = 1.d30
+          return
+       end if
 
 !       write(*,*) x_n(1:n)
 !       write(*,*) S_n(1:n)

@@ -21,7 +21,7 @@ module comm_bp_mod
   end type comm_bp
 
   type comm_bp_ptr
-     class(comm_bp), pointer :: p
+     class(comm_bp), pointer :: p => null()
   end type comm_bp_ptr
 
 
@@ -278,6 +278,9 @@ contains
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW
        SED2F = f(1) * self%a2t
+    case default
+       write(*,*) 'Unsupported bandpass type'
+       stop
     end select
     SED2F = SED2F * self%unit_scale
 
@@ -352,6 +355,9 @@ contains
           lineAmp_RJ = nu/c 
        end if
 
+    case default
+       write(*,*) 'Unsupported bandpass type'
+       stop
     end select
 
     lineAmp_RJ = lineAmp_RJ * 1.d9 ! Convert to uK_ant / (K_ant km/s)

@@ -38,7 +38,7 @@ contains
 
     integer(i4b) :: i, j, k, ind(1)
     real(dp), allocatable, dimension(:,:) :: SED
-    type(comm_mapinfo), pointer :: info
+    type(comm_mapinfo), pointer :: info => null()
 
     ! General parameters
     allocate(constructor)
@@ -57,7 +57,7 @@ contains
        constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
        constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
     end do
-    constructor%indlabel  = ['nu_p','alpha']
+    constructor%indlabel  = ['nu_p ','alpha']
     
     ! Initialize spectral index map for two parameter model
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &

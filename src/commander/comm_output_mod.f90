@@ -69,10 +69,10 @@ contains
     character(len=4)             :: ctext
     character(len=6)             :: itext
     character(len=512)           :: postfix, chainfile, hdfpath
-    class(comm_mapinfo), pointer :: info
-    class(comm_map),     pointer :: map, chisq_map, chisq_sub
-    class(comm_comp),    pointer :: c
-    class(comm_N),      pointer :: N
+    class(comm_mapinfo), pointer :: info => null()
+    class(comm_map),     pointer :: map => null(), chisq_map => null(), chisq_sub => null()
+    class(comm_comp),    pointer :: c => null()
+    class(comm_N),      pointer :: N => null()
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
 
@@ -185,7 +185,7 @@ contains
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
           if (cpar%myid == cpar%root) write(*,fmt='(a,i4,a,e16.8)') &
                & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
-          call chisq_map%dealloc(clean_info=.true.)
+          call chisq_map%dealloc()
        end if
        call update_status(status, "output_chisq")
     end if

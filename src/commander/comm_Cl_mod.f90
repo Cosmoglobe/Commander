@@ -1019,7 +1019,8 @@ contains
             lnL_invWishart = -1.d30
             return
          end if
-         lnL_invWishart = lnL_invWishart - 0.5d0 * (real(2*l+1,dp) * ln_det_S + real(2*l+1,dp)*trace_sigma_inv_Cl(sigma_l(:,:,l), S))
+         lnL_invWishart = lnL_invWishart - 0.5d0 * (real(2*l+1,dp) * ln_det_S + &
+              & real(2*l+1,dp)*trace_sigma_inv_Cl(sigma_l(:,:,l), S))
       end do
 
       !write(*,*) x, lnL_invWishart
@@ -1310,6 +1311,9 @@ contains
          i = 2; j = 3
       case (6)
          i = 3; j = 3
+      case default
+         write(*,*) 'Unsupported spectrum id'
+         stop
       end select
 
       if (bin%stat == 'M') then

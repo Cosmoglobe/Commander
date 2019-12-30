@@ -27,7 +27,7 @@ contains
     type(comm_params), intent(in) :: cpar
 
     integer(i4b) :: i, n
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     
     ncomp = 0
     do i = 1, cpar%cs_ncomp_tot
@@ -109,7 +109,7 @@ contains
     character(len=*), intent(in) :: filename
 
     integer(i4b) :: i, unit
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     unit = getlun()
     
@@ -134,7 +134,7 @@ contains
 
     integer(i4b) :: stat, i
     real(dp)     :: Nscale = 1.d-4
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
 
     allocate(x(ncr), mask(ncr))
@@ -168,7 +168,7 @@ contains
 
   subroutine add_to_complist(c)
     implicit none
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c 
     
     if (.not. associated(compList)) then
        compList => c
@@ -188,10 +188,10 @@ contains
     character(len=4)          :: ctext
     character(len=6)          :: itext
     character(len=512)        :: chainfile, hdfpath
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     type(hdf_file) :: file
-    class(comm_N),      pointer :: N
-    class(comm_map),    pointer :: rms
+    class(comm_N),      pointer :: N => null() 
+    class(comm_map),    pointer :: rms => null()
     real(dp), allocatable, dimension(:,:) :: bp_delta, regnoise
 
     if ((cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') .and. &
@@ -347,7 +347,7 @@ contains
     type(planck_rng),  intent(inout) :: handle
     logical(lgt),      intent(out)   :: ok
 
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     ok = .true.
     c  => compList
@@ -375,9 +375,9 @@ contains
     integer(i4b) :: i, ierr
     logical(lgt) :: skip
     real(dp)     :: vals(2), vals2(2), mu, sigma, amp, mu_p, sigma_p
-    class(comm_map),           pointer :: res, invN_T
-    class(comm_comp),          pointer :: c
-    class(comm_template_comp), pointer :: pt
+    class(comm_map),           pointer :: res => null(), invN_T => null()
+    class(comm_comp),          pointer :: c => null()
+    class(comm_template_comp), pointer :: pt => null()
     
     ! Compute predicted signal for this band
     c => compList
@@ -470,8 +470,8 @@ contains
     real(dp)     :: chisq_old, chisq_prop, U
     real(dp), allocatable, dimension(:)   :: Dl_old, Dl_prop, eta
     real(dp), allocatable, dimension(:,:) :: alm_prop, alm_old
-    class(comm_comp), pointer :: c
-    class(comm_map),  pointer :: res
+    class(comm_comp), pointer :: c => null()
+    class(comm_map),  pointer :: res => null()
     
     ! Initialize residual maps
     chisq_old = 0.d0

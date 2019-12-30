@@ -36,7 +36,7 @@ contains
     integer(i4b),          dimension(:,:), intent(in) :: mask
     class(comm_4D_map),    pointer                    :: constructor
 
-    integer(i4b) :: i, j, n, ndet
+    integer(i4b) :: i, n, ndet
     type(hash_tbl_4Dmap_sll) :: hashtbl
 
     ! Initialize object
@@ -93,8 +93,8 @@ contains
     character(len=1)   :: itext
     character(len=16)  :: dlabel
     character(len=512) :: filename
-    character(len=80), dimension(180) :: header
-    class(comm_4D_map), pointer       :: map4D
+    !character(len=80), dimension(180) :: header
+    class(comm_4D_map), pointer       :: map4D => null()
     
     integer   :: status, unit, readwrite, blocksize, hdutype, tfields, nrows, bitpix, naxis, naxes(0)
     integer   :: varidat, colnum,frow,felem
@@ -187,7 +187,7 @@ contains
        end do
 
        allocate(ttype(ndet+3), tform(ndet+3), tunit(ndet+3))
-       ttype(1:3) = ['pixel', 'ipsi', 'weight']
+       ttype(1:3) = ['pixel ', 'ipsi  ', 'weight']
        tform(1:3) = ['1J',    '1I',   '1E'    ]
        tunit(1:3) = ['none',  'none', 'none'  ]
        do j = 1, ndet
@@ -236,9 +236,9 @@ contains
        !call ftmahd(unit,2,hdutype,status)
        call ftcrhd(unit,status)
 
-       ttype(1:5) = ['pointingID', 'sample_offset', 'nsamples_PID', 'start_SCET', 'end_SCET']
+       ttype(1:5) = ['pointingID   ', 'sample_offset', 'nsamples_PID ', 'start_SCET   ', 'end_SCET     ']
        tform(1:5) = ['1J',         '1K',            '1J',           '1D',         '1D'      ]
-       tunit(1:5) = ['none',       'none',          'none',         'mus',        'mus'     ]
+       tunit(1:5) = ['none',       'none',          'none',         'mus ',        'mus '     ]
              
        tfields = 5
        nrows   = 1

@@ -9,7 +9,7 @@ module comm_shared_arr_mod
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
-     real(dp),     pointer,     dimension(:,:) :: a
+     real(dp),     pointer,     dimension(:,:) :: a => null()
   end type shared_2d_dp
 
 
@@ -20,7 +20,7 @@ module comm_shared_arr_mod
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
-     real(dp),     pointer,     dimension(:,:,:) :: a
+     real(dp),     pointer,     dimension(:,:,:) :: a => null()
   end type shared_3d_dp
 
   type shared_2d_sp
@@ -30,7 +30,7 @@ module comm_shared_arr_mod
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
-     real(sp),     pointer,     dimension(:,:) :: a
+     real(sp),     pointer,     dimension(:,:) :: a => null()
   end type shared_2d_sp
 
   type shared_2d_spc
@@ -40,7 +40,7 @@ module comm_shared_arr_mod
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
-     complex(spc), pointer,     dimension(:,:) :: a
+     complex(spc), pointer,     dimension(:,:) :: a => null()
   end type shared_2d_spc
 
 
@@ -51,7 +51,7 @@ module comm_shared_arr_mod
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
-     integer(i4b), pointer,     dimension(:)  :: a
+     integer(i4b), pointer,     dimension(:)  :: a => null()
   end type shared_1d_int
 
   type shared_2d_int
@@ -61,7 +61,7 @@ module comm_shared_arr_mod
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
-     integer(i4b), pointer,     dimension(:,:)  :: a
+     integer(i4b), pointer,     dimension(:,:)  :: a => null()
   end type shared_2d_int
 
 
@@ -240,7 +240,7 @@ contains
 
     if (arr%myid_shared == 0) arr%a = 0.
     call mpi_win_fence(0, arr%win, ierr)
-    arr%a(:,ind+1) = val
+    arr%a(:,ind+1) = real(val,sp)
     call mpi_win_fence(0, arr%win, ierr)
     if (arr%myid_shared == 0) then
        call mpi_allreduce(MPI_IN_PLACE, arr%a, size(arr%a), &

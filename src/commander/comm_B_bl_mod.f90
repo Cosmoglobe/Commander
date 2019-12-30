@@ -22,7 +22,7 @@ module comm_B_bl_mod
   end interface comm_B_bl
 
   type comm_B_bl_ptr
-     type(comm_B_bl), pointer :: p
+     type(comm_B_bl), pointer :: p => null()
   end type comm_B_bl_ptr
 
 contains
@@ -42,8 +42,6 @@ contains
     logical(lgt),                       intent(in), optional :: init_realspace
     class(comm_B_bl),   pointer                              :: constructor
 
-    integer(i4b)       :: i, l
-    logical(lgt)       :: init_real
     character(len=4)   :: nside_text
     character(len=512) :: dir
     
