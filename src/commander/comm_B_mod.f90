@@ -12,7 +12,7 @@ module comm_B_mod
      character(len=512)           :: type
      real(dp)                     :: r_max
      real(dp)                     :: mb_eff
-     class(comm_mapinfo), pointer :: info
+     class(comm_mapinfo), pointer :: info => null()
      real(dp),          allocatable, dimension(:,:) :: b_l
      type(spline_type), allocatable, dimension(:)   :: b_theta  ! {nmaps}
    contains
@@ -42,7 +42,7 @@ module comm_B_mod
   end interface
 
   type B_ptr
-     class(comm_B), pointer :: p
+     class(comm_B), pointer :: p => null()
   end type B_ptr
 
   ! Local variables
@@ -57,7 +57,7 @@ contains
     real(dp),         dimension(0:,1:), intent(in), optional  :: b_l
     character(len=*),                   intent(in), optional  :: filename
 
-    integer(i4b) :: i, j, l, n, unit
+    integer(i4b) :: i, l, n, unit
     real(dp)     :: norm
     character(len=512) :: line
     real(dp), allocatable, dimension(:) :: x, y, pl

@@ -96,14 +96,14 @@ CONTAINS
     END IF
   END SUBROUTINE get_sll_4Dmap
 
-  RECURSIVE FUNCTION get_n_sub(list)
+  RECURSIVE FUNCTION get_n_sub(list) result (n)
     CLASS(sllist_4Dmap),              INTENT(in)  :: list
-    INTEGER                                       :: get_n_sub
+    INTEGER                                       :: n
 
     if (.NOT. ASSOCIATED(list%child)) then
-       get_n_sub = 1
+       n = 1
     else
-       get_n_sub = get_n_sub(list%child) + 1
+       n = get_n_sub(list%child) + 1
     end if
   END FUNCTION get_n_sub
 
@@ -174,7 +174,6 @@ CONTAINS
     CLASS(hash_tbl_4Dmap_sll), INTENT(in) :: tbl    
     INTEGER                               :: get_n_elements
     INTEGER     :: i, n, low, high
-    CLASS(sllist_4Dmap), pointer :: list
 
     low  = LBOUND(tbl%vec,dim=1)
     high = UBOUND(tbl%vec,dim=1) 

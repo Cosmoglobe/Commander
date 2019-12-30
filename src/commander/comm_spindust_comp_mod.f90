@@ -38,7 +38,7 @@ contains
 
     integer(i4b) :: i, j, k, ind(1)
     real(dp), allocatable, dimension(:,:) :: SED
-    type(comm_mapinfo), pointer :: info
+    type(comm_mapinfo), pointer :: info => null()
 
     ! General parameters
     allocate(constructor)

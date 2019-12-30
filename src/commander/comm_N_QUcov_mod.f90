@@ -11,7 +11,7 @@ module comm_N_QUcov_mod
      real(dp),        allocatable, dimension(:,:) :: Ncov
      real(dp),        allocatable, dimension(:,:) :: siN
      real(dp),        allocatable, dimension(:,:) :: iN
-     class(comm_map), pointer                     :: siN_diag
+     class(comm_map), pointer                     :: siN_diag => null()
    contains
      ! Data procedures
      procedure :: invN        => matmulInvN_1map
@@ -28,7 +28,7 @@ module comm_N_QUcov_mod
   end interface comm_N_QUcov
 
   type comm_N_QUcov_ptr
-     type(comm_N_QUcov), pointer :: p
+     type(comm_N_QUcov), pointer :: p => null()
   end type comm_N_QUcov_ptr
 
   
@@ -48,11 +48,7 @@ contains
     real(dp), dimension(0:,1:),         intent(out),         optional :: regnoise
     class(comm_map),                    pointer, intent(in), optional :: procmask
 
-    integer(i4b)       :: i, ierr, tmp, nside_smooth
-    real(dp)           :: sum_tau, sum_tau2, sum_noise, npix, t1, t2
     character(len=512) :: dir
-    type(comm_mapinfo), pointer :: info_smooth
-
     
     ! General parameters
     allocate(constructor)
@@ -87,13 +83,13 @@ contains
     character(len=*),                    intent(in),   optional :: noisefile
     class(comm_map),                     intent(in),   optional :: map
 
-    integer(i4b) :: i, j, k, ierr, status, unit
+    integer(i4b) :: i, ierr, status, unit
     logical(lgt) :: exist
     character(len=512) :: filename
-    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix, t1, t2, val
-    real(sp),        dimension(:,:), pointer     :: Ninv_sp
+    real(dp)     :: sum_tau, sum_tau2, val
+    real(sp),        dimension(:,:), pointer     :: Ninv_sp => null()
     real(dp),        dimension(:,:), allocatable :: Ninv, Ncov, sNinv, buffer, mask_fullsky
-    class(comm_map),                 pointer     :: invW_tau
+    class(comm_map),                 pointer     :: invW_tau => null()
 
     ! Set up dense QU invN covariance matrix
     allocate(self%iN(2*self%npix,2*self%np), self%siN(2*self%npix,2*self%np), self%Ncov(2*self%npix,2*self%np))
@@ -305,50 +301,50 @@ contains
 
   end subroutine matmulSqrtInvN_1map
 
-  ! Return map_out = invN * map
-  subroutine matmulInvN_2map(self, map, res)
-    implicit none
-    class(comm_N_QUcov), intent(in)              :: self
-    class(comm_map),   intent(in)              :: map
-    class(comm_map),   intent(inout)           :: res
-
-    integer(i4b) :: ierr
-    real(dp), allocatable, dimension(:) :: m, invN_m
-
-    allocate(m(2*self%np), invN_m(2*self%npix))
-    m(1:self%np)           = map%map(:,2)
-    m(self%np+1:2*self%np) = map%map(:,3)
-    invN_m                 = matmul(self%iN, m)
-    call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)       
-    res%map(:,1) = 0.d0
-    res%map(:,2) = invN_m(self%info%pix+1)
-    res%map(:,3) = invN_m(self%npix+self%info%pix+1)
-    deallocate(m, invN_m)
-
-  end subroutine matmulInvN_2map
-  
-  ! Return map_out = sqrtInvN * map
-  subroutine matmulSqrtInvN_2map(self, map, res)
-    implicit none
-    class(comm_N_QUcov), intent(in)              :: self
-    class(comm_map),   intent(in)              :: map
-    class(comm_map),   intent(inout)           :: res
-
-    integer(i4b) :: ierr
-    real(dp), allocatable, dimension(:) :: m, invN_m
-
-    allocate(m(2*self%np), invN_m(2*self%npix))
-    m(1:self%np)           = map%map(:,2)
-    m(self%np+1:2*self%np) = map%map(:,3)
-    invN_m                 = matmul(self%siN, m)
-    call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr) 
-
-    res%map(:,1) = 0.d0      
-    res%map(:,2) = invN_m(self%info%pix+1)
-    res%map(:,3) = invN_m(self%npix+self%info%pix+1)
-    deallocate(m, invN_m)
-
-  end subroutine matmulSqrtInvN_2map
+!!$  ! Return map_out = invN * map
+!!$  subroutine matmulInvN_2map(self, map, res)
+!!$    implicit none
+!!$    class(comm_N_QUcov), intent(in)              :: self
+!!$    class(comm_map),   intent(in)              :: map
+!!$    class(comm_map),   intent(inout)           :: res
+!!$
+!!$    integer(i4b) :: ierr
+!!$    real(dp), allocatable, dimension(:) :: m, invN_m
+!!$
+!!$    allocate(m(2*self%np), invN_m(2*self%npix))
+!!$    m(1:self%np)           = map%map(:,2)
+!!$    m(self%np+1:2*self%np) = map%map(:,3)
+!!$    invN_m                 = matmul(self%iN, m)
+!!$    call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)       
+!!$    res%map(:,1) = 0.d0
+!!$    res%map(:,2) = invN_m(self%info%pix+1)
+!!$    res%map(:,3) = invN_m(self%npix+self%info%pix+1)
+!!$    deallocate(m, invN_m)
+!!$
+!!$  end subroutine matmulInvN_2map
+!!$  
+!!$  ! Return map_out = sqrtInvN * map
+!!$  subroutine matmulSqrtInvN_2map(self, map, res)
+!!$    implicit none
+!!$    class(comm_N_QUcov), intent(in)              :: self
+!!$    class(comm_map),   intent(in)              :: map
+!!$    class(comm_map),   intent(inout)           :: res
+!!$
+!!$    integer(i4b) :: ierr
+!!$    real(dp), allocatable, dimension(:) :: m, invN_m
+!!$
+!!$    allocate(m(2*self%np), invN_m(2*self%npix))
+!!$    m(1:self%np)           = map%map(:,2)
+!!$    m(self%np+1:2*self%np) = map%map(:,3)
+!!$    invN_m                 = matmul(self%siN, m)
+!!$    call mpi_allreduce(MPI_IN_PLACE, invN_m, 2*self%npix, MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr) 
+!!$
+!!$    res%map(:,1) = 0.d0      
+!!$    res%map(:,2) = invN_m(self%info%pix+1)
+!!$    res%map(:,3) = invN_m(self%npix+self%info%pix+1)
+!!$    deallocate(m, invN_m)
+!!$
+!!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
   subroutine returnRMS(self, res)

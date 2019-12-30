@@ -389,10 +389,12 @@ contains
     do i = 1, cpar%num_smooth_scales
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'FWHM_SMOOTHING_SCALE'//itext, len_itext=len(trim(itext)), par_dp=cpar%fwhm_smooth(i))
-       call get_parameter_hashtable(htbl, 'FWHM_POSTPROC_SMOOTHING_SCALE'//itext, len_itext=len(trim(itext)), par_dp=cpar%fwhm_postproc_smooth(i))
+       call get_parameter_hashtable(htbl, 'FWHM_POSTPROC_SMOOTHING_SCALE'//itext, &
+            & len_itext=len(trim(itext)), par_dp=cpar%fwhm_postproc_smooth(i))
        call get_parameter_hashtable(htbl, 'LMAX_SMOOTHING_SCALE'//itext, len_itext=len(trim(itext)), par_int=cpar%lmax_smooth(i))
        call get_parameter_hashtable(htbl, 'NSIDE_SMOOTHING_SCALE'//itext, len_itext=len(trim(itext)), par_int=cpar%nside_smooth(i))
-       call get_parameter_hashtable(htbl, 'PIXWIN_SMOOTHING_SCALE'//itext, len_itext=len(trim(itext)), par_string=cpar%pixwin_smooth(i))
+       call get_parameter_hashtable(htbl, 'PIXWIN_SMOOTHING_SCALE'//itext, &
+            & len_itext=len(trim(itext)), par_string=cpar%pixwin_smooth(i))
     end do
 
   end subroutine read_global_params_hash
@@ -438,19 +440,20 @@ contains
 
     do i = 1, n
        call int2string(i, itext)
-       call get_parameter_hashtable(htbl, 'INCLUDE_BAND'//itext, len_itext=len_itext,         par_lgt=cpar%ds_active(i))
+       call get_parameter_hashtable(htbl, 'INCLUDE_BAND'//itext, len_itext=len_itext, par_lgt=cpar%ds_active(i))
        if (.not. cpar%ds_active(i)) cycle
-       call get_parameter_hashtable(htbl, 'BAND_OBS_PERIOD'//itext, len_itext=len_itext,      par_int=cpar%ds_period(i))
-       call get_parameter_hashtable(htbl, 'BAND_LABEL'//itext, len_itext=len_itext,           par_string=cpar%ds_label(i))
-       call get_parameter_hashtable(htbl, 'BAND_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%ds_polarization(i))
-       call get_parameter_hashtable(htbl, 'BAND_NSIDE'//itext, len_itext=len_itext,           par_int=cpar%ds_nside(i))
-       call get_parameter_hashtable(htbl, 'BAND_LMAX'//itext, len_itext=len_itext,            par_int=cpar%ds_lmax(i))
-       call get_parameter_hashtable(htbl, 'BAND_UNIT'//itext, len_itext=len_itext,            par_string=cpar%ds_unit(i))
-       call get_parameter_hashtable(htbl, 'BAND_NOISE_FORMAT'//itext, len_itext=len_itext,    par_string=cpar%ds_noise_format(i))
-       call get_parameter_hashtable(htbl, 'BAND_MAPFILE'//itext, len_itext=len_itext,         par_string=cpar%ds_mapfile(i))
-       call get_parameter_hashtable(htbl, 'BAND_NOISEFILE'//itext, len_itext=len_itext,       par_string=cpar%ds_noisefile(i))
-       call get_parameter_hashtable(htbl, 'BAND_REG_NOISEFILE'//itext, len_itext=len_itext,       par_string=cpar%ds_regnoise(i))
-       call get_parameter_hashtable(htbl, 'BAND_NOISE_UNIFORMIZE_FSKY'//itext, len_itext=len_itext, par_dp=cpar%ds_noise_uni_fsky(i))
+       call get_parameter_hashtable(htbl, 'BAND_OBS_PERIOD'//itext, len_itext=len_itext, par_int=cpar%ds_period(i))
+       call get_parameter_hashtable(htbl, 'BAND_LABEL'//itext, len_itext=len_itext, par_string=cpar%ds_label(i))
+       call get_parameter_hashtable(htbl, 'BAND_POLARIZATION'//itext, len_itext=len_itext, par_lgt=cpar%ds_polarization(i))
+       call get_parameter_hashtable(htbl, 'BAND_NSIDE'//itext, len_itext=len_itext, par_int=cpar%ds_nside(i))
+       call get_parameter_hashtable(htbl, 'BAND_LMAX'//itext, len_itext=len_itext, par_int=cpar%ds_lmax(i))
+       call get_parameter_hashtable(htbl, 'BAND_UNIT'//itext, len_itext=len_itext, par_string=cpar%ds_unit(i))
+       call get_parameter_hashtable(htbl, 'BAND_NOISE_FORMAT'//itext, len_itext=len_itext, par_string=cpar%ds_noise_format(i))
+       call get_parameter_hashtable(htbl, 'BAND_MAPFILE'//itext, len_itext=len_itext, par_string=cpar%ds_mapfile(i))
+       call get_parameter_hashtable(htbl, 'BAND_NOISEFILE'//itext, len_itext=len_itext, par_string=cpar%ds_noisefile(i))
+       call get_parameter_hashtable(htbl, 'BAND_REG_NOISEFILE'//itext, len_itext=len_itext, par_string=cpar%ds_regnoise(i))
+       call get_parameter_hashtable(htbl, 'BAND_NOISE_UNIFORMIZE_FSKY'//itext, len_itext=len_itext, &
+            & par_dp=cpar%ds_noise_uni_fsky(i))
        call get_parameter_hashtable(htbl, 'BAND_MASKFILE'//itext, len_itext=len_itext,        par_string=cpar%ds_maskfile(i))
        call get_parameter_hashtable(htbl, 'BAND_MASKFILE_CALIB'//itext, len_itext=len_itext,  par_string=cpar%ds_maskfile_calib(i))
        call get_parameter_hashtable(htbl, 'BAND_BEAMTYPE'//itext, len_itext=len_itext,        par_string=cpar%ds_beamtype(i))
@@ -470,24 +473,36 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_GAIN_APOD_FWHM'//itext, len_itext=len_itext,  par_string=cpar%ds_gain_fwhm(i))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_GAIN'//itext, len_itext=len_itext,    par_dp=cpar%ds_defaults(i,GAIN))
        call get_parameter_hashtable(htbl, 'BAND_DEFAULT_NOISEAMP'//itext, len_itext=len_itext,par_dp=cpar%ds_defaults(i,NOISEAMP))
-       call get_parameter_hashtable(htbl, 'BAND_COMPONENT_SENSITIVITY'//itext, len_itext=len_itext, par_string=cpar%ds_component_sensitivity(i))
+       call get_parameter_hashtable(htbl, 'BAND_COMPONENT_SENSITIVITY'//itext, len_itext=len_itext, &
+            & par_string=cpar%ds_component_sensitivity(i))
 
        !read in all TOD parameters
        if (cpar%enable_TOD_analysis) then
           call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              !all other tod things
-             call get_parameter_hashtable(htbl, 'BAND_TOD_MAIN_PROCMASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask1(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_SMALL_PROCMASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask2(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_filelist(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_START_SCANID'//itext, len_itext=len_itext, par_int=cpar%ds_tod_scanrange(i,1))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_END_SCANID'//itext, len_itext=len_itext, par_int=cpar%ds_tod_scanrange(i,2))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_TOT_NUMSCAN'//itext, len_itext=len_itext, par_int=cpar%ds_tod_tot_numscan(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, par_int=cpar%ds_tod_flag(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, par_string=cpar%ds_tod_instfile(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, par_string=cpar%ds_tod_dets(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, par_lgt=cpar%ds_tod_initHDF(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, par_string=cpar%ds_tod_bp_init(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_MAIN_PROCMASK'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_procmask1(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SMALL_PROCMASK'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_procmask2(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_filelist(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_START_SCANID'//itext, len_itext=len_itext, &
+                  & par_int=cpar%ds_tod_scanrange(i,1))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_END_SCANID'//itext, len_itext=len_itext, &
+                  & par_int=cpar%ds_tod_scanrange(i,2))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_TOT_NUMSCAN'//itext, len_itext=len_itext, &
+                  & par_int=cpar%ds_tod_tot_numscan(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_FLAG'//itext, len_itext=len_itext, &
+                  & par_int=cpar%ds_tod_flag(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_instfile(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_dets(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, &
+                  & par_lgt=cpar%ds_tod_initHDF(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_bp_init(i))
           end if
        end if
 
@@ -552,15 +567,17 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_CG_SAMPLE_GROUP'//itext, len_itext=len_itext, par_int=cpar%cs_cg_samp_group(i))
        if (.not. cpar%cs_include(i)) cpar%cs_cg_samp_group(i) = 0
        if (trim(cpar%cs_type(i)) == 'md') then
-          call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%cs_polarization(i))
-          call get_parameter_hashtable(htbl, 'COMP_MD_DEFINITION_FILE'//itext, len_itext=len_itext, par_string=cpar%cs_SED_template(1,i))
+          call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext, &
+               & par_lgt=cpar%cs_polarization(i))
+          call get_parameter_hashtable(htbl, 'COMP_MD_DEFINITION_FILE'//itext, len_itext=len_itext, &
+               & par_string=cpar%cs_SED_template(1,i))
        else if (trim(cpar%cs_type(i)) == 'template') then
           call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &
                & par_string=cpar%cs_SED_template(1,i))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%cs_polarization(i))
           if (cpar%cs_polarization(i)) &
-               & call get_parameter_hashtable(htbl, 'COMP_OUTPUT_EB_MAP'//itext, len_itext=len_itext,        par_lgt=cpar%cs_output_EB(i))
+               & call get_parameter_hashtable(htbl, 'COMP_OUTPUT_EB_MAP'//itext, len_itext=len_itext, par_lgt=cpar%cs_output_EB(i))
           call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext, len_itext=len_itext,        par_dp=cpar%cs_cg_scale(i))
           call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,           par_int=cpar%cs_nside(i))
           call get_parameter_hashtable(htbl, 'COMP_LMAX_AMP'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_amp(i))
@@ -576,19 +593,28 @@ contains
           call get_parameter_hashtable(htbl, 'COMP_OUTPUT_FWHM'//itext, len_itext=len_itext,     par_dp=cpar%cs_fwhm(i))
           if (trim(cpar%cs_cltype(i)) == 'binned') then
              call get_parameter_hashtable(htbl, 'COMP_CL_BIN_FILE'//itext, len_itext=len_itext,     par_string=cpar%cs_binfile(i))
-             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_FILE'//itext, len_itext=len_itext,     par_string=cpar%cs_clfile(i))
-          else if (trim(cpar%cs_cltype(i)) == 'power_law' .or. trim(cpar%cs_cltype(i)) == 'exp' .or. trim(cpar%cs_cltype(i))=='gauss') then
+             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_FILE'//itext, len_itext=len_itext, par_string=cpar%cs_clfile(i))
+          else if (trim(cpar%cs_cltype(i)) == 'power_law' .or. &
+               & trim(cpar%cs_cltype(i)) == 'exp' .or. trim(cpar%cs_cltype(i))=='gauss') then
              call get_parameter_hashtable(htbl, 'COMP_CL_POLTYPE'//itext, len_itext=len_itext,      par_int=cpar%cs_cl_poltype(i))
              call get_parameter_hashtable(htbl, 'COMP_CL_L_PIVOT'//itext, len_itext=len_itext,      par_int=cpar%cs_lpivot(i))
-             call get_parameter_hashtable(htbl, 'COMP_CL_BETA_PRIOR_MEAN'//itext, len_itext=len_itext, par_dp=cpar%cs_cl_prior(i,1))
-             call get_parameter_hashtable(htbl, 'COMP_CL_BETA_PRIOR_RMS'//itext, len_itext=len_itext, par_dp=cpar%cs_cl_prior(i,2))
-             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_T'//itext, len_itext=len_itext,  par_dp=cpar%cs_cl_amp_def(i,1))
-             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_T'//itext, len_itext=len_itext,  par_dp=cpar%cs_cl_beta_def(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_CL_BETA_PRIOR_MEAN'//itext, len_itext=len_itext, &
+                  & par_dp=cpar%cs_cl_prior(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_CL_BETA_PRIOR_RMS'//itext, len_itext=len_itext,&
+                  & par_dp=cpar%cs_cl_prior(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_T'//itext, len_itext=len_itext, &
+                  & par_dp=cpar%cs_cl_amp_def(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_T'//itext, len_itext=len_itext, &
+                  & par_dp=cpar%cs_cl_beta_def(i,1))
              if (cpar%cs_polarization(i)) then
-                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_E'//itext, len_itext=len_itext,  par_dp=cpar%cs_cl_amp_def(i,2))
-                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_E'//itext, len_itext=len_itext,  par_dp=cpar%cs_cl_beta_def(i,2))
-                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_B'//itext, len_itext=len_itext,  par_dp=cpar%cs_cl_amp_def(i,3))
-                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_B'//itext, len_itext=len_itext,  par_dp=cpar%cs_cl_beta_def(i,3))
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_E'//itext, len_itext=len_itext, &
+                     & par_dp=cpar%cs_cl_amp_def(i,2))
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_E'//itext, len_itext=len_itext,&
+                     & par_dp=cpar%cs_cl_beta_def(i,2))
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_B'//itext, len_itext=len_itext, &
+                     & par_dp=cpar%cs_cl_amp_def(i,3))
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_B'//itext, len_itext=len_itext, &  
+                & par_dp=cpar%cs_cl_beta_def(i,3))
              end if
              cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(i)**2
           end if
@@ -603,7 +629,8 @@ contains
           cpar%cs_indmask(i) = 'fullsky'
 
           if (cpar%resamp_CMB .and. trim(cpar%cs_type(i)) == 'cmb') then
-             call get_parameter_hashtable(htbl, 'COMP_DEFLATION_MASK'//itext, len_itext=len_itext,            par_string=cpar%cs_defmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_DEFLATION_MASK'//itext, len_itext=len_itext, &
+                  & par_string=cpar%cs_defmask(i))
           else
              cpar%cs_defmask(i) = 'fullsky'
           end if
@@ -650,11 +677,16 @@ contains
              call get_parameter_hashtable(htbl, 'COMP_SIL_AMP2_'//itext, len_itext=len_itext,  par_dp=cpar%cs_auxpar(5,i))
              call get_parameter_hashtable(htbl, 'COMP_CARB_AMP1_'//itext, len_itext=len_itext,  par_dp=cpar%cs_auxpar(6,i))
              call get_parameter_hashtable(htbl, 'COMP_CARB_AMP2_'//itext, len_itext=len_itext,  par_dp=cpar%cs_auxpar(7,i))
-             call get_parameter_hashtable(htbl, 'COMP_SIL_FILE1_'//itext, len_itext=len_itext,  par_string=cpar%cs_SED_template(1,i))
-             call get_parameter_hashtable(htbl, 'COMP_SIL_FILE2_'//itext, len_itext=len_itext,  par_string=cpar%cs_SED_template(2,i))
-             call get_parameter_hashtable(htbl, 'COMP_CARB_FILE1_'//itext, len_itext=len_itext,  par_string=cpar%cs_SED_template(3,i))
-             call get_parameter_hashtable(htbl, 'COMP_CARB_FILE2_'//itext, len_itext=len_itext,  par_string=cpar%cs_SED_template(4,i))
-             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_SIL_FILE1_'//itext, len_itext=len_itext,  &
+                  & par_string=cpar%cs_SED_template(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_SIL_FILE2_'//itext, len_itext=len_itext,  &
+                  & par_string=cpar%cs_SED_template(2,i))
+             call get_parameter_hashtable(htbl, 'COMP_CARB_FILE1_'//itext, len_itext=len_itext, &
+                  & par_string=cpar%cs_SED_template(3,i))
+             call get_parameter_hashtable(htbl, 'COMP_CARB_FILE2_'//itext, len_itext=len_itext, &
+                  & par_string=cpar%cs_SED_template(4,i))
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext, &
+                  & par_string=cpar%cs_indmask(i))
              write(*,*) 'ERROR -- smoothing not yet supported.'
              stop
           case ('spindust')
@@ -801,13 +833,17 @@ contains
           call get_parameter_hashtable(htbl, 'COMP_CATALOG'//itext, len_itext=len_itext,  par_string=cpar%cs_catalog(i))
           call get_parameter_hashtable(htbl, 'COMP_PTSRC_TEMPLATE'//itext, len_itext=len_itext,  &
                & par_string=cpar%cs_ptsrc_template(i))
-          call get_parameter_hashtable(htbl, 'COMP_BURN_IN_ON_FIRST_SAMPLE'//itext, len_itext=len_itext,  par_lgt=cpar%cs_burn_in(i))
-          call get_parameter_hashtable(htbl, 'COMP_AMP_RMS_SCALE_FACTOR'//itext, len_itext=len_itext,  par_dp=cpar%cs_amp_rms_scale(i))
+          call get_parameter_hashtable(htbl, 'COMP_BURN_IN_ON_FIRST_SAMPLE'//itext, &
+               & len_itext=len_itext,  par_lgt=cpar%cs_burn_in(i))
+          call get_parameter_hashtable(htbl, 'COMP_AMP_RMS_SCALE_FACTOR'//itext, len_itext=len_itext,  &
+               & par_dp=cpar%cs_amp_rms_scale(i))
           call get_parameter_hashtable(htbl, 'COMP_OUTPUT_PTSRC_TEMPLATE'//itext, len_itext=len_itext,  &
                & par_lgt=cpar%cs_output_ptsrc_beam(i))
-          call get_parameter_hashtable(htbl, 'COMP_APPLY_POSITIVITY_PRIOR'//itext, len_itext=len_itext, par_lgt=cpar%cs_apply_pos_prior(i))
+          call get_parameter_hashtable(htbl, 'COMP_APPLY_POSITIVITY_PRIOR'//itext, len_itext=len_itext, &
+               & par_lgt=cpar%cs_apply_pos_prior(i))
           if (cpar%cs_apply_pos_prior(i)) cpar%cs_cg_samp_group(i) = 0
-          call get_parameter_hashtable(htbl, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, len_itext=len_itext, par_dp=cpar%cs_min_src_dist(i))
+          call get_parameter_hashtable(htbl, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, &
+               & len_itext=len_itext, par_dp=cpar%cs_min_src_dist(i))
           call get_parameter_hashtable(htbl, 'COMP_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
           call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,    par_int=cpar%cs_nside(i))
           call get_parameter_hashtable(htbl, 'COMP_NU_REF'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_ref(i,1))
@@ -1110,6 +1146,7 @@ contains
        nl = 0
     end if
     intok = .false.
+    j     = 1
     do i = ext(2)+2, len(string)
        hit = .false.
        c = index(cl(1:ng), string(i:i))
@@ -1160,8 +1197,7 @@ contains
     type(comm_params), intent(inout) :: cpar
 
     integer(i4b) :: i, j
-    logical(lgt) :: exist
-    character(len=512) :: datadir, chaindir, filename
+    character(len=512) :: datadir, chaindir
 
     datadir  = trim(cpar%datadir) // '/'
     chaindir = trim(cpar%outdir) // '/'
@@ -1423,10 +1459,10 @@ contains
   end subroutine get_file_length
 
   ! A subroutine for debugging
-  subroutine print_ascii_parameter_file(paramfile_cache)
+  subroutine print_ascii_parameter_file  !(paramfile_cache)
     implicit none
-    character(len=512), allocatable, dimension(:), intent(in) :: paramfile_cache
-    integer(i4b)       :: i, unit
+    !character(len=512), allocatable, dimension(:), intent(in) :: paramfile_cache
+    integer(i4b)      :: unit
     character(len=32) :: paramfile_out
 
     unit = getlun()
@@ -1459,7 +1495,7 @@ contains
     end do
     return
 
-1   write(*,*) "Error: Cannot read ascii line:", i, "line = '" // trim(asciitbl(i)) // "'"
+    write(*,*) "Error: Cannot read ascii line:", i, "line = '" // trim(asciitbl(i)) // "'"
     stop
 
   end subroutine put_ascii_into_hashtable
@@ -1487,7 +1523,8 @@ contains
     if(found) then
        if(present(par_present)) par_present = .true.
     else
-       call get_parameter_from_hash(htbl, parname, len_itext, par_int, par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
+       call get_parameter_from_hash(htbl, parname, len_itext, par_int, &
+            & par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
     end if
   end subroutine get_parameter_hashtable
 

@@ -79,10 +79,10 @@ contains
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext, jtext
-    class(comm_mapinfo), pointer :: info
-    class(comm_N),       pointer :: tmp
-    class(comm_map),     pointer :: res
-    class(comm_comp),   pointer                    :: c
+    class(comm_mapinfo), pointer :: info => null()
+    class(comm_N),       pointer :: tmp  => null()
+    class(comm_map),     pointer :: res  => null()
+    class(comm_comp),    pointer :: c    => null()
     real(dp),          allocatable, dimension(:,:) :: m
 
     call wall_time(t1)
@@ -245,14 +245,14 @@ contains
           class is (comm_diffuse_comp)
              
              if (associated(c%x_smooth)) then
-                call c%x_smooth%dealloc(clean_info=.true.)
+                call c%x_smooth%dealloc()
                 nullify(c%x_smooth)
              end if
              do k =1, c%npar
                 if (k == j) cycle
                 if (allocated(c%theta_smooth)) then
                    if (associated(c%theta_smooth(k)%p)) then
-                      call c%theta_smooth(k)%p%dealloc(clean_info=.true.)
+                      call c%theta_smooth(k)%p%dealloc()
                    end if
                 end if
              end do
@@ -260,11 +260,12 @@ contains
              do i = 1, numband
                 if (.not. associated(rms_smooth(i)%p)) cycle
                 if (status_fit(i) == 2) then
-                   call res_smooth(i)%p%dealloc(clean_info=.true.)
+                   call res_smooth(i)%p%dealloc()
                 end if
                 nullify(res_smooth(i)%p)
              end do
 
+             smooth_scale = c%smooth_scale(j)
              if (cpar%num_smooth_scales > 0) then
                 if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
                    ! Smooth index map with a postprocessing beam
@@ -276,7 +277,7 @@ contains
                         & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(j)%p, &  
                         & data(1)%B_postproc(smooth_scale)%p%b_l,           c%theta_smooth(j)%p)
                    c%theta(j)%p%map = c%theta_smooth(j)%p%map
-                   call c%theta_smooth(j)%p%dealloc(clean_info=.true.)
+                   call c%theta_smooth(j)%p%dealloc()
                    deallocate(c%theta_smooth)
                 end if
              end if

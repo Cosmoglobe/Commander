@@ -9,7 +9,7 @@ module comm_F_line_mod
   public comm_F_line
 
   type, extends (comm_F_int) :: comm_F_line
-     class(comm_comp), pointer :: comp
+     class(comm_comp), pointer :: comp => null()
      logical(lgt) :: active
      real(dp)     :: f_precomp
      integer(i4b) :: ind

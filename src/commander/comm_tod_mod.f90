@@ -76,8 +76,8 @@ module comm_tod_mod
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
-     real(dp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
-     real(dp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi) 
+     real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
+     real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi) 
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
@@ -88,10 +88,10 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:)     :: horn_id  ! Internal horn number per detector
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
-     class(comm_map), pointer                          :: procmask ! Mask for gain and n_corr
-     class(comm_map), pointer                          :: procmask2 ! Mask for gain and n_corr
-     class(comm_mapinfo), pointer                      :: info     ! Map definition
-     class(comm_mapinfo), pointer                      :: slinfo   ! Sidelobe map info
+     class(comm_map), pointer                          :: procmask => null() ! Mask for gain and n_corr
+     class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
+     class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
+     class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
@@ -151,8 +151,9 @@ contains
     class(comm_tod),                intent(inout)  :: self
     character(len=*), dimension(:), intent(in)     :: detlabels
 
-    integer(i4b) :: i, j, n, det, ierr, npsi, nside, ndet_tot
-    real(dp)     :: t1, t2, psi, fsamp
+    integer(i4b) :: i, j, n, det, ierr, ndet_tot
+    real(dp)     :: t1, t2
+    real(sp)     :: psi
     type(hdf_file)     :: file
 
     integer(i4b), dimension(:), allocatable       :: ns   
@@ -216,7 +217,7 @@ contains
     call wall_time(t1)
     allocate(self%scans(self%nscan))
     do i = 1, self%nscan
-       call read_hdf_scan(self%scans(i), self%myid, self%hdfname(i), self%scanid(i), self%ndet, &
+       call read_hdf_scan(self%scans(i), self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels)
        do det = 1, self%ndet
           self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
@@ -259,10 +260,10 @@ contains
     allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
     allocate(self%psi(self%npsi))
     do i = 1, self%npsi
-       psi             = (i-0.5d0)*2.d0*pi/real(self%npsi,dp)
+       psi             = (i-0.5)*2.0*pi/real(self%npsi,sp)
        self%psi(i)     = psi
-       self%sin2psi(i) = sin(2.d0*psi)
-       self%cos2psi(i) = cos(2.d0*psi)
+       self%sin2psi(i) = sin(2.0*psi)
+       self%cos2psi(i) = cos(2.0*psi)
     end do
 
     call mpi_barrier(self%comm, ierr)
@@ -273,24 +274,20 @@ contains
 
   end subroutine read_tod
 
-  subroutine read_hdf_scan(self, myid, filename, scan, ndet, detlabels)
+  subroutine read_hdf_scan(self, filename, scan, ndet, detlabels)
     implicit none
-    integer(i4b),                   intent(in)    :: myid
+    class(comm_scan),               intent(inout) :: self
     character(len=*),               intent(in)    :: filename
     integer(i4b),                   intent(in)    :: scan, ndet
-    class(comm_scan),               intent(inout) :: self
     character(len=*), dimension(:), intent(in)     :: detlabels
 
-    integer(i4b)       :: i, j, k, n, m, nhorn, ext(1), ierr
-    real(dp)           :: psi, t1, t2, t3, t4, t_tot(6), scalars(4)
+    integer(i4b)       :: i, n, m, ext(1)
+    real(dp)           :: t1, t2, t3, t4, t_tot(6), scalars(4)
     character(len=6)   :: slabel
-    character(len=32)   :: out
-    character(len=8)   :: out2
     character(len=128) :: field
-    integer(hid_t)     :: nfield, err, obj_type
     type(hdf_file)     :: file
     integer(i4b), allocatable, dimension(:)       :: hsymb
-    real(dp),     allocatable, dimension(:)       :: buffer_sp
+    real(sp),     allocatable, dimension(:)       :: buffer_sp
     integer(i4b), allocatable, dimension(:)       :: htree
 
     call wall_time(t3)
@@ -380,7 +377,7 @@ contains
     class(comm_tod),   intent(inout) :: self    
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, n_tot, ierr
+    integer(i4b)       :: unit, j, np, ind(1), i, n, n_tot, ierr
     real(dp),           allocatable, dimension(:) :: weight
     integer(i4b),       allocatable, dimension(:) :: scanid, id
     integer(i4b),       allocatable, dimension(:) :: proc
@@ -622,7 +619,7 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filename
 
-    integer(i4b) :: i, j, k, ndet, npar, n, unit, par
+    integer(i4b) :: j, k, ndet, npar, unit, par
     real(dp)     :: val
     character(len=16)   :: label, det1, det2
     character(len=1024) :: line
@@ -683,11 +680,10 @@ contains
 
 
   !construct a sidelobe template in the time domain
-  subroutine construct_sl_template(self, slconv, scan_id, nside, pix, psi, s_sl, polangle)
+  subroutine construct_sl_template(self, slconv, pix, psi, s_sl, polangle)
     implicit none
     class(comm_tod),                     intent(in)    :: self
     class(comm_conviqt),                 intent(in)    :: slconv
-    integer(i4b),                        intent(in)    :: scan_id, nside
     integer(i4b),        dimension(:),   intent(in)    :: pix, psi
     real(dp),                            intent(in)   :: polangle
     real(sp),            dimension(:),   intent(out)   :: s_sl
@@ -749,10 +745,10 @@ contains
     integer(i4b),                        intent(in)     :: scan
     real(sp),          dimension(:,:),   intent(inout)     :: buffer !input/output
     real(dp),                            intent(in), optional :: sampfreq
-    integer(i4b) :: i, j, k, l, n, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: i, j, l, n, nomp, ntod, ndet, err, omp_get_max_threads
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
-    real(dp)     :: nu
+    real(sp)     :: nu
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     
@@ -794,13 +790,13 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        if (present(sampfreq)) then
-          samprate = sampfreq
+          samprate = real(sampfreq,sp)
        else
-          samprate = self%samprate
+          samprate = real(self%samprate,sp)
        end if
-       sigma_0  = self%scans(scan)%d(i)%sigma0
-       alpha    = self%scans(scan)%d(i)%alpha
-       nu_knee  = self%scans(scan)%d(i)%fknee
+       sigma_0  = real(self%scans(scan)%d(i)%sigma0,sp)
+       alpha    = real(self%scans(scan)%d(i)%alpha,sp)
+       nu_knee  = real(self%scans(scan)%d(i)%fknee,sp)
        !noise    = 2.0 * ntod * sigma_0 ** 2
        noise    = sigma_0 ** 2
 
@@ -817,7 +813,7 @@ contains
           do l = 1, n-1                                                      
              nu = l*(samprate/2)/(n-1)
              signal = noise * (nu/(nu_knee))**(alpha)
-             dv(l) = dv(l) * 1.d0/(noise + signal)   
+             dv(l)  = dv(l) * 1.0/(noise + signal)   
           end do
           call sfftw_execute_dft_c2r(plan_back, dv, dt)
           dt          = dt / (2*ntod)
@@ -851,7 +847,7 @@ contains
     real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
     real(sp), dimension(:),             intent(in),  optional :: mask
  
-    integer(i4b) :: i, j, k, l, n, step, nomp, ntod, ndet, err, w, npad
+    integer(i4b) :: i, j, k, n, step, ntod, w, npad
 
     ntod = size(tod_in)
     npad = 5

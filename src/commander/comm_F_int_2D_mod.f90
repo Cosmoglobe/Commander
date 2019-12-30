@@ -10,7 +10,7 @@ module comm_F_int_2D_mod
   public comm_F_int_2D
 
   type, extends (comm_F_int) :: comm_F_int_2D
-     class(comm_comp), pointer :: comp
+     class(comm_comp), pointer :: comp => null()
      real(dp), allocatable, dimension(:)       :: x, y
      real(dp), allocatable, dimension(:,:,:,:) :: coeff
    contains

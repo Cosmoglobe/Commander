@@ -79,7 +79,7 @@ contains
     class(comm_mapinfo),     target     :: info
     class(comm_LFI_tod),     pointer    :: constructor
 
-    integer(i4b) :: i, j, k, l, m, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
     type(hdf_file) :: h5_file
@@ -304,40 +304,34 @@ contains
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
 
-    integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
-    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ns, ext(2)
-    integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, scanfile, ncol, n_A, nout
-    real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold, delta_temp, chisq_tot
-    real(dp)     :: t_tot(22), gain, inv_gain
+    integer(i4b) :: i, j, k, start_chunk, end_chunk, chunk_size, ntod, ndet
+    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2)
+    integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
+    real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold
+    real(dp)     :: t_tot(22)
+    real(sp)     :: inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
     real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
     real(sp),     allocatable, dimension(:,:)     :: s_invN, s_lowres
     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
-    real(sp),     allocatable, dimension(:,:,:)   :: temp_buffer
-    real(dp),     allocatable, dimension(:,:,:,:) :: map_sky
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
     real(dp),     allocatable, dimension(:,:)     :: chisq_S
     real(dp),     allocatable, dimension(:,:)     :: A_map
-    integer(i4b), allocatable, dimension(:,:)     :: nhit
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
-    integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag, pind
+    integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
     logical(lgt)       :: correct_sl
-    character(len=512) :: prefix, postfix, Sfilename, prefix4D, filename
+    character(len=512) :: prefix, postfix, prefix4D, filename
+    character(len=2048) :: Sfilename
     character(len=4)   :: ctext
     character(len=6)   :: samptext, scantext
     character(len=512), allocatable, dimension(:) :: slist
-    character(len=8)   :: id, stext
-    character(len=1)   :: did
-    character(len=5)   :: istr
     type(shared_1d_int) :: sprocmask, sprocmask2
-    type(shared_2d_int) :: detmask
     type(shared_2d_sp), allocatable, dimension(:,:) :: smap_sky
     type(shared_2d_dp) :: sA_map
     type(shared_3d_dp) :: sb_map, sb_mono
-    class(comm_map), pointer :: map_sl, map_sl2, condmap, map_fake
+    class(comm_map), pointer :: condmap 
     class(map_ptr), allocatable, dimension(:) :: outmaps
-    class(comm_mapinfo), pointer :: info_sl2, info_sl_map, fake_mapinfo
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -685,9 +679,12 @@ contains
           if (do_oper(sub_sl)) then
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                call self%construct_sl_template(self%slconv(j)%p, i, &
-                     & nside, pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
-                s_sl(:,j) = 2.d0 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
+!!$                call self%construct_sl_template(self%slconv(j)%p, i, &
+!!$                     & nside, pix(:,j), psi(:,j), s_sl(:,j), &
+!!$                     & self%mbang(j)+self%polang(j))
+                call self%construct_sl_template(self%slconv(j)%p, &
+                     & pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
+                s_sl(:,j) = 2 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
                 !if (sum(abs(s_sl)) > 1.d30) s_sl = 0.
                 !If (self%myid == 0) write(*,*) j, sum(abs(s_sl(:,j)))
              end do
@@ -751,11 +748,12 @@ contains
                 if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    !write(*,*) self%gain0(0), self%gain0(j), self%scans(i)%d(j)%dgain, sum(abs(s_tot)), sum(abs(s_orb))
-                   s_buf(:, j) = self%gain0(0) * (s_tot(:, j) - s_orb(:, j)) + (self%gain0(j) + self%scans(i)%d(j)%dgain) * s_tot(:, j)
+                   s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
+                        & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
 
                 else if (do_oper(samp_rcal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
-                   s_buf(:,j) = (self%gain0(0) + self%scans(i)%d(j)%dgain) * s_tot(:, j)
+                   s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
                 call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_lowres(:,j), s_invN(:, j), A_abscal(j), b_abscal(j))
 
@@ -873,7 +871,7 @@ contains
              allocate(d_calib(nout,ntod, ndet)) 
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                inv_gain = 1.d0 / self%scans(i)%d(j)%gain
+                inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
                 !if (j==1) write(*,*) 'c', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod*inv_gain
                 d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
                      & inv_gain - s_tot(:,j) + s_sky(:,j) - s_bp(:,j)
@@ -910,7 +908,8 @@ contains
                 call int2string(self%scanid(i), scantext)
                 do k = 1, self%ndet
                    open(78,file='tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
-                   write(78,*) "# Sample     Data (V)     Mask    cal_TOD (K)   res (K)   n_corr (K)   s_corr (K)   s_mono (K)   s_orb  (K)   s_sl (K)"
+                   write(78,*) "# Sample     Data (V)     Mask    cal_TOD (K)   res (K)"// &
+                        & "   n_corr (K)   s_corr (K)   s_mono (K)   s_orb  (K)   s_sl (K)"
                    do j = 1, ntod
                       write(78,*) j, self%scans(i)%d(k)%tod(j), mask(j,1), d_calib(:,j,1)
                    end do
@@ -1206,9 +1205,6 @@ contains
     integer(i4b),                       intent(in)  :: scan, det
     integer(i4b),        dimension(:),  intent(out) :: pix, psi, flag
 
-    integer(i4b) :: i, j
-    character(len=6) :: stext, dtext
-
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, imod=self%npsi-1)
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
@@ -1250,7 +1246,7 @@ contains
     real(sp),            dimension(:,:),    intent(out) :: s_sky, tmask
     real(sp),            dimension(:,:),    intent(out), optional :: s_bp
 
-    integer(i4b) :: i, ierr,det
+    integer(i4b) :: i, det
     real(sp)     :: s
 
     ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
@@ -1289,9 +1285,10 @@ contains
     integer(i4b),                        intent(in)  :: ind !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix
     real(sp),            dimension(:,:), intent(out) :: s_orb
-    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot
-    real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
-    integer(i4b)         :: i,j
+    real(dp)             :: b_dot
+    integer(i4b)         :: i, j
+    !real(dp)             :: x, T_0, q, pix_dir(3), b
+    !real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
 
     !T_0 = T_CMB*k_b/h !T_0 = T_CMB frequency
     !x = freq * 1.d9 / (2.d0*T_0) !freq is the center bandpass frequancy of the detector
@@ -1302,7 +1299,7 @@ contains
        if (.not. self%scans(ind)%d(i)%accept) cycle
        do j=1,self%scans(ind)%ntod !length of the tod
           b_dot = dot_product(self%scans(ind)%v_sun, self%pix2vec(:,pix(j,i)))/c
-          s_orb(j,i) = T_CMB  * b_dot !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
+          s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
@@ -1320,16 +1317,16 @@ contains
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
     real(sp),          dimension(:,:), intent(out)    :: n_corr
-    integer(i4b) :: i, j, k, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
-    integer(i4b) :: meanrange, start, last, nfft, nbuff
+    integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: meanrange, start, last  !, nfft, nbuff
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: recompute, use_binned_psd
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, noise, signal
-    real(dp)     :: A(2,2), b(2), x(2)
+    !real(dp)     :: A(2,2), b(2), x(2)
     real(dp)     :: nu, power
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime, diff
+    real(sp),     allocatable, dimension(:) :: d_prime
     
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
@@ -1482,14 +1479,14 @@ contains
              !      +  noise * sqrt(signal) * rand_gauss(handle))& 
              !      * 1.d0/(signal + noise)
              dv(l) = (dv(l) + sqrt(noise) &
-                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.d0) &
+                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
                   + noise * sqrt(1.0 / signal) &
-                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.d0))& 
+                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0))& 
                   * 1.d0/(1.d0 + noise / signal)
           else
              !dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
              !dv(l) = dv(l) * signal/(signal + noise)
-             dv(l) = dv(l) * 1.d0/(1.d0 + noise/signal)
+             dv(l) = dv(l) * 1.0/(1.0 + noise/signal)
           end if
           ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(66,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), nfft*1.d0
        end do
@@ -1561,13 +1558,12 @@ contains
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
    subroutine calculate_gain_mean_std_per_scan(self, scan_id, det, s_invN, mask, s_ref, s_tot)
     implicit none
-    class(comm_LFI_tod),               intent(inout)  :: self
-      real(sp),             dimension(:), intent(in)    :: s_invN, mask, s_ref, s_tot
-      integer(i4b),                       intent(in)    :: scan_id, det
-      real(sp), allocatable, dimension(:)           :: residual
-      real(sp) :: g_old
+    class(comm_LFI_tod),                intent(inout) :: self
+    real(sp),             dimension(:), intent(in)    :: s_invN, mask, s_ref, s_tot
+    integer(i4b),                       intent(in)    :: scan_id, det
 
-      integer(i4b) :: i, p, q, ext(2)
+    real(sp), allocatable, dimension(:) :: residual
+    integer(i4b) :: ext(2)
 
 !    allocate(residual(size(stot_invN)))
       !g_old = self%scans(scan_id)%d(det)%gain 
@@ -1618,8 +1614,8 @@ contains
     type(planck_rng),                  intent(inout)  :: handle
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
-    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, b1, b2, n, ntot
-    integer(i4b) :: nbin, currstart, currend
+    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr
+    integer(i4b) :: currstart, currend
     real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot
     real(dp), allocatable, dimension(:)     :: lhs, rhs
     real(dp), allocatable, dimension(:,:,:) :: g
@@ -1753,8 +1749,8 @@ contains
     real(dp),                        intent(inout)  :: A_abs, b_abs
 
     real(sp), allocatable, dimension(:)     :: residual
-    real(dp)     ::  A, b
-    integer(i4b) :: i, p, q, ext(2)
+    real(dp)     :: A, b
+    integer(i4b) :: ext(2)
 
 !    p = 5000 ! Buffer width
 !    q = size(mask)-p
@@ -1981,7 +1977,7 @@ contains
     
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime, diff
+    real(sp),     allocatable, dimension(:) :: d_prime
     real(dp),     allocatable, dimension(:) :: log_nu_bin_edges, psd, nu_sum
     integer(i4b), allocatable, dimension(:) :: n_modes
     
@@ -2165,7 +2161,7 @@ contains
     real(dp),            dimension(1:,1:,1:),    intent(inout), optional :: b_mono
     logical(lgt),                             intent(in)    :: comp_S
 
-    integer(i4b) :: det, i, j, t, pix_, off, nout, psi_
+    integer(i4b) :: det, i, t, pix_, off, nout, psi_
     real(dp)     :: inv_sigmasq
 
     nout        = size(b,dim=1)
@@ -2232,14 +2228,14 @@ contains
     real(dp),        dimension(1:,1:,0:), intent(out),   optional :: sys_mono
     class(comm_map),                      intent(inout), optional :: condmap
 
-    integer(i4b) :: i, j, k, l, nmaps, np, ierr, ndet, ncol, n_A, off, ndelta
+    integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
     integer(i4b) :: det, nout, np0, comm, myid, nprocs
     real(dp), allocatable, dimension(:,:)   :: A_inv
     real(dp), allocatable, dimension(:,:,:) :: b_tot
     real(dp), allocatable, dimension(:)     :: W, eta
     real(dp), allocatable, dimension(:,:)   :: A_tot
-    class(comm_mapinfo), pointer :: info
-    class(comm_map), pointer :: smap
+    class(comm_mapinfo), pointer :: info 
+    class(comm_map), pointer :: smap 
 
     myid  = self%myid
     nprocs= self%numprocs
@@ -2261,21 +2257,27 @@ contains
     call update_status(status, "tod_final1")
     call mpi_win_fence(0, sA_map%win, ierr)
     if (sA_map%myid_shared == 0) then
-       call mpi_allreduce(MPI_IN_PLACE, sA_map%a, size(sA_map%a), &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
+       call mpi_allreduce_buffer(MPI_SUM, 2, sA_map%comm_inter, ierr, .true., &
+            & out_dp_2d=sA_map%a)
+       !call mpi_allreduce(MPI_IN_PLACE, sA_map%a, size(sA_map%a), &
+       !     & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
     end if
     call mpi_win_fence(0, sA_map%win, ierr)
     call mpi_win_fence(0, sb_map%win, ierr)
     if (sb_map%myid_shared == 0) then
-       call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
+       call mpi_allreduce_buffer(MPI_SUM, 3, sb_map%comm_inter, ierr, .true., &
+            & out_dp_3d=sb_map%a)
+       !call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
+       !     & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
     end if
     call mpi_win_fence(0, sb_map%win, ierr)
     if (present(sb_mono)) then
        call mpi_win_fence(0, sb_mono%win, ierr)
        if (sb_mono%myid_shared == 0) then
-          call mpi_allreduce(MPI_IN_PLACE, sb_mono%a, size(sb_mono%a), &
-               & MPI_DOUBLE_PRECISION, MPI_SUM, sb_mono%comm_inter, ierr)
+          call mpi_allreduce_buffer(MPI_SUM, 2, sb_mono%comm_inter, ierr, .true., &
+               & out_dp_3d=sb_mono%a)
+          !call mpi_allreduce(MPI_IN_PLACE, sb_mono%a, size(sb_mono%a), &
+          !     & MPI_DOUBLE_PRECISION, MPI_SUM, sb_mono%comm_inter, ierr)
        end if
        call mpi_win_fence(0, sb_mono%win, ierr)
     end if
@@ -2354,8 +2356,8 @@ contains
           call get_eigenvalues(A_inv,W)
           if (minval(W) < 0.d0) then
 !             if (maxval(W) == 0.d0 .or. minval(W) == 0.d0) then
-                write(*, *), 'A_inv: ', A_inv
-                write(*, *), 'W', W
+                write(*,*) 'A_inv: ', A_inv
+                write(*,*) 'W', W
 !             end if
           end if
           if (minval(W) > 0) then
@@ -2492,9 +2494,9 @@ contains
     type(planck_rng),                         intent(inout)  :: handle
     real(dp),            dimension(1:,1:),    intent(in)     :: chisq_S
 
-    integer(i4b) :: i, j, k, ierr, ndelta, current
+    integer(i4b) :: i, k, ierr, ndelta, current
     logical(lgt) :: accept
-    real(dp)     :: chisq_prop, chisq_curr, cp, cc, accept_rate, diff
+    real(dp)     :: cp, cc, accept_rate, diff
 
     if (self%myid == 0) then
        ndelta  = size(chisq_S,2)

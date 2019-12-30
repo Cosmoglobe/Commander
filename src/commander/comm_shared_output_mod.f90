@@ -75,7 +75,6 @@ contains
   subroutine close_shared_ofile(ofile)
     implicit none
     type(shared_ofile) :: ofile
-    integer(i4b)       :: ierr
     call flush_shared_ofile(ofile)
   end subroutine
 

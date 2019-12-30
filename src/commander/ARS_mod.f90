@@ -31,11 +31,13 @@ contains
        end function lnL
     end interface
 
-    integer(i4b) :: i, j, k, n, iter, stat
+    integer(i4b) :: i, k, n, stat
     real(dp)     :: p(2), x_new, y_new, y_old, h_old, h, u, a
     real(dp), dimension(MAX_ARS_TRIES) :: x_n
     real(dp), dimension(MAX_ARS_TRIES) :: S_n
     real(dp), allocatable, dimension(:) :: xv, yv
+
+    sample_ARS = 1.d30
 
     if (present(prior)) then
        p = prior
@@ -170,7 +172,7 @@ contains
     integer(i4b),                            intent(inout) :: stat
 
     integer(i4b) :: i, m
-    real(dp)     :: xrange(2), a0, a1, b0, b1
+    real(dp)     :: a0, a1, b0, b1
 
 !    write(*,*) 'x = ', real(x(1:n),sp)
 
@@ -266,6 +268,7 @@ contains
     m       = 2*n+1
     if (x < xv(1) .or. x > xv(m)) then
        write(*,*) 'ARS_mod -- x out of prior range; x = ', real(x,sp)
+       envelope_function = 1.d30
        stat = stat+1
        return
        !stop
@@ -330,6 +333,7 @@ contains
     if (any(cdf > 1.d100)) then
        write(*,*) 'ARS_mod -- CDF is invalid; integrates to infinity'
        stat = stat+1
+       sample_piecewise_exponential = 1.d30
        deallocate(s, cdf)
        return
        !write(*,*) 'ARS_mod -- CDF is invalid; integrates to infinity'
@@ -355,6 +359,7 @@ contains
 !!$       end do
 
        stat = stat+1
+       sample_piecewise_exponential = 1.d30
        deallocate(s, cdf)
        return
     end if
@@ -381,6 +386,7 @@ contains
        if (f < -1.d0) then
           write(*,*) 'ARS_mod -- error: f < -1.d0'
           stat = stat+1
+          sample_piecewise_exponential = 1.d30
           deallocate(s, cdf)
           return
           !write(*,*) 'ARS_mod -- error: f < -1.d0'
