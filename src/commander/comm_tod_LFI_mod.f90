@@ -889,6 +889,7 @@ contains
              call wall_time(t1)
              allocate(d_calib(nout,ntod, ndet)) 
              do j = 1, ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
                 inv_gain = 1.d0 / self%scans(i)%d(j)%gain
                 !if (j==1) write(*,*) 'c', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod*inv_gain
                 d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
