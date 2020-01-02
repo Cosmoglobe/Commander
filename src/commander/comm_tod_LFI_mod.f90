@@ -95,7 +95,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_n_maps = 7
+    constructor%output_n_maps = 2
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -333,6 +333,7 @@ contains
     class(comm_map), pointer :: condmap 
     class(map_ptr), allocatable, dimension(:) :: outmaps
 
+    if (iter > 1) self%first_call = .false.
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
 
@@ -786,7 +787,11 @@ contains
           ! Fit correlated noise
           if (do_oper(samp_N)) then
              call wall_time(t1)
-             call self%sample_n_corr(handle, i, mask, s_tot-s_mono, n_corr)
+             do j = 1, ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
+                s_buf(:,j) = s_tot(:,j)-s_mono(:,j)
+             end do
+             call self%sample_n_corr(handle, i, mask, s_buf, n_corr)
              !if (do_oper(bin_map)) write(*,*) 'b', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod/self%scans(i)%d(1)%gain
              call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
@@ -1257,6 +1262,11 @@ contains
           s_sky(i,det) = map(det)%a(1,pix(i,det)+1) + &
                        & map(det)%a(2,pix(i,det)+1) * self%cos2psi(psi(i,det)) + &
                        & map(det)%a(3,pix(i,det)+1) * self%sin2psi(psi(i,det))
+!          if (s_sky(i,det) /= s_sky(i,det)) then
+!             write(*,*) det, i, map(det)%a(:,pix(i,det)+1), self%cos2psi(psi(i,det)), self%sin2psi(psi(i,det))
+!             stop
+!          end if
+
           tmask(i,det) = pmask(pix(i,det)) 
           if (iand(flag(i,det),self%flag0) .ne. 0) tmask(i,det) = 0.
        end do
@@ -1453,6 +1463,7 @@ contains
 !!$          end if
           if ((use_binned_psd) .and. &
                & (allocated(self%scans(scan)%d(i)%log_n_psd))) then
+             if (nu <= 0) write(*,*) 'a', l, nu
              power = splint(self%scans(scan)%d(i)%log_nu, &
                   self%scans(scan)%d(i)%log_n_psd, &
                   self%scans(scan)%d(i)%log_n_psd2, &
@@ -1465,7 +1476,8 @@ contains
        !      write(*,*) signal, noise * (nu/(nu_knee))**(alpha), nu, noise, sigma_0
           else
              !noise = 0.0113d0
-             signal = noise * (nu/(nu_knee))**(alpha)
+             if (nu_knee <= 0) write(*,*) 'b', l, nu_knee
+             signal = noise * (nu/nu_knee)**(alpha)
           end if
           ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(65,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), ntod*1.d0
           if (signal <= 0.d0) then
@@ -1478,6 +1490,7 @@ contains
              ! dv(l) = (signal * dv(l) + signal * sqrt(noise) * rand_gauss(handle)  &
              !      +  noise * sqrt(signal) * rand_gauss(handle))& 
              !      * 1.d0/(signal + noise)
+             if (signal <= 0) write(*,*) 'c', l, signal
              dv(l) = (dv(l) + sqrt(noise) &
                   * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
                   + noise * sqrt(1.0 / signal) &
@@ -1486,6 +1499,7 @@ contains
           else
              !dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
              !dv(l) = dv(l) * signal/(signal + noise)
+             if (signal <= 0) write(*,*) 'd', l, signal
              dv(l) = dv(l) * 1.0/(1.0 + noise/signal)
           end if
           ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(66,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), nfft*1.d0
@@ -1493,6 +1507,7 @@ contains
        ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(65)
        ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(66)
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
+       if (ntod < 0) write(*,*) 'e', ntod
        dt          = dt / (2*ntod)
        !dt          = dt / nfft
        n_corr(:,i) = dt(1:ntod) 
@@ -2257,27 +2272,27 @@ contains
     call update_status(status, "tod_final1")
     call mpi_win_fence(0, sA_map%win, ierr)
     if (sA_map%myid_shared == 0) then
-       call mpi_allreduce_buffer(MPI_SUM, 2, sA_map%comm_inter, ierr, .true., &
-            & out_dp_2d=sA_map%a)
-       !call mpi_allreduce(MPI_IN_PLACE, sA_map%a, size(sA_map%a), &
-       !     & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
+       !call mpi_allreduce_buffer(MPI_SUM, 2, sA_map%comm_inter, ierr, .true., &
+       !     & out_dp_2d=sA_map%a)
+       call mpi_allreduce(MPI_IN_PLACE, sA_map%a, size(sA_map%a), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
     end if
     call mpi_win_fence(0, sA_map%win, ierr)
     call mpi_win_fence(0, sb_map%win, ierr)
     if (sb_map%myid_shared == 0) then
-       call mpi_allreduce_buffer(MPI_SUM, 3, sb_map%comm_inter, ierr, .true., &
-            & out_dp_3d=sb_map%a)
-       !call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
-       !     & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
+       !call mpi_allreduce_buffer(MPI_SUM, 3, sb_map%comm_inter, ierr, .true., &
+       !     & out_dp_3d=sb_map%a)
+       call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
     end if
     call mpi_win_fence(0, sb_map%win, ierr)
     if (present(sb_mono)) then
        call mpi_win_fence(0, sb_mono%win, ierr)
        if (sb_mono%myid_shared == 0) then
-          call mpi_allreduce_buffer(MPI_SUM, 2, sb_mono%comm_inter, ierr, .true., &
-               & out_dp_3d=sb_mono%a)
-          !call mpi_allreduce(MPI_IN_PLACE, sb_mono%a, size(sb_mono%a), &
-          !     & MPI_DOUBLE_PRECISION, MPI_SUM, sb_mono%comm_inter, ierr)
+          !call mpi_allreduce_buffer(MPI_SUM, 2, sb_mono%comm_inter, ierr, .true., &
+          !     & out_dp_3d=sb_mono%a)
+          call mpi_allreduce(MPI_IN_PLACE, sb_mono%a, size(sb_mono%a), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, sb_mono%comm_inter, ierr)
        end if
        call mpi_win_fence(0, sb_mono%win, ierr)
     end if
@@ -2378,13 +2393,22 @@ contains
        if (present(sb_mono)) sys_mono(1:nmaps,1:nmaps,i) = A_inv(1:nmaps,1:nmaps)
        if (present(Sfile)) then
           do j = 1, ndet-1
-             smap%map(i,j) = b_tot(1,nmaps+j,i) / sqrt(A_inv(nmaps+j,nmaps+j))
+             if (A_inv(nmaps+j,nmaps+j) > 0.d0) then
+!!$                write(*,*) i, np0
+!!$                write(*,*) 'A_inv = ', A_inv(nmaps+j,nmaps+j), j
+!!$                write(*,*) 'b_tot = ', b_tot(:,:,i)
+!!$                write(*,*) 'A_tot = ', A_tot(:,i)
+!!$             end if
+                smap%map(i,j) = b_tot(1,nmaps+j,i) / sqrt(A_inv(nmaps+j,nmaps+j))
+             else
+                smap%map(i,j) = 0.d0
+             end if
           end do
        end if
        if (present(chisq_S)) then
           if (mask(self%info%pix(i+1)) == 0) cycle
           do j = 1, ndet-1
-             if (A_inv(nmaps+j,nmaps+j) == 0.d0) cycle
+             if (A_inv(nmaps+j,nmaps+j) <= 0.d0) cycle
              do k = 1, ndelta
                 chisq_S(j,k) = chisq_S(j,k) + b_tot(k,nmaps+j,i)**2 / A_inv(nmaps+j,nmaps+j)
              end do
