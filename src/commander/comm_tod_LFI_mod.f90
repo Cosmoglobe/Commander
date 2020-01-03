@@ -503,7 +503,7 @@ contains
        !do_oper(samp_N_par)    = .false.
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
-       do_oper(output_slist) = mod(iter, 10) == 0
+       do_oper(output_slist) = mod(iter, 100) == 0
        !do_oper = .false.
 
        ! Perform pre-loop operations
@@ -1506,6 +1506,14 @@ contains
        end do
        ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(65)
        ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(66)
+       if (maxval(abs(dv)) > 1.d30) then
+          write(*,*) self%scanid(scan), i, maxval(abs(dv))
+          open(58,file='dv.dat')
+          do l = 0, n-1
+             write(58,*) l, dv(l)
+          end do
+          close(58)
+       end if
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        if (ntod < 0) write(*,*) 'e', ntod
        dt          = dt / (2*ntod)
@@ -1670,7 +1678,7 @@ contains
             !if (g(k, j, 2) <= 0.d0) cycle
             sum_inv_sigma_squared = max(g(k, j, 2),0.d0)
             sum_weighted_gain     = g(k, j, 1) !/ g(k, j, 2)
-            do while (sqrt(sum_inv_sigma_squared) < 1000. .and. k < nscan_tot)
+            do while (sqrt(sum_inv_sigma_squared) < 10000. .and. k < nscan_tot)
                k = k + 1
                sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
                sum_inv_sigma_squared = sum_inv_sigma_squared + max(g(k, j, 2),0.d0)
