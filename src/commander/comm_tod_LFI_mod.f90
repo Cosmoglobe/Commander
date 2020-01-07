@@ -48,11 +48,11 @@ module comm_tod_LFI_mod
      procedure     :: compute_orbital_dipole
      procedure     :: calculate_gain_mean_std_per_scan
      procedure     :: sample_smooth_gain
-     procedure     :: sample_n_corr
      procedure     :: sample_bp
 !     procedure     :: compute_cleaned_tod
+     ! procedure     :: sample_n_corr
+     ! procedure     :: sample_noise_psd
      procedure     :: compute_chisq
-     procedure     :: sample_noise_psd
      procedure     :: decompress_pointing_and_flags
      procedure     :: accumulate_abscal
      procedure     :: sample_abscal_from_orbital
@@ -1308,245 +1308,245 @@ contains
 
   end subroutine compute_orbital_dipole
 
-  ! Compute correlated noise term, n_corr
-  ! TODO: Add fluctuation if operation == sample
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
-    implicit none
-    class(comm_LFI_tod),               intent(in)     :: self
-    type(planck_rng),                  intent(inout)  :: handle
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
-    real(sp),          dimension(:,:), intent(out)    :: n_corr
-    integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
-    integer(i4b) :: meanrange, start, last  !, nfft, nbuff
-    integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: recompute, use_binned_psd
-    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, noise, signal
-    !real(dp)     :: A(2,2), b(2), x(2)
-    real(dp)     :: nu, power
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime
+!   ! Compute correlated noise term, n_corr
+!   ! TODO: Add fluctuation if operation == sample
+!   subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
+!     implicit none
+!     class(comm_LFI_tod),               intent(in)     :: self
+!     type(planck_rng),                  intent(inout)  :: handle
+!     integer(i4b),                      intent(in)     :: scan
+!     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
+!     real(sp),          dimension(:,:), intent(out)    :: n_corr
+!     integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
+!     integer(i4b) :: meanrange, start, last  !, nfft, nbuff
+!     integer*8    :: plan_fwd, plan_back
+!     logical(lgt) :: recompute, use_binned_psd
+!     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, noise, signal
+!     !real(dp)     :: A(2,2), b(2), x(2)
+!     real(dp)     :: nu, power
+!     real(sp),     allocatable, dimension(:) :: dt
+!     complex(spc), allocatable, dimension(:) :: dv
+!     real(sp),     allocatable, dimension(:) :: d_prime
     
-    ntod = self%scans(scan)%ntod
-    ndet = self%ndet
-    nomp = omp_get_max_threads()
+!     ntod = self%scans(scan)%ntod
+!     ndet = self%ndet
+!     nomp = omp_get_max_threads()
     
-    use_binned_psd = .false. !.true.
-    meanrange = 40
+!     use_binned_psd = .false. !.true.
+!     meanrange = 40
     
-    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.10d0))
+!     !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.10d0))
     
-    n = ntod + 1
-    !n = nfft / 2 + 1
+!     n = ntod + 1
+!     !n = nfft / 2 + 1
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+!     call sfftw_init_threads(err)
+!     call sfftw_plan_with_nthreads(nomp)
 
-    allocate(dt(2*ntod), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
-    deallocate(dt, dv)
-    ! allocate(dt(nfft), dv(0:n-1))
-    ! call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    ! call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
-    ! deallocate(dt, dv)
-    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,start,last)
-    allocate(dt(2*ntod), dv(0:n-1))
-    !allocate(dt(nfft), dv(0:n-1))
-    allocate(d_prime(ntod))
-    !allocate(diff(ntod+1))
-    !diff = 0.d0
-    !$OMP DO SCHEDULE(guided)
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
+!     allocate(dt(2*ntod), dv(0:n-1))
+!     call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+!     call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
+!     deallocate(dt, dv)
+!     ! allocate(dt(nfft), dv(0:n-1))
+!     ! call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+!     ! call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+!     ! deallocate(dt, dv)
+!     !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,start,last)
+!     allocate(dt(2*ntod), dv(0:n-1))
+!     !allocate(dt(nfft), dv(0:n-1))
+!     allocate(d_prime(ntod))
+!     !allocate(diff(ntod+1))
+!     !diff = 0.d0
+!     !$OMP DO SCHEDULE(guided)
+!     do i = 1, ndet
+!        if (.not. self%scans(scan)%d(i)%accept) cycle
+!        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
+!        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
        
        
-       ! if (i == 4 .and. scan == 1) then
-       !    open(23, file="d_prime1.unf", form="unformatted")
-       !    write(23) d_prime
-       !    close(23)
-       ! end if
+!        ! if (i == 4 .and. scan == 1) then
+!        !    open(23, file="d_prime1.unf", form="unformatted")
+!        !    write(23) d_prime
+!        !    close(23)
+!        ! end if
 
 
-       sigma_0 = self%scans(scan)%d(i)%sigma0
-       do j = 1,ntod
-          if (mask(j,i) == 0.) then
-             recompute = .true.
-             start = max(j - meanrange, 1)
-             last = min(j + meanrange, ntod)
-             if (j > 1) then
-                if (sum(mask(start:last, i)) < 5) recompute = .false.
-             end if 
+!        sigma_0 = self%scans(scan)%d(i)%sigma0
+!        do j = 1,ntod
+!           if (mask(j,i) == 0.) then
+!              recompute = .true.
+!              start = max(j - meanrange, 1)
+!              last = min(j + meanrange, ntod)
+!              if (j > 1) then
+!                 if (sum(mask(start:last, i)) < 5) recompute = .false.
+!              end if 
 
-             if (recompute) then
-                m = 1
-                start = max(j - meanrange, 1)
-                last = min(j + meanrange, ntod)
-                do while (sum(mask(start:last, i)) < 2) 
-                   ! Widen the search for unmasked pixels
-                   m = m * 2
-                   start = max(j - meanrange * m, 1)
-                   last = min(j + meanrange * m, ntod)
-                   if (meanrange * m > ntod) then
-                      !write(*,*) "Entire scan masked (this should not happen), see sample_n_corr", ntod, i, j, m
-                      start = 1
-                      last = ntod
-                      exit
-                   end if
-                end do
-                if (sum(mask(start:last, i)) > 0) then
-                   mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
-                else
-                   mean = 0.
-                end if
-             end if
-          ! if (mask(j,i) == 0.) then
-          !    recompute = .true.
-          !    if (j > 1) then
-          !       if (mask(j-1,i) == 0.) recompute = .false.
-          !    end if
+!              if (recompute) then
+!                 m = 1
+!                 start = max(j - meanrange, 1)
+!                 last = min(j + meanrange, ntod)
+!                 do while (sum(mask(start:last, i)) < 2) 
+!                    ! Widen the search for unmasked pixels
+!                    m = m * 2
+!                    start = max(j - meanrange * m, 1)
+!                    last = min(j + meanrange * m, ntod)
+!                    if (meanrange * m > ntod) then
+!                       !write(*,*) "Entire scan masked (this should not happen), see sample_n_corr", ntod, i, j, m
+!                       start = 1
+!                       last = ntod
+!                       exit
+!                    end if
+!                 end do
+!                 if (sum(mask(start:last, i)) > 0) then
+!                    mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+!                 else
+!                    mean = 0.
+!                 end if
+!              end if
+!           ! if (mask(j,i) == 0.) then
+!           !    recompute = .true.
+!           !    if (j > 1) then
+!           !       if (mask(j-1,i) == 0.) recompute = .false.
+!           !    end if
 
-             if (abs(d_prime(j) - mean) > 0.d0 * sigma_0) then 
-                d_prime(j) = mean
-             end if
-          end if
-       end do
+!              if (abs(d_prime(j) - mean) > 0.d0 * sigma_0) then 
+!                 d_prime(j) = mean
+!              end if
+!           end if
+!        end do
        
-       ! if (i == 4 .and. scan == 1) then
-       !    open(23, file="d_prime2.unf", form="unformatted")
-       !    write(23) d_prime
-       !    close(23)
-       ! end if
+!        ! if (i == 4 .and. scan == 1) then
+!        !    open(23, file="d_prime2.unf", form="unformatted")
+!        !    write(23) d_prime
+!        !    close(23)
+!        ! end if
 
 
-       dt(1:ntod)           = d_prime(:)
-       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-       ! nbuff = nfft - ntod
-       ! do j=1, nbuff
-       !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
-       ! end do
+!        dt(1:ntod)           = d_prime(:)
+!        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!        ! nbuff = nfft - ntod
+!        ! do j=1, nbuff
+!        !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
+!        ! end do
   
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-       samprate = self%samprate
-       sigma_0  = self%scans(scan)%d(i)%sigma0
-       alpha    = self%scans(scan)%d(i)%alpha
-       nu_knee  = self%scans(scan)%d(i)%fknee
-       noise = 2.0 * ntod * sigma_0 ** 2
-       !noise = nfft * sigma_0 ** 2
-       ! if ((scan == 1) .and. (i == 1)) then
-       !    write(*,*) "sigma, alpha, nu_knee, ntod", sigma_0, alpha, nu_knee, ntod
-       ! end if
-       if (trim(self%operation) == "sample") then
-          dv(0)    = dv(0) + sqrt(noise) * rand_gauss(handle)  ! is this correct?
-       end if
+!        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!        samprate = self%samprate
+!        sigma_0  = self%scans(scan)%d(i)%sigma0
+!        alpha    = self%scans(scan)%d(i)%alpha
+!        nu_knee  = self%scans(scan)%d(i)%fknee
+!        noise = 2.0 * ntod * sigma_0 ** 2
+!        !noise = nfft * sigma_0 ** 2
+!        ! if ((scan == 1) .and. (i == 1)) then
+!        !    write(*,*) "sigma, alpha, nu_knee, ntod", sigma_0, alpha, nu_knee, ntod
+!        ! end if
+!        if (trim(self%operation) == "sample") then
+!           dv(0)    = dv(0) + sqrt(noise) * rand_gauss(handle)  ! is this correct?
+!        end if
        
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(65,file='ps_n.dat') 
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(66,file='ps_n_after.dat') 
+!        ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(65,file='ps_n.dat') 
+!        ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(66,file='ps_n_after.dat') 
 
-       do l = 1, n-1                                                      
-          nu = l*(samprate/2)/(n-1)
-!!$          if (abs(nu-1.d0/60.d0)*60.d0 < 0.001d0) then
-!!$             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
-!!$          end if
-          if ((use_binned_psd) .and. &
-               & (allocated(self%scans(scan)%d(i)%log_n_psd))) then
-             power = splint(self%scans(scan)%d(i)%log_nu, &
-                  self%scans(scan)%d(i)%log_n_psd, &
-                  self%scans(scan)%d(i)%log_n_psd2, &
-                  log(nu))
-             !signal = max(exp(power) - noise, noise)
-             !signal = max(exp(power) * nfft / (2.d0 * ntod) - noise, noise)
-             !signal = exp(power) * nfft / (2.d0 * ntod)
-             signal = exp(power)
+!        do l = 1, n-1                                                      
+!           nu = l*(samprate/2)/(n-1)
+! !!$          if (abs(nu-1.d0/60.d0)*60.d0 < 0.001d0) then
+! !!$             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
+! !!$          end if
+!           if ((use_binned_psd) .and. &
+!                & (allocated(self%scans(scan)%d(i)%log_n_psd))) then
+!              power = splint(self%scans(scan)%d(i)%log_nu, &
+!                   self%scans(scan)%d(i)%log_n_psd, &
+!                   self%scans(scan)%d(i)%log_n_psd2, &
+!                   log(nu))
+!              !signal = max(exp(power) - noise, noise)
+!              !signal = max(exp(power) * nfft / (2.d0 * ntod) - noise, noise)
+!              !signal = exp(power) * nfft / (2.d0 * ntod)
+!              signal = exp(power)
        
-       !      write(*,*) signal, noise * (nu/(nu_knee))**(alpha), nu, noise, sigma_0
-          else
-             !noise = 0.0113d0
-             signal = noise * (nu/(nu_knee))**(alpha)
-          end if
-          ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(65,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), ntod*1.d0
-          if (signal <= 0.d0) then
-             dv(l) = 0.
-          else if (trim(self%operation) == "sample") then
-             ! write(*,*) "Sample n_corr"
-             ! dv(l) = (dv(l) + sigma_0 * (rand_gauss(handle)  &
-             !      + sqrt((nu/(nu_knee))**(-alpha)) * rand_gauss(handle)))& 
-             !      * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha)) 
-             ! dv(l) = (signal * dv(l) + signal * sqrt(noise) * rand_gauss(handle)  &
-             !      +  noise * sqrt(signal) * rand_gauss(handle))& 
-             !      * 1.d0/(signal + noise)
-             dv(l) = (dv(l) + sqrt(noise) &
-                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
-                  + noise * sqrt(1.0 / signal) &
-                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0))& 
-                  * 1.d0/(1.d0 + noise / signal)
-          else
-             !dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
-             !dv(l) = dv(l) * signal/(signal + noise)
-             dv(l) = dv(l) * 1.0/(1.0 + noise/signal)
-          end if
-          ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(66,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), nfft*1.d0
-       end do
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(65)
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(66)
-       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-       dt          = dt / (2*ntod)
-       !dt          = dt / nfft
-       n_corr(:,i) = dt(1:ntod) 
+!        !      write(*,*) signal, noise * (nu/(nu_knee))**(alpha), nu, noise, sigma_0
+!           else
+!              !noise = 0.0113d0
+!              signal = noise * (nu/(nu_knee))**(alpha)
+!           end if
+!           ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(65,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), ntod*1.d0
+!           if (signal <= 0.d0) then
+!              dv(l) = 0.
+!           else if (trim(self%operation) == "sample") then
+!              ! write(*,*) "Sample n_corr"
+!              ! dv(l) = (dv(l) + sigma_0 * (rand_gauss(handle)  &
+!              !      + sqrt((nu/(nu_knee))**(-alpha)) * rand_gauss(handle)))& 
+!              !      * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha)) 
+!              ! dv(l) = (signal * dv(l) + signal * sqrt(noise) * rand_gauss(handle)  &
+!              !      +  noise * sqrt(signal) * rand_gauss(handle))& 
+!              !      * 1.d0/(signal + noise)
+!              dv(l) = (dv(l) + sqrt(noise) &
+!                   * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
+!                   + noise * sqrt(1.0 / signal) &
+!                   * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0))& 
+!                   * 1.d0/(1.d0 + noise / signal)
+!           else
+!              !dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
+!              !dv(l) = dv(l) * signal/(signal + noise)
+!              dv(l) = dv(l) * 1.0/(1.0 + noise/signal)
+!           end if
+!           ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(66,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), nfft*1.d0
+!        end do
+!        ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(65)
+!        ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(66)
+!        call sfftw_execute_dft_c2r(plan_back, dv, dt)
+!        dt          = dt / (2*ntod)
+!        !dt          = dt / nfft
+!        n_corr(:,i) = dt(1:ntod) 
 
-       ! Project out any sky correlated component
-!!$       A(1,1) = sum(s_sub(:,i)*mask(:,i)*s_sub(:,i))
-!!$       A(1,2) = sum(s_sub(:,i)*mask(:,i)           )
-!!$       A(2,1) = A(1,2)
-!!$       A(2,2) = sum(           mask(:,i)           )
-!!$
-!!$       b(1)   = sum(s_sub(:,i)*mask(:,i)*n_corr(:,i)) 
-!!$       b(2)   = sum(           mask(:,i)*n_corr(:,i))
-!!$       call solve_system_real(A, x, b)
-!!$       n_corr(:,i) = n_corr(:,i) - x(1)*s_sub(:,i)
+!        ! Project out any sky correlated component
+! !!$       A(1,1) = sum(s_sub(:,i)*mask(:,i)*s_sub(:,i))
+! !!$       A(1,2) = sum(s_sub(:,i)*mask(:,i)           )
+! !!$       A(2,1) = A(1,2)
+! !!$       A(2,2) = sum(           mask(:,i)           )
+! !!$
+! !!$       b(1)   = sum(s_sub(:,i)*mask(:,i)*n_corr(:,i)) 
+! !!$       b(2)   = sum(           mask(:,i)*n_corr(:,i))
+! !!$       call solve_system_real(A, x, b)
+! !!$       n_corr(:,i) = n_corr(:,i) - x(1)*s_sub(:,i)
 
        
-       !write(*,*) 'a', sum(d_prime-n_corr(:,i))/ntod/gain
+!        !write(*,*) 'a', sum(d_prime-n_corr(:,i))/ntod/gain
 
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) then
-       !    open(65,file='ps_ncorr.dat')
-       !    do j = i, ntod
-       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
-       !    end do
-       !    close(65)
-       ! end if
+!        ! if ((i == 1) .and. (self.scanid(scan) == 100)) then
+!        !    open(65,file='ps_ncorr.dat')
+!        !    do j = i, ntod
+!        !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
+!        !    end do
+!        !    close(65)
+!        ! end if
 
-       ! if (allocated(self%scans(scan)%d(i)%log_n_psd)) stop
+!        ! if (allocated(self%scans(scan)%d(i)%log_n_psd)) stop
 
-       ! if (i == 1 .and. scan == 1) then
-       !    open(23, file="d_prime.unf", form="unformatted")
-       !    write(23) d_prime
-       !    close(23)
-       ! end if
+!        ! if (i == 1 .and. scan == 1) then
+!        !    open(23, file="d_prime.unf", form="unformatted")
+!        !    write(23) d_prime
+!        !    close(23)
+!        ! end if
 
 
-!!$       if (self%myid == 0 .and. i == 2 .and. scan == 2 .and. .false.) then
-!!$          open(58,file='tod.dat')
-!!$          do j = 1, ntod
-!!$             write(58,*) j, d_prime(j), n_corr(j,i)
-!!$          end do
-!!$          close(58)
-!!$       end if
+! !!$       if (self%myid == 0 .and. i == 2 .and. scan == 2 .and. .false.) then
+! !!$          open(58,file='tod.dat')
+! !!$          do j = 1, ntod
+! !!$             write(58,*) j, d_prime(j), n_corr(j,i)
+! !!$          end do
+! !!$          close(58)
+! !!$       end if
 
-    end do
-    !$OMP END DO                                                          
-    deallocate(dt, dv)
-    deallocate(d_prime)
-    !deallocate(diff)
-    !$OMP END PARALLEL
+!     end do
+!     !$OMP END DO                                                          
+!     deallocate(dt, dv)
+!     deallocate(d_prime)
+!     !deallocate(diff)
+!     !$OMP END PARALLEL
 
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
+!     call sfftw_destroy_plan(plan_fwd)                                           
+!     call sfftw_destroy_plan(plan_back)                                          
   
-  end subroutine sample_n_corr
+!   end subroutine sample_n_corr
 
 
 
@@ -1939,214 +1939,214 @@ contains
     
   end subroutine compute_chisq
   
-  subroutine linspace(from, to, array)  ! Hat tip: https://stackoverflow.com/a/57211848/5238625
-    implicit none
-    real(dp), intent(in) :: from, to
-    real(dp), intent(out) :: array(:)
-    real(dp) :: range
-    integer :: n, i
-    n = size(array)
-    range = to - from
+!   subroutine linspace(from, to, array)  ! Hat tip: https://stackoverflow.com/a/57211848/5238625
+!     implicit none
+!     real(dp), intent(in) :: from, to
+!     real(dp), intent(out) :: array(:)
+!     real(dp) :: range
+!     integer :: n, i
+!     n = size(array)
+!     range = to - from
 
-    if (n == 0) return
+!     if (n == 0) return
 
-    if (n == 1) then
-       array(1) = from
-       return
-    end if
+!     if (n == 1) then
+!        array(1) = from
+!        return
+!     end if
 
 
-    do i=1, n
-       array(i) = from + range * (i - 1) / (n - 1)
-    end do
-  end subroutine linspace
+!     do i=1, n
+!        array(i) = from + range * (i - 1) / (n - 1)
+!     end do
+!   end subroutine linspace
 
-  ! Sample noise psd
-  ! TODO: Add fluctuation term if operation == sample
-  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
-    implicit none
-    class(comm_LFI_tod),             intent(inout)  :: self
-    type(planck_rng),                intent(inout)  :: handle
-    integer(i4b),                    intent(in)     :: scan
-    real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
+!   ! Sample noise psd
+!   ! TODO: Add fluctuation term if operation == sample
+!   subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
+!     implicit none
+!     class(comm_LFI_tod),             intent(inout)  :: self
+!     type(planck_rng),                intent(inout)  :: handle
+!     integer(i4b),                    intent(in)     :: scan
+!     real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
     
-    integer*8    :: plan_fwd
-    integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod 
-    integer(i4b) :: ndet
-    real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu
+!     integer*8    :: plan_fwd
+!     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod 
+!     integer(i4b) :: ndet
+!     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu
     
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime
-    real(dp),     allocatable, dimension(:) :: log_nu_bin_edges, psd, nu_sum
-    integer(i4b), allocatable, dimension(:) :: n_modes
+!     real(sp),     allocatable, dimension(:) :: dt
+!     complex(spc), allocatable, dimension(:) :: dv
+!     real(sp),     allocatable, dimension(:) :: d_prime
+!     real(dp),     allocatable, dimension(:) :: log_nu_bin_edges, psd, nu_sum
+!     integer(i4b), allocatable, dimension(:) :: n_modes
     
-    ntod = self%scans(scan)%ntod
-    ndet = self%ndet
-    nomp = omp_get_max_threads()
+!     ntod = self%scans(scan)%ntod
+!     ndet = self%ndet
+!     nomp = omp_get_max_threads()
     
 
-    ! compute sigma_0 the old way
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
+!     ! compute sigma_0 the old way
+!     do i = 1, ndet
+!        if (.not. self%scans(scan)%d(i)%accept) cycle
     
-       s = 0.d0
-       n = 0
+!        s = 0.d0
+!        n = 0
 
-       do j = 1, self%scans(scan)%ntod-1
-          if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = (self%scans(scan)%d(i)%tod(j) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
-               & n_corr(j,i)) - &
-               & (self%scans(scan)%d(i)%tod(j+1) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
-               & n_corr(j+1,i))))/sqrt(2.)
-          s = s + res**2
-          n = n + 1
-       end do
-       ! if ((i == 1) .and. (scan == 1)) then
-       !    write(*,*) "sigma0: ", sqrt(s/(n-1))
-       ! end if
-       if (n > 100) self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
-    end do
+!        do j = 1, self%scans(scan)%ntod-1
+!           if (any(mask(j:j+1,i) < 0.5)) cycle
+!           res = (self%scans(scan)%d(i)%tod(j) - &
+!                & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+!                & n_corr(j,i)) - &
+!                & (self%scans(scan)%d(i)%tod(j+1) - &
+!                & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+!                & n_corr(j+1,i))))/sqrt(2.)
+!           s = s + res**2
+!           n = n + 1
+!        end do
+!        ! if ((i == 1) .and. (scan == 1)) then
+!        !    write(*,*) "sigma0: ", sqrt(s/(n-1))
+!        ! end if
+!        if (n > 100) self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
+!     end do
 
-    return
+!     return
     
-    n = ntod + 1
-    n_bins = 20
+!     n = ntod + 1
+!     n_bins = 20
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+!     call sfftw_init_threads(err)
+!     call sfftw_plan_with_nthreads(nomp)
 
-    allocate(dt(2*ntod), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
-    deallocate(dt, dv)
+!     allocate(dt(2*ntod), dv(0:n-1))
+!     call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+!     deallocate(dt, dv)
     
-    do i = 1, ndet
-       if (.not. allocated(self%scans(scan)%d(i)%log_n_psd)) allocate(self%scans(scan)%d(i)%log_n_psd(n_bins))
-       if (.not. allocated(self%scans(scan)%d(i)%log_nu)) allocate(self%scans(scan)%d(i)%log_nu(n_bins))
-       if (.not. allocated(self%scans(scan)%d(i)%log_n_psd2)) allocate(self%scans(scan)%d(i)%log_n_psd2(n_bins))
-    end do
+!     do i = 1, ndet
+!        if (.not. allocated(self%scans(scan)%d(i)%log_n_psd)) allocate(self%scans(scan)%d(i)%log_n_psd(n_bins))
+!        if (.not. allocated(self%scans(scan)%d(i)%log_nu)) allocate(self%scans(scan)%d(i)%log_nu(n_bins))
+!        if (.not. allocated(self%scans(scan)%d(i)%log_n_psd2)) allocate(self%scans(scan)%d(i)%log_n_psd2(n_bins))
+!     end do
     
-    !$OMP PARALLEL PRIVATE(i,l,j,dt,dv,nu,log_nu,d_prime,log_nu_bin_edges,n_modes,psd,nu_sum,gain,dlog_nu)
-    allocate(dt(2*ntod), dv(0:n-1))
-    allocate(d_prime(ntod))
+!     !$OMP PARALLEL PRIVATE(i,l,j,dt,dv,nu,log_nu,d_prime,log_nu_bin_edges,n_modes,psd,nu_sum,gain,dlog_nu)
+!     allocate(dt(2*ntod), dv(0:n-1))
+!     allocate(d_prime(ntod))
     
-    allocate(log_nu_bin_edges(n_bins + 1))
-    allocate(n_modes(n_bins))
-    allocate(psd(n_bins))
-    allocate(nu_sum(n_bins))
-    !$OMP DO SCHEDULE(guided)
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
+!     allocate(log_nu_bin_edges(n_bins + 1))
+!     allocate(n_modes(n_bins))
+!     allocate(psd(n_bins))
+!     allocate(nu_sum(n_bins))
+!     !$OMP DO SCHEDULE(guided)
+!     do i = 1, ndet
+!        if (.not. self%scans(scan)%d(i)%accept) cycle
     
-       !gain = self%scans(scan)%d(i)%gain
-       !d_prime(:) = self%scans(scan)%d(i)%tod(:) - s_tot(:, i) * gain
-       dt(1:ntod) = n_corr(:,i)
-       ! do j = 1, ntod
-       !    if (mask(j,i) == 0.) then
-       !       dt(j) = n_corr(j,i) + rand_gauss(handle) * self%scans(scan)%d(i)%sigma0
+!        !gain = self%scans(scan)%d(i)%gain
+!        !d_prime(:) = self%scans(scan)%d(i)%tod(:) - s_tot(:, i) * gain
+!        dt(1:ntod) = n_corr(:,i)
+!        ! do j = 1, ntod
+!        !    if (mask(j,i) == 0.) then
+!        !       dt(j) = n_corr(j,i) + rand_gauss(handle) * self%scans(scan)%d(i)%sigma0
 
-       !    else
-       !       dt(j) = d_prime(j)
-       !    end if
-       ! end do
-       !dt(1:ntod)           = d_prime(:)
-       !dt(1:ntod)           = d_prime(:)
-       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!        !    else
+!        !       dt(j) = d_prime(j)
+!        !    end if
+!        ! end do
+!        !dt(1:ntod)           = d_prime(:)
+!        !dt(1:ntod)           = d_prime(:)
+!        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 
-       ! if ((i == 1) .and. (scan == 1)) then
-       !    open(65,file='ps_dt.dat')
-       !    do j = 1, ntod
-       !       write(65, *) dt(j)
-       !    end do
-       !    close(65)
-       ! end if
+!        ! if ((i == 1) .and. (scan == 1)) then
+!        !    open(65,file='ps_dt.dat')
+!        !    do j = 1, ntod
+!        !       write(65, *) dt(j)
+!        !    end do
+!        !    close(65)
+!        ! end if
               
-       n_modes(:) = 0
-       psd(:) = 0.d0
-       nu_sum(:) = 0.d0
-       samprate = self%samprate
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-       call linspace(log(1*(samprate/2)/(n-1)),log(samprate/2), log_nu_bin_edges)
+!        n_modes(:) = 0
+!        psd(:) = 0.d0
+!        nu_sum(:) = 0.d0
+!        samprate = self%samprate
+!        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!        call linspace(log(1*(samprate/2)/(n-1)),log(samprate/2), log_nu_bin_edges)
 
-       dlog_nu = log_nu_bin_edges(2) - log_nu_bin_edges(1)
+!        dlog_nu = log_nu_bin_edges(2) - log_nu_bin_edges(1)
        
-       !if ((i == 1) .and. (scan == 1)) open(65,file='ps.dat') 
+!        !if ((i == 1) .and. (scan == 1)) open(65,file='ps.dat') 
 
-       do l = 1, n-1
-          nu = l*(samprate/2)/(n-1)
-          log_nu = log(nu)
-          j = min(ceiling((log_nu - log_nu_bin_edges(1) + 1d-10) / dlog_nu), n_bins)
-          n_modes(j) = n_modes(j) + 1
-          psd(j) = psd(j) + abs(dv(l)) ** 2
-          nu_sum(j) = nu_sum(j) + nu
-          !if ((i == 1) .and. (scan == 1)) write(65, *) abs(dv(l)) ** 2, log_nu
-       end do
-       !if ((i == 1) .and. (scan == 1)) close(65)
+!        do l = 1, n-1
+!           nu = l*(samprate/2)/(n-1)
+!           log_nu = log(nu)
+!           j = min(ceiling((log_nu - log_nu_bin_edges(1) + 1d-10) / dlog_nu), n_bins)
+!           n_modes(j) = n_modes(j) + 1
+!           psd(j) = psd(j) + abs(dv(l)) ** 2
+!           nu_sum(j) = nu_sum(j) + nu
+!           !if ((i == 1) .and. (scan == 1)) write(65, *) abs(dv(l)) ** 2, log_nu
+!        end do
+!        !if ((i == 1) .and. (scan == 1)) close(65)
        
-       if (trim(self%operation) == "sample") then
-          ! use abs to prevent rare cases of negative power spectra
-          ! (should have been samples from inverse gamma distribution)
-!          write(*,*) "sampling!!!!!!!"
-          self%scans(scan)%d(i)%log_n_psd(:) =  log(psd(:) / n_modes(:)) ! &
-              ! & * abs(1.d0 + sqrt(2.d0 / n_modes(:)) * rand_gauss(handle))) 
-       else
-          self%scans(scan)%d(i)%log_n_psd(:) = log(psd(:) / n_modes(:))
-       end if
-       self%scans(scan)%d(i)%log_nu(:) = log(nu_sum(:) / n_modes(:)) !log_nu_bin_edges(1:n_bins) + 0.5d0 * dlog_nu
-       !self%scans(scan)%d(i)%log_nu(:) = log_nu_bin_edges(1:n_bins) + 0.5d0 * dlog_nu
-       ! write(*,*) self%scans(scan)%d(i)%log_n_psd
-       ! write(*,*) self%scans(scan)%d(i)%log_nu
-       ! write(*,*) "After"
-       ! if ((i == 1) .and. (scan == 1)) then
-       !    open(65,file='ps_binned.dat')
-       !    do j = 1, n_bins
-       !       write(65, *) self%scans(scan)%d(i)%log_n_psd(j), self%scans(scan)%d(i)%log_nu(j)
-       !    end do
-       !    close(65)
-       ! end if
-       ! self%scans(scan)%d(i)%sigma0 = sqrt(exp(self%scans(scan)%d(i)%log_n_psd(n_bins)))
-       ! if ((i == 1) .and. (scan == 1)) then
-       !    write(*,*) "sigma0: ", self%scans(scan)%d(i)%sigma0
+!        if (trim(self%operation) == "sample") then
+!           ! use abs to prevent rare cases of negative power spectra
+!           ! (should have been samples from inverse gamma distribution)
+! !          write(*,*) "sampling!!!!!!!"
+!           self%scans(scan)%d(i)%log_n_psd(:) =  log(psd(:) / n_modes(:)) ! &
+!               ! & * abs(1.d0 + sqrt(2.d0 / n_modes(:)) * rand_gauss(handle))) 
+!        else
+!           self%scans(scan)%d(i)%log_n_psd(:) = log(psd(:) / n_modes(:))
+!        end if
+!        self%scans(scan)%d(i)%log_nu(:) = log(nu_sum(:) / n_modes(:)) !log_nu_bin_edges(1:n_bins) + 0.5d0 * dlog_nu
+!        !self%scans(scan)%d(i)%log_nu(:) = log_nu_bin_edges(1:n_bins) + 0.5d0 * dlog_nu
+!        ! write(*,*) self%scans(scan)%d(i)%log_n_psd
+!        ! write(*,*) self%scans(scan)%d(i)%log_nu
+!        ! write(*,*) "After"
+!        ! if ((i == 1) .and. (scan == 1)) then
+!        !    open(65,file='ps_binned.dat')
+!        !    do j = 1, n_bins
+!        !       write(65, *) self%scans(scan)%d(i)%log_n_psd(j), self%scans(scan)%d(i)%log_nu(j)
+!        !    end do
+!        !    close(65)
+!        ! end if
+!        ! self%scans(scan)%d(i)%sigma0 = sqrt(exp(self%scans(scan)%d(i)%log_n_psd(n_bins)))
+!        ! if ((i == 1) .and. (scan == 1)) then
+!        !    write(*,*) "sigma0: ", self%scans(scan)%d(i)%sigma0
        
-       ! end if
+!        ! end if
        
-       ! if ((i == 1) .and. (scan == 1)) then
-       !    open(65,file='ps_tod.dat')
-       !    do j = 1, ntod
-       !       write(65, *) n_corr(j,i), self%scans(scan)%d(i)%tod(j), &
-       !            & s_tot(j,i), mask(j,i)
-       !    end do
-       !    close(65)
-       ! end if
-       ! if ((i == 1) .and. (scan == 1)) then
-       !    open(65,file='ps_params.dat')
-       !    write(65, '(4(E15.6E3))') self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, &
-       !            & self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%fknee
-       !    close(65)
-       ! end if
-    end do
-    !$OMP END DO
-    deallocate(dt, dv)
-    deallocate(d_prime, psd, n_modes, nu_sum)
-    deallocate(log_nu_bin_edges)
+!        ! if ((i == 1) .and. (scan == 1)) then
+!        !    open(65,file='ps_tod.dat')
+!        !    do j = 1, ntod
+!        !       write(65, *) n_corr(j,i), self%scans(scan)%d(i)%tod(j), &
+!        !            & s_tot(j,i), mask(j,i)
+!        !    end do
+!        !    close(65)
+!        ! end if
+!        ! if ((i == 1) .and. (scan == 1)) then
+!        !    open(65,file='ps_params.dat')
+!        !    write(65, '(4(E15.6E3))') self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, &
+!        !            & self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%fknee
+!        !    close(65)
+!        ! end if
+!     end do
+!     !$OMP END DO
+!     deallocate(dt, dv)
+!     deallocate(d_prime, psd, n_modes, nu_sum)
+!     deallocate(log_nu_bin_edges)
     
-    !$OMP END PARALLEL
+!     !$OMP END PARALLEL
     
-    call sfftw_destroy_plan(plan_fwd)
+!     call sfftw_destroy_plan(plan_fwd)
     
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       ! call spline(self%scans(scan)%d(i)%log_nu,&
-       !      self%scans(scan)%d(i)%log_n_psd,&
-       !      0.d0,0.d0,self%scans(scan)%d(i)%log_n_psd2)
-       call spline(self%scans(scan)%d(i)%log_nu,&
-            self%scans(scan)%d(i)%log_n_psd,&
-            1.d30,1.d30,self%scans(scan)%d(i)%log_n_psd2)
-    end do
+!     do i = 1, ndet
+!        if (.not. self%scans(scan)%d(i)%accept) cycle
+!        ! call spline(self%scans(scan)%d(i)%log_nu,&
+!        !      self%scans(scan)%d(i)%log_n_psd,&
+!        !      0.d0,0.d0,self%scans(scan)%d(i)%log_n_psd2)
+!        call spline(self%scans(scan)%d(i)%log_nu,&
+!             self%scans(scan)%d(i)%log_n_psd,&
+!             1.d30,1.d30,self%scans(scan)%d(i)%log_n_psd2)
+!     end do
        
-  end subroutine sample_noise_psd
+!   end subroutine sample_noise_psd
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
