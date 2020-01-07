@@ -33,6 +33,7 @@ contains
           if (exist) call rm(trim(chainfile))
           call open_hdf_file(chainfile, file, 'w')
           call close_hdf_file(file)
+          iter = -1
        else if (trim(cpar%chain_status) == 'append') then
           call open_hdf_file(chainfile, file, 'r')
           exist = .true.

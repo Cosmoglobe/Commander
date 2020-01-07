@@ -130,9 +130,10 @@ program commander
 
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
-  !first_sample = 98
-  if (first_sample == 1) then
+  !first_sample = 1
+  if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
+     first_sample = 1
   else
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
