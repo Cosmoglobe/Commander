@@ -626,7 +626,8 @@ contains
           self%src(i)%P_theta(:,:,2) = beta_rms
           self%src(i)%theta_rms      = 0.d0
           do j = 1, numband
-             if (cpar%cs_output_ptsrc_beam(id_abs)) then
+             if (cpar%cs_output_ptsrc_beam(id_abs) .and. &
+                  & trim(trim(cpar%ds_btheta_file(data(j)%id_abs))) /= 'none') then
                 self%src(i)%T(j)%nside_febecop = self%nside_febecop
              else
                 self%src(i)%T(j)%nside_febecop = data(j)%info%nside

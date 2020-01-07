@@ -305,7 +305,13 @@ contains
     call get_size_hdf(file, slabel // "/" // trim(detlabels(1)) // "/tod", ext)
     !nhorn     = ext(1)
     n         = ext(1)
+    !m = n
     m         = get_closest_fft_magic_number(n)
+!!$    m         = get_closest_fft_magic_number(2*n)
+!!$    do while (mod(m,2) == 1)
+!!$       m = get_closest_fft_magic_number(m-1)
+!!$    end do
+!!$    m = m/2
     self%ntod = m
 
     ! Read common scan data
@@ -427,6 +433,12 @@ contains
           pweight(ind(1)) = pweight(ind(1)) + weight(i)
        end do
        deallocate(id, pweight, weight)
+
+       ! Distribute according to consecutive PID
+       do i = 1, n_tot
+          proc(i) = max(min(int(real(i-1,sp)/real(n_tot-1,sp) * np),np-1),0)
+       end do
+
     end if
 
     call mpi_bcast(n_tot, 1,  MPI_INTEGER, 0, self%comm, ierr)
