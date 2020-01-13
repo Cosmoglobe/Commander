@@ -709,7 +709,8 @@ contains
              end do
              deallocate(lm, buffer)
           end do
-          !call update_status(status, "fits4")
+          call update_status(status, "fits4")
+          !write(*,*) 'size', shape(alm) 
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'alm'),   real(alm,sp))
           if (output_hdf_map_) call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
           call write_hdf(hdffile, trim(adjustl(hdfpath)//'lmax'),  self%info%lmax)

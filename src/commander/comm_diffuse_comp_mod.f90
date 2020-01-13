@@ -1414,7 +1414,8 @@ contains
 
        if (output_hdf) then
           call int2string(iter, itext)
-          path = trim(adjustl(itext))//'/'//trim(adjustl(self%label))
+          path = '/'//trim(adjustl(itext))//'/'//trim(adjustl(self%label))
+          !write(*,*) 'path', trim(path)
           if (self%x%info%myid == 0) call create_hdf_group(chainfile, trim(adjustl(path)))
        end if
 
@@ -1431,13 +1432,14 @@ contains
        !call self%apply_proc_mask(map)
 
        if (output_hdf) then
+          !write(*,*) 'path2', trim(path)//'/amp_'
           call map%writeFITS(trim(dir)//'/'//trim(filename), &
                & hdffile=chainfile, hdfpath=trim(path)//'/amp_', output_hdf_map=.false.)
        else
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if
        call map%dealloc()
-       !call update_status(status, "writeFITS_5")
+       call update_status(status, "writeFITS_5")
 
        if (self%output_EB) then
           map => comm_map(self%x)
@@ -2014,7 +2016,7 @@ contains
     allocate(invM(0:nalm-1,0:nalm-1), buffer(0:nalm-1,0:nalm-1))
     invM = 0.d0
 
-    info => comm_mapinfo(self%comm, 2, 2*self%lmax_pre_lowl, self%nmaps, nmaps==3)
+    info => comm_mapinfo(self%comm, 2, 2*self%lmax_pre_lowl, self%nmaps, self%nmaps==3)
     map  => comm_map(info)
     tot  => comm_map(info)
     do l = 0, self%lmax_pre_lowl
@@ -2039,34 +2041,70 @@ contains
              do k = 1, nmaps
                 map2%alm(:,k) = map%alm(:,k) * self%F_mean(i,0,k)
              end do
+             if (any(map2%alm /= map2%alm)) then
+                write(*,*) 'a', l, m, i
+             end if
              call data(i)%B(0)%p%conv(trans=.false., map=map2)
+             if (any(map2%alm /= map2%alm)) then
+                write(*,*) 'b', l, m, i
+             end if
              call map2%Y()
+             if (any(map2%map /= map2%map)) then
+                write(*,*) 'c', l, m, i
+             end if
 
              ! Multiply with invN
              call data(i)%N%InvN_lowres(map2)
+             if (any(map2%map /= map2%map)) then
+                write(*,*) 'd', l, m, i
+             end if
 
              ! Project summed map into components, ie., row-wise matrix elements
              call map2%Yt()
+             if (any(map2%alm /= map2%alm)) then
+                write(*,*) 'e', l, m, i
+             end if
              call data(i)%B(0)%p%conv(trans=.true., map=map2)
+             if (any(map2%alm /= map2%alm)) then
+                write(*,*) 'f', l, m, i
+             end if
+
              map2%alm(:,1) = map2%alm(:,1) * self%F_mean(i,0,1)
 
+             if (any(map2%alm /= map2%alm)) then
+                write(*,*) 'g/', l, m, i
+             end if
+
+
              ! Add up alms
-             tot%alm = tot%alm + map2%alm
+             tot%alm(:,1) = tot%alm(:,1) + map2%alm(:,1)
 
              call map2%dealloc()
           end do
 
+             if (any(tot%alm /= tot%alm)) then
+                write(*,*) 'h', l, m
+             end if
+
           ! Add prior term and multiply with sqrt(S) for relevant components
           call self%Cl%sqrtS(alm=tot%alm, info=tot%info)
+
+             if (any(tot%alm /= tot%alm)) then
+                write(*,*) 'i', l, m
+             end if
+
 
           ! Add (unity) prior term, and store column
           i = l**2 + l + m
           do lp = 0, self%lmax_pre_lowl
-             do mp = -l, l
+             do mp = -lp, lp
                 call tot%info%lm2i(lp,mp,k)
                 if (k >= 0) then
                    j = lp**2 + lp + mp
                    invM(i,j) = tot%alm(k,1)
+!!$                   if (i == 0 .or. j == 0) then
+!!$                      write(*,*) i, j, l, m, lp, mp, k, tot%alm(k,1)
+!!$                   end if
                    if (i == j) invM(i,j) = invM(i,j) + 1.d0
                 end if
              end do

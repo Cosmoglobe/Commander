@@ -71,7 +71,7 @@ module comm_tod_mod
      integer(i4b)      :: nside                           ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
-     logical(lgt) :: init_from_HDF                                   ! Read from HDF file
+     character(len=512) :: init_from_HDF                          ! Read from HDF file
      integer(i4b) :: output_4D_map                                ! Output 4D maps
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
@@ -383,8 +383,9 @@ contains
     class(comm_tod),   intent(inout) :: self    
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, np, ind(1), i, n, n_tot, ierr
-    real(dp),           allocatable, dimension(:) :: weight
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, n_tot, ierr
+    real(dp)           :: w_tot, w
+    real(dp),           allocatable, dimension(:) :: weight, sid
     integer(i4b),       allocatable, dimension(:) :: scanid, id
     integer(i4b),       allocatable, dimension(:) :: proc
     real(dp),           allocatable, dimension(:) :: pweight
@@ -410,31 +411,60 @@ contains
 
        open(unit, file=trim(filelist))
        read(unit,*) n
-       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1))
+       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot))
        j = 1
        do i = 1, n
           read(unit,*) scanid(j), filename(j), weight(j)
           if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
-          id(j) = j
-          j     = j+1
+          id(j)  = j
+          sid(j) = scanid(j)
+          j      = j+1
           if (j > n_tot) exit
        end do
        close(unit)
 
-       ! Sort according to weight
+!!$       ! Sort according to weight
+!!$       pweight = 0.d0
+!!$       call QuickSort(id, weight)
+!!$       do i = n_tot, 1, -1
+!!$          ind             = minloc(pweight)-1
+!!$          proc(id(i))     = ind(1)
+!!$          pweight(ind(1)) = pweight(ind(1)) + weight(i)
+!!$       end do
+!!$       deallocate(id, pweight, weight)
+
+       ! Sort according to scan id
        pweight = 0.d0
-       call QuickSort(id, weight)
-       do i = n_tot, 1, -1
-          ind             = minloc(pweight)-1
-          proc(id(i))     = ind(1)
-          pweight(ind(1)) = pweight(ind(1)) + weight(i)
+       proc    = -1
+       call QuickSort(id, sid)
+       w_tot = sum(weight)
+       j     = 1
+       do i = 0, np-2
+          w = 0.d0
+          do k = 1, n_tot
+             if (proc(k) == i) w = w + weight(k) 
+          end do
+          do while (w < w_tot/np)
+             proc(id(j)) = i
+             w           = w + weight(id(j))
+             if (w > 1.2d0*w_tot/np) then
+                ! Assign large scans to next core
+                proc(id(j)) = i+1
+                w           = w - weight(id(j))
+             end if
+             j           = j+1
+          end do
        end do
-       deallocate(id, pweight, weight)
+       do while (j <= n_tot)
+          proc(id(j)) = np-1
+          j = j+1
+       end do
+       deallocate(id, pweight, weight, sid)
 
        ! Distribute according to consecutive PID
-       do i = 1, n_tot
-          proc(i) = max(min(int(real(i-1,sp)/real(n_tot-1,sp) * np),np-1),0)
-       end do
+!!$       do i = 1, n_tot
+!!$          proc(i) = max(min(int(real(i-1,sp)/real(n_tot-1,sp) * np),np-1),0)
+!!$       end do
 
     end if
 
@@ -721,7 +751,7 @@ contains
     if (self%myid == 0) then
        call int2string(self%myid, pid)
        unit = getlun()
-       open(unit,file=trim(self%outdir)//'/filelist.txt', recl=512)
+       open(unit,file=trim(self%outdir)//'/filelist_'//trim(self%freq)//'.txt', recl=512)
        write(unit,*) sum(self%nscanprproc)
        do i = 1, self%nscan
           if (trim(slist(i)) == '') cycle

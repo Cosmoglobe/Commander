@@ -108,17 +108,17 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
      character(len=512), allocatable, dimension(:)   :: ds_tod_dets
      character(len=512), allocatable, dimension(:)   :: ds_tod_bp_init
-     logical(lgt),       allocatable, dimension(:)   :: ds_tod_initHDF
+     character(len=512), allocatable, dimension(:)   :: ds_tod_initHDF
      integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_tot_numscan
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
-     logical(lgt)       :: cs_init_inst_hdf
+     character(len=512) :: cs_init_inst_hdf
      integer(i4b)       :: cs_ncomp, cs_ncomp_tot
      logical(lgt),       allocatable, dimension(:)     :: cs_include
-     logical(lgt),       allocatable, dimension(:)     :: cs_initHDF
+     character(len=512), allocatable, dimension(:)     :: cs_initHDF
      character(len=512), allocatable, dimension(:)     :: cs_label
      character(len=512), allocatable, dimension(:)     :: cs_type
      character(len=512), allocatable, dimension(:)     :: cs_class
@@ -477,8 +477,14 @@ contains
             & par_string=cpar%ds_component_sensitivity(i))
 
        !read in all TOD parameters
-       if (cpar%enable_TOD_analysis) then
+       if (cpar%enable_TOD_analysis .or. cpar%resamp_CMB) then
           call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
+          if (trim(cpar%ds_tod_type(i)) /= 'none') then
+             call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_initHDF(i))
+          end if
+       end if
+       if (cpar%enable_TOD_analysis) then
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              !all other tod things
              call get_parameter_hashtable(htbl, 'BAND_TOD_MAIN_PROCMASK'//itext, len_itext=len_itext, &
@@ -499,8 +505,6 @@ contains
                   & par_string=cpar%ds_tod_instfile(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_dets(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, &
-                  & par_lgt=cpar%ds_tod_initHDF(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_bp_init(i))
           end if
@@ -537,7 +541,7 @@ contains
     
     len_itext=len(trim(itext))
     call get_parameter_hashtable(htbl, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
-    call get_parameter_hashtable(htbl, 'INIT_INSTRUMENT_FROM_HDF', par_lgt=cpar%cs_init_inst_hdf)
+    call get_parameter_hashtable(htbl, 'INIT_INSTRUMENT_FROM_HDF', par_string=cpar%cs_init_inst_hdf)
     call get_parameter_hashtable(htbl, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
 
     n = cpar%cs_ncomp_tot
@@ -560,7 +564,7 @@ contains
     do i = 1, n
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'INCLUDE_COMP'//itext, len_itext=len_itext,         par_lgt=cpar%cs_include(i))
-       call get_parameter_hashtable(htbl, 'COMP_INIT_FROM_HDF'//itext, len_itext=len_itext,   par_lgt=cpar%cs_initHDF(i))
+       call get_parameter_hashtable(htbl, 'COMP_INIT_FROM_HDF'//itext, len_itext=len_itext,   par_string=cpar%cs_initHDF(i))
        call get_parameter_hashtable(htbl, 'COMP_LABEL'//itext, len_itext=len_itext,           par_string=cpar%cs_label(i))
        call get_parameter_hashtable(htbl, 'COMP_TYPE'//itext, len_itext=len_itext,            par_string=cpar%cs_type(i))
        call get_parameter_hashtable(htbl, 'COMP_CLASS'//itext, len_itext=len_itext,           par_string=cpar%cs_class(i))
@@ -1613,5 +1617,20 @@ contains
     stop
      
   end subroutine get_parameter_from_hash
+
+  subroutine get_chainfile_and_samp(string, chainfile, initsamp)
+    implicit none
+    character(len=*),   intent(in)  :: string
+    character(len=512), intent(out) :: chainfile
+    integer(i4b),       intent(out) :: initsamp
+
+    integer(i4b) :: i, num
+    character(len=512), dimension(2) :: toks
+
+    call get_tokens(string, ":", toks, num)    
+    chainfile = toks(1)
+    read(toks(2),*) initsamp
+
+  end subroutine get_chainfile_and_samp
 
 end module comm_param_mod

@@ -184,12 +184,12 @@ contains
     integer(i4b),      intent(in), optional :: init_samp
     logical(lgt),      intent(in), optional :: init_from_output
 
-    integer(i4b)              :: i, j, ext(2), initsamp
+    integer(i4b)              :: i, j, ext(2), initsamp, initsamp2
     character(len=4)          :: ctext
-    character(len=6)          :: itext
+    character(len=6)          :: itext, itext2
     character(len=512)        :: chainfile, hdfpath
     class(comm_comp), pointer :: c => null()
-    type(hdf_file) :: file
+    type(hdf_file) :: file, file2
     class(comm_N),      pointer :: N => null() 
     class(comm_map),    pointer :: rms => null()
     real(dp), allocatable, dimension(:,:) :: bp_delta, regnoise
@@ -199,13 +199,16 @@ contains
 
     ! Open HDF file
     call int2string(cpar%mychain,   ctext)
-    initsamp = cpar%init_samp; if (present(init_samp)) initsamp = init_samp
-    call int2string(initsamp, itext)
     if (present(init_from_output)) then
        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
             & '_c' // trim(adjustl(ctext)) // '.h5'
-    else
-       chainfile = trim(adjustl(cpar%init_chain_prefix))
+       initsamp = init_samp
+       call int2string(init_samp, itext)
+       !write(*,*) 'init', itext
+    else 
+       call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+       if (present(init_samp)) initsamp = init_samp
+       call int2string(initsamp, itext)
     end if
     !write(*,*) 'chainfile', trim(chainfile)
     call open_hdf_file(chainfile, file, 'r')
@@ -214,7 +217,7 @@ contains
     ! Initialize CMB component parameters; only once before starting Gibbs
        c   => compList
        do while (associated(c))
-          if (trim(c%type) /= 'cmb') then
+          if (trim(c%type) /= 'cmb' .or. trim(c%init_from_HDF) == 'none') then
              c => c%next()
              cycle
           end if
@@ -229,28 +232,40 @@ contains
 
     ! Initialize instrumental parameters
     call update_status(status, "init_chain_inst")
-    if (cpar%cs_init_inst_hdf) then
+    if (trim(cpar%cs_init_inst_hdf) /= 'none') then
        do i = 1, numband
           if (cpar%ignore_gain_bp) then
-             data(i)%gain     = 1.d0
+             data(i)%gain          = 1.d0
              data(i)%bp(0)%p%delta = 0.d0
           else
-             call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
+             if (trim(cpar%cs_init_inst_hdf) == 'default') then
+                call copy_hdf_struct(file, file2)
+                itext2 = itext
+             else
+                call get_chainfile_and_samp(cpar%cs_init_inst_hdf, &
+                     & chainfile, initsamp2)
+                call int2string(initsamp2, itext2)
+                call open_hdf_file(chainfile, file2, 'r')
+             end if
+             call read_hdf(file2, trim(adjustl(itext2))//'/gain/'//trim(adjustl(data(i)%label)), &
                   & data(i)%gain)
   
-             call get_size_hdf(file, trim(adjustl(itext))//'/bandpass/'//&
+             call get_size_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//&
                   & trim(adjustl(data(i)%label)), ext)
              if (data(i)%ndet > ext(1)-1) then
                 write(*,*) 'Error -- init HDF file does not contain enough bandpass information'
                 stop
              end if
              allocate(bp_delta(0:ext(1)-1,ext(2)))
-             call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+             call read_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//trim(adjustl(data(i)%label)), &
                   & bp_delta)
              do j = 0, data(i)%ndet
                 data(i)%bp(j)%p%delta = bp_delta(j,:)
              end do
              deallocate(bp_delta)
+             if (trim(cpar%cs_init_inst_hdf) /= 'default') then
+                call close_hdf_file(file2)
+             end if
           end if
        end do
     end if
@@ -258,13 +273,25 @@ contains
     ! Initialize component parameters
     c   => compList
     do while (associated(c))
-       if (.not. c%init_from_HDF .or. (present(init_samp) .and. trim(c%type) == 'cmb')) then
+       if (trim(c%init_from_HDF) == 'none' .or. (present(init_samp) .and. trim(c%type) == 'cmb')) then
           c => c%next()
           cycle
        end if
        call update_status(status, "init_chain_"//trim(c%label))
        if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
-       call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
+       if (trim(c%init_from_HDF) == 'default') then
+          call copy_hdf_struct(file, file2)
+          itext2 = itext
+       else
+          call get_chainfile_and_samp(c%init_from_HDF, &
+                     & chainfile, initsamp2)
+          call int2string(initsamp2, itext2)
+          call open_hdf_file(chainfile, file2, 'r')
+       end if
+       call c%initHDF(cpar, file2, trim(adjustl(itext2))//'/')
+       if (trim(c%init_from_HDF) /= 'default') then
+          call close_hdf_file(file2)
+       end if
        c => c%next()
     end do
 
@@ -272,13 +299,25 @@ contains
     if (cpar%enable_TOD_analysis) then
        do i = 1, numband  
           if (trim(data(i)%tod_type) == 'none') cycle
-          if (.not. data(i)%tod%init_from_HDF)     cycle
+          if (trim(data(i)%tod%init_from_HDF) == 'none')     cycle
           if (cpar%myid == 0) write(*,*) ' Initializing TOD par from chain = ', trim(data(i)%tod%freq)
           N => data(i)%N
           rms => comm_map(data(i)%info)
           select type (N)
           class is (comm_N_rms)
-             call data(i)%tod%initHDF(file, initsamp, data(i)%map, rms)
+             if (trim(data(i)%tod%init_from_HDF) == 'default') then
+                call copy_hdf_struct(file, file2)
+                initsamp2 = initsamp
+             else
+                call get_chainfile_and_samp(data(i)%tod%init_from_HDF, &
+                     & chainfile, initsamp2)
+                call open_hdf_file(chainfile, file2, 'r')
+             end if
+             !write(*,*) 'init2', initsamp2
+             call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
+             if (trim(data(i)%tod%init_from_HDF) /= 'default') then
+                call close_hdf_file(file2)
+             end if
           end select
 
           ! Update rms and data maps
@@ -296,15 +335,14 @@ contains
        end do
     else if (cpar%resamp_CMB) then
        do i = 1, numband  
-          cycle
-
           if (trim(data(i)%tod_type) == 'none') cycle
           !if (.not. data(i)%tod%init_from_HDF)  cycle
-          if (cpar%myid == 0) write(*,*) ' Initializing map and rms from chain = ', trim(data(i)%label)
+          if (cpar%myid == 0) write(*,*) ' Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
 
           hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
           rms     => comm_map(data(i)%info)
           N       => data(i)%N
+          !write(*,*) trim(file%filename), trim(adjustl(hdfpath))//'map'
           call data(i)%map%readMapFromHDF(file, trim(adjustl(hdfpath))//'map')
           select type (N)
           class is (comm_N_rms)
@@ -323,7 +361,7 @@ contains
           data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
 
-!!$          call data(i)%map%writeFITS('map.fits')
+          !call data(i)%map%writeFITS('data_'//trim(data(i)%label)//'.fits')
 !!$          call rms%writeFITS('rms.fits')
 !!$          call mpi_finalize(j)
 !!$          stop
@@ -545,7 +583,11 @@ if (c%x%info%myid ==0) write(*,*) bin, n
 
                 ! Apply Metropolis rule, and update data structures
                 if (c%x%info%myid == 0) then
-                   accept = rand_uni(handle) < exp(-0.5d0*(chisq_prop-chisq_old))
+                   if (chisq_prop < chisq_old) then
+                      accept = .true.
+                   else
+                      accept = rand_uni(handle) < exp(-0.5d0*(chisq_prop-chisq_old))
+                   end if
                    write(*,*) 'Old   = ', bin, real(Dl_old,sp)
                    write(*,*) 'Prop  = ', bin, real(Dl_prop,sp)
                    write(*,*) 'chisq = ', chisq_old, chisq_prop, accept

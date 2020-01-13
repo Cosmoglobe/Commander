@@ -85,6 +85,20 @@ contains
     call assert(status==0, 'comm_hdf_mod: Could not close hdf module')
   end subroutine cleanup_comm_hdf_mod
 
+  subroutine copy_hdf_struct(file_in, file_out)
+    implicit none
+    type(hdf_file), intent(in)  :: file_in
+    type(hdf_file), intent(out) :: file_out
+
+    file_out%filename   = file_in%filename
+    file_out%setname    = file_in%setname
+    file_out%filehandle = file_in%filehandle
+    file_out%sethandle  = file_in%sethandle
+    file_out%status     = file_in%status
+
+  end subroutine copy_hdf_struct
+    
+
   ! *****************************************************
   ! Basic file open and close routines
   ! *****************************************************
@@ -204,7 +218,7 @@ contains
     call h5eset_auto_f(0, hdferr)
     call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
     if (hdferr /= 0) then
-       write(*,*) 'Warning: HDF field does not exist =', trim(setname)
+       write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
        return
     end if
     call open_hdf_set(file, setname)
@@ -390,11 +404,15 @@ contains
     integer(hid_t)                               :: type_id
     integer(hid_t) :: space
     if (trim(file%setname) /= trim(setname)) call close_hdf_set(file)
+    !write(*,*) trim(file%setname), trim(setname)
     file%setname = setname
     call h5screate_simple_f(size(ext), int(ext,hsize_t), space, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot create data space")
+    call assert(file%status>=0, "comm_hdf_mod: Cannot create data space, "//trim(file%filename)//', '//trim(setname))
+    !write(*,*) trim(file%setname), type_id, space, file%sethandle, file%status, ext
     call h5dcreate_f(file%filehandle, file%setname, type_id, space, file%sethandle, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot create data set")
+    !write(*,*) ' HDF status = ', file%status
+    !call h5eprint_f(file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot create data set "//trim(file%filename)//', '//trim(setname))
     call h5sclose_f(space, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot close data space")
   end subroutine create_hdf_set

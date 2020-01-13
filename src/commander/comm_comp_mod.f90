@@ -20,9 +20,9 @@ module comm_comp_mod
      class(comm_comp), pointer :: prevLink => null()
 
      ! Data variables
-     logical(lgt)       :: active, init_from_HDF
+     logical(lgt)       :: active
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_samp_group
-     character(len=512) :: label, class, type, unit, operation
+     character(len=512) :: label, class, type, unit, operation, init_from_HDF
      real(dp)           :: nu_ref(3), RJ2unit_(3)
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype

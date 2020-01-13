@@ -85,7 +85,7 @@ contains
 
     ! Initialize mixing matrix
     if (cpar%init_samp < 0 .or. trim(cpar%init_chain_prefix) == 'none' &
-         & .or. .not. constructor%init_from_HDF) &
+         & .or. trim(constructor%init_from_HDF) == 'none') &
          & call constructor%updateMixmat
 
     ! Set up smoothing scale information
