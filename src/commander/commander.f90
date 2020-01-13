@@ -98,7 +98,7 @@ program commander
 !data(6)%gain = 1.d0
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
-  if (cpar%enable_tod_analysis) call synchronize_bp_delta(cpar%cs_init_inst_hdf)
+  if (cpar%enable_tod_analysis) call synchronize_bp_delta(trim(cpar%cs_init_inst_hdf) /= 'none')
   call update_mixing_matrices(update_F_int=.true.)       
 
   if (cpar%output_input_model) then
@@ -130,6 +130,7 @@ program commander
 
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
+!write(*,*) 'first', first_sample
   !first_sample = 1
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
@@ -154,7 +155,7 @@ program commander
 
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
-        if (mod(iter-1,cpar%numsamp_per_resamp) == 0) then
+        if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then
            curr_samp = mod((iter-1)/cpar%numsamp_per_resamp,cpar%last_samp_resamp-cpar%first_samp_resamp+1) + cpar%first_samp_resamp
            if (cpar%myid == 0) write(*,*) 'Re-initializing on sample ', curr_samp
            call initialize_from_chain(cpar, handle, init_samp=curr_samp)
@@ -178,7 +179,7 @@ program commander
         end do
 
         ! Perform joint alm-Cl Metropolis move
-        do i = 1, 10
+        do i = 1, 3
            if (cpar%resamp_CMB) call sample_joint_alm_Cl(handle)
         end do
 

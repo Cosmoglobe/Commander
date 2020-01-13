@@ -735,7 +735,7 @@ contains
     type(Tnu),          intent(inout) :: T
 
     integer(i4b)      :: i, j, k, n, m, p, q, pix, ext(1), ierr
-    character(len=16) :: itext
+    character(len=128) :: itext
     type(hdf_file)    :: file
     integer(i4b), allocatable, dimension(:)   :: ind, ind_in, nsamp
     integer(i4b), allocatable, dimension(:,:) :: mypix

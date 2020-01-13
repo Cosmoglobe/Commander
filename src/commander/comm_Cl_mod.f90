@@ -198,7 +198,7 @@ contains
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
-          self%Dl(l,j) = amp(i) * (real(l,dp)/real(self%lpiv,dp))**beta(i) 
+          self%Dl(l,j) = self%amp(i) * (real(l,dp)/real(self%lpiv,dp))**self%beta(i) 
        end do
        self%Dl(0,j) = self%Dl(1,j)
     end do
@@ -219,7 +219,7 @@ contains
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
-          self%Dl(l,j) = amp(i) * exp(-beta(i)*(real(l,dp)/real(self%lpiv,dp))) 
+          self%Dl(l,j) = self%amp(i) * exp(-self%beta(i)*(real(l,dp)/real(self%lpiv,dp))) 
        end do
        self%Dl(0,j) = self%Dl(1,j)
     end do
@@ -240,7 +240,7 @@ contains
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 0, self%lmax
-          self%Dl(l,j) = amp(i) * exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+          self%Dl(l,j) = self%amp(i) * exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
 !          if (self%info%myid == 0) then
 !             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
 !          end if
@@ -904,13 +904,14 @@ contains
        do i = 1, self%nmaps
           if (sigma_l(i,i,l) == 0.d0) sigma_l(i,i,l) = 1.d0
        end do
+       !write(*,*) l, sum(abs(sigma_l(:,:,l)))
        ln_det_sigma_l(l) = log_det(sigma_l(:,:,l))
     end do
 
     if (self%info%myid == 0) then
        do i = 1, self%nbin2
           call sample_Dl_bin(self%bins2(i), handle, ok)
-          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
+!          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
        end do
     end if
 
@@ -919,11 +920,11 @@ contains
     !     & MPI_SUM, self%info%comm, ierr)
     !call self%updateS()
 
-    if (self%info%myid == 0) then
-       do i = 1, self%nbin2
-          write(*,*) self%bins2(i)%lmin, self%bins2(i)%lmax, self%Dl(self%bins2(i)%lmin,1)
-       end do
-    end if
+!!$    if (self%info%myid == 0) then
+!!$       do i = 1, self%nbin2
+!!$          write(*,*) self%bins2(i)%lmin, self%bins2(i)%lmax, self%Dl(self%bins2(i)%lmin,1)
+!!$       end do
+!!$    end if
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
@@ -1154,7 +1155,6 @@ contains
     character(len=*), intent(in)    :: hdfpath
 
     if (trim(self%type) == 'none') return
-
     select case (trim(self%type))
     case ('none')
        return
@@ -1232,7 +1232,7 @@ contains
 
     if (bin%stat /= 'M') return
     pos     = pos+1
-    !write(*,*) pos, bin%lmin, bin%spec
+!    write(*,*) pos, bin%lmin, bin%spec, Dl(pos)
     if (put) then
        self%Dl(bin%lmin:bin%lmax,bin%spec) = Dl(pos)
     else

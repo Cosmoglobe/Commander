@@ -95,7 +95,7 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_n_maps = 2
+    constructor%output_n_maps = 3
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -346,7 +346,7 @@ contains
     correct_sl      = .true.
     chisq_threshold = 7.d0
     n_main_iter     = 5
-    chisq_threshold = 3000.d0
+    chisq_threshold = 30.d0  !3000.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -503,7 +503,7 @@ contains
        !do_oper(samp_N_par)    = .false.
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
-       do_oper(output_slist) = mod(iter, 100) == 0
+       do_oper(output_slist) = mod(iter, 1) == 0
        !do_oper = .false.
 
        ! Perform pre-loop operations

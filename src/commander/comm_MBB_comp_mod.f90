@@ -77,7 +77,7 @@ contains
 
     allocate(constructor%theta(2))
     if (cpar%init_samp >= 0 .and. trim(cpar%init_chain_prefix) /= 'none' &
-         & .and. constructor%init_from_HDF) then
+         & .and. constructor%init_from_HDF /= "none") then
        do i = 1, 2
           constructor%theta(i)%p => comm_map(info)
        end do
