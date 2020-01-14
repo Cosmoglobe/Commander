@@ -727,7 +727,9 @@ contains
                    call self%downsample_tod(s_tot(:,j), ext, &
                         & s_lowres(:,j), mask(:,j))
                 else
-                   call self%downsample_tod(s_orb(:,j), ext, &
+                   !call self%downsample_tod(s_orb(:,j), ext, &
+                   !     & s_lowres(:,j), mask(:,j))
+                   call self%downsample_tod(s_sky(:,j)+s_orb(:,j), ext, &
                         & s_lowres(:,j), mask(:,j))
                 end if
              end do
@@ -749,7 +751,9 @@ contains
                 if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    !write(*,*) self%gain0(0), self%gain0(j), self%scans(i)%d(j)%dgain, sum(abs(s_tot)), sum(abs(s_orb))
-                   s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
+!                   s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
+!                        & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                   s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_sky(:,j) - s_orb(:, j)) + &
                         & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
 
                 else if (do_oper(samp_rcal)) then
@@ -1380,7 +1384,6 @@ contains
        !    close(23)
        ! end if
 
-
        sigma_0 = self%scans(scan)%d(i)%sigma0
        do j = 1,ntod
           if (mask(j,i) == 0.) then
@@ -1586,7 +1589,7 @@ contains
     integer(i4b),                       intent(in)    :: scan_id, det
 
     real(sp), allocatable, dimension(:) :: residual
-    integer(i4b) :: ext(2)
+    integer(i4b) :: i, ext(2)
 
 !    allocate(residual(size(stot_invN)))
       !g_old = self%scans(scan_id)%d(det)%gain 
@@ -1600,11 +1603,55 @@ contains
          & self%gain0(det)) * s_tot,sp), ext, residual, mask)
 
     ! Get a proper invn multiplication from Haavard's routine here
-    self%scans(scan_id)%d(det)%dgain      = sum(s_invN * residual)
-    self%scans(scan_id)%d(det)%gain_sigma = sum(s_invN * s_ref)
+    self%scans(scan_id)%d(det)%dgain      = 0.
+    self%scans(scan_id)%d(det)%gain_sigma = 0.
+    !if (self%scanid(scan_id) == 6794 .and. det==2) open(58,file='sum.dat')
+    do i = 1, size(s_ref)
+       !if (self%scanid(scan_id) == 6794 .and. det==2) write(58,*) i, s_invN(i) * residual(ext(1)+i-1), s_invN(i) * s_ref(i)
+       self%scans(scan_id)%d(det)%dgain      = self%scans(scan_id)%d(det)%dgain      + s_invN(i) * residual(ext(1)+i-1)
+       self%scans(scan_id)%d(det)%gain_sigma = self%scans(scan_id)%d(det)%gain_sigma + s_invN(i) * s_ref(i)
+    end do
+    !if (self%scanid(scan_id) == 6794 .and. det==2) close(58)
+
+    !self%scans(scan_id)%d(det)%dgain      = sum(s_invN * residual)
+    !self%scans(scan_id)%d(det)%gain_sigma = sum(s_invN * s_ref)
     if (self%scans(scan_id)%d(det)%gain_sigma < 0.d0) then
        write(*,*) 'Warning: Not positive definite invN = ', self%scanid(scan_id), det, self%scans(scan_id)%d(det)%gain_sigma
     end if
+
+
+    if (.false. .and. self%scanid(scan_id) == 6794 .and. det==2) then
+       write(*,*) 'gain_6794_g0   = ', self%gain0(0) + self%gain0(det), self%gain0(0), self%gain0(det)
+       write(*,*) 'gain_6794_gtot = ', self%gain0(0) + self%gain0(det) + self%scans(scan_id)%d(det)%dgain/self%scans(scan_id)%d(det)%gain_sigma
+       write(*,*) 'gain_6794_len  = ', size(residual), size(s_ref), size(s_invN)
+       write(*,*) 'gain_6794_ext  = ', ext
+       write(*,*) 'gain_6794_sum1 = ', self%scans(scan_id)%d(det)%dgain
+       write(*,*) 'gain_6794_sum2 = ', self%scans(scan_id)%d(det)%gain_sigma
+       write(*,*) 'gain_6794_2    = ', self%scans(scan_id)%d(det)%dgain/self%scans(scan_id)%d(det)%gain_sigma
+       open(58,file='gainfit.dat')
+       do i = 1, size(s_ref)
+          write(58,*) i, residual(ext(1)+i-1)
+       end do
+       write(58,*)
+       do i = 1, size(s_ref)
+          write(58,*) i, s_ref(i)
+       end do
+       write(58,*)
+       do i = 1, size(s_ref)
+          write(58,*) i, s_invN(i)
+       end do
+       write(58,*)
+       do i = 1, size(s_tot)
+          write(58,*) i, s_tot(i)
+       end do
+       write(58,*)
+       do i = 1, size(s_tot)
+          write(58,*) i, self%scans(scan_id)%d(det)%tod(i)
+       end do
+       close(58)
+    end if
+
+
 !    self%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
 !    self%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
 !    if (self%scans(scan_id)%d(det)%gain_sigma < 0) then
@@ -1638,9 +1685,9 @@ contains
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr
-    integer(i4b) :: currstart, currend
-    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot
-    real(dp), allocatable, dimension(:)     :: lhs, rhs
+    integer(i4b) :: currstart, currend, window, i1, i2
+    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr
+    real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
     real(dp), allocatable, dimension(:,:,:) :: g
 
     ndet       = self%ndet
@@ -1668,6 +1715,20 @@ contains
 
     if (self%myid == 0) then
 !       nbin = nscan_tot / binsize + 1
+
+!!$       open(58,file='gain.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$          do k = 1, nscan_tot
+!!$             if (g(k,j,2) > 0) then
+!!$                write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp)
+!!$             else
+!!$                write(58,*) j, k, 0.
+!!$             end if
+!!$          end do
+!!$          write(58,*)
+!!$       end do
+!!$       close(58)
+
        do j = 1, ndet
          lhs = 0.d0
          rhs = 0.d0
@@ -1678,10 +1739,21 @@ contains
             !if (g(k, j, 2) <= 0.d0) cycle
             sum_inv_sigma_squared = max(g(k, j, 2),0.d0)
             sum_weighted_gain     = g(k, j, 1) !/ g(k, j, 2)
-            do while (sqrt(sum_inv_sigma_squared) < 10000. .and. k < nscan_tot)
+            g_curr                = 0.d0
+            sigma_curr            = 1.d0
+            !do while (sqrt(sum_inv_sigma_squared) < 10000. .and. k < nscan_tot)
+            do while (g_curr / sigma_curr < 1000.d0 .and. k < nscan_tot)
                k = k + 1
                sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
                sum_inv_sigma_squared = sum_inv_sigma_squared + max(g(k, j, 2),0.d0)
+               if (sum_inv_sigma_squared > 0.d0) then
+                  g_curr     = self%gain0(0) + self%gain0(j) + sum_weighted_gain / sum_inv_sigma_squared
+                  sigma_curr = 1.d0 / sqrt(sum_inv_sigma_squared)
+                  !write(*,*) j, ', S/N = ', real(g_curr/sigma_curr,sp)
+               else
+                  g_curr     = 0.d0
+                  sigma_curr = 1.d0
+               end if
             end do
             currend = k
             if (sum_inv_sigma_squared > 0.d0) then
@@ -1725,19 +1797,30 @@ contains
 !            end where
 !         end do
 
-         mu  = 0.d0
-         denom = 0.d0
+         ! Apply running average smoothing
+         allocate(g_smooth(nscan_tot))
+         window = 500
          do k = 1, nscan_tot
-            if (g(k, j, 2) <= 0.d0) cycle
-            mu         = mu + g(k, j, 1) * g(k,j,2)
-            denom      = denom + 1.d0 * g(k,j,2)
-!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
+            i1 = max(k-window,1)
+            i2 = min(k+window,nscan_tot)
+            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
          end do
-         mu = mu / denom
+         g(:,j,1) = g_smooth - mean(g_smooth)
+         deallocate(g_smooth)
 
-         ! Make sure fluctuations sum up to zero
-         !write(*,*) 'mu = ', mu
-         g(:,j,1) = g(:,j,1) - mu
+!!$         mu  = 0.d0
+!!$         denom = 0.d0
+!!$         do k = 1, nscan_tot
+!!$            if (g(k, j, 2) <= 0.d0) cycle
+!!$            mu         = mu + g(k, j, 1)! * g(k,j,2)
+!!$            denom      = denom + 1.d0! * g(k,j,2)
+!!$!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
+!!$         end do
+!!$         mu = mu / denom
+!!$
+!!$         ! Make sure fluctuations sum up to zero
+!!$         !write(*,*) 'mu = ', mu
+!!$         g(:,j,1) = g(:,j,1) - mu
        end do
     end if
 

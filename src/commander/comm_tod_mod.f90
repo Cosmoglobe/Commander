@@ -506,7 +506,7 @@ contains
     type(hdf_file),                    intent(in)    :: chainfile
     class(comm_map),                   intent(in)    :: map, rms
 
-    integer(i4b)       :: i, j, k, npar, ierr
+    integer(i4b)       :: i, j, k, l, npar, ierr
     real(dp)           :: mu
     character(len=6)   :: itext
     character(len=512) :: path
@@ -538,15 +538,40 @@ contains
     end if
 
     if (self%myid == 0) then
-       ! Fill in defaults
+       ! Fill in defaults (closest previous)
        do j = 1, self%ndet
           do i = 1, 4
-             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
-             where (output(:,j,i) == 0.d0) 
-                output(:,j,i) = mu
-             end where
+             do k = 1, self%nscan_tot
+                if (output(k,j,i) == 0.d0) then
+                   l = k
+                   if (k == 1) then
+                      do while (output(l,j,i) == 0.d0 .and. l < self%nscan) 
+                         l = l+1
+                      end do
+                   else
+                      do while (output(l,j,i) == 0.d0 .and. l > 1) 
+                         l = l-1
+                      end do
+                   end if
+                   output(k,j,i) = output(l,j,i)
+                end if
+             end do
+!!$             if (output(
+!!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
+!!$             where (output(:,j,i) == 0.d0) 
+!!$                output(:,j,i) = mu
+!!$             end where
           end do
        end do
+
+!!$       do j = 1, self%ndet
+!!$          do i = 1, 4
+!!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
+!!$             where (output(:,j,i) == 0.d0) 
+!!$                output(:,j,i) = mu
+!!$             end where
+!!$          end do
+!!$       end do
 
        call int2string(iter, itext)
        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
