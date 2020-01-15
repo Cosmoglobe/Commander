@@ -8,6 +8,7 @@ module comm_tod_mod
   use comm_conviqt_mod
   use comm_zodi_mod
   USE ISO_C_BINDING
+  use InvSamp_mod
   implicit none
 
   private
@@ -108,6 +109,8 @@ module comm_tod_mod
      procedure                        :: output_scan_list
      procedure                        :: multiply_inv_n
      procedure                        :: downsample_tod
+     procedure                        :: sample_n_corr
+     procedure                        :: sample_noise_psd
   end type comm_tod
 
   abstract interface
@@ -954,6 +957,356 @@ contains
 !!$    stop
 
   end subroutine downsample_tod
+
+
+  subroutine linspace(from, to, array)  ! Hat tip: https://stackoverflow.com/a/57211848/5238625
+    implicit none
+    real(dp), intent(in) :: from, to
+    real(dp), intent(out) :: array(:)
+    real(dp) :: range
+    integer :: n, i
+    n = size(array)
+    range = to - from
+
+    if (n == 0) return
+
+    if (n == 1) then
+       array(1) = from
+       return
+    end if
+
+    do i=1, n
+       array(i) = from + range * (i - 1) / (n - 1)
+    end do
+  end subroutine linspace
+
+
+! Fills masked region with linear function between the mean of 20 points at each end
+  subroutine fill_masked_region(d_p, mask, i_start, i_end, ntod)
+    implicit none
+    real(sp), intent(inout)  :: d_p(:)
+    real(sp), intent(in)     :: mask(:)
+    integer(i4b), intent(in) :: i_end, i_start, ntod 
+    real(dp)     :: mu1, mu2
+    integer(i4b) :: i, n_mean, earliest, latest
+    n_mean = 20
+    earliest = max(i_start - (n_mean + 1), 1)
+    latest = min(i_end + (n_mean + 1), ntod)
+    if (i_start == 1) then  ! masked region at start for scan
+       if (i_end < ntod) then
+          mu2 = sum(d_p(i_end:latest) * mask(i_end:latest)) / sum(mask(i_end:latest))
+          d_p(i_start:i_end) = mu2
+       else
+          write(*,*) "Entire scan masked, this should not happen (in comm_tod_mod.fill_masked_region)"
+       end if
+    else if (i_end == ntod) then  ! masked region at end of scan
+       mu1 = sum(d_p(earliest:i_start) * mask(earliest:i_start)) / sum(mask(earliest:i_start))
+       d_p(i_start:i_end) = mu2
+    else   ! masked region in middle of scan
+       mu1 = sum(d_p(earliest:i_start) * mask(earliest:i_start)) / sum(mask(earliest:i_start))
+       mu2 = sum(d_p(i_end:latest) * mask(i_end:latest)) / sum(mask(i_end:latest))
+       do i = i_start, i_end
+          d_p(i) = mu1 + (mu2 - mu1) * (i - i_start + 1) / (i_end - i_start + 2)
+       end do
+    end if
+  end subroutine fill_masked_region
+
+
+  ! Compute correlated noise term, n_corr from eq:
+  ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
+  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
+    implicit none
+    class(comm_tod),               intent(in)     :: self
+    type(planck_rng),                  intent(inout)  :: handle
+    integer(i4b),                      intent(in)     :: scan
+    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
+    real(sp),          dimension(:,:), intent(out)    :: n_corr
+    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: nfft, nbuff, j_end, j_start
+    integer*8    :: plan_fwd, plan_back
+    logical(lgt) :: init_masked_region, end_masked_region
+    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c
+    real(dp)     :: nu, power, fft_norm
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
+    real(sp),     allocatable, dimension(:) :: d_prime
+    
+    ntod = self%scans(scan)%ntod
+    ndet = self%ndet
+    nomp = omp_get_max_threads()
+    
+    nfft = 2 * ntod
+    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
+    
+    n = nfft / 2 + 1
+
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
+
+    allocate(dt(nfft), dv(0:n-1))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    deallocate(dt, dv)
+
+    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
+    allocate(dt(nfft), dv(0:n-1))
+    allocate(d_prime(ntod))
+
+    !$OMP DO SCHEDULE(guided)
+    do i = 1, ndet
+       if (.not. self%scans(scan)%d(i)%accept) cycle
+       gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
+       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
+
+       sigma_0 = self%scans(scan)%d(i)%sigma0
+       
+       ! Fill gaps in data 
+       init_masked_region = .true.
+       end_masked_region = .false.
+       do j = 1,ntod
+          if (mask(j,i) == 1.) then
+             if (end_masked_region) then
+                j_end = j - 1
+                call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod)
+                ! Add noise to masked region
+                if (trim(self%operation) == "sample") then
+                   do k = j_start, j_end
+                      d_prime(k) = d_prime(k) + sigma_0 * rand_gauss(handle)
+                   end do
+                end if
+                end_masked_region = .false.
+                init_masked_region = .true.
+             end if
+          else
+             if (init_masked_region) then
+                init_masked_region = .false.
+                end_masked_region = .true.
+                j_start = j
+             end if
+          end if
+       end do
+       ! if the data ends with a masked region
+       if (end_masked_region) then
+          j_end = ntod
+          call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod)
+          if (trim(self%operation) == "sample") then
+             do k = j_start, j_end
+                d_prime(k) = d_prime(k) + sigma_0 * rand_gauss(handle)
+             end do
+          end if      
+       end if
+      
+       ! Preparing for fft
+       dt(1:ntod)           = d_prime(:)
+       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+       ! nbuff = nfft - ntod
+       ! do j=1, nbuff
+       !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
+       ! end do
+  
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       samprate = self%samprate
+       alpha    = self%scans(scan)%d(i)%alpha
+       nu_knee  = self%scans(scan)%d(i)%fknee
+       N_wn = sigma_0 ** 2  ! white noise power spectrum
+       fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
+       
+       if (trim(self%operation) == "sample") then
+          dv(0)    = dv(0) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+       end if
+       
+       
+       do l = 1, n-1                                                      
+          nu = l*(samprate/2)/(n-1)
+!!$          if (abs(nu-1.d0/60.d0)*60.d0 < 0.001d0) then
+!!$             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
+!!$          end if
+          
+          N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
+
+          if (trim(self%operation) == "sample") then
+             dv(l) = (dv(l) + fft_norm * ( &
+                  sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
+                  + N_wn * sqrt(1.0 / N_c) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
+                  )) * 1.d0/(1.d0 + N_wn / N_c)
+          else
+             dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
+          end if
+       end do
+       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+       dt          = dt / nfft
+       n_corr(:,i) = dt(1:ntod) 
+       ! if (i == 1) then
+       !    open(65,file='ncorr_times.dat')
+       !    do j = i, ntod
+       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
+       !    end do
+       !    close(65)
+       !    !stop
+       ! end if
+
+    end do
+    !$OMP END DO                                                          
+    deallocate(dt, dv)
+    deallocate(d_prime)
+    !deallocate(diff)
+    !$OMP END PARALLEL
+    
+
+    call sfftw_destroy_plan(plan_fwd)                                           
+    call sfftw_destroy_plan(plan_back)                                          
+  
+  end subroutine sample_n_corr
+
+
+  ! Sample noise psd
+  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
+    implicit none
+    class(comm_tod),             intent(inout)  :: self
+    type(planck_rng),                intent(inout)  :: handle
+    integer(i4b),                    intent(in)     :: scan
+    real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
+    
+    integer*8    :: plan_fwd
+    integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
+    integer(i4b) :: ndet
+    real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, f
+    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior(2)
+    real(sp),     allocatable, dimension(:) :: dt, ps
+    complex(spc), allocatable, dimension(:) :: dv
+    real(sp),     allocatable, dimension(:) :: d_prime
+    
+    ntod = self%scans(scan)%ntod
+    ndet = self%ndet
+    nomp = omp_get_max_threads()
+
+    ! compute sigma_0 the old way
+    do i = 1, ndet
+       if (.not. self%scans(scan)%d(i)%accept) cycle
+    
+       s = 0.d0
+       n = 0
+
+       do j = 1, self%scans(scan)%ntod-1
+          if (any(mask(j:j+1,i) < 0.5)) cycle
+          res = (self%scans(scan)%d(i)%tod(j) - &
+               & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+               & n_corr(j,i)) - &
+               & (self%scans(scan)%d(i)%tod(j+1) - &
+               & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+               & n_corr(j+1,i))))/sqrt(2.)
+          s = s + res**2
+          n = n + 1
+       end do
+       ! if ((i == 1) .and. (scan == 1)) then
+       !    write(*,*) "sigma0: ", sqrt(s/(n-1))
+       ! end if
+       if (n > 100) self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
+    end do
+    
+    
+    n = ntod + 1
+
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
+
+    allocate(dt(2*ntod), dv(0:n-1))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    deallocate(dt, dv)
+
+    ! Commented out OMP since we had problems with global parameters 
+    ! in the likelihood functions
+!    !$OMP PARALLEL PRIVATE(i,l,j,dt,dv,f,d_prime,gain,ps,sigma0,alpha,fknee,samprate)
+    allocate(dt(2*ntod), dv(0:n-1))
+    allocate(d_prime(ntod))
+    
+    allocate(ps(0:n-1))
+!    !$OMP DO SCHEDULE(guided)
+    do i = 1, ndet
+       if (.not. self%scans(scan)%d(i)%accept) cycle
+       dt(1:ntod) = n_corr(:,i)
+       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+
+       ps(:) = 0
+       
+       samprate = self%samprate
+       alpha = self%scans(scan)%d(i)%alpha
+       sigma0 = self%scans(scan)%d(i)%sigma0
+       fknee = self%scans(scan)%d(i)%fknee
+       
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+
+       ! n_f should be the index representing fknee
+       ! we want to only use smaller frequencies than this in the likelihood
+       n_f = ceiling(fknee * (n-1) / (samprate/2))  
+
+       do l = 1, n_f !n-1
+          ps(l) = abs(dv(l)) ** 2 / (2 * ntod)
+       end do
+ 
+       ! Sampling noise parameters given n_corr
+       
+       ! TODO: get prior parameters from parameter file
+       ! Sampling fknee
+       x_in(1) = fknee - 0.02
+       x_in(2) = fknee
+       x_in(3) = fknee + 0.02
+       prior(1) = 0.05
+       prior(2) = 0.3
+       fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior)
+       
+       ! Sampling alpha
+       x_in(1) = alpha - 0.1
+       x_in(2) = alpha
+       x_in(3) = alpha + 0.1
+       prior(1) = -0.5
+       prior(2) = -2.0
+       alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior)
+       
+       self%scans(scan)%d(i)%alpha = alpha
+       self%scans(scan)%d(i)%fknee = fknee
+    end do
+!    !$OMP END DO
+    deallocate(dt, dv)
+    deallocate(d_prime)
+    deallocate(ps)
+    
+!    !$OMP END PARALLEL
+    
+    call sfftw_destroy_plan(plan_fwd)
+    
+  contains
+
+    function lnL_fknee(x) 
+      use healpix_types
+      implicit none
+      real(dp), intent(in) :: x
+      real(dp)             :: lnL_fknee, sconst, f, s
+      lnL_fknee = 0.d0
+      sconst = sigma0 ** 2 * x ** alpha 
+      do l = 1, n_f  ! n-1
+         f = l*(samprate/2)/(n-1)
+         s = sconst * f ** (-alpha)
+         lnL_fknee = lnL_fknee - 0.5 * (ps(l) / s + log(s))
+      end do
+    end function lnL_fknee
+
+    function lnL_alpha(x) 
+      use healpix_types
+      implicit none
+      real(dp), intent(in) :: x
+      real(dp)             :: lnL_alpha, sconst, f, s
+      lnL_alpha = 0.d0
+      sconst = sigma0 ** 2 * fknee ** x 
+      do l = 1, n_f  ! n-1
+         f = l*(samprate/2)/(n-1)
+         s = sconst * f ** (-x)
+         lnL_alpha = lnL_alpha - 0.5 * (ps(l) / s + log(s))
+      end do
+    end function lnL_alpha
+
+       
+  end subroutine sample_noise_psd
 
 
 end module comm_tod_mod
