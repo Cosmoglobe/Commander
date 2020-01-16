@@ -1012,6 +1012,57 @@ contains
   end subroutine fill_masked_region
 
 
+! Identifies and fills masked region
+  subroutine fill_all_masked(handle, d_p, mask, sigma_0, ntod, sample)
+    implicit none
+    real(sp),         intent(inout)  :: d_p(:)
+    real(sp),         intent(in)     :: mask(:)
+    real(sp),         intent(in)     :: sigma_0
+    type(planck_rng), intent(inout)  :: handle
+    integer(i4b),     intent(in) :: ntod
+    logical(lgt),     intent(in) :: sample
+    integer(i4b) :: j_end, j_start, j, k
+    logical(lgt) :: init_masked_region, end_masked_region
+    
+    ! Fill gaps in data 
+    init_masked_region = .true.
+    end_masked_region = .false.
+    do j = 1,ntod
+       if (mask(j) == 1.) then
+          if (end_masked_region) then
+             j_end = j - 1
+             call fill_masked_region(d_p, mask, j_start, j_end, ntod)
+             ! Add noise to masked region
+             if (sample) then
+                do k = j_start, j_end
+                   d_p(k) = d_p(k) + sigma_0 * rand_gauss(handle)
+                end do
+             end if
+             end_masked_region = .false.
+             init_masked_region = .true.
+          end if
+       else
+          if (init_masked_region) then
+             init_masked_region = .false.
+             end_masked_region = .true.
+             j_start = j
+          end if
+       end if
+    end do
+    ! if the data ends with a masked region
+    if (end_masked_region) then
+       j_end = ntod
+       call fill_masked_region(d_p, mask, j_start, j_end, ntod)
+       if (sample) then
+          do k = j_start, j_end
+             d_p(k) = d_p(k) + sigma_0 * rand_gauss(handle)
+          end do
+       end if
+    end if
+
+  end subroutine fill_all_masked
+
+
   ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
   subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
@@ -1048,7 +1099,8 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
-    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
+!    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
+    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime)
     allocate(dt(nfft), dv(0:n-1))
     allocate(d_prime(ntod))
 
@@ -1060,42 +1112,8 @@ contains
 
        sigma_0 = self%scans(scan)%d(i)%sigma0
        
-       ! Fill gaps in data 
-       init_masked_region = .true.
-       end_masked_region = .false.
-       do j = 1,ntod
-          if (mask(j,i) == 1.) then
-             if (end_masked_region) then
-                j_end = j - 1
-                call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod)
-                ! Add noise to masked region
-                if (trim(self%operation) == "sample") then
-                   do k = j_start, j_end
-                      d_prime(k) = d_prime(k) + sigma_0 * rand_gauss(handle)
-                   end do
-                end if
-                end_masked_region = .false.
-                init_masked_region = .true.
-             end if
-          else
-             if (init_masked_region) then
-                init_masked_region = .false.
-                end_masked_region = .true.
-                j_start = j
-             end if
-          end if
-       end do
-       ! if the data ends with a masked region
-       if (end_masked_region) then
-          j_end = ntod
-          call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod)
-          if (trim(self%operation) == "sample") then
-             do k = j_start, j_end
-                d_prime(k) = d_prime(k) + sigma_0 * rand_gauss(handle)
-             end do
-          end if      
-       end if
-      
+       call fill_all_masked(handle, d_prime, mask(:,i), sigma_0, ntod, (trim(self%operation) == "sample"))
+       
        ! Preparing for fft
        dt(1:ntod)           = d_prime(:)
        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
