@@ -12,7 +12,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, initialize_tod_mod
+  public comm_tod, initialize_tod_mod, fill_all_masked, extend_mask
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
@@ -386,7 +386,7 @@ contains
     class(comm_tod),   intent(inout) :: self    
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, n_tot, ierr
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr
     real(dp)           :: w_tot, w
     real(dp),           allocatable, dimension(:) :: weight, sid
     integer(i4b),       allocatable, dimension(:) :: scanid, id
@@ -437,20 +437,21 @@ contains
 !!$       deallocate(id, pweight, weight)
 
        ! Sort according to scan id
+       m = j-1
        pweight = 0.d0
        proc    = -1
-       call QuickSort(id, sid)
-       w_tot = sum(weight)
+       call QuickSort(id(1:m), sid(1:m))
+       w_tot = sum(weight(1:m))
        j     = 1
        do i = 0, np-2
           w = 0.d0
-          do k = 1, n_tot
+          do k = 1, m
              if (proc(k) == i) w = w + weight(k) 
           end do
-          do while (w < w_tot/np)
+          do while (w < w_tot/np .and. j <= m)
              proc(id(j)) = i
              w           = w + weight(id(j))
-             if (w > 1.2d0*w_tot/np) then
+             if (w > 1.2d0*w_tot/np .and. m > 2*np) then
                 ! Assign large scans to next core
                 proc(id(j)) = i+1
                 w           = w - weight(id(j))
@@ -458,7 +459,7 @@ contains
              j           = j+1
           end do
        end do
-       do while (j <= n_tot)
+       do while (j <= m)
           proc(id(j)) = np-1
           j = j+1
        end do
@@ -1193,7 +1194,7 @@ contains
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
-    
+
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
     nomp = omp_get_max_threads()
@@ -1221,7 +1222,7 @@ contains
        ! end if
        if (n > 100) self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
     end do
-    
+    return
     
     n = ntod + 1
 
@@ -1266,19 +1267,19 @@ contains
        
        ! TODO: get prior parameters from parameter file
        ! Sampling fknee
-       x_in(1) = fknee - 0.02
-       x_in(2) = fknee
-       x_in(3) = fknee + 0.02
-       prior(1) = 0.05
-       prior(2) = 0.3
-       fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior)
+       prior(1) = 0.0005
+       prior(2) = 1.
+       x_in(1)  = max(min(fknee - 0.02,prior(2)-0.04),prior(1))
+       x_in(3)  = max(min(fknee + 0.02,prior(2)),prior(1))
+       x_in(2)  = 0.5*(x_in(1)+x_in(3))
+       fknee    = sample_InvSamp(handle, x_in, lnL_fknee, prior)
        
        ! Sampling alpha
-       x_in(1) = alpha - 0.1
-       x_in(2) = alpha
-       x_in(3) = alpha + 0.1
-       prior(1) = -0.5
-       prior(2) = -2.0
+       prior(1) = -2.0
+       prior(2) = -0.5
+       x_in(1)  = max(min(alpha - 0.1,prior(2))-0.2,prior(1))
+       x_in(3)  = max(min(alpha + 0.1,prior(2)),prior(1))
+       x_in(2)  = 0.5*(x_in(1)+x_in(3))
        alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior)
        
        self%scans(scan)%d(i)%alpha = alpha
@@ -1326,5 +1327,26 @@ contains
        
   end subroutine sample_noise_psd
 
+
+  subroutine extend_mask(mask, mask_ext)
+    implicit none
+    real(sp), dimension(:,:), intent(in)  :: mask
+    real(sp), dimension(:,:), intent(out) :: mask_ext
+
+    integer(i4b) :: i, j, w, n
+
+    n = size(mask,1)
+    w = 10 ! Number of removed samples
+
+    mask_ext = 1.
+    do j = 1, size(mask,2)
+       do i = 1, size(mask,1)
+          if (mask(i,j) < 0.5) then
+             mask_ext(max(i-w,1):min(i+w,n),j) = 0.
+          end if
+       end do
+    end do
+
+  end subroutine extend_mask
 
 end module comm_tod_mod
