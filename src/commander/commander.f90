@@ -257,6 +257,7 @@ contains
     ndelta      = cpar%num_bp_prop + 1
 
     do i = 1, numband  
+    !do i = 1, 1
        if (trim(data(i)%tod_type) == 'none') cycle
 
        ! Compute current sky signal for default bandpass and MH proposal
