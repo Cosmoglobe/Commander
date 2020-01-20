@@ -3,7 +3,7 @@ module comm_huffman_mod
   implicit none
 
   private
-  public huffcode, huffman_decode, huffman_decode2, hufmak, get_bitstring, hufmak_precomp
+  public huffcode, huffman_decode, huffman_decode2, hufmak, get_bitstring, hufmak_precomp, huffman_get_length
 
   type huffcode
      integer(i4b) :: nch, nodemax
@@ -24,27 +24,6 @@ contains
     integer(i4b) :: i, j, k, n, nb, ich, l,nc,node
 
     n  = size(x_out)
-!!$    nb = 8       ! First byte does not contain real data
-!!$    do i = 1, n
-!!$       node=hcode%nodemax
-!!$       do 
-!!$          nc=shifta(nb,3)+1    !nc=nb/8+1
-!!$          l=iand(nb,7)         !l=mod(nb,8) 
-!!$          nb=nb+1
-!!$          if (btest(x_in(nc),7-l)) then 
-!!$             node=hcode%iright(node) 
-!!$          else
-!!$             node=hcode%left(node)
-!!$          end if
-!!$          if (node <= hcode%nch) then
-!!$             x_out(i) = hcode%symbols(node)
-!!$             if (i > 1) x_out(i) = x_out(i-1) + x_out(i)
-!!$             if (present(imod)) x_out(i) = iand(x_out(i),imod)
-!!$             exit
-!!$          end if
-!!$       end do
-!!$    end do
-
     k = 1
     node=hcode%nodemax
     do i = 2, size(x_in)  ! First byte does not contain real data
@@ -66,6 +45,35 @@ contains
     end do
 
   end subroutine huffman_decode2
+
+  ! Public routines
+  function huffman_get_length(hcode, x_in)
+    implicit none
+    type(huffcode),               intent(in)  :: hcode
+    byte,           dimension(:), intent(in)  :: x_in
+    integer(i4b)                              :: huffman_get_length
+
+    integer(i4b) :: i, j, k, n, nb, ich, l,nc,node
+
+    n = 0
+    node=hcode%nodemax
+    do i = 2, size(x_in)  ! First byte does not contain real data
+       do j = 7, 0, -1
+          if (btest(x_in(i),j)) then 
+             node=hcode%iright(node) 
+          else
+             node=hcode%left(node)
+          end if
+          if (node <= hcode%nch) then
+             n    = n+1
+             node = hcode%nodemax
+          end if
+       end do
+    end do
+
+    huffman_get_length = n
+
+  end function huffman_get_length
 
 
   ! Public routines

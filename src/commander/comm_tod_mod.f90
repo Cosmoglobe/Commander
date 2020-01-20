@@ -16,13 +16,15 @@ module comm_tod_mod
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
+     real(sp)          :: todscale                        ! TOD decompression factor
      real(dp)          :: gain, dgain, gain_sigma         ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
      logical(lgt)      :: accept
-     real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)     
+     !real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)     
+     byte,         allocatable, dimension(:)  :: tod       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      byte,         allocatable, dimension(:)  :: flag       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      byte,         allocatable, dimension(:)  :: pix        ! Compressed pixelized pointing, (ntod,nhorn)
      byte,         allocatable, dimension(:)  :: psi        ! Compressed polarization angle, (ntod,nhorn)
@@ -155,12 +157,12 @@ contains
     character(len=*), dimension(:), intent(in)     :: detlabels
 
     integer(i4b) :: i, j, n, det, ierr, ndet_tot
-    real(dp)     :: t1, t2
+    real(dp)     :: t1, t2, ntodsigma, med
     real(sp)     :: psi
     type(hdf_file)     :: file
 
     integer(i4b), dimension(:), allocatable       :: ns   
-    real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
+    real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf, buf
     character(len=1024)                           :: det_buf
     character(len=128), dimension(:), allocatable :: dets
 
@@ -184,11 +186,12 @@ contains
 !!$          write(*,*) i, trim(adjustl(dets(i)))
 !!$       end do
        !write(*,*) ndet_tot
-       call read_hdf(file, "common/nside",  self%nside)
-       call read_hdf(file, "common/npsi",   self%npsi)
-       call read_hdf(file, "common/fsamp",  self%samprate)
-       call read_hdf(file, "common/polang", polang_buf)
-       call read_hdf(file, "common/mbang",  mbang_buf)      
+       call read_hdf(file, "common/nside",     self%nside)
+       call read_hdf(file, "common/npsi",      self%npsi)
+       call read_hdf(file, "common/fsamp",     self%samprate)
+       call read_hdf(file, "common/polang",    polang_buf)
+       call read_hdf(file, "common/mbang",     mbang_buf)      
+       call read_hdf(file, "common/ntodsigma", ntodsigma)      
 
 
 !!$          do j = 1, ndet_tot
@@ -214,6 +217,7 @@ contains
     call mpi_bcast(self%nside,    1,     MPI_INTEGER,          0, self%comm, ierr)
     call mpi_bcast(self%npsi,     1,     MPI_INTEGER,          0, self%comm, ierr)
     call mpi_bcast(self%samprate, 1,     MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+    call mpi_bcast(ntodsigma,     1,     MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     call mpi_bcast(self%polang,   self%ndet,  MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     call mpi_bcast(self%mbang,    self%ndet,  MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
 
@@ -223,13 +227,16 @@ contains
        call read_hdf_scan(self%scans(i), self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels)
        do det = 1, self%ndet
-          self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
-          if (.not. self%scans(i)%d(det)%accept) then
-             write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
-                  & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
-             write(*,fmt='(a,a)') '    filename = ', &
-                  & trim(self%hdfname(i))
-          end if
+          !self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
+          self%scans(i)%d(det)%accept = .true.
+          self%scans(i)%d(det)%todscale = self%scans(i)%d(det)%sigma0 * &
+               & self%scans(i)%d(det)%gain / ntodsigma
+!!$          if (.not. self%scans(i)%d(det)%accept) then
+!!$             write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
+!!$                  & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
+!!$             write(*,fmt='(a,a)') '    filename = ', &
+!!$                  & trim(self%hdfname(i))
+!!$          end if
        end do
     end do
 
@@ -253,9 +260,13 @@ contains
        self%gain0 = self%gain0 / ns - self%gain0(0)
     end where
 
+    if (self%myid == 0) write(*,*) 'Init on mean gain'
     do i = 1, self%nscan
        do j = 1, self%ndet 
           self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
+
+          self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j)
+          self%scans(i)%d(j)%dgain = 0.d0
        end do
     end do
 
@@ -301,58 +312,6 @@ contains
 
     call open_hdf_file(filename, file, "r")
 
-    ! Find array sizes
-    call get_size_hdf(file, slabel // "/" // trim(detlabels(1)) // "/tod", ext)
-    !nhorn     = ext(1)
-    n         = ext(1)
-    !m = n
-    m         = get_closest_fft_magic_number(n)
-!!$    m         = get_closest_fft_magic_number(2*n)
-!!$    do while (mod(m,2) == 1)
-!!$       m = get_closest_fft_magic_number(m-1)
-!!$    end do
-!!$    m = m/2
-    self%ntod = m
-
-    ! Read common scan data
-    call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
-    call read_hdf(file, slabel // "/common/time",  self%t0)
-    call wall_time(t2)
-    t_tot(1) = t2-t1
-
-    ! Read detector scans
-    allocate(self%d(ndet), buffer_sp(n))
-    do i = 1, ndet
-       call wall_time(t1)
-       field = detlabels(i)
-       call wall_time(t2)
-       t_tot(2) = t_tot(2) + t2-t1
-       call wall_time(t1)
-       allocate(self%d(i)%tod(m))
-       self%d(i)%label = trim(field)
-       call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-       self%d(i)%gain = scalars(1)
-       self%d(i)%sigma0 = scalars(2)
-       self%d(i)%fknee = scalars(3)
-       self%d(i)%alpha = scalars(4)
-       call wall_time(t2)
-       t_tot(3) = t_tot(3) + t2-t1
-       call wall_time(t1)
-       call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-       self%d(i)%tod = buffer_sp(1:m)
-       call wall_time(t2)
-       t_tot(4) = t_tot(4) + t2-t1
-   
-       ! Read Huffman coded data arrays
-       call wall_time(t1)
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi)
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
-       call wall_time(t2)
-       t_tot(5) = t_tot(5) + t2-t1
-    end do
-    deallocate(buffer_sp)
-
     ! Initialize Huffman key
     call wall_time(t1)
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
@@ -362,6 +321,64 @@ contains
     deallocate(hsymb, htree)
     call wall_time(t2)
     t_tot(6) = t_tot(6) + t2-t1
+
+    ! Read common scan data
+    call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
+    call read_hdf(file, slabel // "/common/time",  self%t0)
+    call wall_time(t2)
+    t_tot(1) = t2-t1
+
+    ! Read detector scans
+    allocate(self%d(ndet))
+    do i = 1, ndet
+       call wall_time(t1)
+       field = detlabels(i)
+       call wall_time(t2)
+       t_tot(2) = t_tot(2) + t2-t1
+       call wall_time(t1)
+       !allocate(self%d(i)%tod(m))
+       self%d(i)%label = trim(field)
+       call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
+       self%d(i)%gain = scalars(1)
+       self%d(i)%sigma0 = scalars(2)
+       self%d(i)%fknee = scalars(3)
+       self%d(i)%alpha = scalars(4)
+       call wall_time(t2)
+       t_tot(3) = t_tot(3) + t2-t1
+       call wall_time(t1)
+       !call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+       !self%d(i)%tod = buffer_sp(1:m)
+       call wall_time(t2)
+       t_tot(4) = t_tot(4) + t2-t1
+   
+       ! Read Huffman coded data arrays
+       call wall_time(t1)
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod",  self%d(i)%tod)
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi)
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+       call wall_time(t2)
+       t_tot(5) = t_tot(5) + t2-t1
+    end do
+    !deallocate(buffer_sp)
+
+    ! Find array sizes
+    !call get_size_hdf(file, slabel // "/" // trim(detlabels(1)) // "/tod", ext)
+
+    !call read_hdf(file, slabel // "/common/ntod",  n)
+    n = huffman_get_length(self%hkey, self%d(1)%tod)-8
+
+    !nhorn     = ext(1)
+    !n         = ext(1)
+    !m = n
+    m         = get_closest_fft_magic_number(n)
+!!$    m         = get_closest_fft_magic_number(2*n)
+!!$    do while (mod(m,2) == 1)
+!!$       m = get_closest_fft_magic_number(m-1)
+!!$    end do
+!!$    m = m/2
+    self%ntod = m
+
 
     call close_hdf_file(file)
 
@@ -1002,7 +1019,7 @@ contains
        end if
     else if (i_end == ntod) then  ! masked region at end of scan
        mu1 = sum(d_p(earliest:i_start) * mask(earliest:i_start)) / sum(mask(earliest:i_start))
-       d_p(i_start:i_end) = mu2
+       d_p(i_start:i_end) = mu1
     else   ! masked region in middle of scan
        mu1 = sum(d_p(earliest:i_start) * mask(earliest:i_start)) / sum(mask(earliest:i_start))
        mu2 = sum(d_p(i_end:latest) * mask(i_end:latest)) / sum(mask(i_end:latest))
@@ -1066,12 +1083,12 @@ contains
 
   ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
+  subroutine sample_n_corr(self, handle, scan, tod, mask, s_sub, n_corr)
     implicit none
     class(comm_tod),               intent(in)     :: self
     type(planck_rng),                  intent(inout)  :: handle
     integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
+    real(sp),          dimension(:,:), intent(in)     :: tod, mask, s_sub
     real(sp),          dimension(:,:), intent(out)    :: n_corr
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
@@ -1109,7 +1126,7 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
+       d_prime(:) = tod(:,i) - S_sub(:,i) * gain
 
        sigma_0 = self%scans(scan)%d(i)%sigma0
        
@@ -1179,12 +1196,12 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
+  subroutine sample_noise_psd(self, handle, scan, tod, mask, s_tot, n_corr)
     implicit none
     class(comm_tod),             intent(inout)  :: self
     type(planck_rng),                intent(inout)  :: handle
     integer(i4b),                    intent(in)     :: scan
-    real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
+    real(sp),        dimension(:,:), intent(in)     :: tod, mask, s_tot, n_corr
     
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
@@ -1208,11 +1225,8 @@ contains
 
        do j = 1, self%scans(scan)%ntod-1
           if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = (self%scans(scan)%d(i)%tod(j) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
-               & n_corr(j,i)) - &
-               & (self%scans(scan)%d(i)%tod(j+1) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+          res = (tod(j,i) - (self%scans(scan)%d(i)%gain * s_tot(j,i) + n_corr(j,i)) - &
+               & (tod(j+1,i) - (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
                & n_corr(j+1,i))))/sqrt(2.)
           s = s + res**2
           n = n + 1
@@ -1336,7 +1350,7 @@ contains
     integer(i4b) :: i, j, w, n
 
     n = size(mask,1)
-    w = 10 ! Number of removed samples
+    w = 100 ! Number of removed samples
 
     mask_ext = 1.
     do j = 1, size(mask,2)

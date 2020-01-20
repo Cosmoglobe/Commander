@@ -310,7 +310,7 @@ contains
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold
     real(dp)     :: t_tot(22)
     real(sp)     :: inv_gain
-    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp, mask_ext
+    real(sp),     allocatable, dimension(:,:)     :: tod, n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp, mask_ext
     real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
     real(sp),     allocatable, dimension(:,:)     :: s_invN, s_lowres
     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
@@ -346,7 +346,7 @@ contains
     correct_sl      = .true.
     chisq_threshold = 7.d0
     n_main_iter     = 5
-    chisq_threshold = 30.d0  !3000.d0
+    chisq_threshold = 3000.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -489,10 +489,10 @@ contains
 !       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
        do_oper(samp_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
 !       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
 !       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
        do_oper(samp_N)       = (main_iter >= n_main_iter-1)
-       do_oper(samp_N_par)   = do_oper(samp_N)              .and. .not. self%first_call
+       do_oper(samp_N_par)   = do_oper(samp_N)              !.and. .not. self%first_call
        do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
        do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
@@ -587,6 +587,7 @@ contains
           ndet = self%ndet
           
           ! Set up local data structure for current scan
+          allocate(tod(ntod, ndet))                 ! TOD in V
           allocate(n_corr(ntod, ndet))                 ! Correlated noise in V
           allocate(s_sl(ntod, ndet))                   ! Sidelobe in uKcm
           allocate(s_sky(ntod, ndet))                  ! Sky signal in uKcmb
@@ -622,7 +623,7 @@ contains
           call wall_time(t1)
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call self%decompress_pointing_and_flags(i, j, pix(:,j), &
+             call self%decompress_pointing_and_flags(i, j, tod(:,j), pix(:,j), &
                   & psi(:,j), flag(:,j))
           end do
           call self%symmetrize_flags(flag)
@@ -650,7 +651,8 @@ contains
                      & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
              end do
           end if
-          call extend_mask(mask, mask_ext)
+          mask_ext = mask
+          !call extend_mask(mask, mask_ext)
           if (main_iter == 1 .and. self%first_call) then
              do j = 1, ndet
                 if (all(mask_ext(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
@@ -720,6 +722,7 @@ contains
 
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
+             call wall_time(t1)
 !!$             call self%downsample_tod(s_orb(:,1), ext)
 !!$             allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
 !!$             allocate(s_lowres(ext(1):ext(2), ndet))      ! s 
@@ -727,7 +730,7 @@ contains
              allocate(s_lowres(ntod, ndet))      ! s 
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                if (do_oper(samp_G) .or. do_oper(samp_rcal)) then
+                if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. trim(self%freq) == '030') then
 !!$                   call self%downsample_tod(s_tot(:,j), ext, &
 !!$                        & s_lowres(:,j), mask(:,j))
                    s_lowres(:,j) = s_tot(:,j) * mask(:,j)
@@ -743,11 +746,13 @@ contains
              end do
              s_invN = s_lowres 
              call self%multiply_inv_N(i, s_invN)
+
              !call self%multiply_inv_N(i, s_invN, sampfreq=self%samprate_gain)
              !write(*,*) i, sum(abs(s_lowres)), sum(abs(s_invN))
              !if (self%myid == 0) write(*,*) 'sum', sum(abs(sorb_invN))
              !call mpi_finalize(ierr)
              !stop
+             call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
           ! Prepare for absolute calibration
@@ -760,8 +765,13 @@ contains
                 if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    !write(*,*) self%gain0(0), self%gain0(j), self%scans(i)%d(j)%dgain, sum(abs(s_tot)), sum(abs(s_orb))
-                   s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
-                        & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                   if (trim(self%freq) == '030') then
+                      s_buf(:, j) = real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                   else
+                      s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
+                           & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                   end if
+
                    !s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_sky(:,j) - s_orb(:, j)) + &
                    !     & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
 
@@ -769,7 +779,7 @@ contains
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
-                call self%accumulate_abscal(i, j, mask_ext(:,j), s_buf(:,j), s_lowres(:,j), s_invN(:, j), A_abscal(j), b_abscal(j))
+                call self%accumulate_abscal(i, j, tod(:,j), mask_ext(:,j), s_buf(:,j), s_lowres(:,j), s_invN(:, j), A_abscal(j), b_abscal(j))
 
 !                call int2string(self%scanid(i), scantext)
 !                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
@@ -780,7 +790,7 @@ contains
 !                close(78)
 
              end do
-             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
+             call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
           ! Fit gain 
@@ -792,7 +802,7 @@ contains
                    self%scans(i)%d(j)%dgain = 0.d0
                    cycle
                 end if
-                call self%calculate_gain_mean_std_per_scan(i, j, s_invN(:, j), mask_ext(:, j), s_lowres(:, j), s_tot(:,j))
+                call self%calculate_gain_mean_std_per_scan(i, j, tod(:,j), s_invN(:, j), mask_ext(:, j), s_lowres(:, j), s_tot(:,j))
              end do
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
@@ -804,7 +814,7 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 s_buf(:,j) = s_tot(:,j)-s_mono(:,j)
              end do
-             call self%sample_n_corr(handle, i, mask, s_buf, n_corr)
+             call self%sample_n_corr(handle, i, tod, mask, s_buf, n_corr)
              !if (do_oper(bin_map)) write(*,*) 'b', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod/self%scans(i)%d(1)%gain
              call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
@@ -816,7 +826,7 @@ contains
              call wall_time(t1)
              ! do j = 1, ndet
              !    if (.not. self%scans(i)%d(j)%accept) cycle
-             call self%sample_noise_psd(handle, i, mask, s_tot, n_corr)
+             call self%sample_noise_psd(handle, i, tod, mask, s_tot, n_corr)
 !             stop
              ! call self%sample_n_corr(handle, i, mask, s_tot, n_corr)
              ! stop
@@ -830,7 +840,7 @@ contains
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
-                call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
+                call self%compute_chisq(i, j, tod(:,j), mask(:,j), s_sky(:,j), &
                      & s_buf(:,j), n_corr(:,j))      
              end do
              call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
@@ -874,7 +884,7 @@ contains
                 chisq_S(j,1) = chisq_S(j,1) + self%scans(i)%d(j)%chisq_masked
                 s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
                 do k = 2, ndelta
-                   call self%compute_chisq(i, j, mask2(:,j), s_sky(:,j), &
+                   call self%compute_chisq(i, j, tod(:,j), mask2(:,j), s_sky(:,j), &
                         & s_buf(:,j), n_corr(:,j),  s_sky_prop(:,j,k))
                    chisq_S(j,k) = chisq_S(j,k) + self%scans(i)%d(j)%chisq_prop
                 end do
@@ -891,7 +901,7 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
                 !if (j==1) write(*,*) 'c', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod*inv_gain
-                d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
+                d_calib(1,:,j) = (tod(:,j) - n_corr(:,j)) * &
                      & inv_gain - s_tot(:,j) + s_sky(:,j) - s_bp(:,j)
                 if (do_oper(bin_map) .and. nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_bp(:,j) ! Residual
                 !if (do_oper(bin_map) .and. nout > 1) write(*,*) sum(d_calib(2,:,j))/ntod 
@@ -918,9 +928,8 @@ contains
                      & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0), &
                      & self%scans(i)%d(:)%accept)
              end if
-
-
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
+
 
              if (.false. .and. self%scanid(i) == 1000 .and. do_oper(bin_map) ) then
                 call int2string(self%scanid(i), scantext)
@@ -929,7 +938,7 @@ contains
                    write(78,*) "# Sample     Data (V)     Mask    cal_TOD (K)   res (K)"// &
                         & "   n_corr (K)   s_corr (K)   s_mono (K)   s_orb  (K)   s_sl (K)"
                    do j = 1, ntod
-                      write(78,*) j, self%scans(i)%d(k)%tod(j), mask(j,1), d_calib(:,j,1)
+                      write(78,*) j, tod(j,k), mask(j,1), d_calib(:,j,1)
                    end do
                    close(78)
                 end do
@@ -953,7 +962,7 @@ contains
           call wall_time(t1)
           if (allocated(s_lowres)) deallocate(s_lowres)
           if (allocated(s_invN)) deallocate(s_invN)
-          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi)
+          deallocate(tod, n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi)
           deallocate(s_buf, s_mono)
           deallocate(s_bp, s_sky_prop, s_bp_prop)
           deallocate(mask, mask2, mask_ext)
@@ -1153,7 +1162,6 @@ contains
        write(*,*) '  Time sl interp  = ', t_tot(12)
        write(*,*) '  Time ncorr      = ', t_tot(3)
        write(*,*) '  Time gain       = ', t_tot(4)
-       write(*,*) '  Time absgain    = ', t_tot(14)
        write(*,*) '  Time sel data   = ', t_tot(15)
        write(*,*) '  Time clean      = ', t_tot(5)
        write(*,*) '  Time noise      = ', t_tot(6)
@@ -1217,15 +1225,55 @@ contains
   !**************************************************
   !             Sub-process routines
   !**************************************************
-  subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag)
+  subroutine decompress_pointing_and_flags(self, scan, det, tod, pix, psi, flag)
     implicit none
     class(comm_LFI_tod),                intent(in)  :: self
     integer(i4b),                       intent(in)  :: scan, det
+    real(sp),            dimension(:),  intent(out) :: tod
     integer(i4b),        dimension(:),  intent(out) :: pix, psi, flag
 
+    integer(i4b) :: i
+    real(dp)     :: t1, t2
+    integer(i4b), allocatable, dimension(:) :: tod_int
+
+    allocate(tod_int(size(tod)))
+!    if (self%myid == 0) call wall_time(t1)
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%tod,  tod_int)
+!!$    if (self%myid == 0) then
+!!$       call wall_time(t2)
+!!$       write(*,*) 'decomp1 =', t2-t1
+!!$       call wall_time(t1)
+!!$    end if
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
+!!$    if (self%myid == 0) then
+!!$       call wall_time(t2)
+!!$       write(*,*) 'decomp2 =', t2-t1
+!!$       call wall_time(t1)
+!!$    end if
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, imod=self%npsi-1)
+!!$    if (self%myid == 0) then
+!!$       call wall_time(t2)
+!!$       write(*,*) 'decomp3 =', t2-t1
+!!$       call wall_time(t1)
+!!$    end if
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+!!$    if (self%myid == 0) then
+!!$       call wall_time(t2)
+!!$       write(*,*) 'decomp4 =', t2-t1
+!!$       call wall_time(t1)
+!!$    end if
+    do i = 1, size(tod)
+       if (tod_int(i) == tod_int(i)) then
+          tod(i) = (tod_int(i)+0.5) * self%scans(scan)%d(det)%todscale
+       else
+          tod(i)  = 0.
+          flag(i) = 0
+       end if
+    end do
+!!$    if (self%myid == 0) then
+!!$       call wall_time(t2)
+!!$       write(*,*) 'decomp5 =', t2-t1
+!!$    end if
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
 !!$    if (det == 2) psi = modulo(psi + 20,self%npsi)
@@ -1248,6 +1296,8 @@ contains
 !!$       end if
 !!$    end do
 !!$    close(58)
+
+    deallocate(tod_int)
 
   end subroutine decompress_pointing_and_flags
 
@@ -1579,10 +1629,10 @@ contains
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(self, scan_id, det, s_invN, mask, s_ref, s_tot)
+   subroutine calculate_gain_mean_std_per_scan(self, scan_id, det, tod, s_invN, mask, s_ref, s_tot)
     implicit none
     class(comm_LFI_tod),                intent(inout) :: self
-    real(sp),             dimension(:), intent(in)    :: s_invN, mask, s_ref, s_tot
+    real(sp),             dimension(:), intent(in)    :: tod, s_invN, mask, s_ref, s_tot
     integer(i4b),                       intent(in)    :: scan_id, det
 
     real(sp), allocatable, dimension(:) :: residual
@@ -1599,8 +1649,7 @@ contains
 !!$    call self%downsample_tod(real(self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
 !!$         & self%gain0(det)) * s_tot,sp), ext, residual, mask)
     allocate(residual(size(s_ref)))
-    residual = self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
-         & self%gain0(det)) * s_tot
+    residual = tod - (self%gain0(0) + self%gain0(det)) * s_tot
 
     ! Get a proper invn multiplication from Haavard's routine here
     self%scans(scan_id)%d(det)%dgain      = 0.
@@ -1620,7 +1669,7 @@ contains
     end if
 
 
-    if (self%scanid(scan_id) == 6539 .and. det==3) then
+    if (self%scanid(scan_id) == 6705 .and. det==1) then
        write(*,*) 'gain_6794_g0   = ', self%gain0(0) + self%gain0(det), self%gain0(0), self%gain0(det)
        write(*,*) 'gain_6794_gtot = ', self%gain0(0) + self%gain0(det) + self%scans(scan_id)%d(det)%dgain/self%scans(scan_id)%d(det)%gain_sigma
        write(*,*) 'gain_6794_len  = ', size(residual), size(s_ref), size(s_invN)
@@ -1650,7 +1699,7 @@ contains
        end do
        write(58,*)
        do i = 1, size(s_tot)
-          write(58,*) i, self%scans(scan_id)%d(det)%tod(i)
+          write(58,*) i, tod(i)
        end do
        close(58)
     end if
@@ -1720,18 +1769,19 @@ contains
     if (self%myid == 0) then
 !       nbin = nscan_tot / binsize + 1
 
-!!$       open(58,file='gain.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$          do k = 1, nscan_tot
-!!$             if (g(k,j,2) > 0) then
-!!$                write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp)
-!!$             else
-!!$                write(58,*) j, k, 0.
-!!$             end if
-!!$          end do
-!!$          write(58,*)
-!!$       end do
-!!$       close(58)
+       open(58,file='gain.dat', recl=1024)
+       do j = 1, ndet
+          do k = 1, nscan_tot
+             !if (g(k,j,2) /= 0) then
+             if (g(k,j,2) > 0) then
+                write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp)
+             else
+                write(58,*) j, k, 0.
+             end if
+          end do
+          write(58,*)
+       end do
+       close(58)
 
        do j = 1, ndet
          lhs = 0.d0
@@ -1749,7 +1799,7 @@ contains
             do while (g_curr / sigma_curr < 200.d0 .and. k < nscan_tot)
                k = k + 1
                sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
-               sum_inv_sigma_squared = sum_inv_sigma_squared + max(g(k, j, 2),0.d0)
+               sum_inv_sigma_squared = sum_inv_sigma_squared + g(k, j, 2)
                if (sum_inv_sigma_squared > 0.d0) then
                   g_curr     = self%gain0(0) + self%gain0(j) + sum_weighted_gain / sum_inv_sigma_squared
                   sigma_curr = 1.d0 / sqrt(sum_inv_sigma_squared)
@@ -1850,15 +1900,15 @@ contains
   ! Haavard: Remove current monopole fit, and replace inv_sigmasq with a proper invN(alpha,fknee) multiplication
 !  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
 !       & s_orb, A_abs, b_abs)
-   subroutine accumulate_abscal(self, scan, det, mask, s_sub, s_ref, s_invN, A_abs, b_abs)
+   subroutine accumulate_abscal(self, scan, det, tod, mask, s_sub, s_ref, s_invN, A_abs, b_abs)
     implicit none
     class(comm_LFI_tod),             intent(in)     :: self
     integer(i4b),                    intent(in)     :: scan, det
-    real(sp),          dimension(:), intent(in)     :: mask, s_sub, s_ref
+    real(sp),          dimension(:), intent(in)     :: tod, mask, s_sub, s_ref
     real(sp),          dimension(:), intent(in)     :: s_invN
     real(dp),                        intent(inout)  :: A_abs, b_abs
 
-    real(sp), allocatable, dimension(:)     :: residual
+    real(sp), allocatable, dimension(:)     :: res, ref
     real(dp)     :: A, b
     integer(i4b) :: ext(2)
 
@@ -1871,9 +1921,20 @@ contains
 
 !!$    A = sum(s_invN * s_ref)
 !!$    b = sum(s_invN * residual)
-
+ 
     A = sum(s_invN * mask * s_ref)
-    b = sum(s_invN * mask * (self%scans(scan)%d(det)%tod-s_sub))
+    b = sum(s_invN * mask * (tod-s_sub))
+
+!!$    if (sum(mask) <= 0) return 
+!!$    allocate(ref(size(tod)), res(size(tod)))
+!!$    res = tod   - s_sub
+!!$    res = res   - sum(res*mask)/sum(mask)
+!!$    ref = s_ref - sum(s_ref*mask)/sum(mask)
+
+!!$    A = sum(ref * mask * ref) / self%scans(scan)%d(det)%sigma0**2
+!!$    b = sum(ref * mask * res) / self%scans(scan)%d(det)%sigma0**2
+!!$    deallocate(ref, res)
+
     !write(*,*) sum(abs(s_sub)), sum(abs(self%scans(scan)%d(det)%tod))
 
     !if (det == 1) write(*,*) self%scanid(scan), b/A, '  # absgain', real(A,sp), real(b,sp)
@@ -2001,12 +2062,12 @@ contains
 
 
   ! Compute chisquare
-  subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
+  subroutine compute_chisq(self, scan, det, tod, mask, s_sky, s_spur, &
        & n_corr, s_prop)
     implicit none
     class(comm_LFI_tod),             intent(inout)  :: self
     integer(i4b),                    intent(in)     :: scan, det
-    real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
+    real(sp),          dimension(:), intent(in)     :: tod, mask, s_sky, s_spur
     real(sp),          dimension(:), intent(in)     :: n_corr
     real(sp),          dimension(:), intent(in), optional :: s_prop
 
@@ -2020,8 +2081,7 @@ contains
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle 
        n     = n+1
-       d0    = self%scans(scan)%d(det)%tod(i) - &
-            & (g * s_spur(i) + n_corr(i))
+       d0    = tod(i) - (g * s_spur(i) + n_corr(i))
        chisq = chisq + (d0 - g * s_sky(i))**2 
        if (present(s_prop)) then
           chisq_prop = chisq_prop + (d0 - g * s_prop(i))**2 

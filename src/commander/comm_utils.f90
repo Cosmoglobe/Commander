@@ -973,5 +973,36 @@ contains
     ! ----------------------------------------------------------------------------
   End Subroutine WMAP_Read_NInv
 
+
+  subroutine compute_euler_matrix_zyz(phi, theta, psi, euler_matrix)
+    implicit none
+
+    real(dp),                 intent(in)  :: phi, theta, psi
+    real(dp), dimension(3,3), intent(out) :: euler_matrix
+
+    real(dp) :: sphi, cphi, sth, cth, spsi, cpsi
+
+    sphi = sin(phi)
+    cphi = cos(phi)
+
+    sth  = sin(theta)
+    cth  = cos(theta)
+
+    spsi = sin(psi)
+    cpsi = cos(psi)
+
+    euler_matrix(1,1) = -sphi * spsi + cth * cphi * cpsi
+    euler_matrix(1,2) = -sphi * cpsi - cth * cphi * spsi
+    euler_matrix(1,3) =                sth * cphi
+    euler_matrix(2,1) =  cphi * spsi + cth * sphi * cpsi
+    euler_matrix(2,2) =  cphi * cpsi - cth * sphi * spsi
+    euler_matrix(2,3) =                sth * sphi
+    euler_matrix(3,1) =              - sth * cpsi
+    euler_matrix(3,2) =                sth * spsi
+    euler_matrix(3,3) =                cth
+
+  end subroutine compute_euler_matrix_zyz
+
+
   
 end module comm_utils
