@@ -7,6 +7,7 @@ import math
 from astropy.io import fits
 import healpy as hp        
 import sys
+import random
 
 import huffman
 
@@ -18,7 +19,7 @@ def main():
 
     parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default=None)
 
-    parser.add_argument('--velocity-file', type=str, action='store', help='path to a file with the satelite velocities', default=None)
+    parser.add_argument('--velocity-file', type=str, action='store', help='path to a file with the satelite velocities', default='/mn/stornext/d16/cmbco/bp/data/auxiliary_data/satellite_velocity.fits')
 
     parser.add_argument('--rimo', type=str, action='store', help='path to on disk rimo file', default='/mn/stornext/d14/bp/data/auxiliary_data/LFI_RIMO_R3.31.fits')
 
@@ -35,6 +36,8 @@ def main():
     parser.add_argument('--restart', action='store_true', default=False, help="restart from a previous run that didn't finish")
 
     in_args = parser.parse_args()
+
+    random.seed()
 
     os.environ['OMP_NUM_THREADS'] = '1'
 
@@ -125,6 +128,10 @@ def make_od(freq, od, args, outbuf):
     #psi angle resolution
     outFile.create_dataset(prefix + '/npsi', data=[npsi])    
 
+    #number of sigma resolution in tod compression
+    ntodsigma = 100
+    outFile.create_dataset(prefix + '/ntodsigma', data=[ntodsigma])
+
     detNames = ''
     polangs = []
     mainbeamangs = []
@@ -163,6 +170,8 @@ def make_od(freq, od, args, outbuf):
         if pid_start == pid_end:#catch chunks with no data like od 1007
             continue
 
+        obt = exFile['Time/OBT'][pid_start]
+
         cut1 = exFile['Time/OBT'][exFile['Time/OBT'] > exFile['AHF_info/PID_start'][index]]
 
 
@@ -183,8 +192,12 @@ def make_od(freq, od, args, outbuf):
         outFile[prefix + '/vsun'].attrs['info'] = '[x, y, z]'
         outFile[prefix + '/vsun'].attrs['coords'] = 'galactic'
 
+        #open per freq npipe gains file if required
+        if args.gains_dir is not None and "npipe" in args.gains_dir:#this is a shitty test
+            gainsFile = fits.open(os.path.join(args.gains_dir, 'gains_0' + str(freq) + '_iter01.fits'))
+
         #make huffman code table
-        pixArray = [[], [], []]
+        pixArray = [[], [], [], []]
         for horn in horns[freq]:
             for hornType in ['M', 'S']:
                 fileName = h5py.File(os.path.join(args.planck_dir, 'LFI_0' + str(freq) + '_' + str(horn) + '_L2_002_OD' + str(od).zfill(4) +'.h5'), 'r')
@@ -221,6 +234,34 @@ def make_od(freq, od, args, outbuf):
                     delta = np.insert(delta, 0, flagArray[0])
                     pixArray[2].append(delta)
 
+
+                #make tod data
+                tod = fileName[str(horn) + hornType +'/SIGNAL'][pid_start:pid_end]
+                sigma0 = rimo[1].data.field('net')[rimo_i] * math.sqrt(fsamp)
+                gain = 1
+                #make gain
+                if args.gains_dir is not None and "npipe" in args.gains_dir:#this is a shitty test
+                    baseGain = fits.getdata(os.path.join(args.gains_dir, 'C0' + str(freq) + '-0000-DX11D-20150209_uniform.fits'),extname='LFI' + str(horn) + hornType)[0][0]
+                    gainArr = gainsFile['LFI' + str(horn) + hornType].data.cumulative
+                    obtArr = (1e-9 * pow(2,16)) * gainsFile[1].data.OBT
+                    gainI = np.where(obtArr <= obt)[0][-1]
+
+                    gain = np.array([1.0/(baseGain * gainArr[gainI])])
+
+
+                elif args.gains_dir is not None:
+                    gainFile = fits.open(os.path.join(args.gains_dir, 'LFI_0' + str(freq) + '_LFI' + str(horn) + hornType + '_001.fits'))
+                    gain=1.0/gainFile[1].data.GAIN[np.where(gainFile[1].data.PID == pid)]
+                    gainFile.close()
+                #TODO: fix this
+                if(type(gain) is int or gain.size == 0):
+                    gain = [0.06]
+
+                todInd = np.int32(ntodsigma * tod/(sigma0*gain[0]))
+                delta = np.diff(todInd)
+                delta = np.insert(delta, 0, todInd[0])
+                pixArray[3].append(delta)
+
         h = huffman.Huffman("", nside)
         h.GenerateCode(pixArray)
 
@@ -228,6 +269,11 @@ def make_od(freq, od, args, outbuf):
 
         outFile.create_dataset(prefix + '/hufftree', data=huffarray)
         outFile.create_dataset(prefix + '/huffsymb', data=h.symbols)
+
+        #open per freq npipe gains file if required
+        if args.gains_dir is not None and "npipe" in args.gains_dir:#this is a shitty test
+            gainsFile = fits.open(os.path.join(args.gains_dir, 'gains_0' + str(freq) + '_iter01.fits'))
+
 
         for horn in horns[freq]:
             fileName = h5py.File(os.path.join(args.planck_dir, 'LFI_0' + str(freq) + '_' + str(horn) + '_L2_002_OD' + str(od).zfill(4) +'.h5'), 'r')
@@ -239,12 +285,6 @@ def make_od(freq, od, args, outbuf):
                 #get RIMO index
                 #print(rimo[1].data.field('detector').flatten().shape, rimo[1].data.field('detector').flatten(), 'LFI' +str(horn) + hornType)
                 rimo_i = np.where(rimo[1].data.field('detector').flatten() == 'LFI' + str(horn) + hornType)
-
-                #make tod data 
-                outFile.create_dataset(prefix + '/tod', data=fileName[str(horn) + hornType +'/SIGNAL'][pid_start:pid_end], dtype='f4')
-
-                #undifferenced data? TODO
-                #outFile.create_dataset(prefix + '/')
                 
                 #make flag data
                 flagArray = fileName[str(horn) + hornType + '/FLAG'][pid_start:pid_end]
@@ -262,8 +302,32 @@ def make_od(freq, od, args, outbuf):
                 #make pixel number
                 newTheta, newPhi = r(fileName[str(horn) + hornType + '/THETA'][pid_start:pid_end], fileName[str(horn) + hornType + '/PHI'][pid_start:pid_end])
                 pixels = hp.pixelfunc.ang2pix(nside, newTheta, newPhi)
-                
+
+                outP = [0,0,0]
+
+                nsamps = min(100, len(newTheta))
+
+                mapPix = np.zeros(hp.nside2npix(512))
+                mapCross = np.zeros(hp.nside2npix(512))
+
                 if len(pixels > 0):
+                    #compute average outer product
+                    pair1 = random.sample(range(len(newTheta)), nsamps)     
+                    pair2 = random.sample(range(len(newTheta)), nsamps)
+                    #pair1 = range(nsamps)
+                    #pair2 = np.int32(np.ones(nsamps))
+                    vecs = hp.pixelfunc.ang2vec(newTheta, newPhi)
+                    for a1, a2 in zip(pair1, pair2):
+                        mapPix[pixels[a1]] += 1
+                        mapPix[pixels[a2]] +=1
+                        crossP = np.cross(vecs[a1], vecs[a2])
+                        mapCross[hp.vec2pix(512, crossP[0], crossP[1], crossP[2])] += 1
+                        #print(vecs[a1], vecs[a2], crossP)
+                        if(np.sum(crossP**2) != 0.0):
+                            outP += (crossP/np.sqrt(np.sum(crossP**2)))/nsamps
+
+                    outP = outP/np.sqrt(np.sum(outP**2))
+                    mapCross[hp.vec2pix(512, outP[0], outP[1], outP[2])] += 10
                     delta = np.diff(pixels)
                     delta = np.insert(delta, 0, pixels[0])
                     if(args.no_compress):
@@ -272,8 +336,10 @@ def make_od(freq, od, args, outbuf):
                         outFile.create_dataset(prefix+'/phi', data=newPhi) 
                     else:
                         outFile.create_dataset(prefix + '/pix', data=np.void(bytes(h.byteCode(delta))))
-                                
-                #outFile.create_dataset(prefix + '/pix', data=pixels, compression='gzip', shuffle=True)
+                outFile.create_dataset(prefix + '/outp', data=outP)
+
+                hp.write_map('pix_'+str(horn)+hornType+'_'+str(pid)+'.fits', mapPix, overwrite=True)
+                hp.write_map('cross_'+str(horn)+hornType+'_'+str(pid) +'.fits', mapCross, overwrite=True)
 
                 #make pol angle
                 psiArray = fileName[str(horn) + hornType + '/PSI'][pid_start:pid_end] + r.angle_ref(fileName[str(horn) + hornType + '/THETA'][pid_start:pid_end], fileName[str(horn) + hornType + '/PHI'][pid_start:pid_end]) + math.radians(rimo[1].data.field('psi_pol')[rimo_i])
@@ -303,12 +369,21 @@ def make_od(freq, od, args, outbuf):
                 
                 gain = 1
                 #make gain
-                if args.gains_dir is not None:
+                if args.gains_dir is not None and "npipe" in args.gains_dir:#this is a shitty test
+                    baseGain = fits.getdata(os.path.join(args.gains_dir, 'C0' + str(freq) + '-0000-DX11D-20150209_uniform.fits'),extname='LFI' + str(horn) + hornType)[0][0]
+                    gainArr = gainsFile['LFI' + str(horn) + hornType].data.cumulative
+                    obtArr = (1e-9 * pow(2,16)) * gainsFile[1].data.OBT
+                    gainI = np.where(obtArr <= obt)[0][-1]
+
+                    gain = np.array([1.0/(baseGain * gainArr[gainI])])
+
+
+                elif args.gains_dir is not None:
                     gainFile = fits.open(os.path.join(args.gains_dir, 'LFI_0' + str(freq) + '_LFI' + str(horn) + hornType + '_001.fits'))
                     gain=1.0/gainFile[1].data.GAIN[np.where(gainFile[1].data.PID == pid)]
                     gainFile.close()
                 #TODO: fix this
-                if(gain.size == 0):
+                if(type(gain) is int or gain.size == 0):
                     gain = [0.06]
          
                 #make white noise
@@ -325,7 +400,21 @@ def make_od(freq, od, args, outbuf):
                 outFile[prefix + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
 
                 #make psd noise
-                
+               
+                #make tod data
+                if(args.no_compress):
+                    outFile.create_dataset(prefix + '/tod', data=tod, dtype='d4')
+                else:    
+                    tod = fileName[str(horn) + hornType +'/SIGNAL'][pid_start:pid_end]
+                    todInd = np.int32(ntodsigma * tod/(sigma0*gain[0]))
+                    delta = np.diff(todInd)
+                    delta = np.insert(delta, 0, todInd[0])
+                    outFile.create_dataset(prefix + '/tod', data=np.void(bytes(h.byteCode(delta))))
+
+                #undifferenced data? TODO
+                #outFile.create_dataset(prefix + '/')
+
+ 
                 #make other
  
                 #write to output file

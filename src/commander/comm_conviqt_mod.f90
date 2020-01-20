@@ -265,7 +265,7 @@ contains
 
       call dfftw_execute_dft_c2r(fft_plan, dv, dt)
 
-      self%c%a(self%info%pix(i)+1,:) = dt(1:self%psisteps)
+      self%c%a(self%info%pix(i)+1,:) = 2.d0 * dt(1:self%psisteps)
 
     end do
     call mpi_win_fence(0, self%c%win, ierr)
@@ -278,7 +278,6 @@ contains
  
   end subroutine precompute_sky
 
-  ! Note: lnorm is set to 1 here. Todo: Figure out why 
   subroutine get_alms(self, m_b, map, alm)
     implicit none
     class(comm_conviqt),        intent(in)  :: self

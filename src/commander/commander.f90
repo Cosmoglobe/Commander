@@ -244,85 +244,57 @@ contains
     integer(i4b),      intent(in)    :: chain, iter
     type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
+    integer(i4b) :: i, j, k, l, ierr, oper
     real(dp)     :: t1, t2, dnu_prop
-    real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
     class(comm_map), pointer :: rms
 
-    ndelta      = cpar%num_bp_prop + 1
-
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
 
        ! Compute current sky signal for default bandpass and MH proposal
-       npar = data(i)%bp(1)%p%npar
-       ndet = data(i)%tod%ndet
-       allocate(s_sky(ndet,ndelta))
-       allocate(delta(0:ndet,npar,ndelta))
-       allocate(eta(ndet))
-       do k = 1, ndelta
-          ! Propose new bandpass shifts, and compute mixing matrices
-          if (k > 1) then
-             if (cpar%myid == 0) then
-                do l = 1, npar
-                   if (mod(iter,2) == 0) then
-                      write(*,*) 'relative',  iter
-                      ! Propose only relative changes between detectors, keeping the mean constant
-                      delta(0,l,k) = data(i)%bp(0)%p%delta(l)
-                      do j = 1, ndet
-                         eta(j) = rand_gauss(handle)
-                      end do
-                      eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
-                      delta(1:ndet,l,k) = data(i)%bp(1:ndet)%p%delta(l) + eta
-                      delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
-                           & data(i)%bp(0)%p%delta(l)
-                   else
-                      write(*,*) 'absolute',  iter
-                      ! Propose only an overall shift in the total bandpass, keeping relative differences constant
-                      dnu_prop = data(i)%tod%prop_bp_mean(l) * rand_gauss(handle)
-                      do j = 0, ndet
-                         delta(j,l,k) = delta(j,l,1) + dnu_prop
-                      end do
-                   end if
-                end do
-             end if
-             call mpi_bcast(delta(:,:,k), (data(i)%tod%ndet+1)*npar, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
-          else
-             do j = 0, ndet
-                delta(j,:,k) = data(i)%bp(j)%p%delta
-             end do
-             do l = 1, npar
-                delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
-             end do
-          end if
 
-          ! Update mixing matrices
-          if (k > 1 .or. iter == 1) then
-             do j = 0, ndet
-                data(i)%bp(j)%p%delta = delta(j,:,k)
-                call data(i)%bp(j)%p%update_tau(delta(j,:,k))
-             end do
-             call update_mixing_matrices(i, update_F_int=.true.)       
-          end if
+       !determine which global operation to perform
+       oper = data(i)%tod%glob_tod_opers(mod(iter-1, data(i)%tod%n_glob_tod_opers) + 1)
 
-          ! Evaluate sky for each detector given current bandpass
-          do j = 1, data(i)%tod%ndet
-             !s_sky(j,k)%p => comm_map(data(i)%info)
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
-             !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
-          end do
+       select case (oper)
 
-       end do
+         case(glob_tod_oper_none)
+           !perform no global tod operation
+           if(data(i)%tod%info%myid == 1) then
+             write(*,*) "No global operation"
+           end if
+         case(glob_tod_oper_rel_bp)
+           !sample the relative bandpass correction term
+           if(data(i)%tod%info%myid == 1) then
+             write(*,*) "Relative BP"
+           end if
+           call sample_bandpass(cpar, chain, handle, i, glob_tod_oper_rel_bp, &
+                &delta, s_sky)
+         case(glob_tod_oper_abs_bp)
+           !sample the absolute bandpass correction term
+           if(data(i)%tod%info%myid == 1) then
+             write(*,*) "Absolute BP", numband, iter, oper
+           end if
+           call sample_bandpass(cpar, chain, handle, i, glob_tod_oper_abs_bp, &
+                & delta, s_sky)
+         case(glob_tod_oper_mb_eff)
+           !sample the main beam efficiencies
+           if(data(i)%tod%info%myid == 1) then
+             write(*,*) "Mainbeam eff"
+           end if
+           call sample_mb_eff(cpar, chain, handle, i, delta, s_sky)
+
+       end select
 
 !       call s_sky(1,1)%p%writeFITS('sky.fits')
 
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+       call data(i)%tod%process_tod(cpar%outdir, chain, iter, oper, handle, s_sky, delta, data(i)%map, rms)
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
@@ -337,22 +309,148 @@ contains
        deallocate(regnoise)
        call rms%dealloc
 
-       ! Update mixing matrices based on new bandpasses
-       do j = 0, data(i)%tod%ndet
-          data(i)%bp(j)%p%delta = delta(j,:,1)
-          call data(i)%bp(j)%p%update_tau(delta(j,:,1))
-       end do
-       call update_mixing_matrices(i, update_F_int=.true.)       
+       if(oper == glob_tod_oper_rel_bp .or. oper == glob_tod_oper_abs_bp) then
+         ! Update mixing matrices based on new bandpasses
+         do j = 0, data(i)%tod%ndet
+           data(i)%bp(j)%p%delta = delta(j,:,1)
+           call data(i)%bp(j)%p%update_tau(delta(j,:,1))
+         end do
+         call update_mixing_matrices(i, update_F_int=.true.)       
+       end if
 
        ! Clean up temporary data structures
-       do k = 1, ndelta
-          do j = 1, data(i)%tod%ndet
+       if(allocated(s_sky)) then
+         do k = 1, size(s_sky, 2)
+           do j = 1, data(i)%tod%ndet
              call s_sky(j,k)%p%dealloc
-          end do
-       end do
-       deallocate(s_sky, delta, eta)
+           end do
+         end do
+         deallocate(s_sky)
+       end if
+       if(allocated(delta)) deallocate(delta)
     end do
 
   end subroutine process_TOD
+
+  subroutine sample_bandpass(cpar, chain, handle, i, oper, delta, s_sky)
+    implicit none
+    type(comm_params), intent(in)    :: cpar
+    integer(i4b),      intent(in)    :: chain, oper, i !band number
+    type(planck_rng),  intent(inout) :: handle
+    real(dp), allocatable, dimension(:,:,:), intent(out) :: delta
+    type(map_ptr), allocatable, dimension(:,:), intent(out) :: s_sky
+
+    integer(i4b) :: ndelta, npar, ndet, k, l, j, ierr
+    real(dp)     ::  dnu_prop
+    real(dp),      allocatable, dimension(:)     :: eta
+
+    ndelta      = cpar%num_bp_prop + 1
+    if(data(1)%tod%info%myid == 1) then
+        write(*,*) i
+    end if
+
+    npar = data(i)%bp(1)%p%npar
+    ndet = data(i)%tod%ndet
+    allocate(s_sky(ndet,ndelta))
+    allocate(delta(0:ndet,npar,ndelta))
+    allocate(eta(ndet))
+
+    do k = 1, ndelta
+    ! Propose new bandpass shifts, and compute mixing matrices
+      if (k > 1) then
+        if (cpar%myid == 0) then
+          do l = 1, npar
+            if (oper == glob_tod_oper_rel_bp) then
+              ! Propose only relative changes between detectors, keeping
+              ! the mean constant
+              delta(0,l,k) = data(i)%bp(0)%p%delta(l)
+              do j = 1, ndet
+                eta(j) = rand_gauss(handle)
+              end do
+              eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
+              delta(1:ndet,l,k) = data(i)%bp(1:ndet)%p%delta(l) + eta
+              delta(1:ndet,l,k) = delta(1:ndet,l,k) -mean(delta(1:ndet,l,k)) + &
+                & data(i)%bp(0)%p%delta(l)
+            else if (oper == glob_tod_oper_abs_bp) then
+              ! Propose only an overall shift in the total bandpass,
+              ! keeping relative differences constant
+              dnu_prop = data(i)%tod%prop_bp_mean(l) * rand_gauss(handle)
+              do j = 0, ndet
+                delta(j,l,k) = data(i)%bp(j)%p%delta(l) + dnu_prop
+              end do
+            end if
+          end do
+        end if
+        call mpi_bcast(delta(:,:,k), (data(i)%tod%ndet+1)*npar, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
+        do j = 0, ndet
+          data(i)%bp(j)%p%delta = delta(j,:,k)
+          call data(i)%bp(j)%p%update_tau(delta(j,:,k))
+        end do
+        call update_mixing_matrices(i, update_F_int=.true.)
+      else
+        do j = 0, ndet
+          delta(j,:,k) = data(i)%bp(j)%p%delta
+        end do
+        do l = 1, npar
+          delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
+        end do
+      end if
+
+      ! Evaluate sky for each detector given current bandpass
+      do j = 1, data(i)%tod%ndet
+        !s_sky(j,k)%p => comm_map(data(i)%info)
+        call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
+        !call s_sky(j,k)%p%smooth(0.d0, 180.d0)
+      end do
+    end do
+
+    deallocate(eta)
+  end subroutine sample_bandpass
+
+  subroutine sample_mb_eff(cpar, chain, handle, i, delta, s_sky)
+    implicit none
+    type(comm_params), intent(in)    :: cpar
+    integer(i4b),      intent(in)    :: chain, i ! band number
+    type(planck_rng),  intent(inout) :: handle
+    real(dp), allocatable, dimension(:,:,:), intent(out) :: delta
+    type(map_ptr), allocatable, dimension(:,:), intent(out) :: s_sky
+
+    integer(i4b) :: ndelta, npar, ndet, j, k
+    real(dp),      allocatable, dimension(:)     :: eta
+
+    ndelta      = 5 !TODO: should probably be a parameter
+
+    npar = 1
+    ndet = data(i)%tod%ndet
+    allocate(s_sky(ndet,ndelta))
+    allocate(delta(0:ndet,npar,ndelta))
+    allocate(eta(ndet))
+
+    !populate delta = 1
+    delta(1:ndet, 1, 1) = data(i)%tod%mb_eff(1:ndet)
+    !write(*,*) delta(1:ndet, 1, 1)
+    delta(1:ndet, 1, 1) = ndet*delta(1:ndet, 1, 1)/sum(delta(1:ndet,1,1))
+
+    !randomly select new perturbations to main beam efficiencies 
+    do k = 2, ndelta
+      do j = 1, ndet
+        eta(j) = rand_gauss(handle)*1e-4
+      end do
+      delta(1:ndet,1,k) = data(i)%tod%mb_eff(1:ndet) + eta
+      ! force average to be 1
+      delta(1:ndet,1,k)=ndet*delta(1:ndet,1,k)/sum(delta(1:ndet,1,k))
+    end do
+
+    !compute s_sky
+    do j = 1, ndet
+      call get_sky_signal(i, j, s_sky(j,1)%p, mono=.false.)
+      do k = 2, ndelta
+        s_sky(j, k)%p => comm_map(data(i)%info)
+        s_sky(j, k)%p%map = s_sky(j, 1)%p%map * delta(j, 1, k)
+      end do
+    end do
+
+    deallocate(eta)
+  end subroutine sample_mb_eff
 
 end program commander

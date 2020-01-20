@@ -27,7 +27,7 @@ module comm_tod_LFI_mod
   integer(i4b), parameter :: samp_rcal   = 19
   integer(i4b), parameter :: prep_relbp  = 5
   integer(i4b), parameter :: prep_absbp  = 16
-  integer(i4b), parameter :: samp_bp     = 11
+  integer(i4b), parameter :: samp_global = 11
   integer(i4b), parameter :: samp_sl     = 6
   integer(i4b), parameter :: samp_N_par  = 7
   integer(i4b), parameter :: sel_data    = 8
@@ -37,6 +37,7 @@ module comm_tod_LFI_mod
   integer(i4b), parameter :: samp_mono   = 13
   integer(i4b), parameter :: sub_sl      = 14
   integer(i4b), parameter :: sub_zodi    = 17
+  integer(i4b), parameter :: prep_mb_eff = 18
   logical(lgt), dimension(N_test) :: do_oper
 
 
@@ -49,7 +50,7 @@ module comm_tod_LFI_mod
      procedure     :: calculate_gain_mean_std_per_scan
      procedure     :: sample_smooth_gain
      procedure     :: sample_n_corr
-     procedure     :: sample_bp
+     procedure     :: sample_global_param
      procedure     :: compute_cleaned_tod
      procedure     :: construct_sl_template
      procedure     :: compute_chisq
@@ -87,6 +88,7 @@ contains
     logical(lgt) :: pol_beam
     type(hdf_file) :: h5_file
     integer(i4b), allocatable, dimension(:) :: pix
+    real(dp), dimension(3) :: v
 
     ! Set up LFI specific parameters
     allocate(constructor)
@@ -110,6 +112,7 @@ contains
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     constructor%output_4D_map = cpar%output_4D_map_nth_iter
     constructor%subtract_zodi = cpar%include_TOD_zodi
+    constructor%central_freq  = cpar%ds_nu_c(id_abs)
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     if (constructor%first_scan > constructor%last_scan) then
@@ -193,9 +196,40 @@ contains
     constructor%slinfo => comm_mapinfo(cpar%comm_chain, nside_beam, lmax_beam, &
          & nmaps_beam, pol_beam)
     allocate(constructor%slbeam(constructor%ndet), constructor%slconv(constructor%ndet))
+    allocate(constructor%orb_dp_s(constructor%ndet, 9))
     do i = 1, constructor%ndet
        constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., .true., &
             & trim(constructor%label(i)))
+
+       !Perform integrals for orbital dipole sidelobe correction term
+       call constructor%slbeam(i)%p%Y()
+
+       constructor%orb_dp_s(i, :) = 0.d0
+       
+       do j = 0, constructor%slbeam(i)%p%info%np-1
+         call pix2vec_ring(constructor%nside, constructor%slbeam(i)%p%info%pix(j+1),v)
+         !x
+         constructor%orb_dp_s(i, 1) = constructor%orb_dp_s(i, 1) + constructor%slbeam(i)%p%map(j, 1) * v(1)
+         !y 
+         constructor%orb_dp_s(i, 2) = constructor%orb_dp_s(i, 2) + constructor%slbeam(i)%p%map(j, 1) * v(2)
+         !z 
+         constructor%orb_dp_s(i, 3) = constructor%orb_dp_s(i, 3) + constructor%slbeam(i)%p%map(j, 1) * v(3)
+         !x^2 
+         constructor%orb_dp_s(i, 4) = constructor%orb_dp_s(i, 4) + constructor%slbeam(i)%p%map(j, 1) * v(1) * v(1)
+         !2xy 
+         constructor%orb_dp_s(i, 5) = constructor%orb_dp_s(i, 5) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(1) * v(2)
+         !2xz 
+         constructor%orb_dp_s(i, 6) = constructor%orb_dp_s(i, 6) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(1) * v(3)
+         !y^2 
+         constructor%orb_dp_s(i, 7) = constructor%orb_dp_s(i, 7) + constructor%slbeam(i)%p%map(j, 1) * v(2) * v(2)
+         !2yz 
+         constructor%orb_dp_s(i, 8) = constructor%orb_dp_s(i, 8) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(2) * v(3)
+         !z^2 
+         constructor%orb_dp_s(i, 9) = constructor%orb_dp_s(i, 9) + constructor%slbeam(i)%p%map(j, 1) * v(3) * v(3)
+       end do 
+
+       constructor%orb_dp_s = constructor%orb_dp_s*4*pi/real(constructor%slbeam(i)%p%info%npix)
+
        !constructor%slbeam(i)%p%map(:,1) = 0.d0
        !do j = 0, constructor%slbeam(i)%p%info%np -1
        !  if (real(constructor%slbeam(i)%p%info%pix(j+1), dp) == constructor%slbeam(i)%p%info%npix/2.d0) then
@@ -233,6 +267,8 @@ contains
 !!$          end do
     end do
     
+    call mpi_allreduce(MPI_IN_PLACE, constructor%orb_dp_s, size(constructor%orb_dp_s), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
+
     do i = 1, constructor%ndet
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'elip', constructor%elip(i))
@@ -290,16 +326,24 @@ contains
 !!$    call mpi_finalize(i)
 !!$    stop
 
+    !Initialize array of global tod operations for LFI
+    constructor%n_glob_tod_opers = 3
+    allocate(constructor%glob_tod_opers(constructor%n_glob_tod_opers))
+    constructor%glob_tod_opers(1) = glob_tod_oper_mb_eff
+    constructor%glob_tod_opers(2) = glob_tod_oper_rel_bp
+    constructor%glob_tod_opers(3) = glob_tod_oper_abs_bp
+
+
   end function constructor
 
   !**************************************************
   !             Driver routine
   !**************************************************
-  subroutine process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  subroutine process_LFI_tod(self, chaindir, chain, iter, oper, handle, map_in, delta, map_out, rms_out)
     implicit none
     class(comm_LFI_tod),                      intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
-    integer(i4b),                             intent(in)    :: chain, iter
+    integer(i4b),                             intent(in)    :: chain, iter, oper
     type(planck_rng),                         intent(inout) :: handle
     type(map_ptr),       dimension(1:,1:),    intent(inout) :: map_in       ! (ndet,ndelta)
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
@@ -451,7 +495,8 @@ contains
        !    map_in(i,1)%p%map(j,1) = 1.d0
        !  end if
        !end do
-       !call map_in(i,1)%p%writefits('test_fits_out.fits')
+       write(did, "(I1)") i
+       !call map_in(i,1)%p%writeFITS('sky_model' // did // '.fits')
 
        !TODO: figure out why this is rotated
        call map_in(i,1)%p%YtW()  ! Compute sky a_lms
@@ -495,15 +540,14 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-!       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
-       do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-!       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
-!       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
-       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
-       do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
-       do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
+       do_oper(prep_acal)    = .false. !(main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. oper == glob_tod_oper_rel_bp
+       do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. oper == glob_tod_oper_abs_bp
+       do_oper(prep_mb_eff)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. oper == glob_tod_oper_mb_eff
+       do_oper(samp_global)  = (main_iter == n_main_iter-0) .and. .not. self%first_call .and. .not. oper == glob_tod_oper_none
+       do_oper(prep_G)       = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = .true.
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        !do_oper(samp_N_par)    = .false.
@@ -561,13 +605,25 @@ contains
           A_abscal = 0.d0; b_abscal = 0.d0
        end if
 
-       if (do_oper(samp_bp)) then
+       if (do_oper(samp_acal)) then
           call wall_time(t1)
-          call self%sample_bp(iter, delta, smap_sky, handle, chisq_S)
+          call self%sample_absgain_from_orbital(handle, A_abscal, b_abscal)
+          call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+       end if
+
+       if (do_oper(samp_global)) then
+          call wall_time(t1)
+          call self%sample_global_param(oper, delta, smap_sky, handle, chisq_S)
           call wall_time(t2); t_tot(17) = t_tot(17) + t2-t1
        end if
 
-       if (do_oper(prep_absbp)) then
+       if (do_oper(samp_G)) then
+          call wall_time(t1)
+          call self%sample_smooth_gain(handle)
+          call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
+       end if
+
+       if (do_oper(prep_absbp) .or. do_oper(prep_mb_eff)) then
           chisq_S = 0.d0
        end if
 
@@ -646,7 +702,7 @@ contains
                 call self%project_sky(smap_sky(:,j), pix, psi, flag, &
                      & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
              end do
-          else if (do_oper(prep_absbp)) then
+          else if (do_oper(prep_absbp) .or. do_oper(prep_mb_eff)) then
              do j = 2, ndelta
                 call self%project_sky(smap_sky(:,j), pix, psi, flag, &
                      & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
@@ -694,7 +750,8 @@ contains
 !!$                     & self%mbang(j)+self%polang(j))
                 call self%construct_sl_template(self%slconv(j)%p, i, &
                      & nside, pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
-                s_sl(:,j) = 2.d0 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
+                     !TODO: this is still somewhat suspect. Unclear if we have
+                     !to use mbang or not
                 !if (self%myid == 0) write(*,*) j, sum(abs(s_sl(:,j)))
              end do
           else
@@ -805,7 +862,7 @@ contains
           end if
 
           ! Compute chisquare for bandpass fit
-          if (do_oper(prep_absbp)) then
+          if (do_oper(prep_absbp) .or. do_oper(prep_mb_eff)) then
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
@@ -945,11 +1002,11 @@ contains
 
        end do
 
-       if (do_oper(samp_acal)) then
-          call wall_time(t1)
-          call self%sample_abscal_from_orbital(handle, A_abscal, b_abscal)
-          call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
-       end if
+       !if (do_oper(samp_acal)) then
+       !   call wall_time(t1)
+       !   call self%sample_abscal_from_orbital(handle, A_abscal, b_abscal)
+       !   call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+       !end if
 
        if (do_oper(samp_rcal)) then
           call wall_time(t1)
@@ -1112,25 +1169,25 @@ contains
 
     call wall_time(t6)
     if (self%myid == self%numprocs/2) then
-       write(*,*) '  Time dist sky   = ', t_tot(9)
-       write(*,*) '  Time sl precomp = ', t_tot(13)
-       write(*,*) '  Time decompress = ', t_tot(11)
-       write(*,*) '  Time alloc      = ', t_tot(18)
-       write(*,*) '  Time project    = ', t_tot(1)
-       write(*,*) '  Time orbital    = ', t_tot(2)
-       write(*,*) '  Time sl interp  = ', t_tot(12)
-       write(*,*) '  Time ncorr      = ', t_tot(3)
-       write(*,*) '  Time gain       = ', t_tot(4)
-       write(*,*) '  Time absgain    = ', t_tot(14)
-       write(*,*) '  Time sel data   = ', t_tot(15)
-       write(*,*) '  Time clean      = ', t_tot(5)
-       write(*,*) '  Time noise      = ', t_tot(6)
-       write(*,*) '  Time samp abs   = ', t_tot(16)
-       write(*,*) '  Time samp bp    = ', t_tot(17)
-       write(*,*) '  Time chisq      = ', t_tot(7)
-       write(*,*) '  Time bin        = ', t_tot(8)
-       write(*,*) '  Time scanlist   = ', t_tot(20)
-       write(*,*) '  Time final      = ', t_tot(10)
+       write(*,*) '  Time dist sky    = ', t_tot(9)
+       write(*,*) '  Time sl precomp  = ', t_tot(13)
+       write(*,*) '  Time decompress  = ', t_tot(11)
+       write(*,*) '  Time alloc       = ', t_tot(18)
+       write(*,*) '  Time project     = ', t_tot(1)
+       write(*,*) '  Time orbital     = ', t_tot(2)
+       write(*,*) '  Time sl interp   = ', t_tot(12)
+       write(*,*) '  Time ncorr       = ', t_tot(3)
+       write(*,*) '  Time gain        = ', t_tot(4)
+       write(*,*) '  Time absgain     = ', t_tot(14)
+       write(*,*) '  Time sel data    = ', t_tot(15)
+       write(*,*) '  Time clean       = ', t_tot(5)
+       write(*,*) '  Time noise       = ', t_tot(6)
+       write(*,*) '  Time samp abs    = ', t_tot(16)
+       write(*,*) '  Time samp global = ', t_tot(17)
+       write(*,*) '  Time chisq       = ', t_tot(7)
+       write(*,*) '  Time bin         = ', t_tot(8)
+       write(*,*) '  Time scanlist    = ', t_tot(20)
+       write(*,*) '  Time final       = ', t_tot(10)
        if (self%first_call) then
           write(*,*) '  Time total      = ', t6-t5, &
                & ', accept rate = ', real(naccept,sp) / ntot
@@ -1274,14 +1331,21 @@ contains
     integer(i4b),                        intent(in)  :: ind !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix
     real(sp),            dimension(:,:), intent(out) :: s_orb
-    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot
-    real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
+    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation
     integer(i4b)         :: i,j
+    real(dp), dimension(3,3) :: rot_mat
 
-    !T_0 = T_CMB*k_b/h !T_0 = T_CMB frequency
+    !T_0 = T_CMB*k_B/h !T_0 = T_CMB frequency
+    !these definitions are slightly different than what is in the npipe paper
     !x = freq * 1.d9 / (2.d0*T_0) !freq is the center bandpass frequancy of the detector
     !q = x * (exp(2.d0*x)+1) / (exp(2.d0*x)-1) !frequency dependency of the quadrupole
     !b = sqrt(sum(self%scans(ind)%v_sun**2))/c !beta for the given scan
+
+    !these are the npipe paper definitions
+    !TODO: maybe also use the bandpass shift to modify the central frequency? 
+    !will that matter?
+    x = h * self%central_freq/(k_B * T_CMB)
+    q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
 
     do i = 1,self%ndet
        if (.not. self%scans(ind)%d(i)%accept) cycle
@@ -1291,6 +1355,18 @@ contains
           !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
+          !TODO: add sl contribution to orbital dipole here
+
+          ! rotate v_sun into frame where pointing is along z axis
+          
+          !rot_mat = TODO
+          !v_norm = matmul(rot_mat, self%scans(ind)%v_sun)
+          !summation = vnorm(1)*orb_dp_s(1) + vnorm(2)*orb_dp_s(2) + vnorm(3) * &
+          !  & orb_dp_s(3) + vnorm(1)*vnorm(1)*orb_dp_s(4) + vnorm(1)*vnorm(2) *&
+          !  & orb_dp_s(5) + vnorm(1)*vnorm(3)*orb_dp_s(6) + vnorm(2)*vnorm(2) *&
+          !  & orb_dp_s(7) + vnorm(2)*vnorm(2)*orb_dp_s(8) + vnorm(3)*vnorm(3) *&
+          !  & orb_dp_s(9) 
+          !s_orb(j,i) = s_orb(j,i) - T_CMB *summation
        end do
    end do
 
@@ -1320,6 +1396,7 @@ contains
     ndet = self%ndet
     nomp = omp_get_max_threads()
     
+    use_binned_psd = .false. !.true.
     use_binned_psd = .false. !.true.
     meanrange = 40
     
@@ -1808,7 +1885,7 @@ contains
     real(dp)     :: psi_
 
     do j=1, size(pix)
-       psi_    = self%psi(psi(j))-polangle 
+       psi_    = self%psi(psi(j))- polangle
        s_sl(j) = slconv%interp(pix(j), psi_) 
     end do
 
@@ -2415,10 +2492,10 @@ contains
 !!$    
 !!$  end subroutine sample_bp2
 
-  subroutine sample_bp(self, iter, delta, smap_sky, handle, chisq_S)
+  subroutine sample_global_param(self, oper, delta, smap_sky, handle, chisq_S)
     implicit none
     class(comm_LFI_tod),                      intent(inout)  :: self
-    integer(i4b),                             intent(in)     :: iter
+    integer(i4b),                             intent(in)     :: oper
     real(dp),            dimension(0:,1:,1:), intent(inout)  :: delta
     type(shared_2d_sp),  dimension(0:,1:),    intent(inout)  :: smap_sky
     type(planck_rng),                         intent(inout)  :: handle
@@ -2447,13 +2524,18 @@ contains
              current = k
           end if
        end do
-!       if (.true. .or. mod(iter,2) == 0) then
-!          write(*,fmt='(a,f16.1,a,f10.1,l3)') 'Rel bp c0 = ', cc, &
-!               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1
-!       else
-!          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cc, &
-!               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
-!       end if
+       if (oper == glob_tod_oper_rel_bp) then
+          write(*,fmt='(a,f16.1,a,f10.1,l3)') 'Rel bp c0 = ', cc, &
+               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1
+       else if(oper == glob_tod_oper_abs_bp) then
+          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cc, &
+               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
+       else if(oper == glob_tod_oper_mb_eff) then
+          write(*,fmt='(a,f16.1,a,f10.1)') 'mb eff c0 = ', cc, &
+               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
+       else
+         write(*,*) "Unknown global tod operation:", oper
+       end if
     end if
 
     ! Broadcast new saved data
@@ -2466,7 +2548,7 @@ contains
        delta(:,:,1) =  delta(:,:,current)
     end if
     
-  end subroutine sample_bp
+  end subroutine sample_global_param
 
   function get_total_chisq(self, det)
     implicit none

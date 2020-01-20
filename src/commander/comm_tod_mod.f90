@@ -10,8 +10,16 @@ module comm_tod_mod
   USE ISO_C_BINDING
   implicit none
 
+  !global tod operations used in commander.f90
+  integer(i4b), parameter :: glob_tod_oper_none   = 0
+  integer(i4b), parameter :: glob_tod_oper_rel_bp = 1
+  integer(i4b), parameter :: glob_tod_oper_abs_bp = 2
+  integer(i4b), parameter :: glob_tod_oper_mb_eff = 3
+
   private
   public comm_tod, initialize_tod_mod
+  public glob_tod_oper_none, glob_tod_oper_rel_bp
+  public glob_tod_oper_abs_bp, glob_tod_oper_mb_eff
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
@@ -60,6 +68,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
 
+     real(dp)     :: central_freq                                 ! Central Frequency 
      real(dp)     :: samprate                                     ! Sample rate in Hz
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -96,6 +105,12 @@ module comm_tod_mod
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix
+     real(dp),           allocatable, dimension(:, :) :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term 
+   
+     !global tod operations used in commander.f90
+     integer(i4b)            :: n_glob_tod_opers
+     integer(i4b), allocatable, dimension(:)        :: glob_tod_opers
+
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
@@ -107,12 +122,12 @@ module comm_tod_mod
   end type comm_tod
 
   abstract interface
-     subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+     subroutine process_tod(self, chaindir, chain, iter, oper, handle, map_in, delta, map_out, rms_out)
        import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
        implicit none
        class(comm_tod),                     intent(inout) :: self
        character(len=*),                    intent(in)    :: chaindir
-       integer(i4b),                        intent(in)    :: chain, iter
+       integer(i4b),                        intent(in)    :: chain, iter, oper
        type(planck_rng),                    intent(inout) :: handle
        type(map_ptr),     dimension(:,:),   intent(inout) :: map_in            
        real(dp),          dimension(:,:,:), intent(inout) :: delta
