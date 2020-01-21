@@ -23,6 +23,8 @@ def main():
 
     psis = {'18M':85, '18S':86, '19M':78, '19S':79, '20M':71, '20S':72, '21M':107, '21S':106, '22M':101, '22S':101, '23M':92, '23S':92, '24M':89, '24S':89, '25M':114, '25S':117, '26M':62, '26S':61, '27M':101, '27S':101, '28M':78, '28S':78}
 
+    b_effs = {'18M':0.9921, '18S':0.9887, '19M':0.9883, '19S':0.9898, '20M':0.9885, '20S':0.9881, '21M':0.9894, '21S':0.9882, '22M':0.9916, '22S':0.9915, '23M':0.9926, '23S':0.9919, '24M':0.9972, '24S':0.9973, '25M':0.9975, '25S':0.9976, '26M':0.9974, '26S':0.9977, '27M':0.9904, '27S':0.9889, '28M':0.9907, '28S':0.9879}
+
     outFile = h5py.File(os.path.join(outDir, 'LFI_instrument.h5'), 'w')
 
     for freq in [30, 44, 70]:
@@ -69,6 +71,7 @@ def main():
                 outFile.create_dataset(prefix + '/fwhm', data=[fwhms[str(horn) + hornType]])
                 outFile.create_dataset(prefix + '/elip', data=[elips[str(horn) + hornType]])
                 outFile.create_dataset(prefix + '/psi_ell', data=[math.radians(psis[str(horn) + hornType])])
+                outFile.create_dataset(prefix + '/mbeam_eff', data=[b_effs[str(horn) + hornType]])
 
                 print(prefix)
  
