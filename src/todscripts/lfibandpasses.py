@@ -3,16 +3,28 @@ import os
 import healpy as hp
 import numpy as np
 import math
+import argparse
 from astropy.io import fits
 
 def main():
 
-    outDir = '/mn/stornext/d16/cmbco/bp/mathew/test'
+    parser = argparse.ArgumentParser()
 
-    rimo = fits.open('/mn/stornext/d16/cmbco/bp/data/auxiliary_data/LFI_RIMO_R3.31.fits')
+    parser.add_argument('--out-dir', type=str, action='store', help='output directory', default='/mn/stornext/d16/cmbco/bp/mathew/test')
 
-    slDir = '/mn/stornext/d16/cmbco/bp/data/beamalms/sl'
-    beamDir = '/mn/stornext/d16/cmbco/bp/data/beamalms/totalAlm'
+    parser.add_argument('--rimo', type=str, action='store', help='path to the RIMO file', default='/mn/stornext/d16/cmbco/bp/data/auxiliary_data/LFI_RIMO_R3.31.fits')
+
+    parser.add_argument('--sl-dir', type=str, action='store', help='path to the directory containing the sidelobe alms', default='/mn/stornext/d16/cmbco/bp/data/beamalms/sl')
+
+    parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the beam alms', default='/mn/stornext/d16/cmbco/bp/data/beamalms/totalAlm')
+
+    args = parser.parse_args()
+    outDir = args.out_dir
+
+    rimo = fits.open(args.rimo)
+
+    slDir = args.sl_dir
+    beamDir = args.beam_dir
 
     horns = {30:[27, 28], 44:[24, 25, 26], 70:[18, 19, 20, 21, 22, 23]}
 
