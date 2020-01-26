@@ -862,6 +862,14 @@ contains
        sigma_0 = self%scans(scan)%d(i)%sigma0
        
        call fill_all_masked(d_prime, mask(:,i), ntod, (trim(self%operation) == "sample"), sigma_0, handle)
+
+!!$       if (self%scanid(scan) == 6144 .and. i == 1) then
+!!$          open(58,file='res1.dat',recl=1024)
+!!$          do j = 1, size(d_prime)
+!!$             write(58,*) j, d_prime(j)
+!!$          end do
+!!$          close(58)
+!!$       end if
        
        ! Preparing for fft
        dt(1:ntod)           = d_prime(:)
