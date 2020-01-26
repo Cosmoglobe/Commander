@@ -48,9 +48,8 @@ module comm_tod_LFI_mod
      procedure     :: compute_orbital_dipole
      procedure     :: calculate_gain_mean_std_per_scan
      procedure     :: sample_smooth_gain
-     procedure     :: sample_n_corr
+     !procedure     :: sample_n_corr
      procedure     :: sample_bp
-!     procedure     :: compute_cleaned_tod
      procedure     :: compute_chisq
      procedure     :: sample_noise_psd
      procedure     :: decompress_pointing_and_flags
@@ -100,7 +99,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
-    constructor%first_call    = .true.
+    constructor%first_call    = .false. !.true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
@@ -182,6 +181,7 @@ contains
     allocate(constructor%elip(constructor%ndet))
     allocate(constructor%psi_ell(constructor%ndet))
     allocate(constructor%mb_eff(constructor%ndet))
+    allocate(constructor%nu_c(constructor%ndet))
     
     call open_hdf_file(constructor%instfile, h5_file, 'r')
     nside_beam = 128
@@ -236,11 +236,13 @@ contains
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'elip', constructor%elip(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'psi_ell', constructor%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'mbeam_eff', constructor%mb_eff(i))
+       call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'centFreq', constructor%nu_c(i))
     end do
     constructor%mb_eff = 1.d0 
     !constructor%mb_eff(3) = constructor%mb_eff(1)*0.99d0
     constructor%mb_eff = constructor%mb_eff / mean(constructor%mb_eff)
-    if (constructor%myid == 0) write(*,*) 'mb = ', constructor%mb_eff
+    constructor%nu_c   = constructor%nu_c * 1d9
+    !if (constructor%myid == 0) write(*,*) 'mb = ', constructor%mb_eff
 
     call close_hdf_file(h5_file)
  
@@ -723,16 +725,19 @@ contains
              allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                if (do_oper(samp_G) .or. do_oper(samp_rcal)) then
-                   call self%downsample_tod(s_tot(:,j), ext, &
-                        & s_lowres(:,j), mask(:,j))
+                if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. trim(self%freq) /= '070') then
+                   s_buf(:,j) = s_tot(:,j)
+                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, .false.)
+                   call self%downsample_tod(s_buf(:,j), ext, &
+                        & s_lowres(:,j))!, mask(:,j))
                 else
                    call self%downsample_tod(s_orb(:,j), ext, &
-                        & s_lowres(:,j), mask(:,j))
+                        & s_lowres(:,j))!, mask(:,j))
                 end if
              end do
              s_invN = s_lowres
-             call self%multiply_inv_N(i, s_invN, sampfreq=self%samprate_gain)
+             call self%multiply_inv_N(i, s_invN,   sampfreq=self%samprate_gain, pow=0.5d0)
+             call self%multiply_inv_N(i, s_lowres, sampfreq=self%samprate_gain, pow=0.5d0)
              !write(*,*) i, sum(abs(s_lowres)), sum(abs(s_invN))
              !if (self%myid == 0) write(*,*) 'sum', sum(abs(sorb_invN))
              !call mpi_finalize(ierr)
@@ -749,14 +754,18 @@ contains
                 if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    !write(*,*) self%gain0(0), self%gain0(j), self%scans(i)%d(j)%dgain, sum(abs(s_tot)), sum(abs(s_orb))
-                   s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
-                        & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
-
-                else if (do_oper(samp_rcal)) then
+                   if (trim(self%freq) == '070') then
+                      s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
+                           & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                   else
+                      s_buf(:, j) = real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                   end if
+                else
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
-                call self%accumulate_abscal(i, j, mask(:,j), s_buf(:,j), s_lowres(:,j), s_invN(:, j), A_abscal(j), b_abscal(j))
+             end do
+             call self%accumulate_abscal(i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal)
 
 !                call int2string(self%scanid(i), scantext)
 !                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
@@ -765,22 +774,20 @@ contains
 !                   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
 !                end do
 !                close(78)
-
-             end do
              call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
           end if
 
           ! Fit gain 
           if (do_oper(samp_G)) then
              call wall_time(t1)
-             do j = 1, ndet
-                if (.not. self%scans(i)%d(j)%accept) then
-                   self%scans(i)%d(j)%gain  = 0.d0
-                   self%scans(i)%d(j)%dgain = 0.d0
-                   cycle
-                end if
-                call self%calculate_gain_mean_std_per_scan(i, j, s_invN(:, j), mask(:, j), s_lowres(:, j), s_tot(:,j))
-             end do
+!!$             do j = 1, ndet
+!!$                if (.not. self%scans(i)%d(j)%accept) then
+!!$                   self%scans(i)%d(j)%gain  = 0.d0
+!!$                   self%scans(i)%d(j)%dgain = 0.d0
+!!$                   cycle
+!!$                end if
+!!$             end do
+             call self%calculate_gain_mean_std_per_scan(i, s_invN, mask, s_lowres, s_tot)
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
@@ -858,11 +865,13 @@ contains
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                chisq_S(j,1) = chisq_S(j,1) + self%scans(i)%d(j)%chisq_masked
                 s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
+                call self%compute_chisq(i, j, mask2(:,j), s_sky(:,j), &
+                     & s_buf(:,j), n_corr(:,j), absbp=.true.)
+                chisq_S(j,1) = chisq_S(j,1) + self%scans(i)%d(j)%chisq_prop
                 do k = 2, ndelta
-                   call self%compute_chisq(i, j, mask2(:,j), s_sky(:,j), &
-                        & s_buf(:,j), n_corr(:,j),  s_sky_prop(:,j,k))
+                   call self%compute_chisq(i, j, mask2(:,j), s_sky_prop(:,j,k), &
+                        & s_buf(:,j), n_corr(:,j), absbp=.true.)
                    chisq_S(j,k) = chisq_S(j,k) + self%scans(i)%d(j)%chisq_prop
                 end do
              end do
@@ -965,6 +974,9 @@ contains
           call wall_time(t1)
           call self%sample_abscal_from_orbital(handle, A_abscal, b_abscal)
           call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+!!$
+!!$          call mpi_finalize(ierr)
+!!$          stop
        end if
 
        if (do_oper(samp_rcal)) then
@@ -1289,287 +1301,265 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine compute_orbital_dipole(self, ind, pix, s_orb)
+  subroutine compute_orbital_dipole(self, scan, pix, s_orb)
     implicit none
     class(comm_LFI_tod),                 intent(in)  :: self
-    integer(i4b),                        intent(in)  :: ind !scan nr/index
+    integer(i4b),                        intent(in)  :: scan  !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix
     real(sp),            dimension(:,:), intent(out) :: s_orb
     real(dp)             :: b_dot
     integer(i4b)         :: i, j
-    !real(dp)             :: x, T_0, q, pix_dir(3), b
-    !real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
+    real(dp)             :: x, T_0, q, pix_dir(3), b
+    real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
 
-    !T_0 = T_CMB*k_b/h !T_0 = T_CMB frequency
-    !x = freq * 1.d9 / (2.d0*T_0) !freq is the center bandpass frequancy of the detector
-    !q = x * (exp(2.d0*x)+1) / (exp(2.d0*x)-1) !frequency dependency of the quadrupole
-    !b = sqrt(sum(self%scans(ind)%v_sun**2))/c !beta for the given scan
+    T_0 = T_CMB*k_b/h                           ! T_0 = T_CMB frequency
+    b = sqrt(sum(self%scans(scan)%v_sun**2))/c   ! beta for the given scan
 
     do i = 1,self%ndet
-       if (.not. self%scans(ind)%d(i)%accept) cycle
-       do j=1,self%scans(ind)%ntod !length of the tod
-          b_dot = dot_product(self%scans(ind)%v_sun, self%pix2vec(:,pix(j,i)))/c
-          s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
+       if (.not. self%scans(scan)%d(i)%accept) cycle
+       x   = self%nu_c(i) / (2.d0*T_0)                ! freq is the center bandpass frequency of the detector
+       q   = x * (exp(2.d0*x)+1) / (exp(2.d0*x)-1) ! frequency dependency of the quadrupole
+       do j=1,self%scans(scan)%ntod !length of the tod
+          b_dot = dot_product(self%scans(scan)%v_sun, self%pix2vec(:,pix(j,i)))/c
+          !s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
-          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
+          s_orb(j,i) = real(T_CMB * (b_dot + q*(b_dot**2 - b**2/3.d0)),sp) ! net zero monopole
        end do
    end do
 
   end subroutine compute_orbital_dipole
 
-  ! Compute correlated noise term, n_corr
-  ! TODO: Add fluctuation if operation == sample
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
-    implicit none
-    class(comm_LFI_tod),               intent(in)     :: self
-    type(planck_rng),                  intent(inout)  :: handle
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
-    real(sp),          dimension(:,:), intent(out)    :: n_corr
-    integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
-    integer(i4b) :: meanrange, start, last  !, nfft, nbuff
-    integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: recompute, use_binned_psd
-    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, noise, signal
-    !real(dp)     :: A(2,2), b(2), x(2)
-    real(dp)     :: nu, power
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime
-    
-    ntod = self%scans(scan)%ntod
-    ndet = self%ndet
-    nomp = omp_get_max_threads()
-    
-    use_binned_psd = .false. !.true.
-    meanrange = 40
-    
-    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.10d0))
-    
-    n = ntod + 1
-    !n = nfft / 2 + 1
-
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
-
-    allocate(dt(2*ntod), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
-    deallocate(dt, dv)
-    ! allocate(dt(nfft), dv(0:n-1))
-    ! call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    ! call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
-    ! deallocate(dt, dv)
-    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,start,last)
-    allocate(dt(2*ntod), dv(0:n-1))
-    !allocate(dt(nfft), dv(0:n-1))
-    allocate(d_prime(ntod))
-    !allocate(diff(ntod+1))
-    !diff = 0.d0
-    !$OMP DO SCHEDULE(guided)
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
-       
-       
-       ! if (i == 4 .and. scan == 1) then
-       !    open(23, file="d_prime1.unf", form="unformatted")
-       !    write(23) d_prime
-       !    close(23)
-       ! end if
-
-
-       sigma_0 = self%scans(scan)%d(i)%sigma0
-       do j = 1,ntod
-          if (mask(j,i) == 0.) then
-             recompute = .true.
-             start = max(j - meanrange, 1)
-             last = min(j + meanrange, ntod)
-             if (j > 1) then
-                if (sum(mask(start:last, i)) < 5) recompute = .false.
-             end if 
-
-             if (recompute) then
-                m = 1
-                start = max(j - meanrange, 1)
-                last = min(j + meanrange, ntod)
-                do while (sum(mask(start:last, i)) < 2) 
-                   ! Widen the search for unmasked pixels
-                   m = m * 2
-                   start = max(j - meanrange * m, 1)
-                   last = min(j + meanrange * m, ntod)
-                   if (meanrange * m > ntod) then
-                      !write(*,*) "Entire scan masked (this should not happen), see sample_n_corr", ntod, i, j, m
-                      start = 1
-                      last = ntod
-                      exit
-                   end if
-                end do
-                if (sum(mask(start:last, i)) > 0) then
-                   mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
-                else
-                   mean = 0.
-                end if
-             end if
-          ! if (mask(j,i) == 0.) then
-          !    recompute = .true.
-          !    if (j > 1) then
-          !       if (mask(j-1,i) == 0.) recompute = .false.
-          !    end if
-
-             if (abs(d_prime(j) - mean) > 0.d0 * sigma_0) then 
-                d_prime(j) = mean
-             end if
-          end if
-       end do
-       
-       ! if (i == 4 .and. scan == 1) then
-       !    open(23, file="d_prime2.unf", form="unformatted")
-       !    write(23) d_prime
-       !    close(23)
-       ! end if
-
-
-       dt(1:ntod)           = d_prime(:)
-       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-       ! nbuff = nfft - ntod
-       ! do j=1, nbuff
-       !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
-       ! end do
-  
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-       samprate = self%samprate
-       sigma_0  = self%scans(scan)%d(i)%sigma0
-       alpha    = self%scans(scan)%d(i)%alpha
-       nu_knee  = self%scans(scan)%d(i)%fknee
-       noise = 2.0 * ntod * sigma_0 ** 2
-       !noise = nfft * sigma_0 ** 2
-       ! if ((scan == 1) .and. (i == 1)) then
-       !    write(*,*) "sigma, alpha, nu_knee, ntod", sigma_0, alpha, nu_knee, ntod
-       ! end if
-       if (trim(self%operation) == "sample") then
-          dv(0)    = dv(0) + sqrt(noise) * rand_gauss(handle)  ! is this correct?
-       end if
-       
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(65,file='ps_n.dat') 
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(66,file='ps_n_after.dat') 
-
-       do l = 1, n-1                                                      
-          nu = l*(samprate/2)/(n-1)
-!!$          if (abs(nu-1.d0/60.d0)*60.d0 < 0.001d0) then
-!!$             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
-!!$          end if
-          if ((use_binned_psd) .and. &
-               & (allocated(self%scans(scan)%d(i)%log_n_psd))) then
-             if (nu <= 0) write(*,*) 'a', l, nu
-             power = splint(self%scans(scan)%d(i)%log_nu, &
-                  self%scans(scan)%d(i)%log_n_psd, &
-                  self%scans(scan)%d(i)%log_n_psd2, &
-                  log(nu))
-             !signal = max(exp(power) - noise, noise)
-             !signal = max(exp(power) * nfft / (2.d0 * ntod) - noise, noise)
-             !signal = exp(power) * nfft / (2.d0 * ntod)
-             signal = exp(power)
-       
-       !      write(*,*) signal, noise * (nu/(nu_knee))**(alpha), nu, noise, sigma_0
-          else
-             !noise = 0.0113d0
-             if (nu_knee <= 0) write(*,*) 'b', l, nu_knee
-             signal = noise * (nu/nu_knee)**(alpha)
-          end if
-          ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(65,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), ntod*1.d0
-          if (signal <= 0.d0) then
-             dv(l) = 0.
-          else if (trim(self%operation) == "sample") then
-             ! write(*,*) "Sample n_corr"
-             ! dv(l) = (dv(l) + sigma_0 * (rand_gauss(handle)  &
-             !      + sqrt((nu/(nu_knee))**(-alpha)) * rand_gauss(handle)))& 
-             !      * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha)) 
-             ! dv(l) = (signal * dv(l) + signal * sqrt(noise) * rand_gauss(handle)  &
-             !      +  noise * sqrt(signal) * rand_gauss(handle))& 
-             !      * 1.d0/(signal + noise)
-             if (signal <= 0) write(*,*) 'c', l, signal
-             dv(l) = (dv(l) + sqrt(noise) &
-                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
-                  + noise * sqrt(1.0 / signal) &
-                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0))& 
-                  * 1.d0/(1.d0 + noise / signal)
-          else
-             !dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
-             !dv(l) = dv(l) * signal/(signal + noise)
-             if (signal <= 0) write(*,*) 'd', l, signal
-             dv(l) = dv(l) * 1.0/(1.0 + noise/signal)
-          end if
-          ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(66,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), nfft*1.d0
-       end do
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(65)
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(66)
-       if (maxval(abs(dv)) > 1.d30) then
-          write(*,*) self%scanid(scan), i, maxval(abs(dv))
-          open(58,file='dv.dat')
-          do l = 0, n-1
-             write(58,*) l, dv(l)
-          end do
-          close(58)
-       end if
-       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-       if (ntod < 0) write(*,*) 'e', ntod
-       dt          = dt / (2*ntod)
-       !dt          = dt / nfft
-       n_corr(:,i) = dt(1:ntod) 
-
-       ! Project out any sky correlated component
-!!$       A(1,1) = sum(s_sub(:,i)*mask(:,i)*s_sub(:,i))
-!!$       A(1,2) = sum(s_sub(:,i)*mask(:,i)           )
-!!$       A(2,1) = A(1,2)
-!!$       A(2,2) = sum(           mask(:,i)           )
+!!$  ! Compute correlated noise term, n_corr
+!!$  ! TODO: Add fluctuation if operation == sample
+!!$  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
+!!$    implicit none
+!!$    class(comm_LFI_tod),               intent(in)     :: self
+!!$    type(planck_rng),                  intent(inout)  :: handle
+!!$    integer(i4b),                      intent(in)     :: scan
+!!$    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
+!!$    real(sp),          dimension(:,:), intent(out)    :: n_corr
+!!$    integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
+!!$    integer(i4b) :: meanrange, start, last  !, nfft, nbuff
+!!$    integer*8    :: plan_fwd, plan_back
+!!$    logical(lgt) :: recompute, use_binned_psd
+!!$    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, noise, signal
+!!$    !real(dp)     :: A(2,2), b(2), x(2)
+!!$    real(dp)     :: nu, power
+!!$    real(sp),     allocatable, dimension(:) :: dt
+!!$    complex(spc), allocatable, dimension(:) :: dv
+!!$    real(sp),     allocatable, dimension(:) :: d_prime
+!!$    
+!!$    ntod = self%scans(scan)%ntod
+!!$    ndet = self%ndet
+!!$    nomp = omp_get_max_threads()
+!!$    
+!!$    use_binned_psd = .false. !.true.
+!!$    meanrange = 40
+!!$    
+!!$    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.10d0))
+!!$    
+!!$    n = ntod + 1
+!!$    !n = nfft / 2 + 1
 !!$
-!!$       b(1)   = sum(s_sub(:,i)*mask(:,i)*n_corr(:,i)) 
-!!$       b(2)   = sum(           mask(:,i)*n_corr(:,i))
-!!$       call solve_system_real(A, x, b)
-!!$       n_corr(:,i) = n_corr(:,i) - x(1)*s_sub(:,i)
-
-       
-       !write(*,*) 'a', sum(d_prime-n_corr(:,i))/ntod/gain
-
-       ! if ((i == 1) .and. (self.scanid(scan) == 100)) then
-       !    open(65,file='ps_ncorr.dat')
-       !    do j = i, ntod
-       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
-       !    end do
-       !    close(65)
-       ! end if
-
-       ! if (allocated(self%scans(scan)%d(i)%log_n_psd)) stop
-
-       ! if (i == 1 .and. scan == 1) then
-       !    open(23, file="d_prime.unf", form="unformatted")
-       !    write(23) d_prime
-       !    close(23)
-       ! end if
-
-
-!!$       if (self%myid == 0 .and. i == 2 .and. scan == 2 .and. .false.) then
-!!$          open(58,file='tod.dat')
-!!$          do j = 1, ntod
-!!$             write(58,*) j, d_prime(j), n_corr(j,i)
+!!$    call sfftw_init_threads(err)
+!!$    call sfftw_plan_with_nthreads(nomp)
+!!$
+!!$    allocate(dt(2*ntod), dv(0:n-1))
+!!$    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+!!$    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
+!!$    deallocate(dt, dv)
+!!$    ! allocate(dt(nfft), dv(0:n-1))
+!!$    ! call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+!!$    ! call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+!!$    ! deallocate(dt, dv)
+!!$    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,start,last)
+!!$    allocate(dt(2*ntod), dv(0:n-1))
+!!$    !allocate(dt(nfft), dv(0:n-1))
+!!$    allocate(d_prime(ntod))
+!!$    !allocate(diff(ntod+1))
+!!$    !diff = 0.d0
+!!$    !$OMP DO SCHEDULE(guided)
+!!$    do i = 1, ndet
+!!$       if (.not. self%scans(scan)%d(i)%accept) cycle
+!!$       gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
+!!$       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
+!!$       
+!!$       
+!!$       ! if (i == 4 .and. scan == 1) then
+!!$       !    open(23, file="d_prime1.unf", form="unformatted")
+!!$       !    write(23) d_prime
+!!$       !    close(23)
+!!$       ! end if
+!!$
+!!$
+!!$       sigma_0 = self%scans(scan)%d(i)%sigma0
+!!$       do j = 1,ntod
+!!$          if (mask(j,i) == 0.) then
+!!$             recompute = .true.
+!!$             start = max(j - meanrange, 1)
+!!$             last = min(j + meanrange, ntod)
+!!$             if (j > 1) then
+!!$                if (sum(mask(start:last, i)) < 5) recompute = .false.
+!!$             end if 
+!!$
+!!$             if (recompute) then
+!!$                m = 1
+!!$                start = max(j - meanrange, 1)
+!!$                last = min(j + meanrange, ntod)
+!!$                do while (sum(mask(start:last, i)) < 2) 
+!!$                   ! Widen the search for unmasked pixels
+!!$                   m = m * 2
+!!$                   start = max(j - meanrange * m, 1)
+!!$                   last = min(j + meanrange * m, ntod)
+!!$                   if (meanrange * m > ntod) then
+!!$                      !write(*,*) "Entire scan masked (this should not happen), see sample_n_corr", ntod, i, j, m
+!!$                      start = 1
+!!$                      last = ntod
+!!$                      exit
+!!$                   end if
+!!$                end do
+!!$                if (sum(mask(start:last, i)) > 0) then
+!!$                   mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
+!!$                else
+!!$                   mean = 0.
+!!$                end if
+!!$             end if
+!!$          ! if (mask(j,i) == 0.) then
+!!$          !    recompute = .true.
+!!$          !    if (j > 1) then
+!!$          !       if (mask(j-1,i) == 0.) recompute = .false.
+!!$          !    end if
+!!$
+!!$             if (abs(d_prime(j) - mean) > 0.d0 * sigma_0) then 
+!!$                d_prime(j) = mean
+!!$             end if
+!!$          end if
+!!$       end do
+!!$       
+!!$       ! if (i == 4 .and. scan == 1) then
+!!$       !    open(23, file="d_prime2.unf", form="unformatted")
+!!$       !    write(23) d_prime
+!!$       !    close(23)
+!!$       ! end if
+!!$
+!!$
+!!$       dt(1:ntod)           = d_prime(:)
+!!$       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$       ! nbuff = nfft - ntod
+!!$       ! do j=1, nbuff
+!!$       !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
+!!$       ! end do
+!!$  
+!!$       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+!!$       samprate = self%samprate
+!!$       sigma_0  = self%scans(scan)%d(i)%sigma0
+!!$       alpha    = self%scans(scan)%d(i)%alpha
+!!$       nu_knee  = self%scans(scan)%d(i)%fknee
+!!$       noise = 2.0 * ntod * sigma_0 ** 2
+!!$       !noise = nfft * sigma_0 ** 2
+!!$       ! if ((scan == 1) .and. (i == 1)) then
+!!$       !    write(*,*) "sigma, alpha, nu_knee, ntod", sigma_0, alpha, nu_knee, ntod
+!!$       ! end if
+!!$       if (trim(self%operation) == "sample") then
+!!$          dv(0)    = dv(0) + sqrt(noise) * rand_gauss(handle)  ! is this correct?
+!!$       end if
+!!$       
+!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(65,file='ps_n.dat') 
+!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(66,file='ps_n_after.dat') 
+!!$
+!!$       do l = 1, n-1                                                      
+!!$          nu = l*(samprate/2)/(n-1)
+!!$          if ((use_binned_psd) .and. &
+!!$               & (allocated(self%scans(scan)%d(i)%log_n_psd))) then
+!!$             if (nu <= 0) write(*,*) 'a', l, nu
+!!$             power = splint(self%scans(scan)%d(i)%log_nu, &
+!!$                  self%scans(scan)%d(i)%log_n_psd, &
+!!$                  self%scans(scan)%d(i)%log_n_psd2, &
+!!$                  log(nu))
+!!$             !signal = max(exp(power) - noise, noise)
+!!$             !signal = max(exp(power) * nfft / (2.d0 * ntod) - noise, noise)
+!!$             !signal = exp(power) * nfft / (2.d0 * ntod)
+!!$             signal = exp(power)
+!!$       
+!!$       !      write(*,*) signal, noise * (nu/(nu_knee))**(alpha), nu, noise, sigma_0
+!!$          else
+!!$             !noise = 0.0113d0
+!!$             if (nu_knee <= 0) write(*,*) 'b', l, nu_knee
+!!$             signal = noise * (nu/nu_knee)**(alpha)
+!!$          end if
+!!$          ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(65,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), ntod*1.d0
+!!$          if (signal <= 0.d0) then
+!!$             dv(l) = 0.
+!!$          else if (trim(self%operation) == "sample") then
+!!$             ! write(*,*) "Sample n_corr"
+!!$             ! dv(l) = (dv(l) + sigma_0 * (rand_gauss(handle)  &
+!!$             !      + sqrt((nu/(nu_knee))**(-alpha)) * rand_gauss(handle)))& 
+!!$             !      * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha)) 
+!!$             ! dv(l) = (signal * dv(l) + signal * sqrt(noise) * rand_gauss(handle)  &
+!!$             !      +  noise * sqrt(signal) * rand_gauss(handle))& 
+!!$             !      * 1.d0/(signal + noise)
+!!$             if (signal <= 0) write(*,*) 'c', l, signal
+!!$             dv(l) = (dv(l) + sqrt(noise) &
+!!$                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
+!!$                  + noise * sqrt(1.0 / signal) &
+!!$                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0))& 
+!!$                  * 1.d0/(1.d0 + noise / signal)
+!!$          else
+!!$             !dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
+!!$             !dv(l) = dv(l) * signal/(signal + noise)
+!!$             if (signal <= 0) write(*,*) 'd', l, signal
+!!$             dv(l) = dv(l) * 1.0/(1.0 + noise/signal)
+!!$          end if
+!!$          ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(66,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), nfft*1.d0
+!!$       end do
+!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(65)
+!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(66)
+!!$       if (maxval(abs(dv)) > 1.d30) then
+!!$          write(*,*) self%scanid(scan), i, maxval(abs(dv))
+!!$          open(58,file='dv.dat')
+!!$          do l = 0, n-1
+!!$             write(58,*) l, dv(l)
 !!$          end do
 !!$          close(58)
 !!$       end if
-
-    end do
-    !$OMP END DO                                                          
-    deallocate(dt, dv)
-    deallocate(d_prime)
-    !deallocate(diff)
-    !$OMP END PARALLEL
-
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
-  
-  end subroutine sample_n_corr
+!!$       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+!!$       if (ntod < 0) write(*,*) 'e', ntod
+!!$       dt          = dt / (2*ntod)
+!!$       !dt          = dt / nfft
+!!$       n_corr(:,i) = dt(1:ntod) 
+!!$
+!!$       ! Project out any sky correlated component
+!!$       
+!!$       !write(*,*) 'a', sum(d_prime-n_corr(:,i))/ntod/gain
+!!$
+!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) then
+!!$       !    open(65,file='ps_ncorr.dat')
+!!$       !    do j = i, ntod
+!!$       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
+!!$       !    end do
+!!$       !    close(65)
+!!$       ! end if
+!!$
+!!$       ! if (allocated(self%scans(scan)%d(i)%log_n_psd)) stop
+!!$
+!!$       ! if (i == 1 .and. scan == 1) then
+!!$       !    open(23, file="d_prime.unf", form="unformatted")
+!!$       !    write(23) d_prime
+!!$       !    close(23)
+!!$       ! end if
+!!$
+!!$    end do
+!!$    !$OMP END DO                                                          
+!!$    deallocate(dt, dv)
+!!$    deallocate(d_prime)
+!!$    !deallocate(diff)
+!!$    !$OMP END PARALLEL
+!!$
+!!$    call sfftw_destroy_plan(plan_fwd)                                           
+!!$    call sfftw_destroy_plan(plan_back)                                          
+!!$  
+!!$  end subroutine sample_n_corr
 
 
 
@@ -1579,14 +1569,19 @@ contains
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(self, scan_id, det, s_invN, mask, s_ref, s_tot)
+   subroutine calculate_gain_mean_std_per_scan(self, scan_id, s_invN, mask, s_ref, s_tot)
     implicit none
-    class(comm_LFI_tod),                intent(inout) :: self
-    real(sp),             dimension(:), intent(in)    :: s_invN, mask, s_ref, s_tot
-    integer(i4b),                       intent(in)    :: scan_id, det
+    class(comm_LFI_tod),                  intent(inout) :: self
+    real(sp),             dimension(:,:), intent(in)    :: s_invN, mask, s_ref, s_tot
+    integer(i4b),                         intent(in)    :: scan_id
 
-    real(sp), allocatable, dimension(:) :: residual
-    integer(i4b) :: ext(2)
+    real(sp), allocatable, dimension(:,:) :: residual
+    real(sp), allocatable, dimension(:)   :: r_fill
+    integer(i4b) :: ext(2), j, i, ndet, ntod
+    character(len=5) :: itext
+
+    ndet = self%ndet
+    ntod = size(s_tot,1)
 
 !    allocate(residual(size(stot_invN)))
       !g_old = self%scans(scan_id)%d(det)%gain 
@@ -1594,17 +1589,34 @@ contains
 !   residual = (self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
 !         & self%gain0(det)) * s_tot) * mask
 
-    call self%downsample_tod(s_tot, ext)    
-    allocate(residual(ext(1):ext(2)))
-    call self%downsample_tod(real(self%scans(scan_id)%d(det)%tod - (self%gain0(0) + &
-         & self%gain0(det)) * s_tot,sp), ext, residual, mask)
+    allocate(r_fill(size(s_tot,1)))
+    call self%downsample_tod(s_tot(:,1), ext)    
+    allocate(residual(ext(1):ext(2),ndet))
+    do j = 1, ndet
+       if (.not. self%scans(scan_id)%d(j)%accept) then
+          residual(:,j) = 0.d0
+          cycle
+       end if
+       r_fill = self%scans(scan_id)%d(j)%tod - (self%gain0(0) + &
+            & self%gain0(j)) * s_tot(:,j)
+       call fill_all_masked(r_fill, mask(:,j), ntod, .false.)
+       call self%downsample_tod(r_fill, ext, residual(:,j))
+    end do
+    call self%multiply_inv_N(scan_id, residual, sampfreq=self%samprate_gain, pow=0.5d0)
 
     ! Get a proper invn multiplication from Haavard's routine here
-    self%scans(scan_id)%d(det)%dgain      = sum(s_invN * residual)
-    self%scans(scan_id)%d(det)%gain_sigma = sum(s_invN * s_ref)
-    if (self%scans(scan_id)%d(det)%gain_sigma < 0.d0) then
-       write(*,*) 'Warning: Not positive definite invN = ', self%scanid(scan_id), det, self%scans(scan_id)%d(det)%gain_sigma
-    end if
+    do j = 1, ndet
+       if (.not. self%scans(scan_id)%d(j)%accept) then
+          self%scans(scan_id)%d(j)%gain  = 0.d0
+          self%scans(scan_id)%d(j)%dgain = 0.d0
+       else
+          self%scans(scan_id)%d(j)%dgain      = sum(s_invN(:,j) * residual(:,j))
+          self%scans(scan_id)%d(j)%gain_sigma = sum(s_invN(:,j) * s_ref(:,j))
+          if (self%scans(scan_id)%d(j)%gain_sigma < 0.d0) then
+             write(*,*) 'Warning: Not positive definite invN = ', self%scanid(scan_id), j, self%scans(scan_id)%d(j)%gain_sigma
+          end if
+       end if
+    end do
 !    self%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
 !    self%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
 !    if (self%scans(scan_id)%d(det)%gain_sigma < 0) then
@@ -1622,8 +1634,37 @@ contains
 
     !write(*,*) det, scan_id, real(self%scans(scan_id)%d(det)%dgain/self%scans(scan_id)%d(det)%gain_sigma,sp), real(self%gain0(0),sp), real(self%gain0(det),sp), real(g_old,sp)
 
+   ! write(*,*) self%scanid(scan_id), real(self%scans(scan_id)%d(1)%dgain/self%scans(scan_id)%d(3)%gain_sigma,sp), real(self%gain0(0) + self%gain0(3) + self%scans(scan_id)%d(3)%dgain/self%scans(scan_id)%d(3)%gain_sigma,sp), '# deltagain'
 
-    deallocate(residual)
+    if (.false. .and. mod(self%scanid(scan_id),100) == 0) then
+       call int2string(self%scanid(scan_id), itext)
+       !write(*,*) 'gain'//itext//'   = ', self%gain0(0) + self%gain0(1), self%scans(scan_id)%d(1)%dgain/self%scans(scan_id)%d(1)%gain_sigma
+       open(58,file='gain_delta_'//itext//'.dat')
+       do i = ext(1), ext(2)
+          write(58,*) i, residual(i,3)
+       end do
+       write(58,*)
+       do i = 1, size(s_ref,1)
+          write(58,*) i, s_ref(i,3)
+       end do
+       write(58,*)
+       do i = 1, size(s_ref,1)
+          write(58,*) i, s_invN(i,3)
+       end do
+       write(58,*)
+       do i = 1, size(s_tot,1)
+          write(58,*) i, self%scans(scan_id)%d(3)%tod(i) - (self%gain0(0) + &
+            & self%gain0(3)) * s_tot(i,3)
+       end do
+       write(58,*)
+       do i = 1, size(s_tot,1)
+          write(58,*) i, self%scans(scan_id)%d(3)%tod(i)
+       end do
+       close(58)
+    end if
+
+
+    deallocate(residual, r_fill)
 
   end subroutine calculate_gain_mean_std_per_scan
 
@@ -1631,7 +1672,7 @@ contains
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  subroutine sample_smooth_gain(self, handle)
+  subroutine sample_smooth_gain2(self, handle)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
     type(planck_rng),                  intent(inout)  :: handle
@@ -1758,39 +1799,274 @@ contains
 
     deallocate(g, lhs, rhs)
 
+  end subroutine sample_smooth_gain2
+
+
+  ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
+  ! estimate of the stationary sky
+  ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
+  subroutine sample_smooth_gain(self, handle)
+    implicit none
+    class(comm_LFI_tod),               intent(inout)  :: self
+    type(planck_rng),                  intent(inout)  :: handle
+
+!    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
+    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, ind(1)
+    integer(i4b) :: currstart, currend, window, i1, i2
+    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr
+    real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
+    real(dp), allocatable, dimension(:,:,:) :: g
+
+    ndet       = self%ndet
+    nscan_tot  = self%nscan_tot
+
+    ! Collect all gain estimates on the root processor
+    allocate(g(nscan_tot,ndet,2))
+    allocate(lhs(nscan_tot), rhs(nscan_tot))
+    g = 0.d0
+    do j = 1, ndet
+       do i = 1, self%nscan
+          k        = self%scanid(i)
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          g(k,j,1) = self%scans(i)%d(j)%dgain
+          g(k,j,2) = self%scans(i)%d(j)%gain_sigma
+       end do
+    end do
+    if (self%myid == 0) then
+       call mpi_reduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
+            & 0, self%comm, ierr)
+    else
+       call mpi_reduce(g,            g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
+            & 0, self%comm, ierr)
+    end if
+
+    if (self%myid == 0) then
+!       nbin = nscan_tot / binsize + 1
+
+       open(58,file='gain.dat', recl=1024)
+       do j = 1, ndet
+          do k = 1, nscan_tot
+             !if (g(k,j,2) /= 0) then
+             if (g(k,j,2) > 0) then
+                write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp)
+             else
+                write(58,*) j, k, 0.
+             end if
+          end do
+          write(58,*)
+       end do
+       close(58)
+
+       do j = 1, ndet
+         lhs = 0.d0
+         rhs = 0.d0
+         k = 0
+         do while (k < nscan_tot)
+            k         = k + 1
+            currstart = k
+            !if (g(k, j, 2) <= 0.d0) cycle
+            if (g(k,j,2) > 0.d0) then
+               sum_inv_sigma_squared = g(k, j, 2)
+               sum_weighted_gain     = g(k, j, 1) !/ g(k, j, 2)
+            else
+               sum_inv_sigma_squared = 0.d0
+               sum_weighted_gain     = 0.d0
+            end if
+            g_curr                = 0.d0
+            sigma_curr            = 1.d0
+            !do while (sqrt(sum_inv_sigma_squared) < 10000. .and. k < nscan_tot)
+            do while (g_curr / sigma_curr < 200.d0 .and. k < nscan_tot)
+               k = k + 1
+               if (g(k,j,2) > 0.d0) then
+                  sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
+                  sum_inv_sigma_squared = sum_inv_sigma_squared + g(k, j, 2)
+               end if
+               if (sum_inv_sigma_squared > 0.d0) then
+                  g_curr     = self%gain0(0) + self%gain0(j) + sum_weighted_gain / sum_inv_sigma_squared
+                  sigma_curr = 1.d0 / sqrt(sum_inv_sigma_squared)
+                  !write(*,*) j, ', S/N = ', real(g_curr/sigma_curr,sp)
+               else
+                  g_curr     = 0.d0
+                  sigma_curr = 1.d0
+               end if
+            end do
+            currend = k
+            if (sum_inv_sigma_squared > 0.d0) then
+               g_tot = sum_weighted_gain / sum_inv_sigma_squared
+               if (trim(self%operation) == 'sample') then
+                  ! Add fluctuation term if requested
+                  g_tot = g_tot + rand_gauss(handle) / sqrt(sum_inv_sigma_squared)
+               end if
+            else
+               g_tot = 0.d0
+            end if
+            !write(*,*) currstart, currend, g_tot, 1 / sqrt(sum_inv_sigma_squared)
+            !write(*,*) currstart, currend, nscan_tot, g_tot 
+            g(currstart:currend, j, 1) = g_tot 
+            g(currstart:currend, j, 2) = 1.d0 / sqrt(sum_inv_sigma_squared)
+         end do
+
+         ! Doing binning for now, but should use proper covariance sampling
+!         do i = 1, nbin
+!            b1 = (i-1) * binsize + 1
+!            b2 = min(i * binsize, nscan_tot)
+!            if (count(g(b1:b2, j, 2) > 0) <= 1) cycle
+!            n = 0
+!            do k = b1, b2
+!               if (g(k,j,2) <= 0.d0) then
+!                  g(k,j,1) = 0.d0
+!                  cycle
+!               end if
+!               if (g(k,j,1) == 0) cycle
+!               n = n + 1
+!               ! To be replaced by proper matrix multiplications
+!               lhs(k) = g(k, j, 2)
+!   !            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
+!               ! HKE: Disabling fluctuations for now 
+!               rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
+!!               g(k, j, 1) = rhs(k) / lhs(k)
+!               vals(n) = rhs(k) / lhs(k)
+!               if (abs(vals(n)) > 0.05d0) vals(n) = 0.d0
+!            end do
+!            where (g(b1:b2, j, 2) > 0)
+!               g(b1:b2, j, 1) = median(vals(1:n))
+!            end where
+!         end do
+
+         ! Apply running average smoothing
+         allocate(g_smooth(nscan_tot))
+         window = 500
+         do k = 1, nscan_tot
+            i1 = max(k-window,1)
+            i2 = min(k+window,nscan_tot)
+            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
+            !g_smooth(k) = median(g(i1:i2,j,1)) 
+         end do
+         g(:,j,1) = g_smooth - mean(g_smooth)
+         deallocate(g_smooth)
+
+!!$         ! Apply running average smoothing
+!!$         allocate(g_smooth(nscan_tot))
+!!$         window = 10000
+!!$         do k = 1, nscan_tot
+!!$            i1 = max(k-window,1)
+!!$            i2 = min(k+window,nscan_tot)
+!!$            ind = minloc(g(i1:i2,j,2))
+!!$            g_smooth(k) = g(ind(1),j,1)
+!!$            !g_smooth(k) = median(g(i1:i2,j,1)) 
+!!$         end do
+!!$         g(:,j,1) = g_smooth - mean(g_smooth)
+!!$         deallocate(g_smooth)
+
+!!$         mu  = 0.d0
+!!$         denom = 0.d0
+!!$         do k = 1, nscan_tot
+!!$            if (g(k, j, 2) <= 0.d0) cycle
+!!$            mu         = mu + g(k, j, 1)! * g(k,j,2)
+!!$            denom      = denom + 1.d0! * g(k,j,2)
+!!$!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
+!!$         end do
+!!$         mu = mu / denom
+!!$
+!!$         ! Make sure fluctuations sum up to zero
+!!$         !write(*,*) 'mu = ', mu
+!!$         g(:,j,1) = g(:,j,1) - mu
+       end do
+    end if
+
+    ! Distribute and update results
+    call mpi_bcast(g, size(g),  MPI_DOUBLE_PRECISION, 0, self%comm, ierr)    
+    do j = 1, ndet
+       do i = 1, self%nscan
+          k        = self%scanid(i)
+          !if (g(k, j, 2) <= 0.d0) cycle
+          self%scans(i)%d(j)%dgain = g(k,j,1)
+          self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j) + g(k,j,1)
+          !write(*,*) j, k,  self%scans(i)%d(j)%gain 
+       end do
+    end do
+
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+    deallocate(g, lhs, rhs)
+
   end subroutine sample_smooth_gain
+
   
   ! Haavard: Remove current monopole fit, and replace inv_sigmasq with a proper invN(alpha,fknee) multiplication
 !  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
 !       & s_orb, A_abs, b_abs)
-   subroutine accumulate_abscal(self, scan, det, mask, s_sub, s_ref, s_invN, A_abs, b_abs)
+   subroutine accumulate_abscal(self, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs)
     implicit none
-    class(comm_LFI_tod),             intent(in)     :: self
-    integer(i4b),                    intent(in)     :: scan, det
-    real(sp),          dimension(:), intent(in)     :: mask, s_sub, s_ref
-    real(sp),          dimension(:), intent(in)     :: s_invN
-    real(dp),                        intent(inout)  :: A_abs, b_abs
+    class(comm_LFI_tod),               intent(in)     :: self
+    integer(i4b),                      intent(in)     :: scan
+    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
+    real(sp),          dimension(:,:), intent(in)     :: s_invN
+    real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
 
-    real(sp), allocatable, dimension(:)     :: residual
+    real(sp), allocatable, dimension(:,:)     :: residual
+    real(sp), allocatable, dimension(:)       :: r_fill
     real(dp)     :: A, b
-    integer(i4b) :: ext(2)
+    integer(i4b) :: i, j, ext(2), ndet, ntod
+    character(len=5) :: itext
 
+    ndet = self%ndet
+    ntod = size(s_sub,1)
 !    p = 5000 ! Buffer width
 !    q = size(mask)-p
-    call self%downsample_tod(s_sub, ext)    
-    allocate(residual(ext(1):ext(2)))
-    call self%downsample_tod(self%scans(scan)%d(det)%tod-s_sub, &
-         & ext, residual, mask)
+    call self%downsample_tod(s_sub(:,1), ext)    
+    allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
+    do j = 1, ndet
+       r_fill = self%scans(scan)%d(j)%tod-s_sub(:,j)
+       call fill_all_masked(r_fill, mask(:,j), ntod, .false.)
+       call self%downsample_tod(r_fill, ext, residual(:,j))
+    end do
 
-    A = sum(s_invN * s_ref)
-    b = sum(s_invN * residual)
+    call self%multiply_inv_N(scan, residual, sampfreq=self%samprate_gain, pow=0.5d0)
+
+    do j = 1, ndet
+       A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
+       b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+    end do
     !write(*,*) sum(abs(s_sub)), sum(abs(self%scans(scan)%d(det)%tod))
+
+!!$    if (trim(self%freq) == '070') then
+!!$       write(*,*) self%scanid(scan), real(b/A,sp), real(1/sqrt(A),sp), '  # abs70', det
+!!$    end if
+!!$
+
+!!$    if (mod(self%scanid(scan),100) == 0) then
+!!$       call int2string(self%scanid(scan), itext)
+!!$       !write(*,*) 'gain'//itext//'   = ', self%gain0(0) + self%gain0(1), self%gain0(0), self%gain0(1)
+!!$       open(58,file='gainfit3_'//itext//'.dat')
+!!$       do i = 1, size(s_ref,1)
+!!$          write(58,*) i, residual(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_ref,1)
+!!$          write(58,*) i, s_ref(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_ref,1)
+!!$          write(58,*) i, s_invN(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_sub,1)
+!!$          write(58,*) i, s_sub(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_sub,1)
+!!$          write(58,*) i, self%scans(scan)%d(1)%tod(i)
+!!$       end do
+!!$       close(58)
+!!$    end if
+
+
 
     !if (det == 1) write(*,*) self%scanid(scan), b/A, '  # absgain', real(A,sp), real(b,sp)
 
-    A_abs = A_abs + A
-    b_abs = b_abs + b
-    deallocate(residual)
+    deallocate(residual, r_fill)
 
   end subroutine accumulate_abscal
 
@@ -1909,19 +2185,18 @@ contains
 
   ! Compute chisquare
   subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
-       & n_corr, s_prop)
+       & n_corr, absbp)
     implicit none
     class(comm_LFI_tod),             intent(inout)  :: self
     integer(i4b),                    intent(in)     :: scan, det
     real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
     real(sp),          dimension(:), intent(in)     :: n_corr
-    real(sp),          dimension(:), intent(in), optional :: s_prop
+    logical(lgt),                    intent(in), optional :: absbp
 
-    real(dp)     :: chisq, chisq_prop, d0, g
+    real(dp)     :: chisq, d0, g
     integer(i4b) :: i, n
 
     chisq       = 0.d0
-    chisq_prop  = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain 
     do i = 1, self%scans(scan)%ntod
@@ -1930,26 +2205,18 @@ contains
        d0    = self%scans(scan)%d(det)%tod(i) - &
             & (g * s_spur(i) + n_corr(i))
        chisq = chisq + (d0 - g * s_sky(i))**2 
-       if (present(s_prop)) then
-          chisq_prop = chisq_prop + (d0 - g * s_prop(i))**2 
-       end if
     end do
 
     if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
-       if (present(s_prop)) then
-          self%scans(scan)%d(det)%chisq_masked = 1e4
-          self%scans(scan)%d(det)%chisq_prop   = 1e4
+       if (present(absbp)) then
+          self%scans(scan)%d(det)%chisq_prop   = 0.d0
        else
-          self%scans(scan)%d(det)%chisq        = 1e4
+          self%scans(scan)%d(det)%chisq        = 0.d0
        end if
-
     else
        chisq      = chisq      / self%scans(scan)%d(det)%sigma0**2
-
-       if (present(s_prop)) then
-          chisq_prop = chisq_prop / self%scans(scan)%d(det)%sigma0**2
-          self%scans(scan)%d(det)%chisq_masked = chisq
-          self%scans(scan)%d(det)%chisq_prop   = chisq_prop
+       if (present(absbp)) then
+          self%scans(scan)%d(det)%chisq_prop   = chisq
        else
           self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
        end if
@@ -2537,7 +2804,7 @@ contains
           cp          = sum(chisq_S(:,k))
           cc          = sum(chisq_S(:,current))
           diff        = max(cp-cc,0.d0)
-          write(*,*) 'diff', diff
+          write(*,*) 'diff', diff, cp, cc
           accept_rate = exp(-0.5d0*diff)  
           if (trim(self%operation) == 'optimize') then
              accept = cp <= cc

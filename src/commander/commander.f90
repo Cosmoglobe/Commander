@@ -176,6 +176,9 @@ program commander
                    & samp_group, ' of ', cpar%cg_num_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+
+           if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
+
         end do
 
         ! Perform joint alm-Cl Metropolis move

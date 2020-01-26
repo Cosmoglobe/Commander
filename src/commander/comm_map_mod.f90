@@ -81,6 +81,7 @@ module comm_map_mod
      procedure     :: get_alm
      procedure     :: get_alm_TEB
      procedure     :: remove_MDpoles
+     procedure     :: fit_MDpoles
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -1540,5 +1541,32 @@ end do
 
     deallocate(fullmap, multipoles, zbounds)
   end subroutine remove_MDpoles
+
+  function fit_MDpoles(self, mask)
+    implicit none
+    class(comm_map), intent(in) :: self
+    class(comm_map), intent(in) :: mask
+    real(dp)                    :: fit_MDpoles(0:3)
+
+    integer(i4b) :: i, j, ierr
+    real(dp) :: A(4,4), b(4), vec(0:3,1), A_tot(4,4), b_tot(4)
+
+    A = 0.d0; b = 0.d0
+    do i = 0, self%info%np-1
+       if (mask%map(i,1) < 0.5d0) cycle
+       vec(0,1) = 0.d0
+       call pix2vec_ring(self%info%nside, i, vec(1:3,1))
+       A = A + matmul(vec,transpose(vec))
+       b = b + vec(:,1) * self%map(i,1)
+    end do
+    call mpi_reduce(A, A_tot, size(A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+    call mpi_reduce(b, b_tot, size(b), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+
+    if (self%info%myid == 0) then
+       call solve_system_real(A_tot, fit_MDpoles, b_tot)
+    end if
+    call mpi_bcast(fit_MDpoles, size(fit_MDpoles), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+
+  end function fit_MDpoles
 
 end module comm_map_mod

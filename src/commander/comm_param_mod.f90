@@ -117,6 +117,8 @@ module comm_param_mod
      character(len=512) :: cs_inst_parfile
      character(len=512) :: cs_init_inst_hdf
      integer(i4b)       :: cs_ncomp, cs_ncomp_tot
+     real(dp)           :: cmb_dipole_prior(3)
+     character(len=512) :: cmb_dipole_prior_mask
      logical(lgt),       allocatable, dimension(:)     :: cs_include
      character(len=512), allocatable, dimension(:)     :: cs_initHDF
      character(len=512), allocatable, dimension(:)     :: cs_label
@@ -536,8 +538,9 @@ contains
     type(comm_params),  intent(inout) :: cpar
 
     integer(i4b)       :: i, n, len_itext
+    real(dp)           :: amp, lat, lon
     character(len=2)   :: itext
-    character(len=512) :: maskfile
+    character(len=512) :: maskfile, tokens(4)
     
     len_itext=len(trim(itext))
     call get_parameter_hashtable(htbl, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
@@ -640,6 +643,18 @@ contains
           end if
 
           select case (trim(cpar%cs_type(i)))
+          case ('cmb')
+             call get_parameter_hashtable(htbl, 'CMB_DIPOLE_PRIOR', par_string=cpar%cmb_dipole_prior_mask)
+             if (trim(cpar%cmb_dipole_prior_mask) /= 'none') then
+                call get_tokens(trim(adjustl(cpar%cmb_dipole_prior_mask)), ';', tokens)
+                cpar%cmb_dipole_prior_mask = tokens(1)
+                read(tokens(2),*) amp
+                read(tokens(3),*) lon
+                read(tokens(4),*) lat
+                cpar%cmb_dipole_prior(1) = -sqrt(4.d0*pi/3.d0) * amp * cos(lon*pi/180.d0) * sin((90.d0-lat)*pi/180.d0)
+                cpar%cmb_dipole_prior(2) =  sqrt(4.d0*pi/3.d0) * amp * sin(lon*pi/180.d0) * sin((90.d0-lat)*pi/180.d0)
+                cpar%cmb_dipole_prior(3) =  sqrt(4.d0*pi/3.d0) * amp *                      cos((90.d0-lat)*pi/180.d0)
+             end if
           case ('power_law')
              call get_parameter_hashtable(htbl, 'COMP_BETA_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext, len_itext=len_itext,        &
