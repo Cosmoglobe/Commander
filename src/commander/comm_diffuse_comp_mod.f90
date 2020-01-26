@@ -34,6 +34,7 @@ module comm_diffuse_comp_mod
      class(comm_map),               pointer     :: procmask => null()
      class(comm_map),               pointer     :: indmask => null()
      class(comm_map),               pointer     :: defmask => null()
+     class(comm_map),               pointer     :: priormask => null()
      class(comm_map),               pointer     :: x => null()           ! Spatial parameters
      class(comm_map),               pointer     :: x_smooth => null()    ! Spatial parameters
      class(comm_map),               pointer     :: mu => null()          ! Spatial prior mean
