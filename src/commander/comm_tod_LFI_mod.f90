@@ -99,7 +99,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
-    constructor%first_call    = .false. !.true.
+    constructor%first_call    = .true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
@@ -348,7 +348,7 @@ contains
     correct_sl      = .true.
     chisq_threshold = 7.d0
     n_main_iter     = 5
-    chisq_threshold = 30.d0  !3000.d0
+    chisq_threshold = 9.d0  !3000.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -826,6 +826,7 @@ contains
                 s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
                 call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
                      & s_buf(:,j), n_corr(:,j))      
+                !write(*,*) 'chisq4', self%scanid(i), j, self%scans(i)%d(j)%chisq
              end do
              call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
           end if
