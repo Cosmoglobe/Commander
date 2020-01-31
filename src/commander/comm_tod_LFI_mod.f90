@@ -99,7 +99,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
-    constructor%first_call    = .true.
+    constructor%first_call    = .false.  !.true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
@@ -1637,29 +1637,29 @@ contains
 
    ! write(*,*) self%scanid(scan_id), real(self%scans(scan_id)%d(1)%dgain/self%scans(scan_id)%d(3)%gain_sigma,sp), real(self%gain0(0) + self%gain0(3) + self%scans(scan_id)%d(3)%dgain/self%scans(scan_id)%d(3)%gain_sigma,sp), '# deltagain'
 
-    if (.false. .and. mod(self%scanid(scan_id),100) == 0) then
+    if (trim(self%freq) == '030' .and. mod(self%scanid(scan_id),100) == 0) then
        call int2string(self%scanid(scan_id), itext)
        !write(*,*) 'gain'//itext//'   = ', self%gain0(0) + self%gain0(1), self%scans(scan_id)%d(1)%dgain/self%scans(scan_id)%d(1)%gain_sigma
        open(58,file='gain_delta_'//itext//'.dat')
        do i = ext(1), ext(2)
-          write(58,*) i, residual(i,3)
+          write(58,*) i, residual(i,1)
        end do
        write(58,*)
        do i = 1, size(s_ref,1)
-          write(58,*) i, s_ref(i,3)
+          write(58,*) i, s_ref(i,1)
        end do
        write(58,*)
        do i = 1, size(s_ref,1)
-          write(58,*) i, s_invN(i,3)
+          write(58,*) i, s_invN(i,1)
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          write(58,*) i, self%scans(scan_id)%d(3)%tod(i) - (self%gain0(0) + &
-            & self%gain0(3)) * s_tot(i,3)
+          write(58,*) i, self%scans(scan_id)%d(1)%tod(i) - (self%gain0(0) + &
+            & self%gain0(1)) * s_tot(i,1)
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          write(58,*) i, self%scans(scan_id)%d(3)%tod(i)
+          write(58,*) i, self%scans(scan_id)%d(1)%tod(i)
        end do
        close(58)
     end if
@@ -1876,7 +1876,7 @@ contains
             g_curr                = 0.d0
             sigma_curr            = 1.d0
             !do while (sqrt(sum_inv_sigma_squared) < 10000. .and. k < nscan_tot)
-            do while (g_curr / sigma_curr < 200.d0 .and. k < nscan_tot)
+            do while (g_curr / sigma_curr < 1000.d0 .and. k < nscan_tot)
                k = k + 1
                if (g(k,j,2) > 0.d0) then
                   sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
@@ -1935,16 +1935,16 @@ contains
 !         end do
 
          ! Apply running average smoothing
-         allocate(g_smooth(nscan_tot))
-         window = 500
-         do k = 1, nscan_tot
-            i1 = max(k-window,1)
-            i2 = min(k+window,nscan_tot)
-            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
-            !g_smooth(k) = median(g(i1:i2,j,1)) 
-         end do
-         g(:,j,1) = g_smooth - mean(g_smooth)
-         deallocate(g_smooth)
+!!$         allocate(g_smooth(nscan_tot))
+!!$         window = 500
+!!$         do k = 1, nscan_tot
+!!$            i1 = max(k-window,1)
+!!$            i2 = min(k+window,nscan_tot)
+!!$            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
+!!$            !g_smooth(k) = median(g(i1:i2,j,1)) 
+!!$         end do
+!!$         g(:,j,1) = g_smooth - mean(g_smooth)
+!!$         deallocate(g_smooth)
 
 !!$         ! Apply running average smoothing
 !!$         allocate(g_smooth(nscan_tot))

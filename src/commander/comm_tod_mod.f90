@@ -814,7 +814,7 @@ contains
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
     real(sp),          dimension(:,:), intent(out)    :: n_corr
-    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: i, j, l, k, n, m, nlive, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region
@@ -827,6 +827,7 @@ contains
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
     nomp = omp_get_max_threads()
+    nlive = count(self%scans(scan)%d%accept)
     
     nfft = 2 * ntod
     !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
@@ -898,7 +899,6 @@ contains
 !!$          end if
           
           N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
-
           if (trim(self%operation) == "sample") then
              dv(l) = (dv(l) + fft_norm * ( &
                   sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
@@ -907,6 +907,7 @@ contains
           else
              dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
           end if
+          !if (abs(nu-1.d0/60.d0) < 0.01d0 .and. trim(self%freq)== '070') dv(l) = 0.d0
        end do
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        dt          = dt / nfft
