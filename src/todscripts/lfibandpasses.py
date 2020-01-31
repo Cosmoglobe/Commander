@@ -3,16 +3,30 @@ import os
 import healpy as hp
 import numpy as np
 import math
+import argparse
 from astropy.io import fits
 
 def main():
 
-    outDir = '/mn/stornext/d16/cmbco/bp/mathew/test'
+    parser = argparse.ArgumentParser()
 
-    rimo = fits.open('/mn/stornext/d16/cmbco/bp/data/auxiliary_data/LFI_RIMO_R3.31.fits')
+    parser.add_argument('--out-dir', type=str, action='store', help='output directory', default='/mn/stornext/d16/cmbco/bp/mathew/test')
 
-    slDir = '/mn/stornext/d16/cmbco/bp/data/beamalms/sl'
-    beamDir = '/mn/stornext/d16/cmbco/bp/data/beamalms/totalAlm'
+    parser.add_argument('--rimo', type=str, action='store', help='path to the RIMO file', default='/mn/stornext/d16/cmbco/bp/data/auxiliary_data/LFI_RIMO_R3.31.fits')
+
+    parser.add_argument('--sl-dir', type=str, action='store', help='path to the directory containing the sidelobe alms', default='/mn/stornext/d16/cmbco/bp/data/beamalms/sl')
+
+    parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the beam alms', default='/mn/stornext/d16/cmbco/bp/data/beamalms/totalAlm')
+
+    args = parser.parse_args()
+    outDir = args.out_dir
+
+    version = 4
+
+    rimo = fits.open(args.rimo)
+
+    slDir = args.sl_dir
+    beamDir = args.beam_dir
 
     horns = {30:[27, 28], 44:[24, 25, 26], 70:[18, 19, 20, 21, 22, 23]}
 
@@ -23,7 +37,11 @@ def main():
 
     psis = {'18M':85, '18S':86, '19M':78, '19S':79, '20M':71, '20S':72, '21M':107, '21S':106, '22M':101, '22S':101, '23M':92, '23S':92, '24M':89, '24S':89, '25M':114, '25S':117, '26M':62, '26S':61, '27M':101, '27S':101, '28M':78, '28S':78}
 
-    outFile = h5py.File(os.path.join(outDir, 'LFI_instrument.h5'), 'w')
+    b_effs = {'18M':0.9921, '18S':0.9887, '19M':0.9883, '19S':0.9898, '20M':0.9885, '20S':0.9881, '21M':0.9894, '21S':0.9882, '22M':0.9916, '22S':0.9915, '23M':0.9926, '23S':0.9919, '24M':0.9972, '24S':0.9973, '25M':0.9975, '25S':0.9976, '26M':0.9974, '26S':0.9977, '27M':0.9904, '27S':0.9889, '28M':0.9907, '28S':0.9879}
+
+    cent_freqs = {'18M':70.4, '18S':70.4, '19M':70.4, '19S':70.4, '20M':70.4, '20S':70.4, '21M':70.4, '21S':70.4, '22M':70.4, '22S':70.4, '23M':70.4, '23S':70.4, '24M':44.1, '24S':44.1, '25M':44.1, '25S':44.1, '26M':44.1, '26S':44.1, '27M':28.4, '27S':28.4, '28M':28.4, '28S':28.4}
+
+    outFile = h5py.File(os.path.join(outDir, 'LFI_instrument_v' + str(version) + '.h5'), 'w')
 
     for freq in [30, 44, 70]:
         bandNo = rimo.index_of('BANDPASS_0' + str(freq))
@@ -69,6 +87,10 @@ def main():
                 outFile.create_dataset(prefix + '/fwhm', data=[fwhms[str(horn) + hornType]])
                 outFile.create_dataset(prefix + '/elip', data=[elips[str(horn) + hornType]])
                 outFile.create_dataset(prefix + '/psi_ell', data=[math.radians(psis[str(horn) + hornType])])
+                outFile.create_dataset(prefix + '/mbeam_eff', data=[b_effs[str(horn) + hornType]])
+
+                #central frequency
+                outFile.create_dataset(prefix + '/centFreq', data=[cent_freqs[str(horn) + hornType]])
 
                 print(prefix)
  
