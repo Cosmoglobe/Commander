@@ -83,6 +83,7 @@ contains
     logical(lgt) :: pol_beam
     type(hdf_file) :: h5_file
     integer(i4b), allocatable, dimension(:) :: pix
+    real(dp), dimension(3) :: v
 
     ! Set up LFI specific parameters
     allocate(constructor)
@@ -107,6 +108,7 @@ contains
     constructor%output_4D_map = cpar%output_4D_map_nth_iter
     constructor%subtract_zodi = cpar%include_TOD_zodi
     constructor%samprate_gain = 1.d0  ! Lowres samprate in Hz
+    constructor%central_freq  = cpar%ds_nu_c(id_abs)
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     if (constructor%first_scan > constructor%last_scan) then
@@ -191,9 +193,37 @@ contains
     constructor%slinfo => comm_mapinfo(cpar%comm_chain, nside_beam, lmax_beam, &
          & nmaps_beam, pol_beam)
     allocate(constructor%slbeam(constructor%ndet), constructor%slconv(constructor%ndet))
+    allocate(constructor%orb_dp_s(constructor%ndet, 9))
     do i = 1, constructor%ndet
        constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., .true., &
             & trim(constructor%label(i)))
+       !Perform integrals for orbital dipole sidelobe correction term
+       call constructor%slbeam(i)%p%Y()
+       constructor%orb_dp_s(i, :) = 0.d0
+       do j = 0, constructor%slbeam(i)%p%info%np-1
+         call pix2vec_ring(constructor%nside, constructor%slbeam(i)%p%info%pix(j+1),v)
+         !x
+         constructor%orb_dp_s(i, 1) = constructor%orb_dp_s(i, 1) + constructor%slbeam(i)%p%map(j, 1) * v(1)
+         !y 
+         constructor%orb_dp_s(i, 2) = constructor%orb_dp_s(i, 2) + constructor%slbeam(i)%p%map(j, 1) * v(2)
+         !z 
+         constructor%orb_dp_s(i, 3) = constructor%orb_dp_s(i, 3) + constructor%slbeam(i)%p%map(j, 1) * v(3)
+         !x^2 
+         constructor%orb_dp_s(i, 4) = constructor%orb_dp_s(i, 4) + constructor%slbeam(i)%p%map(j, 1) * v(1) * v(1)
+         !2xy 
+         constructor%orb_dp_s(i, 5) = constructor%orb_dp_s(i, 5) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(1) * v(2)
+         !2xz 
+         constructor%orb_dp_s(i, 6) = constructor%orb_dp_s(i, 6) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(1) * v(3)
+         !y^2 
+         constructor%orb_dp_s(i, 7) = constructor%orb_dp_s(i, 7) + constructor%slbeam(i)%p%map(j, 1) * v(2) * v(2)
+         !2yz 
+         constructor%orb_dp_s(i, 8) = constructor%orb_dp_s(i, 8) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(2) * v(3)
+         !z^2 
+         constructor%orb_dp_s(i, 9) = constructor%orb_dp_s(i, 9) + constructor%slbeam(i)%p%map(j, 1) * v(3) * v(3)
+       end do 
+
+       constructor%orb_dp_s = constructor%orb_dp_s*4*pi/real(constructor%slbeam(i)%p%info%npix)
+
        !constructor%slbeam(i)%p%map(:,1) = 0.d0
        !do j = 0, constructor%slbeam(i)%p%info%np -1
        !  if (real(constructor%slbeam(i)%p%info%pix(j+1), dp) == constructor%slbeam(i)%p%info%npix/2.d0) then
@@ -230,7 +260,10 @@ contains
 !!$             end if
 !!$          end do
     end do
-    
+   
+    call mpi_allreduce(MPI_IN_PLACE, constructor%orb_dp_s, size(constructor%orb_dp_s), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
+
+ 
     do i = 1, constructor%ndet
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'elip', constructor%elip(i))
@@ -238,6 +271,7 @@ contains
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'mbeam_eff', constructor%mb_eff(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'centFreq', constructor%nu_c(i))
     end do
+
     constructor%mb_eff = 1.d0 
     !constructor%mb_eff(3) = constructor%mb_eff(1)*0.99d0
     constructor%mb_eff = constructor%mb_eff / mean(constructor%mb_eff)
@@ -666,7 +700,7 @@ contains
           
           ! Construct orbital dipole template
           call wall_time(t1)
-          call self%compute_orbital_dipole(i, pix, s_orb)
+          call self%compute_orbital_dipole(i, pix, psi, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
 
@@ -1302,20 +1336,36 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
+<<<<<<< Updated upstream
   subroutine compute_orbital_dipole(self, scan, pix, s_orb)
     implicit none
     class(comm_LFI_tod),                 intent(in)  :: self
     integer(i4b),                        intent(in)  :: scan  !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix
+=======
+  subroutine compute_orbital_dipole(self, ind, pix, psi, s_orb)
+    implicit none
+    class(comm_LFI_tod),                 intent(in)  :: self
+    integer(i4b),                        intent(in)  :: ind !scan nr/index
+    integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
+>>>>>>> Stashed changes
     real(sp),            dimension(:,:), intent(out) :: s_orb
-    real(dp)             :: b_dot
     integer(i4b)         :: i, j
+<<<<<<< Updated upstream
     real(dp)             :: x, T_0, q, pix_dir(3), b
     real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
+=======
+    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation
+    real(dp)             :: theta, phi, psi_d
+    real(dp), dimension(3,3) :: rot_mat
+    real(dp), dimension(3)   :: vnorm
+    !real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
+>>>>>>> Stashed changes
 
     T_0 = T_CMB*k_b/h                           ! T_0 = T_CMB frequency
     b = sqrt(sum(self%scans(scan)%v_sun**2))/c   ! beta for the given scan
 
+<<<<<<< Updated upstream
     do i = 1,self%ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        x   = self%nu_c(i) / (2.d0*T_0)                ! freq is the center bandpass frequency of the detector
@@ -1326,6 +1376,39 @@ contains
           !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
           s_orb(j,i) = real(T_CMB * (b_dot + q*(b_dot**2 - b**2/3.d0)),sp) ! net zero monopole
+=======
+    !these are the npipe paper definitions
+    !TODO: maybe also use the bandpass shift to modify the central frequency? 
+    !will that matter?
+    x = h * self%central_freq/(k_B * T_CMB)
+    q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
+
+    do i = 1,self%ndet 
+       if (.not. self%scans(ind)%d(i)%accept) cycle
+       do j=1,self%scans(ind)%ntod !length of the tod
+          b_dot = dot_product(self%scans(ind)%v_sun, self%pix2vec(:,pix(j,i)))/c
+          s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
+          !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
+          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
+          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
+
+          !TODO: add sl contribution to orbital dipole here
+          call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
+          !rotate v_sun into frame where pointing is along z axis
+          !write(*,*) -phi, -theta, -self%psi(psi(i,j)), psi(i,j)
+          psi_d = self%psi(psi(j,i))
+          !write(*,*), j, phi, theta, psi_d, rot_mat 
+          call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
+          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
+          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
+            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
+            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
+            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
+            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
+            & self%orb_dp_s(i,9) 
+          s_orb(j,i) = s_orb(j,i) - T_CMB *summation
+
+>>>>>>> Stashed changes
        end do
    end do
 

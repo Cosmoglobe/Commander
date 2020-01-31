@@ -60,6 +60,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
 
+     real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_gain                      ! Sample rate in Hz
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -97,6 +98,7 @@ module comm_tod_mod
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix
+     real(dp),           allocatable, dimension(:, :) :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term 
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
