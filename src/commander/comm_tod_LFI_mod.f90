@@ -1336,47 +1336,22 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-<<<<<<< Updated upstream
-  subroutine compute_orbital_dipole(self, scan, pix, s_orb)
-    implicit none
-    class(comm_LFI_tod),                 intent(in)  :: self
-    integer(i4b),                        intent(in)  :: scan  !scan nr/index
-    integer(i4b),        dimension(:,:), intent(in)  :: pix
-=======
   subroutine compute_orbital_dipole(self, ind, pix, psi, s_orb)
     implicit none
     class(comm_LFI_tod),                 intent(in)  :: self
     integer(i4b),                        intent(in)  :: ind !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
->>>>>>> Stashed changes
     real(sp),            dimension(:,:), intent(out) :: s_orb
     integer(i4b)         :: i, j
-<<<<<<< Updated upstream
-    real(dp)             :: x, T_0, q, pix_dir(3), b
-    real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
-=======
     real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation
     real(dp)             :: theta, phi, psi_d
     real(dp), dimension(3,3) :: rot_mat
     real(dp), dimension(3)   :: vnorm
     !real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
->>>>>>> Stashed changes
 
-    T_0 = T_CMB*k_b/h                           ! T_0 = T_CMB frequency
-    b = sqrt(sum(self%scans(scan)%v_sun**2))/c   ! beta for the given scan
+    !T_0 = T_CMB*k_b/h                           ! T_0 = T_CMB frequency
+    !b = sqrt(sum(self%scans(scan)%v_sun**2))/c   ! beta for the given scan
 
-<<<<<<< Updated upstream
-    do i = 1,self%ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       x   = self%nu_c(i) / (2.d0*T_0)                ! freq is the center bandpass frequency of the detector
-       q   = x * (exp(2.d0*x)+1) / (exp(2.d0*x)-1) ! frequency dependency of the quadrupole
-       do j=1,self%scans(scan)%ntod !length of the tod
-          b_dot = dot_product(self%scans(scan)%v_sun, self%pix2vec(:,pix(j,i)))/c
-          !s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
-          !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
-          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
-          s_orb(j,i) = real(T_CMB * (b_dot + q*(b_dot**2 - b**2/3.d0)),sp) ! net zero monopole
-=======
     !these are the npipe paper definitions
     !TODO: maybe also use the bandpass shift to modify the central frequency? 
     !will that matter?
@@ -1406,9 +1381,8 @@ contains
             & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
             & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
             & self%orb_dp_s(i,9) 
-          s_orb(j,i) = s_orb(j,i) - T_CMB *summation
+          s_orb(j,i) = s_orb(j,i)! - T_CMB *summation
 
->>>>>>> Stashed changes
        end do
    end do
 
