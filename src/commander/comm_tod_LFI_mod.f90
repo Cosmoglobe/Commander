@@ -107,8 +107,9 @@ contains
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     constructor%output_4D_map = cpar%output_4D_map_nth_iter
     constructor%subtract_zodi = cpar%include_TOD_zodi
-    constructor%samprate_gain = 1.d0  ! Lowres samprate in Hz
     constructor%central_freq  = cpar%ds_nu_c(id_abs)
+    constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
     if (constructor%first_scan > constructor%last_scan) then
@@ -770,8 +771,8 @@ contains
                 end if
              end do
              s_invN = s_lowres
-             call self%multiply_inv_N(i, s_invN,   sampfreq=self%samprate_gain, pow=0.5d0)
-             call self%multiply_inv_N(i, s_lowres, sampfreq=self%samprate_gain, pow=0.5d0)
+             call self%multiply_inv_N(i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
+             call self%multiply_inv_N(i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
              !write(*,*) i, sum(abs(s_lowres)), sum(abs(s_invN))
              !if (self%myid == 0) write(*,*) 'sum', sum(abs(sorb_invN))
              !call mpi_finalize(ierr)
@@ -1367,21 +1368,21 @@ contains
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
 
-          !TODO: add sl contribution to orbital dipole here
-          call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
-          !rotate v_sun into frame where pointing is along z axis
-          !write(*,*) -phi, -theta, -self%psi(psi(i,j)), psi(i,j)
-          psi_d = self%psi(psi(j,i))
-          !write(*,*), j, phi, theta, psi_d, rot_mat 
-          call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
-          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
-          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
-            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
-            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
-            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
-            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
-            & self%orb_dp_s(i,9) 
-          s_orb(j,i) = s_orb(j,i)! - T_CMB *summation
+!!$          !TODO: add sl contribution to orbital dipole here
+!!$          call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
+!!$          !rotate v_sun into frame where pointing is along z axis
+!!$          !write(*,*) -phi, -theta, -self%psi(psi(i,j)), psi(i,j)
+!!$          psi_d = self%psi(psi(j,i))
+!!$          !write(*,*), j, phi, theta, psi_d, rot_mat 
+!!$          call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
+!!$          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
+!!$          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
+!!$            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
+!!$            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
+!!$            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
+!!$            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
+!!$            & self%orb_dp_s(i,9) 
+!!$          s_orb(j,i) = s_orb(j,i)! - T_CMB *summation
 
        end do
    end do
@@ -1660,7 +1661,7 @@ contains
        call fill_all_masked(r_fill, mask(:,j), ntod, .false.)
        call self%downsample_tod(r_fill, ext, residual(:,j))
     end do
-    call self%multiply_inv_N(scan_id, residual, sampfreq=self%samprate_gain, pow=0.5d0)
+    call self%multiply_inv_N(scan_id, residual, sampfreq=self%samprate_lowres, pow=0.5d0)
 
     ! Get a proper invn multiplication from Haavard's routine here
     do j = 1, ndet
@@ -1933,7 +1934,7 @@ contains
             g_curr                = 0.d0
             sigma_curr            = 1.d0
             !do while (sqrt(sum_inv_sigma_squared) < 10000. .and. k < nscan_tot)
-            do while (g_curr / sigma_curr < 1000.d0 .and. k < nscan_tot)
+            do while (g_curr / sigma_curr < 200.d0 .and. k < nscan_tot)
                k = k + 1
                if (g(k,j,2) > 0.d0) then
                   sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
@@ -1992,17 +1993,17 @@ contains
 !         end do
 
          ! Apply running average smoothing
-!!$         allocate(g_smooth(nscan_tot))
-!!$         window = 500
-!!$         do k = 1, nscan_tot
-!!$            i1 = max(k-window,1)
-!!$            i2 = min(k+window,nscan_tot)
-!!$            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
-!!$            !g_smooth(k) = median(g(i1:i2,j,1)) 
-!!$         end do
-!!$         g(:,j,1) = g_smooth - mean(g_smooth)
-!!$         deallocate(g_smooth)
-
+         allocate(g_smooth(nscan_tot))
+         window = 500
+         do k = 1, nscan_tot
+            i1 = max(k-window,1)
+            i2 = min(k+window,nscan_tot)
+            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
+            !g_smooth(k) = median(g(i1:i2,j,1)) 
+         end do
+         g(:,j,1) = g_smooth - mean(g_smooth)
+         deallocate(g_smooth)
+ 
 !!$         ! Apply running average smoothing
 !!$         allocate(g_smooth(nscan_tot))
 !!$         window = 10000
@@ -2081,7 +2082,7 @@ contains
        call self%downsample_tod(r_fill, ext, residual(:,j))
     end do
 
-    call self%multiply_inv_N(scan, residual, sampfreq=self%samprate_gain, pow=0.5d0)
+    call self%multiply_inv_N(scan, residual, sampfreq=self%samprate_lowres, pow=0.5d0)
 
     do j = 1, ndet
        A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))

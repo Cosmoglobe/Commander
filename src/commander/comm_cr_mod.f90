@@ -273,12 +273,12 @@ contains
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
           if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
-!             write(*,*) '  CG iter. ', i, ' -- res = ', &
-!                  & val_convergence, ', tol = ', lim_convergence, &
-!                  & ', time = ', real(t2-t1,sp)
-             write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
-                  & min(real(val_convergence,sp),1e30), ', tol = ', real(lim_convergence,sp), &
+             write(*,*) '  CG iter. ', i, ' -- res = ', &
+                  & val_convergence, ', tol = ', lim_convergence, &
                   & ', time = ', real(t2-t1,sp)
+!             write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
+!                  & min(real(val_convergence,sp),1e30), ', tol = ', real(lim_convergence,sp), &
+!                  & ', time = ', real(t2-t1,sp)
           else if (trim(cpar%cg_conv_crit) == 'chisq') then
 !             write(*,fmt='(a,i5,a,e13.5,a,f7.4,a,f8.2)') '  CG iter. ', i, ' -- chisq = ', &
 !                  & real(chisq,sp), ', delta = ', real(val_convergence,sp), &
