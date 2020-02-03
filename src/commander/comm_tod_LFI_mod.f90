@@ -1003,13 +1003,14 @@ contains
              self%scans(i)%n_proctime = self%scans(i)%n_proctime + 1
              if (main_iter == n_main_iter) then
                 write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
-                     & '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp)
+                     & '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp),real(self%spinaxis(i,:),sp)
              end if
           end if
           !call update_status(status, "tod_loop2")
 
        end do
 
+       call mpi_barrier(self%comm, ierr)
        if (do_oper(samp_acal)) then
           call wall_time(t1)
           call self%sample_abscal_from_orbital(handle, A_abscal, b_abscal)

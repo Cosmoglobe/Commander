@@ -98,6 +98,7 @@ module comm_tod_mod
      class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
+     real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix
      real(dp),           allocatable, dimension(:, :) :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term 
    contains
@@ -396,7 +397,7 @@ contains
     integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr
     real(dp)           :: w_tot, w, v0(3), v(3)
     real(dp),           allocatable, dimension(:)   :: weight, sid
-    real(dp),           allocatable, dimension(:,:) :: spinaxis
+    real(dp),           allocatable, dimension(:,:) :: spinpos, spinaxis
     integer(i4b),       allocatable, dimension(:)   :: scanid, id
     integer(i4b),       allocatable, dimension(:)   :: proc
     real(dp),           allocatable, dimension(:)   :: pweight
@@ -420,16 +421,17 @@ contains
           stop
        end if
 
+       
        open(unit, file=trim(filelist))
        read(unit,*) n
-       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3))
+       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(n_tot,2))
        j = 1
        do i = 1, n
-          read(unit,*) scanid(j), filename(j), weight(j), spinaxis(j,1:2)
+          read(unit,*) scanid(j), filename(j), weight(j), spinpos(j,1:2)
           if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
           id(j)  = j
           sid(j) = scanid(j)
-          call ang2vec(spinaxis(j,1), spinaxis(j,2), spinaxis(j,1:3))
+          call ang2vec(spinpos(j,1), spinpos(j,2), spinaxis(j,1:3))
           j      = j+1
           if (j > n_tot) exit
        end do
@@ -511,20 +513,22 @@ contains
 
     call mpi_bcast(n_tot, 1,  MPI_INTEGER, 0, self%comm, ierr)
     if (self%myid /= 0) then
-       allocate(filename(n_tot), scanid(n_tot), proc(n_tot))
+       allocate(filename(n_tot), scanid(n_tot), proc(n_tot), spinpos(n_tot,2))
     end if
     call mpi_bcast(filename, 512*n_tot,  MPI_CHARACTER, 0, self%comm, ierr)
     call mpi_bcast(scanid,       n_tot,  MPI_INTEGER,   0, self%comm, ierr)
     call mpi_bcast(proc,         n_tot,  MPI_INTEGER,   0, self%comm, ierr)
+    call mpi_bcast(spinpos,    2*n_tot,  MPI_DOUBLE_PRECISION,   0, self%comm, ierr)
 
     self%nscan     = count(proc == self%myid)
-    allocate(self%scanid(self%nscan), self%hdfname(self%nscan))
+    allocate(self%scanid(self%nscan), self%hdfname(self%nscan), self%spinaxis(self%nscan,2))
     j = 1
     do i = 1, n_tot
        if (proc(i) == self%myid) then
-          self%scanid(j)  = scanid(i)
-          self%hdfname(j) = filename(i)
-          j               = j+1
+          self%scanid(j)     = scanid(i)
+          self%hdfname(j)    = filename(i)
+          self%spinaxis(j,:) = spinpos(i,:)
+          j                  = j+1
        end if
     end do
 
@@ -535,7 +539,7 @@ contains
        end do
     end if
 
-    deallocate(filename, scanid, proc) 
+    deallocate(filename, scanid, proc, spinpos) 
 
   end subroutine get_scan_ids
 
