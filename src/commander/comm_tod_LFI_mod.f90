@@ -320,7 +320,7 @@ contains
     call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, constructor%info%comm, ierr)
     call mpi_reduce(f_fill, f_fill_lim(3), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, constructor%info%comm, ierr)
     if (constructor%myid == 0) then
-       write(*,*) '  Min/mean/max TOD-map filling percentage = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/constructor%info%nprocs,sp), real(100*f_fill_lim(2),sp)
+       write(*,*) '  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/constructor%info%nprocs,sp), real(100*f_fill_lim(2),sp)
     end if
 
 !!$    do i = 1, constructor%nobs
@@ -345,7 +345,7 @@ contains
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
 
-    integer(i4b) :: i, j, k, start_chunk, end_chunk, chunk_size, ntod, ndet
+    integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
     integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2)
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold
@@ -357,7 +357,7 @@ contains
     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
-    real(dp),     allocatable, dimension(:,:)     :: chisq_S
+    real(dp),     allocatable, dimension(:,:)     :: chisq_S, m_buf
     real(dp),     allocatable, dimension(:,:)     :: A_map
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
     integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
@@ -368,6 +368,7 @@ contains
     character(len=6)   :: samptext, scantext
     character(len=512), allocatable, dimension(:) :: slist
     type(shared_1d_int) :: sprocmask, sprocmask2
+    real(sp),           allocatable, dimension(:,:,:,:) :: map_sky
     type(shared_2d_sp), allocatable, dimension(:,:) :: smap_sky
     type(shared_2d_dp) :: sA_map
     type(shared_3d_dp) :: sb_map, sb_mono
@@ -398,6 +399,7 @@ contains
     if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size+1
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(smap_sky(0:ndet, ndelta)) 
+    allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta)) 
     allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
     slist   = ''
@@ -431,6 +433,22 @@ contains
 !!$    stop
 
     ! Distribute fullsky maps
+    allocate(m_buf(0:npix-1,nmaps))
+    do j = 1, ndelta
+       do i = 1, self%ndet
+          call map_in(i,j)%p%bcast_fullsky_map(m_buf)
+          do k = 1, self%nobs
+             map_sky(:,k,i,j) = 1d-6 * m_buf(self%ind2pix(k),:) ! uK to K
+          end do
+       end do
+       do k = 1, self%nobs
+          do l = 1, nmaps
+             map_sky(l,k,0,j) = sum(map_sky(l,k,1:ndet,j))/ndet
+          end do
+       end do
+    end do
+    deallocate(m_buf)
+
     do j = 1, ndelta
        do i = 1, self%ndet
           map_in(i,j)%p%map = 1d-6 * map_in(i,j)%p%map ! uK to K
@@ -599,7 +617,7 @@ contains
 
        if (do_oper(samp_bp)) then
           call wall_time(t1)
-          call self%sample_bp(iter, delta, smap_sky, handle, chisq_S)
+          call self%sample_bp(iter, delta, map_sky, handle, chisq_S)
           call wall_time(t2); t_tot(17) = t_tot(17) + t2-t1
        end if
 
@@ -673,20 +691,20 @@ contains
           ! Construct sky signal template
           call wall_time(t1)
           if (do_oper(bin_map) .or. do_oper(prep_relbp)) then 
-             call self%project_sky(smap_sky(:,1), pix, psi, flag, &
+             call self%project_sky(map_sky(:,:,:,1), pix, psi, flag, &
                   & sprocmask%a, i, s_sky, mask, s_bp=s_bp)  
           else 
-             call self%project_sky(smap_sky(:,1), pix, psi, flag, &
+             call self%project_sky(map_sky(:,:,:,1), pix, psi, flag, &
                   & sprocmask%a, i, s_sky, mask)
           end if
           if (do_oper(prep_relbp)) then
              do j = 2, ndelta
-                call self%project_sky(smap_sky(:,j), pix, psi, flag, &
+                call self%project_sky(map_sky(:,:,:,j), pix, psi, flag, &
                      & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
              end do
           else if (do_oper(prep_absbp)) then
              do j = 2, ndelta
-                call self%project_sky(smap_sky(:,j), pix, psi, flag, &
+                call self%project_sky(map_sky(:,:,:,j), pix, psi, flag, &
                      & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
              end do
           end if
@@ -1238,6 +1256,7 @@ contains
        end do
     end do
     deallocate(smap_sky)
+    deallocate(map_sky)
 
     if (correct_sl) then
        do i = 1, self%ndet
@@ -1295,16 +1314,17 @@ contains
   subroutine project_sky(self, map, pix, psi, flag, pmask, scan_id, &
        & s_sky, tmask, s_bp)
     implicit none
-    class(comm_LFI_tod),                    intent(in)  :: self
-    integer(i4b),        dimension(0:),     intent(in)  :: pmask
-    type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
-    integer(i4b),        dimension(:,:),    intent(in)  :: pix, psi
-    integer(i4b),        dimension(:,:),    intent(in)  :: flag
-    integer(i4b),                           intent(in)  :: scan_id
-    real(sp),            dimension(:,:),    intent(out) :: s_sky, tmask
-    real(sp),            dimension(:,:),    intent(out), optional :: s_bp
+    class(comm_LFI_tod),                      intent(in)  :: self
+    integer(i4b),        dimension(0:),       intent(in)  :: pmask
+    real(sp),            dimension(1:,1:,0:), intent(in)  :: map
+    !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
+    integer(i4b),        dimension(:,:),      intent(in)  :: pix, psi
+    integer(i4b),        dimension(:,:),      intent(in)  :: flag
+    integer(i4b),                             intent(in)  :: scan_id
+    real(sp),            dimension(:,:),      intent(out) :: s_sky, tmask
+    real(sp),            dimension(:,:),      intent(out), optional :: s_bp
 
-    integer(i4b) :: i, det
+    integer(i4b) :: i, p, det
     real(sp)     :: s
 
     ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
@@ -1312,9 +1332,13 @@ contains
     do det = 1, self%ndet
        if (.not. self%scans(scan_id)%d(det)%accept) cycle
        do i = 1, self%scans(scan_id)%ntod
-          s_sky(i,det) = map(det)%a(1,pix(i,det)+1) + &
-                       & map(det)%a(2,pix(i,det)+1) * self%cos2psi(psi(i,det)) + &
-                       & map(det)%a(3,pix(i,det)+1) * self%sin2psi(psi(i,det))
+          p = self%pix2ind(pix(i,det))
+          s_sky(i,det) = map(1,p,det) + &
+                       & map(2,p,det) * self%cos2psi(psi(i,det)) + &
+                       & map(3,p,det) * self%sin2psi(psi(i,det))
+!!$          s_sky(i,det) = map(det)%a(1,pix(i,det)+1) + &
+!!$                       & map(det)%a(2,pix(i,det)+1) * self%cos2psi(psi(i,det)) + &
+!!$                       & map(det)%a(3,pix(i,det)+1) * self%sin2psi(psi(i,det))
 !          if (s_sky(i,det) /= s_sky(i,det)) then
 !             write(*,*) det, i, map(det)%a(:,pix(i,det)+1), self%cos2psi(psi(i,det)), self%sin2psi(psi(i,det))
 !             stop
@@ -1329,9 +1353,13 @@ contains
        do det = 1, self%ndet
           if (.not. self%scans(scan_id)%d(det)%accept) cycle
           do i = 1, self%scans(scan_id)%ntod
-             s =    map(0)%a(1,pix(i,det)+1) + &
-                  & map(0)%a(2,pix(i,det)+1) * self%cos2psi(psi(i,det)) + &
-                  & map(0)%a(3,pix(i,det)+1) * self%sin2psi(psi(i,det))
+             p = self%pix2ind(pix(i,det))
+             s =    map(1,p,0) + &
+                  & map(2,p,0) * self%cos2psi(psi(i,det)) + &
+                  & map(3,p,0) * self%sin2psi(psi(i,det))
+!!$             s =    map(0)%a(1,pix(i,det)+1) + &
+!!$                  & map(0)%a(2,pix(i,det)+1) * self%cos2psi(psi(i,det)) + &
+!!$                  & map(0)%a(3,pix(i,det)+1) * self%sin2psi(psi(i,det))
              s_bp(i,det)  = s_sky(i,det) - s
           end do
        end do
@@ -2848,12 +2876,13 @@ contains
 !!$    
 !!$  end subroutine sample_bp2
 
-  subroutine sample_bp(self, iter, delta, smap_sky, handle, chisq_S)
+  subroutine sample_bp(self, iter, delta, map_sky, handle, chisq_S)
     implicit none
     class(comm_LFI_tod),                      intent(inout)  :: self
     integer(i4b),                             intent(in)     :: iter
     real(dp),            dimension(0:,1:,1:), intent(inout)  :: delta
-    type(shared_2d_sp),  dimension(0:,1:),    intent(inout)  :: smap_sky
+    !type(shared_2d_sp),  dimension(0:,1:),    intent(inout)  :: smap_sky
+    real(sp),            dimension(1:,1:,0:,1:), intent(inout)  :: map_sky
     type(planck_rng),                         intent(inout)  :: handle
     real(dp),            dimension(1:,1:),    intent(in)     :: chisq_S
 
@@ -2894,9 +2923,7 @@ contains
     call mpi_bcast(current, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
     if (current /= 1) then
        ! Set current to proposal
-       do i = 0, self%ndet
-          if (self%myid_shared == 0) smap_sky(i,1)%a = smap_sky(i,current)%a
-       end do
+       map_sky(:,:,:,1) = map_sky(:,:,:,current)
        delta(:,:,1) =  delta(:,:,current)
     end if
     
