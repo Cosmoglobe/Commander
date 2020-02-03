@@ -79,6 +79,7 @@ contains
     class(comm_LFI_tod),     pointer    :: constructor
 
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
+    real(dp)     :: f_fill, f_fill_lim(3)
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
     type(hdf_file) :: h5_file
@@ -314,9 +315,12 @@ contains
           j = j+1
        end if
     end do
+    f_fill = constructor%nobs/(12.*constructor%nside**2)
+    call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, constructor%info%comm, ierr)
+    call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, constructor%info%comm, ierr)
+    call mpi_reduce(f_fill, f_fill_lim(3), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, constructor%info%comm, ierr)
     if (constructor%myid == 0) then
-       write(*,*) '  TOD-map filling factor = ', &
-            & constructor%nobs/(12.*constructor%nside**2)
+       write(*,*) '  Min/mean/max TOD-map filling percentage = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/constructor%info%nprocs,sp), real(100*f_fill_lim(2),sp)
     end if
 
 !!$    do i = 1, constructor%nobs
@@ -1695,7 +1699,7 @@ contains
 
    ! write(*,*) self%scanid(scan_id), real(self%scans(scan_id)%d(1)%dgain/self%scans(scan_id)%d(3)%gain_sigma,sp), real(self%gain0(0) + self%gain0(3) + self%scans(scan_id)%d(3)%dgain/self%scans(scan_id)%d(3)%gain_sigma,sp), '# deltagain'
 
-    if (trim(self%freq) == '030' .and. mod(self%scanid(scan_id),100) == 0) then
+    if (.false. .and. trim(self%freq) == '030' .and. mod(self%scanid(scan_id),100) == 0) then
        call int2string(self%scanid(scan_id), itext)
        !write(*,*) 'gain'//itext//'   = ', self%gain0(0) + self%gain0(1), self%scans(scan_id)%d(1)%dgain/self%scans(scan_id)%d(1)%gain_sigma
        open(58,file='gain_delta_'//itext//'.dat')

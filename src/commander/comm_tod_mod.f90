@@ -393,13 +393,14 @@ contains
     class(comm_tod),   intent(inout) :: self    
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, n_tot, ierr
-    real(dp)           :: w_tot, w
-    real(dp),           allocatable, dimension(:) :: weight, sid
-    integer(i4b),       allocatable, dimension(:) :: scanid, id
-    integer(i4b),       allocatable, dimension(:) :: proc
-    real(dp),           allocatable, dimension(:) :: pweight
-    character(len=512), allocatable, dimension(:) :: filename
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr
+    real(dp)           :: w_tot, w, v0(3), v(3)
+    real(dp),           allocatable, dimension(:)   :: weight, sid
+    real(dp),           allocatable, dimension(:,:) :: spinaxis
+    integer(i4b),       allocatable, dimension(:)   :: scanid, id
+    integer(i4b),       allocatable, dimension(:)   :: proc
+    real(dp),           allocatable, dimension(:)   :: pweight
+    character(len=512), allocatable, dimension(:)   :: filename
 
     np = self%numprocs
     if (self%myid == 0) then
@@ -421,17 +422,43 @@ contains
 
        open(unit, file=trim(filelist))
        read(unit,*) n
-       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot))
+       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3))
        j = 1
        do i = 1, n
-          read(unit,*) scanid(j), filename(j), weight(j)
+          read(unit,*) scanid(j), filename(j), weight(j), spinaxis(j,1:2)
           if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
           id(j)  = j
           sid(j) = scanid(j)
+          call ang2vec(spinaxis(j,1), spinaxis(j,2), spinaxis(j,1:3))
           j      = j+1
           if (j > n_tot) exit
        end do
        close(unit)
+
+       ! Compute symmetry axis
+       v0 = 0.d0
+       do i = 2, n
+          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+          if (v(3) < 0.d0) v  = -v
+          if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
+       end do
+       v0 = v0 / sqrt(v0*v0)
+!!$
+!!$       ! Compute angle between i'th and first vector
+!!$       do i = 1, n
+!!$          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+!!$          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+!!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)          
+!!$       end do
+       do i = n, 1, -1
+          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+          sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
+          if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
+       end do
 
 !!$       ! Sort according to weight
 !!$       pweight = 0.d0
@@ -444,7 +471,6 @@ contains
 !!$       deallocate(id, pweight, weight)
 
        ! Sort according to scan id
-       pweight = 0.d0
        proc    = -1
        call QuickSort(id, sid)
        w_tot = sum(weight)
@@ -469,7 +495,12 @@ contains
           proc(id(j)) = np-1
           j = j+1
        end do
-       deallocate(id, pweight, weight, sid)
+       pweight = 0.d0
+       do k = 1, n_tot
+          pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+       end do
+       write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
+       deallocate(id, pweight, weight, sid, spinaxis)
 
        ! Distribute according to consecutive PID
 !!$       do i = 1, n_tot
@@ -856,7 +887,7 @@ contains
 
 !    deallocate(dt, dv)
     call wall_time(t2)
-    if (self%myid == 0) write(*,*) ' fft1 =', t2-t1 
+    !if (self%myid == 0) write(*,*) ' fft1 =', t2-t1 
 
 !    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
 !    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime)
