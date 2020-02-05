@@ -99,7 +99,7 @@ module comm_tod_mod
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
-     integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix
+     integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
      real(dp),           allocatable, dimension(:, :) :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term 
    contains
      procedure                        :: read_tod
@@ -477,7 +477,7 @@ contains
        call QuickSort(id, sid)
        w_tot = sum(weight)
        j     = 1
-       do i = 0, np-2
+       do i = np-1, 1, -1
           w = 0.d0
           do k = 1, n_tot
              if (proc(k) == i) w = w + weight(k) 
@@ -487,14 +487,14 @@ contains
              w           = w + weight(id(j))
              if (w > 1.2d0*w_tot/np) then
                 ! Assign large scans to next core
-                proc(id(j)) = i+1
+                proc(id(j)) = i-1
                 w           = w - weight(id(j))
              end if
              j           = j+1
           end do
        end do
        do while (j <= n_tot)
-          proc(id(j)) = np-1
+          proc(id(j)) = 0
           j = j+1
        end do
        pweight = 0.d0
@@ -800,12 +800,19 @@ contains
     real(dp),                            intent(in)   :: polangle
     real(sp),            dimension(:),   intent(out)   :: s_sl
     
-    integer(i4b) :: j
+    integer(i4b) :: j, pix_, pix_prev, psi_prev
     real(dp)     :: psi_
 
+    pix_prev = -1; psi_prev = -1
     do j=1, size(pix)
-       psi_    = self%psi(psi(j))-polangle 
-       s_sl(j) = slconv%interp(pix(j), psi_) 
+       pix_    = self%ind2sl(self%pix2ind(pix(j)))
+       if (pix_prev == pix_ .and. psi(j) == psi_prev) then
+          s_sl(j) = s_sl(j-1)
+       else
+          psi_    = self%psi(psi(j))-polangle 
+          s_sl(j) = slconv%interp(pix_, psi_)
+          pix_prev = pix_; psi_prev = psi(j)
+       end if
     end do
 
   end subroutine construct_sl_template
