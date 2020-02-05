@@ -79,7 +79,7 @@ contains
     class(comm_LFI_tod),     pointer    :: constructor
 
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
-    real(dp)     :: f_fill, f_fill_lim(3)
+    real(dp)     :: f_fill, f_fill_lim(3), theta, phi
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
     type(hdf_file) :: h5_file
@@ -307,11 +307,15 @@ contains
     end do
     constructor%nobs = count(constructor%pix2ind == 1) 
     allocate(constructor%ind2pix(constructor%nobs))
+    allocate(constructor%ind2sl(constructor%nobs))
     j = 1
     do i = 0, 12*constructor%nside**2-1
        if (constructor%pix2ind(i) == 1) then
           constructor%ind2pix(j) = i 
           constructor%pix2ind(i) = j
+          call pix2ang_ring(constructor%nside, i, theta, phi)
+          call ang2pix_ring(nside_beam, theta, phi, constructor%ind2sl(j))
+          !constructor%ind2sl(j) = 1
           j = j+1
        end if
     end do
@@ -1028,7 +1032,7 @@ contains
 
        end do
 
-       call mpi_barrier(self%comm, ierr)
+       !call mpi_barrier(self%comm, ierr)
        if (do_oper(samp_acal)) then
           call wall_time(t1)
           call self%sample_abscal_from_orbital(handle, A_abscal, b_abscal)
@@ -1396,10 +1400,10 @@ contains
        if (.not. self%scans(ind)%d(i)%accept) cycle
        do j=1,self%scans(ind)%ntod !length of the tod
           b_dot = dot_product(self%scans(ind)%v_sun, self%pix2vec(:,pix(j,i)))/c
-          s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
+          !s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%mb_eff(i) !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK, as [T_CMB] = K
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
-          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*((b_dot**2) - (1.d0/3.d0)*(b**2))) ! net zero monopole
+          s_orb(j,i) = T_CMB * (b_dot + q*(b_dot**2 - b**2/3.)) ! net zero monopole
 
 !!$          !TODO: add sl contribution to orbital dipole here
 !!$          call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
@@ -1932,7 +1936,7 @@ contains
             & 0, self%comm, ierr)
     end if
 
-    if (self%myid == 0) then
+    if (self%myid == 0 .and. .false.) then
 !       nbin = nscan_tot / binsize + 1
 
        open(58,file='gain.dat', recl=1024)

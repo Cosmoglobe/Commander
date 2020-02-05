@@ -36,7 +36,7 @@ contains
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     integer(i4b), save :: samp_group_prev
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
-    real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev
+    real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev, buff
     real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s, x_out
     real(dp), allocatable, dimension(:,:) :: alm, pamp
     class(comm_comp),   pointer :: c => null()
@@ -273,12 +273,13 @@ contains
        call wall_time(t2)
        if (cpar%myid == root .and. cpar%verbosity > 2) then
           if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
-             write(*,*) '  CG iter. ', i, ' -- res = ', &
-                  & val_convergence, ', tol = ', lim_convergence, &
-                  & ', time = ', real(t2-t1,sp)
-!             write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
-!                  & min(real(val_convergence,sp),1e30), ', tol = ', real(lim_convergence,sp), &
+!             write(*,*) '  CG iter. ', i, ' -- res = ', &
+!                  & val_convergence, ', tol = ', lim_convergence, &
 !                  & ', time = ', real(t2-t1,sp)
+             buff = min(val_convergence,1d10)
+             write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
+                  & buff, ', tol = ', real(lim_convergence,sp), &
+                  & ', time = ', real(t2-t1,sp)
           else if (trim(cpar%cg_conv_crit) == 'chisq') then
 !             write(*,fmt='(a,i5,a,e13.5,a,f7.4,a,f8.2)') '  CG iter. ', i, ' -- chisq = ', &
 !                  & real(chisq,sp), ', delta = ', real(val_convergence,sp), &
