@@ -391,7 +391,7 @@ contains
     call wall_time(t1)
     correct_sl      = .true.
     chisq_threshold = 7.d0
-    n_main_iter     = 5
+    n_main_iter     = 4
     chisq_threshold = 9.d0  !3000.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
@@ -548,16 +548,16 @@ contains
        if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
           
        ! Select operations for current iteration
-       do_oper(samp_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
 !       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
 !       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
 !       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
-       do_oper(samp_N)       = (main_iter >= n_main_iter-1)
+       do_oper(samp_N)       = (main_iter >= n_main_iter-0)
        do_oper(samp_N_par)   = do_oper(samp_N)
-       do_oper(prep_relbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 0
-       do_oper(prep_absbp)   = (main_iter == n_main_iter-1) .and. .not. self%first_call .and. mod(iter,2) == 1
+       do_oper(prep_relbp)   = (main_iter == n_main_iter-0) .and. .not. self%first_call! .and. mod(iter,2) == 0
+       do_oper(prep_absbp)   = .false. !(main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
@@ -571,19 +571,19 @@ contains
 
        ! Perform pre-loop operations
        if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
-          if (do_oper(bin_map)) then
+          if (do_oper(prep_relbp)) then
+             ncol = nmaps + ndet - 1
+             n_A  = nmaps*(nmaps+1)/2 + 4*(ndet-1)
+             nout = self%output_n_maps + ndelta - 1
+          else
              ncol = nmaps
              n_A  = nmaps*(nmaps+1)/2
              nout = self%output_n_maps
-             allocate(outmaps(nout))
-             do i = 1, nout
-                outmaps(i)%p => comm_map(map_out%info)
-             end do
-          else
-             ncol = nmaps + ndet - 1
-             n_A  = nmaps*(nmaps+1)/2 + 4*(ndet-1)
-             nout = ndelta
           end if
+          allocate(outmaps(nout)) 
+          do i = 1, nout
+             outmaps(i)%p => comm_map(map_out%info)
+          end do
           if (allocated(A_map)) deallocate(A_map, b_map)
           allocate(A_map(n_A,self%nobs), b_map(nout,ncol,self%nobs))
           A_map = 0.d0; b_map = 0.d0         
@@ -617,12 +617,6 @@ contains
 
        if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
           A_abscal = 0.d0; b_abscal = 0.d0
-       end if
-
-       if (do_oper(samp_bp)) then
-          call wall_time(t1)
-          call self%sample_bp(iter, delta, map_sky, handle, chisq_S)
-          call wall_time(t2); t_tot(17) = t_tot(17) + t2-t1
        end if
 
        if (do_oper(prep_absbp)) then
@@ -942,7 +936,7 @@ contains
 
 
           ! Compute binned map 
-          if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+          if (do_oper(bin_map)) then
              call wall_time(t1)
              allocate(d_calib(nout,ntod, ndet)) 
              do j = 1, ndet
@@ -960,7 +954,7 @@ contains
                 if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
                 if (do_oper(prep_relbp)) then
                    do k = 2, ndelta
-                      d_calib(k,:,j) = d_calib(1,:,j) + s_bp(:,j) - s_bp_prop(:,j,k)
+                      d_calib(self%output_n_maps+k-1,:,j) = d_calib(1,:,j) + s_bp(:,j) - s_bp_prop(:,j,k)
                    end do
                 end if
              end do
@@ -1059,43 +1053,44 @@ contains
        ! Output total chisquare
        call wall_time(t7)
  
-       if (do_oper(prep_relbp)) then
-          call wall_time(t1)
-          call update_status(status, "tod_share1")
-          do i = 0, self%numprocs_shared-1
-             start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
-             end_chunk   = min(start_chunk+chunk_size-1,npix-1)
-             do while (start_chunk < npix)
-                if (self%pix2ind(start_chunk) /= -1) exit
-                start_chunk = start_chunk+1
-             end do
-             do while (end_chunk >= start_chunk)
-                if (self%pix2ind(end_chunk) /= -1) exit
-                end_chunk = end_chunk-1
-             end do
-             if (start_chunk < npix)       start_chunk = self%pix2ind(start_chunk)
-             if (end_chunk >= start_chunk) end_chunk   = self%pix2ind(end_chunk)
+!!$       if (do_oper(prep_relbp)) then
+!!$          call wall_time(t1)
+!!$          call update_status(status, "tod_share1")
+!!$          do i = 0, self%numprocs_shared-1
+!!$             start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
+!!$             end_chunk   = min(start_chunk+chunk_size-1,npix-1)
+!!$             do while (start_chunk < npix)
+!!$                if (self%pix2ind(start_chunk) /= -1) exit
+!!$                start_chunk = start_chunk+1
+!!$             end do
+!!$             do while (end_chunk >= start_chunk)
+!!$                if (self%pix2ind(end_chunk) /= -1) exit
+!!$                end_chunk = end_chunk-1
+!!$             end do
+!!$             if (start_chunk < npix)       start_chunk = self%pix2ind(start_chunk)
+!!$             if (end_chunk >= start_chunk) end_chunk   = self%pix2ind(end_chunk)
+!!$
+!!$             call mpi_win_fence(0, sA_map%win, ierr)
+!!$             call mpi_win_fence(0, sb_map%win, ierr)
+!!$             do j = start_chunk, end_chunk
+!!$                sA_map%a(:,self%ind2pix(j)+1) = sA_map%a(:,self%ind2pix(j)+1) + &
+!!$                     & A_map(:,j)
+!!$                sb_map%a(:,:,self%ind2pix(j)+1) = sb_map%a(:,:,self%ind2pix(j)+1) + &
+!!$                     & b_map(:,:,j)
+!!$             end do
+!!$          end do
+!!$          call mpi_win_fence(0, sA_map%win, ierr)
+!!$          call mpi_win_fence(0, sb_map%win, ierr)
+!!$          call update_status(status, "tod_share2")
+!!$
+       
+!!$          call self%finalize_binned_map(handle, sA_map, sb_map, &
+!!$               & rms_out, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+!!$          call wall_time(t2); t_tot(10) = t_tot(10) + t2-t1
+!!$          call update_status(status, "tod_share3")
+!!$       end if
+!!$       call update_status(status, "tod_prepbp")
 
-             call mpi_win_fence(0, sA_map%win, ierr)
-             call mpi_win_fence(0, sb_map%win, ierr)
-             do j = start_chunk, end_chunk
-                sA_map%a(:,self%ind2pix(j)+1) = sA_map%a(:,self%ind2pix(j)+1) + &
-                     & A_map(:,j)
-                sb_map%a(:,:,self%ind2pix(j)+1) = sb_map%a(:,:,self%ind2pix(j)+1) + &
-                     & b_map(:,:,j)
-             end do
-          end do
-          call mpi_win_fence(0, sA_map%win, ierr)
-          call mpi_win_fence(0, sb_map%win, ierr)
-          call update_status(status, "tod_share2")
-
-          Sfilename = trim(prefix) // 'Smap'// trim(postfix) 
-          call self%finalize_binned_map(handle, sA_map, sb_map, &
-               & rms_out, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
-          call wall_time(t2); t_tot(10) = t_tot(10) + t2-t1
-          call update_status(status, "tod_share3")
-       end if
-       call update_status(status, "tod_prepbp")
 
     end do
     call wall_time(t4)
@@ -1155,17 +1150,32 @@ contains
        call update_status(status, "shared2")
 
        call update_status(status, "finalize1")
+       Sfilename = trim(prefix) // 'Smap'// trim(postfix)
        if (do_oper(samp_mono)) then
-          call self%finalize_binned_map(handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
+          if (do_oper(prep_relbp)) then
+             call self%finalize_binned_map(handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+          else
+             call self%finalize_binned_map(handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
+          end if
 !!$          condmap => comm_map(self%info)
 !!$          call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono, condmap=condmap)
 !!$          call condmap%writeFITS("cond.fits")
 !!$          call condmap%dealloc()
        else
-          condmap => comm_map(self%info)
-          call self%finalize_binned_map(handle, sA_map, sb_map, rms_out, outmaps=outmaps, condmap=condmap)
-          call condmap%writeFITS("cond.fits")
-          call condmap%dealloc()
+          !condmap => comm_map(self%info)
+          if (do_oper(prep_relbp)) then
+             call self%finalize_binned_map(handle, sA_map, sb_map, rms_out, outmaps=outmaps, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+          else
+             call self%finalize_binned_map(handle, sA_map, sb_map, rms_out, outmaps=outmaps)
+          end if
+          !call condmap%writeFITS("cond.fits")
+          !call condmap%dealloc()
+       end if
+
+       if (do_oper(samp_bp)) then
+          call wall_time(t1)
+          call self%sample_bp(iter, delta, map_sky, handle, chisq_S)
+          call wall_time(t2); t_tot(17) = t_tot(17) + t2-t1
        end if
 
        call update_status(status, "finalize2")
@@ -1385,10 +1395,10 @@ contains
     real(dp)             :: theta, phi, psi_d
     real(dp), dimension(3,3) :: rot_mat
     real(dp), dimension(3)   :: vnorm
-    !real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
+    real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
 
     !T_0 = T_CMB*k_b/h                           ! T_0 = T_CMB frequency
-    !b = sqrt(sum(self%scans(scan)%v_sun**2))/c   ! beta for the given scan
+    b = sqrt(sum(self%scans(ind)%v_sun**2))/c   ! beta for the given scan
 
     !these are the npipe paper definitions
     !TODO: maybe also use the bandpass shift to modify the central frequency? 
@@ -1425,238 +1435,6 @@ contains
    end do
 
   end subroutine compute_orbital_dipole
-
-!!$  ! Compute correlated noise term, n_corr
-!!$  ! TODO: Add fluctuation if operation == sample
-!!$  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
-!!$    implicit none
-!!$    class(comm_LFI_tod),               intent(in)     :: self
-!!$    type(planck_rng),                  intent(inout)  :: handle
-!!$    integer(i4b),                      intent(in)     :: scan
-!!$    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
-!!$    real(sp),          dimension(:,:), intent(out)    :: n_corr
-!!$    integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
-!!$    integer(i4b) :: meanrange, start, last  !, nfft, nbuff
-!!$    integer*8    :: plan_fwd, plan_back
-!!$    logical(lgt) :: recompute, use_binned_psd
-!!$    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, noise, signal
-!!$    !real(dp)     :: A(2,2), b(2), x(2)
-!!$    real(dp)     :: nu, power
-!!$    real(sp),     allocatable, dimension(:) :: dt
-!!$    complex(spc), allocatable, dimension(:) :: dv
-!!$    real(sp),     allocatable, dimension(:) :: d_prime
-!!$    
-!!$    ntod = self%scans(scan)%ntod
-!!$    ndet = self%ndet
-!!$    nomp = omp_get_max_threads()
-!!$    
-!!$    use_binned_psd = .false. !.true.
-!!$    meanrange = 40
-!!$    
-!!$    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.10d0))
-!!$    
-!!$    n = ntod + 1
-!!$    !n = nfft / 2 + 1
-!!$
-!!$    call sfftw_init_threads(err)
-!!$    call sfftw_plan_with_nthreads(nomp)
-!!$
-!!$    allocate(dt(2*ntod), dv(0:n-1))
-!!$    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
-!!$    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
-!!$    deallocate(dt, dv)
-!!$    ! allocate(dt(nfft), dv(0:n-1))
-!!$    ! call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-!!$    ! call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
-!!$    ! deallocate(dt, dv)
-!!$    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,start,last)
-!!$    allocate(dt(2*ntod), dv(0:n-1))
-!!$    !allocate(dt(nfft), dv(0:n-1))
-!!$    allocate(d_prime(ntod))
-!!$    !allocate(diff(ntod+1))
-!!$    !diff = 0.d0
-!!$    !$OMP DO SCHEDULE(guided)
-!!$    do i = 1, ndet
-!!$       if (.not. self%scans(scan)%d(i)%accept) cycle
-!!$       gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-!!$       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
-!!$       
-!!$       
-!!$       ! if (i == 4 .and. scan == 1) then
-!!$       !    open(23, file="d_prime1.unf", form="unformatted")
-!!$       !    write(23) d_prime
-!!$       !    close(23)
-!!$       ! end if
-!!$
-!!$
-!!$       sigma_0 = self%scans(scan)%d(i)%sigma0
-!!$       do j = 1,ntod
-!!$          if (mask(j,i) == 0.) then
-!!$             recompute = .true.
-!!$             start = max(j - meanrange, 1)
-!!$             last = min(j + meanrange, ntod)
-!!$             if (j > 1) then
-!!$                if (sum(mask(start:last, i)) < 5) recompute = .false.
-!!$             end if 
-!!$
-!!$             if (recompute) then
-!!$                m = 1
-!!$                start = max(j - meanrange, 1)
-!!$                last = min(j + meanrange, ntod)
-!!$                do while (sum(mask(start:last, i)) < 2) 
-!!$                   ! Widen the search for unmasked pixels
-!!$                   m = m * 2
-!!$                   start = max(j - meanrange * m, 1)
-!!$                   last = min(j + meanrange * m, ntod)
-!!$                   if (meanrange * m > ntod) then
-!!$                      !write(*,*) "Entire scan masked (this should not happen), see sample_n_corr", ntod, i, j, m
-!!$                      start = 1
-!!$                      last = ntod
-!!$                      exit
-!!$                   end if
-!!$                end do
-!!$                if (sum(mask(start:last, i)) > 0) then
-!!$                   mean = sum(d_prime(start:last) * mask(start:last, i)) / sum(mask(start:last, i))
-!!$                else
-!!$                   mean = 0.
-!!$                end if
-!!$             end if
-!!$          ! if (mask(j,i) == 0.) then
-!!$          !    recompute = .true.
-!!$          !    if (j > 1) then
-!!$          !       if (mask(j-1,i) == 0.) recompute = .false.
-!!$          !    end if
-!!$
-!!$             if (abs(d_prime(j) - mean) > 0.d0 * sigma_0) then 
-!!$                d_prime(j) = mean
-!!$             end if
-!!$          end if
-!!$       end do
-!!$       
-!!$       ! if (i == 4 .and. scan == 1) then
-!!$       !    open(23, file="d_prime2.unf", form="unformatted")
-!!$       !    write(23) d_prime
-!!$       !    close(23)
-!!$       ! end if
-!!$
-!!$
-!!$       dt(1:ntod)           = d_prime(:)
-!!$       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-!!$       ! nbuff = nfft - ntod
-!!$       ! do j=1, nbuff
-!!$       !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
-!!$       ! end do
-!!$  
-!!$       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-!!$       samprate = self%samprate
-!!$       sigma_0  = self%scans(scan)%d(i)%sigma0
-!!$       alpha    = self%scans(scan)%d(i)%alpha
-!!$       nu_knee  = self%scans(scan)%d(i)%fknee
-!!$       noise = 2.0 * ntod * sigma_0 ** 2
-!!$       !noise = nfft * sigma_0 ** 2
-!!$       ! if ((scan == 1) .and. (i == 1)) then
-!!$       !    write(*,*) "sigma, alpha, nu_knee, ntod", sigma_0, alpha, nu_knee, ntod
-!!$       ! end if
-!!$       if (trim(self%operation) == "sample") then
-!!$          dv(0)    = dv(0) + sqrt(noise) * rand_gauss(handle)  ! is this correct?
-!!$       end if
-!!$       
-!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(65,file='ps_n.dat') 
-!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) open(66,file='ps_n_after.dat') 
-!!$
-!!$       do l = 1, n-1                                                      
-!!$          nu = l*(samprate/2)/(n-1)
-!!$          if ((use_binned_psd) .and. &
-!!$               & (allocated(self%scans(scan)%d(i)%log_n_psd))) then
-!!$             if (nu <= 0) write(*,*) 'a', l, nu
-!!$             power = splint(self%scans(scan)%d(i)%log_nu, &
-!!$                  self%scans(scan)%d(i)%log_n_psd, &
-!!$                  self%scans(scan)%d(i)%log_n_psd2, &
-!!$                  log(nu))
-!!$             !signal = max(exp(power) - noise, noise)
-!!$             !signal = max(exp(power) * nfft / (2.d0 * ntod) - noise, noise)
-!!$             !signal = exp(power) * nfft / (2.d0 * ntod)
-!!$             signal = exp(power)
-!!$       
-!!$       !      write(*,*) signal, noise * (nu/(nu_knee))**(alpha), nu, noise, sigma_0
-!!$          else
-!!$             !noise = 0.0113d0
-!!$             if (nu_knee <= 0) write(*,*) 'b', l, nu_knee
-!!$             signal = noise * (nu/nu_knee)**(alpha)
-!!$          end if
-!!$          ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(65,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), ntod*1.d0
-!!$          if (signal <= 0.d0) then
-!!$             dv(l) = 0.
-!!$          else if (trim(self%operation) == "sample") then
-!!$             ! write(*,*) "Sample n_corr"
-!!$             ! dv(l) = (dv(l) + sigma_0 * (rand_gauss(handle)  &
-!!$             !      + sqrt((nu/(nu_knee))**(-alpha)) * rand_gauss(handle)))& 
-!!$             !      * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha)) 
-!!$             ! dv(l) = (signal * dv(l) + signal * sqrt(noise) * rand_gauss(handle)  &
-!!$             !      +  noise * sqrt(signal) * rand_gauss(handle))& 
-!!$             !      * 1.d0/(signal + noise)
-!!$             if (signal <= 0) write(*,*) 'c', l, signal
-!!$             dv(l) = (dv(l) + sqrt(noise) &
-!!$                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
-!!$                  + noise * sqrt(1.0 / signal) &
-!!$                  * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0))& 
-!!$                  * 1.d0/(1.d0 + noise / signal)
-!!$          else
-!!$             !dv(l) = dv(l) * 1.d0/(1.d0 + (nu/(nu_knee))**(-alpha))
-!!$             !dv(l) = dv(l) * signal/(signal + noise)
-!!$             if (signal <= 0) write(*,*) 'd', l, signal
-!!$             dv(l) = dv(l) * 1.0/(1.0 + noise/signal)
-!!$          end if
-!!$          ! if ((i == 1) .and. (self.scanid(scan) == 100)) write(66,'(8(E15.6E3))') signal, noise, nu, nu_knee, alpha, sigma_0, abs(dv(l)), nfft*1.d0
-!!$       end do
-!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(65)
-!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) close(66)
-!!$       if (maxval(abs(dv)) > 1.d30) then
-!!$          write(*,*) self%scanid(scan), i, maxval(abs(dv))
-!!$          open(58,file='dv.dat')
-!!$          do l = 0, n-1
-!!$             write(58,*) l, dv(l)
-!!$          end do
-!!$          close(58)
-!!$       end if
-!!$       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-!!$       if (ntod < 0) write(*,*) 'e', ntod
-!!$       dt          = dt / (2*ntod)
-!!$       !dt          = dt / nfft
-!!$       n_corr(:,i) = dt(1:ntod) 
-!!$
-!!$       ! Project out any sky correlated component
-!!$       
-!!$       !write(*,*) 'a', sum(d_prime-n_corr(:,i))/ntod/gain
-!!$
-!!$       ! if ((i == 1) .and. (self.scanid(scan) == 100)) then
-!!$       !    open(65,file='ps_ncorr.dat')
-!!$       !    do j = i, ntod
-!!$       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
-!!$       !    end do
-!!$       !    close(65)
-!!$       ! end if
-!!$
-!!$       ! if (allocated(self%scans(scan)%d(i)%log_n_psd)) stop
-!!$
-!!$       ! if (i == 1 .and. scan == 1) then
-!!$       !    open(23, file="d_prime.unf", form="unformatted")
-!!$       !    write(23) d_prime
-!!$       !    close(23)
-!!$       ! end if
-!!$
-!!$    end do
-!!$    !$OMP END DO                                                          
-!!$    deallocate(dt, dv)
-!!$    deallocate(d_prime)
-!!$    !deallocate(diff)
-!!$    !$OMP END PARALLEL
-!!$
-!!$    call sfftw_destroy_plan(plan_fwd)                                           
-!!$    call sfftw_destroy_plan(plan_back)                                          
-!!$  
-!!$  end subroutine sample_n_corr
-
 
 
 
@@ -1768,139 +1546,6 @@ contains
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  subroutine sample_smooth_gain2(self, handle)
-    implicit none
-    class(comm_LFI_tod),               intent(inout)  :: self
-    type(planck_rng),                  intent(inout)  :: handle
-
-!    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
-    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr
-    integer(i4b) :: currstart, currend
-    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot
-    real(dp), allocatable, dimension(:)     :: lhs, rhs
-    real(dp), allocatable, dimension(:,:,:) :: g
-
-    ndet       = self%ndet
-    nscan_tot  = self%nscan_tot
-
-    ! Collect all gain estimates on the root processor
-    allocate(g(nscan_tot,ndet,2))
-    allocate(lhs(nscan_tot), rhs(nscan_tot))
-    g = 0.d0
-    do j = 1, ndet
-       do i = 1, self%nscan
-          k        = self%scanid(i)
-          if (.not. self%scans(i)%d(j)%accept) cycle
-          g(k,j,1) = self%scans(i)%d(j)%dgain
-          g(k,j,2) = self%scans(i)%d(j)%gain_sigma
-       end do
-    end do
-    if (self%myid == 0) then
-       call mpi_reduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
-            & 0, self%comm, ierr)
-    else
-       call mpi_reduce(g,            g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
-            & 0, self%comm, ierr)
-    end if
-
-    if (self%myid == 0) then
-!       nbin = nscan_tot / binsize + 1
-       do j = 1, ndet
-         lhs = 0.d0
-         rhs = 0.d0
-         k = 0
-         do while (k < nscan_tot)
-            k         = k + 1
-            currstart = k
-            !if (g(k, j, 2) <= 0.d0) cycle
-            sum_inv_sigma_squared = max(g(k, j, 2),0.d0)
-            sum_weighted_gain     = g(k, j, 1) !/ g(k, j, 2)
-            do while (sqrt(sum_inv_sigma_squared) < 10000. .and. k < nscan_tot)
-               k = k + 1
-               sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
-               sum_inv_sigma_squared = sum_inv_sigma_squared + max(g(k, j, 2),0.d0)
-            end do
-            currend = k
-            if (sum_inv_sigma_squared > 0.d0) then
-               g_tot = sum_weighted_gain / sum_inv_sigma_squared
-               if (trim(self%operation) == 'sample') then
-                  ! Add fluctuation term if requested
-                  g_tot = g_tot + rand_gauss(handle) / sqrt(sum_inv_sigma_squared)
-               end if
-            else
-               g_tot = 0.d0
-            end if
-            !write(*,*) currstart, currend, g_tot, 1 / sqrt(sum_inv_sigma_squared)
-            !write(*,*) currstart, currend, nscan_tot, g_tot 
-            g(currstart:currend, j, 1) = g_tot 
-         end do
-
-         ! Doing binning for now, but should use proper covariance sampling
-!         do i = 1, nbin
-!            b1 = (i-1) * binsize + 1
-!            b2 = min(i * binsize, nscan_tot)
-!            if (count(g(b1:b2, j, 2) > 0) <= 1) cycle
-!            n = 0
-!            do k = b1, b2
-!               if (g(k,j,2) <= 0.d0) then
-!                  g(k,j,1) = 0.d0
-!                  cycle
-!               end if
-!               if (g(k,j,1) == 0) cycle
-!               n = n + 1
-!               ! To be replaced by proper matrix multiplications
-!               lhs(k) = g(k, j, 2)
-!   !            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
-!               ! HKE: Disabling fluctuations for now 
-!               rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
-!!               g(k, j, 1) = rhs(k) / lhs(k)
-!               vals(n) = rhs(k) / lhs(k)
-!               if (abs(vals(n)) > 0.05d0) vals(n) = 0.d0
-!            end do
-!            where (g(b1:b2, j, 2) > 0)
-!               g(b1:b2, j, 1) = median(vals(1:n))
-!            end where
-!         end do
-
-         mu  = 0.d0
-         denom = 0.d0
-         do k = 1, nscan_tot
-            if (g(k, j, 2) <= 0.d0) cycle
-            mu         = mu + g(k, j, 1) * g(k,j,2)
-            denom      = denom + 1.d0 * g(k,j,2)
-!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
-         end do
-         mu = mu / denom
-
-         ! Make sure fluctuations sum up to zero
-         !write(*,*) 'mu = ', mu
-         g(:,j,1) = g(:,j,1) - mu
-       end do
-    end if
-
-    ! Distribute and update results
-    call mpi_bcast(g, size(g),  MPI_DOUBLE_PRECISION, 0, self%comm, ierr)    
-    do j = 1, ndet
-       do i = 1, self%nscan
-          k        = self%scanid(i)
-          !if (g(k, j, 2) <= 0.d0) cycle
-          self%scans(i)%d(j)%dgain = g(k,j,1)
-          self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j) + g(k,j,1)
-          !write(*,*) j, k,  self%scans(i)%d(j)%gain 
-       end do
-    end do
-
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
-    deallocate(g, lhs, rhs)
-
-  end subroutine sample_smooth_gain2
-
-
-  ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
-  ! estimate of the stationary sky
-  ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
   subroutine sample_smooth_gain(self, handle)
     implicit none
     class(comm_LFI_tod),               intent(inout)  :: self
@@ -1936,22 +1581,22 @@ contains
             & 0, self%comm, ierr)
     end if
 
-    if (self%myid == 0 .and. .false.) then
+    if (self%myid == 0) then
 !       nbin = nscan_tot / binsize + 1
 
-       open(58,file='gain.dat', recl=1024)
-       do j = 1, ndet
-          do k = 1, nscan_tot
-             !if (g(k,j,2) /= 0) then
-             if (g(k,j,2) > 0) then
-                write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp)
-             else
-                write(58,*) j, k, 0.
-             end if
-          end do
-          write(58,*)
-       end do
-       close(58)
+!!$       open(58,file='gain.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$          do k = 1, nscan_tot
+!!$             !if (g(k,j,2) /= 0) then
+!!$             if (g(k,j,2) > 0) then
+!!$                write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp)
+!!$             else
+!!$                write(58,*) j, k, 0.
+!!$             end if
+!!$          end do
+!!$          write(58,*)
+!!$       end do
+!!$       close(58)
 
        do j = 1, ndet
          lhs = 0.d0
@@ -2616,8 +2261,8 @@ contains
 
     integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
     integer(i4b) :: det, nout, np0, comm, myid, nprocs
-    real(dp), allocatable, dimension(:,:)   :: A_inv
-    real(dp), allocatable, dimension(:,:,:) :: b_tot
+    real(dp), allocatable, dimension(:,:)   :: A_inv, As_inv
+    real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot
     real(dp), allocatable, dimension(:)     :: W, eta
     real(dp), allocatable, dimension(:,:)   :: A_tot
     class(comm_mapinfo), pointer :: info 
@@ -2630,29 +2275,20 @@ contains
     nout  = size(sb_map%a,dim=1)
     nmaps = self%info%nmaps
     ndet  = self%ndet
-    if (present(chisq_S)) then
-       ndelta = size(chisq_S,2)
-       ncol   = nmaps+ndet-1
-       n_A    = nmaps*(nmaps+1)/2 + 4*(ndet-1)
-    else
-       ncol  = nmaps
-       n_A   = nmaps*(nmaps+1)/2
-    end if
+    n_A   = size(sA_map%a,dim=1)
+    ncol  = size(sb_map%a,dim=2)
+    ndelta = 0; if (present(chisq_S)) ndelta = size(chisq_S,dim=2)
 
     ! Collect contributions from all nodes
     call update_status(status, "tod_final1")
     call mpi_win_fence(0, sA_map%win, ierr)
     if (sA_map%myid_shared == 0) then
-       !call mpi_allreduce_buffer(MPI_SUM, 2, sA_map%comm_inter, ierr, .true., &
-       !     & out_dp_2d=sA_map%a)
        call mpi_allreduce(MPI_IN_PLACE, sA_map%a, size(sA_map%a), &
             & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
     end if
     call mpi_win_fence(0, sA_map%win, ierr)
     call mpi_win_fence(0, sb_map%win, ierr)
     if (sb_map%myid_shared == 0) then
-       !call mpi_allreduce_buffer(MPI_SUM, 3, sb_map%comm_inter, ierr, .true., &
-       !     & out_dp_3d=sb_map%a)
        call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
             & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
     end if
@@ -2660,29 +2296,16 @@ contains
     if (present(sb_mono)) then
        call mpi_win_fence(0, sb_mono%win, ierr)
        if (sb_mono%myid_shared == 0) then
-          !call mpi_allreduce_buffer(MPI_SUM, 2, sb_mono%comm_inter, ierr, .true., &
-          !     & out_dp_3d=sb_mono%a)
           call mpi_allreduce(MPI_IN_PLACE, sb_mono%a, size(sb_mono%a), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, sb_mono%comm_inter, ierr)
        end if
        call mpi_win_fence(0, sb_mono%win, ierr)
     end if
 
-!!$    if (self%myid == 0) then
-!!$       do i = 1, size(sA_map%a,2)
-!!$          if (any(sA_map%a(:,i) /= 0.d0)) then
-!!$             write(*,*) 'pix = ', i-1
-!!$             write(*,*) 'A   = ', sA_map%a(:,i)
-!!$             write(*,*) 'b   = ', sb_map%a(:,:,i)
-!!$          end if
-!!$       end do
-!!$    end if
-!!$    call mpi_finalize(i)
-!!$    stop
-
-    allocate(A_tot(n_A,0:np0-1), b_tot(nout,ncol,0:np0-1), W(ncol), eta(nmaps))
-    A_tot = sA_map%a(:,self%info%pix+1)
-    b_tot = sb_map%a(:,:,self%info%pix+1)
+    allocate(A_tot(n_A,0:np0-1), b_tot(nout,nmaps,0:np0-1), bs_tot(nout,ncol,0:np0-1), W(nmaps), eta(nmaps))
+    A_tot  = sA_map%a(:,self%info%pix+1)
+    b_tot  = sb_map%a(:,1:nmaps,self%info%pix+1)
+    bs_tot = sb_map%a(:,:,self%info%pix+1)
     if (present(sb_mono)) then
        do j = 1, ndet
           sys_mono(:,nmaps+j,:) = sb_mono%a(:,self%info%pix+1,j)
@@ -2690,20 +2313,19 @@ contains
     end if
     call update_status(status, "tod_final2")
 
-
     ! Solve for local map and rms
     if (present(Sfile)) then
        info => comm_mapinfo(self%comm, self%info%nside, 0, ndet-1, .false.)
        smap => comm_map(info)
+       smap%map = 0.d0
     end if
-    allocate(A_inv(ncol,ncol))
+    allocate(A_inv(nmaps,nmaps), As_inv(ncol,ncol))
     !if (present(chisq_S)) smap%map = 0.d0
     if (present(chisq_S)) chisq_S = 0.d0
     do i = 0, np0-1
        if (all(b_tot(1,:,i) == 0.d0)) then
           !write(*,*) 'missing pixel',i, self%myid
           if (present(sb_mono)) sys_mono(1:nmaps,1:nmaps,i) = 0.d0
-          if (present(Sfile)) smap%map(i,:) = 0.d0
           if (.not. present(chisq_S)) then
              rms%map(i,:) = 0.d0
              if (present(outmaps)) then
@@ -2726,20 +2348,22 @@ contains
        A_inv(2,3) = A_inv(3,2)
        A_inv(3,3) = A_tot(6,i)
        if (present(chisq_S)) then
+          As_inv = 0.d0
+          As_inv(1:nmaps,1:nmaps) = A_inv
           do det = 1, ndet-1
-             off           = 6 + 4*(det-1)
-             A_inv(1,    3+det) = A_tot(off+1,i)
-             A_inv(3+det,1    ) = A_inv(1,3+det)
-             A_inv(2,    3+det) = A_tot(off+2,i)
-             A_inv(3+det,2    ) = A_inv(2,3+det)
-             A_inv(3,    3+det) = A_tot(off+3,i)
-             A_inv(3+det,3    ) = A_inv(3,3+det)
-             A_inv(3+det,3+det) = A_tot(off+4,i)
+             off                 = 6 + 4*(det-1)
+             As_inv(1,    3+det) = A_tot(off+1,i)
+             As_inv(3+det,1    ) = As_inv(1,3+det)
+             As_inv(2,    3+det) = A_tot(off+2,i)
+             As_inv(3+det,2    ) = As_inv(2,3+det)
+             As_inv(3,    3+det) = A_tot(off+3,i)
+             As_inv(3+det,3    ) = As_inv(3,3+det)
+             As_inv(3+det,3+det) = A_tot(off+4,i)
           end do
        end if
 
        if (present(condmap)) then
-          call get_eigenvalues(A_inv,W)
+          call get_eigenvalues(A_inv(1:nmaps,1:nmaps),W)
           if (minval(W) < 0.d0) then
 !             if (maxval(W) == 0.d0 .or. minval(W) == 0.d0) then
                 write(*,*) 'A_inv: ', A_inv
@@ -2754,54 +2378,41 @@ contains
        end if
        
        call invert_singular_matrix(A_inv, 1d-12)
-       do k = 1, nout
-          b_tot(k,1:ncol,i) = matmul(A_inv,b_tot(k,1:ncol,i))
+       do k = 1, self%output_n_maps
+          b_tot(k,1:nmaps,i) = matmul(A_inv,b_tot(k,1:nmaps,i))
        end do
 !!$       if (self%info%pix(i) == 100) then
 !!$          write(*,*) 'b', b_tot(:,:,i)
 !!$       end if 
+       if (present(chisq_S)) then
+          call invert_singular_matrix(As_inv, 1d-12)
+          bs_tot(1,1:ncol,i) = matmul(As_inv,bs_tot(1,1:ncol,i))
+          do k = self%output_n_maps+1, nout
+             bs_tot(k,1:ncol,i) = matmul(As_inv,bs_tot(k,1:ncol,i))
+          end do
+       end if
 
        if (present(sb_mono)) sys_mono(1:nmaps,1:nmaps,i) = A_inv(1:nmaps,1:nmaps)
-       if (present(Sfile)) then
+       if (present(chisq_S) .and. mask(self%info%pix(i+1)) == 1) then
           do j = 1, ndet-1
-             if (A_inv(nmaps+j,nmaps+j) > 0.d0) then
-!!$                write(*,*) i, np0
-!!$                write(*,*) 'A_inv = ', A_inv(nmaps+j,nmaps+j), j
-!!$                write(*,*) 'b_tot = ', b_tot(:,:,i)
-!!$                write(*,*) 'A_tot = ', A_tot(:,i)
-!!$             end if
-                smap%map(i,j) = b_tot(1,nmaps+j,i) / sqrt(A_inv(nmaps+j,nmaps+j))
-             else
-                smap%map(i,j) = 0.d0
-             end if
-          end do
-       end if
-       if (present(chisq_S)) then
-          if (mask(self%info%pix(i+1)) == 0) cycle
-          do j = 1, ndet-1
-             if (A_inv(nmaps+j,nmaps+j) <= 0.d0) cycle
-             do k = 1, ndelta
-                chisq_S(j,k) = chisq_S(j,k) + b_tot(k,nmaps+j,i)**2 / A_inv(nmaps+j,nmaps+j)
+             if (As_inv(nmaps+j,nmaps+j) <= 0.d0) cycle
+             chisq_S(j,1) = chisq_S(j,1) + bs_tot(1,nmaps+j,i)**2 / As_inv(nmaps+j,nmaps+j)
+             do k = 2, ndelta
+                chisq_S(j,k) = chisq_S(j,k) + bs_tot(self%output_n_maps+k-1,nmaps+j,i)**2 / As_inv(nmaps+j,nmaps+j)
              end do
-          end do
-       else
-          do j = 1, nmaps
-             rms%map(i,j) = sqrt(A_inv(j,j))  * 1.d6 ! uK
-             if (present(outmaps)) then
-                do k = 1, nout
-                   outmaps(k)%p%map(i,j) = b_tot(k,j,i) * 1.d6 ! uK
-                end do
+             if (present(Sfile) .and. As_inv(nmaps+j,nmaps+j) > 0.d0) then
+                smap%map(i,j) = bs_tot(1,nmaps+j,i) / sqrt(As_inv(nmaps+j,nmaps+j))
              end if
-!!$             if (trim(self%operation) == 'sample') then
-!!$                ! Add random fluctuation
-!!$                call compute_hermitian_root(A_inv, 0.5d0)
-!!$                do l = 1, nmaps
-!!$                   eta(l) = rand_gauss(handle)
-!!$                end do
-!!$                outmaps(k)%p%map(i,:) = outmaps(k)%p%map(i,:) + matmul(A_inv,eta)
-!!$             end if
           end do
        end if
+       do j = 1, nmaps
+          rms%map(i,j) = sqrt(A_inv(j,j))  * 1.d6 ! uK
+          if (present(outmaps)) then
+             do k = 1, self%output_n_maps
+                outmaps(k)%p%map(i,j) = b_tot(k,j,i) * 1.d6 ! uK
+             end do
+          end if
+       end do
     end do
 
     if (present(chisq_S)) then
@@ -2812,13 +2423,12 @@ contains
           call mpi_reduce(chisq_S,      chisq_S, size(chisq_S), &
                & MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
        end if
-
        if (present(Sfile)) call smap%writeFITS(trim(Sfile))
     end if
 
     if (present(Sfile)) call smap%dealloc
 
-    deallocate(A_inv,A_tot,b_tot, W, eta)
+    deallocate(A_inv,As_inv,A_tot,b_tot,bs_tot, W, eta)
 
   end subroutine finalize_binned_map
 

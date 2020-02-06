@@ -276,7 +276,7 @@ contains
 !             write(*,*) '  CG iter. ', i, ' -- res = ', &
 !                  & val_convergence, ', tol = ', lim_convergence, &
 !                  & ', time = ', real(t2-t1,sp)
-             buff = min(val_convergence,1d10)
+             buff = min(val_convergence,1d30)
              write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
                   & buff, ', tol = ', real(lim_convergence,sp), &
                   & ', time = ', real(t2-t1,sp)
