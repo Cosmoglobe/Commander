@@ -46,6 +46,7 @@ module comm_tod_mod
      character(len=512) :: filelist
      character(len=512) :: procmaskf1
      character(len=512) :: procmaskf2
+     character(len=512) :: initfile
      character(len=512) :: instfile
      character(len=512) :: operation
      character(len=512) :: outdir
@@ -63,6 +64,7 @@ module comm_tod_mod
 
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                      ! Sample rate in Hz
+     logical(lgt) :: orb_abscal
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
@@ -100,6 +102,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
+     real(sp),           allocatable, dimension(:,:)   :: ind2ang
      real(dp),           allocatable, dimension(:, :) :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term 
    contains
      procedure                        :: read_tod
@@ -172,7 +175,7 @@ contains
     allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(0:self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
-       call open_hdf_file(self%hdfname(1), file, "r")
+       call open_hdf_file(self%initfile, file, "r")
 
 
        !TODO: figure out how to make this work
@@ -432,6 +435,7 @@ contains
           id(j)  = j
           sid(j) = scanid(j)
           call ang2vec(spinpos(j,1), spinpos(j,2), spinaxis(j,1:3))
+          if (j == 1) self%initfile = filename(j)
           j      = j+1
           if (j > n_tot) exit
        end do
@@ -439,14 +443,17 @@ contains
 
        ! Compute symmetry axis
        v0 = 0.d0
-       do i = 2, n_tot
-          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-          if (v(3) < 0.d0) v  = -v
-          if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
-       end do
-       v0 = v0 / sqrt(v0*v0)
+!!$       do i = 2, n_tot
+!!$          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+!!$          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+!!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+!!$          if (v(3) < 0.d0) v  = -v
+!!$          if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
+!!$       end do
+!!$       v0 = v0 / sqrt(v0*v0)
+       v0(1) = 1
+       
+
 !!$
 !!$       ! Compute angle between i'th and first vector
 !!$       do i = 1, n
@@ -620,6 +627,7 @@ contains
 
        call int2string(iter, itext)
        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
+       !write(*,*) 'path', trim(path)
        call create_hdf_group(chainfile, trim(adjustl(path)))
        call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
        call write_hdf(chainfile, trim(adjustl(path))//'sigma0', output(:,:,2))

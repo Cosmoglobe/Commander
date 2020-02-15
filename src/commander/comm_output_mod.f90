@@ -202,7 +202,8 @@ contains
           call create_hdf_group(file, trim(adjustl(itext))//'/tod')
        end if
        do i = 1, numband  
-          if (trim(cpar%ds_tod_type(i)) == 'none') cycle
+          if (trim(data(i)%tod_type) == 'none') cycle
+          !write(*,*) 'associated', i, associated(data(i)%tod)
           if (associated(data(i)%tod)) then
              N => data(i)%N
              select type (N)
