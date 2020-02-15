@@ -105,6 +105,7 @@ contains
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
+    constructor%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     constructor%output_4D_map = cpar%output_4D_map_nth_iter
     constructor%subtract_zodi = cpar%include_TOD_zodi
@@ -308,6 +309,7 @@ contains
     constructor%nobs = count(constructor%pix2ind == 1) 
     allocate(constructor%ind2pix(constructor%nobs))
     allocate(constructor%ind2sl(constructor%nobs))
+    allocate(constructor%ind2ang(2,constructor%nobs))
     j = 1
     do i = 0, 12*constructor%nside**2-1
        if (constructor%pix2ind(i) == 1) then
@@ -315,6 +317,7 @@ contains
           constructor%pix2ind(i) = j
           call pix2ang_ring(constructor%nside, i, theta, phi)
           call ang2pix_ring(nside_beam, theta, phi, constructor%ind2sl(j))
+          constructor%ind2ang(:,j) = [theta,phi]
           !constructor%ind2sl(j) = 1
           j = j+1
        end if
@@ -373,7 +376,7 @@ contains
     character(len=512), allocatable, dimension(:) :: slist
     type(shared_1d_int) :: sprocmask, sprocmask2
     real(sp),           allocatable, dimension(:,:,:,:) :: map_sky
-    type(shared_2d_sp), allocatable, dimension(:,:) :: smap_sky
+    !type(shared_2d_sp), allocatable, dimension(:,:) :: smap_sky
     type(shared_2d_dp) :: sA_map
     type(shared_3d_dp) :: sb_map, sb_mono
     class(comm_map), pointer :: condmap 
@@ -402,7 +405,7 @@ contains
     chunk_size      = npix/self%numprocs_shared
     if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size+1
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
-    allocate(smap_sky(0:ndet, ndelta)) 
+    !allocate(smap_sky(0:ndet, ndelta)) 
     allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta)) 
     allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
@@ -440,9 +443,10 @@ contains
     allocate(m_buf(0:npix-1,nmaps))
     do j = 1, ndelta
        do i = 1, self%ndet
+          map_in(i,j)%p%map = 1d-6 * map_in(i,j)%p%map ! uK to K
           call map_in(i,j)%p%bcast_fullsky_map(m_buf)
           do k = 1, self%nobs
-             map_sky(:,k,i,j) = 1d-6 * m_buf(self%ind2pix(k),:) ! uK to K
+             map_sky(:,k,i,j) = m_buf(self%ind2pix(k),:) ! uK to K
           end do
        end do
        do k = 1, self%nobs
@@ -453,26 +457,26 @@ contains
     end do
     deallocate(m_buf)
 
-    do j = 1, ndelta
-       do i = 1, self%ndet
-          map_in(i,j)%p%map = 1d-6 * map_in(i,j)%p%map ! uK to K
-          call init_shared_2d_sp(self%myid_shared, self%comm_shared, &
-               & self%myid_inter, self%comm_inter, [nmaps,npix], smap_sky(i,j))
-          call sync_shared_2d_sp_map(smap_sky(i,j), map_in(i,j)%p%info%pix, &
-               & transpose(map_in(i,j)%p%map))
-          call mpi_win_fence(0, smap_sky(i,j)%win, ierr)
-       end do
-       call init_shared_2d_sp(self%myid_shared, self%comm_shared, &
-            & self%myid_inter, self%comm_inter, [nmaps,npix], smap_sky(0,j))
-       if (self%myid_shared == 0) then
-          smap_sky(0,j)%a = smap_sky(1,j)%a
-          do i = 2, self%ndet
-             smap_sky(0,j)%a = smap_sky(0,j)%a + smap_sky(i,j)%a 
-          end do
-          smap_sky(0,j)%a = smap_sky(0,j)%a/self%ndet
-       end if
-       call mpi_win_fence(0, smap_sky(0,j)%win, ierr)
-    end do
+!!$    do j = 1, ndelta
+!!$       do i = 1, self%ndet
+!!$          map_in(i,j)%p%map = 1d-6 * map_in(i,j)%p%map ! uK to K
+!!$          call init_shared_2d_sp(self%myid_shared, self%comm_shared, &
+!!$               & self%myid_inter, self%comm_inter, [nmaps,npix], smap_sky(i,j))
+!!$          call sync_shared_2d_sp_map(smap_sky(i,j), map_in(i,j)%p%info%pix, &
+!!$               & transpose(map_in(i,j)%p%map))
+!!$          call mpi_win_fence(0, smap_sky(i,j)%win, ierr)
+!!$       end do
+!!$       call init_shared_2d_sp(self%myid_shared, self%comm_shared, &
+!!$            & self%myid_inter, self%comm_inter, [nmaps,npix], smap_sky(0,j))
+!!$       if (self%myid_shared == 0) then
+!!$          smap_sky(0,j)%a = smap_sky(1,j)%a
+!!$          do i = 2, self%ndet
+!!$             smap_sky(0,j)%a = smap_sky(0,j)%a + smap_sky(i,j)%a 
+!!$          end do
+!!$          smap_sky(0,j)%a = smap_sky(0,j)%a/self%ndet
+!!$       end if
+!!$       call mpi_win_fence(0, smap_sky(0,j)%win, ierr)
+!!$    end do
 
     ! Set up shared processing mask
 !    call init_shared_2d_int(self%myid_shared, self%comm_shared, &
@@ -556,8 +560,8 @@ contains
 !       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
        do_oper(samp_N)       = (main_iter >= n_main_iter-0)
        do_oper(samp_N_par)   = do_oper(samp_N)
-       do_oper(prep_relbp)   = (main_iter == n_main_iter-0) .and. .not. self%first_call! .and. mod(iter,2) == 0
-       do_oper(prep_absbp)   = .false. !(main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
+       do_oper(prep_relbp)   = (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 0
+       do_oper(prep_absbp)   = (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
@@ -586,7 +590,7 @@ contains
           end do
           if (allocated(A_map)) deallocate(A_map, b_map)
           allocate(A_map(n_A,self%nobs), b_map(nout,ncol,self%nobs))
-          A_map = 0.d0; b_map = 0.d0         
+          A_map = 0.d0; b_map = 0.d0       
           if (sA_map%init) call dealloc_shared_2d_dp(sA_map)
           call init_shared_2d_dp(self%myid_shared, self%comm_shared, &
                & self%myid_inter, self%comm_inter, [n_A,npix], sA_map)
@@ -651,10 +655,10 @@ contains
           allocate(s_bp(ntod, ndet))                   ! Signal minus mean
           allocate(s_bp_prop(ntod, ndet, 2:ndelta))    ! Signal minus mean
           allocate(s_orb(ntod, ndet))                  ! Orbital dipole in uKcmb
-          allocate(s_mono(ntod, ndet))                 ! Monopole correction in uKcmb
+          if (do_oper(samp_mono)) allocate(s_mono(ntod, ndet))                 ! Monopole correction in uKcmb
           allocate(s_buf(ntod, ndet))                  ! Buffer
           allocate(s_tot(ntod, ndet))                  ! Sum of all sky compnents
-          allocate(s_zodi(ntod, ndet))                 ! Zodical light
+          if (do_oper(sub_zodi)) allocate(s_zodi(ntod, ndet))                 ! Zodical light
           allocate(mask(ntod, ndet))                   ! Processing mask in time
           allocate(mask2(ntod, ndet))                  ! Processing mask in time
           allocate(pix(ntod, ndet))                    ! Decompressed pointing
@@ -728,8 +732,6 @@ contains
           ! Construct zodical light template
           if (do_oper(sub_zodi)) then
              call compute_zodi_template(self%nside, pix, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
-          else
-             s_zodi = 0.
           end if
           
           ! Construct sidelobe template 
@@ -756,19 +758,22 @@ contains
 
           ! Construct monopole correction template 
           call wall_time(t1)
-          do j = 1, ndet
-             if (.not. self%scans(i)%d(j)%accept) cycle
-             !s_mono(:,j) = -self%mono(j)
-             !s_mono(:,j) = self%mono(j)
-             s_mono(:,j) = 0.d0 ! Disabled for now
-          end do
+          if (do_oper(samp_mono)) then
+             do j = 1, ndet
+                if (.not. self%scans(i)%d(j)%accept) cycle
+                !s_mono(:,j) = -self%mono(j)
+                !s_mono(:,j) = self%mono(j)
+                s_mono(:,j) = 0.d0 ! Disabled for now
+             end do
+          end if
           !write(*,*) main_iter, i, 'sky ', sum(abs(s_sky))
           !write(*,*) main_iter, i, 'sl  ', sum(abs(s_sl))
           !write(*,*) main_iter, i, 'orb ', sum(abs(s_orb))
           !write(*,*) main_iter, i, 'mono', sum(abs(s_mono))
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             s_tot(:,j) = s_sky(:,j) + s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
+             s_tot(:,j) = s_sky(:,j) + s_sl(:,j) + s_orb(:,j)
+             if (do_oper(samp_mono)) s_tot(:,j) = s_tot(:,j) + s_mono(:,j)
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !write(*,*) sum(abs(s_sky)), sum(abs(s_sl)), sum(abs(s_orb)), sum(abs(s_mono)), sum(abs(s_tot))
@@ -780,7 +785,7 @@ contains
              allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. trim(self%freq) /= '070') then
+                if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
                    call fill_all_masked(s_buf(:,j), mask(:,j), ntod, .false.)
                    call self%downsample_tod(s_buf(:,j), ext, &
@@ -809,7 +814,7 @@ contains
                 if (do_oper(samp_acal)) then
 !                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
                    !write(*,*) self%gain0(0), self%gain0(j), self%scans(i)%d(j)%dgain, sum(abs(s_tot)), sum(abs(s_orb))
-                   if (trim(self%freq) == '070') then
+                   if (self%orb_abscal) then
                       s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
                            & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                    else
@@ -851,7 +856,11 @@ contains
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                s_buf(:,j) = s_tot(:,j)-s_mono(:,j)
+                if (do_oper(samp_mono)) then
+                   s_buf(:,j) = s_tot(:,j)-s_mono(:,j)
+                else
+                   s_buf(:,j) = s_tot(:,j)
+                end if
              end do
              call self%sample_n_corr(handle, i, mask, s_buf, n_corr)
              !if (do_oper(bin_map)) write(*,*) 'b', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod/self%scans(i)%d(1)%gain
@@ -878,7 +887,8 @@ contains
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
+                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) 
+                if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
                 call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
                      & s_buf(:,j), n_corr(:,j))      
                 !write(*,*) 'chisq4', self%scanid(i), j, self%scans(i)%d(j)%chisq
@@ -921,7 +931,8 @@ contains
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) + s_mono(:,j)
+                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j)
+                if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
                 call self%compute_chisq(i, j, mask2(:,j), s_sky(:,j), &
                      & s_buf(:,j), n_corr(:,j), absbp=.true.)
                 chisq_S(j,1) = chisq_S(j,1) + self%scans(i)%d(j)%chisq_prop
@@ -949,7 +960,7 @@ contains
                 !if (do_oper(bin_map) .and. nout > 1) write(*,*) sum(d_calib(2,:,j))/ntod 
                 if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
                 if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
-                if (do_oper(bin_map) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
+                if (do_oper(bin_map) .and. do_oper(samp_mono) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
                 if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
                 if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
                 if (do_oper(prep_relbp)) then
@@ -1003,13 +1014,13 @@ contains
 
           ! Clean up
           call wall_time(t1)
+          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_buf)
+          deallocate(s_bp, s_sky_prop, s_bp_prop)
+          deallocate(mask, mask2, pix, psi, flag)
           if (allocated(s_lowres)) deallocate(s_lowres)
           if (allocated(s_invN)) deallocate(s_invN)
-          deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_zodi)
-          deallocate(s_buf, s_mono)
-          deallocate(s_bp, s_sky_prop, s_bp_prop)
-          deallocate(mask, mask2)
-          deallocate(pix, psi, flag)
+          if (do_oper(sub_zodi)) deallocate(s_zodi)
+          if (do_oper(samp_mono)) deallocate(s_mono)
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
           call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
@@ -1264,12 +1275,12 @@ contains
 !    if (detmask%init)    call dealloc_shared_2d_int(detmask)
     if (sprocmask%init)  call dealloc_shared_1d_int(sprocmask)
     if (sprocmask2%init) call dealloc_shared_1d_int(sprocmask2)
-    do j = 1, ndelta
-       do i = 0, self%ndet
-          if (smap_sky(i,j)%init) call dealloc_shared_2d_sp(smap_sky(i,j))
-       end do
-    end do
-    deallocate(smap_sky)
+!!$    do j = 1, ndelta
+!!$       do i = 0, self%ndet
+!!$          if (smap_sky(i,j)%init) call dealloc_shared_2d_sp(smap_sky(i,j))
+!!$       end do
+!!$    end do
+!!$    deallocate(smap_sky)
     deallocate(map_sky)
 
     if (correct_sl) then
@@ -1390,7 +1401,7 @@ contains
     integer(i4b),                        intent(in)  :: ind !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
     real(sp),            dimension(:,:), intent(out) :: s_orb
-    integer(i4b)         :: i, j
+    integer(i4b)         :: i, j, p
     real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation
     real(dp)             :: theta, phi, psi_d
     real(dp), dimension(3,3) :: rot_mat
@@ -1406,6 +1417,7 @@ contains
     x = h * self%central_freq/(k_B * T_CMB)
     q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
 
+    if (trim(self%label(1)) == '27M') open(58,file='orb_27M.dat')
     do i = 1,self%ndet 
        if (.not. self%scans(ind)%d(i)%accept) cycle
        do j=1,self%scans(ind)%ntod !length of the tod
@@ -1415,24 +1427,30 @@ contains
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
           s_orb(j,i) = T_CMB * (b_dot + q*(b_dot**2 - b**2/3.)) ! net zero monopole
 
-!!$          !TODO: add sl contribution to orbital dipole here
-!!$          call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
-!!$          !rotate v_sun into frame where pointing is along z axis
-!!$          !write(*,*) -phi, -theta, -self%psi(psi(i,j)), psi(i,j)
-!!$          psi_d = self%psi(psi(j,i))
-!!$          !write(*,*), j, phi, theta, psi_d, rot_mat 
-!!$          call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
-!!$          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
-!!$          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
-!!$            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
-!!$            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
-!!$            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
-!!$            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
-!!$            & self%orb_dp_s(i,9) 
-!!$          s_orb(j,i) = s_orb(j,i)! - T_CMB *summation
+          !TODO: add sl contribution to orbital dipole here
+          !call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
+          !rotate v_sun into frame where pointing is along z axis
+          !write(*,*) -phi, -theta, -self%psi(psi(i,j)), psi(i,j)
+          p     = self%pix2ind(pix(j,i))
+          theta = self%ind2ang(1,p)
+          phi   = self%ind2ang(2,p)
+          psi_d = self%psi(psi(j,i))
+          !write(*,*), j, phi, theta, psi_d, rot_mat 
+          !call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
+          call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
+          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
+          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
+            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
+            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
+            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
+            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
+            & self%orb_dp_s(i,9) 
+          if (trim(self%label(i)) == '27M') write(58,*) j, s_orb(j,i)+T_CMB *summation, s_orb(j,i), T_CMB *summation
+          s_orb(j,i) = s_orb(j,i) + T_CMB *summation
 
        end do
    end do
+   if (trim(self%label(1)) == '27M') close(58)
 
   end subroutine compute_orbital_dipole
 
@@ -1759,6 +1777,10 @@ contains
     call self%downsample_tod(s_sub(:,1), ext)    
     allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
     do j = 1, ndet
+       if (.not. self%scans(scan)%d(j)%accept) then
+          residual(:,j) = 0.
+          cycle
+       end if
        r_fill = self%scans(scan)%d(j)%tod-s_sub(:,j)
        call fill_all_masked(r_fill, mask(:,j), ntod, .false.)
        call self%downsample_tod(r_fill, ext, residual(:,j))
@@ -1767,6 +1789,7 @@ contains
     call self%multiply_inv_N(scan, residual, sampfreq=self%samprate_lowres, pow=0.5d0)
 
     do j = 1, ndet
+       if (.not. self%scans(scan)%d(j)%accept) cycle
        A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
        b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
     end do
@@ -2261,8 +2284,8 @@ contains
 
     integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
     integer(i4b) :: det, nout, np0, comm, myid, nprocs
-    real(dp), allocatable, dimension(:,:)   :: A_inv, As_inv
-    real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot
+    real(dp), allocatable, dimension(:,:)   :: A_inv, As_inv, buff_2d
+    real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot, buff_3d
     real(dp), allocatable, dimension(:)     :: W, eta
     real(dp), allocatable, dimension(:,:)   :: A_tot
     class(comm_mapinfo), pointer :: info 
@@ -2283,14 +2306,28 @@ contains
     call update_status(status, "tod_final1")
     call mpi_win_fence(0, sA_map%win, ierr)
     if (sA_map%myid_shared == 0) then
-       call mpi_allreduce(MPI_IN_PLACE, sA_map%a, size(sA_map%a), &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
+       !allocate(buff_2d(size(sA_map%a,1),size(sA_map%a,2)))
+!       call mpi_allreduce(sA_map%a, buff_2d, size(sA_map%a), &
+!            & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
+       do i = 1, size(sA_map%a,1)
+          call mpi_allreduce(MPI_IN_PLACE, sA_map%a(i,:), size(sA_map%a,2), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
+       end do
+       !sA_map%a = buff_2d
+       !deallocate(buff_2d)
     end if
     call mpi_win_fence(0, sA_map%win, ierr)
     call mpi_win_fence(0, sb_map%win, ierr)
     if (sb_map%myid_shared == 0) then
-       call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
+       !allocate(buff_3d(size(sb_map%a,1),size(sb_map%a,2),size(sb_map%a,3)))
+       !call mpi_allreduce(sb_map%a, buff_3d, size(sb_map%a), &
+       !     & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
+       do i = 1, size(sb_map%a,1)
+          call mpi_allreduce(mpi_in_place, sb_map%a(i,:,:), size(sb_map%a(1,:,:)), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
+       end do
+       !sb_map%a = buff_3d
+       !deallocate(buff_3d)
     end if
     call mpi_win_fence(0, sb_map%win, ierr)
     if (present(sb_mono)) then
