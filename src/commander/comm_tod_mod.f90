@@ -32,6 +32,7 @@ module comm_tod_mod
 
   type :: comm_scan
      integer(i4b)   :: ntod                                        ! Number of time samples
+     integer(i4b)      :: ext_lowres(2)             ! Shape of downgraded TOD including padding
      real(dp)       :: proctime    = 0.d0                          ! Processing time in seconds
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
@@ -45,6 +46,7 @@ module comm_tod_mod
      character(len=512) :: filelist
      character(len=512) :: procmaskf1
      character(len=512) :: procmaskf2
+     character(len=512) :: initfile
      character(len=512) :: instfile
      character(len=512) :: operation
      character(len=512) :: outdir
@@ -61,7 +63,8 @@ module comm_tod_mod
      integer(i4b) :: flag0
 
      real(dp)     :: central_freq                                 !Central frequency
-     real(dp)     :: samprate, samprate_gain                      ! Sample rate in Hz
+     real(dp)     :: samprate, samprate_lowres                      ! Sample rate in Hz
+     logical(lgt) :: orb_abscal
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
@@ -97,7 +100,9 @@ module comm_tod_mod
      class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
-     integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix
+     real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
+     integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
+     real(sp),           allocatable, dimension(:,:)   :: ind2ang
      real(dp),           allocatable, dimension(:, :) :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term 
    contains
      procedure                        :: read_tod
@@ -170,7 +175,7 @@ contains
     allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(0:self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
-       call open_hdf_file(self%hdfname(1), file, "r")
+       call open_hdf_file(self%initfile, file, "r")
 
 
        !TODO: figure out how to make this work
@@ -221,7 +226,7 @@ contains
     call wall_time(t1)
     allocate(self%scans(self%nscan))
     do i = 1, self%nscan
-       call read_hdf_scan(self%scans(i), self%hdfname(i), self%scanid(i), self%ndet, &
+       call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels)
        do det = 1, self%ndet
           self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
@@ -280,9 +285,10 @@ contains
 
   end subroutine read_tod
 
-  subroutine read_hdf_scan(self, filename, scan, ndet, detlabels)
+  subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels)
     implicit none
     class(comm_scan),               intent(inout) :: self
+    class(comm_tod),                intent(in)    :: tod
     character(len=*),               intent(in)    :: filename
     integer(i4b),                   intent(in)    :: scan, ndet
     character(len=*), dimension(:), intent(in)     :: detlabels
@@ -316,6 +322,8 @@ contains
 !!$    end do
 !!$    m = m/2
     self%ntod = m
+    self%ext_lowres(1)   = -5    ! Lowres padding
+    self%ext_lowres(2)   = int(self%ntod/int(tod%samprate/tod%samprate_lowres)) + 1 + self%ext_lowres(1)
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
@@ -389,13 +397,14 @@ contains
     class(comm_tod),   intent(inout) :: self    
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, n_tot, ierr
-    real(dp)           :: w_tot, w
-    real(dp),           allocatable, dimension(:) :: weight, sid
-    integer(i4b),       allocatable, dimension(:) :: scanid, id
-    integer(i4b),       allocatable, dimension(:) :: proc
-    real(dp),           allocatable, dimension(:) :: pweight
-    character(len=512), allocatable, dimension(:) :: filename
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr
+    real(dp)           :: w_tot, w, v0(3), v(3)
+    real(dp),           allocatable, dimension(:)   :: weight, sid
+    real(dp),           allocatable, dimension(:,:) :: spinpos, spinaxis
+    integer(i4b),       allocatable, dimension(:)   :: scanid, id
+    integer(i4b),       allocatable, dimension(:)   :: proc
+    real(dp),           allocatable, dimension(:)   :: pweight
+    character(len=512), allocatable, dimension(:)   :: filename
 
     np = self%numprocs
     if (self%myid == 0) then
@@ -415,19 +424,50 @@ contains
           stop
        end if
 
+       
        open(unit, file=trim(filelist))
        read(unit,*) n
-       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot))
+       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(n_tot,2))
        j = 1
        do i = 1, n
-          read(unit,*) scanid(j), filename(j), weight(j)
+          read(unit,*) scanid(j), filename(j), weight(j), spinpos(j,1:2)
           if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
           id(j)  = j
           sid(j) = scanid(j)
+          call ang2vec(spinpos(j,1), spinpos(j,2), spinaxis(j,1:3))
+          if (j == 1) self%initfile = filename(j)
           j      = j+1
           if (j > n_tot) exit
        end do
        close(unit)
+
+       ! Compute symmetry axis
+       v0 = 0.d0
+       do i = 2, n_tot
+          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+          if (v(3) < 0.d0) v  = -v
+          if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
+       end do
+       v0 = v0 / sqrt(v0*v0)
+!       v0(1) = 1
+       
+
+!!$
+!!$       ! Compute angle between i'th and first vector
+!!$       do i = 1, n
+!!$          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+!!$          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+!!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)          
+!!$       end do
+       do i = n_tot, 1, -1
+          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+          sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
+          if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
+       end do
 
 !!$       ! Sort according to weight
 !!$       pweight = 0.d0
@@ -440,12 +480,11 @@ contains
 !!$       deallocate(id, pweight, weight)
 
        ! Sort according to scan id
-       pweight = 0.d0
        proc    = -1
        call QuickSort(id, sid)
        w_tot = sum(weight)
        j     = 1
-       do i = 0, np-2
+       do i = np-1, 1, -1
           w = 0.d0
           do k = 1, n_tot
              if (proc(k) == i) w = w + weight(k) 
@@ -455,17 +494,22 @@ contains
              w           = w + weight(id(j))
              if (w > 1.2d0*w_tot/np) then
                 ! Assign large scans to next core
-                proc(id(j)) = i+1
+                proc(id(j)) = i-1
                 w           = w - weight(id(j))
              end if
              j           = j+1
           end do
        end do
        do while (j <= n_tot)
-          proc(id(j)) = np-1
+          proc(id(j)) = 0
           j = j+1
        end do
-       deallocate(id, pweight, weight, sid)
+       pweight = 0.d0
+       do k = 1, n_tot
+          pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+       end do
+       write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
+       deallocate(id, pweight, weight, sid, spinaxis)
 
        ! Distribute according to consecutive PID
 !!$       do i = 1, n_tot
@@ -476,20 +520,22 @@ contains
 
     call mpi_bcast(n_tot, 1,  MPI_INTEGER, 0, self%comm, ierr)
     if (self%myid /= 0) then
-       allocate(filename(n_tot), scanid(n_tot), proc(n_tot))
+       allocate(filename(n_tot), scanid(n_tot), proc(n_tot), spinpos(n_tot,2))
     end if
     call mpi_bcast(filename, 512*n_tot,  MPI_CHARACTER, 0, self%comm, ierr)
     call mpi_bcast(scanid,       n_tot,  MPI_INTEGER,   0, self%comm, ierr)
     call mpi_bcast(proc,         n_tot,  MPI_INTEGER,   0, self%comm, ierr)
+    call mpi_bcast(spinpos,    2*n_tot,  MPI_DOUBLE_PRECISION,   0, self%comm, ierr)
 
     self%nscan     = count(proc == self%myid)
-    allocate(self%scanid(self%nscan), self%hdfname(self%nscan))
+    allocate(self%scanid(self%nscan), self%hdfname(self%nscan), self%spinaxis(self%nscan,2))
     j = 1
     do i = 1, n_tot
        if (proc(i) == self%myid) then
-          self%scanid(j)  = scanid(i)
-          self%hdfname(j) = filename(i)
-          j               = j+1
+          self%scanid(j)     = scanid(i)
+          self%hdfname(j)    = filename(i)
+          self%spinaxis(j,:) = spinpos(i,:)
+          j                  = j+1
        end if
     end do
 
@@ -500,7 +546,7 @@ contains
        end do
     end if
 
-    deallocate(filename, scanid, proc) 
+    deallocate(filename, scanid, proc, spinpos) 
 
   end subroutine get_scan_ids
 
@@ -581,6 +627,7 @@ contains
 
        call int2string(iter, itext)
        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
+       !write(*,*) 'path', trim(path)
        call create_hdf_group(chainfile, trim(adjustl(path)))
        call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
        call write_hdf(chainfile, trim(adjustl(path))//'sigma0', output(:,:,2))
@@ -761,12 +808,19 @@ contains
     real(dp),                            intent(in)   :: polangle
     real(sp),            dimension(:),   intent(out)   :: s_sl
     
-    integer(i4b) :: j
+    integer(i4b) :: j, pix_, pix_prev, psi_prev
     real(dp)     :: psi_
 
+    pix_prev = -1; psi_prev = -1
     do j=1, size(pix)
-       psi_    = self%psi(psi(j))-polangle 
-       s_sl(j) = slconv%interp(pix(j), psi_) 
+       pix_    = self%ind2sl(self%pix2ind(pix(j)))
+       if (pix_prev == pix_ .and. psi(j) == psi_prev) then
+          s_sl(j) = s_sl(j-1)
+       else
+          psi_    = self%psi(psi(j))-polangle 
+          s_sl(j) = slconv%interp(pix_, psi_)
+          pix_prev = pix_; psi_prev = psi(j)
+       end if
     end do
 
   end subroutine construct_sl_template
@@ -821,78 +875,82 @@ contains
     integer*8    :: plan_fwd, plan_back
     logical(lgt) :: init_masked_region, end_masked_region
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c
-    real(dp)     :: nu, power, fft_norm
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
+    real(dp)     :: nu, power, fft_norm, t1, t2
+    real(sp),     allocatable, dimension(:,:) :: dt
+    complex(spc), allocatable, dimension(:,:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
     
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
-    nomp = omp_get_max_threads()
-    nlive = count(self%scans(scan)%d%accept)
+!    nomp = omp_get_max_threads()
+    m    = count(self%scans(scan)%d%accept)
+ !   nlive = count(self%scans(scan)%d%accept)
     
     nfft = 2 * ntod
     !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
     
     n = nfft / 2 + 1
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+    call wall_time(t1)
+!    call sfftw_init_threads(err)
+!    call sfftw_plan_with_nthreads(nomp)
 
-    allocate(dt(nfft), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
-    deallocate(dt, dv)
+    allocate(dt(nfft,m), dv(0:n-1,m))
+!!$    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_patient) 
+!!$    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_patient)
+    call sfftw_plan_many_dft_r2c(plan_fwd, 1, nfft, m, dt, &
+         & nfft, 1, nfft, dv, n, 1, n, fftw_patient)
+    call sfftw_plan_many_dft_c2r(plan_back, 1, nfft, m, dv, &
+         & n, 1, n, dt, nfft, 1, nfft, fftw_patient)
+
+
+!    deallocate(dt, dv)
+    call wall_time(t2)
+    !if (self%myid == 0) write(*,*) ' fft1 =', t2-t1 
 
 !    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
-    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime)
-    allocate(dt(nfft), dv(0:n-1))
+!    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime)
+!    allocate(dt(nfft), dv(0:n-1))
     allocate(d_prime(ntod))
 
-    !$OMP DO SCHEDULE(guided)
+    !!$OMP DO SCHEDULE(guided)
+    j = 0
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
-       gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = self%scans(scan)%d(i)%tod - S_sub(:,i) * gain
-
-!!$       if (sum(mask(:,i)) > 0) then
-!!$          n_corr(:,i) = sum(d_prime*mask(:,i))/sum(mask(:,i))
-!!$       else
-!!$          n_corr(:,i) = 0.
-!!$       end if
-!!$       cycle
-
+       j       = j+1
+       gain    = self%scans(scan)%d(i)%gain  ! Gain in V / K
+       d_prime = self%scans(scan)%d(i)%tod - S_sub(:,i) * gain
        sigma_0 = self%scans(scan)%d(i)%sigma0
-       
-       call fill_all_masked(d_prime, mask(:,i), ntod, (trim(self%operation) == "sample"), sigma_0, handle)
 
-!!$       if (self%scanid(scan) == 6144 .and. i == 1) then
-!!$          open(58,file='res1.dat',recl=1024)
-!!$          do j = 1, size(d_prime)
-!!$             write(58,*) j, d_prime(j)
-!!$          end do
-!!$          close(58)
-!!$       end if
-       
+       call wall_time(t1)       
+       call fill_all_masked(d_prime, mask(:,i), ntod, (trim(self%operation) == "sample"), sigma_0, handle)
+       call wall_time(t2)
+!    if (self%myid == 0) write(*,*) ' fft2 =', t2-t1 
+
        ! Preparing for fft
-       dt(1:ntod)           = d_prime(:)
-       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-       ! nbuff = nfft - ntod
-       ! do j=1, nbuff
-       !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
-       ! end do
+       dt(1:ntod,j)           = d_prime
+       dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
+    end do
   
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call wall_time(t1)
+    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+
+    j = 0
+    do i = 1, ndet
+       if (.not. self%scans(scan)%d(i)%accept) cycle
+       j       = j+1
+    
        samprate = self%samprate
        alpha    = self%scans(scan)%d(i)%alpha
        nu_knee  = self%scans(scan)%d(i)%fknee
-       N_wn = sigma_0 ** 2  ! white noise power spectrum
+       N_wn     = sigma_0 ** 2           ! white noise power spectrum
        fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
-       
+       call wall_time(t2)
+!    if (self%myid == 0) write(*,*) ' fft3 =', t2-t1 
+
        if (trim(self%operation) == "sample") then
-          dv(0)    = dv(0) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+          dv(0,j)    = dv(0,j) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
        end if
-       
        
        do l = 1, n-1                                                      
           nu = l*(samprate/2)/(n-1)
@@ -902,18 +960,30 @@ contains
           
           N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
           if (trim(self%operation) == "sample") then
-             dv(l) = (dv(l) + fft_norm * ( &
+             dv(l,j) = (dv(l,j) + fft_norm * ( &
                   sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
                   + N_wn * sqrt(1.0 / N_c) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
                   )) * 1.d0/(1.d0 + N_wn / N_c)
           else
-             dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
+             dv(l,j) = dv(l,j) * 1.0/(1.0 + N_wn/N_c)
           end if
           !if (abs(nu-1.d0/60.d0) < 0.01d0 .and. trim(self%freq)== '070') dv(l) = 0.d0
        end do
-       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-       dt          = dt / nfft
-       n_corr(:,i) = dt(1:ntod) 
+    end do
+    call wall_time(t1)
+    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    dt = dt / nfft
+    call wall_time(t2)
+!    if (self%myid == 0) write(*,*) ' fft4 =', t2-t1 
+
+    j = 0
+    do i = 1, ndet
+       if (.not. self%scans(scan)%d(i)%accept) then
+          n_corr(:,i) = 0.
+          cycle
+       end if
+       j       = j+1
+       n_corr(:,i) = dt(1:ntod,j) 
        ! if (i == 1) then
        !    open(65,file='ncorr_times.dat')
        !    do j = i, ntod
@@ -924,15 +994,17 @@ contains
        ! end if
 
     end do
-    !$OMP END DO                                                          
+!    !$OMP END DO                                                          
+    call sfftw_destroy_plan(plan_fwd)                                           
+    call sfftw_destroy_plan(plan_back)                                          
+
     deallocate(dt, dv)
     deallocate(d_prime)
     !deallocate(diff)
-    !$OMP END PARALLEL
+ !   !$OMP END PARALLEL
     
 
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
+
   
   end subroutine sample_n_corr
 
@@ -948,16 +1020,17 @@ contains
     integer(i4b),                        intent(in)     :: scan
     real(sp),          dimension(:,:),   intent(inout)     :: buffer !input/output
     real(dp),                            intent(in), optional :: sampfreq, pow
-    integer(i4b) :: i, j, l, n, nomp, ntod, ndet, err, omp_get_max_threads
+    integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
     real(sp)     :: nu, pow_
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
+    real(sp),     allocatable, dimension(:,:) :: dt
+    complex(spc), allocatable, dimension(:,:) :: dv
     
     ntod = size(buffer, 1)
     ndet = size(buffer, 2)
     nomp = omp_get_max_threads()
+    m    = count(self%scans(scan)%d%accept)
     pow_ = 1.d0; if (present(pow)) pow_ = pow
 
 !!$ !   if (self%myid == 0) open(58,file='invN1.dat')
@@ -978,49 +1051,56 @@ contains
     
     n = ntod + 1
     
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+!    call sfftw_init_threads(err)
+!    call sfftw_plan_with_nthreads(nomp)
 
-    allocate(dt(2*ntod), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_estimate + fftw_unaligned)
-    deallocate(dt, dv)
+!!$    allocate(dt(2*ntod), dv(0:n-1))
+!!$    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_patient)
+!!$    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_patient)
+!    deallocate(dt, dv)
+
+    allocate(dt(2*ntod,m), dv(0:n-1,m))
+    call sfftw_plan_many_dft_r2c(plan_fwd, 1, 2*ntod, m, dt, &
+         & 2*ntod, 1, 2*ntod, dv, n, 1, n, fftw_patient)
+    call sfftw_plan_many_dft_c2r(plan_back, 1, 2*ntod, m, dv, &
+         & n, 1, n, dt, 2*ntod, 1, 2*ntod, fftw_patient)
     
 !    if (self%myid == 0) open(58,file='invN2.dat')
-    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,noise,signal)
-    allocate(dt(2*ntod), dv(0:n-1))
+!    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,noise,signal)
+!    allocate(dt(2*ntod), dv(0:n-1))
     
-    !$OMP DO SCHEDULE(guided)
+    !!$OMP DO SCHEDULE(guided)
+    j = 0
     do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       if (present(sampfreq)) then
-          samprate = real(sampfreq,sp)
-       else
-          samprate = real(self%samprate,sp)
-       end if
        sigma_0  = real(self%scans(scan)%d(i)%sigma0,sp)
+       if (.not. self%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
+       j = j+1
+       dt(1:ntod,j)           = buffer(:,i)
+       dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
+    end do
+
+    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+
+    j = 0
+    do i = 1, ndet
+       sigma_0  = real(self%scans(scan)%d(i)%sigma0,sp)
+       if (.not. self%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
+       j = j+1
+       samprate = real(self%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
        alpha    = real(self%scans(scan)%d(i)%alpha,sp)
        nu_knee  = real(self%scans(scan)%d(i)%fknee,sp)
-       !noise    = 2.0 * ntod * sigma_0 ** 2
        noise    = sigma_0 ** 2
-
-       if (noise <= 0.d0) then
-          buffer(:,i) = 0.d0
-          cycle
-       end if
        
-          dt(1:ntod)           = buffer(:,i)
-          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-          dv(0) = 0.d0
-          do l = 1, n-1                                                      
-             nu = l*(samprate/2)/(n-1)
-             signal = noise * (nu/(nu_knee))**(alpha)
-             dv(l)  = dv(l) * 1.0/(noise + signal)**pow_
-          end do
-          call sfftw_execute_dft_c2r(plan_back, dv, dt)
-          dt          = dt / (2*ntod)
+       dv(0,j) = 0.d0
+       do l = 1, n-1                                                      
+          nu      = l*(samprate/2)/(n-1)
+          signal  = noise * (nu/(nu_knee))**(alpha)
+          dv(l,j) = dv(l,j) * 1.0/(noise + signal)**pow_
+       end do
+    end do
+       
+    call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    dt = dt / (2*ntod)
 
 !!$          if (self%myid == 0 .and. i==1 .and. j==1) then
 !!$             do k = 1, ntod
@@ -1028,16 +1108,23 @@ contains
 !!$             end do
 !!$          end if
 
-          buffer(:,i)  = dt(1:ntod) 
-
+    j = 0
+    do i = 1, ndet
+       sigma_0  = real(self%scans(scan)%d(i)%sigma0,sp)
+       if (.not. self%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) then
+          buffer(:,i)  = 0.d0
+       else
+          j           = j+1
+          buffer(:,i) = dt(1:ntod,j) 
+       end if
     end do
-    !$OMP END DO                                                          
-    deallocate(dt, dv)
-    !$OMP END PARALLEL
-!    if (self%myid == 0) close(58)
-
+    !!$OMP END DO                                                          
     call sfftw_destroy_plan(plan_fwd)                                           
     call sfftw_destroy_plan(plan_back)                                          
+    deallocate(dt, dv)
+!    !$OMP END PARALLEL
+!    if (self%myid == 0) close(58)
+
 
 !!$    call mpi_finalize(i)
 !!$    stop
@@ -1055,7 +1142,7 @@ contains
 
     ntod = size(tod_in)
     npad = 5
-    step = int(self%samprate/self%samprate_gain)
+    step = int(self%samprate/self%samprate_lowres)
     w    = 2*step    ! Boxcar window width
     n    = int(ntod / step) + 1
     if (.not. present(tod_out)) then
