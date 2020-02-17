@@ -147,7 +147,7 @@ contains
     integer(i4b)   :: pixnum, psii, psiu, bpsi
 
     ! Get pixel number
-    pixnum = self%pixLookup%a(pix+1)
+    pixnum = pix  !self%pixLookup%a(pix+1)
 
     !unwrap psi
     unwrap = modulo(-real(psi,sp), real(2.d0*pi,sp))

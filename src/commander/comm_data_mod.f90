@@ -184,7 +184,12 @@ contains
        ! Initialize bandpass structures; 0 is full freq, i is detector
        allocate(data(n)%bp(0:data(n)%ndet))
 
-       data(n)%bp(0)%p => comm_bp(cpar, n, i, data(n)%label)
+       if (trim(data(n)%label) == '070ds1' .or. trim(data(n)%label) == '070ds2' .or. trim(data(n)%label) == '070ds3') then
+          write(*,*) 'Check bp'
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, '070')
+       else
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, data(n)%label)
+       end if
        
        do j = 1, data(n)%ndet
           data(n)%bp(j)%p => comm_bp(cpar, n, i, data(n)%tod%label(j))
