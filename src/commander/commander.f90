@@ -91,6 +91,7 @@ program commander
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle); call update_status(status, "init_from_chain")
 
@@ -274,7 +275,7 @@ contains
        do k = 1, ndelta
           ! Propose new bandpass shifts, and compute mixing matrices
           if (k > 1) then
-             if (cpar%myid == 0) then
+             if (data(i)%info%myid == 0) then
                 do l = 1, npar
                    if (mod(iter,2) == 0) then
                       write(*,*) 'relative',  iter

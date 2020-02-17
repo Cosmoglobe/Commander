@@ -443,15 +443,15 @@ contains
 
        ! Compute symmetry axis
        v0 = 0.d0
-!!$       do i = 2, n_tot
-!!$          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-!!$          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-!!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-!!$          if (v(3) < 0.d0) v  = -v
-!!$          if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
-!!$       end do
-!!$       v0 = v0 / sqrt(v0*v0)
-       v0(1) = 1
+       do i = 2, n_tot
+          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+          if (v(3) < 0.d0) v  = -v
+          if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
+       end do
+       v0 = v0 / sqrt(v0*v0)
+!       v0(1) = 1
        
 
 !!$

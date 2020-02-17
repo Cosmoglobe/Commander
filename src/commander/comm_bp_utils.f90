@@ -76,7 +76,7 @@ contains
 
     if (k_b <= 0.d0 .or. T_CMB <= 0.d0) write(*,*) h, nu, k_b, T_CMB
     x = h*nu / (k_B*T_CMB)
-    if (x < 1d-12) write(*,*) 'x = ', h, nu, k_b, T_CMB, x
+    if (x > 200) write(*,*) 'x = ', h, nu, k_b, T_CMB, x
     compute_ant2thermo_single = (exp(x)-1.d0)**2 / (x**2 * exp(x))
     
   end function compute_ant2thermo_single
