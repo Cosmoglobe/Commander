@@ -90,7 +90,7 @@ contains
     allocate(constructor)
     constructor%myid          = cpar%myid_chain
     constructor%comm          = cpar%comm_chain
-    constructor%numprocs      = cpar%numprocs
+    constructor%numprocs      = cpar%numprocs_chain
     constructor%myid_shared   = cpar%myid_shared
     constructor%comm_shared   = cpar%comm_shared
     constructor%myid_inter    = cpar%myid_inter
@@ -1417,7 +1417,7 @@ contains
     x = h * self%central_freq/(k_B * T_CMB)
     q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
 
-    if (trim(self%label(1)) == '27M') open(58,file='orb_27M.dat')
+!    if (trim(self%label(1)) == '27M') open(58,file='orb_27M.dat')
     do i = 1,self%ndet 
        if (.not. self%scans(ind)%d(i)%accept) cycle
        do j=1,self%scans(ind)%ntod !length of the tod
@@ -1431,26 +1431,26 @@ contains
           !call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
           !rotate v_sun into frame where pointing is along z axis
           !write(*,*) -phi, -theta, -self%psi(psi(i,j)), psi(i,j)
-          p     = self%pix2ind(pix(j,i))
-          theta = self%ind2ang(1,p)
-          phi   = self%ind2ang(2,p)
-          psi_d = self%psi(psi(j,i))
-          !write(*,*), j, phi, theta, psi_d, rot_mat 
-          !call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
-          call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
-          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
-          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
-            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
-            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
-            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
-            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
-            & self%orb_dp_s(i,9) 
-          if (trim(self%label(i)) == '27M') write(58,*) j, s_orb(j,i)+T_CMB *summation, s_orb(j,i), T_CMB *summation
-          s_orb(j,i) = s_orb(j,i) + T_CMB *summation
+!!$          p     = self%pix2ind(pix(j,i))
+!!$          theta = self%ind2ang(1,p)
+!!$          phi   = self%ind2ang(2,p)
+!!$          psi_d = self%psi(psi(j,i))
+!!$          !write(*,*), j, phi, theta, psi_d, rot_mat 
+!!$          !call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
+!!$          call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
+!!$          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
+!!$          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
+!!$            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
+!!$            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
+!!$            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
+!!$            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
+!!$            & self%orb_dp_s(i,9) 
+!!$          if (trim(self%label(i)) == '27M') write(58,*) j, s_orb(j,i)+T_CMB *summation, s_orb(j,i), T_CMB *summation
+          s_orb(j,i) = s_orb(j,i) !+ T_CMB *summation
 
        end do
    end do
-   if (trim(self%label(1)) == '27M') close(58)
+!   if (trim(self%label(1)) == '27M') close(58)
 
   end subroutine compute_orbital_dipole
 
