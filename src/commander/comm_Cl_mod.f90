@@ -4,6 +4,7 @@ module comm_Cl_mod
   use math_tools
   use comm_hdf_mod
   use comm_bp_utils
+  use InvSamp_mod
   implicit none
 
   private
@@ -16,6 +17,14 @@ module comm_Cl_mod
   integer(i4b), parameter :: EB = 5
   integer(i4b), parameter :: BB = 6
   logical(lgt), private   :: only_pol
+
+  type :: Cl_bin
+     integer(i4b)     :: lmin, lmax, spec, nsub, ntot, p1, p2
+     real(dp)         :: sigma
+     character(len=1) :: stat
+     type(Cl_bin), allocatable, dimension(:)   :: sub
+     real(dp),     allocatable, dimension(:,:) :: M_prop
+  end type Cl_bin
   
   type :: comm_Cl
      ! General parameters
@@ -26,6 +35,7 @@ module comm_Cl_mod
      character(len=512)           :: outdir
      integer(i4b)                 :: lmax, nmaps, nspec, l_apod
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+     logical(lgt)                 :: only_pol
      real(dp)                     :: nu_ref(3), RJ2unit(3)
      real(dp),         allocatable, dimension(:,:)   :: Dl
      real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat, sqrtInvS_mat
@@ -34,6 +44,10 @@ module comm_Cl_mod
      integer(i4b) :: nbin
      character(len=1), allocatable, dimension(:,:) :: stat
      integer(i4b), allocatable, dimension(:,:)     :: bins
+
+     ! Variable binsize structure
+     integer(i4b) :: nbin2
+     type(Cl_bin), allocatable, dimension(:)     :: bins2
      
      ! Power law/exponential parameters
      character(len=512) :: plfile
@@ -47,14 +61,20 @@ module comm_Cl_mod
      procedure :: sqrtInvS => matmulSqrtInvS
      procedure :: sampleCls
      procedure :: read_binfile
+     procedure :: read_binfile2
      procedure :: read_Cl_file
      procedure :: binCls
+     procedure :: binCls2
+     procedure :: binCl2
      procedure :: writeFITS
+     procedure :: initHDF
      procedure :: updatePowlaw
      procedure :: updateExponential
      procedure :: updateGaussian
      procedure :: updateS
      procedure :: getCl
+     procedure :: set_Dl_bin
+     procedure :: check_posdef
   end type comm_Cl
 
   interface comm_Cl
@@ -95,7 +115,7 @@ contains
     constructor%outdir = cpar%outdir
     datadir            = cpar%datadir
     nmaps              = constructor%nmaps
-    only_pol           = cpar%only_pol
+    constructor%only_pol = cpar%only_pol
 
     ! Set up conversion factor between RJ and native component unit
     ! D_l is defined in component units, while S, invS etc are defined in RJ
@@ -127,9 +147,10 @@ contains
     allocate(constructor%S_mat(nmaps,nmaps,0:constructor%lmax))
 
     if (trim(constructor%type) == 'binned') then
-       call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
+       !call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
+       call constructor%read_binfile2(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
        call constructor%read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id_abs)))
-       call constructor%binCls
+       call constructor%binCls2
        if (cpar%only_pol) then
           constructor%stat(:,1:3) = '0'
           constructor%Dl(:,TT)     = 0.d0
@@ -140,19 +161,19 @@ contains
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+       call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
     else if (trim(constructor%type) == 'exp') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updateExponential(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+       call constructor%updateExponential(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
     else if (trim(constructor%type) == 'gauss') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updateGaussian(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps), cpar%only_pol)
+       call constructor%updateGaussian(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
     else
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
@@ -163,66 +184,63 @@ contains
   end function constructor
 
 
-  subroutine updatePowlaw(self, amp, beta, only_pol)
+  subroutine updatePowlaw(self, amp, beta)
     implicit none
-    class(comm_Cl),                intent(inout) :: self
-    real(dp),       dimension(1:), intent(in)    :: amp, beta
-    logical(lgt),                  intent(in)    :: only_pol
+    class(comm_Cl),                intent(inout)        :: self
+    real(dp),       dimension(1:), intent(in), optional :: amp, beta
 
     integer(i4b) :: i, j, l, i_min
     
-    self%amp   = amp
-    self%beta  = beta
+    if (present(amp))  self%amp   = amp
+    if (present(beta)) self%beta  = beta
     self%Dl    = 0.d0
-    i_min      = 1; if (only_pol) i_min = 2
+    i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
-          self%Dl(l,j) = amp(i) * (real(l,dp)/real(self%lpiv,dp))**beta(i) 
+          self%Dl(l,j) = self%amp(i) * (real(l,dp)/real(self%lpiv,dp))**self%beta(i) 
        end do
        self%Dl(0,j) = self%Dl(1,j)
     end do
 
   end subroutine updatePowlaw
 
-  subroutine updateExponential(self, amp, beta, only_pol)
+  subroutine updateExponential(self, amp, beta)
     implicit none
     class(comm_Cl),                intent(inout) :: self
-    real(dp),       dimension(1:), intent(in)    :: amp, beta
-    logical(lgt),                  intent(in)    :: only_pol
+    real(dp),       dimension(1:), intent(in), optional    :: amp, beta
 
     integer(i4b) :: i, j, l, i_min
     
-    self%amp   = amp
-    self%beta  = beta
+    if (present(amp))  self%amp   = amp
+    if (present(beta)) self%beta  = beta
     self%Dl    = 0.d0
-    i_min      = 1; if (only_pol) i_min = 2
+    i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
-          self%Dl(l,j) = amp(i) * exp(-beta(i)*(real(l,dp)/real(self%lpiv,dp))) 
+          self%Dl(l,j) = self%amp(i) * exp(-self%beta(i)*(real(l,dp)/real(self%lpiv,dp))) 
        end do
        self%Dl(0,j) = self%Dl(1,j)
     end do
 
   end subroutine updateExponential
 
-  subroutine updateGaussian(self, amp, beta, only_pol)
+  subroutine updateGaussian(self, amp, beta)
     implicit none
     class(comm_Cl),                intent(inout) :: self
-    real(dp),       dimension(1:), intent(in)    :: amp, beta
-    logical(lgt),                  intent(in)    :: only_pol
+    real(dp),       dimension(1:), intent(in), optional :: amp, beta
 
     integer(i4b) :: i, j, l, i_min
     
-    self%amp   = amp
-    self%beta  = beta
+    if (present(amp))  self%amp   = amp
+    if (present(beta)) self%beta  = beta
     self%Dl    = 0.d0
-    i_min      = 1; if (only_pol) i_min = 2
+    i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 0, self%lmax
-          self%Dl(l,j) = amp(i) * exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+          self%Dl(l,j) = self%amp(i) * exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
 !          if (self%info%myid == 0) then
 !             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
 !          end if
@@ -345,6 +363,82 @@ contains
 2   close(unit)
 
   end subroutine read_binfile
+
+  recursive subroutine read_bin(unit, bin, ntot, pos, sigma)
+    implicit none
+    integer(i4b), intent(in)     :: unit
+    type(Cl_bin), intent(inout)  :: bin
+    integer(i4b), intent(out)    :: ntot
+    integer(i4b), intent(inout)  :: pos
+    real(dp), dimension(:), intent(inout) :: sigma
+
+    integer(i4b)     :: i, nsub
+    character(len=2) :: spec
+
+    pos = pos+1
+    read(unit,*) spec, bin%lmin, bin%lmax, bin%nsub, bin%stat, bin%sigma
+    if (bin%sigma <= 0.d0 .and. (bin%stat == 'M' .or. bin%stat == 'S')) then
+       write(*,*) 'Error -- sigma = 0 for active bin in binfile'
+       stop
+    end if
+    sigma(pos) = bin%sigma
+    select case (spec)
+    case ('TT')
+       bin%spec = 1; bin%p1 = 1; bin%p2 = 1
+    case ('TE')
+       bin%spec = 2; bin%p1 = 1; bin%p2 = 2
+    case ('TB')
+       bin%spec = 3; bin%p1 = 1; bin%p2 = 3
+    case ('EE')
+       bin%spec = 4; bin%p1 = 2; bin%p2 = 2
+    case ('EB')
+       bin%spec = 5; bin%p1 = 2; bin%p2 = 3
+    case ('BB')
+       bin%spec = 6; bin%p1 = 3; bin%p2 = 3
+    end select
+
+    ntot = 0; if (bin%stat == 'M') ntot = 1
+    if (bin%nsub == 0) return
+
+    allocate(bin%sub(bin%nsub))
+    do i = 1, bin%nsub
+       call read_bin(unit, bin%sub(i), nsub, pos, sigma)
+       ntot = ntot + nsub
+    end do
+
+  end subroutine read_bin
+
+  subroutine read_binfile2(self, binfile)
+    implicit none
+    class(comm_Cl),   intent(inout) :: self
+    character(len=*), intent(in)  :: binfile
+
+    integer(i4b)       :: unit, l1, l2, n, i, j, pos
+    real(dp), dimension(1000)           :: sigma
+    character(len=2)   :: spec
+    character(len=512) :: line
+    character(len=1), dimension(6) :: stat
+
+    unit = getlun()
+
+    ! Find number of bins
+    open(unit,file=trim(binfile))
+    read(unit,*) self%nbin2
+    allocate(self%bins2(self%nbin2))
+    do i = 1, self%nbin2
+       pos = 0
+       call read_bin(unit, self%bins2(i), n, pos, sigma)
+       self%bins2(i)%ntot = n
+       allocate(self%bins2(i)%M_prop(n,n))
+       self%bins2(i)%M_prop = 0.d0
+       do j = 1, n
+          self%bins2(i)%M_prop(j,j) = sigma(j)
+       end do
+    end do
+    close(unit)
+
+  end subroutine read_binfile2
+
 
   subroutine matmulS(self, map, alm, info)
     implicit none
@@ -583,36 +677,79 @@ contains
     
   end subroutine binCls
 
-  subroutine sampleCls(self, map, handle)
+  recursive subroutine binCl2(self, bin)
+    implicit none
+    class(comm_Cl), intent(inout) :: self
+    type(Cl_bin),   intent(in)    :: bin
+
+    real(dp)     :: val, n
+    integer(i4b) :: j, k, l
+
+    val = 0.d0
+    n   = 0.d0
+    do l = bin%lmin, bin%lmax
+       val = val + (2*l+1) * self%Dl(l,bin%spec)
+       n   = n   + 2*l+1
+    end do
+    self%Dl(bin%lmin:bin%lmax,bin%spec) = val/n
+    !write(*,*) bin%spec, bin%lmax, bin%lmax, self%Dl(bin%lmin:bin%lmax,bin%spec)
+    
+    do k = 1, bin%nsub
+       call self%binCl2(bin%sub(k))
+    end do
+
+  end subroutine binCl2
+
+  subroutine binCls2(self)
+    implicit none
+    class(comm_Cl), intent(inout) :: self
+
+    integer(i4b) :: k
+
+    do k = 1, self%nbin2
+       call self%binCl2(self%bins2(k))
+    end do
+    
+  end subroutine binCls2
+
+
+  subroutine sampleCls(self, map, handle, ok)
     implicit none
     class(comm_Cl),  intent(inout) :: self
     class(comm_map), intent(in)    :: map
     type(planck_rng), intent(inout) :: handle
+    logical(lgt),     intent(inout) :: ok
+
+!    return
 
     select case (trim(self%type))
     case ('none')
        return
     case ('binned')
-       call sample_Cls_inverse_wishart(self, map, handle)
+       !call sample_Cls_inverse_wishart(self, map, handle, ok)
+       call sample_Cls_inverse_wishart2(self, map, handle, ok)
     case ('power_law')
-       call sample_Cls_powlaw(self, map)
+       call sample_Cls_powlaw(self, map, ok)
     case ('exp')
-       call sample_Cls_powlaw(self, map)
+       call sample_Cls_powlaw(self, map, ok)
     end select
 
-    call self%updateS
+    if (ok) call self%updateS
     
   end subroutine sampleCls
 
-  subroutine sample_Cls_inverse_wishart(self, map, handle)
+  subroutine sample_Cls_inverse_wishart(self, map, handle, ok)
     implicit none
     class(comm_Cl),   intent(inout) :: self
     class(comm_map),  intent(in)    :: map
     type(planck_rng), intent(inout) :: handle
+    logical(lgt),     intent(inout) :: ok
 
-    integer(i4b) :: bin, b, i, j, k, l, m, n, p, ind, b1, b2, col, ierr
+    integer(i4b) :: bin, b, i, j, k, l, m, n, p, ind, b1, b2, col, ierr, n_attempt
+    logical(lgt) :: posdef
     logical(lgt), allocatable, dimension(:,:) :: pattern
     integer(i4b), allocatable, dimension(:) :: i2p
+    real(dp), allocatable, dimension(:)     :: W
     real(dp), allocatable, dimension(:,:)   :: y, y_t
     real(dp), allocatable, dimension(:,:)   :: C_b
     real(dp), allocatable, dimension(:,:)   :: sigma, s, sigma_l
@@ -625,7 +762,6 @@ contains
        allocate(sigma(self%nmaps,self%nmaps), pattern(self%nmaps,self%nmaps))
 
        do bin = 1, self%nbin
-          write(*,*) bin, self%stat(bin,:)
           if (.not. any(self%stat(bin,:) == 'S') .and. .not. any(self%stat(bin,:) == 'M')) cycle
           
           sigma = 0.d0
@@ -656,7 +792,6 @@ contains
                 k            = k+1
              end do
           end do
-          write(*,*) bin, pattern
 
           ! Keep sampling until all elements have been treated
           do while (any(pattern))
@@ -667,7 +802,7 @@ contains
 
              ! Extract the appropriate segment
              p = count(pattern(:,col))
-             allocate(s(p,p), y(p,1), y_t(1,p), i2p(p), C_b(p,p))
+             allocate(s(p,p), y(p,1), y_t(1,p), i2p(p), C_b(p,p), W(p))
              j = 1
              do i = 1, self%nmaps
                 if (pattern(i,col)) then
@@ -676,20 +811,48 @@ contains
                 end if
              end do
              s = sigma(i2p,i2p)
-             write(*,*) bin, s
+             if (all(s == 0.d0)) then
+                pattern(i2p,i2p) = .false.
+                deallocate(s, y, y_t, i2p, C_b, W)
+                cycle
+             end if
+
              call invert_matrix(s)
-             call cholesky_decompose_single(s)
+             call cholesky_decompose_single(s, ierr=ierr)
+             if (ierr /= 0) then
+                s = sigma(i2p,i2p)
+                write(*,*) 'Error: Failed to cholesky decomp s, bin = ', bin, s, ierr
+                deallocate(s, y, y_t, i2p, C_b, W)
+                ok = .false.
+                exit
+             end if
              
              ! Draw sample
-             C_b = 0.d0
-             do i = 1, n - p - 1
-                do j = 1, p
-                   y(j,1) = rand_gauss(handle)
+             C_b       = 0.d0
+             posdef    = .false.
+             n_attempt = 0
+             do while (.not. posdef)
+                do i = 1, n - p - 1
+                   do j = 1, p
+                      y(j,1) = rand_gauss(handle)
+                   end do
+                   y_t(1,:) = matmul(s, y(:,1))
+                   y(:,1)   = y_t(1,:)
+                   C_b      = C_b + matmul(y(:,1:1), y_t(1:1,:))
                 end do
-                y_t(1,:) = matmul(s, y(:,1))
-                y(:,1)   = y_t(1,:)
-                C_b      = C_b + matmul(y(:,1:1), y_t(1:1,:))
+                call get_eigenvalues(C_b, W)
+                posdef    = all(W > 1d-12)
+                n_attempt = n_attempt+1
+                if (n_attempt > 100) then
+                   write(*,*) 'Error: Failed to sample positive definite C_b matrix in 100 attempts, bin = ', bin
+                   ok = .false.
+                   exit
+                end if
              end do
+             if (.not. ok) then
+                deallocate(s, y, y_t, i2p, C_b, W)
+                exit
+             end if
              call invert_matrix(C_b)
 
              ! Copy information over to output Dl array
@@ -697,30 +860,183 @@ contains
                 do j = i, p
                    ind = i2p(i)*(1-i2p(i))/2 + (i2p(i)-1)*self%nmaps + i2p(j)
                    self%Dl(self%bins(bin,1):self%bins(bin,2),ind) = C_b(i,j) 
-                   write(*,*) bin, i, j, C_b(i,j), sigma_l(self%bins(bin,1),ind) * self%bins(bin,1)*(self%bins(bin,1)+1)/2/pi
+                   !write(*,*) bin, i, j, C_b(i,j), sigma_l(self%bins(bin,1),ind) * self%bins(bin,1)*(self%bins(bin,1)+1)/2/pi
                 end do
              end do
           
              ! Remove current elements from pattern, and prepare for next round
              pattern(i2p,i2p) = .false.
-             deallocate(s, y, y_t, i2p, C_b)
+             deallocate(s, y, y_t, i2p, C_b, W)
              
           end do
+          if (.not. ok) exit
        end do
        deallocate(sigma, pattern)
     end if
 
+    call mpi_bcast(ok,      1,             MPI_LOGICAL,          0, self%info%comm, ierr)
     call mpi_bcast(self%Dl, size(self%Dl), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
     deallocate(sigma_l)
 
   end subroutine sample_Cls_inverse_wishart
 
-  subroutine sample_Cls_powlaw(self, map)
+  subroutine sample_Cls_inverse_wishart2(self, map, handle, ok)
+    implicit none
+    class(comm_Cl),   intent(inout) :: self
+    class(comm_map),  intent(in)    :: map
+    type(planck_rng), intent(inout) :: handle
+    logical(lgt),     intent(inout) :: ok
+
+    integer(i4b) :: i, j, l, bin, ierr
+    real(dp), allocatable, dimension(:)     :: ln_det_sigma_l
+    real(dp), allocatable, dimension(:,:)   :: sigma, s
+    real(dp), allocatable, dimension(:,:,:) :: sigma_l
+
+    ! Local parameters for lnL
+    integer(i4b) :: lmin, lmax, spec, p1, p2
+
+    allocate(sigma_l(self%nmaps,self%nmaps,0:self%lmax))
+    allocate(ln_det_sigma_l(0:self%lmax))
+
+    call map%getSigmaL(sigma_l_mat=sigma_l)
+    do l = 0, self%lmax
+       do i = 1, self%nmaps
+          if (sigma_l(i,i,l) == 0.d0) sigma_l(i,i,l) = 1.d0
+       end do
+       !write(*,*) l, sum(abs(sigma_l(:,:,l)))
+       ln_det_sigma_l(l) = log_det(sigma_l(:,:,l))
+    end do
+
+    if (self%info%myid == 0) then
+       do i = 1, self%nbin2
+          call sample_Dl_bin(self%bins2(i), handle, ok)
+!          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
+       end do
+    end if
+
+    call mpi_bcast(self%Dl, size(self%Dl), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    !call mpi_allreduce(MPI_IN_PLACE, self%Dl, size(self%Dl), MPI_DOUBLE_PRECISION, &
+    !     & MPI_SUM, self%info%comm, ierr)
+    !call self%updateS()
+
+!!$    if (self%info%myid == 0) then
+!!$       do i = 1, self%nbin2
+!!$          write(*,*) self%bins2(i)%lmin, self%bins2(i)%lmax, self%Dl(self%bins2(i)%lmin,1)
+!!$       end do
+!!$    end if
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+    deallocate(sigma_l, ln_det_sigma_l)
+
+  contains
+
+    recursive subroutine sample_Dl_bin(bin, handle, ok)
+      implicit none
+      type(Cl_bin),                       intent(in)    :: bin
+      type(planck_rng),                   intent(inout) :: handle
+      logical(lgt),                       intent(inout) :: ok
+    
+      integer(i4b) :: i, j, k, l, status
+      real(dp)     :: Dl_prop, Dl_in(3)
+      real(dp)     :: prior(2)
+      
+      !write(*,*) bin%lmin, bin%lmax, bin%spec
+
+      if (.not. ok) return
+      if (bin%stat == 'S') then
+         ! Set up prior = positive definite Dl; thus is not exact for TEB
+         prior    = [-1.d5, 1.d5]
+         do l = bin%lmin, bin%lmax
+            select case (bin%spec)
+            case (1)
+               prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
+            case (2)
+               prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4)))
+               prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4)))
+            case (3)
+               prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6)))
+               prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6)))
+            case (4)
+               prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+            case (5)
+               prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6)))
+               prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6)))
+            case (6)
+               prior(1) = max(prior(1), 0.d0)
+            end select
+         end do
+         Dl_in(2) = self%Dl(bin%lmin,bin%spec)
+         Dl_in(1) = max(Dl_in(2) - 3*bin%sigma, 0.5d0*(Dl_in(2)+prior(1)))
+         Dl_in(3) = min(Dl_in(2) + 3*bin%sigma, 0.5d0*(Dl_in(2)+prior(2)))
+
+         ! Draw sample
+         lmin=bin%lmin; lmax=bin%lmax; spec=bin%spec; p1=bin%p1; p2=bin%p2
+         Dl_prop = sample_InvSamp(handle, Dl_in, lnL_invWishart, prior, status)
+      
+         ! Update
+         write(*,*) lmin, lmax, Dl_prop, status
+         !stop
+         if (status == 0) then
+            self%Dl(bin%lmin:bin%lmax,bin%spec) = Dl_prop
+         else
+            ok = .false.
+         end if
+
+      end if
+
+      ! Sample all sub-bins
+      do i = 1, bin%nsub
+         call sample_Dl_bin(bin%sub(i), handle, ok)
+      end do
+
+    end subroutine sample_Dl_bin
+
+    function lnL_invWishart(x)
+      use healpix_types
+      implicit none
+      real(dp), intent(in) :: x
+      real(dp)             :: lnL_invWishart
+      
+      integer(i4b) :: i, l, n, status
+      real(dp)     :: ln_det_S
+      real(dp), allocatable, dimension(:,:)   :: S
+      
+      allocate(S(self%nmaps,self%nmaps))
+      
+      lnL_invWishart = 0.d0
+      do l = lmin, lmax
+         S        = self%S_mat(:,:,l)
+         S(p1,p2) = x / (l*(l+1)/2.d0/pi*self%RJ2unit(p1)*self%RJ2unit(p2))
+         S(p2,p1) = S(p1,p2)
+         do i = 1, self%nmaps
+            if (S(i,i) == 0.d0) S(i,i) = 1.d0
+         end do
+         n = count(S(:,p1)/= 0.d0)
+         call invert_matrix(S, cholesky=.true., status=status, ln_det=ln_det_S)
+         if (status /= 0) then
+            deallocate(S)
+            lnL_invWishart = -1.d30
+            return
+         end if
+         lnL_invWishart = lnL_invWishart - 0.5d0 * (real(2*l+1,dp) * ln_det_S + &
+              & real(2*l+1,dp)*trace_sigma_inv_Cl(sigma_l(:,:,l), S))
+      end do
+
+      !write(*,*) x, lnL_invWishart
+      
+      deallocate(S)
+
+    end function lnL_invWishart
+    
+  end subroutine sample_Cls_inverse_wishart2
+
+  subroutine sample_Cls_powlaw(self, map, ok)
     implicit none
     class(comm_Cl),  intent(inout) :: self
     class(comm_map), intent(in)    :: map
-    
+    logical(lgt),     intent(inout) :: ok    
     
   end subroutine sample_Cls_powlaw
 
@@ -831,6 +1147,33 @@ contains
     
   end subroutine write_powlaw_to_FITS
 
+
+  subroutine initHDF(self, hdffile, hdfpath)
+    implicit none
+    class(comm_Cl),   intent(inout) :: self
+    type(hdf_file),   intent(in)    :: hdffile
+    character(len=*), intent(in)    :: hdfpath
+
+    if (trim(self%type) == 'none') return
+    select case (trim(self%type))
+    case ('none')
+       return
+    case ('binned')
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl', self%Dl)
+    case ('power_law')
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+       call self%updatePowLaw()
+    case ('exp')
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+       call self%updateExponential()
+    end select
+    call self%updateS()
+
+  end subroutine initHDF
+
+
   subroutine write_sigma_l(filename, sigma_l)
     implicit none
     character(len=*),                   intent(in) :: filename
@@ -876,5 +1219,119 @@ contains
     getCl = getCl * get_Cl_apod(l, self%l_apod, self%lmax, .true.)**2
 
   end function getCl
-  
+
+  recursive subroutine set_Dl_bin(self, bin, Dl, pos, put)
+    implicit none
+    class(comm_Cl),                intent(inout) :: self
+    type(Cl_bin),                  intent(in)    :: bin
+    real(dp),       dimension(1:), intent(inout) :: Dl
+    integer(i4b),                  intent(inout) :: pos
+    logical(lgt),                  intent(in)    :: put
+    
+    integer(i4b) :: i
+
+    if (bin%stat /= 'M') return
+    pos     = pos+1
+!    write(*,*) pos, bin%lmin, bin%spec, Dl(pos)
+    if (put) then
+       self%Dl(bin%lmin:bin%lmax,bin%spec) = Dl(pos)
+    else
+       Dl(pos) = self%Dl(bin%lmin,bin%spec)
+    end if
+
+    do i = 1, bin%nsub
+       call self%set_Dl_bin(bin%sub(i), Dl, pos, put)
+    end do
+    
+  end subroutine set_Dl_bin
+
+  function check_posdef(self, bin, Dl)
+    implicit none
+    class(comm_Cl),                intent(in) :: self
+    integer(i4b),                  intent(in) :: bin
+    real(dp),       dimension(1:), intent(in) :: Dl
+    logical(lgt)                              :: check_posdef
+
+    integer(i4b) :: i, l, pos
+    real(dp), allocatable, dimension(:)     :: w
+    real(dp), allocatable, dimension(:,:,:) :: S
+
+    allocate(S(self%nmaps, self%nmaps, self%bins2(bin)%lmin:self%bins2(bin)%lmax))
+    allocate(w(self%nmaps))
+
+    do l = self%bins2(bin)%lmin, self%bins2(bin)%lmax
+       S(:,:,l) = self%S_mat(:,:,l)
+    end do
+
+    pos = 0
+    call update_S(self%bins2(bin), pos, Dl, self%bins2(bin)%lmin, S)
+    
+    check_posdef = .true.
+    do l = self%bins2(bin)%lmin, self%bins2(bin)%lmax
+       do i = 1, self%nmaps
+          if(S(i,i,l) == 0.d0) S(i,i,l) = 1.d0
+       end do
+!!$       write(*,*) l
+!!$       do i = 1, self%nmaps
+!!$          write(*,*) real(S(i,:,l),sp)
+!!$       end do
+       call get_eigenvalues(S(:,:,l), w)
+!!$       write(*,*) any(w<0.d0)
+!!$       write(*,*) 
+       if (any(w < 0.d0)) then
+          check_posdef = .false.
+          exit
+       end if
+    end do
+
+    deallocate(S, w)
+
+  contains
+
+    recursive subroutine update_S(bin, pos, Dl, lmin, S)
+      implicit none
+      type(Cl_bin),                         intent(in)    :: bin
+      integer(i4b),                         intent(inout) :: pos
+      real(dp),     dimension(1:),          intent(in)    :: Dl
+      integer(i4b),                         intent(in)    :: lmin
+      real(dp),     dimension(1:,1:,lmin:), intent(inout) :: S
+
+      integer(i4b) :: l, i, j
+
+      select case (bin%spec)
+      case (1)
+         i = 1; j = 1
+      case (2)
+         i = 1; j = 2
+      case (3)
+         i = 1; j = 3
+      case (4)
+         i = 2; j = 2
+      case (5)
+         i = 2; j = 3
+      case (6)
+         i = 3; j = 3
+      case default
+         write(*,*) 'Unsupported spectrum id'
+         stop
+      end select
+
+      if (bin%stat == 'M') then
+         pos    = pos+1
+         do l = bin%lmin, bin%lmax
+            S(i,j,l) = Dl(pos) / (l*(l+1)/(2.d0*pi)) / (self%RJ2unit(i)*self%RJ2unit(j))
+            S(j,i,l) = S(i,j,l)
+         end do
+      end if
+
+      do i = 1, bin%nsub
+         call update_S(bin%sub(i), pos, Dl, lmin, S)
+      end do
+
+    end subroutine update_S
+
+  end function check_posdef
+    
+
+
 end module comm_Cl_mod

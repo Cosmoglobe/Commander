@@ -9,22 +9,24 @@ module comm_N_mod
   type, abstract :: comm_N
      ! Data variables
      character(len=512)       :: type
-     integer(i4b)             :: nside, nmaps, np, npix, myid, comm, nprocs
+     integer(i4b)             :: nside, nside_lowres, nmaps, np, npix, myid, comm, nprocs
      logical(lgt)             :: pol
      logical(lgt)             :: set_noise_to_mean
      character(len=512)       :: cg_precond
      real(dp)                 :: uni_fsky
      real(dp), allocatable, dimension(:) :: alpha_nu ! (T,Q,U)
-     class(comm_map), pointer :: invN_diag
-     class(comm_mapinfo), pointer :: info
+     class(comm_map),     pointer :: invN_diag => null()
+     class(comm_map),     pointer :: rms_reg   => null()
+     class(comm_mapinfo), pointer :: info      => null()
    contains
      ! Data procedures
-     procedure(matmulInvN),     deferred :: invN
-     procedure(matmulN),        deferred :: N
-     procedure(matmulSqrtInvN), deferred :: sqrtInvN
-     procedure(returnRMS),      deferred :: rms
-     procedure(returnRMSpix),   deferred :: rms_pix
-     procedure(update_N),       deferred :: update_N
+     procedure(matmulInvN),       deferred :: invN
+     procedure(matmulInvNlowres), deferred :: invN_lowres
+     procedure(matmulN),          deferred :: N
+     procedure(matmulSqrtInvN),   deferred :: sqrtInvN
+     procedure(returnRMS),        deferred :: rms
+     procedure(returnRMSpix),     deferred :: rms_pix
+     procedure(update_N),         deferred :: update_N
   end type comm_N
 
   abstract interface
@@ -35,6 +37,14 @@ module comm_N_mod
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
      end subroutine matmulInvN
+
+     ! Return map_out = invN * map
+     subroutine matmulInvNlowres(self, map)
+       import comm_map, comm_N, dp, i4b
+       implicit none
+       class(comm_N),   intent(in)             :: self
+       class(comm_map), intent(inout)          :: map
+     end subroutine matmulInvNlowres
 
      ! Return map_out = N * map
      subroutine matmulN(self, map)
@@ -92,9 +102,8 @@ contains
 
     class(comm_map),  intent(inout) :: invN_diag
 
-    real(dp)     :: l0min, l0max, l1min, l1max, npix, checksum, t1, t2
-    integer(i4b) :: i, j, k, l, m, lp, l2, ier, twolmaxp2, pos, lmax, unit
-    logical(lgt) :: exist, ok
+    real(dp)     :: l0min, l0max, l1min, l1max, npix, t1, t2
+    integer(i4b) :: j, l, m, lp, l2, ier, twolmaxp2, pos, lmax
     complex(dpc) :: val(invN_diag%info%nmaps)
     real(dp), allocatable, dimension(:)   :: threej_symbols, threej_symbols_m0
     real(dp), allocatable, dimension(:,:) :: N_lm, a_l0
@@ -128,7 +137,7 @@ contains
           call DRC3JJ(real(l,dp), real(l,dp), real(-m,dp), real(m,dp), l1min, l1max, &
                & threej_symbols, twolmaxp2, ier)
              
-          val = cmplx(0.d0,0.d0)
+          val = dcmplx(0.d0,0.d0)
           do l2 = 1, nint(l1max-l1min)+1
              lp = nint(l1min) + l2 - 1
              if (lp > lmax) exit

@@ -53,12 +53,13 @@ contains
   end subroutine invert_matrix_dpc
 
 
-  subroutine invert_matrix_dp(matrix, cholesky, status)
+  subroutine invert_matrix_dp(matrix, cholesky, status, ln_det)
     implicit none
 
     real(dp), dimension(1:,1:), intent(inout)         :: matrix
     logical(lgt),               intent(in),  optional :: cholesky
     integer(i4b),               intent(out), optional :: status
+    real(dp),                   intent(out), optional :: ln_det
 
     integer(i4b)     :: i, j, n, lda, info, lwork
     logical(lgt)     :: use_cholesky
@@ -78,6 +79,17 @@ contains
 
     if (use_cholesky) then
        call DPOTRF(uplo, n, matrix, lda, info)
+       if (present(ln_det)) then
+          ln_det = 0.d0
+          do i = 1, n
+             if (matrix(i,i) > 0.d0) then
+                ln_det = ln_det + 2.d0*log(matrix(i,i))
+             else
+                ln_det = -1.d30
+                exit
+             end if
+          end do
+       end if
     else
        call DGETRF(n, n, matrix, lda, ipiv, info)
     end if
@@ -204,7 +216,7 @@ contains
     real(dp), dimension(:,:), intent(in)  :: A
     real(dp), dimension(:,:), intent(out) :: Across
 
-    integer(i4b) :: i, j, m, n, lwork, info, q
+    integer(i4b) :: i, m, n, lwork, info
     real(dp)     :: threshold
     real(dp),     allocatable, dimension(:)   :: work, S
     real(dp),     allocatable, dimension(:,:) :: Atmp, U, Vt, Sigma
@@ -264,7 +276,7 @@ contains
     real(dp), dimension(:,:), intent(in)  :: A
     real(dp), dimension(:,:), intent(out) :: Across
 
-    integer(i4b) :: i, m, n, lwork, info, q
+    integer(i4b) :: i, m, n, lwork, info
     logical(lgt), allocatable, dimension(:)   :: mask
     real(dp),     allocatable, dimension(:)   :: tau, work
     real(dp),     allocatable, dimension(:,:) :: Atmp, R
@@ -485,9 +497,7 @@ contains
 
     integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
     character(len=1) :: job, uplo
-    real(dp)         :: cutoff_int, t1, t2
-    real(dp),     allocatable, dimension(:,:) :: A_int
-    real(dp),     allocatable, dimension(:)   :: W, work
+    real(dp),     allocatable, dimension(:)   :: work
     integer(i4b), allocatable, dimension(:)   :: iwork    
 
     job    = 'v'
@@ -502,10 +512,8 @@ contains
     ! Perform eigenvalue decomposition
     allocate(work(lwork))
     allocate(iwork(liwork))
-    call cpu_time(t1)
     eigenvectors = matrix
     call dsyevd(job, uplo, n, eigenvectors, lda, eigenvals, work, lwork, iwork, liwork, info)
-    call cpu_time(t2)
     if (info /= 0) then
        write(*,*) 'get_eigen_decomposition -- dsyevd info = ', info
        do i = 1, n
@@ -528,7 +536,7 @@ contains
     integer(i4b)     :: n, liwork, lwork, lda, info
     character(len=1) :: job, uplo
     real(dp),     allocatable, dimension(:,:) :: A_copy
-    real(dp),     allocatable, dimension(:)   :: W, work
+    real(dp),     allocatable, dimension(:)   :: work
     integer(i4b), allocatable, dimension(:)   :: iwork    
 
     n      = size(eigenvals)
@@ -551,16 +559,12 @@ contains
        lwork  = 2*n+1
 
        ! Perform eigenvalue decomposition
-       allocate(work(lwork))
-       allocate(iwork(liwork))
-       allocate(A_copy(n,n))
+       allocate(work(lwork), iwork(liwork), A_copy(n,n))
        A_copy = A
        call dsyevd(job, uplo, n, A_copy, lda, eigenvals, work, lwork, iwork, liwork, info)
        if (info /= 0) write(*,*) 'get_eigenvalues -- dsyevd info = ', info
        
-       deallocate(work)
-       deallocate(iwork)
-       deallocate(A_copy)
+       deallocate(work, iwork, A_copy)
 
     end if
 
@@ -585,9 +589,8 @@ contains
     real(dp),                   intent(in)    :: pow
     real(dp), dimension(1:,1:), intent(inout) :: A
 
-    integer(i8b)     :: i, j, n, liwork, lwork, lda, ldb, info
+    integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
     character(len=1) :: job, uplo
-    real(dp)         :: cutoff_int
     real(dp),     allocatable, dimension(:,:) :: V
     real(dp),     allocatable, dimension(:)   :: W, work
     integer(i4b), allocatable, dimension(:)   :: iwork    
@@ -636,10 +639,8 @@ contains
     real(dp),                   intent(in),    optional :: pow2
     real(dp), dimension(1:,1:), intent(inout), optional :: A2
 
-    integer(i8b)     :: i, j, n, liwork, lwork, lda, ldb, info
-    integer(i4b)     :: nomp, nomp_old
+    integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
     character(len=1) :: job, uplo
-    real(dp)         :: cutoff_int
     real(dp),     allocatable, dimension(:,:) :: V, WVt
     real(dp),     allocatable, dimension(:)   :: W, work
     integer(i4b), allocatable, dimension(:)   :: iwork
@@ -723,45 +724,45 @@ contains
   ! Bo Einarssons F90-manual.
   !------------------------------------------------------------------
 
-  subroutine solve_system(A, X, B)
-    implicit none
-
-    complex(dpc), dimension (:, :)               :: A
-    complex(dpc), dimension (:)                  :: X
-    complex(dpc), dimension (:)                  :: B
-
-    complex(dpc), dimension(size(B), size(B)+1)  :: m
-    integer, dimension (1)                       :: max_loc
-    complex(dpc), dimension(size(B)+1)           :: temp_row
-    integer                                      :: N, K, I 
-    N = size (B)
-    m (1:N, 1:N) = A
-    m (1:N, N+1) = B 
-    
-    do K = 1, N - 1
-
-       max_loc = maxloc (abs (m (K:N, K)))
-       if ( max_loc(1) /= 1 ) then
-          temp_row (K:N+1 ) = m (K, K:N+1)
-          m (K, K:N+1)= m (K-1+max_loc(1), K:N+1)
-          m (K-1+max_loc(1), K:N+1) = temp_row( K:N+1)
-       end if
-
-       temp_row (K+1:N) = m (K+1:N, K) / m (K, K)
-       do I = K+1, N
-          m (I, K+1:N+1) = m (I, K+1:N+1) - &
-               temp_row (I) * m (K, K+1:N+1)
-       end do
-       m (K+1:N, K) = cmplx(0.d0,0.d0)
-
-    end do 
-
-    do K = N, 1, -1
-       X (K) = ( m (K, N+1) - &
-            sum (m (K, K+1:N) * X (K+1:N)) ) / m (K, K)
-    end do
-
-  end subroutine 
+!!$  subroutine solve_system(A, X, B)
+!!$    implicit none
+!!$
+!!$    complex(dpc), dimension (:, :)               :: A
+!!$    complex(dpc), dimension (:)                  :: X
+!!$    complex(dpc), dimension (:)                  :: B
+!!$
+!!$    complex(dpc), dimension(size(B), size(B)+1)  :: m
+!!$    integer, dimension (1)                       :: max_loc
+!!$    complex(dpc), dimension(size(B)+1)           :: temp_row
+!!$    integer                                      :: N, K, I 
+!!$    N = size (B)
+!!$    m (1:N, 1:N) = A
+!!$    m (1:N, N+1) = B 
+!!$    
+!!$    do K = 1, N - 1
+!!$
+!!$       max_loc = maxloc (abs (m (K:N, K)))
+!!$       if ( max_loc(1) /= 1 ) then
+!!$          temp_row (K:N+1 ) = m (K, K:N+1)
+!!$          m (K, K:N+1)= m (K-1+max_loc(1), K:N+1)
+!!$          m (K-1+max_loc(1), K:N+1) = temp_row( K:N+1)
+!!$       end if
+!!$
+!!$       temp_row (K+1:N) = m (K+1:N, K) / m (K, K)
+!!$       do I = K+1, N
+!!$          m (I, K+1:N+1) = m (I, K+1:N+1) - &
+!!$               temp_row (I) * m (K, K+1:N+1)
+!!$       end do
+!!$       m (K+1:N, K) = cmplx(0.d0,0.d0)
+!!$
+!!$    end do 
+!!$
+!!$    do K = N, 1, -1
+!!$       X (K) = ( m (K, N+1) - &
+!!$            sum (m (K, K+1:N) * X (K+1:N)) ) / m (K, K)
+!!$    end do
+!!$
+!!$  end subroutine 
 
 
   subroutine invert_singular_matrix(matrix, threshold)
@@ -915,7 +916,7 @@ contains
     REAL(DP),     DIMENSION(0:nlmax), INTENT(OUT) :: plm
     
     INTEGER(I4B) :: nmmax
-    INTEGER(I4B) l, ith, indl, mm               !, m ...  alm related
+    INTEGER(I4B) l, mm               !, m ...  alm related
     
     REAL(DP) sq4pi_inv
     REAL(DP) cth, sth
@@ -923,7 +924,6 @@ contains
     REAL(DP) f2m, fm2, fl2
     
     Character(LEN=7), PARAMETER :: code = 'ALM2MAP'
-    INTEGER(I4B) :: status
     
     REAL(DP), PARAMETER :: bignorm = 1.d-20*max_dp
     !=======================================================================
@@ -1024,7 +1024,7 @@ contains
     real(dp), intent(out) :: sigma
 
     integer(i4b)   :: maxit, j
-    real(dp)       :: dx, fr, fl, fm, xl, xr, xm
+    real(dp)       :: fr, fl, fm, xl, xr, xm
 
     maxit = 40
 
@@ -1075,7 +1075,7 @@ contains
     real(sp), intent(out) :: sigma
 
     integer(i4b)   :: maxit, j
-    real(dp)       :: dx, fr, fl, fm, xl, xr, xm
+    real(dp)       :: fr, fl, fm, xl, xr, xm
 
     maxit = 40
 
@@ -1112,7 +1112,7 @@ contains
           write(*,*) 'ERROR: Too many iterations in the fract2sigma search'
        end if
 
-       sigma = sqrt(2.) * xm
+       sigma = sqrt(2.0) * real(xm,sp)
 
     end if
 
@@ -1127,17 +1127,146 @@ contains
     real(dp) :: ans, z, t
 
     z = abs(x)
-    t=1./(1.+0.5*z)
-    ans = t*exp(-z*z-1.26551223+t*(1.00002368+t*(0.37409196+t*(0.09678418+&
-         & t*(-0.18628806+t*(0.27886807+t*(-1.13520398+t*(1.48851587+&
-         & t*(-0.82215223+t*0.17087277)))))))))
-    if (x >= 0.) then
-       corr_erf = 1.-ans
+    t=1.d0/(1.d0+0.5d0*z)
+    ans = t*exp(-z*z-1.26551223d0+t*(1.00002368d0+t*(0.37409196d0+t*(0.09678418d0+&
+         & t*(-0.18628806d0+t*(0.27886807d0+t*(-1.13520398d0+t*(1.48851587d0+&
+         & t*(-0.82215223d0+t*0.17087277d0)))))))))
+    if (x >= 0.d0) then
+       corr_erf = 1.d0-ans
     else
-       corr_erf = ans - 1.
+       corr_erf = ans - 1.d0
     end if
 
   end function corr_erf
+
+  subroutine compute_inv_Cl_and_determ(cls, inv_Cl, log_det_Cl)
+    implicit none
+
+    real(dp), dimension(1:,1:), intent(in)  :: cls
+    real(dp), dimension(1:,1:), intent(out) :: inv_Cl
+    real(dp),                   intent(out) :: log_det_Cl
+
+    integer(i4b) :: p
+
+    p = size(cls(1,:))
+
+    if (p == 1) then
+
+       inv_Cl(1,1) = 1.d0 / cls(1,1)
+       log_det_Cl  = log(cls(1,1))
+
+    else if (p == 2) then
+
+       inv_Cl(1,1) =  cls(2,2)
+       inv_Cl(1,2) = -cls(1,2)
+       inv_Cl(2,1) = -cls(2,1)
+       inv_Cl(2,2) =  cls(1,1)
+       inv_Cl      = inv_Cl / (cls(1,1)*cls(2,2) - cls(2,1)**2)
+
+       log_det_Cl  = log(cls(1,1)*cls(2,2) - cls(2,1)**2)
+
+    else if (p == 3) then
+
+       ! Cholesky decompose Cl
+       inv_Cl = 0.d0
+       
+       inv_Cl(1,1) = sqrt(cls(1,1))
+       inv_Cl(2,1) = cls(1,2) / inv_Cl(1,1)
+       inv_Cl(3,1) = cls(1,3) / inv_Cl(1,1)
+       inv_Cl(2,2) = sqrt(cls(2,2) - inv_Cl(2,1)**2)
+!       write(*,*) real(cls(2,3),sp), real(inv_Cl(2,1),sp), real(inv_Cl(3,1),sp), real(inv_Cl(2,2),sp)
+       inv_Cl(3,2) = (cls(2,3) - inv_Cl(2,1)*inv_Cl(3,1)) / inv_Cl(2,2)
+       inv_Cl(3,3) = sqrt(cls(3,3) - inv_Cl(3,1)**2 - inv_Cl(3,2)**2)
+       
+       log_det_Cl = 2.d0 * (log(inv_Cl(1,1)) + log(inv_Cl(2,2)) + log(inv_Cl(3,3)))
+       
+       inv_Cl(1,1) = 1.d0 / inv_Cl(1,1)
+       inv_Cl(2,2) = 1.d0 / inv_Cl(2,2)
+       inv_Cl(3,3) = 1.d0 / inv_Cl(3,3)
+       
+       inv_Cl(3,1) = inv_Cl(3,2)*inv_Cl(2,1) * inv_Cl(1,1)*inv_Cl(2,2)*inv_Cl(3,3) - &
+            & inv_Cl(3,1) * inv_Cl(1,1) * inv_Cl(3,3)
+       inv_Cl(3,2) = -inv_Cl(3,2) * inv_Cl(2,2)*inv_Cl(3,3)
+       inv_Cl(2,1) = -inv_Cl(2,1) * inv_Cl(1,1)*inv_Cl(2,2)
+       
+       inv_Cl(1,1) = inv_Cl(1,1)**2 + inv_Cl(2,1)**2 + inv_Cl(3,1)**2
+       inv_Cl(1,2) = inv_Cl(2,1)*inv_Cl(2,2) + inv_Cl(3,1)*inv_Cl(3,2)
+       inv_Cl(1,3) = inv_Cl(3,1)*inv_Cl(3,3)
+       inv_Cl(2,1) = inv_Cl(2,1)*inv_Cl(2,2) + inv_Cl(3,2)*inv_Cl(3,1)
+       inv_Cl(2,2) = inv_Cl(2,2)**2 + inv_Cl(3,2)**2
+       inv_Cl(2,3) = inv_Cl(3,2) * inv_Cl(3,3)
+       inv_Cl(3,1) = inv_Cl(3,1) * inv_Cl(3,3)
+       inv_Cl(3,2) = inv_Cl(3,2) * inv_Cl(3,3)
+       inv_Cl(3,3) = inv_Cl(3,3)**2
+
+    end if
+
+  end subroutine compute_inv_Cl_and_determ
+
+
+  function log_det(cls)
+    implicit none
+
+    real(dp), dimension(1:,1:),   intent(in)  :: cls
+    real(dp)                                  :: log_det
+
+    integer(i4b) :: p
+
+    real(dp), allocatable, dimension(:,:) :: m
+
+    p = size(cls(1,:))
+
+    if (p == 1) then
+
+       log_det = log(cls(1,1))
+
+    else if (p == 2) then
+
+       log_det = log(cls(1,1)*cls(2,2) - cls(2,1)**2)
+
+    else if (p == 3) then
+
+       allocate(m(p,p))
+       
+       ! Cholesky decompose Cl
+       m(1,1) = sqrt(cls(1,1))
+       m(2,1) = cls(1,2) / m(1,1)
+       m(3,1) = cls(1,3) / m(1,1)
+       m(2,2) = sqrt(cls(2,2) - m(2,1)**2)
+       m(3,2) = (cls(2,3) - m(2,1)*m(3,1)) / m(2,2)
+       m(3,3) = sqrt(cls(3,3) - m(3,1)**2 - m(3,2)**2)
+       
+       log_det = 2.d0 * (log(m(1,1)) + log(m(2,2)) + log(m(3,3)))
+       
+       deallocate(m)
+
+    else
+       write(*,*) 'math_tools: Unsupported dimension in log_det', p
+       stop
+    end if
+    
+  end function log_det
+
+
+  function trace_sigma_inv_Cl(sigma, inv_Cl)
+    implicit none
+
+    real(dp), dimension(1:,1:), intent(in) :: sigma, inv_Cl
+    real(dp)                               :: trace_sigma_inv_Cl
+    
+    integer(i4b) :: i, j, nmaps
+
+    nmaps = size(sigma(:,1))
+
+    trace_sigma_inv_Cl = 0.d0
+    do i = 1, nmaps
+       do j = 1, nmaps
+          trace_sigma_inv_Cl = trace_sigma_inv_Cl + sigma(i,j) * inv_Cl(j,i)
+       end do
+    end do
+
+  end function trace_sigma_inv_Cl
+
 
 !!$  real(dp) function gammln(xx)
 !!$    implicit none
@@ -1176,9 +1305,7 @@ contains
     real(dp), dimension(:,:), intent(out) :: L
     integer(i4b),             intent(out), optional :: ierr
 
-    integer(i4b) :: N, i, j, k, stat
-    real(dp) :: temp
-    real(dp), allocatable, dimension(:) :: temp_row
+    integer(i4b) :: N, i, j, stat
 
     N = size(A(1,:))
 
@@ -1186,10 +1313,6 @@ contains
     call dpotrf( 'L', N, L, N, stat )
 
     if (stat /= 0) then
-       
-!       do i = 1, N
-!          write(*,*) real(A(i,:),sp)
-!       end do
 
        if (present(ierr)) then
           ierr = stat
@@ -1207,28 +1330,6 @@ contains
        end do
     end if
 
-
-!!$    L = 0.d0
-!!$
-!!$    do j = 1, N
-!!$       write(*,*) j, N
-!!$       do i = j, N
-!!$
-!!$          temp = 0.d0
-!!$
-!!$          do k = 1, i-1
-!!$             temp = temp + L(i,k) * L(j,k)
-!!$          end do
-!!$
-!!$          if (i == j) then
-!!$             L(j,j) = sqrt(A(j,j)-temp)
-!!$          else
-!!$             L(i,j) = (A(i,j) - temp) / L(j,j)
-!!$          end if
-!!$
-!!$       end do
-!!$    end do
-
   end subroutine cholesky_decompose
 
 
@@ -1238,21 +1339,16 @@ contains
     real(dp), dimension(:,:), intent(inout)  :: A
     integer(i4b),             intent(out), optional :: ierr
 
-    integer(i4b) :: N, i, j, k, stat
-    real(dp) :: temp
-    real(dp), allocatable, dimension(:) :: temp_row
+    integer(i4b) :: N, i, j, stat
 
     N = size(A(1,:))
 
     call dpotrf( 'L', N, A, N, stat )
 
-    if (stat /= 0) then
-       if (present(ierr)) then
-          ierr = stat
-       else
-          write(*,*) 'Cholesky decomposition failed. stat = ', stat
-          stop
-       end if
+    if (present(ierr)) ierr = stat
+    if (stat /= 0 .and. .not. present(ierr)) then
+       write(*,*) 'Cholesky decomposition failed. stat = ', stat
+       stop
     end if
 
     if (stat == 0) then

@@ -23,7 +23,7 @@ module comm_ptsrc_comp_mod
   !            Compact object class
   !**************************************************
   type Tnu
-     integer(i4b) :: nside, np, nmaps
+     integer(i4b) :: nside, nside_febecop, np, nmaps
      integer(i4b), allocatable, dimension(:,:) :: pix     ! Pixel list, both absolute and relative
      real(dp),     allocatable, dimension(:,:) :: map     ! (0:np-1,nmaps)
      real(dp),     allocatable, dimension(:,:) :: F       ! Mixing matrix (nmaps,ndet)
@@ -45,7 +45,7 @@ module comm_ptsrc_comp_mod
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale, amp_rms_scale
-     integer(i4b)       :: nside, nsrc, ncr_tot, ndet
+     integer(i4b)       :: nside, nside_febecop, nsrc, ncr_tot, ndet
      logical(lgt)       :: apply_pos_prior, burn_in
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
@@ -67,7 +67,7 @@ module comm_ptsrc_comp_mod
   end interface comm_ptsrc_comp
 
   type ptsrc_ptr
-     class(comm_ptsrc_comp), pointer :: p
+     class(comm_ptsrc_comp), pointer :: p => null()
   end type ptsrc_ptr
   
   integer(i4b) :: ncomp_pre               =   0
@@ -82,9 +82,9 @@ module comm_ptsrc_comp_mod
   character(len=24), private :: operation
 
   ! Variables for non-linear search
-  class(comm_ptsrc_comp), pointer, private :: c_lnL
+  class(comm_ptsrc_comp), pointer, private :: c_lnL => null()
   integer(i4b),                    private :: k_lnL, p_lnL
-  real(dp),                        private :: a_old_lnL
+  real(dp),                        private :: a_old_lnL 
 
 contains
 
@@ -102,7 +102,7 @@ contains
 
     ! Initialize general parameters
     comm_pre                    = cpar%comm_chain
-    myid_pre                    = cpar%myid
+    myid_pre                    = cpar%myid_chain
     numprocs_pre                = cpar%numprocs_chain
     constructor%class           = cpar%cs_class(id_abs)
     constructor%type            = cpar%cs_type(id_abs)
@@ -111,12 +111,13 @@ contains
     constructor%nmaps           = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
     constructor%nu_ref          = cpar%cs_nu_ref(id_abs,:)
     constructor%nside           = cpar%cs_nside(id_abs)
+    constructor%nside_febecop   = 1024
     constructor%outprefix       = trim(cpar%cs_label(id_abs))
     constructor%cg_scale        = cpar%cs_cg_scale(id_abs)
     constructor%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     allocate(constructor%poltype(1))
     constructor%poltype         = cpar%cs_poltype(1,id_abs)
-    constructor%myid            = cpar%myid
+    constructor%myid            = cpar%myid_chain
     constructor%comm            = cpar%comm_chain
     constructor%numprocs        = cpar%numprocs_chain
     constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
@@ -280,6 +281,9 @@ contains
     case ("sz")
        evalSED = 0.d0
        call report_error('SZ not implemented yet')
+    case default
+       write(*,*) 'Unsupported point source type'
+       stop
     end select
     
   end function evalSED
@@ -391,7 +395,7 @@ contains
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
     character(len=512) :: filename, path
-    class(comm_map), pointer :: map
+    class(comm_map), pointer :: map => null()
     real(dp), allocatable, dimension(:,:,:) :: theta
 
     ! Output point source maps for each frequency
@@ -446,13 +450,15 @@ contains
              write(unit,*) '# SED model type      = ', trim(self%type)
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref(1)*1d-9, ' GHz'
              write(unit,*) '# '
-             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)          I_RMS(mJy)  alpha_I beta_I  a_RMS_I   b_RMS_I      chisq     ID'
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)          I_RMS(mJy) '// &
+                  & ' alpha_I beta_I  a_RMS_I   b_RMS_I      chisq     ID'
           else if (trim(self%type) == 'fir') then
              write(unit,*) '# '
              write(unit,*) '# SED model type      = ', trim(self%type)
              write(unit,fmt='(a,f10.2,a)') ' # Reference frequency = ', self%nu_ref(1)*1d-9, ' GHz'
              write(unit,*) '# '
-             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    I_RMS(mJy)  beta_I      T_I   beta_RMS_I     T_RMS_I      chisq    ID'
+             write(unit,*) '# Glon(deg) Glat(deg)     I(mJy)    I_RMS(mJy)  beta_I  '//&
+                  & '    T_I   beta_RMS_I     T_RMS_I      chisq    ID'
           end if
        end if
        do i = 1, self%nsrc
@@ -488,7 +494,7 @@ contains
     type(hdf_file),            intent(in)    :: hdffile
     character(len=*),          intent(in)    :: hdfpath
 
-    integer(i4b)       :: i, j, p
+    integer(i4b)       :: i, j, k, p
     real(dp)           :: md(4)
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: theta
@@ -510,7 +516,9 @@ contains
 
     do i = 1, self%nsrc
        do j = 1, self%nmaps
-          self%src(i)%theta(:,j) = theta(i,j,:) 
+          do k = 1, self%npar
+             self%src(i)%theta(k,j) = max(self%p_uni(1,k),min(self%p_uni(2,k),theta(i,j,k))) 
+          end do
        end do
     end do
     deallocate(theta)
@@ -583,6 +591,10 @@ contains
        if (line(1:1) == '#' .or. trim(line) == '') cycle
        read(line,*) glon, glat, amp, amp_rms, beta, beta_rms, id_ptsrc
        amp_rms = amp_rms * self%amp_rms_scale ! Adjust listed RMS by given value
+       do j = 1, npar
+          beta(j,:) = max(self%p_uni(1,j),min(self%p_uni(2,j),beta(j,:)))
+       end do
+       if (trim(cpar%cs_type(id_abs)) == 'fir') amp = 0.d0
        ! Check for too close neighbours
        skip_src = .false.
        call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
@@ -613,10 +625,18 @@ contains
           self%src(i)%P_theta(:,:,1) = beta
           self%src(i)%P_theta(:,:,2) = beta_rms
           self%src(i)%theta_rms      = 0.d0
+          do j = 1, numband
+             if (cpar%cs_output_ptsrc_beam(id_abs) .and. &
+                  & trim(trim(cpar%ds_btheta_file(data(j)%id_abs))) /= 'none') then
+                self%src(i)%T(j)%nside_febecop = self%nside_febecop
+             else
+                self%src(i)%T(j)%nside_febecop = data(j)%info%nside
+             end if
+          end do
           !self%src(i)%P_x(:,1) = 0.d0
           !self%src(i)%P_x(:,2) = 0.d0 !1.d12
 
-          ! Check for processing mask; disable source if within mask
+          ! Checkl for processing mask; disable source if within mask
           call ang2pix_ring(data(1)%info%nside, 0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, pix)
           p = locate(data(1)%info%pix, pix)
           if (associated(data(1)%procmask)) then
@@ -666,13 +686,14 @@ contains
              call read_febecop_beam(cpar, tempfile, data(i)%label, &
                   & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))             
           else
+             !write(*,*) i, trim(data(i)%label), trim(cpar%ds_btheta_file(i))
              filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(data(i)%id_abs))
              n        = len(trim(adjustl(filename)))
              if (filename(n-2:n) == '.h5') then
                 ! Read precomputed Febecop beam from HDF file
                 call read_febecop_beam(cpar, filename, 'none', &
                      & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))
-             else if (trim(trim(cpar%ds_btheta_file(i))) == 'none') then
+             else if (trim(cpar%ds_btheta_file(id_abs)) == 'none') then
                 ! Build template internally from b_l
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
                      & self%src(j)%T(i), bl=data(i)%B(0)%p%b_l)
@@ -713,41 +734,99 @@ contains
     integer(i4b),       intent(in)    :: band
     type(Tnu),          intent(inout) :: T
 
-    integer(i4b)      :: i, j, n, pix, ext(1), ierr, m(1)
+    integer(i4b)      :: i, j, k, n, m, p, q, pix, ext(1), ierr
     character(len=128) :: itext
     type(hdf_file)    :: file
-    integer(i4b), allocatable, dimension(:)   :: ind
+    integer(i4b), allocatable, dimension(:)   :: ind, ind_in, nsamp
     integer(i4b), allocatable, dimension(:,:) :: mypix
-    real(dp),     allocatable, dimension(:,:) :: b, mybeam
+    real(dp),     allocatable, dimension(:,:) :: b, b_in, mybeam
     real(dp),     allocatable, dimension(:)   :: buffer
 
     if (myid_pre == 0) then
        ! Find center pixel number for current source
-       call ang2pix_ring(T%nside, 0.5d0*pi-glat, glon, pix)
+       call ang2pix_ring(T%nside_febecop, 0.5d0*pi-glat, glon, pix)
 
        ! Find number of pixels in beam
        write(itext,*) pix
        if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
        call open_hdf_file(filename, file, 'r')
        call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
-       n = ext(1)
+       m = ext(1)
 
        ! Read full beam from file
-       allocate(ind(n), b(n,T%nmaps), mypix(n,2), mybeam(n,T%nmaps))
-       call read_hdf(file, trim(adjustl(itext))//'/indices', ind)
-       call read_hdf(file, trim(adjustl(itext))//'/values',  b)
+       allocate(ind_in(m), b_in(m,T%nmaps))
+       call read_hdf(file, trim(adjustl(itext))//'/indices', ind_in)
+       call read_hdf(file, trim(adjustl(itext))//'/values',  b_in)
        call close_hdf_file(file)
+
+       if (T%nside == T%nside_febecop) then
+          n = m
+          allocate(ind(n), b(n,T%nmaps))
+          ind = ind_in
+          b   = b_in
+       else if (T%nside > T%nside_febecop) then
+          q = (T%nside/T%nside_febecop)**2
+          n = q*m
+          allocate(ind(n), b(n,T%nmaps))
+          k = 1
+          do i = 1, m
+             call ring2nest(T%nside_febecop, ind_in(i), j)
+             do p = q*j, q*j-1
+                call nest2ring(T%nside, p, ind(k))
+                b(k,:) = b_in(i,:)
+                k      = k+1
+             end do
+             write(*,*) 'Needs sorting'
+             stop
+          end do
+       else if (T%nside < T%nside_febecop) then
+          q = (T%nside_febecop/T%nside)**2
+          n = 0
+          allocate(ind(m), b(m,T%nmaps), nsamp(m))
+          nsamp = 0
+          b     = 0.d0
+          do i = 1, m
+             call ring2nest(T%nside_febecop, ind_in(i), j)
+             j = j / q
+             call nest2ring(T%nside, j, p)
+             do k = 1, n
+                if (ind(k) == p) then
+                   b(k,:)   = b(k,:)   + b_in(i,:)
+                   nsamp(k) = nsamp(k) + 1
+                   exit
+                end if
+             end do
+             if (k > n) then
+                do k = 1, n
+                   if (ind(k) > p) exit
+                end do
+                ind(k+1:n+1)   = ind(k:n)
+                b(k+1:n+1,:)   = b(k:n,:)
+                nsamp(k+1:n+1) = nsamp(k:n)
+                ind(k)         = p
+                b(k,:)         = b_in(i,:)
+                nsamp(k)       = 1
+                n              = n + 1
+             end if
+          end do
+          do k = 1, n
+             b(k,:) = b(k,:) / nsamp(k)
+          end do
+          deallocate(nsamp)
+       end if
+       deallocate(ind_in, b_in)
 
        ! Distribute information
        call mpi_bcast(n,   1, MPI_INTEGER, 0, comm_pre, ierr)
     else
        call mpi_bcast(n, 1, MPI_INTEGER, 0, comm_pre, ierr)
-       allocate(ind(n), b(n,T%nmaps), mypix(n,2), mybeam(n,T%nmaps))
+       allocate(ind(n), b(n,T%nmaps))
     end if
-    call mpi_bcast(ind, size(ind), MPI_INTEGER,          0, comm_pre, ierr)
-    call mpi_bcast(b,   size(b),   MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
+    call mpi_bcast(ind(1:n), n,         MPI_INTEGER,          0, comm_pre, ierr)
+    call mpi_bcast(b(1:n,:), n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
 
     ! Find number of pixels belonging to current processor
+    allocate(mypix(n,2), mybeam(n,T%nmaps))
     T%np = 0
     i    = 1
     j    = locate(data(band)%info%pix, ind(i))
@@ -928,7 +1007,7 @@ contains
        call pix2vec_ring(nside, listpix(i), vec)
        call angdist(vec0, vec, theta)
        if (theta > tmax) then
-          beam(i,j)  = 0.d0
+          beam(i,:)  = 0.d0
           listpix(i) = 0.d0
        else
           do j = 1, T%nmaps
@@ -1021,8 +1100,8 @@ contains
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2, t3, t4
     logical(lgt) :: skip
-    class(comm_comp),         pointer :: c, c1, c2
-    class(comm_ptsrc_comp),   pointer :: pt1, pt2
+    class(comm_comp),         pointer :: c => null(), c1 => null(), c2 => null()
+    class(comm_ptsrc_comp),   pointer :: pt1 => null(), pt2 => null()
     real(dp),     allocatable, dimension(:,:) :: mat, mat2
 
     if (ncomp_pre == 0) return
@@ -1200,8 +1279,8 @@ contains
     logical(lgt)              :: skip
     real(dp), allocatable, dimension(:,:) :: amp
     real(dp), allocatable, dimension(:,:) :: y
-    class(comm_comp),       pointer :: c
-    class(comm_ptsrc_comp), pointer :: pt
+    class(comm_comp),       pointer :: c => null()
+    class(comm_ptsrc_comp), pointer :: pt => null()
 
     if (npre == 0 .or. myid_pre /= 0 .or. .not. apply_ptsrc_precond) return
     
@@ -1269,8 +1348,12 @@ contains
     integer(i4b),           intent(in) :: band, id, pol
     real(dp)                           :: getScale
 
+    integer(i4b) :: i
+
     if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
        getScale = 1.d-23 * (c/self%nu_ref(pol))**2 / (2.d0*k_b*self%src(id)%T(band)%Omega_b(pol))
+    else
+       getScale = 1.d0
     end if
 
   end function getScale
@@ -1329,11 +1412,13 @@ contains
     type(planck_rng),                        intent(inout)  :: handle
     integer(i4b),                            intent(in)     :: id
 
-    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
-    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min
+    integer(i4b) :: i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
+    real(dp)     :: mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
     logical(lgt) :: ok
     logical(lgt), save :: first_call = .true.
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
     real(dp),     allocatable, dimension(:,:) :: amp
 
@@ -1430,7 +1515,8 @@ contains
              call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
              call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
              if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot / n_pix_tot-1.d0) / sqrt(0.5d0/n_pix_tot)
-             if (self%myid == 0 .and. mod(k,1000)==0) write(*,*) k, real(a,sp), real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
+             if (self%myid == 0 .and. mod(k,1000)==0) write(*,*) k, real(a,sp), &
+                  & real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
           end do
        end do
        deallocate(theta)

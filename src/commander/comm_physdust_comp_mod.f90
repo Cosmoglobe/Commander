@@ -41,7 +41,7 @@ contains
 
     integer(i4b) :: i, j, k, num_nu, unit
     real(dp)     :: dummy
-    type(comm_mapinfo), pointer :: info
+    type(comm_mapinfo), pointer :: info => null()
 
     real(dp), allocatable, dimension(:,:,:) :: comp_mat
 

@@ -36,10 +36,10 @@ contains
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     integer(i4b), save :: samp_group_prev
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
-    real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev
+    real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev, buff
     real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s, x_out
     real(dp), allocatable, dimension(:,:) :: alm, pamp
-    class(comm_comp),   pointer :: c
+    class(comm_comp),   pointer :: c => null()
 
     root    = 0
     maxiter = cpar%cg_maxiter
@@ -72,18 +72,22 @@ contains
 !!$    if (cpar%myid == root) write(*,*)
 
 !!$    l = 10
-!!$    if (cpar%myid == root) x    = 0.d0
-!!$    if (cpar%myid == root) x(l) = 1.d0
-!!$    q     = cr_matmulA(x, samp_group)
-!!$    if (cpar%myid == root) write(*,*) q(l-1:l+1)
-!!$
-!!$    if (cpar%myid == root) x    = 0.d0
-!!$    if (cpar%myid == root) x(l) = 1.d0
-!!$    q  = cr_invM(x)
-!!$    do i = 1, size(q)
-!!$       if (abs(q(i) > 1d-10)) write(*,*) i, q(i)
+!!$!    if (cpar%myid == root) x    = 0.d0
+!!$    do i = 0, size(x)-1
+!!$       x(i)    = mod(i,123654)
 !!$    end do
-
+!!$    !x    = 0.d0
+!!$    !if (cpar%myid == root) x(l) = 1.d0
+!!$    q     = cr_matmulA(x, samp_group)
+!!$    !if (cpar%myid == root) write(*,*) q(l-1:l+1)
+!!$
+!!$!    x    = 0.d0
+!!$!    if (cpar%myid == root) x(l) = 1.d0
+!!$    s  = cr_invM(cpar%comm_chain, x, samp_group) 
+!!$    r = (s-q)/abs(s+q)
+!!$    do i = 1, size(q)
+!!$       if (abs(r(i) > 1d-4)) write(*,*) cpar%myid, i, real(s(i),sp), real(q(i),sp), real(r(i),sp)
+!!$    end do
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
@@ -151,12 +155,12 @@ contains
     !call update_status(status, "cr4")
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
     !call update_status(status, "cr5")
-    d  = cr_invM(r)
+    d  = cr_invM(cpar%comm_chain, r, samp_group)
     !call update_status(status, "cr6")
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
     !call update_status(status, "cr7")
-    delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(b))
+    delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(cpar%comm_chain, b, samp_group))
     !call update_status(status, "cr8")
 
     ! Set up convergence criterion
@@ -173,7 +177,7 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
 
-       !call update_status(status, "cg1")
+       call update_status(status, "cg1")
        
        ! Check convergence
        if (mod(i,cpar%cg_check_conv_freq) == 0) then
@@ -189,7 +193,7 @@ contains
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
        end if
        
-       !call update_status(status, "cg2")
+       call update_status(status, "cg2")
    
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
@@ -204,16 +208,16 @@ contains
           r = r - alpha*q
        end if
 
-       !call update_status(status, "cg3")
+       call update_status(status, "cg3")
        call wall_time(t3)
-       s         = cr_invM(r)
+       s         = cr_invM(cpar%comm_chain, r, samp_group)
        call wall_time(t4)
        !if (cpar%myid == root .and. cpar%verbosity > 2) write(*,fmt='(a,f8.2)') 'invM time = ', real(t4-t3,sp)
        delta_old = delta_new 
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
-       !call update_status(status, "cg4")
+       call update_status(status, "cg4")
 
        if (cpar%output_cg_freq > 0) then
           if (mod(i,cpar%output_cg_freq) == 0) then
@@ -262,7 +266,7 @@ contains
              call cr_x2amp(samp_group, x)
           end if
        end if
-       !call update_status(status, "cg5")
+       call update_status(status, "cg5")
 
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
@@ -272,8 +276,9 @@ contains
 !             write(*,*) '  CG iter. ', i, ' -- res = ', &
 !                  & val_convergence, ', tol = ', lim_convergence, &
 !                  & ', time = ', real(t2-t1,sp)
+             buff = min(val_convergence,1d30)
              write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
-                  & real(val_convergence,sp), ', tol = ', real(lim_convergence,sp), &
+                  & buff, ', tol = ', real(lim_convergence,sp), &
                   & ', time = ', real(t2-t1,sp)
           else if (trim(cpar%cg_conv_crit) == 'chisq') then
 !             write(*,fmt='(a,i5,a,e13.5,a,f7.4,a,f8.2)') '  CG iter. ', i, ' -- chisq = ', &
@@ -285,7 +290,7 @@ contains
           end if
        end if
 
-       !call update_status(status, "cg6")
+       call update_status(status, "cg6")
 
     end do
 
@@ -302,6 +307,9 @@ contains
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
              call cr_extract_comp(c%id, x, alm)
              call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)
+             ! Add CMB dipole back again
+             if (cpar%resamp_CMB .and. trim(c%type) == 'cmb') &
+                  & call add_fiducial_CMB_dipole(c%x%info, c%RJ2unit_(1), alm)
              call cr_insert_comp(c%id, .false., alm, x)
              deallocate(alm)
           end if
@@ -353,7 +361,7 @@ contains
     integer(i4b) :: j, k, n
     real(dp), allocatable, dimension(:)   :: x_out
     real(dp), allocatable, dimension(:,:) :: alm, pamp
-    class(comm_comp),   pointer :: c
+    class(comm_comp),   pointer :: c => null()
 
     n = size(x)
 
@@ -409,7 +417,7 @@ contains
     real(dp), dimension(:), intent(out) :: x
 
     integer(i4b) :: i, ind
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     ! Stack parameters linearly
     ind = 1
@@ -445,7 +453,7 @@ contains
     real(dp), dimension(:), intent(in) :: x
 
     integer(i4b) :: i, ind
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     ind = 1
     c   => compList
@@ -478,9 +486,10 @@ contains
   ! Definition of linear system
   ! ---------------------------
 
-  subroutine cr_computeRHS(operation, handle, handle_noise, mask, samp_group, rhs)
+  subroutine cr_computeRHS(operation, resamp_CMB, handle, handle_noise, mask, samp_group, rhs)
     implicit none
     character(len=*),                            intent(in)             :: operation
+    logical(lgt),                                intent(in)             :: resamp_CMB
     type(planck_rng),                            intent(inout)          :: handle, handle_noise
     integer(i4b),                                intent(in)             :: samp_group
     real(dp),         allocatable, dimension(:), intent(in)             :: mask
@@ -488,9 +497,11 @@ contains
 
     integer(i4b) :: i, j, l, m, k, n, ierr
     real(dp)     :: tmp
-    class(comm_map),     pointer                 :: map, Tm, mu
-    class(comm_comp),    pointer                 :: c
-    class(comm_mapinfo), pointer                 :: info
+    class(comm_map),     pointer                 :: map  => null()
+    class(comm_map),     pointer                 :: Tm   => null()
+    class(comm_map),     pointer                 :: mu   => null()
+    class(comm_comp),    pointer                 :: c    => null()
+    class(comm_mapinfo), pointer                 :: info => null()
     real(dp),        allocatable, dimension(:,:) :: eta, Tp
 
     ! Initialize output vector
@@ -502,6 +513,9 @@ contains
 
        ! Set up Wiener filter term
        map => compute_residual(i, cg_samp_group=samp_group) 
+
+       ! Subtract CMB dipole if resamp mode, to avoid large condition numbers; add back later
+       if (resamp_CMB) call subtract_fiducial_CMB_dipole(i, map)
 
        ! Apply projection matrix, ie., mask in pixel space and multipoles above lmax in harmonic space
 !!$       map%map = map%map * data(i)%mask%map
@@ -568,7 +582,7 @@ contains
              end do
 
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
-             call Tm%dealloc(clean_info=.true.)
+             call Tm%dealloc()
              nullify(info)
           class is (comm_ptsrc_comp)
              allocate(Tp(c%nsrc,c%nmaps))
@@ -679,8 +693,8 @@ contains
 
     real(dp)                  :: t1, t2
     integer(i4b)              :: i, j, l, myid
-    class(comm_map),  pointer :: map, pmap
-    class(comm_comp), pointer :: c
+    class(comm_map),  pointer :: map => null(), pmap => null()
+    class(comm_comp), pointer :: c => null()
     real(dp),        allocatable, dimension(:)   :: y, sqrtS_x
     real(dp),        allocatable, dimension(:,:) :: alm, m, pamp
 
@@ -908,33 +922,130 @@ contains
     
   end function cr_matmulA
 
-  function cr_invM(x)
+  function cr_invM(comm, x, samp_group)
     implicit none
+    integer(i4b),                        intent(in) :: comm, samp_group
     real(dp),              dimension(:), intent(in) :: x
     real(dp), allocatable, dimension(:)             :: cr_invM
 
     integer(i4b) :: ierr
-    real(dp), allocatable, dimension(:,:) :: alm
-    class(comm_comp), pointer :: c
+    logical(lgt) :: Q_is_active
+    real(dp), allocatable, dimension(:,:) :: alm, alm0
+    real(dp), allocatable, dimension(:)   :: Qx
+    class(comm_comp), pointer :: c => null()
 
     if (.not. allocated(cr_invM)) allocate(cr_invM(size(x)))
+    allocate(Qx(size(x)))
     cr_invM = x
+
+    call applyDeflatePrecond(cr_invM, Qx)
+    Q_is_active = any(Qx /= 0.d0)
+    call mpi_allreduce(MPI_IN_PLACE, Q_is_active, 1, MPI_LOGICAL, MPI_LOR, comm, ierr)
+    if (Q_is_active) cr_invM = x - cr_matmulA(Qx, samp_group)   
+
+!!$    if (size(x) > 0) write(*,*) sum(abs(x)), sum(abs(cr_invM)), sum(abs(Qx))
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
     call applyDiffPrecond(cr_invM)
     call applyPtsrcPrecond(cr_invM)
     call applyTemplatePrecond(cr_invM)
+
+    if (Q_is_active) cr_invM = cr_invM + Qx
     
+    ! Apply low-l preconditioner
+    c   => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (c%lmax_pre_lowl > -1) then
+             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+             allocate(alm0(0:c%x%info%nalm-1,c%x%info%nmaps))
+             call cr_extract_comp(c%id, x, alm)
+             call cr_extract_comp(c%id, cr_invM, alm0)
+             call c%applyLowlPrecond(alm, alm0)
+             call cr_insert_comp(c%id, .false., alm, cr_invM)
+             deallocate(alm, alm0)
+          end if
+       end select
+       c => c%next()
+    end do
+
+    deallocate(Qx)
+
   end function cr_invM
+
+
+  subroutine applyDeflatePrecond(x, Qx)
+    real(dp), dimension(:), intent(in)  :: x
+    real(dp), dimension(:), intent(out) :: Qx
+
+    integer(i4b) :: ierr
+    real(dp), allocatable, dimension(:,:) :: alm, Qalm
+    class(comm_comp), pointer :: c => null()
+
+    Qx = 0.d0
+
+    return
+
+    c   => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (c%lmax_def > -1) then
+             allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
+             allocate(Qalm(0:c%x%info%nalm-1,c%x%info%nmaps))
+             call cr_extract_comp(c%id, x, alm)
+             call c%applyDeflatePrecond(alm, Qalm)
+             call cr_insert_comp(c%id, .false., Qalm, Qx)
+             deallocate(alm, Qalm)
+          end if
+       end select
+       c => c%next()
+    end do
+
+  end subroutine applyDeflatePrecond
+
 
   subroutine update_precond(samp_group, force_update)
     implicit none
     integer(i4b), intent(in) :: samp_group
     logical(lgt), intent(in) :: force_update
+    class(comm_comp), pointer :: c => null()
+    logical(lgt), save :: first_call = .true.
+
+    ! Set up deflation preconditioner for CMB+diagonal only
+    if (.false.) then
+       c   => compList
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             call c%updateDeflatePrecond()
+          end select
+          c => c%next()
+       end do
+    end if
 
     call updateDiffPrecond(samp_group, force_update)
     call updatePtsrcPrecond(samp_group)
     call updateTemplatePrecond(samp_group)
 
+    !if (.not. first_call) return
+
+    ! Set up low-l preconditioner for CMB+diagonal only
+    c   => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (c%lmax_pre_lowl > -1) then
+             call c%updateLowlPrecond()
+          end if
+       end select
+       c => c%next()
+    end do
+
+    first_call = .false.
+
   end subroutine update_precond
-  
   
 end module comm_cr_mod

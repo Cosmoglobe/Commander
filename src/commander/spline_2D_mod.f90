@@ -24,6 +24,7 @@ contains
     integer(i4b) :: i, j, k, m, n, numprocs, myid, ierr
     real(dp), allocatable, dimension(:)   :: y2
     real(dp), allocatable, dimension(:,:) :: df_dx, df_dy, ddf_dxdy
+    real(dp), allocatable, dimension(:,:,:) :: buffer
 
     real(dp),              dimension(16,16) :: a
     real(dp),              dimension(16)    :: b, z
@@ -181,15 +182,18 @@ contains
     !if (myid == 0) write(*,*) 'q4 = ', real(t2-t1,sp)
 
     call wall_time(t1)    
-    !allocate(buffer(4,4,m,n))
+    allocate(buffer(4,4,n))
     !call mpi_allreduce(coeff, buffer, size(coeff), MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
     do j = 0, numprocs-1
        do i = 1+j, m-1, numprocs
-          call mpi_bcast(coeff(:,:,i,:), 16*n, MPI_DOUBLE_PRECISION, j, comm, ierr)
+          if (myid == j) buffer = coeff(:,:,i,:)
+          call mpi_bcast(buffer, 16*n, MPI_DOUBLE_PRECISION, j, comm, ierr)
+          coeff(:,:,i,:) = buffer
        end do
     end do
     !coeff = buffer
     call wall_time(t2)
+    deallocate(buffer)
     !if (myid == 0) write(*,*) 'q5 = ', real(t2-t1,sp)
 
 
@@ -365,7 +369,7 @@ contains
 
     integer(i4b) :: i, j, b_x, b_y, m, n
     real(dp)     :: u, v, s, inv_h_x, inv_h_y
-    real(dp), dimension(4) :: u_pow, v_pow, Av
+    real(dp), dimension(4) :: u_pow, v_pow
 
     m = size(x)
     n = size(y)
@@ -379,13 +383,14 @@ contains
     b_y = max(min(int((y0-y(1))*inv_h_y)+1,n-1),1)
 
 
-    if (x0 < x(1) .or. x0 > x(m)) then
-       write(*,fmt='(a,3f8.3)') 'splin2_full_precomp -- Warning: x0 out of bounds = ', x(1), x0, x(m), x(m+14)
+    if (x0 < x(1) .or. x0-x(m) > 1.d-12) then
+       !write(*,fmt='(a,3f8.3)') 'splin2_full_precomp -- Warning: x0 out of bounds = ', x(1), x0, x(m),
+       write(*,*) 'splin2_full_precomp -- Warning: x0 out of bounds = ', x(1), x0, x(m), x0-x(m)
        splin2_full_precomp = 0.d0
        return
     end if
 
-    if (y0 < y(1) .or. y0 > y(n)) then
+    if (y0 < y(1) .or. y0-y(n) > 1d-12) then
        write(*,fmt='(a,3f8.3)') 'splin2_full_precomp -- Warning: y0 out of bounds = ', y(1), y0, y(n)
        splin2_full_precomp = 0.d0
        return
@@ -427,7 +432,7 @@ contains
 
     integer(i4b) :: i, j, b_x, b_y, m, n
     real(dp)     :: u, v, s, inv_h_x, inv_h_y
-    real(dp), dimension(4) :: u_pow, v_pow, Av
+    real(dp), dimension(4) :: u_pow, v_pow
 
     m = size(x)
     n = size(y)
@@ -494,50 +499,50 @@ contains
   ! Routines for direct low-precomputation 2D spline interpolation
   !-------------------------------------------------------------
 
-  function splin2(x1a, x2a, ya, y2a, x1, x2)
-    implicit none
-     
-    real(dp), dimension(1:),    intent(in)  :: x1a, x2a
-    real(dp), dimension(1:,1:), intent(in)  :: ya, y2a
-    real(dp),                   intent(in)  :: x1, x2
-    real(dp)                                :: splin2
-
-    integer(i4b) :: j, k, n, m
-    real(dp), allocatable, dimension(:) :: y2tmp, yytmp
-
-    m = size(ya(:,1))
-    n = size(ya(1,:))
-    
-    allocate(yytmp(m))
-    allocate(y2tmp(m))
-
-    do j = 1, m
-       yytmp(j) = splint(x2a, ya(j,:), y2a(j,:), x2)
-    end do
-
-    call spline(x1a, yytmp, 1.d30, 1.d30, y2tmp)
-    splin2 = splint(x1a, yytmp, y2tmp, x1)
-
-    deallocate(yytmp)
-    deallocate(y2tmp)
-    
-  end function splin2
-
-
-  subroutine splie2(x1a, x2a, ya, y2a)
-    implicit none
-     
-    real(dp), dimension(1:),    intent(in)  :: x1a, x2a
-    real(dp), dimension(1:,1:), intent(in)  :: ya
-    real(dp), dimension(1:,1:), intent(out) :: y2a
-
-    integer(i4b) :: j
-
-    do j = 1, size(ya(:,1))
-       call spline(x2a, ya(j,:), 1.d30, 1.d30, y2a(j,:))
-    end do
-    
-  end subroutine splie2
+!!$  function splin2(x1a, x2a, ya, y2a, x1, x2)
+!!$    implicit none
+!!$     
+!!$    real(dp), dimension(1:),    intent(in)  :: x1a, x2a
+!!$    real(dp), dimension(1:,1:), intent(in)  :: ya, y2a
+!!$    real(dp),                   intent(in)  :: x1, x2
+!!$    real(dp)                                :: splin2
+!!$
+!!$    integer(i4b) :: j, k, n, m
+!!$    real(dp), allocatable, dimension(:) :: y2tmp, yytmp
+!!$
+!!$    m = size(ya(:,1))
+!!$    n = size(ya(1,:))
+!!$    
+!!$    allocate(yytmp(m))
+!!$    allocate(y2tmp(m))
+!!$
+!!$    do j = 1, m
+!!$       yytmp(j) = splint(x2a, ya(j,:), y2a(j,:), x2)
+!!$    end do
+!!$
+!!$    call spline(x1a, yytmp, 1.d30, 1.d30, y2tmp)
+!!$    splin2 = splint(x1a, yytmp, y2tmp, x1)
+!!$
+!!$    deallocate(yytmp)
+!!$    deallocate(y2tmp)
+!!$    
+!!$  end function splin2
+!!$
+!!$
+!!$  subroutine splie2(x1a, x2a, ya, y2a)
+!!$    implicit none
+!!$     
+!!$    real(dp), dimension(1:),    intent(in)  :: x1a, x2a
+!!$    real(dp), dimension(1:,1:), intent(in)  :: ya
+!!$    real(dp), dimension(1:,1:), intent(out) :: y2a
+!!$
+!!$    integer(i4b) :: j
+!!$
+!!$    do j = 1, size(ya(:,1))
+!!$       call spline(x2a, ya(j,:), 1.d30, 1.d30, y2a(j,:))
+!!$    end do
+!!$    
+!!$  end subroutine splie2
 
 
 end module spline_2D_mod
