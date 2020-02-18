@@ -223,6 +223,9 @@ contains
          constructor%orb_dp_s(i, 8) = constructor%orb_dp_s(i, 8) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(2) * v(3)
          !z^2 
          constructor%orb_dp_s(i, 9) = constructor%orb_dp_s(i, 9) + constructor%slbeam(i)%p%map(j, 1) * v(3) * v(3)
+         !if(constructor%myid == 0) then
+         !   write(*,*) v(1), v(2), v(3), constructor%slbeam(i)%p%map(j, 1)
+         !end if
        end do 
 
        constructor%orb_dp_s = constructor%orb_dp_s*4*pi/real(constructor%slbeam(i)%p%info%npix)
@@ -266,6 +269,11 @@ contains
    
     call mpi_allreduce(MPI_IN_PLACE, constructor%orb_dp_s, size(constructor%orb_dp_s), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
 
+    if (constructor%myid == 0) then 
+      do i = 1, 9
+        write(*,*) constructor%orb_dp_s(1, i)
+      end do
+    end if
  
     do i = 1, constructor%ndet
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
@@ -1417,7 +1425,7 @@ contains
     x = h * self%central_freq/(k_B * T_CMB)
     q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
 
-!    if (trim(self%label(1)) == '27M') open(58,file='orb_27M.dat')
+    !if (trim(self%label(1)) == '27M') open(58,file='orb_27M.dat')
     do i = 1,self%ndet 
        if (.not. self%scans(ind)%d(i)%accept) cycle
        do j=1,self%scans(ind)%ntod !length of the tod
@@ -1428,29 +1436,30 @@ contains
           s_orb(j,i) = T_CMB * (b_dot + q*(b_dot**2 - b**2/3.)) ! net zero monopole
 
           !TODO: add sl contribution to orbital dipole here
-          !call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
+          call pix2ang_ring(self%info%nside, pix(j,i), theta, phi)
           !rotate v_sun into frame where pointing is along z axis
-          !write(*,*) -phi, -theta, -self%psi(psi(i,j)), psi(i,j)
-!!$          p     = self%pix2ind(pix(j,i))
-!!$          theta = self%ind2ang(1,p)
-!!$          phi   = self%ind2ang(2,p)
-!!$          psi_d = self%psi(psi(j,i))
-!!$          !write(*,*), j, phi, theta, psi_d, rot_mat 
-!!$          !call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
-!!$          call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
-!!$          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
-!!$          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
-!!$            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
-!!$            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
-!!$            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
-!!$            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
-!!$            & self%orb_dp_s(i,9) 
-!!$          if (trim(self%label(i)) == '27M') write(58,*) j, s_orb(j,i)+T_CMB *summation, s_orb(j,i), T_CMB *summation
-          s_orb(j,i) = s_orb(j,i) !+ T_CMB *summation
+          !write(*,*) -phi, -theta, -self%psi(psi(j,i)), psi(j,i)
+          p     = self%pix2ind(pix(j,i))
+          theta = self%ind2ang(1,p)
+          phi   = self%ind2ang(2,p)
+          psi_d = self%psi(psi(j,i))
+          !write(*,*), j, phi, theta, psi_d, rot_mat 
+          !call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
+          call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
+          vnorm = matmul(rot_mat, self%scans(ind)%v_sun)
+          vnorm = vnorm / sum(vnorm**2)
+          summation = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+& 
+            & vnorm(3)*self%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
+            & vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
+            & self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
+            & vnorm(2)*vnorm(2)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
+            & self%orb_dp_s(i,9) 
+          !if (trim(self%label(i)) == '27M') write(*,*) j, T_CMB *summation, vnorm(1), vnorm(2), vnorm(3), self%orb_dp_s(i,1), self%scans(ind)%v_sun
+          s_orb(j,i) = s_orb(j,i) + T_CMB *summation
 
        end do
    end do
-!   if (trim(self%label(1)) == '27M') close(58)
+   !if (trim(self%label(1)) == '27M') close(58)
 
   end subroutine compute_orbital_dipole
 
@@ -2430,7 +2439,7 @@ contains
        end if
 
        if (present(sb_mono)) sys_mono(1:nmaps,1:nmaps,i) = A_inv(1:nmaps,1:nmaps)
-       if (present(chisq_S) .and. mask(self%info%pix(i+1)) == 1) then
+       if (present(chisq_S) .and. (.not. present(mask) .or. mask(self%info%pix(i+1)) == 1)) then
           do j = 1, ndet-1
              if (As_inv(nmaps+j,nmaps+j) <= 0.d0) cycle
              chisq_S(j,1) = chisq_S(j,1) + bs_tot(1,nmaps+j,i)**2 / As_inv(nmaps+j,nmaps+j)
