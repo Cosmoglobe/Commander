@@ -185,7 +185,7 @@ contains
        if (cpar%output_chisq) then
           call mpi_reduce(sum(chisq_map%map), chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
-          if (cpar%myid == cpar%root) write(*,fmt='(a,i4,a,e16.8)') &
+          if (cpar%myid_chain == 0) write(*,fmt='(a,i4,a,e16.8)') &
                & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
           call chisq_map%dealloc()
        end if
@@ -229,7 +229,7 @@ contains
     integer(i4b) :: unit, i, j
     real(dp), allocatable, dimension(:,:) :: bp_delta
 
-    if (cpar%myid /= 0) return
+    if (cpar%myid_chain /= 0) return
 
     if (output_hdf) then
        call create_hdf_group(chainfile, trim(adjustl(iter))//'/gain')
