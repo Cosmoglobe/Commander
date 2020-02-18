@@ -17,9 +17,9 @@ def main():
 
     parser.add_argument('planck_dir', type=str, action='store', help='path to the legacy planck data in hdf format')
 
-    parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default=None)
+    parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d16/cmbco/bp/data/npipe_gains')
 
-    parser.add_argument('--velocity-file', type=str, action='store', help='path to a file with the satelite velocities', default=None)
+    parser.add_argument('--velocity-file', type=str, action='store', help='path to a file with the satelite velocities', default='/mn/stornext/d16/cmbco/bp/data/auxiliary_data/satellite_velocity.fits')
 
     parser.add_argument('--position-file', type=str, action='store', help='path to the on disk satellite position file', default='/mn/stornext/d16/cmbco/bp/data/auxiliary_data/planck_lon_lat.txt')
 
@@ -204,8 +204,6 @@ def make_od(freq, od, args, outbuf):
         outFile[prefix + '/vsun'].attrs['info'] = '[x, y, z]'
         outFile[prefix + '/vsun'].attrs['coords'] = 'galactic'
 
-<<<<<<< Updated upstream
-=======
         #satelite position
         posIndex = np.where(posArray[0] > exFile['Time/MJD'][pid_start])[0][0]
         outFile.create_dataset(prefix + '/satpos', data=[posArray[1][posIndex], posArray[2][posIndex]])
@@ -282,7 +280,6 @@ def make_od(freq, od, args, outbuf):
                 todInd = np.int32(ntodsigma * tod/(sigma0*gain[0]))
                 delta = np.diff(todInd)
                 delta = np.insert(delta, 0, todInd[0])
-                pixArray[3].append(delta)
                 todArray.append(delta)
 
         h = huffman.Huffman("", nside)
@@ -437,10 +434,10 @@ def make_od(freq, od, args, outbuf):
                 #make psd noise
                
                 #make tod data
+                tod = fileName[str(horn) + hornType +'/SIGNAL'][pid_start:pid_end]
                 if(args.no_compress or args.no_compress_tod):
                     outFile.create_dataset(prefix + '/tod', data=tod, dtype='f4')
                 else:    
-                    tod = fileName[str(horn) + hornType +'/SIGNAL'][pid_start:pid_end]
                     todInd = np.int32(ntodsigma * tod/(sigma0*gain[0]))
                     delta = np.diff(todInd)
                     delta = np.insert(delta, 0, todInd[0])
@@ -452,7 +449,7 @@ def make_od(freq, od, args, outbuf):
                 #make other
  
                 #write to output file
-                outbuf['id' + str(pid)] = str(pid) + ' "' + outName + '" ' + '1\n'
+                outbuf['id' + str(pid)] = str(pid) + ' "' + outName + '" ' + '1 ' + str(outAng[0]) + ' ' + str(outAng[1])  +'\n'
 
 if __name__ == '__main__':
     main()
