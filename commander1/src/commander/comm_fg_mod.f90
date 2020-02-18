@@ -965,7 +965,6 @@ contains
                 stop
              end if
           else 
-             !write(*,*) "lol"
              ! Draw a random sample over the prior
              x(1:namp) = amp2x(namp,my_fg_amp(p,1,:))
              k = 1
