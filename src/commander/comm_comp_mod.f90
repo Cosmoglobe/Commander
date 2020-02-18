@@ -20,9 +20,9 @@ module comm_comp_mod
      class(comm_comp), pointer :: prevLink => null()
 
      ! Data variables
-     logical(lgt)       :: active, init_from_HDF
+     logical(lgt)       :: active
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_samp_group
-     character(len=512) :: label, class, type, unit, operation
+     character(len=512) :: label, class, type, unit, operation, init_from_HDF
      real(dp)           :: nu_ref(3), RJ2unit_(3)
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
@@ -184,7 +184,7 @@ module comm_comp_mod
   !             Internal module variables
   !**************************************************
   integer(i4b)              :: ncomp
-  class(comm_comp), pointer :: compList, currComp => null()
+  class(comm_comp), pointer :: compList => null(), currComp => null()
   
 contains
 
@@ -332,7 +332,7 @@ contains
     class(comm_comp), target  :: self
     class(comm_comp), pointer :: link
 
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     
     c => self
     do while (associated(c%nextLink))
@@ -349,7 +349,7 @@ contains
 
     integer(i4b) :: i, j, k
     logical(lgt) :: update_F
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     
     update_F =.false.; if (present(update_F_int)) update_F = update_F_int 
 

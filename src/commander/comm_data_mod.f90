@@ -19,14 +19,17 @@ module comm_data_mod
      integer(i4b)                 :: ndet
      character(len=128)           :: tod_type
 
-     class(comm_mapinfo), pointer :: info
-     class(comm_map),     pointer :: map                     ! Input + regnoise
-     class(comm_map),     pointer :: res
-     class(comm_map),     pointer :: mask
-     class(comm_map),     pointer :: procmask, procmask2
-     class(comm_map),     pointer :: gainmask
-     class(comm_tod),     pointer :: tod
-     class(comm_N),       pointer :: N
+     class(comm_mapinfo), pointer :: info      => null()
+     class(comm_map),     pointer :: map       => null()
+     class(comm_map),     pointer :: res       => null()
+     class(comm_map),     pointer :: c_old     => null()
+     class(comm_map),     pointer :: c_prop    => null()
+     class(comm_map),     pointer :: mask      => null()
+     class(comm_map),     pointer :: procmask  => null()
+     class(comm_map),     pointer :: procmask2 => null()
+     class(comm_map),     pointer :: gainmask  => null()
+     class(comm_tod),     pointer :: tod       => null()
+     class(comm_N),       pointer :: N         => null()
      class(B_ptr),         allocatable, dimension(:) :: B
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
@@ -34,6 +37,7 @@ module comm_data_mod
      type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data
+     procedure :: chisq => get_chisq
      !procedure :: apply_proc_mask
   end type comm_data_set
 
@@ -49,18 +53,18 @@ contains
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b)       :: i, j, n, m, nmaps, ierr, numband_tot
-    real(dp)           :: t1, t2
+    integer(i4b)       :: i, j, n, nmaps, numband_tot
     character(len=512) :: dir, mapfile
-    class(comm_N), pointer  :: tmp
-    class(comm_mapinfo), pointer :: info_smooth, info_postproc
+    class(comm_N), pointer  :: tmp => null()
+    class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
     real(dp), allocatable, dimension(:)   :: nu
-    real(dp), allocatable, dimension(:,:) :: map, regnoise, mask_misspix
+    real(dp), allocatable, dimension(:,:) :: regnoise, mask_misspix
 
     ! Read all data sets
+    numband = count(cpar%ds_active)
     numband_tot = cpar%numband
     dir = trim(cpar%datadir) // '/'
-    allocate(data(numband_tot))
+    allocate(data(numband))
     n = 0
     do i = 1, numband_tot
        if (.not. cpar%ds_active(i)) cycle
@@ -180,7 +184,12 @@ contains
        ! Initialize bandpass structures; 0 is full freq, i is detector
        allocate(data(n)%bp(0:data(n)%ndet))
 
-       data(n)%bp(0)%p => comm_bp(cpar, n, i, data(n)%label)
+       if (trim(data(n)%label) == '070ds1' .or. trim(data(n)%label) == '070ds2' .or. trim(data(n)%label) == '070ds3') then
+          write(*,*) 'Check bp'
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, '070')
+       else
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, data(n)%label)
+       end if
        
        do j = 1, data(n)%ndet
           data(n)%bp(j)%p => comm_bp(cpar, n, i, data(n)%tod%label(j))
@@ -223,7 +232,7 @@ contains
        end do
 
     end do
-    numband = n
+    !numband = n
 
     ! Sort bands according to nominal frequency
     allocate(ind_ds(numband), nu(numband))
@@ -239,6 +248,26 @@ contains
 
   end subroutine initialize_data_mod
 
+  function get_chisq(self)
+    implicit none
+    class(comm_data_set), intent(in)           :: self
+    real(dp)                                   :: get_chisq
+
+    integer(i4b) :: ierr
+    real(dp)     :: chisq
+    class(comm_map), pointer :: invN_res => null()
+    
+    invN_res => comm_map(self%res)
+!    write(*,*) 'a', sum(abs(self%res%map))
+    call self%N%invN(invN_res)
+!    write(*,*) 'b', sum(abs(invN_res%map))
+    chisq = sum(self%res%map*invN_res%map)
+!    write(*,*) 'c', chisq
+    call mpi_allreduce(chisq, get_chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+!    write(*,*) 'c', get_chisq
+    call invN_res%dealloc()
+
+  end function get_chisq
 
   function RJ2data(self, det)
     implicit none
@@ -264,7 +293,9 @@ contains
        RJ2data = self%bp(d)%p%a2sz
     case ('uK_RJ') 
        RJ2data = 1.d0
-    case ('K km/s') ! NEW
+    case ('K km/s') 
+       RJ2data = 1.d0
+    case default
        RJ2data = 1.d0
     end select
     
@@ -293,7 +324,7 @@ contains
     character(len=*), intent(in)    :: sourcefile
     real(dp),         intent(in)    :: r_max
 
-    integer(i4b)       :: i, j, l, p, unit, nlist, nmax=10000, itmp
+    integer(i4b)       :: i, j, l, unit, nlist, nmax=10000, itmp
     real(dp)           :: lon, lat, rad, vec(3)
     character(len=512) :: line
     integer(i4b), allocatable, dimension(:) :: listpix

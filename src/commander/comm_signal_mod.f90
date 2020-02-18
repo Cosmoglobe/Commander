@@ -27,7 +27,7 @@ contains
     type(comm_params), intent(in) :: cpar
 
     integer(i4b) :: i, n
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     
     ncomp = 0
     do i = 1, cpar%cs_ncomp_tot
@@ -109,7 +109,7 @@ contains
     character(len=*), intent(in) :: filename
 
     integer(i4b) :: i, unit
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     unit = getlun()
     
@@ -134,7 +134,7 @@ contains
 
     integer(i4b) :: stat, i
     real(dp)     :: Nscale = 1.d-4
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
 
     allocate(x(ncr), mask(ncr))
@@ -147,7 +147,7 @@ contains
     end do
     
     ! Solve the linear system
-    call cr_computeRHS(cpar%operation, handle, handle_noise, mask, samp_group, rhs)
+    call cr_computeRHS(cpar%operation, cpar%resamp_CMB, handle, handle_noise, mask, samp_group, rhs)
     call update_status(status, "init_precond1")
     call initPrecond(cpar%comm_chain)
     call update_status(status, "init_precond2")
@@ -168,7 +168,7 @@ contains
 
   subroutine add_to_complist(c)
     implicit none
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c 
     
     if (.not. associated(compList)) then
        compList => c
@@ -177,63 +177,95 @@ contains
     end if
   end subroutine add_to_complist
 
-  subroutine initialize_from_chain(cpar, handle, init_samp)
+  subroutine initialize_from_chain(cpar, handle, init_samp, init_from_output)
     implicit none
     type(comm_params), intent(in)           :: cpar
     type(planck_rng),  intent(inout)        :: handle
     integer(i4b),      intent(in), optional :: init_samp
+    logical(lgt),      intent(in), optional :: init_from_output
 
-    integer(i4b)              :: i, j, ext(2)
+    integer(i4b)              :: i, j, ext(2), initsamp, initsamp2
     character(len=4)          :: ctext
-    character(len=6)          :: itext
+    character(len=6)          :: itext, itext2
     character(len=512)        :: chainfile, hdfpath
-    class(comm_comp), pointer :: c
-    type(hdf_file) :: file
-    class(comm_N),      pointer :: N
-    class(comm_map),    pointer :: rms
+    class(comm_comp), pointer :: c => null()
+    type(hdf_file) :: file, file2
+    class(comm_N),      pointer :: N => null() 
+    class(comm_map),    pointer :: rms => null()
     real(dp), allocatable, dimension(:,:) :: bp_delta, regnoise
 
-    if (cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') return
+    if ((cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') .and. &
+         & .not. present(init_from_output)) return
 
     ! Open HDF file
     call int2string(cpar%mychain,   ctext)
-    if (present(init_samp)) then
-       call int2string(init_samp, itext)
-    else
-       call int2string(cpar%init_samp, itext)
-    end if
-    if (trim(cpar%chain_prefix) == trim(cpar%init_chain_prefix)) then
-       chainfile = trim(adjustl(cpar%outdir)) // '/' // trim(adjustl(cpar%chain_prefix)) // &
+    if (present(init_from_output)) then
+       chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
             & '_c' // trim(adjustl(ctext)) // '.h5'
-    else
-       chainfile = trim(adjustl(cpar%init_chain_prefix))
+       initsamp = init_samp
+       call int2string(init_samp, itext)
+       !write(*,*) 'init', itext
+    else 
+       call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+       if (present(init_samp)) initsamp = init_samp
+       call int2string(initsamp, itext)
     end if
+    !write(*,*) 'chainfile', trim(chainfile)
     call open_hdf_file(chainfile, file, 'r')
     
+    if (cpar%resamp_CMB .and. present(init_from_output)) then
+    ! Initialize CMB component parameters; only once before starting Gibbs
+       c   => compList
+       do while (associated(c))
+          if (trim(c%type) /= 'cmb' .or. trim(c%init_from_HDF) == 'none') then
+             c => c%next()
+             cycle
+          end if
+          call update_status(status, "init_chain_"//trim(c%label))
+          if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
+          call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
+          c => c%next()
+       end do
+       call close_hdf_file(file)
+       return
+    end if
+
     ! Initialize instrumental parameters
     call update_status(status, "init_chain_inst")
-    if (cpar%cs_init_inst_hdf) then
+    if (trim(cpar%cs_init_inst_hdf) /= 'none') then
        do i = 1, numband
           if (cpar%ignore_gain_bp) then
-             data(i)%gain     = 1.d0
+             data(i)%gain          = 1.d0
              data(i)%bp(0)%p%delta = 0.d0
           else
-             call read_hdf(file, trim(adjustl(itext))//'/gain/'//trim(adjustl(data(i)%label)), &
+             if (trim(cpar%cs_init_inst_hdf) == 'default') then
+                call copy_hdf_struct(file, file2)
+                itext2 = itext
+             else
+                call get_chainfile_and_samp(cpar%cs_init_inst_hdf, &
+                     & chainfile, initsamp2)
+                call int2string(initsamp2, itext2)
+                call open_hdf_file(chainfile, file2, 'r')
+             end if
+             call read_hdf(file2, trim(adjustl(itext2))//'/gain/'//trim(adjustl(data(i)%label)), &
                   & data(i)%gain)
   
-             call get_size_hdf(file, trim(adjustl(itext))//'/bandpass/'//&
+             call get_size_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//&
                   & trim(adjustl(data(i)%label)), ext)
              if (data(i)%ndet > ext(1)-1) then
                 write(*,*) 'Error -- init HDF file does not contain enough bandpass information'
                 stop
              end if
              allocate(bp_delta(0:ext(1)-1,ext(2)))
-             call read_hdf(file, trim(adjustl(itext))//'/bandpass/'//trim(adjustl(data(i)%label)), &
+             call read_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//trim(adjustl(data(i)%label)), &
                   & bp_delta)
              do j = 0, data(i)%ndet
                 data(i)%bp(j)%p%delta = bp_delta(j,:)
              end do
              deallocate(bp_delta)
+             if (trim(cpar%cs_init_inst_hdf) /= 'default') then
+                call close_hdf_file(file2)
+             end if
           end if
        end do
     end if
@@ -241,13 +273,25 @@ contains
     ! Initialize component parameters
     c   => compList
     do while (associated(c))
-       if (.not. c%init_from_HDF .or. (present(init_samp) .and. trim(c%type) == 'cmb')) then
+       if (trim(c%init_from_HDF) == 'none' .or. (present(init_samp) .and. trim(c%type) == 'cmb')) then
           c => c%next()
           cycle
        end if
        call update_status(status, "init_chain_"//trim(c%label))
        if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
-       call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
+       if (trim(c%init_from_HDF) == 'default') then
+          call copy_hdf_struct(file, file2)
+          itext2 = itext
+       else
+          call get_chainfile_and_samp(c%init_from_HDF, &
+                     & chainfile, initsamp2)
+          call int2string(initsamp2, itext2)
+          call open_hdf_file(chainfile, file2, 'r')
+       end if
+       call c%initHDF(cpar, file2, trim(adjustl(itext2))//'/')
+       if (trim(c%init_from_HDF) /= 'default') then
+          call close_hdf_file(file2)
+       end if
        c => c%next()
     end do
 
@@ -255,13 +299,25 @@ contains
     if (cpar%enable_TOD_analysis) then
        do i = 1, numband  
           if (trim(data(i)%tod_type) == 'none') cycle
-          if (.not. data(i)%tod%init_from_HDF)     cycle
+          if (trim(data(i)%tod%init_from_HDF) == 'none')     cycle
           if (cpar%myid == 0) write(*,*) ' Initializing TOD par from chain = ', trim(data(i)%tod%freq)
           N => data(i)%N
           rms => comm_map(data(i)%info)
           select type (N)
           class is (comm_N_rms)
-             call data(i)%tod%initHDF(file, cpar%init_samp, data(i)%map, rms)
+             if (trim(data(i)%tod%init_from_HDF) == 'default') then
+                call copy_hdf_struct(file, file2)
+                initsamp2 = initsamp
+             else
+                call get_chainfile_and_samp(data(i)%tod%init_from_HDF, &
+                     & chainfile, initsamp2)
+                call open_hdf_file(chainfile, file2, 'r')
+             end if
+             !write(*,*) 'init2', initsamp2
+             call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
+             if (trim(data(i)%tod%init_from_HDF) /= 'default') then
+                call close_hdf_file(file2)
+             end if
           end select
 
           ! Update rms and data maps
@@ -279,15 +335,14 @@ contains
        end do
     else if (cpar%resamp_CMB) then
        do i = 1, numband  
-          cycle
-
           if (trim(data(i)%tod_type) == 'none') cycle
           !if (.not. data(i)%tod%init_from_HDF)  cycle
-          if (cpar%myid == 0) write(*,*) ' Initializing map and rms from chain = ', trim(data(i)%label)
+          if (cpar%myid == 0) write(*,*) ' Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
 
           hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
           rms     => comm_map(data(i)%info)
           N       => data(i)%N
+          !write(*,*) trim(file%filename), trim(adjustl(hdfpath))//'map'
           call data(i)%map%readMapFromHDF(file, trim(adjustl(hdfpath))//'map')
           select type (N)
           class is (comm_N_rms)
@@ -306,7 +361,7 @@ contains
           data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
 
-!!$          call data(i)%map%writeFITS('map.fits')
+          !call data(i)%map%writeFITS('data_'//trim(data(i)%label)//'.fits')
 !!$          call rms%writeFITS('rms.fits')
 !!$          call mpi_finalize(j)
 !!$          stop
@@ -325,17 +380,23 @@ contains
   end subroutine initialize_from_chain
 
 
-  subroutine sample_powspec(handle)
+  subroutine sample_powspec(handle, ok)
     implicit none
-
     type(planck_rng),  intent(inout) :: handle
-    class(comm_comp), pointer :: c
+    logical(lgt),      intent(out)   :: ok
 
-    c => compList
+    class(comm_comp), pointer :: c => null()
+
+    ok = .true.
+    c  => compList
     do while (associated(c))
+       if (trim(c%type) == 'md') then
+          c => c%next()
+          cycle
+       end if
        select type (c)
        class is (comm_diffuse_comp)
-          call c%Cl%sampleCls(c%x, handle)
+          call c%Cl%sampleCls(c%x, handle, ok)
        end select
        c => c%next()
     end do
@@ -352,9 +413,9 @@ contains
     integer(i4b) :: i, ierr
     logical(lgt) :: skip
     real(dp)     :: vals(2), vals2(2), mu, sigma, amp, mu_p, sigma_p
-    class(comm_map),           pointer :: res, invN_T
-    class(comm_comp),          pointer :: c
-    class(comm_template_comp), pointer :: pt
+    class(comm_map),           pointer :: res => null(), invN_T => null()
+    class(comm_comp),          pointer :: c => null()
+    class(comm_template_comp), pointer :: pt => null()
     
     ! Compute predicted signal for this band
     c => compList
@@ -437,4 +498,134 @@ contains
 
   end subroutine synchronize_bp_delta
   
+
+  subroutine sample_joint_alm_Cl(handle)
+    implicit none
+    type(planck_rng), intent(inout) :: handle
+
+    integer(i4b) :: i, j, n, bin, pos, ierr
+    logical(lgt) :: posdef, accept
+    real(dp)     :: chisq_old, chisq_prop, U
+    real(dp), allocatable, dimension(:)   :: Dl_old, Dl_prop, eta
+    real(dp), allocatable, dimension(:,:) :: alm_prop, alm_old
+    class(comm_comp), pointer :: c => null()
+    class(comm_map),  pointer :: res => null()
+    
+    ! Initialize residual maps
+    chisq_old = 0.d0
+    do i = 1, numband
+       res             => compute_residual(i)
+!!$       write(*,*) sum(abs(res%map))
+!!$       call mpi_finalize(ierr)
+!!$       stop
+
+       data(i)%res%map =  res%map
+       chisq_old       =  chisq_old + data(i)%chisq()
+!!$       write(*,*) chisq_old
+!!$       call mpi_finalize(ierr)
+!!$       stop
+       call res%dealloc()
+       nullify(res)
+    end do
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+
+          ! Add CMB 
+          do i = 1, numband
+             data(i)%c_old     => comm_map(data(i)%info)
+             data(i)%c_prop    => comm_map(data(i)%info)
+             data(i)%c_old%map =  c%getBand(i)
+          end do
+
+          allocate(alm_prop(0:c%x%info%nalm-1,0:c%x%info%nmaps))
+          allocate(alm_old(0:c%x%info%nalm-1,0:c%x%info%nmaps))
+          do bin = 1, c%Cl%nbin2
+             if (trim(c%Cl%type) /= 'binned') cycle
+             if (trim(c%Cl%bins2(bin)%stat) /= 'M') cycle
+
+             n = c%Cl%bins2(bin)%ntot
+if (c%x%info%myid ==0) write(*,*) bin, n
+             pos = 0
+             allocate(Dl_old(n), Dl_prop(n), eta(n))
+             call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_old, pos, .false.)
+             if (c%x%info%myid ==0) then   
+                do i = 1, n
+                   eta(i) = rand_gauss(handle)
+                end do
+                Dl_prop = Dl_old + matmul(c%Cl%bins2(bin)%M_prop, eta)
+                posdef = c%Cl%check_posdef(bin, Dl_prop)
+             end if
+             call mpi_bcast(posdef, 1, MPI_LOGICAL, 0, c%x%info%comm, ierr)
+             if (c%x%info%myid ==0) write(*,*) 'posdef', bin, c%Cl%bins2(bin)%lmin, posdef
+             if (posdef) then
+                call mpi_bcast(Dl_prop, n, MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
+
+                ! Compute rescaled alms
+                alm_old  = c%x%alm
+                alm_prop = c%x%alm
+                pos      = 0
+                call c%Cl%sqrtInvS(alm=alm_prop, info=c%x%info)
+                call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_prop, pos, .true.)
+                call c%Cl%updateS
+                call c%Cl%sqrtS(alm=alm_prop, info=c%x%info)
+                c%x%alm = alm_prop
+
+                ! Compute proposal chisquare
+                chisq_prop = 0.d0
+                do i = 1, numband
+                   data(i)%c_prop%map =  c%getBand(i)
+                   data(i)%res%map    =  data(i)%res%map + data(i)%c_old%map - data(i)%c_prop%map
+                   chisq_prop         =  chisq_prop      + data(i)%chisq()
+                end do
+
+                ! Apply Metropolis rule, and update data structures
+                if (c%x%info%myid == 0) then
+                   if (chisq_prop < chisq_old) then
+                      accept = .true.
+                   else
+                      accept = rand_uni(handle) < exp(-0.5d0*(chisq_prop-chisq_old))
+                   end if
+                   write(*,*) 'Old   = ', bin, real(Dl_old,sp)
+                   write(*,*) 'Prop  = ', bin, real(Dl_prop,sp)
+                   write(*,*) 'chisq = ', chisq_old, chisq_prop, accept
+                end if
+!!$                call mpi_finalize(ierr)
+!!$                stop
+
+                call mpi_bcast(accept, 1, MPI_LOGICAL, 0, c%x%info%comm, ierr)
+                if (accept) then
+                   chisq_old = chisq_prop
+                   do i = 1, numband
+                      data(i)%c_old%map = data(i)%c_prop%map 
+                   end do
+                else
+                   c%x%alm = alm_old
+                   pos     = 0
+                   call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_old, pos, .true.)
+                   call c%Cl%updateS
+                   do i = 1, numband
+                      data(i)%res%map   = data(i)%res%map - data(i)%c_old%map + data(i)%c_prop%map
+                   end do
+                end if
+
+             end if
+             deallocate(Dl_old, Dl_prop, eta)
+          end do
+          deallocate(alm_prop, alm_old)
+
+          do i = 1, numband
+             call data(i)%c_old%dealloc()
+             call data(i)%c_prop%dealloc() 
+          end do
+
+       end select
+       c => c%next()
+    end do
+
+  end subroutine sample_joint_alm_Cl
+
+
 end module comm_signal_mod

@@ -49,9 +49,9 @@ contains
        end function func
     end interface
 
-    real(dp)        :: epsilon, fret, fpt, fptt, delta, t, fp
-    integer(i4b)    :: i, j, k, l, n, ibig, iter
-    integer(i4b)    :: numbin_cl, numbin, maxiter
+    real(dp)        :: epsilon, fret, fptt, delta, t, fp
+    integer(i4b)    :: i, j, n, ibig, iter
+    integer(i4b)    :: maxiter
     real(dp), allocatable, dimension(:)    :: pt, ptt, xit
     real(dp), allocatable, dimension(:,:)  :: xi
 
@@ -158,7 +158,6 @@ contains
        end function func
     end interface
 
-    integer(i4b)   :: j
     real(dp)       :: epsilon, xx, xmin, fx, fb, fa, bx, ax
 
     if (present(ierr)) ierr = 0

@@ -11,7 +11,7 @@ module comm_F_int_1D_mod
 
   type, extends (comm_F_int) :: comm_F_int_1D
      type(spline_type) :: s
-     class(comm_comp), pointer :: comp
+     class(comm_comp), pointer :: comp => null()
    contains
      ! Data procedures
      procedure :: eval => evalIntF

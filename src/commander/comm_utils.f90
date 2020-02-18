@@ -10,9 +10,10 @@ module comm_utils
   use comm_defs
   use sort_utils
   use spline_1D_mod
+  use comm_mpi_mod
   implicit none
 
-  include "mpif.h"
+  !include "mpif.h"
   include 'fftw3.f'
 
   
@@ -80,6 +81,8 @@ contains
        call fits2cl(beamfile, beam_in, lmax, 4, header)
     else if (present(fwhm)) then
        call gaussbeam(fwhm, lmax, beam_in(0:lmax,1:nmaps))
+       !write(*,*) 'normalize beam to dipole'
+       !beam_in(0:lmax,1) = beam_in(0:lmax,1) / beam_in(1,1)
     else
        beam_in = 1.d0
     end if
@@ -461,45 +464,45 @@ contains
 !!$    deallocate(tmp)
 !!$  end function median
 
-  subroutine allocate_map(comm, nside, nmaps, k, map, np, rings, pixels, filename)
-    implicit none
-
-    integer(i4b),                                  intent(in)  :: comm, nside, nmaps, k
-    real(dp),         allocatable, dimension(:,:), intent(out) :: map
-    integer(i4b),                                  intent(out), optional :: np
-    integer(i4b),     allocatable, dimension(:),   intent(out), optional :: rings, pixels
-    character(len=*),                              intent(in),  optional :: filename
-
-    integer(i4b) :: i, npix
-
-    npix = 12*nside**2
-    allocate(map(0:npix-1,nmaps))
-    if (present(filename)) then
-       call read_map(filename, map)
-    else
-       map = 0.d0
-    end if
-
-    if (present(rings)) then
-       if (allocated(rings)) deallocate(rings)
-       allocate(rings(2*nside))
-       do i = 1, 2*nside
-          rings(i) = i
-       end do
-    end if
-
-    if (present(pixels)) then
-       if (allocated(pixels)) deallocate(pixels)
-       allocate(pixels(1:npix))
-       do i = 0, npix-1
-          pixels(i+1) = i
-       end do
-    end if
-
-    if (present(np)) np = npix
-    
-    
-  end subroutine allocate_map
+!!$  subroutine allocate_map(comm, nside, nmaps, k, map, np, rings, pixels, filename)
+!!$    implicit none
+!!$
+!!$    integer(i4b),                                  intent(in)  :: comm, nside, nmaps, k
+!!$    real(dp),         allocatable, dimension(:,:), intent(out) :: map
+!!$    integer(i4b),                                  intent(out), optional :: np
+!!$    integer(i4b),     allocatable, dimension(:),   intent(out), optional :: rings, pixels
+!!$    character(len=*),                              intent(in),  optional :: filename
+!!$
+!!$    integer(i4b) :: i, npix
+!!$
+!!$    npix = 12*nside**2
+!!$    allocate(map(0:npix-1,nmaps))
+!!$    if (present(filename)) then
+!!$       call read_map(filename, map)
+!!$    else
+!!$       map = 0.d0
+!!$    end if
+!!$
+!!$    if (present(rings)) then
+!!$       if (allocated(rings)) deallocate(rings)
+!!$       allocate(rings(2*nside))
+!!$       do i = 1, 2*nside
+!!$          rings(i) = i
+!!$       end do
+!!$    end if
+!!$
+!!$    if (present(pixels)) then
+!!$       if (allocated(pixels)) deallocate(pixels)
+!!$       allocate(pixels(1:npix))
+!!$       do i = 0, npix-1
+!!$          pixels(i+1) = i
+!!$       end do
+!!$    end if
+!!$
+!!$    if (present(np)) np = npix
+!!$    
+!!$    
+!!$  end subroutine allocate_map
 
   
   subroutine read_map(filename, map)
@@ -609,8 +612,7 @@ contains
     character(len=*),                               intent(in)  :: filename
     real(dp),           allocatable, dimension(:,:)             :: spectrum
 
-    real(dp)            :: S_ref
-    integer(i4b)        :: i, j, numpoint, unit, first, last
+    integer(i4b)        :: i, j, numpoint, unit
     character(len=128)  :: nu, val, string
 
     unit = getlun()
@@ -670,7 +672,7 @@ contains
     real(dp),         intent(in)  :: default
     real(dp),         intent(out) :: val
     
-    integer(i4b)        :: unit, i, j
+    integer(i4b)        :: unit
     character(len=512)  :: band
     character(len=1024) :: line
     real(dp)            :: vals(2)
@@ -718,7 +720,7 @@ contains
     real(dp),                       dimension(0:,1:), intent(in)  :: bl
     type(spline_type), allocatable, dimension(:),     intent(out) :: br
 
-    integer(i4b)  :: i, j, k, m, n, l, lmax
+    integer(i4b)  :: i, j, m, n, l, lmax
     real(dp)      :: theta_max, threshold
     real(dp), allocatable, dimension(:)   :: x, pl
     real(dp), allocatable, dimension(:,:) :: y
@@ -770,9 +772,7 @@ contains
     type(planck_rng), intent(inout) :: rng_handle
     real(dp)                        :: rand_trunc_gauss
 
-    integer(i4b) :: n
-    real(dp) :: eta, alpha, z, rho, u, mu0
-    logical(lgt) :: ok
+    real(dp) :: alpha, z, rho, mu0
 
     mu0   = (mu_ - mu)/sigma
     alpha = 0.5d0 * (mu0 + sqrt(mu0**2 + 4.d0))
@@ -797,7 +797,7 @@ contains
     real(dp),                           intent(in), optional :: nu_ref
 
     integer(i4b)   :: npix, nlheader, nmaps, i, nside
-    logical(lgt)   :: exist, polarization
+    logical(lgt)   :: polarization
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
@@ -904,8 +904,8 @@ contains
     !
     Implicit None
     !
-    Character (*),                 Intent(In)	     :: File
-    Integer (Kind=4),              Intent(Out)	     :: Status
+    Character (*),                 Intent(In)            :: File
+    Integer (Kind=4),              Intent(Out)           :: Status
     Real (Kind=4), Dimension(:,:), Pointer               :: NInv
     Integer (Kind=4),              Intent(Out), Optional :: NElements
     Integer (Kind=4),              Intent(Out), Optional :: NPixels
@@ -919,22 +919,22 @@ contains
     If (Present(NElements)) NElements = 0
     Status  = 0
     !
-    !			Open the FITS file.  Leave it positioned at the
-    !			primary header/data unit (HDU).
+    ! Open the FITS file.  Leave it positioned at the
+    ! primary header/data unit (HDU).
     !
     rwmode = 0
-    Call FTGIOU (unit, Status)				! Get a free unit #.
-    Call FTOPEN (unit, File, rwmode, tmp, Status)		! Open the file.
+    Call FTGIOU (unit, Status)                    ! Get a free unit #.
+    Call FTOPEN (unit, File, rwmode, tmp, Status) ! Open the file.
     If (Status .NE. 0) Return
     !
-    !			How big is the array?
+    !  How big is the array?
     !
     Call FTGISZ (unit, 2, naxes, Status)
     If ((naxes(1) .LE. 0) .OR. (naxes(1) .NE. naxes(2)) .OR. (Status .NE. 0)) Go To 99
     !
-    !			How many pixels are in the base map?  Start by looking
-    !			at the NPIX keyword; if that isn't found, use LASTPIX.
-    !			If neither is found, give up!
+    !  How many pixels are in the base map?  Start by looking
+    !  at the NPIX keyword; if that isn't found, use LASTPIX.
+    !  If neither is found, give up!
     !
     Call FTGKYJ (unit, 'NPIX', npix, comm, Status)
     If (Status .NE. 0) Then
@@ -946,7 +946,7 @@ contains
        !
     End If
     !
-    !			Extract data from this first extension table.
+    !  Extract data from this first extension table.
     !
     If (.NOT. Associated(NInv)) Then
        Allocate(NInv(naxes(1), naxes(2)), Stat=Status)
@@ -956,8 +956,8 @@ contains
     tmp = naxes(1) * naxes(2)
     Call FTGPVE (unit, 0, 1, tmp, 0.0E0, NInv, anyf, Status)
     !
-    !			Done!  Set the number of pixels, close the FITS file
-    !			and return.
+    !  Done!  Set the number of pixels, close the FITS file
+    !  and return.
     !
     If (Present(NPixels)  ) NPixels   = npix
     If (Present(NElements)) NElements = naxes(1)
@@ -965,13 +965,44 @@ contains
 99  Continue
     !
     lst = 0
-    Call FTCLOS (unit, lst)					! Close the file.
-    Call FTFIOU (unit, lst)					! Release the unit #.
+    Call FTCLOS (unit, lst)  ! Close the file.
+    Call FTFIOU (unit, lst)  ! Release the unit #.
     If ((lst .NE. 0) .AND. (Status .EQ. 0)) Status = lst
     !
     Return
     ! ----------------------------------------------------------------------------
   End Subroutine WMAP_Read_NInv
+
+
+  subroutine compute_euler_matrix_zyz(phi, theta, psi, euler_matrix)
+    implicit none
+
+    real(dp),                 intent(in)  :: phi, theta, psi
+    real(dp), dimension(3,3), intent(out) :: euler_matrix
+
+    real(dp) :: sphi, cphi, sth, cth, spsi, cpsi
+
+    sphi = sin(phi)
+    cphi = cos(phi)
+
+    sth  = sin(theta)
+    cth  = cos(theta)
+
+    spsi = sin(psi)
+    cpsi = cos(psi)
+
+    euler_matrix(1,1) = -sphi * spsi + cth * cphi * cpsi
+    euler_matrix(1,2) = -sphi * cpsi - cth * cphi * spsi
+    euler_matrix(1,3) =                sth * cphi
+    euler_matrix(2,1) =  cphi * spsi + cth * sphi * cpsi
+    euler_matrix(2,2) =  cphi * cpsi - cth * sphi * spsi
+    euler_matrix(2,3) =                sth * sphi
+    euler_matrix(3,1) =              - sth * cpsi
+    euler_matrix(3,2) =                sth * spsi
+    euler_matrix(3,3) =                cth
+
+  end subroutine compute_euler_matrix_zyz
+
 
   
 end module comm_utils

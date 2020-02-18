@@ -38,7 +38,7 @@ contains
     class(comm_md_comp), pointer               :: constructor
 
     integer(i4b) :: i, j, k, l, m
-    type(comm_mapinfo), pointer :: info
+    type(comm_mapinfo), pointer :: info => null()
 
 !    write(*,*) 'mu', trim(label), real(mu,sp)
 !    write(*,*) 'rms', trim(label), real(rms,sp)
@@ -60,6 +60,11 @@ contains
     constructor%comm            = cpar%comm_chain
     constructor%numprocs        = cpar%numprocs_chain
     constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
+    constructor%lmax_pre_lowl   = -1
+    constructor%lmax_def        = -1
+    constructor%nside_def       = 0
+    constructor%fwhm_def        = 0.d0
+
     !constructor%ref_band = band
 
     ! Set up conversion factor between RJ and native component unit
@@ -123,7 +128,8 @@ contains
 
     ! Allocate mixing matrix
     constructor%ndet = maxval(data%ndet)
-    allocate(constructor%F(numband,0:constructor%ndet), constructor%F_mean(numband,0:constructor%ndet,constructor%nmaps), constructor%F_null(numband,0:constructor%ndet))
+    allocate(constructor%F(numband,0:constructor%ndet), constructor%F_mean(numband,0:constructor%ndet,constructor%nmaps))
+    allocate(constructor%F_null(numband,0:constructor%ndet))
     do i = 1, numband
        if (i == band) then
           info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
@@ -227,7 +233,7 @@ contains
     real(dp)            :: mu(4), rms(2), def(4)
     character(len=1024) :: line, label
     character(len=256)  :: dir
-    class(comm_comp), pointer :: c
+    class(comm_comp), pointer :: c => null()
 
     unit  = getlun()
     dir = trim(cpar%datadir)//'/'

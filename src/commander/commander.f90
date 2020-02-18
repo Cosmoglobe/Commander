@@ -33,12 +33,13 @@ program commander
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
+  logical(lgt)        :: ok
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
 
-  type(comm_mapinfo), pointer :: info
-  type(comm_map), pointer :: m
-  class(comm_comp), pointer :: c1
+  type(comm_mapinfo), pointer :: info => null()
+  type(comm_map),     pointer :: m    => null()
+  class(comm_comp),   pointer :: c1   => null()
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
@@ -90,6 +91,7 @@ program commander
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle); call update_status(status, "init_from_chain")
 
@@ -97,7 +99,7 @@ program commander
 !data(6)%gain = 1.d0
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
-  if (cpar%enable_tod_analysis) call synchronize_bp_delta(cpar%cs_init_inst_hdf)
+  if (cpar%enable_tod_analysis) call synchronize_bp_delta(trim(cpar%cs_init_inst_hdf) /= 'none')
   call update_mixing_matrices(update_F_int=.true.)       
 
   if (cpar%output_input_model) then
@@ -127,11 +129,27 @@ program commander
   end if
 
 
+  ! Prepare chains 
+  call init_chain_file(cpar, first_sample)
+!write(*,*) 'first', first_sample
+  !first_sample = 1
+  if (first_sample == -1) then
+     call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
+     first_sample = 1
+  else
+     ! Re-initialise seeds and reinitialize
+     call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
+     !first_sample = 10
+     call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true.)
+     first_sample = first_sample+1
+  end if
+
+  !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
+  !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
+
   ! Run Gibbs loop
-  first_sample = 1
-  tod_freq     = 5
-  call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
-  do iter = first_sample, cpar%num_gibbs_iter
+  iter = first_sample
+  do while (iter <= cpar%num_gibbs_iter)
 
      if (cpar%myid == 0) then
         call wall_time(t1)
@@ -139,10 +157,10 @@ program commander
         write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
 
-     ! Initialize on existing sample if RESAMPLE_CMB = .true.
+     ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
-        if (mod(iter-1,cpar%numsamp_per_resamp) == 0) then
-           curr_samp = (iter-1)/cpar%numsamp_per_resamp+cpar%first_samp_resamp
+        if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then
+           curr_samp = mod((iter-1)/cpar%numsamp_per_resamp,cpar%last_samp_resamp-cpar%first_samp_resamp+1) + cpar%first_samp_resamp
            if (cpar%myid == 0) write(*,*) 'Re-initializing on sample ', curr_samp
            call initialize_from_chain(cpar, handle, init_samp=curr_samp)
            call update_mixing_matrices(update_F_int=.true.)       
@@ -150,7 +168,7 @@ program commander
      end if
 
      ! Process TOD structures
-     if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,tod_freq) == 0)) then
+     if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
@@ -162,8 +180,20 @@ program commander
                    & samp_group, ' of ', cpar%cg_num_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+
+           if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
+
         end do
+
+        ! Perform joint alm-Cl Metropolis move
+        do i = 1, 3
+           if (cpar%resamp_CMB) call sample_joint_alm_Cl(handle)
+        end do
+
      end if
+
+     ! Sample power spectra
+     call sample_powspec(handle, ok)
 
      ! Output sample to disk
      call output_FITS_sample(cpar, iter, .true.)
@@ -182,15 +212,19 @@ program commander
 
      ! Sample instrumental parameters
 
-     ! Sample power spectra
-     call sample_powspec(handle)
      
 
-     ! Compute goodness-of-fit statistics
-     
-     if (cpar%myid == 0) then
-        call wall_time(t2)
-        write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+     call wall_time(t2)
+     if (ok) then
+        if (cpar%myid == 0) then
+           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+        end if
+        iter = iter+1
+     else
+        if (cpar%myid == 0) then
+           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,*) 'SAMPLE REJECTED'
+        end if        
      end if
      
   end do
@@ -225,7 +259,7 @@ contains
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
-    class(comm_map), pointer :: rms
+    class(comm_map), pointer :: rms => null()
 
     ndelta      = cpar%num_bp_prop + 1
 
@@ -241,7 +275,7 @@ contains
        do k = 1, ndelta
           ! Propose new bandpass shifts, and compute mixing matrices
           if (k > 1) then
-             if (cpar%myid == 0) then
+             if (data(i)%info%myid == 0) then
                 do l = 1, npar
                    if (mod(iter,2) == 0) then
                       write(*,*) 'relative',  iter
@@ -251,7 +285,9 @@ contains
                          eta(j) = rand_gauss(handle)
                       end do
                       eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
-                      delta(1:ndet,l,k) = data(i)%bp(1:ndet)%p%delta(l) + eta
+                      do j = 1, ndet
+                         delta(j,l,k) = data(i)%bp(j)%p%delta(l) + eta(j)
+                      end do
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
                            & data(i)%bp(0)%p%delta(l)
                    else

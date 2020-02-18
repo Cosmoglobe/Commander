@@ -85,6 +85,20 @@ contains
     call assert(status==0, 'comm_hdf_mod: Could not close hdf module')
   end subroutine cleanup_comm_hdf_mod
 
+  subroutine copy_hdf_struct(file_in, file_out)
+    implicit none
+    type(hdf_file), intent(in)  :: file_in
+    type(hdf_file), intent(out) :: file_out
+
+    file_out%filename   = file_in%filename
+    file_out%setname    = file_in%setname
+    file_out%filehandle = file_in%filehandle
+    file_out%sethandle  = file_in%sethandle
+    file_out%status     = file_in%status
+
+  end subroutine copy_hdf_struct
+    
+
   ! *****************************************************
   ! Basic file open and close routines
   ! *****************************************************
@@ -99,6 +113,7 @@ contains
 
     ! Open file in either read or write mode
     file%filename = filename
+    file%status   = 0
     if (mode == 'r') then
        call h5fopen_f(file%filename, H5F_ACC_RDONLY_F, file%filehandle, file%status)
     else if (mode == 'w') then
@@ -173,7 +188,7 @@ contains
     call h5sget_simple_extent_dims_f(space, ext_hdf, mext_hdf, file%status)
     call h5sclose_f(space, file%status)
     n = min(size(ext),rank)
-    ext(:n) = ext_hdf(:n)
+    ext(:n) = int(ext_hdf(:n),i4b)
     deallocate(ext_hdf, mext_hdf)
   end subroutine get_size_hdf
 
@@ -197,7 +212,15 @@ contains
     implicit none
     type(hdf_file) :: file
     character(len=*), intent(in)  :: setname
+    TYPE(h5o_info_t) :: object_info
+    integer(i4b) :: hdferr
     {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(out) :: val
+    call h5eset_auto_f(0, hdferr)
+    call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
+    if (hdferr /= 0) then
+       write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       return
+    end if
     call open_hdf_set(file, setname)
     call h5dread_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -252,7 +275,7 @@ contains
     character(len=*), intent(out) :: val
 
     integer(i4b), parameter :: mlen=10000
-    integer(hid_t)  :: dtype, dset, filetype, space
+    integer(hid_t)  :: filetype, space
     integer(size_t), dimension(1)  :: len
     integer(hsize_t), dimension(1:2)  :: data_dims
     integer         :: hdferr
@@ -282,10 +305,10 @@ contains
     integer(i4b),     intent(out) :: n
 
     integer(i4b), parameter :: mlen=10000
-    integer(hid_t)  :: dtype, dset, filetype, space, memtype
+    integer(hid_t)  :: filetype, space
     INTEGER(SIZE_T) :: size
-    integer(size_t), dimension(1)  :: len
-    integer(hsize_t), dimension(1:2)  :: data_dims
+    !integer(size_t), dimension(1)  :: len
+    !integer(hsize_t), dimension(1:2)  :: data_dims
     INTEGER(HSIZE_T), DIMENSION(1:1) :: dims = (/mlen/)
     INTEGER(HSIZE_T), DIMENSION(1:1) :: maxdims
     integer         :: hdferr
@@ -300,7 +323,7 @@ contains
 
     call h5dread_f(file%sethandle, filetype, rdata, dims, hdferr, H5S_ALL_F, H5S_ALL_F, H5P_DEFAULT_F)
     val = rdata(1:size)
-    n   = size
+    n   = int(size,i4b)
 
     call close_hdf_set(file)
     CALL h5sclose_f(space, hdferr)
@@ -381,11 +404,15 @@ contains
     integer(hid_t)                               :: type_id
     integer(hid_t) :: space
     if (trim(file%setname) /= trim(setname)) call close_hdf_set(file)
+    !write(*,*) trim(file%setname), trim(setname)
     file%setname = setname
     call h5screate_simple_f(size(ext), int(ext,hsize_t), space, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot create data space")
+    call assert(file%status>=0, "comm_hdf_mod: Cannot create data space, "//trim(file%filename)//', '//trim(setname))
+    !write(*,*) trim(file%setname), type_id, space, file%sethandle, file%status, ext
     call h5dcreate_f(file%filehandle, file%setname, type_id, space, file%sethandle, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot create data set")
+    !write(*,*) ' HDF status = ', file%status
+    !call h5eprint_f(file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot create data set "//trim(file%filename)//', '//trim(setname))
     call h5sclose_f(space, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot close data space")
   end subroutine create_hdf_set
@@ -437,7 +464,7 @@ contains
   function parse_hdf_slice(slice, ext) result(hslice)
     implicit none
     integer(i4b), intent(in) :: slice(:,:), ext(:)
-    integer(i4b)             :: hslice(3,size(slice,2)), i
+    integer(i4b)             :: hslice(3,size(slice,2))
     hslice = slice
     ! Negative indices count from the end, with -1 being the last valid index
     where(hslice([1,2],:) < 0) hslice([1,2],:) = hslice([1,2],:) + spread(ext,1,2) + 1

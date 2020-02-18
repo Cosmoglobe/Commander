@@ -7,6 +7,56 @@ module comm_output_mod
 
 contains
 
+  subroutine init_chain_file(cpar, iter)
+    implicit none
+    
+    type(comm_params), intent(in)  :: cpar
+    integer(i4b),      intent(out) :: iter
+
+    integer(i4b)                 :: i, j, hdferr, ierr
+    logical(lgt)                 :: exist
+    character(len=4)             :: ctext
+    character(len=6)             :: itext
+    character(len=512)           :: postfix, chainfile, hdfpath
+    type(hdf_file)   :: file
+    TYPE(h5o_info_t) :: object_info
+
+    call int2string(cpar%mychain, ctext)
+    chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
+         & '_c' // trim(adjustl(ctext)) // '.h5'
+
+    ! Delete existing chain file if necessary; create new file if necessary; open file
+    iter = 1
+    if (cpar%myid_chain == 0) then
+       inquire(file=trim(chainfile), exist=exist)
+       if (trim(cpar%chain_status) == 'new' .or. .not. exist) then
+          if (exist) call rm(trim(chainfile))
+          call open_hdf_file(chainfile, file, 'w')
+          call close_hdf_file(file)
+          iter = -1
+       else if (trim(cpar%chain_status) == 'append') then
+          call open_hdf_file(chainfile, file, 'r')
+          exist = .true.
+          do while (exist)
+             call int2string(iter, itext)
+             call h5eset_auto_f(0, hdferr)
+             call h5oget_info_by_name_f(file%filehandle, itext, object_info, hdferr)
+             exist = (hdferr == 0)
+             if (exist) iter = iter+1
+          end do
+          iter = max(1,iter-1)
+          write(*,*) '  Continuing chain '//ctext// ' on iteration ', iter
+          call close_hdf_file(file)          
+       else
+          write(*,*) 'Unsupported chain mode =', trim(cpar%chain_status)
+          call mpi_finalize(ierr)
+          stop
+       end if
+    end if
+    call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
+
+  end subroutine init_chain_file
+
   subroutine output_FITS_sample(cpar, iter, output_hdf)
     implicit none
     
@@ -16,15 +66,14 @@ contains
 
     integer(i4b)                 :: i, j, hdferr, ierr
     real(dp)                     :: chisq, t1, t2, t3, t4
-    logical(lgt), save           :: first_call=.true.
     logical(lgt)                 :: exist, init
     character(len=4)             :: ctext
     character(len=6)             :: itext
     character(len=512)           :: postfix, chainfile, hdfpath
-    class(comm_mapinfo), pointer :: info
-    class(comm_map),     pointer :: map, chisq_map, chisq_sub
-    class(comm_comp),    pointer :: c
-    class(comm_N),      pointer :: N
+    class(comm_mapinfo), pointer :: info => null()
+    class(comm_map),     pointer :: map => null(), chisq_map => null(), chisq_sub => null()
+    class(comm_comp),    pointer :: c => null()
+    class(comm_N),      pointer :: N => null()
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
 
@@ -33,45 +82,49 @@ contains
     call int2string(cpar%mychain, ctext)
     call int2string(iter,         itext)
     postfix = 'c'//ctext//'_k'//itext
-    chainfile = trim(adjustl(cpar%outdir)) // '/' // trim(adjustl(cpar%chain_prefix)) // &
+    chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
          & '_c' // trim(adjustl(ctext)) // '.h5'
 
-    ! Delete existing chain file if necessary; create new file if necessary; open file
-    if (first_call .and. cpar%myid_chain == 0 .and. output_hdf) then
-       if (trim(cpar%init_chain_prefix) /= trim(cpar%chain_prefix)) then
-          inquire(file=trim(chainfile), exist=exist)
-          if (exist) call rm(trim(chainfile))
-       end if
-       inquire(file=trim(chainfile), exist=exist)
-       if (.not. exist) then
-          call open_hdf_file(chainfile, file, 'w')
-          call close_hdf_file(file)
-       end if
-       first_call = .false.
-    end if
+!!$    ! Delete existing chain file if necessary; create new file if necessary; open file
+!!$    if (first_call .and. cpar%myid_chain == 0 .and. output_hdf) then
+!!$       if (trim(cpar%chain_status) == 'new') then
+!!$          inquire(file=trim(chainfile), exist=exist)
+!!$          if (exist) call rm(trim(chainfile))
+!!$       else if (trim(cpar%chain_status) == 'append') then
+!!$          
+!!$       else
+!!$          write(*,*) 'Unsupported chain mode =', trim(cpar%chain_status)
+!!$          call mpi_finalize(ierr)
+!!$          stop
+!!$       end if
+!!$       inquire(file=trim(chainfile), exist=exist)
+!!$       if (.not. exist) then
+!!$          call open_hdf_file(chainfile, file, 'w')
+!!$          call close_hdf_file(file)
+!!$       end if
+!!$       first_call = .false.
+!!$    end if
     if (cpar%myid_chain == 0 .and. output_hdf) then
+       inquire(file=trim(chainfile), exist=exist)
        call open_hdf_file(chainfile, file, 'b')
        ! Delete group if it already exists
        call h5eset_auto_f(0, hdferr)
        call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
        if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
+       write(*,*) 'group ', trim(adjustl(itext))
        call create_hdf_group(file, trim(adjustl(itext)))
-       call create_hdf_group(file, trim(adjustl(itext))//'/md')             
+       if (.not. cpar%resamp_CMB) call create_hdf_group(file, trim(adjustl(itext))//'/md')
     end if
     call update_status(status, "output_chain")
-
-    ! Output instrumental parameters
-    !write(*,*) 'a', cpar%myid_chain
-    call output_inst_params(cpar, file, itext, &
-         & trim(cpar%outdir)//'/instpar_'//trim(postfix)//'.dat', output_hdf)
-    !write(*,*) 'b', cpar%myid_chain
-
-    call update_status(status, "output_inst")
 
     ! Output component results
     c => compList
     call wall_time(t1)
     do while (associated(c))
+       if (cpar%resamp_CMB .and. trim(c%type) /= 'cmb') then
+          c => c%next()
+          cycle
+       end if
        call c%dumpFITS(iter, file, output_hdf, postfix, cpar%outdir)
        select type (c)
        class is (comm_diffuse_comp)
@@ -85,8 +138,15 @@ contains
        call update_status(status, "output_"//trim(c%label))
        c => c%next()
     end do
-    !call wall_time(t2)
-    !if (cpar%myid == 0) write(*,*) 'components = ', t2-t1
+    if (cpar%resamp_CMB) then
+       if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
+       return
+    end if
+
+    ! Output instrumental parameters
+    call output_inst_params(cpar, file, itext, &
+         & trim(cpar%outdir)//'/instpar_'//trim(postfix)//'.dat', output_hdf)
+    call update_status(status, "output_inst")
 
     ! Output channel-specific residual maps
     if (cpar%output_residuals .or. cpar%output_chisq) then
@@ -127,7 +187,7 @@ contains
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
           if (cpar%myid == cpar%root) write(*,fmt='(a,i4,a,e16.8)') &
                & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
-          call chisq_map%dealloc(clean_info=.true.)
+          call chisq_map%dealloc()
        end if
        call update_status(status, "output_chisq")
     end if
@@ -142,7 +202,8 @@ contains
           call create_hdf_group(file, trim(adjustl(itext))//'/tod')
        end if
        do i = 1, numband  
-          if (trim(cpar%ds_tod_type(i)) == 'none') cycle
+          if (trim(data(i)%tod_type) == 'none') cycle
+          !write(*,*) 'associated', i, associated(data(i)%tod)
           if (associated(data(i)%tod)) then
              N => data(i)%N
              select type (N)

@@ -83,51 +83,30 @@ module sharp
 
 
      ! execute
-     subroutine c_sharp_execute(type, spin, alm, map, geom_info, alm_info, ntrans, &
+     subroutine c_sharp_execute(type, spin, alm, map, geom_info, alm_info, &
                                 flags, time, opcnt) bind(c, name='sharp_execute')
        use iso_c_binding
-       integer(c_int), value                        :: type, spin, ntrans, flags
+       integer(c_int), value                        :: type, spin, flags
        type(c_ptr), value                           :: alm_info, geom_info
        real(c_double), intent(out), optional        :: time
        integer(c_long_long), intent(out), optional  :: opcnt
        type(c_ptr), intent(in)                      :: alm(*), map(*)
      end subroutine c_sharp_execute
 
-     subroutine c_sharp_execute_mpi(comm, type, spin, alm, map, geom_info, alm_info, ntrans, &
+     subroutine c_sharp_execute_mpi(comm, type, spin, alm, map, geom_info, alm_info, &
                                     flags, time, opcnt) bind(c, name='sharp_execute_mpi_fortran')
        use iso_c_binding
-       integer(c_int), value                        :: comm, type, spin, ntrans, flags
+       integer(c_int), value                        :: comm, type, spin, flags
        type(c_ptr), value                           :: alm_info, geom_info
        real(c_double), intent(out), optional        :: time
        integer(c_long_long), intent(out), optional  :: opcnt
        type(c_ptr), intent(in)                      :: alm(*), map(*)
      end subroutine c_sharp_execute_mpi
-
-     ! Legendre transforms
-     subroutine c_sharp_legendre_transform(bl, recfac, lmax, x, out, nx) &
-          bind(c, name='sharp_legendre_transform')
-       use iso_c_binding
-       integer(c_intptr_t), value :: lmax, nx
-       real(c_double) :: bl(lmax + 1), x(nx), out(nx)
-       real(c_double), optional :: recfac(lmax + 1)
-     end subroutine c_sharp_legendre_transform
-
-     subroutine c_sharp_legendre_transform_s(bl, recfac, lmax, x, out, nx) &
-          bind(c, name='sharp_legendre_transform_s')
-       use iso_c_binding
-       integer(c_intptr_t), value :: lmax, nx
-       real(c_float) :: bl(lmax + 1), x(nx), out(nx)
-       real(c_float), optional :: recfac(lmax + 1)
-     end subroutine c_sharp_legendre_transform_s
   end interface
 
   interface sharp_execute
      module procedure sharp_execute_d
   end interface
-
-  interface sharp_legendre_transform
-     module procedure sharp_legendre_transform_d, sharp_legendre_transform_s
-  end interface sharp_legendre_transform
 
 contains
   ! alm info
@@ -196,7 +175,7 @@ contains
 
   ! Currently the only mode supported is stacked (not interleaved) maps.
   !
-  ! Note that passing the exact dimension of alm/map is necesarry, it
+  ! Note that passing the exact dimension of alm/map is necessary, it
   ! prevents the caller from doing too crazy slicing prior to pass array
   ! in...
   !
@@ -234,6 +213,7 @@ contains
     else
        ntrans = nmaps / 2
     end if
+    if (ntrans/=1) print *, "ERROR: ntrans /= 1"
 
     ! Set up pointer table to access maps
     alm_ptr(:) = c_null_ptr
@@ -247,7 +227,6 @@ contains
       call c_sharp_execute_mpi(comm, type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &
           alm_info=alm_info%handle, &
-          ntrans=ntrans, &
           flags=mod_flags, &
           time=time, &
           opcnt=opcnt)
@@ -255,32 +234,9 @@ contains
       call c_sharp_execute(type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &
           alm_info=alm_info%handle, &
-          ntrans=ntrans, &
           flags=mod_flags, &
           time=time, &
           opcnt=opcnt)
    end if
   end subroutine sharp_execute_d
-
-  subroutine sharp_legendre_transform_d(bl, x, out)
-    use iso_c_binding
-    real(c_double) :: bl(:)
-    real(c_double) :: x(:), out(size(x))
-    !--
-    integer(c_intptr_t) :: lmax, nx
-    call c_sharp_legendre_transform(bl, lmax=int(size(bl) - 1, c_intptr_t), &
-                                    x=x, out=out, nx=int(size(x), c_intptr_t))
-  end subroutine sharp_legendre_transform_d
-
-  subroutine sharp_legendre_transform_s(bl, x, out)
-    use iso_c_binding
-    real(c_float) :: bl(:)
-    real(c_float) :: x(:), out(size(x))
-    !--
-    integer(c_intptr_t) :: lmax, nx
-    call c_sharp_legendre_transform_s(bl, lmax=int(size(bl) - 1, c_intptr_t), &
-                                      x=x, out=out, nx=int(size(x), c_intptr_t))
-  end subroutine sharp_legendre_transform_s
-
-
 end module

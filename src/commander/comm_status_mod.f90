@@ -38,7 +38,7 @@ contains
     type(status_file) :: status
     character(len=*)  :: tag
     character(len=512):: str
-    real(dp)          :: mem, max_mem, t
+    real(dp)          :: mem, t
     if(.not. status%active) return
     call wall_time(t)
     mem     = get_mem_use2()    /1024d0**3

@@ -19,8 +19,8 @@ contains
     character(len=4) :: chain_text
     character(len=6) :: iter_text
     real(dp), allocatable, dimension(:,:) :: m, cls1, cls2
-    class(comm_comp),   pointer           :: c
-    class(comm_map), pointer              :: invN_sig, map, sig, res
+    class(comm_comp),   pointer           :: c => null()
+    class(comm_map), pointer              :: invN_sig => null(), map => null(), sig => null(), res => null()
 
     ierr    = 0
     root    = 0
