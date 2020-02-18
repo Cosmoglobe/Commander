@@ -674,6 +674,7 @@ contains
           do i = 1, self%info%nprocs-1
              call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
              call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
+             write(*,*) 'a', i, np, nmaps, mpistat, trim(filename)
              allocate(buffer(np,nmaps))
              call mpi_recv(buffer, np*nmaps, &
                   & MPI_DOUBLE_PRECISION, i, 98, self%info%comm, mpistat, ierr)

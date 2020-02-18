@@ -422,10 +422,10 @@ contains
        end do
     end if
 
-    do i = 1, self%ndet
-       filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
-       call map_in(i,1)%p%writeFITS(filename)
-    end do
+!!$    do i = 1, self%ndet
+!!$       filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
+!!$       call map_in(i,1)%p%writeFITS(filename)
+!!$    end do
 !!$    deallocate(A_abscal, smap_sky, chisq_S, slist)
 !!$    return
 
@@ -2430,8 +2430,9 @@ contains
        end if
 
        if (present(sb_mono)) sys_mono(1:nmaps,1:nmaps,i) = A_inv(1:nmaps,1:nmaps)
-       if (present(chisq_S) .and. mask(self%info%pix(i+1)) == 1) then
+       if (present(chisq_S)) then
           do j = 1, ndet-1
+             if (mask(self%info%pix(i+1)) == 0)  cycle
              if (As_inv(nmaps+j,nmaps+j) <= 0.d0) cycle
              chisq_S(j,1) = chisq_S(j,1) + bs_tot(1,nmaps+j,i)**2 / As_inv(nmaps+j,nmaps+j)
              do k = 2, ndelta

@@ -58,7 +58,7 @@ program commander
   call initialize_mpi_struct(cpar, handle, handle_noise)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
-  status%active = cpar%myid == 0 !.false.
+  status%active = cpar%myid_chain == 0 !.false.
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -216,12 +216,12 @@ program commander
 
      call wall_time(t2)
      if (ok) then
-        if (cpar%myid == 0) then
+        if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
         end if
         iter = iter+1
      else
-        if (cpar%myid == 0) then
+        if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
            write(*,*) 'SAMPLE REJECTED'
         end if        

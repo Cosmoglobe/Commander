@@ -83,14 +83,14 @@ contains
     constructor%outprefix = trim(cpar%cs_label(id_abs))
     constructor%cg_scale  = 1.d0
     constructor%cg_samp_group  = cpar%cs_cg_samp_group(id_abs)
-    constructor%myid      = cpar%myid
+    constructor%myid      = cpar%myid_chain
     constructor%comm      = cpar%comm_chain
     constructor%numprocs  = cpar%numprocs_chain
     constructor%P         = [mu,rms]
     constructor%band      = band
     npre                  = npre + 1
     comm_pre              = cpar%comm_chain
-    myid_pre              = cpar%myid
+    myid_pre              = cpar%myid_chain
     numprocs_pre          = cpar%numprocs_chain
 
     if (constructor%myid == 0) then
