@@ -40,7 +40,7 @@ module comm_tod_LFI_mod
   logical(lgt), dimension(N_test) :: do_oper
 
 
-  type, extends(comm_tod) :: comm_LFI_tod 
+  type, extends(comm_tod) :: comm_LFI_tod
    contains
      procedure     :: process_tod        => process_LFI_tod
      procedure     :: compute_binned_map
@@ -2439,13 +2439,7 @@ contains
        end if
 
        if (present(sb_mono)) sys_mono(1:nmaps,1:nmaps,i) = A_inv(1:nmaps,1:nmaps)
-<<<<<<< HEAD
        if (present(chisq_S)) then
-||||||| merged common ancestors
-       if (present(chisq_S) .and. mask(self%info%pix(i+1)) == 1) then
-=======
-       if (present(chisq_S) .and. (.not. present(mask) .or. mask(self%info%pix(i+1)) == 1)) then
->>>>>>> 977350717272d24af266097dda593e6eb7682cf1
           do j = 1, ndet-1
              if (mask(self%info%pix(i+1)) == 0)  cycle
              if (As_inv(nmaps+j,nmaps+j) <= 0.d0) cycle
