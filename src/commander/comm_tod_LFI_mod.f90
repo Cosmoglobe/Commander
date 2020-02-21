@@ -218,50 +218,15 @@ contains
 
        constructor%orb_dp_s = constructor%orb_dp_s*4*pi/real(constructor%slbeam(i)%p%info%npix)
 
-       !constructor%slbeam(i)%p%map(:,1) = 0.d0
-       !do j = 0, constructor%slbeam(i)%p%info%np -1
-       !  if (real(constructor%slbeam(i)%p%info%pix(j+1), dp) == constructor%slbeam(i)%p%info%npix/2.d0) then
-           !constructor%slbeam(i)%p%map(j,1) =constructor%slbeam(i)%p%info%pix(j+1)
-       !    constructor%slbeam(i)%p%map(j,1) = 1.d0
-       !  end if
-       !end do
-       !call constructor%slbeam(i)%p%YtW()
-       !constructor%slbeam(i)%p%alm = constructor%slbeam(i)%p%alm/(12.d0/pi)
-       !call constructor%slbeam(i)%p%Yt()
-       !do j = 0, constructor%slbeam(i)%p%info%nalm-1
-       !  l = constructor%slbeam(i)%p%info%lm(1,j)
-       !  constructor%slbeam(i)%p%alm(j,1) = constructor%slbeam(i)%p%alm(j,1)* &
-       !    & exp(-0.5d0 * l * (l+1) * (0.122/sqrt(8*log(2.d0)))**2)
-       !end do
-
-!!$       call constructor%slbeam(i)%p%readFITS('beam8.fits')
-!!$       constructor%slbeam(i)%p%map = constructor%slbeam(i)%p%map / (3.1789e-7*4*pi)
-!!$       call constructor%slbeam(i)%p%YtW
-
-!!$          call constructor%slbeam(i)%p%Y
-!!$          call constructor%slbeam(i)%p%writeFITS("beam.fits")
-!!$          call mpi_finalize(m)
-!!$          stop
-          
-
-!!$          do j = 0, constructor%slbeam(i)%p%info%nalm-1
-!!$             l = constructor%slbeam(i)%p%info%lm(1,j)
-!!$             m = constructor%slbeam(i)%p%info%lm(2,j)
-!!$             if (m == 0) then
-!!$                constructor%slbeam(i)%p%alm(j,1) = exp(-0.5d0*l*(l+1)*(420.d0*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
-!!$             else
-!!$                constructor%slbeam(i)%p%alm(j,1) = 0.d0
-!!$             end if
-!!$          end do
     end do
    
     call mpi_allreduce(MPI_IN_PLACE, constructor%orb_dp_s, size(constructor%orb_dp_s), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
 
-    if (constructor%myid == 0) then 
-      do i = 1, 9
-        write(*,*) constructor%orb_dp_s(1, i)
-      end do
-    end if
+!!$    if (constructor%myid == 0) then 
+!!$      do i = 1, 9
+!!$        write(*,*) constructor%orb_dp_s(1, i)
+!!$      end do
+!!$    end if
  
     do i = 1, constructor%ndet
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
@@ -272,10 +237,8 @@ contains
     end do
 
     constructor%mb_eff = 1.d0 
-    !constructor%mb_eff(3) = constructor%mb_eff(1)*0.99d0
     constructor%mb_eff = constructor%mb_eff / mean(constructor%mb_eff)
     constructor%nu_c   = constructor%nu_c * 1d9
-    !if (constructor%myid == 0) write(*,*) 'mb = ', constructor%mb_eff
 
     call close_hdf_file(h5_file)
  
@@ -314,7 +277,6 @@ contains
           call pix2ang_ring(constructor%nside, i, theta, phi)
           call ang2pix_ring(nside_beam, theta, phi, constructor%ind2sl(j))
           constructor%ind2ang(:,j) = [theta,phi]
-          !constructor%ind2sl(j) = 1
           j = j+1
        end if
     end do
@@ -325,12 +287,6 @@ contains
     if (constructor%myid == 0) then
        write(*,*) '  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/constructor%info%nprocs,sp), real(100*f_fill_lim(2),sp)
     end if
-
-!!$    do i = 1, constructor%nobs
-!!$       write(*,*) i, constructor%ind2pix(i)
-!!$    end do
-!!$    call mpi_finalize(i)
-!!$    stop
 
   end function constructor
 
@@ -372,7 +328,6 @@ contains
     character(len=512), allocatable, dimension(:) :: slist
     type(shared_1d_int) :: sprocmask, sprocmask2
     real(sp),           allocatable, dimension(:,:,:,:) :: map_sky
-    !type(shared_2d_sp), allocatable, dimension(:,:) :: smap_sky
     type(shared_2d_dp) :: sA_map
     type(shared_3d_dp) :: sb_map, sb_mono
     class(comm_map), pointer :: condmap 
@@ -401,7 +356,6 @@ contains
     chunk_size      = npix/self%numprocs_shared
     if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size+1
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
-    !allocate(smap_sky(0:ndet, ndelta)) 
     allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta)) 
     allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
@@ -418,22 +372,14 @@ contains
        end do
     end if
 
-!!$    do i = 1, self%ndet
-!!$       filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
-!!$       call map_in(i,1)%p%writeFITS(filename)
-!!$    end do
-!!$    deallocate(A_abscal, smap_sky, chisq_S, slist)
-!!$    return
-
-!!$    call int2string(iter, istr)
-!!$    do j = 1, map_in(1,1)%p%info%nmaps
-!!$       do i = 0, map_in(1,1)%p%info%np-1
-!!$          map_in(1,1)%p%map(i,j) = sum(map_in(:,1)%p%map(i,j))/4 
-!!$       end do
-!!$    end do
-!!$    call map_in(1,1)%p%writeFITS("refmap"//istr//".fits")
-!!$    call mpi_finalize(ierr)
-!!$    stop
+    if (.false.) then
+       do i = 1, self%ndet
+          filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
+          call map_in(i,1)%p%writeFITS(filename)
+       end do
+       deallocate(A_abscal, chisq_S, slist)
+       return
+    end if
 
     ! Distribute fullsky maps
     allocate(m_buf(0:npix-1,nmaps))
@@ -453,30 +399,7 @@ contains
     end do
     deallocate(m_buf)
 
-!!$    do j = 1, ndelta
-!!$       do i = 1, self%ndet
-!!$          map_in(i,j)%p%map = 1d-6 * map_in(i,j)%p%map ! uK to K
-!!$          call init_shared_2d_sp(self%myid_shared, self%comm_shared, &
-!!$               & self%myid_inter, self%comm_inter, [nmaps,npix], smap_sky(i,j))
-!!$          call sync_shared_2d_sp_map(smap_sky(i,j), map_in(i,j)%p%info%pix, &
-!!$               & transpose(map_in(i,j)%p%map))
-!!$          call mpi_win_fence(0, smap_sky(i,j)%win, ierr)
-!!$       end do
-!!$       call init_shared_2d_sp(self%myid_shared, self%comm_shared, &
-!!$            & self%myid_inter, self%comm_inter, [nmaps,npix], smap_sky(0,j))
-!!$       if (self%myid_shared == 0) then
-!!$          smap_sky(0,j)%a = smap_sky(1,j)%a
-!!$          do i = 2, self%ndet
-!!$             smap_sky(0,j)%a = smap_sky(0,j)%a + smap_sky(i,j)%a 
-!!$          end do
-!!$          smap_sky(0,j)%a = smap_sky(0,j)%a/self%ndet
-!!$       end if
-!!$       call mpi_win_fence(0, smap_sky(0,j)%win, ierr)
-!!$    end do
-
     ! Set up shared processing mask
-!    call init_shared_2d_int(self%myid_shared, self%comm_shared, &
-!         & self%myid_inter, self%comm_inter, [npix,ndet], detmask)
     call init_shared_1d_int(self%myid_shared, self%comm_shared, &
          & self%myid_inter, self%comm_inter, [npix], sprocmask)
     call sync_shared_1d_int_map(sprocmask, self%procmask%info%pix, &
@@ -490,48 +413,15 @@ contains
 
     ! Compute far sidelobe Conviqt structures
     call wall_time(t1)
-!map_in(1,1)%p%map = 0
-!if (self%myid == 110) map_in(1,1)%p%map(5200,1) = 1
-!if (self%myid == 0) map_in(1,1)%p%map(40000,1) = 1
-!if (self%myid == 32) map_in(1,1)%p%map(5200,1) = 1
-!call map_in(1,1)%p%writeFITS("in.fits")
     if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
     do i = 1, self%ndet
        if (.not. correct_sl) exit
 
-       !call map_in(i,1)%p%remove_MDpoles() !remove mono and dipole components
-       !call map_in(i,1)%p%writeFITS('nodp.fits')
-       !map_in(i,1)%p%map = 0.d0
-       !do j = 1, map_in(i,1)%p%info%np
-       !  if (map_in(i,1)%p%info%pix(j) == int(map_in(i,1)%p%info%npix/2.d0 - 1000)) then
-       !    map_in(i,1)%p%map(j,1) = 1.d0
-       !  end if
-       !end do
-       !call map_in(i,1)%p%writefits('test_fits_out.fits')
-
        !TODO: figure out why this is rotated
        call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-
-       !fake nside = 1 make to debug sidelobe alms
-       !fake_mapinfo => comm_mapinfo(self%comm, 2, 5, 3, .true.) 
-       !map_fake=> comm_map(fake_mapinfo)
-       !map_fake%map = 0.d0
-       !do j = 0, map_fake%info%np - 1
-         !if (map_fake%info%pix(j+1) == 20) then
-       !    map_fake%map(j,1) =map_fake%info%pix(j+1)
-         !end if
-       !end do 
-       !call map_fake%YtW()
-
-       !self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-       !     & self%myid_inter, self%comm_inter, 2, 5, 3, 5, &
-       !     & self%slbeam(i)%p, map_fake, 2)
-
-!       write(*,*) i, 'a', sum(abs(map_in(i,1)%p%alm))
        self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
             & self%myid_inter, self%comm_inter, 128, 100, 3, 100, &
             & self%slbeam(i)%p, map_in(i,1)%p, 2)
-!       write(*,*) i, 'b', sum(abs(self%slconv(i)%p%c%a))
     end do
     call wall_time(t2); t_tot(13) = t2-t1
 
@@ -549,11 +439,8 @@ contains
           
        ! Select operations for current iteration
        do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-!       do_oper(prep_rcal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
        do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
-!       do_oper(prep_G)       = (main_iter == n_main_iter-2) .and. .not. self%first_call
        do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
-!       do_oper(prep_acal)    = (main_iter == n_main_iter-4) .and. .not. self%first_call
        do_oper(samp_N)       = (main_iter >= n_main_iter-0)
        do_oper(samp_N_par)   = do_oper(samp_N)
        do_oper(prep_relbp)   = (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 0
@@ -563,11 +450,9 @@ contains
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
-       !do_oper(samp_N_par)    = .false.
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
        do_oper(output_slist) = mod(iter, 1) == 0
-       !do_oper = .false.
 
        ! Perform pre-loop operations
        if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
@@ -625,11 +510,6 @@ contains
 
        call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
 
-!!$       if (self%myid == 0) then
-!!$          write(*,*) 'gain = ', self%scans(4)%d(2)%gain, self%gain0(0), self%gain0(2), self%scans(4)%d(2)%dgain
-!!$       end if
-
-
        ! Perform main analysis loop
        do i = 1, self%nscan
 
@@ -662,12 +542,6 @@ contains
           allocate(flag(ntod, ndet))                   ! Decompressed flags
           
           ! Initializing arrays to zero
-          !n_corr      = 0.d0
-          !s_sl        = 0.d0
-          !s_sky       = 0.d0
-          !s_sky_prop  = 0.d0
-          !s_orb       = 0.d0
-          !s_mono      = 0.d0
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
           
           ! --------------------
@@ -735,14 +609,9 @@ contains
           if (do_oper(sub_sl)) then
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-!!$                call self%construct_sl_template(self%slconv(j)%p, i, &
-!!$                     & nside, pix(:,j), psi(:,j), s_sl(:,j), &
-!!$                     & self%mbang(j)+self%polang(j))
                 call self%construct_sl_template(self%slconv(j)%p, &
                      & pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
                 s_sl(:,j) = 2 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
-                !if (sum(abs(s_sl)) > 1.d30) s_sl = 0.
-                !If (self%myid == 0) write(*,*) j, sum(abs(s_sl(:,j)))
              end do
           else
              do j = 1, ndet
@@ -757,22 +626,16 @@ contains
           if (do_oper(samp_mono)) then
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                !s_mono(:,j) = -self%mono(j)
                 !s_mono(:,j) = self%mono(j)
                 s_mono(:,j) = 0.d0 ! Disabled for now
              end do
           end if
-          !write(*,*) main_iter, i, 'sky ', sum(abs(s_sky))
-          !write(*,*) main_iter, i, 'sl  ', sum(abs(s_sl))
-          !write(*,*) main_iter, i, 'orb ', sum(abs(s_orb))
-          !write(*,*) main_iter, i, 'mono', sum(abs(s_mono))
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
              s_tot(:,j) = s_sky(:,j) + s_sl(:,j) + s_orb(:,j)
              if (do_oper(samp_mono)) s_tot(:,j) = s_tot(:,j) + s_mono(:,j)
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
-          !write(*,*) sum(abs(s_sky)), sum(abs(s_sl)), sum(abs(s_orb)), sum(abs(s_mono)), sum(abs(s_tot))
 
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
@@ -794,10 +657,6 @@ contains
              s_invN = s_lowres
              call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
              call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
-             !write(*,*) i, sum(abs(s_lowres)), sum(abs(s_invN))
-             !if (self%myid == 0) write(*,*) 'sum', sum(abs(sorb_invN))
-             !call mpi_finalize(ierr)
-             !stop
           end if
 
           ! Prepare for absolute calibration
@@ -806,10 +665,7 @@ contains
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
 
-                ! Eirik: Set up proper residuals for absolute or relative calibration, respectively
                 if (do_oper(samp_acal)) then
-!                   s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
-                   !write(*,*) self%gain0(0), self%gain0(j), self%scans(i)%d(j)%dgain, sum(abs(s_tot)), sum(abs(s_orb))
                    if (self%orb_abscal) then
                       s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb(:, j)) + &
                            & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
@@ -823,26 +679,22 @@ contains
              end do
              call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal)
 
-!                call int2string(self%scanid(i), scantext)
-!                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
-!                write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
-!                do k = 1, ntod, 60
-!                   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
-!                end do
-!                close(78)
+             if (.false.) then
+                call int2string(self%scanid(i), scantext)
+                open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
+                write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
+                do k = 1, ntod, 60
+                   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - &
+                        & self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
+                end do
+                close(78)
+             end if
              call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
           end if
 
           ! Fit gain 
           if (do_oper(samp_G)) then
              call wall_time(t1)
-!!$             do j = 1, ndet
-!!$                if (.not. self%scans(i)%d(j)%accept) then
-!!$                   self%scans(i)%d(j)%gain  = 0.d0
-!!$                   self%scans(i)%d(j)%dgain = 0.d0
-!!$                   cycle
-!!$                end if
-!!$             end do
              call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot)
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
@@ -859,7 +711,6 @@ contains
                 end if
              end do
              call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
-             !if (do_oper(bin_map)) write(*,*) 'b', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod/self%scans(i)%d(1)%gain
              call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
              n_corr = 0.
@@ -868,13 +719,7 @@ contains
           ! Compute noise spectrum
           if (do_oper(samp_N_par)) then
              call wall_time(t1)
-             ! do j = 1, ndet
-             !    if (.not. self%scans(i)%d(j)%accept) cycle
              call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
-!             stop
-             ! call self%sample_n_corr(handle, i, mask, s_tot, n_corr)
-             ! stop
-             ! end do
              call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
           end if
           
@@ -887,7 +732,6 @@ contains
                 if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
                 call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
                      & s_buf(:,j), n_corr(:,j))      
-                !write(*,*) 'chisq4', self%scanid(i), j, self%scans(i)%d(j)%chisq
              end do
              call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
           end if
@@ -899,8 +743,6 @@ contains
                 ntot= ntot + 1
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 if (count(iand(flag(:,j),self%flag0) .ne. 0) > 0.1*ntod) then
-                   !write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
-                    !    & self%scanid(i), j, ', more than 10% flagged samples'
                    self%scans(i)%d(j)%accept = .false.
                 else if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
                 & isNaN(self%scans(i)%d(j)%chisq)) then
@@ -949,11 +791,9 @@ contains
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
-                !if (j==1) write(*,*) 'c', sum(self%scans(i)%d(1)%tod - n_corr(:,1) - self%scans(i)%d(1)%gain*s_tot(:,1))/ntod*inv_gain
                 d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
                      & inv_gain - s_tot(:,j) + s_sky(:,j) - s_bp(:,j)
                 if (do_oper(bin_map) .and. nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_bp(:,j) ! Residual
-                !if (do_oper(bin_map) .and. nout > 1) write(*,*) sum(d_calib(2,:,j))/ntod 
                 if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
                 if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
                 if (do_oper(bin_map) .and. do_oper(samp_mono) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
@@ -1033,14 +873,10 @@ contains
 
        end do
 
-       !call mpi_barrier(self%comm, ierr)
        if (do_oper(samp_acal)) then
           call wall_time(t1)
           call sample_abscal_from_orbital(self, handle, A_abscal, b_abscal)
           call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
-!!$
-!!$          call mpi_finalize(ierr)
-!!$          stop
        end if
 
        if (do_oper(samp_rcal)) then
@@ -1051,60 +887,14 @@ contains
 
        if (do_oper(samp_G)) then
           call wall_time(t1)
-!          allocate(inv_gain_covar(self%ndet, self%nscan, self%nscan))
-!          inv_gain_covar = 0.d0
           call sample_smooth_gain(self, handle)
           call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
        end if
 
-       ! Output total chisquare
        call wall_time(t7)
- 
-!!$       if (do_oper(prep_relbp)) then
-!!$          call wall_time(t1)
-!!$          call update_status(status, "tod_share1")
-!!$          do i = 0, self%numprocs_shared-1
-!!$             start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
-!!$             end_chunk   = min(start_chunk+chunk_size-1,npix-1)
-!!$             do while (start_chunk < npix)
-!!$                if (self%pix2ind(start_chunk) /= -1) exit
-!!$                start_chunk = start_chunk+1
-!!$             end do
-!!$             do while (end_chunk >= start_chunk)
-!!$                if (self%pix2ind(end_chunk) /= -1) exit
-!!$                end_chunk = end_chunk-1
-!!$             end do
-!!$             if (start_chunk < npix)       start_chunk = self%pix2ind(start_chunk)
-!!$             if (end_chunk >= start_chunk) end_chunk   = self%pix2ind(end_chunk)
-!!$
-!!$             call mpi_win_fence(0, sA_map%win, ierr)
-!!$             call mpi_win_fence(0, sb_map%win, ierr)
-!!$             do j = start_chunk, end_chunk
-!!$                sA_map%a(:,self%ind2pix(j)+1) = sA_map%a(:,self%ind2pix(j)+1) + &
-!!$                     & A_map(:,j)
-!!$                sb_map%a(:,:,self%ind2pix(j)+1) = sb_map%a(:,:,self%ind2pix(j)+1) + &
-!!$                     & b_map(:,:,j)
-!!$             end do
-!!$          end do
-!!$          call mpi_win_fence(0, sA_map%win, ierr)
-!!$          call mpi_win_fence(0, sb_map%win, ierr)
-!!$          call update_status(status, "tod_share2")
-!!$
-       
-!!$          call self%finalize_binned_map(handle, sA_map, sb_map, &
-!!$               & rms_out, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
-!!$          call wall_time(t2); t_tot(10) = t_tot(10) + t2-t1
-!!$          call update_status(status, "tod_share3")
-!!$       end if
-!!$       call update_status(status, "tod_prepbp")
-
 
     end do
     call wall_time(t4)
-
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
 
     ! Output latest scan list with new timing information
     if (do_oper(output_slist)) then
@@ -1268,15 +1058,8 @@ contains
        deallocate(outmaps)
     end if
 
-!    if (detmask%init)    call dealloc_shared_2d_int(detmask)
     if (sprocmask%init)  call dealloc_shared_1d_int(sprocmask)
     if (sprocmask2%init) call dealloc_shared_1d_int(sprocmask2)
-!!$    do j = 1, ndelta
-!!$       do i = 0, self%ndet
-!!$          if (smap_sky(i,j)%init) call dealloc_shared_2d_sp(smap_sky(i,j))
-!!$       end do
-!!$    end do
-!!$    deallocate(smap_sky)
     deallocate(map_sky)
 
     if (correct_sl) then
