@@ -41,26 +41,26 @@ contains
           s_orb(j,i) = T_CMB * (b_dot + q*(b_dot**2 - b**2/3.)) ! net zero monopole
 
           !TODO: add sl contribution to orbital dipole here
-          call pix2ang_ring(tod%info%nside, pix(j,i), theta, phi)
-          !rotate v_sun into frame where pointing is along z axis
-          !write(*,*) -phi, -theta, -tod%psi(psi(j,i)), psi(j,i)
-          p     = tod%pix2ind(pix(j,i))
-          theta = tod%ind2ang(1,p)
-          phi   = tod%ind2ang(2,p)
-          psi_d = tod%psi(psi(j,i))
-          !write(*,*), j, phi, theta, psi_d, rot_mat 
-          !call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
-          call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
-          vnorm = matmul(rot_mat, tod%scans(ind)%v_sun)
-          vnorm = vnorm / sum(vnorm**2)
-          summation = vnorm(1)*tod%orb_dp_s(i,1)+vnorm(2)*tod%orb_dp_s(i,2)+& 
-            & vnorm(3)*tod%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*tod%orb_dp_s(i,4)+&
-            & vnorm(1)*vnorm(2)*tod%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
-            & tod%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*tod%orb_dp_s(i,7) + &
-            & vnorm(2)*vnorm(2)*tod%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
-            & tod%orb_dp_s(i,9) 
-          !if (trim(tod%label(i)) == '27M') write(*,*) j, T_CMB *summation, vnorm(1), vnorm(2), vnorm(3), tod%orb_dp_s(i,1), tod%scans(ind)%v_sun
-          s_orb(j,i) = s_orb(j,i) + T_CMB *summation
+!!$          call pix2ang_ring(tod%info%nside, pix(j,i), theta, phi)
+!!$          !rotate v_sun into frame where pointing is along z axis
+!!$          !write(*,*) -phi, -theta, -tod%psi(psi(j,i)), psi(j,i)
+!!$          p     = tod%pix2ind(pix(j,i))
+!!$          theta = tod%ind2ang(1,p)
+!!$          phi   = tod%ind2ang(2,p)
+!!$          psi_d = tod%psi(psi(j,i))
+!!$          !write(*,*), j, phi, theta, psi_d, rot_mat 
+!!$          !call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
+!!$          call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
+!!$          vnorm = matmul(rot_mat, tod%scans(ind)%v_sun)
+!!$          vnorm = vnorm / sum(vnorm**2)
+!!$          summation = vnorm(1)*tod%orb_dp_s(i,1)+vnorm(2)*tod%orb_dp_s(i,2)+& 
+!!$            & vnorm(3)*tod%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*tod%orb_dp_s(i,4)+&
+!!$            & vnorm(1)*vnorm(2)*tod%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
+!!$            & tod%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*tod%orb_dp_s(i,7) + &
+!!$            & vnorm(2)*vnorm(2)*tod%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
+!!$            & tod%orb_dp_s(i,9) 
+!!$          !if (trim(tod%label(i)) == '27M') write(*,*) j, T_CMB *summation, vnorm(1), vnorm(2), vnorm(3), tod%orb_dp_s(i,1), tod%scans(ind)%v_sun
+!!$          s_orb(j,i) = s_orb(j,i) + T_CMB *summation
 
        end do
    end do
