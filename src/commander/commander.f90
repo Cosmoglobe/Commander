@@ -149,13 +149,11 @@ program commander
   ! Run Gibbs loop
   iter = first_sample
   do while (iter <= cpar%num_gibbs_iter)
-
      if (cpar%myid == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') '---------------------------------------------------------------------'
         write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
-
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then
@@ -165,12 +163,10 @@ program commander
            call update_mixing_matrices(update_F_int=.true.)       
         end if
      end if
-
      ! Process TOD structures
      if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
            call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
-
      ! Sample linear parameters with CG search; loop over CG sample groups
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_samp_groups
@@ -183,12 +179,10 @@ program commander
            if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
         end do
-
         ! Perform joint alm-Cl Metropolis move
         do i = 1, 3
            if (cpar%resamp_CMB) call sample_joint_alm_Cl(handle)
         end do
-
      end if
 
      ! Sample power spectra
@@ -203,6 +197,7 @@ program commander
      !call output_FITS_sample(cpar, 1000, .true.)
 
      ! Sample non-linear parameters
+     ! Trygve fix this
      if (cpar%sample_specind) then
         do i = 1, cpar%num_ind_cycle
            call sample_nonlin_params(cpar, iter, handle)
