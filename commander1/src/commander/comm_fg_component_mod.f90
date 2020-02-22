@@ -1837,10 +1837,7 @@ contains
                            & fg_components(i)%S_dust_coeff, fg_components(i)%p_rms)
                    end if
                 end do
-<<<<<<< HEAD
-=======
                 ! there was a spurious STOP here
->>>>>>> 29f9c9534ddf6bb36aa605276d86f381ebdcb76d
                 fg_components(i)%S_1D(k,1,l) = get_bp_avg_spectrum(l, s)
              end do
              deallocate(s)

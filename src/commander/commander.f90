@@ -58,7 +58,7 @@ program commander
   call initialize_mpi_struct(cpar, handle, handle_noise)
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
-  status%active = cpar%myid == 0 !.false.
+  status%active = cpar%myid_chain == 0 !.false.
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -91,6 +91,7 @@ program commander
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle); call update_status(status, "init_from_chain")
 
@@ -165,7 +166,7 @@ program commander
      end if
      ! Process TOD structures
      if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
-           call process_TOD(cpar, cpar%mychain, iter, handle)
+        call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
      ! Sample linear parameters with CG search; loop over CG sample groups
      if (cpar%sample_signal_amplitudes) then
@@ -210,12 +211,12 @@ program commander
 
      call wall_time(t2)
      if (ok) then
-        if (cpar%myid == 0) then
+        if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
         end if
         iter = iter+1
      else
-        if (cpar%myid == 0) then
+        if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
            write(*,*) 'SAMPLE REJECTED'
         end if        
@@ -269,7 +270,7 @@ contains
        do k = 1, ndelta
           ! Propose new bandpass shifts, and compute mixing matrices
           if (k > 1) then
-             if (cpar%myid == 0) then
+             if (data(i)%info%myid == 0) then
                 do l = 1, npar
                    if (mod(iter,2) == 0) then
                       write(*,*) 'relative',  iter

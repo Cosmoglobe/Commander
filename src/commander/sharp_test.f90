@@ -5,26 +5,26 @@ program sharp_test
   implicit none
 
   integer(i4b)         :: i, j, n, nside, lmax, nmaps, myid, comm, numprocs, ierr
-  real(dp)             :: t1, t2, x0, x1
+  real(dp)             :: t1, t2, x0, x1, tot
   class(comm_map), pointer      :: map
   class(comm_mapinfo), pointer :: info
   real(dp), allocatable, dimension(:) :: arr1, arr2
   type(planck_rng) :: handle
 
-  x0 = 900.d0
-  n  = 1000
-  call rand_init(handle)
-
-  open(58,file='x.dat')
-  do i = 1, n
-     x1 = sample_ARS(handle, lnL, [500.d0, 1000.d0, 2000.d0], x0=x0)
-     write(58,*) i, x1
-     write(*,*) i, x1
-     x0 = x1
-  end do
-  close(58)
-
-  stop
+!!$  x0 = 900.d0
+!!$  n  = 1000
+!!$  call rand_init(handle)
+!!$
+!!$  open(58,file='x.dat')
+!!$  do i = 1, n
+!!$     x1 = sample_ARS(handle, lnL, [500.d0, 1000.d0, 2000.d0], x0=x0)
+!!$     write(58,*) i, x1
+!!$     write(*,*) i, x1
+!!$     x0 = x1
+!!$  end do
+!!$  close(58)
+!!$
+!!$  stop
 
 
   n = 1
@@ -53,15 +53,22 @@ program sharp_test
   end do
   call map%writeFITS('test.fits')
 
-  n = 10
-  call wall_time(t1)
+  call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+  n = 100
   do i = 1, n
      if (myid == 0) write(*,*) i, n
+     do j = 0, map%info%np-1
+        map%map(j,1) = j
+     end do
+     call wall_time(t1)
      call map%Yt()
      call map%Y()
+     call wall_time(t2)
+     tot = tot + t2-t1
   end do
-  call wall_time(t2)
-  if (myid == 0) write(*,*) 'wall time per round-trip sht = ', (t2-t1)/n
+
+  if (myid == 0) write(*,*) 'wall time per round-trip sht = ', (tot)/n
   call map%writeFITS('test2.fits')
 
 

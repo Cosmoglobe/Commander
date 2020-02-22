@@ -571,7 +571,7 @@ contains
           npre         = npre + 1
           nmaps_pre    = max(nmaps_pre, nmaps)
           self%ncr_tot = self%ncr_tot  + nmaps
-          if (cpar%myid == 0) self%ncr  = self%ncr  + nmaps
+          if (cpar%myid_chain == 0) self%ncr  = self%ncr  + nmaps
        end if
     end do 
 1   close(unit)

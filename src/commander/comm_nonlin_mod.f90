@@ -133,9 +133,9 @@ contains
           ! Set up smoothed data
           select type (c)
           class is (comm_line_comp)
-             if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
+             if (cpar%myid_chain == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
           class is (comm_diffuse_comp)
-             if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
+             if (cpar%myid_chain == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
              call update_status(status, "nonlin start " // trim(c%label)// ' ' // trim(c%indlabel(j)))
 
              ! Set up type of smoothing scale
@@ -499,7 +499,7 @@ contains
     end if
 
     call wall_time(t2)
-    if (cpar%myid == 0) write(*,*) 'CPU time specind = ', real(t2-t1,sp)
+    if (cpar%myid_chain == 0) write(*,*) 'CPU time specind = ', real(t2-t1,sp)
     
   end subroutine sample_nonlin_params
 
