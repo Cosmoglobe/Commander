@@ -74,16 +74,20 @@ contains
     integer(i4b),       intent(in)    :: iter
     type(planck_rng),   intent(inout) :: handle    
 
-    integer(i4b) :: i, j, k, smooth_scale, id_native
-    real(dp)     :: t1, t2
+    integer(i4b) :: i, j, k, q, pl, np, nlm, out_every, num_accepted, smooth_scale, id_native, ierr, l_, m_, ind
+    real(dp)     :: t1, t2, lr
+    real(dp)     :: mu, sigma, par, chisq, chisq_old, chisq_d, accept_rate, diff
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext, jtext
+    logical :: accepted
     class(comm_mapinfo), pointer :: info => null()
     class(comm_N),       pointer :: tmp  => null()
     class(comm_map),     pointer :: res  => null()
     class(comm_comp),    pointer :: c    => null()
-    real(dp),          allocatable, dimension(:,:) :: m
+    real(dp),          allocatable, dimension(:,:) :: m, alm_old, alm, lm, buffer2
+    real(dp),          allocatable, dimension(:)   :: buffer
+    integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
 
     call wall_time(t1)
     
@@ -214,30 +218,198 @@ contains
 !!$             call c%x_smooth%writeFITS('x.fits')
 !!$             call mpi_finalize(i)
 !!$             stop
+             if (c%lmax_ind > 0) then
+                ! Compute smoothed spectral index maps
+                allocate(c%theta_smooth(c%npar))
+                do k = 1, c%npar
+                   if (k == j) cycle
+                   if (status_amp == 1) then ! Native resolution
+                      info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
+                           & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
+                      call smooth_map(info, .false., &
+                           & data(id_native)%B(0)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                           & data(id_native)%B(0)%p%b_l,           c%theta_smooth(k)%p)
+                   else if (status_amp == 2) then ! Common FWHM resolution
+                      info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
+                           & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
+                      call smooth_map(info, .false., &
+                           & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                           & data(1)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
+                   end if
+                end do
+             end if
+                
+          ! Trygve spectral index sampling
+          call wall_time(t1)
+          if (trim(c%operation) == 'optimize') then
+             ! Calls comm_diffuse_comp_mod
+             call c%sampleSpecInd(handle, j)
 
-             ! Compute smoothed spectral index maps
-             allocate(c%theta_smooth(c%npar))
-             do k = 1, c%npar
-                if (k == j) cycle
-                if (status_amp == 1) then ! Native resolution
-                   info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
-                        & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
-                   call smooth_map(info, .false., &
-                        & data(id_native)%B(0)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
-                        & data(id_native)%B(0)%p%b_l,           c%theta_smooth(k)%p)
-                else if (status_amp == 2) then ! Common FWHM resolution
-                   info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
-                        & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
-                   call smooth_map(info, .false., &
-                        & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
-                        & data(1)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
+          else if (trim(c%operation) == 'sample' .and. c%lmax_ind > 0) then
+             if (info%myid == 0) open(69, file='nonlin-samples.dat', recl=10000)
+             allocate(buffer(0:c%theta(j)%p%info%nalm))
+             
+             lr = 0.001 ! Init learning rate for proposals
+             num_accepted = 0
+             out_every = 10
+
+             ! Cholesky decompose covariance to get faster sampling.
+             ! call cholesky_decompose_single(s, ierr=ierr)
+             ! Save all values in buffer. Only accepted values?
+             ! After 1000? samples, calculate covariance
+           
+             ! MCMC loop
+             do i = 1, 500
+                call wall_time(t1)
+
+                ! Reset accepted bool
+                accepted = .false.
+
+                ! Save old alms
+                alm_old = c%theta(j)%p%alm(:,:)
+
+                ! Calculate current chisq
+                call compute_chisq(c%comm, chisq_fullsky=chisq_old)
+
+                ! Sample new alms (Account for poltype)
+                do pl = 1, c%theta(j)%p%info%nmaps
+
+                   ! if sample only pol, skip T
+                   if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
+
+                   ! p already calculated if larger than poltype ( smart ;) )
+                   if (pl > c%poltype(j)) cycle
+
+                   ! Propose new alms
+                   do k = 0, c%theta(j)%p%info%nalm-1   
+                      buffer(k) = c%theta(j)%p%alm(k,pl) + lr*rand_gauss(handle)
+                   end do
+                      
+                   ! Save to correct poltypes
+                   if (c%poltype(j) == 1) then      ! {T+E+B}
+                      do q = 1, c%theta(j)%p%info%nmaps
+                         c%theta(j)%p%alm(:,q)  = buffer
+                      end do
+                   else if (c%poltype(j) == 2) then ! {T,E+B}
+                      if (pl == 1) then
+                         c%theta(j)%p%alm(:,1)  = buffer
+                      else
+                         do q = 2, c%theta(j)%p%info%nmaps
+                            c%theta(j)%p%alm(:,q)  = buffer
+                         end do 
+                      end if
+                   else if (c%poltype(j) == 3) then ! {T,E,B}
+                         c%theta(j)%p%alm(:,pl)  = buffer
+                   end if
+                end do
+
+                ! Update mixing matrix with new alms
+                call c%updateMixmat
+
+                ! Calculate proposed chisq
+                call compute_chisq(c%comm, chisq_fullsky=chisq)
+                diff = chisq_old-chisq
+
+                ! Accept/reject test
+                if (info%myid == 0) then
+                   if ( chisq > chisq_old ) then                 
+                      ! Small chance of accepting this too
+                      ! Avoid getting stuck in local mminimum
+                      accepted = (rand_uni(handle) < exp(0.5d0*diff))
+                      !write(*,*) "exp", exp(0.5d0*diff), accepted, diff
+                   else
+                      accepted = .true.
+                   end if
                 end if
+
+                ! Broadcast result of accept/reject test
+                call mpi_bcast(accepted, 1, MPI_LOGICAL, 0, c%comm, ierr)
+                
+                ! Count accepted, if rejected revert changes.
+                if (accepted) then
+                   !if (info%myid == 0) write(*,fmt='(i8, a, f10.2, a, f8.2)') i, " chisq ", chisq, " diff ", diff
+                   num_accepted = num_accepted + 1
+                else
+                   ! If rejected, restore old values
+                   !if (info%myid == 0) write(*,*) "Rejected"
+                   c%theta(j)%p%alm(:,:) = alm_old
+                   call c%updateMixmat                
+                   chisq = chisq_old
+                end if
+
+                ! Write to screen first iter
+                if (i == 1) then
+                   if (info%myid == 0) then 
+                      write(*,fmt='(a,i6, a, f16.2)') "- sample ", i, " -- chisq " , chisq
+                      write(69, *) ' sample       chisq           alms'
+                   end if
+                   chisq_d = chisq
+                end if
+
+                ! Write to screen
+                if (mod(i,out_every) == 0) then
+                   call wall_time(t2)
+                   if (info%myid == 0) write(*,fmt='(a,i6, a, f16.2, a, f10.5, a, f7.3)') "- sample ", i, " -- chisq " , chisq, " diff ", diff, " time/sample ", t2-t1 
+                   chisq_d = chisq
+                end if
+
+                ! Adjust learning rate every 100th
+                if (mod(i, 100) == 0) then 
+                   ! Accept rate
+                   accept_rate = num_accepted/100.d0
+                   num_accepted = 0
+
+                   ! Write to screen
+                   if (info%myid == 0) write(*, fmt='(a, f5.3)') "- accept rate ", accept_rate
+                   
+                   ! Adjusrt lr
+                   if (accept_rate < 0.2) then                 
+                      lr = lr*0.5d0
+                      if (info%myid == 0) write(*,fmt='(a,f10.5)') "Reducing lr -> ", lr
+                   else if (accept_rate > 0.8) then
+                      lr = lr*2.0d0
+                      if (info%myid == 0) write(*,fmt='(a,f10.5)') "Increasing lr -> ", lr
+                   end if
+                end if
+
+                ! Output samples, chisq, alms to file
+                if (info%myid == 0) then 
+                   allocate(alm(0:(c%lmax_ind+1)**2-1,info%nmaps))
+
+                   ! Dumping whatever is in proc = 0
+                   do k = 0, c%theta(j)%p%info%nalm-1
+                         l_ = c%theta(j)%p%info%lm(1,k)
+                         m_ = c%theta(j)%p%info%nmapslm(2,k)
+                         ind = l_**2 + l_ + m_
+                         alm(ind,:) = c%theta(j)%p%alm(k,:)
+                   end do
+
+                   do np = 1, info%nprocs-1
+                      call mpi_recv(nlm, 1, MPI_INTEGER, np, 420, c%comm, mpistat, ierr)
+                      allocate(lm(2,0:nlm-1))
+                      call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, c%comm, mpistat, ierr)
+                      allocate(buffer2(0:nlm, c%theta(j)%p%info%nmaps))
+                      call mpi_recv(buffer2, size(buffer2), MPI_DOUBLE_PRECISION, np, 420, c%comm, mpistat, ierr)
+                      do k = 0, nlm-1
+                         l_ = lm(1,k)
+                         m_ = lm(2,k)
+                         ind = l_**2 + l_ + m_
+                         alm(ind,:) = buffer2(k,:)
+                      end do
+                      deallocate(lm, buffer2)
+                   end do
+                   write(69, fmt='(i6, f16.2, 999f6.2)') i, chisq, alm
+                   deallocate(alm)
+                else
+                   call mpi_send(c%theta(j)%p%info%nalm, 1, MPI_INTEGER, 0, 420, c%comm, mpistat, ierr)
+                   call mpi_send(c%theta(j)%p%info%lm, size(c%theta(j)%p%info%lm), MPI_INTEGER, 0, 420, c%comm, mpistat, ierr)
+                   call mpi_recv(c%theta(j)%p%alm, size(c%theta(j)%p%alm), MPI_DOUBLE_PRECISION, 0, 420, c%comm, mpistat, ierr)
+                end if
+              
              end do
-
+             deallocate(alm_old, buffer)
+          end if
           end select
-
-          ! Sample spectral parameters
-          call c%sampleSpecInd(handle, j)
 
           ! Clean up temporary data structures
           select type (c)
@@ -248,7 +420,7 @@ contains
                 call c%x_smooth%dealloc()
                 nullify(c%x_smooth)
              end if
-             do k =1, c%npar
+             do k = 1, c%npar
                 if (k == j) cycle
                 if (allocated(c%theta_smooth)) then
                    if (associated(c%theta_smooth(k)%p)) then

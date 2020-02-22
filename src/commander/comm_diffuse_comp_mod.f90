@@ -754,14 +754,15 @@ contains
     class(comm_map),              pointer          :: t => null(), tp => null()
     class(map_ptr),  allocatable, dimension(:)     :: theta_prev
 
-    if (trim(self%type) == 'md') return
-    
-    call update_status(status, "mixupdate1 " // trim(self%label))
 
+    if (trim(self%type) == 'md') return
+
+    call update_status(status, "mixupdate1 " // trim(self%label))
+    
     ! Copy over alms from input structure, and compute pixel-space parameter maps
     if (present(theta)) then
        do i = 1, self%npar
-          self%theta(i)%p%alm = theta(i)%alm
+          self%theta(i)%p%alm = theta(i)%alm          
        end do
     end if
     
@@ -1571,13 +1572,14 @@ contains
     integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok
     integer(i4b) :: i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag, npar, np, nmaps
     real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
-    real(dp)     :: mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
+    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
     real(dp)     :: x(1), theta_min, theta_max
     logical(lgt) :: ok
     logical(lgt), save :: first_call = .true.
     class(comm_comp), pointer :: c => null()
     real(dp),     allocatable, dimension(:)   :: lnL, P_tot, F, theta, a_curr
-    real(dp),     allocatable, dimension(:,:) :: amp, buffer
+    real(dp),     allocatable, dimension(:,:) :: amp, buffer, alm_old
+
 
     delta_lnL_threshold = 25.d0
     n                   = 101
@@ -1598,6 +1600,7 @@ contains
     npar      = c%npar
     np        = self%x_smooth%info%np
     nmaps     = self%x_smooth%info%nmaps
+
     theta_min = c_lnL%p_uni(1,id_lnL)
     theta_max = c_lnL%p_uni(2,id_lnL)
 
@@ -1652,6 +1655,9 @@ contains
 
        deallocate(buffer)
 
+   
+    else if (trim(operation) == 'sample') then
+       ! This has been moved to comm_nonlin mod.
     end if
 
 
