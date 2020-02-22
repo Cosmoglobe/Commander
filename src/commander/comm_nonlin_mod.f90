@@ -373,41 +373,41 @@ contains
                 end if
 
                 ! Output samples, chisq, alms to file
-                if (info%myid == 0) then 
-                   allocate(alm(0:(c%lmax_ind+1)**2-1,info%nmaps))
-
-                   ! Dumping whatever is in proc = 0
-                   do k = 0, c%theta(j)%p%info%nalm-1
-                         l_ = c%theta(j)%p%info%lm(1,k)
-                         m_ = c%theta(j)%p%info%nmapslm(2,k)
-                         ind = l_**2 + l_ + m_
-                         alm(ind,:) = c%theta(j)%p%alm(k,:)
-                   end do
-
-                   do np = 1, info%nprocs-1
-                      call mpi_recv(nlm, 1, MPI_INTEGER, np, 420, c%comm, mpistat, ierr)
-                      allocate(lm(2,0:nlm-1))
-                      call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, c%comm, mpistat, ierr)
-                      allocate(buffer2(0:nlm, c%theta(j)%p%info%nmaps))
-                      call mpi_recv(buffer2, size(buffer2), MPI_DOUBLE_PRECISION, np, 420, c%comm, mpistat, ierr)
-                      do k = 0, nlm-1
-                         l_ = lm(1,k)
-                         m_ = lm(2,k)
-                         ind = l_**2 + l_ + m_
-                         alm(ind,:) = buffer2(k,:)
-                      end do
-                      deallocate(lm, buffer2)
-                   end do
-                   write(69, fmt='(i6, f16.2, 999f6.2)') i, chisq, alm
-                   deallocate(alm)
-                else
-                   call mpi_send(c%theta(j)%p%info%nalm, 1, MPI_INTEGER, 0, 420, c%comm, mpistat, ierr)
-                   call mpi_send(c%theta(j)%p%info%lm, size(c%theta(j)%p%info%lm), MPI_INTEGER, 0, 420, c%comm, mpistat, ierr)
-                   call mpi_recv(c%theta(j)%p%alm, size(c%theta(j)%p%alm), MPI_DOUBLE_PRECISION, 0, 420, c%comm, mpistat, ierr)
-                end if
+                !if (info%myid == 0) then 
+                !   allocate(alm(0:(c%lmax_ind+1)**2-1,info%nmaps))
+                !
+                !   ! Dumping whatever is in proc = 0
+                !   do k = 0, c%theta(j)%p%info%nalm-1
+                !         l_ = c%theta(j)%p%info%lm(1,k)
+                !         m_ = c%theta(j)%p%info%nmapslm(2,k)
+                !         ind = l_**2 + l_ + m_
+                !         alm(ind,:) = c%theta(j)%p%alm(k,:)
+                !   end do
+                !
+                !   do np = 1, info%nprocs-1
+                !      call mpi_recv(nlm, 1, MPI_INTEGER, np, 420, c%comm, mpistat, ierr)
+                !      allocate(lm(2,0:nlm-1))
+                !      call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, c%comm, mpistat, ierr)
+                !      allocate(buffer2(0:nlm, c%theta(j)%p%info%nmaps))
+                !      call mpi_recv(buffer2, size(buffer2), MPI_DOUBLE_PRECISION, np, 420, c%comm, mpistat, ierr)
+                !      do k = 0, nlm-1
+                !         l_ = lm(1,k)
+                !         m_ = lm(2,k)
+                !         ind = l_**2 + l_ + m_
+                !         alm(ind,:) = buffer2(k,:)
+                !      end do
+                !      deallocate(lm, buffer2)
+                !   end do
+                !   write(69, fmt='(i6, f16.2, 999f6.2)') i, chisq, alm
+                !   deallocate(alm)
+                !else
+                !   call mpi_send(c%theta(j)%p%info%nalm, 1, MPI_INTEGER, 0, 420, c%comm, mpistat, ierr)
+                !   call mpi_send(c%theta(j)%p%info%lm, size(c%theta(j)%p%info%lm), MPI_INTEGER, 0, 420, c%comm, mpistat, ierr)
+                !   call mpi_recv(c%theta(j)%p%alm, size(c%theta(j)%p%alm), MPI_DOUBLE_PRECISION, 0, 420, c%comm, mpistat, ierr)
+                !end if
               
              end do
-             deallocate(alm_old, buffer)
+             !deallocate(alm_old, buffer)
           end if
           end select
 
