@@ -57,7 +57,7 @@ contains
     samp_group_prev = samp_group
     !call update_status(status, "cr3")
     call wall_time(t2)
-    if (cpar%myid == root .and. cpar%verbosity > 2) then
+    if (cpar%myid_chain == root .and. cpar%verbosity > 2) then
        write(*,fmt='(a,f8.2)') '    CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
 
@@ -271,7 +271,7 @@ contains
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
        call wall_time(t2)
-       if (cpar%myid == root .and. cpar%verbosity > 2) then
+       if (cpar%myid_chain == root .and. cpar%verbosity > 2) then
           if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
 !             write(*,*) '  CG iter. ', i, ' -- res = ', &
 !                  & val_convergence, ', tol = ', lim_convergence, &
@@ -341,7 +341,7 @@ contains
        write(*,*) '       number of iterations = ', maxiter
        stat = stat + 1
     else
-       if (cpar%myid == root .and. cpar%verbosity > 1) then
+       if (cpar%myid_chain == root .and. cpar%verbosity > 1) then
           write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    Final CG iter ', i, ' -- res = ', &
                & real(val_convergence,sp), ', tol = ', real(lim_convergence,sp)
        end if

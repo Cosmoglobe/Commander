@@ -46,6 +46,7 @@ module comm_tod_mod
      character(len=512) :: filelist
      character(len=512) :: procmaskf1
      character(len=512) :: procmaskf2
+     character(len=512) :: initfile
      character(len=512) :: instfile
      character(len=512) :: operation
      character(len=512) :: outdir
@@ -63,6 +64,7 @@ module comm_tod_mod
 
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                      ! Sample rate in Hz
+     logical(lgt) :: orb_abscal
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
@@ -100,6 +102,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
+     real(sp),           allocatable, dimension(:,:)   :: ind2ang
      real(dp),           allocatable, dimension(:, :) :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term 
    contains
      procedure                        :: read_tod
@@ -111,9 +114,11 @@ module comm_tod_mod
      procedure(process_tod), deferred :: process_tod
      procedure                        :: construct_sl_template
      procedure                        :: output_scan_list
-     procedure                        :: sample_n_corr
-     procedure                        :: multiply_inv_n
      procedure                        :: downsample_tod
+     procedure                        :: compute_chisq
+     procedure                        :: get_total_chisq
+     procedure                        :: symmetrize_flags
+     procedure                        :: decompress_pointing_and_flags
   end type comm_tod
 
   abstract interface
@@ -172,7 +177,7 @@ contains
     allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(0:self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
-       call open_hdf_file(self%hdfname(1), file, "r")
+       call open_hdf_file(self%initfile, file, "r")
 
 
        !TODO: figure out how to make this work
@@ -432,6 +437,7 @@ contains
           id(j)  = j
           sid(j) = scanid(j)
           call ang2vec(spinpos(j,1), spinpos(j,2), spinaxis(j,1:3))
+          if (j == 1) self%initfile = filename(j)
           j      = j+1
           if (j > n_tot) exit
        end do
@@ -447,6 +453,9 @@ contains
           if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
        end do
        v0 = v0 / sqrt(v0*v0)
+!       v0(1) = 1
+       
+
 !!$
 !!$       ! Compute angle between i'th and first vector
 !!$       do i = 1, n
@@ -620,6 +629,7 @@ contains
 
        call int2string(iter, itext)
        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
+       !write(*,*) 'path', trim(path)
        call create_hdf_group(chainfile, trim(adjustl(path)))
        call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
        call write_hdf(chainfile, trim(adjustl(path))//'sigma0', output(:,:,2))
@@ -853,274 +863,6 @@ contains
   end subroutine output_scan_list
 
 
-  ! Compute correlated noise term, n_corr from eq:
-  ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
-    implicit none
-    class(comm_tod),               intent(in)     :: self
-    type(planck_rng),                  intent(inout)  :: handle
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
-    real(sp),          dimension(:,:), intent(out)    :: n_corr
-    integer(i4b) :: i, j, l, k, n, m, nlive, nomp, ntod, ndet, err, omp_get_max_threads
-    integer(i4b) :: nfft, nbuff, j_end, j_start
-    integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: init_masked_region, end_masked_region
-    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c
-    real(dp)     :: nu, power, fft_norm, t1, t2
-    real(sp),     allocatable, dimension(:,:) :: dt
-    complex(spc), allocatable, dimension(:,:) :: dv
-    real(sp),     allocatable, dimension(:) :: d_prime
-    
-    ntod = self%scans(scan)%ntod
-    ndet = self%ndet
-!    nomp = omp_get_max_threads()
-    m    = count(self%scans(scan)%d%accept)
- !   nlive = count(self%scans(scan)%d%accept)
-    
-    nfft = 2 * ntod
-    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
-    
-    n = nfft / 2 + 1
-
-    call wall_time(t1)
-!    call sfftw_init_threads(err)
-!    call sfftw_plan_with_nthreads(nomp)
-
-    allocate(dt(nfft,m), dv(0:n-1,m))
-!!$    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_patient) 
-!!$    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_patient)
-    call sfftw_plan_many_dft_r2c(plan_fwd, 1, nfft, m, dt, &
-         & nfft, 1, nfft, dv, n, 1, n, fftw_patient)
-    call sfftw_plan_many_dft_c2r(plan_back, 1, nfft, m, dv, &
-         & n, 1, n, dt, nfft, 1, nfft, fftw_patient)
-
-
-!    deallocate(dt, dv)
-    call wall_time(t2)
-    !if (self%myid == 0) write(*,*) ' fft1 =', t2-t1 
-
-!    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
-!    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime)
-!    allocate(dt(nfft), dv(0:n-1))
-    allocate(d_prime(ntod))
-
-    !!$OMP DO SCHEDULE(guided)
-    j = 0
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       j       = j+1
-       gain    = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime = self%scans(scan)%d(i)%tod - S_sub(:,i) * gain
-       sigma_0 = self%scans(scan)%d(i)%sigma0
-
-       call wall_time(t1)       
-       call fill_all_masked(d_prime, mask(:,i), ntod, (trim(self%operation) == "sample"), sigma_0, handle)
-       call wall_time(t2)
-!    if (self%myid == 0) write(*,*) ' fft2 =', t2-t1 
-
-       ! Preparing for fft
-       dt(1:ntod,j)           = d_prime
-       dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
-    end do
-  
-    call wall_time(t1)
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-
-    j = 0
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
-       j       = j+1
-    
-       samprate = self%samprate
-       alpha    = self%scans(scan)%d(i)%alpha
-       nu_knee  = self%scans(scan)%d(i)%fknee
-       N_wn     = sigma_0 ** 2           ! white noise power spectrum
-       fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
-       call wall_time(t2)
-!    if (self%myid == 0) write(*,*) ' fft3 =', t2-t1 
-
-       if (trim(self%operation) == "sample") then
-          dv(0,j)    = dv(0,j) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
-       end if
-       
-       do l = 1, n-1                                                      
-          nu = l*(samprate/2)/(n-1)
-!!$          if (abs(nu-1.d0/60.d0)*60.d0 < 0.001d0) then
-!!$             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
-!!$          end if
-          
-          N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
-          if (trim(self%operation) == "sample") then
-             dv(l,j) = (dv(l,j) + fft_norm * ( &
-                  sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
-                  + N_wn * sqrt(1.0 / N_c) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
-                  )) * 1.d0/(1.d0 + N_wn / N_c)
-          else
-             dv(l,j) = dv(l,j) * 1.0/(1.0 + N_wn/N_c)
-          end if
-          !if (abs(nu-1.d0/60.d0) < 0.01d0 .and. trim(self%freq)== '070') dv(l) = 0.d0
-       end do
-    end do
-    call wall_time(t1)
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
-    dt = dt / nfft
-    call wall_time(t2)
-!    if (self%myid == 0) write(*,*) ' fft4 =', t2-t1 
-
-    j = 0
-    do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) then
-          n_corr(:,i) = 0.
-          cycle
-       end if
-       j       = j+1
-       n_corr(:,i) = dt(1:ntod,j) 
-       ! if (i == 1) then
-       !    open(65,file='ncorr_times.dat')
-       !    do j = i, ntod
-       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
-       !    end do
-       !    close(65)
-       !    !stop
-       ! end if
-
-    end do
-!    !$OMP END DO                                                          
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
-
-    deallocate(dt, dv)
-    deallocate(d_prime)
-    !deallocate(diff)
- !   !$OMP END PARALLEL
-    
-
-
-  
-  end subroutine sample_n_corr
-
-
-  ! Routine for multiplying a set of timestreams with inverse noise covariance 
-  ! matrix. inp and res have dimensions (ntime,ndet,ninput), where ninput is 
-  ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
-  ! Here inp and res are assumed to be already allocated. 
-
-  subroutine multiply_inv_N(self, scan, buffer, sampfreq, pow)
-    implicit none
-    class(comm_tod),                     intent(in)     :: self
-    integer(i4b),                        intent(in)     :: scan
-    real(sp),          dimension(:,:),   intent(inout)     :: buffer !input/output
-    real(dp),                            intent(in), optional :: sampfreq, pow
-    integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
-    integer*8    :: plan_fwd, plan_back
-    real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
-    real(sp)     :: nu, pow_
-    real(sp),     allocatable, dimension(:,:) :: dt
-    complex(spc), allocatable, dimension(:,:) :: dv
-    
-    ntod = size(buffer, 1)
-    ndet = size(buffer, 2)
-    nomp = omp_get_max_threads()
-    m    = count(self%scans(scan)%d%accept)
-    pow_ = 1.d0; if (present(pow)) pow_ = pow
-
-!!$ !   if (self%myid == 0) open(58,file='invN1.dat')
-!!$    allocate(dt(ntod))
-!!$    do i = 1, ndet
-!!$       if (.not. self%scans(scan)%d(i)%accept) cycle
-!!$       sigma_0  = self%scans(scan)%d(i)%sigma0
-!!$       do j = 1, ninput
-!!$          dt = buffer(:,i,j) / sigma_0**2
-!!$          dt = dt - mean(1.d0*dt)
-!!$          buffer(:,i,j) = dt
-!!$       end do
-!!$    end do
-!!$    deallocate(dt)
-!!$!    if (self%myid == 0) close(58)
-!!$    return
-
-    
-    n = ntod + 1
-    
-!    call sfftw_init_threads(err)
-!    call sfftw_plan_with_nthreads(nomp)
-
-!!$    allocate(dt(2*ntod), dv(0:n-1))
-!!$    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_patient)
-!!$    call sfftw_plan_dft_c2r_1d(plan_back, 2*ntod, dv, dt, fftw_patient)
-!    deallocate(dt, dv)
-
-    allocate(dt(2*ntod,m), dv(0:n-1,m))
-    call sfftw_plan_many_dft_r2c(plan_fwd, 1, 2*ntod, m, dt, &
-         & 2*ntod, 1, 2*ntod, dv, n, 1, n, fftw_patient)
-    call sfftw_plan_many_dft_c2r(plan_back, 1, 2*ntod, m, dv, &
-         & n, 1, n, dt, 2*ntod, 1, 2*ntod, fftw_patient)
-    
-!    if (self%myid == 0) open(58,file='invN2.dat')
-!    !$OMP PARALLEL PRIVATE(i,j,l,dt,dv,nu,sigma_0,alpha,nu_knee,noise,signal)
-!    allocate(dt(2*ntod), dv(0:n-1))
-    
-    !!$OMP DO SCHEDULE(guided)
-    j = 0
-    do i = 1, ndet
-       sigma_0  = real(self%scans(scan)%d(i)%sigma0,sp)
-       if (.not. self%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
-       j = j+1
-       dt(1:ntod,j)           = buffer(:,i)
-       dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
-    end do
-
-    call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-
-    j = 0
-    do i = 1, ndet
-       sigma_0  = real(self%scans(scan)%d(i)%sigma0,sp)
-       if (.not. self%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
-       j = j+1
-       samprate = real(self%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
-       alpha    = real(self%scans(scan)%d(i)%alpha,sp)
-       nu_knee  = real(self%scans(scan)%d(i)%fknee,sp)
-       noise    = sigma_0 ** 2
-       
-       dv(0,j) = 0.d0
-       do l = 1, n-1                                                      
-          nu      = l*(samprate/2)/(n-1)
-          signal  = noise * (nu/(nu_knee))**(alpha)
-          dv(l,j) = dv(l,j) * 1.0/(noise + signal)**pow_
-       end do
-    end do
-       
-    call sfftw_execute_dft_c2r(plan_back, dv, dt)
-    dt = dt / (2*ntod)
-
-!!$          if (self%myid == 0 .and. i==1 .and. j==1) then
-!!$             do k = 1, ntod
-!!$                write(58,*) k, dt(k)/dt(30000), buffer(k,i,j)/buffer(30000,i,j)
-!!$             end do
-!!$          end if
-
-    j = 0
-    do i = 1, ndet
-       sigma_0  = real(self%scans(scan)%d(i)%sigma0,sp)
-       if (.not. self%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) then
-          buffer(:,i)  = 0.d0
-       else
-          j           = j+1
-          buffer(:,i) = dt(1:ntod,j) 
-       end if
-    end do
-    !!$OMP END DO                                                          
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
-    deallocate(dt, dv)
-!    !$OMP END PARALLEL
-!    if (self%myid == 0) close(58)
-
-
-!!$    call mpi_finalize(i)
-!!$    stop
-  end subroutine multiply_inv_N
 
   subroutine downsample_tod(self, tod_in, ext, tod_out, mask)
     implicit none
@@ -1175,26 +917,6 @@ contains
 
   end subroutine downsample_tod
 
-  subroutine linspace(from, to, array)  ! Hat tip: https://stackoverflow.com/a/57211848/5238625
-    implicit none
-    real(dp), intent(in) :: from, to
-    real(dp), intent(out) :: array(:)
-    real(dp) :: range
-    integer :: n, i
-    n = size(array)
-    range = to - from
-
-    if (n == 0) return
-
-    if (n == 1) then
-       array(1) = from
-       return
-    end if
-
-    do i=1, n
-       array(i) = from + range * (i - 1) / (n - 1)
-    end do
-  end subroutine linspace
 
 
 ! Fills masked region with linear function between the mean of 20 points at each end
@@ -1277,6 +999,125 @@ contains
     end if
 
   end subroutine fill_all_masked
+
+
+  ! Compute chisquare
+  subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
+       & n_corr, absbp)
+    implicit none
+    class(comm_tod),                 intent(inout)  :: self
+    integer(i4b),                    intent(in)     :: scan, det
+    real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
+    real(sp),          dimension(:), intent(in)     :: n_corr
+    logical(lgt),                    intent(in), optional :: absbp
+
+    real(dp)     :: chisq, d0, g
+    integer(i4b) :: i, n
+
+    chisq       = 0.d0
+    n           = 0
+    g           = self%scans(scan)%d(det)%gain 
+    do i = 1, self%scans(scan)%ntod
+       if (mask(i) < 0.5) cycle 
+       n     = n+1
+       d0    = self%scans(scan)%d(det)%tod(i) - &
+            & (g * s_spur(i) + n_corr(i))
+       chisq = chisq + (d0 - g * s_sky(i))**2 
+    end do
+
+    if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
+       if (present(absbp)) then
+          self%scans(scan)%d(det)%chisq_prop   = 0.d0
+       else
+          self%scans(scan)%d(det)%chisq        = 0.d0
+       end if
+    else
+       chisq      = chisq      / self%scans(scan)%d(det)%sigma0**2
+       if (present(absbp)) then
+          self%scans(scan)%d(det)%chisq_prop   = chisq
+       else
+          self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
+       end if
+    end if
+    ! write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
+    !      & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0
+    !if(self%scans(scan)%d(det)%chisq > 2000.d0 .or. isNaN(self%scans(scan)%d(det)%chisq)) then
+      !write(*,*) "chisq", scan, det, sum(mask), sum(s_sky), sum(s_sl), sum(s_orb), sum(n_corr)
+    !end if
+    
+  end subroutine compute_chisq
+
+  function get_total_chisq(self, det)
+    implicit none
+    class(comm_tod),     intent(in)  :: self
+    integer(i4b),        intent(in)  :: det
+    real(dp)                         :: get_total_chisq
+
+    integer(i4b) :: i, ierr
+    real(dp)     :: chisq, buffer
+
+    chisq = 0.d0
+    do i = 1, self%nscan ! Sum chisq for all scans
+       if (.not. self%scans(i)%d(det)%accept) cycle
+       chisq = chisq + self%scans(i)%d(det)%chisq 
+    end do
+    call mpi_reduce(chisq, buffer, 1, MPI_DOUBLE_PRECISION, MPI_SUM, &
+         & 0, self%info%comm, ierr)
+
+    get_total_chisq = buffer
+
+  end function get_total_chisq
+
+  subroutine symmetrize_flags(self, flag)
+    implicit none
+    class(comm_tod),                          intent(inout) :: self
+    integer(i4b),         dimension(1:,1:),   intent(inout) :: flag
+
+    integer(i4b) :: i, det
+
+    do det = 1, self%ndet
+       do i = 1, size(flag,2)
+          if (iand(flag(i,det),self%flag0) .ne. 0) then
+             flag(i,self%partner(det)) = flag(i,det)
+          end if
+       end do
+    end do
+
+  end subroutine symmetrize_flags
+
+  subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag)
+    implicit none
+    class(comm_tod),                    intent(in)  :: self
+    integer(i4b),                       intent(in)  :: scan, det
+    integer(i4b),        dimension(:),  intent(out) :: pix, psi, flag
+
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, imod=self%npsi-1)
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+
+!!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
+!!$    if (det == 2) psi = modulo(psi + 20,self%npsi)
+!!$    if (det == 3) psi = modulo(psi - 10,self%npsi)
+!!$    if (det == 4) psi = modulo(psi - 15,self%npsi)
+
+!!$    do j = 2, self%scans(scan)%ntod
+!!$       pix(j)  = pix(j-1)  + pix(j)
+!!$       psi(j)  = psi(j-1)  + psi(j)
+!!$       flag(j) = flag(j-1) + flag(j)
+!!$    end do
+!!$    psi = modulo(psi,4096)
+
+!!$    call int2string(scan,stext)
+!!$    call int2string(det,dtext)
+!!$    open(58,file='psi'//stext//'_'//dtext//'.dat')
+!!$    do j = 1, self%scans(scan)%ntod
+!!$       if (pix(j) == 6285034) then
+!!$          write(58,*) scan, psi(j), j
+!!$       end if
+!!$    end do
+!!$    close(58)
+
+  end subroutine decompress_pointing_and_flags
 
 
 
