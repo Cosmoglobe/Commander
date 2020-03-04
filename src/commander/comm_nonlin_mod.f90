@@ -74,19 +74,23 @@ contains
     integer(i4b),       intent(in)    :: iter
     type(planck_rng),   intent(inout) :: handle    
 
-    integer(i4b) :: i, j, k, q, pl, np, nlm, out_every, num_accepted, smooth_scale, id_native, ierr, l_, m_, ind
-    real(dp)     :: t1, t2, lr
-    real(dp)     :: mu, sigma, par, chisq, chisq_old, chisq_d, accept_rate, diff
+    integer(i4b) :: i, j, k, q, p, pl, np, nlm, out_every, num_accepted, smooth_scale, id_native, ierr, nalm_tot, ind
+    integer(i4b) :: nsamp
+    real(dp)     :: t1, t2, lr, ts, rg, dalm, sigma_prior
+    real(dp)     :: mu, sigma, par, chisq, chisq_old, chisq_d, accept_rate, diff, chisq_prior
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext, jtext
-    logical :: accepted
+    logical :: accepted, exist
     class(comm_mapinfo), pointer :: info => null()
     class(comm_N),       pointer :: tmp  => null()
     class(comm_map),     pointer :: res  => null()
     class(comm_comp),    pointer :: c    => null()
-    real(dp),          allocatable, dimension(:,:) :: m, alm_old, alm, lm, buffer2
-    real(dp),          allocatable, dimension(:)   :: buffer
+    real(dp),          allocatable, dimension(:,:,:)   :: alm_mean_sub, alms, alm_covmat, L
+    real(dp),          allocatable, dimension(:,:) :: m, mu_alm, alm_old
+    real(dp),          allocatable, dimension(:) :: buffer
+
+    integer(c_int),    allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
 
     call wall_time(t1)
@@ -240,34 +244,65 @@ contains
              end if
                 
           ! Trygve spectral index sampling
+
+          ! TODO
+          ! Add prior compatibility
+          ! Check cholesky values. 
+          ! Read cholesky properly
+
           call wall_time(t1)
           if (trim(c%operation) == 'optimize') then
              ! Calls comm_diffuse_comp_mod
              call c%sampleSpecInd(handle, j)
 
           else if (trim(c%operation) == 'sample' .and. c%lmax_ind > 0) then
-             if (info%myid == 0) open(69, file='nonlin-samples.dat', recl=10000)
-             allocate(buffer(0:c%theta(j)%p%info%nalm))
-             
-             lr = 0.001 ! Init learning rate for proposals
-             num_accepted = 0
+             ! Params
+             nalm_tot = (c%lmax_ind+1)**2
+             lr = 0.5d0 !c%p_gauss(2,j) ! Init learning rate for proposals
              out_every = 10
+             nsamp = 500
+             num_accepted = 0
+             sigma_prior = 0.01d0
 
-             ! Cholesky decompose covariance to get faster sampling.
-             ! call cholesky_decompose_single(s, ierr=ierr)
-             ! Save all values in buffer. Only accepted values?
-             ! After 1000? samples, calculate covariance
-           
-             ! MCMC loop
-             do i = 1, 500
-                call wall_time(t1)
+             allocate(alms(0:nsamp, 0:nalm_tot-1,info%nmaps))                         
+             allocate(alm_old(0:c%theta(j)%p%info%nalm-1,info%nmaps))                         
+             allocate(L(0:nalm_tot-1, 0:nalm_tot-1, c%theta(j)%p%info%nmaps)) ! Allocate cholesky matrix
 
+             if (info%myid == 0) then
+                open(69, file=trim(cpar%outdir)//'/nonlin-samples.dat', recl=10000)
+
+                ! Read cholesky matrix. Only root needs this
+                inquire(file=trim(cpar%datadir)//'/alm_cholesky.dat', exist=exist)
+                if (exist) then ! If present cholesky file
+                   write(*,*) "Reading cholesky matrix"
+                   open(unit=11, file=trim(cpar%datadir)//'/alm_cholesky.dat')
+                   read(11,*) L
+                   close(11)
+                else
+                   write(*,*) "No cholesky matrix found"
+                   L(:,:,:) = 0.d0 ! Set diagonal to 0.001
+                   do p = 0, nalm_tot-1
+                      do i = 1, info%nmaps
+                         L(p,p,i) = 0.001 ! Set diagonal to 0.001
+                      end do
+                   end do
+                end if
+             end if
+
+             ! Save initial alm        
+             alms(:,:,:) = 0.d0
+             ! Gather alms from threads to alms array with correct indices
+             do pl = 1, c%theta(j)%p%info%nmaps
+                call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, 0, pl, pl)
+                call mpi_allreduce(MPI_IN_PLACE, alms(0,:,pl), nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             end do
+
+             call wall_time(t1)
+             if (info%myid == 0) write(*,fmt='(a,i6, a, 3f7.2)') "- sample: ", 0, " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+             do i = 1, nsamp
+                chisq_prior = 0.d0
                 ! Reset accepted bool
                 accepted = .false.
-
-                ! Save old alms
-                alm_old = c%theta(j)%p%alm(:,:)
-
                 ! Calculate current chisq
                 call compute_chisq(c%comm, chisq_fullsky=chisq_old)
 
@@ -280,43 +315,68 @@ contains
                    ! p already calculated if larger than poltype ( smart ;) )
                    if (pl > c%poltype(j)) cycle
 
+                   ! Gather alms from threads to alms array with correct indices
+                   call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+
+                   ! Send all alms to 0 (Dont allreduce because only root will do calculation)
+                   call mpi_reduce(alms(i,:,pl), alms(i,:,pl), nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, 0, info%comm, ierr)
+
                    ! Propose new alms
-                   do k = 0, c%theta(j)%p%info%nalm-1   
-                      buffer(k) = c%theta(j)%p%alm(k,pl) + lr*rand_gauss(handle)
+                   if (info%myid == 0) then
+                      do p = 0, nalm_tot-1
+                         rg = rand_gauss(handle)
+                         dalm = 0.d0
+                         do q = 0, nalm_tot-1
+                            dalm = dalm + lr*L(p,q,pl)*rg
+                         end do
+                         alms(i,p,pl) = alms(i-1,p,pl) + dalm
+                      end do
+                   end if
+
+                   ! Adding prior ! Is it supposed to add for all signals? Or just free ones ??? 
+                   ! Currently applying same prior on all signals
+                   chisq_prior = chisq_prior + ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                   do p = 1, nalm_tot-1
+                      chisq_prior = chisq_prior + (alms(i,p,pl)/sigma_prior)**2
                    end do
-                      
+                   
+                   ! Broadcast proposed alms from root
+                   call mpi_bcast(alms(i,:,pl), nalm_tot, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)                   
+                   
                    ! Save to correct poltypes
                    if (c%poltype(j) == 1) then      ! {T+E+B}
                       do q = 1, c%theta(j)%p%info%nmaps
-                         c%theta(j)%p%alm(:,q)  = buffer
+                         alms(i,:,q) = alms(i,:,pl) ! Save to all maps
+                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
                       end do
                    else if (c%poltype(j) == 2) then ! {T,E+B}
                       if (pl == 1) then
-                         c%theta(j)%p%alm(:,1)  = buffer
+                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, 1)
                       else
                          do q = 2, c%theta(j)%p%info%nmaps
-                            c%theta(j)%p%alm(:,q)  = buffer
+                            alms(i,:,q) = alms(i,:,pl)
+                            call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)                            
                          end do 
-                      end if
+                      end if                    
                    else if (c%poltype(j) == 3) then ! {T,E,B}
-                         c%theta(j)%p%alm(:,pl)  = buffer
+                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
                    end if
                 end do
-
+ 
                 ! Update mixing matrix with new alms
                 call c%updateMixmat
 
                 ! Calculate proposed chisq
                 call compute_chisq(c%comm, chisq_fullsky=chisq)
-                diff = chisq_old-chisq
 
                 ! Accept/reject test
                 if (info%myid == 0) then
+                   chisq = chisq + chisq_prior
+                   diff = chisq_old-chisq
                    if ( chisq > chisq_old ) then                 
                       ! Small chance of accepting this too
                       ! Avoid getting stuck in local mminimum
                       accepted = (rand_uni(handle) < exp(0.5d0*diff))
-                      !write(*,*) "exp", exp(0.5d0*diff), accepted, diff
                    else
                       accepted = .true.
                    end if
@@ -324,32 +384,35 @@ contains
 
                 ! Broadcast result of accept/reject test
                 call mpi_bcast(accepted, 1, MPI_LOGICAL, 0, c%comm, ierr)
+                ! Briadcast chisq adjusted with prior
+                call mpi_bcast(chisq, 1,  MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
                 
                 ! Count accepted, if rejected revert changes.
                 if (accepted) then
-                   !if (info%myid == 0) write(*,fmt='(i8, a, f10.2, a, f8.2)') i, " chisq ", chisq, " diff ", diff
                    num_accepted = num_accepted + 1
                 else
                    ! If rejected, restore old values
-                   !if (info%myid == 0) write(*,*) "Rejected"
-                   c%theta(j)%p%alm(:,:) = alm_old
+                   do pl = 1, c%theta(j)%p%info%nmaps
+                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, info%lm, i-1, pl, pl)
+                   end do
+                   alms(i,:,:) = alms(i-1,:,:)
                    call c%updateMixmat                
                    chisq = chisq_old
-                end if
+               end if
 
                 ! Write to screen first iter
                 if (i == 1) then
-                   if (info%myid == 0) then 
-                      write(*,fmt='(a,i6, a, f16.2)') "- sample ", i, " -- chisq " , chisq
-                      write(69, *) ' sample       chisq           alms'
-                   end if
+                   if (info%myid == 0) write(*,fmt='(a,i6, a, f16.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
                    chisq_d = chisq
                 end if
 
                 ! Write to screen
                 if (mod(i,out_every) == 0) then
+                   diff = chisq_d - chisq ! Output diff
                    call wall_time(t2)
-                   if (info%myid == 0) write(*,fmt='(a,i6, a, f16.2, a, f10.5, a, f7.3)') "- sample ", i, " -- chisq " , chisq, " diff ", diff, " time/sample ", t2-t1 
+                   ts = (t2-t1)/DFLOAT(out_every) ! Average time per sample
+                   if (info%myid == 0) write(*,fmt='(a,i6, a, f16.2, a, f10.2, a, f7.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq, " - diff: ", diff, " - time/sample: ", ts, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
+                   call wall_time(t1)
                    chisq_d = chisq
                 end if
 
@@ -373,41 +436,51 @@ contains
                 end if
 
                 ! Output samples, chisq, alms to file
-                !if (info%myid == 0) then 
-                !   allocate(alm(0:(c%lmax_ind+1)**2-1,info%nmaps))
-                !
-                !   ! Dumping whatever is in proc = 0
-                !   do k = 0, c%theta(j)%p%info%nalm-1
-                !         l_ = c%theta(j)%p%info%lm(1,k)
-                !         m_ = c%theta(j)%p%info%nmapslm(2,k)
-                !         ind = l_**2 + l_ + m_
-                !         alm(ind,:) = c%theta(j)%p%alm(k,:)
-                !   end do
-                !
-                !   do np = 1, info%nprocs-1
-                !      call mpi_recv(nlm, 1, MPI_INTEGER, np, 420, c%comm, mpistat, ierr)
-                !      allocate(lm(2,0:nlm-1))
-                !      call mpi_recv(lm, size(lm), MPI_INTEGER, i, 98, c%comm, mpistat, ierr)
-                !      allocate(buffer2(0:nlm, c%theta(j)%p%info%nmaps))
-                !      call mpi_recv(buffer2, size(buffer2), MPI_DOUBLE_PRECISION, np, 420, c%comm, mpistat, ierr)
-                !      do k = 0, nlm-1
-                !         l_ = lm(1,k)
-                !         m_ = lm(2,k)
-                !         ind = l_**2 + l_ + m_
-                !         alm(ind,:) = buffer2(k,:)
-                !      end do
-                !      deallocate(lm, buffer2)
-                !   end do
-                !   write(69, fmt='(i6, f16.2, 999f6.2)') i, chisq, alm
-                !   deallocate(alm)
-                !else
-                !   call mpi_send(c%theta(j)%p%info%nalm, 1, MPI_INTEGER, 0, 420, c%comm, mpistat, ierr)
-                !   call mpi_send(c%theta(j)%p%info%lm, size(c%theta(j)%p%info%lm), MPI_INTEGER, 0, 420, c%comm, mpistat, ierr)
-                !   call mpi_recv(c%theta(j)%p%alm, size(c%theta(j)%p%alm), MPI_DOUBLE_PRECISION, 0, 420, c%comm, mpistat, ierr)
-                !end if
-              
+                if (info%myid == 0) write(69, *) i, chisq, alms(i,:,:)
              end do
-             !deallocate(alm_old, buffer)
+             !deallocate(sigma_prior)
+
+             ! Calculate cholesky
+             ! Output like nprocs*nalm:+k, Does not work. Need to be saved in order to be distributed correctly
+             if (info%myid == 0) then! At this point, id=0 should have all values
+                allocate(alm_covmat(0:nalm_tot-1, 0:nalm_tot-1, c%theta(j)%p%info%nmaps))
+                allocate(alm_mean_sub(nsamp, 0:nalm_tot-1,  c%theta(j)%p%info%nmaps))
+                allocate(mu_alm(0:nalm_tot-1, c%theta(j)%p%info%nmaps))
+                
+                ! Calculate covariance matrix
+                do q = 0, nalm_tot-1 ! Calculate means
+                   mu_alm(q,:) = 0.d0
+                   do p = 1, nsamp
+                      mu_alm(q,:) = mu_alm(q,:) + alms(p, q, :)/DFLOAT(nsamp)
+                   end do
+                end do
+
+                do p = 1, nsamp ! Subtract means
+                   alm_mean_sub(p,:,:) = alms(p,:,:) - mu_alm
+                end do
+                
+                do p = 1, c%theta(j)%p%info%nmaps
+                   alm_covmat(:,:,p) = matmul(alm_mean_sub(:,:,p), transpose(alm_mean_sub(:,:,p))) / (nsamp-1)
+                end do
+
+                deallocate(mu_alm, alm_mean_sub)
+                
+                L(:,:,:) = 0.d0
+                do p = 1, c%theta(j)%p%info%nmaps
+                   call cholesky_decompose(alm_covmat(:,:,p), L(:,:,p), ierr)
+                end do
+
+                open(5, file=trim(cpar%outdir)//'/alm_cholesky.dat', recl=10000)
+                open(6, file=trim(cpar%outdir)//'/alm_covmat.dat', recl=10000)
+                write(5, *) L
+                write(6, *) alm_covmat
+                close(5)
+                close(6)
+                close(69)
+                
+             end if
+
+             deallocate(alms)
           end if
           end select
 
@@ -502,5 +575,46 @@ contains
     if (cpar%myid_chain == 0) write(*,*) 'CPU time specind = ', real(t2-t1,sp)
     
   end subroutine sample_nonlin_params
+
+
+  subroutine gather_alms(alm, alms, nalm, lm, i, pl, pl_tar)
+    implicit none
+
+    real(dp), dimension(0:,1:),    intent(in)    :: alm
+    integer(c_int), dimension(1:,0:), intent(in) :: lm
+    real(dp), dimension(0:,0:,1:), intent(inout) :: alms
+    integer(i4b),                intent(in)    :: nalm, i, pl, pl_tar
+    integer(i4b) :: k, l, m, ind
+
+    do k = 0, nalm-1
+       ! Gather all alms
+       l = lm(1,k)
+       m = lm(2,k)
+       ind = l**2 + l + m
+       alms(i,ind,pl_tar) = alm(k,pl)
+    end do
+
+  end subroutine gather_alms
+
+  subroutine distribute_alms(alm, alms, nalm, lm, i, pl, pl_tar)
+    implicit none
+
+    real(dp), dimension(0:,1:),    intent(inout)    :: alm
+    integer(c_int), dimension(1:,0:), intent(in)   :: lm
+    real(dp), dimension(0:,0:,1:),  intent(in)       :: alms
+    integer(i4b),                intent(in)       :: nalm, i, pl, pl_tar
+    integer(i4b) :: k, l, m, ind
+    
+    do k = 0, nalm-1
+       ! Distribute alms
+       l = lm(1,k)
+       m = lm(2,k)
+       ind = l**2 + l + m
+       alm(k,pl_tar) = alms(i,ind,pl)
+    end do
+
+  end subroutine distribute_alms
+
+
 
 end module comm_nonlin_mod
