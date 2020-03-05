@@ -1472,5 +1472,37 @@ contains
   end subroutine MOV3
 
 
+  subroutine compute_covariance_matrix(data, C,  get_sqrt)
+    implicit none
+
+    real(dp),     dimension(1:,1:), intent(in)           :: data
+    real(dp),     dimension(1:,1:), intent(out)          :: C
+    logical(lgt),                   intent(in), optional :: get_sqrt
+
+    integer(i4b) :: i, j, n, m
+    real(dp), allocatable, dimension(:) :: mu
+
+    n = size(data,1)
+    m = size(data,2)
+
+    allocate(mu(m))
+    do i = 1, m
+       mu(i) = mean(data(:,i))
+    end do
+
+    do i = 1, m
+       do j = i, m
+          C(i,j) = sum((data(:,i)-mu(i)) * (data(:,j)-mu(j)))
+          C(j,i) = C(i,j)
+       end do
+    end do
+    C = C / (n-1.d0)
+
+    if (present(get_sqrt)) call compute_hermitian_root(C, 0.5d0)
+
+    deallocate(mu)
+
+  end subroutine compute_covariance_matrix
+
 
 end module math_tools

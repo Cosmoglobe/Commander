@@ -150,7 +150,7 @@ program commander
   ! Run Gibbs loop
   iter = first_sample
   do while (iter <= cpar%num_gibbs_iter)
-     if (cpar%myid == 0) then
+     if (cpar%myid_chain == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') '---------------------------------------------------------------------'
         write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
@@ -159,7 +159,7 @@ program commander
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then
            curr_samp = mod((iter-1)/cpar%numsamp_per_resamp,cpar%last_samp_resamp-cpar%first_samp_resamp+1) + cpar%first_samp_resamp
-           if (cpar%myid == 0) write(*,*) 'Re-initializing on sample ', curr_samp
+           if (cpar%myid_chain == 0) write(*,*) 'Re-initializing on sample ', curr_samp
            call initialize_from_chain(cpar, handle, init_samp=curr_samp)
            call update_mixing_matrices(update_F_int=.true.)       
         end if
@@ -171,7 +171,7 @@ program commander
      ! Sample linear parameters with CG search; loop over CG sample groups
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_samp_groups
-           if (cpar%myid == 0) then
+           if (cpar%myid_chain == 0) then
               write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                    & samp_group, ' of ', cpar%cg_num_samp_groups
            end if

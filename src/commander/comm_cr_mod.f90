@@ -308,7 +308,7 @@ contains
              call cr_extract_comp(c%id, x, alm)
              call c%Cl%sqrtS(alm=alm, info=c%x%info) ! Multiply with sqrt(Cl)
              ! Add CMB dipole back again
-             if (cpar%resamp_CMB .and. trim(c%type) == 'cmb') &
+             if (cpar%resamp_CMB .and. trim(c%type) == 'cmb' .and. .not. cpar%only_pol) &
                   & call add_fiducial_CMB_dipole(c%x%info, c%RJ2unit_(1), alm)
              call cr_insert_comp(c%id, .false., alm, x)
              deallocate(alm)
@@ -486,10 +486,10 @@ contains
   ! Definition of linear system
   ! ---------------------------
 
-  subroutine cr_computeRHS(operation, resamp_CMB, handle, handle_noise, mask, samp_group, rhs)
+  subroutine cr_computeRHS(operation, resamp_cmb, only_pol, handle, handle_noise, mask, samp_group, rhs)
     implicit none
     character(len=*),                            intent(in)             :: operation
-    logical(lgt),                                intent(in)             :: resamp_CMB
+    logical(lgt),                                intent(in)             :: resamp_cmb, only_pol
     type(planck_rng),                            intent(inout)          :: handle, handle_noise
     integer(i4b),                                intent(in)             :: samp_group
     real(dp),         allocatable, dimension(:), intent(in)             :: mask
@@ -515,7 +515,7 @@ contains
        map => compute_residual(i, cg_samp_group=samp_group) 
 
        ! Subtract CMB dipole if resamp mode, to avoid large condition numbers; add back later
-       if (resamp_CMB) call subtract_fiducial_CMB_dipole(i, map)
+       if (resamp_cmb .and. .not. only_pol) call subtract_fiducial_CMB_dipole(i, map)
 
        ! Apply projection matrix, ie., mask in pixel space and multipoles above lmax in harmonic space
 !!$       map%map = map%map * data(i)%mask%map
@@ -620,13 +620,14 @@ contains
        end if
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%cltype) /= 'none') then
+          if (trim(c%cltype) == 'none') then
              n = ind_comp(c%id,2)
              allocate(eta(0:c%x%info%nalm-1,c%x%info%nmaps))
              eta = 0.d0
              ! Variance term
              if (trim(operation) == 'sample') then
                 do j = 1, c%x%info%nmaps
+                   if (j == 1 .and. only_pol) cycle
                    do i = 0, c%x%info%nalm-1
                       eta(i,j) = rand_gauss(handle)
                    end do
