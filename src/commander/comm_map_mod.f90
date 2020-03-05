@@ -1281,6 +1281,7 @@ end do
     do ind = 0, self%info%nalm-1
        call self%info%i2lm(ind,l,m)
        k   = 1
+       if (l == 1) write(*,*) m, real(self%alm(ind,:),sp)
        do i = 1, nmaps
           do j = i, nmaps
              if (present(sigma_l_vec)) &
