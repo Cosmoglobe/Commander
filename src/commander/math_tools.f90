@@ -1476,7 +1476,7 @@ contains
     implicit none
 
     real(dp),     dimension(1:,1:), intent(in)           :: data
-    real(dp),     dimension(1:),    intent(out)          :: C
+    real(dp),     dimension(1:,1:), intent(out)          :: C
     logical(lgt),                   intent(in), optional :: get_sqrt
 
     integer(i4b) :: i, j, n, m
@@ -1493,11 +1493,14 @@ contains
     do i = 1, m
        do j = i, m
           C(i,j) = sum((data(:,i)-mu(i)) * (data(:,j)-mu(j)))
+          C(j,i) = C(i,j)
        end do
     end do
     C = C / (n-1.d0)
 
-    if (present(get_sqrt)) call compute_hermitian_root(A, 0.5d0)
+    if (present(get_sqrt)) call compute_hermitian_root(C, 0.5d0)
+
+    deallocate(mu)
 
   end subroutine compute_covariance_matrix
 
