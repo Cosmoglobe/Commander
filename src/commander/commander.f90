@@ -200,8 +200,8 @@ program commander
      ! Sample non-linear parameters
      ! Trygve fix this
      if (cpar%sample_specind) then
-        do i = 1, cpar%num_ind_cycle
-           call sample_nonlin_params(cpar, iter, handle)
+        do i = 1, cpar%num_ind_cycle ! This is 1 in param-file
+           call sample_nonlin_params(cpar, iter, handle, steplen_in)
         end do
      end if
 
