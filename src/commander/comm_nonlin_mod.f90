@@ -76,7 +76,7 @@ contains
 
     integer(i4b) :: i, j, k, q, p, pl, np, nlm, out_every, num_accepted, smooth_scale, id_native, ierr, nalm_tot, ind
     integer(i4b) :: nsamp
-    real(dp)     :: t1, t2, lr, ts, rg, dalm, sigma_prior
+    real(dp)     :: t1, t2, steplen, ts, rg, dalm, sigma_prior
     real(dp)     :: mu, sigma, par, chisq, chisq_old, chisq_d, accept_rate, diff, chisq_prior
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
@@ -88,7 +88,7 @@ contains
     class(comm_comp),    pointer :: c    => null()
     real(dp),          allocatable, dimension(:,:,:)   :: alm_mean_sub, alms, alm_covmat, L
     real(dp),          allocatable, dimension(:,:) :: m, mu_alm, alm_old
-    real(dp),          allocatable, dimension(:) :: buffer
+    real(dp),          allocatable, dimension(:) :: buffer, rgs
 
     integer(c_int),    allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
@@ -258,7 +258,7 @@ contains
           else if (trim(c%operation) == 'sample' .and. c%lmax_ind > 0) then
              ! Params
              nalm_tot = (c%lmax_ind+1)**2
-             lr = 0.5d0 !c%p_gauss(2,j) ! Init learning rate for proposals
+             steplen = c%p_gauss(2,j) ! Init learning rate for proposals
              out_every = 10
              nsamp = 500
              num_accepted = 0
@@ -323,14 +323,21 @@ contains
 
                    ! Propose new alms
                    if (info%myid == 0) then
+                      allocate(rgs(0:nalm_tot-1))
                       do p = 0, nalm_tot-1
-                         rg = rand_gauss(handle)
-                         dalm = 0.d0
-                         do q = 0, nalm_tot-1
-                            dalm = dalm + lr*L(p,q,pl)*rg
-                         end do
-                         alms(i,p,pl) = alms(i-1,p,pl) + dalm
+                         rgs(p) = rand_gauss(handle)                       
                       end do
+                      alms(i,:,pl) = alms(i-1,:,pl) + steplen*matmul(rgs, L(:,:,pl))
+                      deallocate(rgs)
+
+                      !do p = 0, nalm_tot-1
+                      !   rg = rand_gauss(handle) 
+                      !   dalm = 0.d0
+                      !   do q = 0, nalm_tot-1
+                      !      dalm = dalm + steplen*L(p,q,pl)*rg
+                      !   end do
+                      !   alms(i,p,pl) = alms(i-1,p,pl) + dalm
+                      !end do
                    end if
 
                    ! Adding prior ! Is it supposed to add for all signals? Or just free ones ??? 
@@ -425,13 +432,13 @@ contains
                    ! Write to screen
                    if (info%myid == 0) write(*, fmt='(a, f5.3)') "- accept rate ", accept_rate
                    
-                   ! Adjusrt lr
+                   ! Adjusrt steplen
                    if (accept_rate < 0.2) then                 
-                      lr = lr*0.5d0
-                      if (info%myid == 0) write(*,fmt='(a,f10.5)') "Reducing lr -> ", lr
+                      steplen = steplen*0.5d0
+                      if (info%myid == 0) write(*,fmt='(a,f10.5)') "Reducing steplen -> ", steplen
                    else if (accept_rate > 0.8) then
-                      lr = lr*2.0d0
-                      if (info%myid == 0) write(*,fmt='(a,f10.5)') "Increasing lr -> ", lr
+                      steplen = steplen*2.0d0
+                      if (info%myid == 0) write(*,fmt='(a,f10.5)') "Increasing steplen -> ", steplen
                    end if
                 end if
 
