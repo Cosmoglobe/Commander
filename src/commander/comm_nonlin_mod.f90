@@ -76,7 +76,7 @@ contains
 
     integer(i4b) :: i, j, k, q, p, pl, np, nlm, out_every, num_accepted, smooth_scale, id_native, ierr, nalm_tot, ind
     integer(i4b) :: nsamp
-    real(dp)     :: t1, t2, steplen, ts, rg, dalm, sigma_prior
+    real(dp)     :: t1, t2, ts, steplen, dalm, sigma_prior
     real(dp)     :: mu, sigma, par, chisq, chisq_old, chisq_d, accept_rate, diff, chisq_prior
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
@@ -246,19 +246,22 @@ contains
           ! Trygve spectral index sampling
 
           ! TODO
-          ! Add prior compatibility
-          ! Check cholesky values. 
-          ! Read cholesky properly
+          ! Reading cholesky for every sample.
+          ! Is cholesky matrix transposed? Error in covmat calcualtion?
+          ! Steplength globvar
+          ! Put in separate routine? Avoid circle import
 
           call wall_time(t1)
           if (trim(c%operation) == 'optimize') then
              ! Calls comm_diffuse_comp_mod
              call c%sampleSpecInd(handle, j)
 
-          else if (trim(c%operation) == 'sample' .and. c%lmax_ind > 0) then
+          else if (trim(c%operation) == 'sample' .and. c%lmax_ind >= 0) then
              ! Params
              nalm_tot = (c%lmax_ind+1)**2
              steplen = c%p_gauss(2,j) ! Init learning rate for proposals
+             
+
              out_every = 10
              nsamp = 500
              num_accepted = 0
@@ -267,6 +270,7 @@ contains
              allocate(alms(0:nsamp, 0:nalm_tot-1,info%nmaps))                         
              allocate(alm_old(0:c%theta(j)%p%info%nalm-1,info%nmaps))                         
              allocate(L(0:nalm_tot-1, 0:nalm_tot-1, c%theta(j)%p%info%nmaps)) ! Allocate cholesky matrix
+             allocate(rgs(0:nalm_tot-1)) ! Allocate random vector
 
              if (info%myid == 0) then
                 open(69, file=trim(cpar%outdir)//'/nonlin-samples.dat', recl=10000)
@@ -299,13 +303,21 @@ contains
 
              call wall_time(t1)
              if (info%myid == 0) write(*,fmt='(a,i6, a, 3f7.2)') "- sample: ", 0, " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+             
+             ! Calculate current chisq
+             call compute_chisq(c%comm, chisq_fullsky=chisq_old)
+             chisq_prior = 0.d0
+             chisq_prior = chisq_prior + ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+             do p = 1, nalm_tot-1
+                chisq_prior = chisq_prior + (alms(0,p,pl)/sigma_prior)**2
+             end do
+             chisq_old = chisq_old + chisq_prior
+
              do i = 1, nsamp
                 chisq_prior = 0.d0
                 ! Reset accepted bool
                 accepted = .false.
-                ! Calculate current chisq
-                call compute_chisq(c%comm, chisq_fullsky=chisq_old)
-
+             
                 ! Sample new alms (Account for poltype)
                 do pl = 1, c%theta(j)%p%info%nmaps
 
@@ -323,21 +335,10 @@ contains
 
                    ! Propose new alms
                    if (info%myid == 0) then
-                      allocate(rgs(0:nalm_tot-1))
                       do p = 0, nalm_tot-1
                          rgs(p) = rand_gauss(handle)                       
                       end do
-                      alms(i,:,pl) = alms(i-1,:,pl) + steplen*matmul(rgs, L(:,:,pl))
-                      deallocate(rgs)
-
-                      !do p = 0, nalm_tot-1
-                      !   rg = rand_gauss(handle) 
-                      !   dalm = 0.d0
-                      !   do q = 0, nalm_tot-1
-                      !      dalm = dalm + steplen*L(p,q,pl)*rg
-                      !   end do
-                      !   alms(i,p,pl) = alms(i-1,p,pl) + dalm
-                      !end do
+                      alms(i,:,pl) = alms(i-1,:,pl) + steplen*matmul(L(:,:,pl), rgs)
                    end if
 
                    ! Adding prior ! Is it supposed to add for all signals? Or just free ones ??? 
@@ -391,12 +392,11 @@ contains
 
                 ! Broadcast result of accept/reject test
                 call mpi_bcast(accepted, 1, MPI_LOGICAL, 0, c%comm, ierr)
-                ! Briadcast chisq adjusted with prior
-                call mpi_bcast(chisq, 1,  MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
                 
                 ! Count accepted, if rejected revert changes.
                 if (accepted) then
                    num_accepted = num_accepted + 1
+                   chisq_old = chisq ! ???
                 else
                    ! If rejected, restore old values
                    do pl = 1, c%theta(j)%p%info%nmaps
@@ -408,19 +408,23 @@ contains
                end if
 
                 ! Write to screen first iter
-                if (i == 1) then
-                   if (info%myid == 0) write(*,fmt='(a,i6, a, f16.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
+                if (i == 1 .and. info%myid == 0) then
+                   write(*,fmt='(a,i6, a, f16.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
                    chisq_d = chisq
                 end if
 
                 ! Write to screen
                 if (mod(i,out_every) == 0) then
-                   diff = chisq_d - chisq ! Output diff
                    call wall_time(t2)
-                   ts = (t2-t1)/DFLOAT(out_every) ! Average time per sample
-                   if (info%myid == 0) write(*,fmt='(a,i6, a, f16.2, a, f10.2, a, f7.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq, " - diff: ", diff, " - time/sample: ", ts, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
+
+                   if (info%myid == 0) then
+                      diff = chisq_d - chisq ! Output diff
+                      ts = (t2-t1)/DFLOAT(out_every) ! Average time per sample
+                      write(*,fmt='(a,i6, a, f16.2, a, f10.2, a, f7.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq, " - diff: ", diff, " - time/sample: ", ts, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
+                      chisq_d = chisq
+                   end if
+
                    call wall_time(t1)
-                   chisq_d = chisq
                 end if
 
                 ! Adjust learning rate every 100th
@@ -445,7 +449,6 @@ contains
                 ! Output samples, chisq, alms to file
                 if (info%myid == 0) write(69, *) i, chisq, alms(i,:,:)
              end do
-             !deallocate(sigma_prior)
 
              ! Calculate cholesky
              ! Output like nprocs*nalm:+k, Does not work. Need to be saved in order to be distributed correctly
@@ -483,11 +486,10 @@ contains
                 write(6, *) alm_covmat
                 close(5)
                 close(6)
-                close(69)
-                
+                close(69)                
              end if
 
-             deallocate(alms)
+             deallocate(alms, rgs)
           end if
           end select
 
