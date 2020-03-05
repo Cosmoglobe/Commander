@@ -177,6 +177,11 @@ contains
     else
        call report_error("Unknown Cl type: " // trim(constructor%type))
     end if
+    if (constructor%only_pol) then
+       constructor%Dl(:,TT)     = 0.d0
+       if (constructor%nspec == 6) constructor%Dl(:,[TE,TB]) = 0.d0
+    end if
+    constructor%Dl(0:1,2:constructor%nspec) = 0.d0
 
     !constructor%Dl = constructor%Dl / c%RJ2unit_    ! Define prior in output units
     call constructor%updateS
@@ -198,6 +203,7 @@ contains
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
+          if (i > 1 .and. l < 2) cycle
           self%Dl(l,j) = self%amp(i) * (real(l,dp)/real(self%lpiv,dp))**self%beta(i) 
        end do
        self%Dl(0,j) = self%Dl(1,j)
@@ -219,6 +225,7 @@ contains
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 1, self%lmax
+          if (i > 1 .and. l < 2) cycle
           self%Dl(l,j) = self%amp(i) * exp(-self%beta(i)*(real(l,dp)/real(self%lpiv,dp))) 
        end do
        self%Dl(0,j) = self%Dl(1,j)
@@ -240,6 +247,7 @@ contains
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = 0, self%lmax
+          if (i > 1 .and. l < 2) cycle
           self%Dl(l,j) = self%amp(i) * exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
 !          if (self%info%myid == 0) then
 !             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)

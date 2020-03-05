@@ -392,7 +392,6 @@ contains
 !!$       PT = T(map2mask,:)
 !!$       PT_invN_TP = matmul(transpose(PT), PT)
 !!$       call invert_matrix(PT_invN_TP)
-       
        allocate(S_mat(nval,nval))
        call get_basis_S(0.d0, 1.d0, cls, beam, Y(map2mask,:), S_mat)
        if (comp_cov) then
@@ -493,6 +492,7 @@ contains
 
 
     ! Compute high-l projection operator
+    write(*,*) 'nval = ', nval
     allocate(P_highl(nval,nval))
     call dgemm('N','N',nval,nval,nhigh,1.d0,Y(map2mask,lmax2lhigh),nval,&
          & Yp(lmax2lhigh,map2mask),nhigh,0.d0,P_highl,nval)
