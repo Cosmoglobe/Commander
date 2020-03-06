@@ -259,7 +259,7 @@ contains
           else if (trim(c%operation) == 'sample' .and. c%lmax_ind >= 0) then
              ! Params
              nalm_tot = (c%lmax_ind+1)**2
-             steplen = 1.d0 !c%p_gauss(2,j) ! Init learning rate for proposals
+             steplen = 0.2  !1.d0 !c%p_gauss(2,j) ! Init learning rate for proposals
              
              out_every = 10
              nsamp = 500
@@ -284,7 +284,7 @@ contains
                    L(:,:,:) = 0.d0 ! Set diagonal to 0.001
                    do p = 0, nalm_tot-1
                       do i = 1, info%nmaps
-                         L(p,p,i) = 0.001 ! Set diagonal to 0.001
+                         L(p,p,i) = 0.01 ! Set diagonal to 0.001
                       end do
                    end do
                 end if
@@ -320,8 +320,8 @@ contains
              if (info%myid == 0) then 
                 write(*,fmt='(a, i6, a, f16.2, a, 3f7.2)') "- sample: ", 0, " - chisq: " , chisq_old, " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
                 chisq_d = chisq_old
+                open(58,file='chain.dat', recl=10000)
              end if
-             
              do i = 1, nsamp
                 chisq_prior = 0.d0
                 ! Sample new alms (Account for poltype)
@@ -388,6 +388,8 @@ contains
                 accepted = .false.
                 if (info%myid == 0) then
                    chisq = chisq + chisq_prior
+                   diff = chisq_old-chisq
+                   write(58,*) i, real(chisq,sp), real(diff,sp), real(alms(i,:,2),sp)
                    if ( chisq > chisq_old ) then                 
                       ! Small chance of accepting this too
                       ! Avoid getting stuck in local mminimum
@@ -450,6 +452,8 @@ contains
                 ! Output samples, chisq, alms to file
                 if (info%myid == 0) write(69, *) i, chisq, alms(i,:,:)
              end do
+             if (info%myid == 0) close(58)
+             !deallocate(sigma_prior)
 
              ! Calculate cholesky
              ! Output like nprocs*nalm:+k, Does not work. Need to be saved in order to be distributed correctly
@@ -465,7 +469,7 @@ contains
                 close(69)                
              end if
 
-             deallocate(alms, rgs)
+             deallocate(alms, rgs, L)
           end if
           end select
 
