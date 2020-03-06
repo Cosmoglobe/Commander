@@ -81,7 +81,7 @@ contains
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext, jtext
-    logical :: accepted, exist
+    logical :: accepted, exist, converged
     class(comm_mapinfo), pointer :: info => null()
     class(comm_N),       pointer :: tmp  => null()
     class(comm_map),     pointer :: res  => null()
@@ -264,7 +264,7 @@ contains
              out_every = 10
              nsamp = 10000 ! Maxsamp
              num_accepted = 0
-
+             converged = .false.
              allocate(sigma_priors(1:nalm_tot-1)) !a_00 is given by different one
              allocate(chisq(0:nsamp))
              allocate(alms(0:nsamp, 0:nalm_tot-1,info%nmaps))                         
@@ -478,17 +478,21 @@ contains
                       !      corrlen = l
                       !   end if
                       !end do
-                      exit
-                   end if
+                      converged = .true.
+                    end if
                 end if
+               
 
                 ! Output samples, chisq, alms to file
                 if (info%myid == 0) write(69, *) i, chisq(i), alms(i,:,:)
+
+                call mpi_bcast(converged, 1, MPI_LOGICAL, 0, c%comm, ierr)
+                if (converged) exit
              end do
 
              ! Calculate cholesky
              ! Output like nprocs*nalm:+k, Does not work. Need to be saved in order to be distributed correctly
-             if (.false. .and. info%myid == 0) then! At this point, id=0 should have all values
+             if (info%myid == 0) then! At this point, id=0 should have all values
                 allocate(alms_covmat(0:nalm_tot-1, 0:nalm_tot-1, c%theta(j)%p%info%nmaps))
                 do p = 1, c%theta(j)%p%info%nmaps
                    call compute_covariance_matrix(alms(:nsamp,0:nalm_tot-1,p), alms_covmat(0:nalm_tot-1,0:nalm_tot-1,p), .true.)
@@ -498,7 +502,6 @@ contains
                 close(5)
                 close(69)                
              end if
-
              deallocate(alms, rgs, sigma_priors, chisq)
           end if
           end select
