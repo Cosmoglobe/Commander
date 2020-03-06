@@ -488,7 +488,7 @@ contains
 
              ! Calculate cholesky
              ! Output like nprocs*nalm:+k, Does not work. Need to be saved in order to be distributed correctly
-             if (info%myid == 0) then! At this point, id=0 should have all values
+             if (.false. .and. info%myid == 0) then! At this point, id=0 should have all values
                 allocate(alms_covmat(0:nalm_tot-1, 0:nalm_tot-1, c%theta(j)%p%info%nmaps))
                 do p = 1, c%theta(j)%p%info%nmaps
                    call compute_covariance_matrix(alms(:nsamp,0:nalm_tot-1,p), alms_covmat(0:nalm_tot-1,0:nalm_tot-1,p), .true.)
