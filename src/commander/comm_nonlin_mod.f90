@@ -265,27 +265,29 @@ contains
              nsamp = 10000 ! Maxsamp
              num_accepted = 0
              doexit = .false.
-             allocate(sigma_priors(1:nalm_tot-1)) !a_00 is given by different one
+             
              allocate(chisq(0:nsamp))
              allocate(alms(0:nsamp, 0:nalm_tot-1,info%nmaps))                         
              allocate(rgs(0:nalm_tot-1)) ! Allocate random vector
              allocate(L(0:nalm_tot-1, 0:nalm_tot-1, info%nmaps))                         
              if (info%myid == 0) then
-                ! Saving and smoothing priors
-                idx = 1
-                do l_ = 1, c%lmax_ind ! Skip a_00 - m-major ordering (0,0)(1,0)(2,0)(1,1)(1,-1)(2,1)(2,-1)(2,2)(2,-2)
-                   sigma_priors(idx) = sigma_prior*exp(-0.5d0*l_*(l_+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
-                   idx = idx + 1
-                end do
-                do l_ = 1, c%lmax_ind
-                   do m_ = 1, l_
-                      sigma_priors(idx) = sigma_prior*exp(-0.5d0*l_*(l_+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
-                      idx = idx + 1
+                if (nalm_tot > 1) then
+                   allocate(sigma_priors(1:nalm_tot-1)) !a_00 is given by different one
+                   ! Saving and smoothing priors
+                   idx = 1
+                   do l_ = 1, c%lmax_ind ! Skip a_00 - m-major ordering (0,0)(1,0)(2,0)(1,1)(1,-1)(2,1)(2,-1)(2,2)(2,-2)
                       sigma_priors(idx) = sigma_prior*exp(-0.5d0*l_*(l_+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
                       idx = idx + 1
                    end do
-                end do
-
+                   do l_ = 1, c%lmax_ind
+                      do m_ = 1, l_
+                         sigma_priors(idx) = sigma_prior*exp(-0.5d0*l_*(l_+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+                         idx = idx + 1
+                         sigma_priors(idx) = sigma_prior*exp(-0.5d0*l_*(l_+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+                         idx = idx + 1
+                      end do
+                   end do
+                end if 
                 open(69, file=trim(cpar%outdir)//'/nonlin-samples.dat', recl=10000)
 
                 ! Read cholesky matrix. Only root needs this
@@ -299,9 +301,11 @@ contains
                    write(*,*) "No cholesky matrix found"
                    L(:,:,:) = 0.d0 ! Set diagonal to 0.001
                    L(0,0,:) = c%p_gauss(2,j) ! Set diagonal to 0.001
-                   do p = 1, nalm_tot-1
-                      L(p,p,:) = 0.1*c%p_gauss(2,j) ! Set diagonal to 0.001
-                   end do
+                   if (nalm_tot > 1) then
+                      do p = 1, nalm_tot-1
+                         L(p,p,:) = 0.1*c%p_gauss(2,j) ! Set diagonal to 0.001
+                      end do
+                   end if
                 end if
              end if
 
@@ -327,9 +331,11 @@ contains
                    if (pl > c%poltype(j)) cycle
 
                    chisq_prior = chisq_prior + ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-                   do p = 1, nalm_tot-1
-                      chisq_prior = chisq_prior + (alms(0,p,pl)/sigma_priors(p))**2
-                   end do
+                   if (nalm_tot > 1) then
+                      do p = 1, nalm_tot-1
+                         chisq_prior = chisq_prior + (alms(0,p,pl)/sigma_priors(p))**2
+                      end do
+                   end if 
                    chisq(0) = chisq(0) + chisq_prior
                 end do
 
@@ -364,9 +370,11 @@ contains
                       ! Adding prior
                       ! Currently applying same prior on all signals
                       chisq_prior = chisq_prior + ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-                      do p = 1, nalm_tot-1
-                         chisq_prior = chisq_prior + (alms(i,p,pl)/sigma_priors(p))**2
-                      end do
+                      if (nalm_tot > 1) then
+                         do p = 1, nalm_tot-1
+                            chisq_prior = chisq_prior + (alms(i,p,pl)/sigma_priors(p))**2
+                         end do
+                      end if
                    end if
                    
                    ! Broadcast proposed alms from root
@@ -462,8 +470,8 @@ contains
                    end if
 
                    ! Burnin
-                   if (iter == 0 .and. diff < 20.d0) doexit = .true.
-                   if (iter  > 0 .and. i==100) doexit = .true.
+                   if (iter == 1 .and. diff < 20.d0) doexit = .true.
+                   if (iter  > 1 .and. i==100) doexit = .true.
                       !! Check corrlen seudocode
                       !x = alms(i-100:i-50,:,:)
                       !y = alms(i-50:i,:,:)
@@ -499,9 +507,10 @@ contains
                 open(5, file=trim(cpar%outdir)//'/alm_cholesky.dat', recl=10000)
                 write(5, *) alms_covmat
                 close(5)
-                close(69)                
+                close(69)          
+                if (nalm_tot > 1) deallocate(sigma_priors)
              end if
-             deallocate(alms, rgs, sigma_priors, chisq)
+             deallocate(alms, rgs, chisq, L)
           end if
           end select
 
