@@ -81,7 +81,7 @@ contains
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext, jtext
-    logical :: accepted, exist, converged
+    logical :: accepted, exist, doexit
     class(comm_mapinfo), pointer :: info => null()
     class(comm_N),       pointer :: tmp  => null()
     class(comm_map),     pointer :: res  => null()
@@ -264,7 +264,7 @@ contains
              out_every = 10
              nsamp = 10000 ! Maxsamp
              num_accepted = 0
-             converged = .false.
+             doexit = .false.
              allocate(sigma_priors(1:nalm_tot-1)) !a_00 is given by different one
              allocate(chisq(0:nsamp))
              allocate(alms(0:nsamp, 0:nalm_tot-1,info%nmaps))                         
@@ -290,7 +290,7 @@ contains
 
                 ! Read cholesky matrix. Only root needs this
                 inquire(file=trim(cpar%datadir)//'/alm_cholesky.dat', exist=exist)
-                if (exist) then ! If present cholesky file
+                if (exist .and. trim(c%label)=="synch" ) then ! If present cholesky file
                    write(*,*) "Reading cholesky matrix"
                    open(unit=11, file=trim(cpar%datadir)//'/alm_cholesky.dat')
                    read(11,*) L
@@ -298,10 +298,9 @@ contains
                 else
                    write(*,*) "No cholesky matrix found"
                    L(:,:,:) = 0.d0 ! Set diagonal to 0.001
-                   do p = 0, nalm_tot-1
-                      do i = 1, info%nmaps
-                         L(p,p,i) = 0.001 ! Set diagonal to 0.001
-                      end do
+                   L(0,0,:) = c%p_gauss(2,j) ! Set diagonal to 0.001
+                   do p = 1, nalm_tot-1
+                      L(p,p,:) = 0.1*c%p_gauss(2,j) ! Set diagonal to 0.001
                    end do
                 end if
              end if
@@ -463,7 +462,8 @@ contains
                    end if
 
                    ! Burnin
-                   if (diff < 20.d0) then
+                   if (iter == 0 .and. diff < 20.d0) doexit = .true.
+                   if (iter  > 0 .and. i==100) doexit = .true.
                       !! Check corrlen seudocode
                       !x = alms(i-100:i-50,:,:)
                       !y = alms(i-50:i,:,:)
@@ -478,16 +478,15 @@ contains
                       !      corrlen = l
                       !   end if
                       !end do
-                      converged = .true.
-                    end if
+
                 end if
                
 
                 ! Output samples, chisq, alms to file
                 if (info%myid == 0) write(69, *) i, chisq(i), alms(i,:,:)
 
-                call mpi_bcast(converged, 1, MPI_LOGICAL, 0, c%comm, ierr)
-                if (converged) exit
+                call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
+                if (doexit) exit
              end do
 
              ! Calculate cholesky
