@@ -323,8 +323,9 @@ contains
   subroutine compute_marginal(mixing, red_data, invN, marg_map, marg_fullsky)
     implicit none
     
-    real(c_double),  intent(in),    dimension(:,:,:) :: mixing
-    real(c_double),  intent(in),    dimension(:,:)   :: invN, red_data
+    real(c_double),  intent(in),    dimension(:,:,:) :: mixing   !(nbands,ncomp,npix) mixing matrix
+    real(c_double),  intent(in),    dimension(:,:)   :: invN     !(nbands,npix) inverse noise matrix
+    real(c_double),  intent(in),    dimension(:,:)   :: red_data !(nbands,npix) data matrix
     class(comm_map), intent(inout), optional         :: marg_map
     real(dp),        intent(out),   optional         :: marg_fullsky
 
@@ -339,9 +340,10 @@ contains
        if (present(marg_fullsky)) marg_fullsky = 0.d0
        if (present(marg_map))     marg_map%map = 0.d0
 
-       npix = size(mixing(:,1,1)) !we assume 1st dimension of mixing matrix to be npix
-       nb   = size(mixing(1,:,1)) !we assume 2nd dimension of mixing matrix to be nbands
-       nc   = size(mixing(1,1,:)) !we assume 3rd dimension of mixing matrix to be ncomp
+       ! pixel last to speed up lookup time (this can be easily changed if needed)
+       nb   = size(mixing(:,1,1)) !we assume 1st dimension of mixing matrix to be nbands
+       nc   = size(mixing(1,:,1)) !we assume 2nd dimension of mixing matrix to be ncomp
+       npix = size(mixing(1,1,:)) !we assume 3rd dimension of mixing matrix to be npix
 
        call wall_time(t1)
        ! allocate temporary arrays and matrices 
@@ -351,18 +353,18 @@ contains
        do p = 0,npix-1
           ! calc M.T*invN
           do i = 1,nb
-             MN(:,i) = mixing(p,i,:)*invN(p,i)
+             MN(:,i) = mixing(i,:,p)*invN(i,p)
           end do
 
           ! calc M.T*invN*d
           do i = 1,nc
-             MNd(i) = sum(MN(i,:)*red_data(p,:))
+             MNd(i) = sum(MN(i,:)*red_data(:,p))
           end do
 
           ! calc M.T*invN*M
           do i = 1,nc
              do j = 1,nc
-                MNM(i,j) = sum(MN(i,:)*mixing(p,:,j))
+                MNM(i,j) = sum(MN(i,:)*mixing(:,j,p))
              end do
           end do
 
