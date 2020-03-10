@@ -684,6 +684,9 @@ contains
           if (output_fits_) then
              call write_map(filename, map, comptype, nu_ref, unit, ttype, spectrumfile)
           end if
+          if (present(hdffile) .and. self%info%lmax == -1) then
+             call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
+          end if
           !call update_status(status, "fits3")
        end if
 
