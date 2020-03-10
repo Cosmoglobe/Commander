@@ -219,13 +219,13 @@ contains
     !if (band == self%ref_band) return
 
     ! Construct mask
-    if (associated(self%indmask)) then
-       if (data(band)%info%nside /= self%indmask%info%nside) then
-          call report_error("Mask udgrade in line_comp not yet supported.")
-       else
-          mask => self%indmask
-       end if
-    end if
+!!$    if (associated(self%indmask)) then
+!!$       if (data(band)%info%nside /= self%indmask%info%nside) then
+!!$          call report_error("Mask udgrade in line_comp not yet supported.")
+!!$       else
+!!$          mask => self%indmask
+!!$       end if
+!!$    end if
     
     ! Compute likelihood term
     w            = self%theta(id)%p%map(1,1)
@@ -242,7 +242,7 @@ contains
 !!$    call data(band)%N%invN_diag%writeFITS('co_invN'//id_text//'.fits')
 
     ! Reduce across processors
-    if (associated(self%indmask)) then
+    if (associated(mask)) then
        A = sum(invN_amp%map * mask%map * amp%map)
        b = sum(invN_amp%map * mask%map * data(band)%res%map)
     else
