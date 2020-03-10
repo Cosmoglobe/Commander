@@ -251,7 +251,7 @@ contains
          do k = 1, nscan_tot
             i1 = max(k-window,1)
             i2 = min(k+window,nscan_tot)
-            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
+            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1+1)
             !g_smooth(k) = median(g(i1:i2,j,1)) 
          end do
          g(:,j,1) = g_smooth - mean(g_smooth)
