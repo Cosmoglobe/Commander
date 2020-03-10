@@ -162,6 +162,7 @@ contains
        stop
     end if
     allocate(constructor%bp_delta(0:constructor%ndet,ndelta))
+    constructor%bp_delta = 0.d0
 
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
@@ -588,7 +589,7 @@ contains
           end if
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(j), j, self%scans(i)%d(j)%sigma0
+             if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")

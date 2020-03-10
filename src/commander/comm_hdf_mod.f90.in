@@ -214,6 +214,7 @@ contains
     character(len=*), intent(in)  :: setname
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr
+    integer(hsize_t) :: s({{d}})
     {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(out) :: val
     call h5eset_auto_f(0, hdferr)
     call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
@@ -222,7 +223,8 @@ contains
        return
     end if
     call open_hdf_set(file, setname)
-    call h5dread_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
+    s = int(shape(val))
+    call h5dread_f(file%sethandle, {{t[4]}}, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
@@ -237,11 +239,13 @@ contains
     character(len=*), intent(in)  :: setname
     {{t[1]}}({{t[2]}}) {{dims(d)}}, allocatable, intent(out) :: val
     integer(i4b) :: n({{d}})
+    integer(hsize_t) :: s({{d}})
     if(allocated(val)) deallocate(val)
     call get_size_hdf(file, setname, n)
     allocate(val({{",".join(["n(%d)" % (i+1) for i in range(d)])}}))
     call open_hdf_set(file, setname)
-    call h5dread_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
+    s = int(shape(val))
+    call h5dread_f(file%sethandle, {{t[4]}}, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set")
   end subroutine
 
@@ -371,8 +375,10 @@ contains
     integer(hid_t)                :: dspace, mspace
     integer(i4b),     allocatable :: ext(:)
     integer(hsize_t)              :: hslice(3,size(slice,2))
+    integer(hsize_t)              :: s({{d}})
     ! Set up data spaces for memory and disk
-    call h5screate_simple_f(size(shape(arr)),int(shape(arr),hsize_t), mspace, file%status)
+    s = int(shape(arr))
+    call h5screate_simple_f(size(shape(arr)), s, mspace, file%status)
     call open_hdf_set(file, setname)
     allocate(ext(get_rank_hdf(file, setname)))
     call get_size_hdf(file, setname, ext)
@@ -381,7 +387,7 @@ contains
     hslice = int(parse_hdf_slice(slice, ext),hsize_t)
     call h5sselect_hyperslab_f(dspace, H5S_SELECT_SET_F, hslice(1,:), hslice(2,:), &
      & file%status, stride=hslice(3,:))
-    call h5d{{op[0]}}_f(file%sethandle, {{t[4]}}, arr, int(shape(arr),hsize_t), &
+    call h5d{{op[0]}}_f(file%sethandle, {{t[4]}}, arr, s, &
      & file%status, file_space_id=dspace, mem_space_id=mspace)
     call h5sclose_f(dspace, file%status)
     call h5sclose_f(mspace, file%status)

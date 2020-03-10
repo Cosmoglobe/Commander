@@ -583,11 +583,12 @@ contains
     deallocate(work, iwork)
   end subroutine eigen_decomp
 
-  subroutine compute_hermitian_root(A, pow)
+  subroutine compute_hermitian_root(A, pow, trunc)
     implicit none
 
     real(dp),                   intent(in)    :: pow
     real(dp), dimension(1:,1:), intent(inout) :: A
+    logical(lgt), intent(in), optional :: trunc
 
     integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
     character(len=1) :: job, uplo
@@ -611,10 +612,20 @@ contains
     V = A
     call dsyevd(job, uplo, n, V, lda, W, work, lwork, iwork, liwork, info)
 
-    if (any(W <= 0.d0)) then
+    if (present(trunc)) then
+       where (W < 0.d0)
+          W = 0.d0
+       end where
+    else 
+       if (any(W <= 0.d0)) then
 !       write(*,*) 'W = ', W
-       A(1,1) = -1.d30
-       return
+          A(1,1) = -1.d30
+          deallocate(V)
+          deallocate(W)
+          deallocate(work)
+          deallocate(iwork)
+          return
+       end if
     end if
 
     ! Re-compose matrix
@@ -1498,7 +1509,7 @@ contains
     end do
     C = C / (n-1.d0)
 
-    if (present(get_sqrt)) call compute_hermitian_root(C, 0.5d0)
+    if (present(get_sqrt)) call compute_hermitian_root(C, 0.5d0, .true.)
 
     deallocate(mu)
 

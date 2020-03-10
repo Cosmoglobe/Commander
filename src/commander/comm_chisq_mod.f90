@@ -9,14 +9,16 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask)
     implicit none
-    integer(i4b),    intent(in)              :: comm
-    class(comm_map), intent(inout), optional :: chisq_map
-    real(dp),        intent(out),   optional :: chisq_fullsky
+    integer(i4b),                   intent(in)              :: comm
+    class(comm_map),                intent(inout), optional :: chisq_map
+    real(dp),                       intent(out),   optional :: chisq_fullsky
+    type(map_ptr),   dimension(1:), intent(in),    optional :: mask
 
     integer(i4b) :: i, j, k, p, ierr, nmaps
     real(dp)     :: t1, t2
+    logical(lgt) :: apply_mask
     class(comm_map), pointer :: res, chisq_sub
     class(comm_mapinfo), pointer :: info
 
@@ -27,6 +29,16 @@ contains
           res => compute_residual(i)
           call data(i)%N%sqrtInvN(res)
           res%map = res%map**2
+
+          apply_mask = present(mask)
+          if (apply_mask) apply_mask = associated(mask(i)%p)
+          if (apply_mask) then
+             res%map = res%map * mask(i)%p%map
+!!$             call res%writeFITS("chisq.fits")
+!!$             call mask(i)%p%writeFITS("mask.fits")
+!!$             call mpi_finalize(j)
+!!$             stop
+          end if
           
           if (present(chisq_map)) then
              info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
@@ -37,7 +49,9 @@ contains
              end do
              call chisq_sub%dealloc()
           end if
-          if (present(chisq_fullsky)) chisq_fullsky = chisq_fullsky + sum(res%map)
+          if (present(chisq_fullsky)) then
+             chisq_fullsky = chisq_fullsky + sum(res%map)
+          end if
           call res%dealloc()
        end do
     end if

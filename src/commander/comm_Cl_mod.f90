@@ -1089,9 +1089,11 @@ contains
     integer(i4b) :: i, l, unit
     character(len=512) :: filename
     real(dp), allocatable, dimension(:,:) :: sigmal
+    real(dp), allocatable, dimension(:) :: out
 
     if (trim(self%outdir) == 'none') return
 
+    allocate(out(self%nspec))
     unit = getlun()
     filename = trim(self%outdir) // '/cls_' // trim(self%label) // '_' // trim(postfix) // '.dat'
     open(unit,file=trim(filename), recl=1024)
@@ -1101,13 +1103,15 @@ contains
        write(unit,*) '# Columns are {l, Dl_TT, Dl_TE, Dl_TB, Dl_EE, Dl_EB, Dl_BB}'
     end if
     do l = 0, self%lmax
+       out = self%Dl(l,:)
        if (self%nspec == 1) then
-          write(unit,fmt='(i6,e16.8)') l, self%Dl(l,:)
+          write(unit,fmt='(i6,e16.8)') l, out
        else
-          write(unit,fmt='(i6,6e16.8)') l, self%Dl(l,:)
+          write(unit,fmt='(i6,6e16.8)') l, out
        end if
     end do
     close(unit)
+    deallocate(out)
 
     if (present(hdffile)) call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl', self%Dl)       
     

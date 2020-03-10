@@ -32,7 +32,7 @@ module comm_diffuse_comp_mod
 
      class(comm_map),               pointer     :: mask => null()
      class(comm_map),               pointer     :: procmask => null()
-     class(comm_map),               pointer     :: indmask => null()
+     class(map_ptr),  dimension(:), allocatable :: indmask
      class(comm_map),               pointer     :: defmask => null()
      class(comm_map),               pointer     :: priormask => null()
      class(comm_map),               pointer     :: x => null()           ! Spatial parameters
@@ -100,7 +100,9 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     integer(i4b) :: i, j, ntot, nloc
-    type(comm_mapinfo), pointer :: info => null(), info_def => null()
+    logical(lgt) :: exist
+    type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud
+    class(comm_map), pointer :: indmask, mask_ud
     
     call self%initComp(cpar, id, id_abs)
 
@@ -176,6 +178,44 @@ contains
     if (trim(cpar%ds_procmask) /= 'none') then
        self%procmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
             & udgrade=.true.)
+    end if
+
+    ! Read index sampling mask; downgrade to each channel; re-use for equal Nsides; skip for dense matrices
+    if (trim(cpar%cs_indmask(id_abs)) /= 'fullsky') then
+       indmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_indmask(id_abs)), &
+            & udgrade=.true.)
+       allocate(self%indmask(numband))
+       do i = 1, numband
+          if (trim(data(i)%N%type) == 'QUmat') cycle
+          exist = .false.
+          do j = 1, i-1
+             if (data(i)%info%nside == data(j)%info%nside .and. &
+                  & data(i)%info%nmaps == data(j)%info%nmaps) then
+                self%indmask(i)%p => self%indmask(j)%p
+                exist = .true.
+                exit
+             end if
+          end do
+          if (.not. exist) then
+             info_ud => comm_mapinfo(cpar%comm_chain, indmask%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+             mask_ud => comm_map(info_ud)
+             do j = 1, min(data(i)%info%nmaps, indmask%info%nmaps)
+                mask_ud%map(:,j) = indmask%map(:,j)
+             end do
+             self%indmask(i)%p => comm_map(data(i)%info)
+             call mask_ud%udgrade(self%indmask(i)%p)
+             where (self%indmask(i)%p%map > 0.5d0)
+                self%indmask(i)%p%map = 1.d0
+             elsewhere
+                self%indmask(i)%p%map = 0.d0
+             end where
+             call mask_ud%dealloc()
+          end if
+!!$          call self%indmask(i)%p%writeFITS('TEST.fits')
+!!$          call mpi_finalize(j)
+!!$          stop
+       end do
+       call indmask%dealloc()
     end if
 
     ! Read deflation mask
@@ -748,8 +788,9 @@ contains
     integer(i4b) :: i, j, k, l, n, nmaps, ierr
     real(dp)     :: lat, lon, t1, t2
     logical(lgt) :: precomp, mixmatnull ! NEW
+    character(len=2) :: ctext
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
-    real(dp),        allocatable, dimension(:)     :: nu, s, buffer
+    real(dp),        allocatable, dimension(:)     :: nu, s, buffer, buff2
     class(comm_mapinfo),          pointer          :: info => null(), info_tp => null()
     class(comm_map),              pointer          :: t => null(), tp => null()
     class(map_ptr),  allocatable, dimension(:)     :: theta_prev
@@ -800,6 +841,10 @@ contains
                 call tp%udgrade(t)
                 call tp%dealloc()
                 call wall_time(t2)
+                if (trim(self%label)=='dust' .and. j == 1) then
+                   call int2string(j, ctext)
+                   call t%writeFITS("beta"//ctext//".fits")
+                end if
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = t%map
@@ -903,6 +948,10 @@ contains
                 if (mixmatnull) then
                    self%F(i,l)%p%map(j,1) = 0.0
                 else
+                   if (trim(self%label) == 'dust' .and. any(theta_p(j,1,:)==0.d0)) then
+                      write(*,*) i, l, j, real(theta_p(j,1,:),sp)
+                      stop
+                   end if
                    self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
                 end if
              else
@@ -921,6 +970,9 @@ contains
                 else if (all(self%poltype < 2)) then
                    self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
                 else
+                   if (trim(self%label) == 'dust' .and. any(theta_p(j,1,:)==0.d0)) then
+                      write(*,*) i, l, j, real(theta_p(j,1,:),sp)
+                   end if
                    if (self%npar > 0) then
                       self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale
                    else
@@ -934,6 +986,9 @@ contains
                 else if (all(self%poltype < 3)) then
                    self%F(i,l)%p%map(j,3) = self%F(i,l)%p%map(j,2) 
                 else
+                   if (trim(self%label) == 'dust' .and. any(theta_p(j,1,:)==0.d0)) then
+                      write(*,*) i, l, j, real(theta_p(j,1,:),sp)
+                   end if
                    if (self%npar > 0) then
                       self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale
                    else
@@ -948,14 +1003,15 @@ contains
           !if (self%x%info%myid == 0) write(*,*) 'eval = ', t2-t1
                 
           ! Compute mixing matrix average; for preconditioning only
-          allocate(buffer(self%nmaps))
+          allocate(buffer(self%nmaps), buff2(self%nmaps))
           do j = 1, min(self%nmaps, data(i)%info%nmaps)
              self%F_mean(i,l,j) = sum(self%F(i,l)%p%map(:,j))
           end do
-          call mpi_allreduce(self%F_mean(i,l,:), buffer, self%nmaps, &
+          buff2 = self%F_mean(i,l,:)
+          call mpi_allreduce(buff2, buffer, self%nmaps, &
                & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
           self%F_mean(i,l,:) = buffer / self%F(i,l)%p%info%npix
-          deallocate(buffer)
+          deallocate(buffer,buff2)
 
 !!$       if (self%npar > 0) then
 !!$          call t%dealloc(clean_info=.true.)
@@ -1543,12 +1599,15 @@ contains
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                & '_map', .true.)
-          call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
-               & '_alm', .false.)
-          if (self%lmax_ind >= 0) call self%theta(i)%p%YtW_scalar
+          if (self%lmax_ind >= 0) then
+             call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
+                  & '_alm', .false.)
+             call self%theta(i)%p%YtW_scalar
+          end if
        end do       
     end if
 
+    !if (trim(self%label) == 'dust') write(*,*) 'range beta = ', minval(self%theta(1)%p%map), maxval(self%theta(1)%p%map)
     call self%updateMixmat
 
   end subroutine initDiffuseHDF

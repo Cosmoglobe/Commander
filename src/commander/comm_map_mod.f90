@@ -687,7 +687,7 @@ contains
           !call update_status(status, "fits3")
        end if
 
-       if (present(hdffile)) then
+       if (present(hdffile) .and. self%info%lmax >= 0) then
           allocate(alm(0:(self%info%lmax+1)**2-1,self%info%nmaps))
           do j = 0, self%info%nalm-1
              l   = self%info%lm(1,j)
@@ -702,10 +702,12 @@ contains
              allocate(buffer(0:nlm-1,nmaps))
              call mpi_recv(buffer, size(buffer), &
                   & MPI_DOUBLE_PRECISION, i, 98, self%info%comm, mpistat, ierr)
+             !write(*,*) trim(hdfpath), nlm
              do j = 0, nlm-1
                 l   = lm(1,j)
                 m   = lm(2,j)
-                ind = l**2 + l + m                
+                ind = l**2 + l + m
+                if (ind < 0 .or. ind > size(alm,1)) write(*,*) i, j, l, m, ind
                 alm(ind,:) = buffer(j,:)
              end do
              deallocate(lm, buffer)
@@ -731,7 +733,7 @@ contains
                & self%info%comm, ierr)
        end if
 
-       if (present(hdffile)) then
+       if (present(hdffile) .and. self%info%lmax >= 0) then
           call mpi_send(self%info%nalm, 1,                  MPI_INTEGER, 0, 98, self%info%comm, ierr)
           call mpi_send(self%info%lm,   size(self%info%lm), MPI_INTEGER, 0, 98, self%info%comm, ierr)
           call mpi_send(self%alm,       size(self%alm),     MPI_DOUBLE_PRECISION, 0, 98, &
@@ -852,6 +854,7 @@ contains
     nalm = (lmax+1)**2
     
     if (.not. read_map) then
+       if (lmax < 0) return
       ! Only the root actually reads from disk; data are distributed via MPI
       allocate(alms(0:nalm-1,nmaps))
       if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
@@ -1056,15 +1059,15 @@ contains
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
     call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
-    !call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-i = 0
-do while (i <= map_out%info%npix-1)
-   j = min(i+bsize-1,map_out%info%npix-1)
-   call mpi_reduce(m_out(i:j,:), buffer(i:j,:), size(m_out(i:j,:)), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-   i = i+bsize
-end do
-
-    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+    call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+!!$i = 0
+!!$do while (i <= map_out%info%npix-1)
+!!$   j = min(i+bsize-1,map_out%info%npix-1)
+!!$   call mpi_reduce(m_out(i:j,:), buffer(i:j,:), size(m_out(i:j,:)), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+!!$   i = i+bsize
+!!$end do
+!!$
+!!$    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
     map_out%map = buffer(map_out%info%pix,:)
     deallocate(m_in, m_out, buffer)
@@ -1281,7 +1284,7 @@ end do
     do ind = 0, self%info%nalm-1
        call self%info%i2lm(ind,l,m)
        k   = 1
-       if (l == 1) write(*,*) m, real(self%alm(ind,:),sp)
+       !if (l == 1) write(*,*) m, real(self%alm(ind,:),sp)
        do i = 1, nmaps
           do j = i, nmaps
              if (present(sigma_l_vec)) &

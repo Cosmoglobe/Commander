@@ -99,7 +99,9 @@ program commander
 !data(6)%gain = 1.d0
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
-  if (cpar%enable_tod_analysis) call synchronize_bp_delta(trim(cpar%cs_init_inst_hdf) /= 'none')
+  ok = trim(cpar%cs_init_inst_hdf) /= 'none'
+  if (ok) ok = trim(cpar%init_chain_prefix) /= 'none'
+  if (cpar%enable_tod_analysis) call synchronize_bp_delta(ok)
   call update_mixing_matrices(update_F_int=.true.)       
 
   if (cpar%output_input_model) then
