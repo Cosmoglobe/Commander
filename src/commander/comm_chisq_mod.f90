@@ -334,4 +334,78 @@ contains
   end subroutine get_sky_signal
 
 
+  subroutine compute_marginal(mixing, red_data, invN, marg_map, marg_fullsky)
+    implicit none
+    
+    real(c_double),  intent(in),    dimension(:,:,:) :: mixing   !(nbands,ncomp,npix) mixing matrix
+    real(c_double),  intent(in),    dimension(:,:)   :: invN     !(nbands,npix) inverse noise matrix
+    real(c_double),  intent(in),    dimension(:,:)   :: red_data !(nbands,npix) data matrix
+    class(comm_map), intent(inout), optional         :: marg_map
+    real(dp),        intent(out),   optional         :: marg_fullsky
+
+    integer(i4b) :: i, j, k, p, ierr, nb, npix, nc
+    real(dp)     :: t1, t2, temp_marg
+    real(dp), allocatable, dimension(:)    :: MNd   ! (M.T*invN*M)
+    real(dp), allocatable, dimension(:)    :: M_d   ! (M.T*invN*M)^-1 * (M.T*invN*d)
+    real(dp), allocatable, dimension(:,:)  :: MN    ! M.T*ivnN
+    real(dp), allocatable, dimension(:,:)  :: MNM   ! M.T*ivnN*M (and its inverse)
+
+    if (present(marg_fullsky) .or. present(marg_map)) then
+       if (present(marg_fullsky)) marg_fullsky = 0.d0
+       if (present(marg_map))     marg_map%map = 0.d0
+
+       ! pixel last to speed up lookup time (this can be easily changed if needed)
+       nb   = size(mixing(:,1,1)) !we assume 1st dimension of mixing matrix to be nbands
+       nc   = size(mixing(1,:,1)) !we assume 2nd dimension of mixing matrix to be ncomp
+       npix = size(mixing(1,1,:)) !we assume 3rd dimension of mixing matrix to be npix
+
+       call wall_time(t1)
+       ! allocate temporary arrays and matrices 
+       allocate(MN(nc,nb),MND(nc),MNM(nc,nc),M_d(nc))
+
+       ! for each pixel
+       do p = 0,npix-1
+          ! calc M.T*invN
+          do i = 1,nb
+             MN(:,i) = mixing(i,:,p)*invN(i,p)
+          end do
+
+          ! calc M.T*invN*d
+          do i = 1,nc
+             MNd(i) = sum(MN(i,:)*red_data(:,p))
+          end do
+
+          ! calc M.T*invN*M
+          do i = 1,nc
+             do j = 1,nc
+                MNM(i,j) = sum(MN(i,:)*mixing(:,j,p))
+             end do
+          end do
+
+          ! invert MNM
+          if (nc==1) then
+             MNM = 1.d0/MNM
+          else
+             !MNM = invert(MNM) !some function to compute the invese of a matrix 
+          end if
+
+          ! calc (M.T*invN*M)^-1 (M.T*invN*d)
+          do i = 1,nc
+             M_d(i) = sum(MNM(i,:)*MNd(:))
+          end do
+
+          ! calc final value
+          temp_marg = -sum(MNd(:)*M_d(:))
+
+          if (present(marg_map))     marg_map%map(p,1) = temp_marg
+          if (present(marg_fullsky)) marg_fullsky      = marg_fullsky + temp_marg
+       end do
+
+       call wall_time(t2)
+       write(*,*) 'total marginal prob. computation time [s]:', t2-t1
+
+       deallocate(MN,MND,MNM,M_d)
+    end if
+  end subroutine compute_marginal
+
 end module comm_chisq_mod
