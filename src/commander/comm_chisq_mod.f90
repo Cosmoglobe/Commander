@@ -354,7 +354,7 @@ contains
 
     if (present(marg_fullsky) .or. present(marg_map)) then
        if (present(marg_fullsky)) marg_fullsky = 0.d0
-       if (present(marg_map))     marg_map = 0.d0
+       if (present(marg_map))     marg_map%map = 0.d0
 
        ! pixel last to speed up lookup time (this can be easily changed if needed)
        nb   = size(mixing(:,1,1)) !we assume 1st dimension of mixing matrix to be nbands
