@@ -334,34 +334,35 @@ contains
   end subroutine get_sky_signal
 
 
-  subroutine compute_marginal(mixing, red_data, invN, marg_map, marg_fullsky)
+  subroutine compute_marginal(mixing, data, invN, marg_map, marg_fullsky)
     implicit none
     
     real(c_double),  intent(in),    dimension(:,:,:) :: mixing   !(nbands,ncomp,npix) mixing matrix
     real(c_double),  intent(in),    dimension(:,:)   :: invN     !(nbands,npix) inverse noise matrix
-    real(c_double),  intent(in),    dimension(:,:)   :: red_data !(nbands,npix) data matrix
+    real(c_double),  intent(in),    dimension(:,:)   :: data     !(nbands,npix) data matrix
     class(comm_map), intent(inout), optional         :: marg_map
     real(dp),        intent(out),   optional         :: marg_fullsky
-
-    integer(i4b) :: i, j, k, p, ierr, nb, npix, nc
-    real(dp)     :: t1, t2, temp_marg
-    real(dp), allocatable, dimension(:)    :: MNd   ! (M.T*invN*M)
-    real(dp), allocatable, dimension(:)    :: M_d   ! (M.T*invN*M)^-1 * (M.T*invN*d)
-    real(dp), allocatable, dimension(:,:)  :: MN    ! M.T*ivnN
-    real(dp), allocatable, dimension(:,:)  :: MNM   ! M.T*ivnN*M (and its inverse)
+    integer :: i, j, k, l, p, ierr, nb, npix, nc
+    logical :: temp_bool
+    double precision     :: temp_marg
+    double precision, allocatable, dimension(:)    :: MNd    ! (M.T*invN*M)
+    double precision, allocatable, dimension(:)    :: M_d    ! (M.T*invN*M)^-1 * (M.T*invN*d)
+    double precision, allocatable, dimension(:,:)  :: MN     ! M.T*ivnN
+    double precision, allocatable, dimension(:,:)  :: MNM    ! M.T*ivnN*M (and its inverse)
+    double precision, allocatable, dimension(:,:)  :: invmat ! matrix to invert MNM
+    double precision, allocatable, dimension(:)    :: temp_arr ! array to flip rows/columns in matrices
 
     if (present(marg_fullsky) .or. present(marg_map)) then
        if (present(marg_fullsky)) marg_fullsky = 0.d0
-       if (present(marg_map))     marg_map%map = 0.d0
+       if (present(marg_map))     marg_map = 0.d0
 
        ! pixel last to speed up lookup time (this can be easily changed if needed)
        nb   = size(mixing(:,1,1)) !we assume 1st dimension of mixing matrix to be nbands
        nc   = size(mixing(1,:,1)) !we assume 2nd dimension of mixing matrix to be ncomp
        npix = size(mixing(1,1,:)) !we assume 3rd dimension of mixing matrix to be npix
 
-       call wall_time(t1)
        ! allocate temporary arrays and matrices 
-       allocate(MN(nc,nb),MND(nc),MNM(nc,nc),M_d(nc))
+       allocate(MN(nc,nb),MND(nc),MNM(nc,nc),M_d(nc),invmat(nc,2*nc),temp_arr(2*nc))
 
        ! for each pixel
        do p = 0,npix-1
@@ -372,7 +373,7 @@ contains
 
           ! calc M.T*invN*d
           do i = 1,nc
-             MNd(i) = sum(MN(i,:)*red_data(:,p))
+             MNd(i) = sum(MN(i,:)*data(:,p))
           end do
 
           ! calc M.T*invN*M
@@ -386,7 +387,59 @@ contains
           if (nc==1) then
              MNM = 1.d0/MNM
           else
-             !MNM = invert(MNM) !some function to compute the invese of a matrix 
+             !!! some function to compute the invese of a matrix 
+             !!! Need to consider potential zeroes! We are scaling many orders of magnitude
+             !!! (need to aviod division by zero among other concerns)
+             invmat(:,:)=0.d0
+             invmat(:,:nc)=MNM
+             do j=1,nc
+                invmat(j,j+nc) = 1.d0
+             end do
+
+             do j = 1,nc
+                if (invmat(j,j)==0.d0) then
+                   temp_bool = .true.
+                   k = j+1
+                   do while ((k <= nc) .and. temp_bool)
+                      if (invmat(k,j) /= 0.d0) then !flip with row j
+                         temp_arr(:) = invmat(j,:)
+                         invmat(j,:) = invmat(k,:)
+                         invmat(k,:) = temp_arr(:)
+                         temp_bool   = .false.
+                      end if
+                      k = k + 1
+                   end do
+                   if (temp_bool==.true.) then !not possible to invert matrix
+                      temp_marg = -1.d30
+                      goto 1
+                   end if
+                end if
+
+                invmat(j,j+1:) = invmat(j,j+1:)/invmat(j,j) !normalize row with the first non-zero digit of the row (i.e. j)
+                invmat(j,j)    = 1.d0 !escape problem with precision
+
+                do k = j+1,nc
+                   ! for each row after row j, subtract row j * the digit in column j of that row
+                   invmat(k,:)=invmat(k,:)-invmat(k,j)*invmat(j,:)
+                   invmat(k,j)=0.d0 !to escape later problems with precision
+                end do
+             end do
+             ! now the matrix should look like this
+             ! |1 x x x y y y y|
+             ! |0 1 x x y y y y|
+             ! |0 0 1 x y y y y| 
+             ! |0 0 0 1 y y y y|
+             ! 
+             ! go the other way back up, from the bottom
+             do j = nc,1,-1
+                do k = 1,j-1
+                   invmat(k,:)=invmat(k,:)-invmat(k,j)*invmat(j,:)
+                   invmat(k,j)=0.d0 !to escape later problems with precision                   
+                end do
+             end do
+             !set MNM equal to its inverse
+             MNM(:,:)=invmat(:,nc+1:) !the y part of the matrix above
+
           end if
 
           ! calc (M.T*invN*M)^-1 (M.T*invN*d)
@@ -397,14 +450,11 @@ contains
           ! calc final value
           temp_marg = -sum(MNd(:)*M_d(:))
 
-          if (present(marg_map))     marg_map%map(p,1) = temp_marg
-          if (present(marg_fullsky)) marg_fullsky      = marg_fullsky + temp_marg
+1         if (present(marg_map))     marg_map(p,1) = temp_marg
+          if (present(marg_fullsky)) marg_fullsky  = marg_fullsky + temp_marg
        end do
 
-       call wall_time(t2)
-       write(*,*) 'total marginal prob. computation time [s]:', t2-t1
-
-       deallocate(MN,MND,MNM,M_d)
+       deallocate(MN,MND,MNM,M_d,invmat,temp_arr)
     end if
   end subroutine compute_marginal
 
