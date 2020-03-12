@@ -450,7 +450,7 @@ contains
           ! calc final value
           temp_marg = -sum(MNd(:)*M_d(:))
 
-1         if (present(marg_map))     marg_map(p,1) = temp_marg
+1         if (present(marg_map))     marg_map%map(p,1) = temp_marg
           if (present(marg_fullsky)) marg_fullsky  = marg_fullsky + temp_marg
        end do
 
