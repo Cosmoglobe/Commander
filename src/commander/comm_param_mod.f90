@@ -807,41 +807,41 @@ contains
              call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_min(i,2))
              call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_max(i,2))
           case ('freefree')
-             call get_parameter_hashtable(htbl, 'COMP_EM_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
-             call get_parameter_hashtable(htbl, 'COMP_INPUT_EM_MAP'//itext, len_itext=len_itext,        &
-                  & par_string=cpar%cs_input_ind(1,i))
-             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_EM'//itext, len_itext=len_itext,          &
-                  & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_EM_LOW'//itext, len_itext=len_itext,    &
-                  & par_dp=cpar%cs_p_uni(i,1,1))
-             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_EM_HIGH'//itext, len_itext=len_itext,   &
-                  & par_dp=cpar%cs_p_uni(i,2,1))
-             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_EM_MEAN'//itext, len_itext=len_itext, &
-                  & par_dp=cpar%cs_p_gauss(i,1,1))
-             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_EM_RMS'//itext, len_itext=len_itext,  &
-                  & par_dp=cpar%cs_p_gauss(i,2,1))
-             call get_parameter_hashtable(htbl, 'COMP_TE_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(2,i))
+!!$             call get_parameter_hashtable(htbl, 'COMP_EM_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
+!!$             call get_parameter_hashtable(htbl, 'COMP_INPUT_EM_MAP'//itext, len_itext=len_itext,        &
+!!$                  & par_string=cpar%cs_input_ind(1,i))
+!!$             call get_parameter_hashtable(htbl, 'COMP_DEFAULT_EM'//itext, len_itext=len_itext,          &
+!!$                  & par_dp=cpar%cs_theta_def(1,i))
+!!$             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_EM_LOW'//itext, len_itext=len_itext,    &
+!!$                  & par_dp=cpar%cs_p_uni(i,1,1))
+!!$             call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_EM_HIGH'//itext, len_itext=len_itext,   &
+!!$                  & par_dp=cpar%cs_p_uni(i,2,1))
+!!$             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_EM_MEAN'//itext, len_itext=len_itext, &
+!!$                  & par_dp=cpar%cs_p_gauss(i,1,1))
+!!$             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_EM_RMS'//itext, len_itext=len_itext,  &
+!!$                  & par_dp=cpar%cs_p_gauss(i,2,1))
+             call get_parameter_hashtable(htbl, 'COMP_TE_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_INPUT_TE_MAP'//itext, len_itext=len_itext,        &
-                  & par_string=cpar%cs_input_ind(2,i))
+                  & par_string=cpar%cs_input_ind(1,i))
              call get_parameter_hashtable(htbl, 'COMP_DEFAULT_TE'//itext, len_itext=len_itext,          &
-                  & par_dp=cpar%cs_theta_def(2,i))
+                  & par_dp=cpar%cs_theta_def(1,i))
              call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_TE_LOW'//itext, len_itext=len_itext,    &
-                  & par_dp=cpar%cs_p_uni(i,1,2))
+                  & par_dp=cpar%cs_p_uni(i,1,1))
              call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_TE_HIGH'//itext, len_itext=len_itext,   &
-                  & par_dp=cpar%cs_p_uni(i,2,2))
+                  & par_dp=cpar%cs_p_uni(i,2,1))
              call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_TE_MEAN'//itext, len_itext=len_itext, &
-                  & par_dp=cpar%cs_p_gauss(i,1,2))
+                  & par_dp=cpar%cs_p_gauss(i,1,1))
              call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_TE_RMS'//itext, len_itext=len_itext,  &
-                  & par_dp=cpar%cs_p_gauss(i,2,2))
+                  & par_dp=cpar%cs_p_gauss(i,2,1))
              call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
-             call get_parameter_hashtable(htbl, 'COMP_EM_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
-                  & par_int=cpar%cs_smooth_scale(i,1))
+!!$             call get_parameter_hashtable(htbl, 'COMP_EM_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
+!!$                  & par_int=cpar%cs_smooth_scale(i,1))
              call get_parameter_hashtable(htbl, 'COMP_T_E_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
-                  & par_int=cpar%cs_smooth_scale(i,2))
-             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
-             call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,2))
-             call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
+                  & par_int=cpar%cs_smooth_scale(i,1))
+!!$             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
+!!$             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
           case ('line')
              call get_parameter_hashtable(htbl, 'COMP_LINE_TEMPLATE'//itext, len_itext=len_itext,  &
                   & par_string=cpar%cs_SED_template(1,i))
@@ -1310,10 +1310,10 @@ contains
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))
           case ('freefree')
-             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+!!$             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+!!$                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
-                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))             
+                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))             
           case ('line')
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
           end select

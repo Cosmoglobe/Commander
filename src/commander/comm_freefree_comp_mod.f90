@@ -3,7 +3,7 @@ module comm_freefree_comp_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
   use comm_map_mod
-  use comm_F_int_2D_mod
+  use comm_F_int_1D_mod
   use comm_data_mod
   implicit none
 
@@ -42,11 +42,11 @@ contains
 
     ! Component specific parameters
     
-    constructor%npar         = 2
-    allocate(constructor%theta_def(2), constructor%p_gauss(2,2), constructor%p_uni(2,2))
-    allocate(constructor%poltype(2), constructor%indlabel(2))
-    allocate(constructor%nu_min_ind(2), constructor%nu_max_ind(2))
-    do i = 1, 2
+    constructor%npar         = 1
+    allocate(constructor%theta_def(1), constructor%p_gauss(2,1), constructor%p_uni(2,1))
+    allocate(constructor%poltype(1), constructor%indlabel(1))
+    allocate(constructor%nu_min_ind(1), constructor%nu_max_ind(1))
+    do i = 1, 1
        constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
        constructor%theta_def(i) = cpar%cs_theta_def(i,id_abs)
        constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
@@ -54,7 +54,7 @@ contains
        constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
        constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
     end do
-    constructor%indlabel  = ['EM', 'Te']
+    constructor%indlabel  = ['Te']
 
     !constructor%npar         = 1
     !allocate(constructor%theta_def(1), constructor%p_gauss(1,1), constructor%p_uni(1,1))
@@ -97,7 +97,7 @@ contains
                    cycle
                 end if
              end if
-             constructor%F_int(k,i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
+             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
           end do
        end do
     end do
@@ -143,7 +143,7 @@ contains
 
 
     !EM    = theta(1) ! Not used
-    T_e   = theta(2)
+    T_e   = theta(1)
     S     = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu    /1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
     S_ref = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * self%nu_ref(pol)/1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
     !evalSED = S/S_ref * exp(-h*(nu-self%nu_ref(pol))/k_b/T_e) * (nu/self%nu_ref(pol))**(-2)
