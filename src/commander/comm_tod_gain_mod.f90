@@ -117,17 +117,23 @@ contains
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  subroutine sample_smooth_gain(tod, handle)
+  subroutine sample_smooth_gain(tod, handle, dipole_mods)
     implicit none
     class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
+    real(dp),   dimension(:, :),       intent(in)     :: dipole_mods
+
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, ind(1)
-    integer(i4b) :: currstart, currend, window, i1, i2
+    integer(i4b) :: currstart, currend, window, i1, i2, pid_id, range_end
     real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr
     real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
+    real(dp), allocatable, dimension(:)     :: temp_gain, temp_invsigsquared
+    real(dp), allocatable, dimension(:)     :: summed_invsigsquared, smoothed_gain
     real(dp), allocatable, dimension(:,:,:) :: g
+    integer(i4b),   allocatable, dimension(:, :) :: pid_ranges
+    integer(i4b),   allocatable, dimension(:, :) :: window_sizes
 
     ndet       = tod%ndet
     nscan_tot  = tod%nscan_tot
@@ -153,69 +159,98 @@ contains
     end if
 
     if (tod%myid == 0) then
+        write(*, *) "FREQ IS ", tod%freq
 !       nbin = nscan_tot / binsize + 1
 
-!!$       open(58,file='gain.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$          do k = 1, nscan_tot
-!!$             !if (g(k,j,2) /= 0) then
-!!$             if (g(k,j,2) > 0) then
-!!$                write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp)
-!!$             else
-!!$                write(58,*) j, k, 0.
-!!$             end if
-!!$          end do
-!!$          write(58,*)
-!!$       end do
-!!$       close(58)
+       open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+          do k = 1, nscan_tot
+             !if (g(k,j,2) /= 0) then
+             if (g(k,j,2) > 0) then
+                if (abs(g(k, j, 1)) > 1e10) then
+                   write(*, *) 'G1'
+                   write(*, *) g(k, j, 1)
+                end if
+                if (abs(g(k, j, 2)) > 1e10) then
+                   write(*, *) 'G2'
+                   write(*, *) g(k, j, 2)
+                end if
+                if (abs(dipole_mods(k, j) > 1e10)) then
+                   write(*, *) 'DIPOLE_MODS'
+                   write(*, *) dipole_mods(k, j)
+                else
+                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+                end if
+             else
+                write(58,*) j, k, 0., 0.0, 0., 0.
+             end if
+          end do
+          write(58,*)
+       end do
+       close(58)
+
+       allocate(window_sizes(tod%ndet, tod%nscan_tot))
+       call get_smoothing_windows(tod, window_sizes, dipole_mods)
+       call get_pid_ranges(pid_ranges, tod, g(:, :, 1), dipole_mods, window_sizes)
 
        do j = 1, ndet
          lhs = 0.d0
          rhs = 0.d0
+         pid_id = 1
          k = 0
-         do while (k < nscan_tot)
-            k         = k + 1
-            currstart = k
-            !if (g(k, j, 2) <= 0.d0) cycle
-            if (g(k,j,2) > 0.d0) then
-               sum_inv_sigma_squared = g(k, j, 2)
-               sum_weighted_gain     = g(k, j, 1) !/ g(k, j, 2)
+!         write(*,*) "PIDRANGE: ", pid_ranges(j, :)
+         do while (pid_id < size(pid_ranges(j, :)))
+            if (pid_ranges(j, pid_id) == 0) exit
+            currstart = pid_ranges(j, pid_id)
+            if (pid_ranges(j, pid_id+1) == 0) then
+               currend = nscan_tot
             else
-               sum_inv_sigma_squared = 0.d0
-               sum_weighted_gain     = 0.d0
+               currend = pid_ranges(j, pid_id +1)
             end if
-            g_curr                = 0.d0
-            sigma_curr            = 1.d0
-            !do while (sqrt(sum_inv_sigma_squared) < 10000. .and. k < nscan_tot)
-            do while (g_curr / sigma_curr < 200.d0 .and. k < nscan_tot)
-               k = k + 1
-               if (g(k,j,2) > 0.d0) then
-                  sum_weighted_gain     = sum_weighted_gain     + g(k, j, 1) !/ g(k, j, 2)
-                  sum_inv_sigma_squared = sum_inv_sigma_squared + g(k, j, 2)
-               end if
-               if (sum_inv_sigma_squared > 0.d0) then
-                  g_curr     = tod%gain0(0) + tod%gain0(j) + sum_weighted_gain / sum_inv_sigma_squared
-                  sigma_curr = 1.d0 / sqrt(sum_inv_sigma_squared)
-                  !write(*,*) j, ', S/N = ', real(g_curr/sigma_curr,sp)
+            sum_weighted_gain = 0.d0
+            sum_inv_sigma_squared = 0.d0
+            allocate(temp_gain(currend - currstart + 1))
+            allocate(temp_invsigsquared(currend - currstart + 1))
+            allocate(summed_invsigsquared(currend-currstart + 1))
+            allocate(smoothed_gain(currend-currstart + 1))
+            do k = currstart, currend
+               temp_gain(k-currstart + 1) = g(k, j, 1)
+               temp_invsigsquared(k - currstart + 1) = g(k, j, 2)
+            end do
+!            write(*, *) 'FREQ:', trim(tod%freq)
+!            write(*, *) 'TEMP_INVSIGSQUARED:', temp_invsigsquared
+            call moving_average_padded_variable_window(temp_gain, smoothed_gain, &
+               & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared)
+            if (any(summed_invsigsquared < 0)) then
+               write(*, *) 'WHOOOOPS'
+               write(*, *) 'currstart', currstart
+               write(*, *) 'currend', currend
+               write(*, *) 'temp_invsigsquared', temp_invsigsquared
+               stop
+            end if
+!            write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
+!            write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
+            do k = currstart, currend
+               if (trim(tod%operation) == 'sample') then
+                  g(k, j, 1) = smoothed_gain(k - currstart + 1) + &
+                     & rand_gauss(handle) * &
+                     & sqrt(summed_invsigsquared(k - currstart + 1))
                else
-                  g_curr     = 0.d0
-                  sigma_curr = 1.d0
+                  g(k, j, 1) = smoothed_gain(k - currstart + 1)
+               end if
+               if (summed_invsigsquared(k - currstart + 1) > 0) then
+                  g(k, j, 2) = 1.d0 / sqrt(summed_invsigsquared(k - currstart + 1))
+               else
+                  g(k, j, 2) = 0.d0
                end if
             end do
-            currend = k
-            if (sum_inv_sigma_squared > 0.d0) then
-               g_tot = sum_weighted_gain / sum_inv_sigma_squared
-               if (trim(tod%operation) == 'sample') then
-                  ! Add fluctuation term if requested
-                  g_tot = g_tot + rand_gauss(handle) / sqrt(sum_inv_sigma_squared)
-               end if
-            else
-               g_tot = 0.d0
-            end if
-            !write(*,*) currstart, currend, g_tot, 1 / sqrt(sum_inv_sigma_squared)
-            !write(*,*) currstart, currend, nscan_tot, g_tot 
-            g(currstart:currend, j, 1) = g_tot 
-            g(currstart:currend, j, 2) = 1.d0 / sqrt(sum_inv_sigma_squared)
+            pid_id = pid_id + 1
+
+            pid_id = pid_id + 1
+            deallocate(temp_gain)
+            deallocate(temp_invsigsquared)
+            deallocate(summed_invsigsquared)
+            deallocate(smoothed_gain)
          end do
 
          ! Doing binning for now, but should use proper covariance sampling
@@ -246,16 +281,16 @@ contains
 !         end do
 
          ! Apply running average smoothing
-         allocate(g_smooth(nscan_tot))
-         window = 500
-         do k = 1, nscan_tot
-            i1 = max(k-window,1)
-            i2 = min(k+window,nscan_tot)
-            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1+1)
-            !g_smooth(k) = median(g(i1:i2,j,1)) 
-         end do
-         g(:,j,1) = g_smooth - mean(g_smooth)
-         deallocate(g_smooth)
+!         allocate(g_smooth(nscan_tot))
+!         window = 500
+!         do k = 1, nscan_tot
+!            i1 = max(k-window,1)
+!            i2 = min(k+window,nscan_tot)
+!            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
+!            !g_smooth(k) = median(g(i1:i2,j,1)) 
+!         end do
+!         g(:,j,1) = g_smooth - mean(g_smooth)
+!         deallocate(g_smooth)
  
 !!$         ! Apply running average smoothing
 !!$         allocate(g_smooth(nscan_tot))
@@ -479,5 +514,176 @@ contains
   end subroutine sample_relcal
 
 
+  function dipole_modulation(tod, s_sky, mask)
+     implicit none
+   real(dp)                                         :: dipole_modulation
+   class(comm_tod),                      intent(in) :: tod
+
+   real(sp),    dimension(:), intent(in)             :: s_sky
+   real(sp),    dimension(:), intent(in)             :: mask
+
+   real(dp)         :: currmean, currvar
+   integer(i4b)     :: i, n_unmasked
+
+   n_unmasked = count(mask /= 0)
+   currmean = sum(s_sky * mask) / n_unmasked
+   currvar = 0
+   do i = 1, size(s_sky)
+      if (mask(i) == 0) cycle
+      currvar = currvar + (s_sky(i) - currmean) ** 2
+   end do
+   currvar = currvar / n_unmasked
+   dipole_modulation = currvar
+
+  end function dipole_modulation
+
+  subroutine get_pid_ranges(pid_ranges, tod, dgains, dipole_mods, window_sizes)
+     implicit none
+
+     integer(i4b), allocatable, dimension(:, :), intent(out)     :: pid_ranges
+     class(comm_tod),           intent(in)          :: tod
+     real(dp), dimension(:, :), intent(in)          :: dipole_mods
+     real(dp), dimension(:, :), intent(in)          :: dgains
+     integer(i4b), dimension(:, :), intent(in)      :: window_sizes
+
+     integer(i4b), allocatable, dimension(:)        :: jump_indices
+     integer(i4b), allocatable, dimension(:)        :: sorted_indices
+     real(dp),  allocatable,    dimension(:)        :: smoothed_data, smoothed_vars
+     real(dp)                                       :: target_percentile
+     real(dp)                                       :: quantile_quantum
+     real(sp)                                       :: jump_percentile
+     integer(i4b)                                   :: i, j, k, percentile_index
+     integer(i4b)                                   :: slow_smooth_window_size
+     integer(i4b)                                   :: max_n_jumps
+     integer(i4b)                                   :: nscan, range_idx
+     integer(i4b)                                   :: start_idx, end_idx, pos
+     logical(lgt)                                   :: in_high_var_region
+
+
+     select case (trim(tod%freq))
+         case ('030')
+            slow_smooth_window_size = 300
+            jump_percentile = 0.99
+         case ('044')
+            slow_smooth_window_size = 200
+            jump_percentile = 0.999
+         case ('070')
+            slow_smooth_window_size = 150
+            jump_percentile = 0.995
+         ! Currently, the 70-GHz ds
+         case default
+            slow_smooth_window_size = 150
+            jump_percentile = 0.995
+      end select
+
+      nscan = tod%nscan_tot
+
+      quantile_quantum = 1.d0/nscan
+      max_n_jumps = ceiling((1.d0 - jump_percentile) / quantile_quantum)
+      percentile_index = floor(nscan * jump_percentile)
+      allocate(jump_indices(nscan))
+      allocate(sorted_indices(nscan))
+      allocate(pid_ranges(tod%ndet, max_n_jumps+2))
+      allocate(smoothed_data(nscan), smoothed_vars(nscan))
+
+      do i = 1, nscan
+         sorted_indices(i) = i
+      end do
+
+      do i = 1, tod%ndet
+         smoothed_data = 0.d0
+         smoothed_vars = 0.d0
+         call moving_average_padded(dgains(:, i), smoothed_data, slow_smooth_window_size, &
+            weights=dipole_mods(:, i))
+         call moving_variance_padded(smoothed_data, smoothed_vars, slow_smooth_window_size)
+         smoothed_vars = smoothed_vars * dipole_mods(:, i)
+         ! Just reusing array as buffer instead of allocating a whole new one
+         smoothed_data = smoothed_vars
+         call Quicksort(sorted_indices, smoothed_data)
+         target_percentile = smoothed_data(percentile_index)
+         j = 1
+         range_idx = 1
+         pid_ranges(i, :) = 0
+         pid_ranges(i, 1) = 1
+         in_high_var_region = .false.
+         do while (j <= nscan)
+            if (smoothed_vars(j) > target_percentile .and. .not. in_high_var_region) then
+               in_high_var_region = .true.
+               start_idx = j
+            else if (in_high_var_region .and. smoothed_vars(j) <= target_percentile .and. smoothed_vars(j) /= 0) then
+               in_high_var_region = .false.
+               end_idx = j
+               pos = maxloc(smoothed_vars(start_idx:end_idx-1), dim=1) + start_idx
+               if ((nscan - pos) < window_sizes(i, pos)) then
+                  j = j + 1
+                  cycle
+               else if (pos - pid_ranges(i, range_idx) < window_sizes(i, pos)) then
+                  j = j + 1
+                  cycle
+               end if
+               range_idx = range_idx + 1
+               pid_ranges(i, range_idx) = pos
+            end if
+            j = j + 1
+         end do
+         range_idx = range_idx + 1
+      end do
+
+  end subroutine get_pid_ranges
+
+  subroutine get_smoothing_windows(tod, windows, dipole_mods)
+     implicit none
+
+     integer(i4b), dimension(:, :), intent(out)         :: windows
+     class(comm_tod),               intent(in)          :: tod
+     real(dp), dimension(:, :),     intent(in)          :: dipole_mods
+
+     real(sp), allocatable, dimension(:)                :: nonzero_mask
+     integer(i4b)  :: window_size_dipole_minimum, window_size_dipole_maximum
+     real(dp)   :: low_dipole_thresh, curr_dipole
+     real(dp)   :: high_dipole_thresh
+
+     integer(i4b)   :: i, j, window_size
+
+
+     high_dipole_thresh = 5d-6
+     low_dipole_thresh = 1d-6
+
+     select case (trim(tod%freq))
+         case ('030')
+            window_size_dipole_minimum = 1200
+            window_size_dipole_maximum = 400
+         case ('044')
+            window_size_dipole_minimum = 1500
+            window_size_dipole_maximum = 300
+         case ('070')
+            window_size_dipole_minimum = 1800
+            window_size_dipole_maximum = 400
+         ! Currently, the 70-GHz ds
+         case default
+            window_size_dipole_minimum = 1800
+            window_size_dipole_maximum = 400
+      end select
+
+      do i = 1, tod%nscan_tot
+         do j = 1, tod%ndet
+            curr_dipole = dipole_mods(i, j)
+            if (curr_dipole == 0) then
+               windows(j, i) = 0
+            else if (curr_dipole < low_dipole_thresh) then
+               windows(j, i) = window_size_dipole_minimum
+            else if (curr_dipole > high_dipole_thresh) then
+               windows(j, i) = window_size_dipole_maximum
+            else
+               ! Interpolate
+               windows(j, i) = window_size_dipole_minimum + &
+                  & int(real(window_size_dipole_maximum - & 
+                  & window_size_dipole_minimum, dp) / (high_dipole_thresh - &
+                  & low_dipole_thresh) * (curr_dipole - low_dipole_thresh))
+            end if
+         end do
+      end do
+
+  end subroutine get_smoothing_windows
 
 end module comm_tod_gain_mod
