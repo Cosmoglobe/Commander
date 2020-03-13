@@ -76,20 +76,20 @@ export MPFCLIBS := -qopenmp
 # instead of lowercase (*.mod).
 #export FORTRAN_UPPER := 1
 
-export LOCAL=/mn/stornext/u3/hke/local_intel2
+export LOCAL=/mn/stornext/u3/hke/local_intel3
 
 # =============== CFITSIO Linking ================
 
 # The include and linking commands for cfitsio.
 export CFITSIO_INCLUDE := 
-export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio
+export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio -lcurl
 
 # =============== SHARP Linking ================
 
 # The include and linking commands for cfitsio.
 export SHARP_INCLUDE := 
 #export SHARP_LINK := -L/mn/stornext/u3/hke/local/src/libsharp-1.0.0/.libs/ -lsharp
-export SHARP_LINK := -L/mn/stornext/u3/hke/local_intel2/src/libsharp-master/.libs -lsharp2
+export SHARP_LINK := -L/mn/stornext/u3/hke/local_intel3/src/libsharp-master/.libs -lsharp2 
 
 
 # =============== LAPACK Linking =================
@@ -103,7 +103,7 @@ export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH)/lib/intel64 -L$(MKLPAT
 
 # ================ Healpix linking ================
 #export HEALPIX := /mn/stornext/u3/hke/owl/local/src/dagsshealpix
-export HEALPIX := /mn/stornext/u3/hke/local_intel2/src/Healpix_3.50
+export HEALPIX := /mn/stornext/u3/hke/local_intel3/src/Healpix_3.50
 export HEALPIX_INCLUDE := -I$(HEALPIX)/include
 export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
 #export HEALPIX_INCLUDE := -I/usit/titan/u1/sigurdkn/local/include
