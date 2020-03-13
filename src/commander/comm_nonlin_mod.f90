@@ -479,15 +479,15 @@ contains
                 end if
 
                 ! Adjust learning rate every 100th
-                if (mod(i, 100) == 0 .and. info%myid == 0) then 
+                if (mod(i, 10) == 0 .and. info%myid == 0) then 
                    ! Accept rate
-                   accept_rate = num_accepted/100.d0
+                   accept_rate = num_accepted/10.d0
                    num_accepted = 0
                    
-                   diff = chisq(i-100)-chisq(i)
+                   diff = chisq(i-10)-chisq(i)
 
                    ! Write to screen
-                   write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 100: ", diff, " - accept rate: ", accept_rate
+                   write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 10: ", diff, " - accept rate: ", accept_rate
                    
                    ! Adjust steplen
                    if (accept_rate < 0.2.and. iter == 1) then                 

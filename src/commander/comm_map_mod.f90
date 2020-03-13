@@ -710,7 +710,7 @@ contains
                 l   = lm(1,j)
                 m   = lm(2,j)
                 ind = l**2 + l + m
-                if (ind < 0 .or. ind > size(alm,1)) write(*,*) i, j, l, m, ind
+                if (ind < 0 .or. ind > size(alm,1)) write(*,*) i, j, l, m, ind, trim(filename)
                 alm(ind,:) = buffer(j,:)
              end do
              deallocate(lm, buffer)
@@ -889,7 +889,7 @@ contains
     integer(i4b),           intent(in)    :: mmax, pol
 
     integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm
-    real(dp),     allocatable, dimension(:,:) :: alms
+    real(dp),     allocatable, dimension(:) :: alms
     !integer(i4b), allocatable, dimension(:)   :: p
     !integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
@@ -898,14 +898,14 @@ contains
     nalm = (lmax+1)**2
     
     ! Only the root actually reads from disk; data are distributed via MPI
-    allocate(alms(0:nalm-1,nmaps))
+    allocate(alms(0:nalm-1))
     if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
     call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
     if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
     do i = 0, self%info%nalm-1
        call self%info%i2lm(i, l, m)
        j = l**2 + l + m
-       self%alm(i,pol) = alms(j,1)
+       self%alm(i,pol) = alms(j)
 !!$        self%alm(i,:) = alms(j,:)
 !!$        self%info%lm(1,i) = l
 !!$        self%info%lm(2,i) = m
@@ -1061,8 +1061,11 @@ contains
     allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
+!    write(*,*) 'a', self%info%myid, sum(abs(m_in))
     call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
+!    write(*,*) 'b', self%info%myid, sum(abs(m_out))
     call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+!    write(*,*) 'c', self%info%myid, sum(abs(buffer))
 !!$i = 0
 !!$do while (i <= map_out%info%npix-1)
 !!$   j = min(i+bsize-1,map_out%info%npix-1)
@@ -1073,6 +1076,7 @@ contains
 !!$    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
     map_out%map = buffer(map_out%info%pix,:)
+!    write(*,*) 'd', self%info%myid, sum(abs(map_out%map))
     deallocate(m_in, m_out, buffer)
 
   end subroutine udgrade

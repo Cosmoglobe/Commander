@@ -787,7 +787,7 @@ contains
 
     integer(i4b) :: i, j, k, l, n, nmaps, ierr
     real(dp)     :: lat, lon, t1, t2
-    logical(lgt) :: precomp, mixmatnull ! NEW
+    logical(lgt) :: precomp, mixmatnull, bad ! NEW
     character(len=2) :: ctext
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
     real(dp),        allocatable, dimension(:)     :: nu, s, buffer, buff2
@@ -826,25 +826,50 @@ contains
           allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
           
           do j = 1, self%npar
-             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
-                  & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
-             t    => comm_map(info)
              if (self%lmax_ind >= 0) then
+                info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
+                     & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
+                t    => comm_map(info)
                 t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
                 call t%Y_scalar
              else
                 call wall_time(t1)
                 info_tp => comm_mapinfo(self%theta(j)%p%info%comm, self%theta(j)%p%info%nside, &
-                     & self%theta(j)%p%info%lmax, nmaps, nmaps==3)
+                     & 2*self%theta(j)%p%info%nside, nmaps, .false.)
                 tp    => comm_map(info_tp)
                 tp%map(:,1:nmaps) = self%theta(j)%p%map(:,1:nmaps)
-                call tp%udgrade(t)
-                call tp%dealloc()
-                call wall_time(t2)
-                if (trim(self%label)=='dust' .and. j == 1) then
+                call tp%YtW_scalar()
+                info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
+                     & data(i)%info%lmax, nmaps, .false.)
+                t    => comm_map(info)
+                call tp%alm_equal(t)
+                call t%Y_scalar()
+                where (t%map < self%p_uni(1,j))
+                   t%map = self%p_uni(1,j)
+                end where
+                where (t%map > self%p_uni(2,j))
+                   t%map = self%p_uni(2,j)
+                end where
+
+!!$                call tp%udgrade(t)
+!!$
+                bad = any(t%map == 0.d0)
+                call mpi_allreduce(mpi_in_place, bad, 1, &
+                     & MPI_LOGICAL, MPI_LOR, self%x%info%comm, ierr)
+                if (bad) then
+                   write(*,*) trim(self%label), i, j
                    call int2string(j, ctext)
-                   call t%writeFITS("beta"//ctext//".fits")
+                   call t%writeFITS("beta1.fits")
+                   call tp%writeFITS("beta2.fits")
+                   call mpi_finalize(k)
+                   stop
                 end if
+
+                call tp%dealloc()
+
+                
+                call wall_time(t2)
+
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = t%map
