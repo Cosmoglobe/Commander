@@ -306,7 +306,7 @@ contains
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
 
     integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
-    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2)
+    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold
     real(dp)     :: t_tot(22)
@@ -318,7 +318,7 @@ contains
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
     real(dp),     allocatable, dimension(:,:)     :: chisq_S, m_buf
-    real(dp),     allocatable, dimension(:,:)     :: A_map
+    real(dp),     allocatable, dimension(:,:)     :: A_map, dipole_mod
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
     integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
     logical(lgt)       :: correct_sl
@@ -354,12 +354,14 @@ contains
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
+    nscan_tot       = self%nscan_tot
     chunk_size      = npix/self%numprocs_shared
     if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size+1
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
     allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta)) 
     allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
+    allocate(dipole_mod(nscan_tot, ndet))
     slist   = ''
 
     call int2string(chain, ctext)
@@ -454,6 +456,8 @@ contains
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
        do_oper(output_slist) = mod(iter, 1) == 0
+
+       dipole_mod = 0
 
        ! Perform pre-loop operations
        if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
@@ -849,6 +853,10 @@ contains
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
           end if
 
+          do j = 1, ndet
+             dipole_mod(self%scanid(i), j) = dipole_modulation(self, s_sky(:, j), mask(:, j))
+          end do
+
           ! Clean up
           call wall_time(t1)
           deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_buf)
@@ -874,6 +882,13 @@ contains
 
        end do
 
+       call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+
+!       if (self%myid == 0) then
+!          write(*, *) "CHECKPOINT"
+!          write(*, *) dipole_mod
+!       end if
+
        if (do_oper(samp_acal)) then
           call wall_time(t1)
           call sample_abscal_from_orbital(self, handle, A_abscal, b_abscal)
@@ -888,7 +903,7 @@ contains
 
        if (do_oper(samp_G)) then
           call wall_time(t1)
-          call sample_smooth_gain(self, handle)
+          call sample_smooth_gain(self, handle, dipole_mod)
           call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
        end if
 
