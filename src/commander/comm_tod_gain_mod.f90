@@ -246,7 +246,6 @@ contains
             end do
             pid_id = pid_id + 1
 
-            pid_id = pid_id + 1
             deallocate(temp_gain)
             deallocate(temp_invsigsquared)
             deallocate(summed_invsigsquared)
@@ -319,6 +318,33 @@ contains
 !!$         !write(*,*) 'mu = ', mu
 !!$         g(:,j,1) = g(:,j,1) - mu
        end do
+       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+          do k = 1, nscan_tot
+             !if (g(k,j,2) /= 0) then
+             if (g(k,j,2) > 0) then
+                if (abs(g(k, j, 1)) > 1e10) then
+                   write(*, *) 'G1_postsmooth'
+                   write(*, *) g(k, j, 1)
+                end if
+                if (abs(g(k, j, 2)) > 1e10) then
+                   write(*, *) 'G2_postsmooth'
+                   write(*, *) g(k, j, 2)
+                end if
+                if (abs(dipole_mods(k, j) > 1e10)) then
+                   write(*, *) 'DIPOLE_MODS'
+                   write(*, *) dipole_mods(k, j)
+                else
+                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+                end if
+             else
+                write(58,*) j, k, 0., 0.0, 0., 0.
+             end if
+          end do
+          write(58,*)
+       end do
+       close(58)
+
     end if
 
     ! Distribute and update results
