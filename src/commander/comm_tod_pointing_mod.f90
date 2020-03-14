@@ -27,7 +27,11 @@ contains
     ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
     ! T - temperature; Q, U - Stoke's parameters
     do det = 1, tod%ndet
-       if (.not. tod%scans(scan_id)%d(det)%accept) cycle
+       if (.not. tod%scans(scan_id)%d(det)%accept) then
+          s_sky(:,det) = 0.d0
+          tmask(:,det) = 0.d0
+          cycle
+       end if
        do i = 1, tod%scans(scan_id)%ntod
           p = tod%pix2ind(pix(i,det))
           s_sky(i,det) = map(1,p,det) + &
@@ -48,7 +52,10 @@ contains
 
     if (present(s_bp)) then
        do det = 1, tod%ndet
-          if (.not. tod%scans(scan_id)%d(det)%accept) cycle
+          if (.not. tod%scans(scan_id)%d(det)%accept) then
+             s_bp(:,det) = 0.d0
+             cycle
+          end if
           do i = 1, tod%scans(scan_id)%ntod
              p = tod%pix2ind(pix(i,det))
              s =    map(1,p,0) + &

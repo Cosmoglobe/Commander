@@ -446,9 +446,9 @@ contains
        do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = (main_iter >= n_main_iter-0)
        do_oper(samp_N_par)   = do_oper(samp_N)
-       do_oper(prep_relbp)   = (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 0
-       do_oper(prep_absbp)   = (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
-       do_oper(samp_bp)      = (main_iter == n_main_iter-0) .and. .not. self%first_call
+       do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 0
+       do_oper(prep_absbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
+       do_oper(samp_bp)      = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
