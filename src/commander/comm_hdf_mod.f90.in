@@ -232,7 +232,7 @@ contains
           write(*,*) 'HDF error -- inconsistent array sizes'
           write(*,*) '             HDF size       = ', ext
           write(*,*) '             Requested size = ', s
-          write(*,*) v(-1000000)
+          !write(*,*) v(-1000000)
           stop
        end if
     end if

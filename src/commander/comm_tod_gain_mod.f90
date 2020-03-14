@@ -159,13 +159,14 @@ contains
     end if
 
     if (tod%myid == 0) then
-        write(*, *) "FREQ IS ", tod%freq
+        write(*, *) "FREQ IS ", trim(tod%freq)
 !       nbin = nscan_tot / binsize + 1
 
        open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
        do j = 1, ndet
           do k = 1, nscan_tot
              !if (g(k,j,2) /= 0) then
+             !if (k<4 .and. g(k,j,2)>0) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
              if (g(k,j,2) > 0) then
                 if (abs(g(k, j, 1)) > 1e10) then
                    write(*, *) 'G1'
@@ -214,8 +215,12 @@ contains
             allocate(summed_invsigsquared(currend-currstart + 1))
             allocate(smoothed_gain(currend-currstart + 1))
             do k = currstart, currend
-               temp_gain(k-currstart + 1) = g(k, j, 1)
-               temp_invsigsquared(k - currstart + 1) = g(k, j, 2)
+               if (g(k,j,2) > 0.d0) then
+                  temp_gain(k-currstart + 1) = g(k, j, 1) / g(k, j, 2)
+               else
+                  temp_gain(k-currstart + 1) = 0.d0
+               end if
+               temp_invsigsquared(k - currstart + 1) = max(g(k, j, 2),0.d0)
             end do
 !            write(*, *) 'FREQ:', trim(tod%freq)
 !            write(*, *) 'TEMP_INVSIGSQUARED:', temp_invsigsquared
@@ -231,9 +236,9 @@ contains
 !            write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
 !            write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
             do k = currstart, currend
-               if (trim(tod%operation) == 'sample') then
+               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then
                   g(k, j, 1) = smoothed_gain(k - currstart + 1) + &
-                     & rand_gauss(handle) * &
+                     & rand_gauss(handle) / &
                      & sqrt(summed_invsigsquared(k - currstart + 1))
                else
                   g(k, j, 1) = smoothed_gain(k - currstart + 1)

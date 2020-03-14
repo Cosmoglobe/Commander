@@ -429,14 +429,14 @@ contains
        
        open(unit, file=trim(filelist))
        read(unit,*) n
-       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(n_tot,2))
+       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot))
        j = 1
        do i = 1, n
-          read(unit,*) scanid(j), filename(j), weight(j), spinpos(j,1:2)
+          read(unit,*) scanid(j), filename(j), weight(j), spinpos(1:2,j)
           if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
           id(j)  = j
           sid(j) = scanid(j)
-          call ang2vec(spinpos(j,1), spinpos(j,2), spinaxis(j,1:3))
+          call ang2vec(spinpos(1,j), spinpos(2,j), spinaxis(j,1:3))
           if (j == 1) self%initfile = filename(j)
           j      = j+1
           if (j > n_tot) exit
@@ -522,7 +522,7 @@ contains
 
     call mpi_bcast(n_tot, 1,  MPI_INTEGER, 0, self%comm, ierr)
     if (self%myid /= 0) then
-       allocate(filename(n_tot), scanid(n_tot), proc(n_tot), spinpos(n_tot,2))
+       allocate(filename(n_tot), scanid(n_tot), proc(n_tot), spinpos(2,n_tot))
     end if
     call mpi_bcast(filename, 512*n_tot,  MPI_CHARACTER, 0, self%comm, ierr)
     call mpi_bcast(scanid,       n_tot,  MPI_INTEGER,   0, self%comm, ierr)
@@ -536,7 +536,7 @@ contains
        if (proc(i) == self%myid) then
           self%scanid(j)     = scanid(i)
           self%hdfname(j)    = filename(i)
-          self%spinaxis(j,:) = spinpos(i,:)
+          self%spinaxis(j,:) = spinpos(:,i)
           j                  = j+1
        end if
     end do
