@@ -6,6 +6,7 @@ module comm_data_mod
   use comm_map_mod
   use comm_tod_mod
   use comm_tod_LFI_mod
+  use comm_tod_SPIDER_mod
   use locate_mod
   implicit none
 
@@ -112,6 +113,9 @@ contains
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
              data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info)
+             data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'SPIDER') then
+             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else
