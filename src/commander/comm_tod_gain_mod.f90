@@ -192,7 +192,24 @@ contains
 
        allocate(window_sizes(tod%ndet, tod%nscan_tot))
        call get_smoothing_windows(tod, window_sizes, dipole_mods)
+       open(58, file='smoothing_windows' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+         do k = 1, size(window_sizes(j, :))
+            if (window_sizes(j, k) == 0) cycle
+            write(58, *) j, k, window_sizes(j, k)
+         end do
+       end do
+       close(58)
+
        call get_pid_ranges(pid_ranges, tod, g(:, :, 1), dipole_mods, window_sizes)
+       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+         do k = 1, size(pid_ranges(j, :))
+            if (pid_ranges(j, k) == 0) exit
+            write(58, *) j, k, pid_ranges(j, k)
+         end do
+       end do
+       close(58)
 
        do j = 1, ndet
          lhs = 0.d0
@@ -224,7 +241,7 @@ contains
             end do
 !            write(*, *) 'FREQ:', trim(tod%freq)
 !            write(*, *) 'TEMP_INVSIGSQUARED:', temp_invsigsquared
-            call moving_average_padded_variable_window(temp_gain, smoothed_gain, &
+            call moving_average_variable_window(temp_gain, smoothed_gain, &
                & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared)
             if (any(summed_invsigsquared < 0)) then
                write(*, *) 'WHOOOOPS'
@@ -624,9 +641,9 @@ contains
       do i = 1, tod%ndet
          smoothed_data = 0.d0
          smoothed_vars = 0.d0
-         call moving_average_padded(dgains(:, i), smoothed_data, slow_smooth_window_size, &
+         call moving_average(dgains(:, i), smoothed_data, slow_smooth_window_size, &
             weights=dipole_mods(:, i))
-         call moving_variance_padded(smoothed_data, smoothed_vars, slow_smooth_window_size)
+         call moving_variance(smoothed_data, smoothed_vars, slow_smooth_window_size)
          smoothed_vars = smoothed_vars * dipole_mods(:, i)
          ! Just reusing array as buffer instead of allocating a whole new one
          smoothed_data = smoothed_vars
@@ -639,19 +656,29 @@ contains
          in_high_var_region = .false.
          do while (j <= nscan)
             if (smoothed_vars(j) > target_percentile .and. .not. in_high_var_region) then
+               write(*, *) 'In high var'
                in_high_var_region = .true.
                start_idx = j
+               write(*, *) 'start_idx: ', start_idx
             else if (in_high_var_region .and. smoothed_vars(j) <= target_percentile .and. smoothed_vars(j) /= 0) then
+               write(*, *) 'End high var'
                in_high_var_region = .false.
                end_idx = j
+               write(*, *) 'end_idx: ', end_idx
                pos = maxloc(smoothed_vars(start_idx:end_idx-1), dim=1) + start_idx
+               write(*, *) 'pos: ', pos
+               write(*, *) 'window_size: ', window_sizes(i, pos)
+               write(*, *) 'prev_pid_range: ', pid_ranges(i, range_idx)
                if ((nscan - pos) < window_sizes(i, pos)) then
                   j = j + 1
+                  write(*, *) 'Cycle 1'
                   cycle
                else if (pos - pid_ranges(i, range_idx) < window_sizes(i, pos)) then
                   j = j + 1
+                  write(*, *) 'Cycle 2'
                   cycle
                end if
+               write(*, *) 'Not cycling'
                range_idx = range_idx + 1
                pid_ranges(i, range_idx) = pos
             end if

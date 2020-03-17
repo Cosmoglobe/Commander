@@ -1025,7 +1025,7 @@ contains
   end subroutine linspace
 
 
-  subroutine moving_average_padded(input_data, output_data, window_size, weights, &
+  subroutine moving_average(input_data, output_data, window_size, weights, &
         & output_summed_weights)
      implicit none
      real(dp),  dimension(:), intent(in)                :: input_data
@@ -1034,34 +1034,32 @@ contains
      real(dp),  dimension(:), intent(out), optional     :: output_summed_weights
      integer(i4b)           , intent(in)                :: window_size
 
-     integer(i4b)       :: start_ind, i, data_len
+     integer(i4b)       :: start_ind, i, data_len, end_ind
      real(dp)           :: curr_mean
-     real(dp), allocatable, dimension(:)       :: padded_data, padded_weights
 
      data_len = size(input_data)
 
-     call pad_data(input_data, padded_data, window_size/2)
-     if (present(weights)) call pad_data(weights, padded_weights, window_size/2)
-
      do i = 1, data_len
+         start_ind = max(1, int(i - window_size/2))
+         end_ind = min(data_len, int(i + window_size/2))
          if (present(weights)) then
-            if (sum(padded_weights(i:window_size+i)) == 0) then
+            if (sum(weights(start_ind:end_ind)) == 0) then
                curr_mean = 0.d0
             else
-               curr_mean = sum(padded_data(i:window_size+i) * padded_weights(i:window_size+i)) /sum(padded_weights(i:window_size+i))
+               curr_mean = sum(input_data(start_ind:end_ind) * weights(start_ind:end_ind)) /sum(weights(start_ind:end_ind))
             end if
             if (present(output_summed_weights)) then
-               output_summed_weights(i) = sum(padded_weights(i:window_size+i))
+               output_summed_weights(i) = sum(weights(start_ind:end_ind))
             end if
          else
-            curr_mean = sum(padded_data(i:window_size + i)) / (window_size + 1)
+            curr_mean = sum(input_data(start_ind:end_ind)) / (end_ind - start_ind + 1)
          end if
          output_data(i) = curr_mean
      end do
 
-  end subroutine moving_average_padded
+  end subroutine moving_average
 
-  subroutine moving_average_padded_variable_window(input_data, output_data, &
+  subroutine moving_average_variable_window(input_data, output_data, &
         & window_sizes, weights, output_summed_weights)
      implicit none
      real(dp),  dimension(:), intent(in)                :: input_data
@@ -1070,88 +1068,59 @@ contains
      real(dp),  dimension(:), intent(out), optional     :: output_summed_weights
      integer(i4b), dimension(:), intent(in)             :: window_sizes
 
-     integer(i4b)       :: start_ind, i, data_len,  max_window_size
+     integer(i4b)       :: i, data_len,  max_window_size
      integer(i4b)       :: range_start, range_end, window_size
      real(dp)           :: curr_mean
-     real(dp), allocatable, dimension(:)       :: padded_data, padded_weights
 
      data_len = size(input_data)
 
      max_window_size = maxval(window_sizes)
 
-     call pad_data(input_data, padded_data, max_window_size/2)
-     if (present(weights)) call pad_data(weights, padded_weights, max_window_size/2)
-
      do i = 1, data_len
          window_size = window_sizes(i)
-         range_start = i+max_window_size/2 - window_size/2
-         range_end = i+max_window_size/2 + window_size/2
+         range_start = max(1, int(i - window_size/2))
+         range_end = min(data_len, int(i + window_size/2))
          if (present(weights)) then
-            if (sum(padded_weights(range_start:range_end)) == 0) then
+            if (sum(weights(range_start:range_end)) == 0) then
                curr_mean = 0.d0
             else
-               curr_mean = sum(padded_data(range_start:range_end) * &
-                  & padded_weights(range_start:range_end)) / &
-                  & sum(padded_weights(range_start:range_end))
+               curr_mean = sum(input_data(range_start:range_end) * &
+                  & weights(range_start:range_end)) / &
+                  & sum(weights(range_start:range_end))
             end if
             if (present(output_summed_weights)) then
-               output_summed_weights(i) = sum(padded_weights(range_start:range_end))
+               output_summed_weights(i) = sum(weights(range_start:range_end))
             end if
          else
-            curr_mean = sum(padded_data(range_start:range_end)) / (window_size + 1)
+            curr_mean = sum(input_data(range_start:range_end)) / (range_end - range_start + 1)
          end if
          output_data(i) = curr_mean
      end do
 
-  end subroutine moving_average_padded_variable_window
+  end subroutine moving_average_variable_window
 
-  subroutine pad_data(input_data, padded_data, pad_width)
-     !Pad width is the amount of extra padding that should be added to *one*
-     !side.
-     implicit none
 
-     real(dp), dimension(:), intent(in)                 :: input_data
-     real(dp), dimension(:), allocatable, intent(out)   :: padded_data
-     integer(i4b)       , intent(in)                    :: pad_width
-
-     integer(i4b)               :: start_ind, data_len, i
-
-     data_len = size(input_data)
-
-     allocate(padded_data(data_len + pad_width * 2))
-
-     start_ind = pad_width
-     do i = 1, start_ind
-         padded_data(start_ind -i + 1) = input_data(i)
-         padded_data(start_ind + data_len + i) = input_data(data_len - i + 1)
-     end do
-
-     padded_data(start_ind+1:data_len+start_ind) = input_data
-
-  end subroutine pad_data
-
-  subroutine moving_variance_padded(input_data, output_data, window_size)
+  subroutine moving_variance(input_data, output_data, window_size)
      implicit none
      real(dp),  dimension(:), intent(in)        :: input_data
      real(dp),  dimension(:), intent(out)       :: output_data
      integer(i4b)           , intent(in)        :: window_size
 
 
-     integer(i4b)       :: start_ind, i, data_len
+     integer(i4b)       :: start_ind, i, data_len, end_ind
      real(dp)           :: curr_var, curr_mean
-     real(dp), allocatable, dimension(:)       :: padded_data
 
      data_len = size(input_data)
 
-     call pad_data(input_data, padded_data, window_size/2)
-
      do i = 1, data_len
-         curr_mean = sum(padded_data(i:window_size + i)) / (window_size + 1)
-         curr_var = sum((padded_data(i:window_size+i) - curr_mean) ** 2) / (window_size+1)
+         start_ind = max(1, int(i - window_size/2))
+         end_ind = min(data_len, int(i + window_size/2))
+         curr_mean = sum(input_data(start_ind:end_ind)) / (end_ind - start_ind + 1)
+         curr_var = sum((input_data(start_ind:end_ind) - curr_mean) ** 2) / (end_ind - start_ind +1)
 
          output_data(i) = curr_var
      end do
 
-  end subroutine moving_variance_padded
+  end subroutine moving_variance
   
 end module comm_utils
