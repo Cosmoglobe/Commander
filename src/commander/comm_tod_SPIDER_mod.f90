@@ -17,6 +17,7 @@ module comm_tod_SPIDER_mod
   use comm_tod_gain_mod
   use comm_tod_bandpass_mod
   use comm_tod_orbdipole_mod
+  use comm_tod_jump_mod
   implicit none
 
   private
