@@ -179,7 +179,7 @@ contains
 
   subroutine gap_fill_linear(tod,flag,tod_gapfill,handle,noise)
     implicit none
-    real(dp),     dimension(:), intent(in)     :: tod
+    real(sp),     dimension(:), intent(in)     :: tod
     integer(i4b), dimension(:), intent(in)     :: flag
     real(sp),     dimension(:), intent(inout)  :: tod_gapfill
     logical,                    intent(in)     :: noise
@@ -249,7 +249,7 @@ contains
 
   subroutine jump_scan(tod,flag,jumps,offset_range,offset_level,handle)
     implicit none
-    real(dp),     dimension(:),   intent(in)    :: tod
+    real(sp),     dimension(:),   intent(in)    :: tod
     integer(i4b), dimension(:),   intent(inout) :: flag
     integer(i4b), dimension(:),   intent(inout) :: jumps
     integer(i4b), allocatable,    dimension(:,:), intent(inout) :: offset_range
