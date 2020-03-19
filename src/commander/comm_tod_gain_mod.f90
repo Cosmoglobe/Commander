@@ -599,6 +599,7 @@ contains
      real(dp),  allocatable,    dimension(:)        :: smoothed_data, smoothed_vars
      real(dp)                                       :: target_percentile
      real(dp)                                       :: quantile_quantum
+     real(dp)                                       :: prev_jump_var
      real(sp)                                       :: jump_percentile
      integer(i4b)                                   :: i, j, k, percentile_index
      integer(i4b)                                   :: slow_smooth_window_size
@@ -654,31 +655,41 @@ contains
          pid_ranges(i, :) = 0
          pid_ranges(i, 1) = 1
          in_high_var_region = .false.
+         prev_jump_var = 1d30
          do while (j <= nscan)
             if (smoothed_vars(j) > target_percentile .and. .not. in_high_var_region) then
-               write(*, *) 'In high var'
+               !write(*, *) 'In high var'
                in_high_var_region = .true.
                start_idx = j
-               write(*, *) 'start_idx: ', start_idx
-            else if (in_high_var_region .and. smoothed_vars(j) <= target_percentile .and. smoothed_vars(j) /= 0) then
-               write(*, *) 'End high var'
+               !write(*, *) 'start_idx: ', start_idx
+            else if (in_high_var_region .and. & 
+               & smoothed_vars(j) <= target_percentile .and. & 
+               & smoothed_vars(j) /= 0) then
+               !write(*, *) 'End high var'
                in_high_var_region = .false.
                end_idx = j
-               write(*, *) 'end_idx: ', end_idx
+               !write(*, *) 'end_idx: ', end_idx
                pos = maxloc(smoothed_vars(start_idx:end_idx-1), dim=1) + start_idx
-               write(*, *) 'pos: ', pos
-               write(*, *) 'window_size: ', window_sizes(i, pos)
-               write(*, *) 'prev_pid_range: ', pid_ranges(i, range_idx)
+               !write(*, *) 'pos: ', pos
+               !write(*, *) 'window_size: ', window_sizes(i, pos)
+               !write(*, *) 'prev_pid_range: ', pid_ranges(i, range_idx)
                if ((nscan - pos) < window_sizes(i, pos)) then
                   j = j + 1
-                  write(*, *) 'Cycle 1'
+                  !write(*, *) 'Cycle 1'
                   cycle
                else if (pos - pid_ranges(i, range_idx) < window_sizes(i, pos)) then
+                  ! If this proposed jump has a greater variance, choose it
+                  ! instead of the previous one
+                  if (prev_jump_var < smoothed_vars(pos)) then
+                     pid_ranges(i, range_idx) = pos
+                     prev_jump_var = smoothed_vars(pos)
+                  end if
                   j = j + 1
-                  write(*, *) 'Cycle 2'
+                  !write(*, *) 'Cycle 2'
                   cycle
                end if
-               write(*, *) 'Not cycling'
+               !write(*, *) 'Not cycling'
+               prev_jump_var = smoothed_vars(pos)
                range_idx = range_idx + 1
                pid_ranges(i, range_idx) = pos
             end if
