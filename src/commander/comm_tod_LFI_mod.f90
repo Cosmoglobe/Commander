@@ -67,12 +67,13 @@ contains
     class(comm_LFI_tod),     pointer    :: constructor
 
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
-    real(dp)     :: f_fill, f_fill_lim(3), theta, phi
+    real(dp)     :: f_fill, f_fill_lim(3), theta, phi, pixVal
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
     type(hdf_file) :: h5_file
     integer(i4b), allocatable, dimension(:) :: pix
     real(dp), dimension(3) :: v
+    character(len=10) :: fieldname
 
     ! Set up LFI specific parameters
     allocate(constructor)
@@ -178,57 +179,84 @@ contains
     allocate(constructor%nu_c(constructor%ndet))
     
     call open_hdf_file(constructor%instfile, h5_file, 'r')
-    nside_beam = 128
+    nside_beam = 512
     nmaps_beam = 3
     pol_beam   = .true.
     call read_hdf(h5_file, trim(adjustl(constructor%label(1)))//'/'//'sllmax', lmax_beam)
     constructor%slinfo => comm_mapinfo(cpar%comm_chain, nside_beam, lmax_beam, &
          & nmaps_beam, pol_beam)
+
     allocate(constructor%slbeam(constructor%ndet), constructor%slconv(constructor%ndet))
-    allocate(constructor%orb_dp_s(constructor%ndet, 9))
+    allocate(constructor%mbeam(constructor%ndet))
+
+    allocate(constructor%orb_dp_s(constructor%ndet, 10))
     do i = 1, constructor%ndet
-       constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., .true., &
+       constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., "sl", &
             & trim(constructor%label(i)))
+       constructor%mbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., "beam", trim(constructor%label(i)))
        !Perform integrals for orbital dipole sidelobe correction term
-       call constructor%slbeam(i)%p%Y()
+       call constructor%mbeam(i)%p%Y()
        constructor%orb_dp_s(i, :) = 0.d0
-       do j = 0, constructor%slbeam(i)%p%info%np-1
-         call pix2vec_ring(constructor%nside, constructor%slbeam(i)%p%info%pix(j+1),v)
+       do j = 0, constructor%mbeam(i)%p%info%np-1
+         call pix2vec_ring(constructor%mbeam(i)%p%info%nside, constructor%mbeam(i)%p%info%pix(j+1),v)
+         pixVal = constructor%mbeam(i)%p%map(j, 1)
+         !if(pixVal < 0) then
+         !   pixVal = 0.d0
+         !end if
          !x
-         constructor%orb_dp_s(i, 1) = constructor%orb_dp_s(i, 1) + constructor%slbeam(i)%p%map(j, 1) * v(1)
+         constructor%orb_dp_s(i, 1) = constructor%orb_dp_s(i, 1) + pixVal * v(1)
          !y 
-         constructor%orb_dp_s(i, 2) = constructor%orb_dp_s(i, 2) + constructor%slbeam(i)%p%map(j, 1) * v(2)
+         constructor%orb_dp_s(i, 2) = constructor%orb_dp_s(i, 2) + pixVal * v(2)
          !z 
-         constructor%orb_dp_s(i, 3) = constructor%orb_dp_s(i, 3) + constructor%slbeam(i)%p%map(j, 1) * v(3)
+         constructor%orb_dp_s(i, 3) = constructor%orb_dp_s(i, 3) + pixVal * v(3)
          !x^2 
-         constructor%orb_dp_s(i, 4) = constructor%orb_dp_s(i, 4) + constructor%slbeam(i)%p%map(j, 1) * v(1) * v(1)
+         constructor%orb_dp_s(i, 4) = constructor%orb_dp_s(i, 4) +        pixVal*v(1)*v(1)
          !2xy 
-         constructor%orb_dp_s(i, 5) = constructor%orb_dp_s(i, 5) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(1) * v(2)
+         constructor%orb_dp_s(i, 5) = constructor%orb_dp_s(i, 5) + 2.d0 * pixVal * v(1) * v(2)
          !2xz 
-         constructor%orb_dp_s(i, 6) = constructor%orb_dp_s(i, 6) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(1) * v(3)
+         constructor%orb_dp_s(i, 6) = constructor%orb_dp_s(i, 6) + 2.d0 * pixVal * v(1) * v(3)
          !y^2 
-         constructor%orb_dp_s(i, 7) = constructor%orb_dp_s(i, 7) + constructor%slbeam(i)%p%map(j, 1) * v(2) * v(2)
+         constructor%orb_dp_s(i, 7) =constructor%orb_dp_s(i, 7)+          pixVal*v(2)*v(2)
          !2yz 
-         constructor%orb_dp_s(i, 8) = constructor%orb_dp_s(i, 8) + 2.d0 * constructor%slbeam(i)%p%map(j, 1) * v(2) * v(3)
+         constructor%orb_dp_s(i, 8) = constructor%orb_dp_s(i, 8) + 2.d0 * pixVal * v(2) * v(3)
          !z^2 
-         constructor%orb_dp_s(i, 9) = constructor%orb_dp_s(i, 9) + constructor%slbeam(i)%p%map(j, 1) * v(3) * v(3)
-         !if(constructor%myid == 0) then
-         !   write(*,*) v(1), v(2), v(3), constructor%slbeam(i)%p%map(j, 1)
+         constructor%orb_dp_s(i, 9) =constructor%orb_dp_s(i, 9) +         pixVal*v(3)*v(3)
+         !full beam integral for normalization
+         constructor%orb_dp_s(i, 10) = constructor%orb_dp_s(i,10) + pixVal
+         !if(constructor%myid == 38) then
+         !  write(*,*) v(1), v(2), v(3), pixVal, constructor%orb_dp_s(i, 6)
          !end if
        end do 
-
-       constructor%orb_dp_s = constructor%orb_dp_s*4*pi/real(constructor%slbeam(i)%p%info%npix)
-
     end do
-   
+  
+    !write(*,*) constructor%myid, constructor%orb_dp_s(1,:)
+
+ 
     call mpi_allreduce(MPI_IN_PLACE, constructor%orb_dp_s, size(constructor%orb_dp_s), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
 
-!!$    if (constructor%myid == 0) then 
-!!$      do i = 1, 9
-!!$        write(*,*) constructor%orb_dp_s(1, i)
-!!$      end do
-!!$    end if
+    do i = 1, constructor%ndet
+      constructor%orb_dp_s(i,:) = constructor%orb_dp_s(i,:)*4*pi/real(constructor%mbeam(i)%p%info%npix)
+    end do
+    
+    if (constructor%myid == 0) then
+      write(*,*) constructor%nside, constructor%mbeam(1)%p%info%nside, constructor%mbeam(1)%p%info%npix
+      do i = 1, 10
+        write(*,*) constructor%orb_dp_s(1, i)
+      end do
+    end if
  
+    !npipe s factors for 27M
+    constructor%orb_dp_s(:,1) = 0.005130801850847007
+    constructor%orb_dp_s(:,2) = -0.000516559072591428
+    constructor%orb_dp_s(:,3) = 0.995234628256561
+    constructor%orb_dp_s(:,4) = 0.00483461658765793
+    constructor%orb_dp_s(:,5) = 2.d0* -0.00043088175007651217
+    constructor%orb_dp_s(:,6) = 2.d0*0.0007072028589201922
+    constructor%orb_dp_s(:,7) = 0.0005094291355884364
+    constructor%orb_dp_s(:,8) = 2.d0* -0.00010373401957447322
+    constructor%orb_dp_s(:,9) = 0.9946559542767537
+    constructor%orb_dp_s(:,10) = 0.9927374627686433 
+
     do i = 1, constructor%ndet
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'elip', constructor%elip(i))
@@ -423,8 +451,9 @@ contains
        !TODO: figure out why this is rotated
        call map_in(i,1)%p%YtW()  ! Compute sky a_lms
        self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-            & self%myid_inter, self%comm_inter, 128, 100, 3, 100, &
-            & self%slbeam(i)%p, map_in(i,1)%p, 2)
+            & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
+            & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
+!       write(*,*) i, 'b', sum(abs(self%slconv(i)%p%c%a))
     end do
     call wall_time(t2); t_tot(13) = t2-t1
 
@@ -1091,7 +1120,5 @@ contains
     self%first_call = .false.
 
   end subroutine process_LFI_tod
-
-
 
 end module comm_tod_LFI_mod
