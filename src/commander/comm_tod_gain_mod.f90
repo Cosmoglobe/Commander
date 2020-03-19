@@ -234,6 +234,9 @@ contains
             do k = currstart, currend
                if (g(k,j,2) > 0.d0) then
                   temp_gain(k-currstart + 1) = g(k, j, 1) / g(k, j, 2)
+                  if (trim(tod%operation) == 'sample') then
+                     temp_gain(k-currstart+1) = temp_gain(k-currstart+1) + rand_gauss(handle) / g(k, j, 2)
+                  end if
                else
                   temp_gain(k-currstart + 1) = 0.d0
                end if
@@ -253,13 +256,14 @@ contains
 !            write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
 !            write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
             do k = currstart, currend
-               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then
-                  g(k, j, 1) = smoothed_gain(k - currstart + 1) + &
-                     & rand_gauss(handle) / &
-                     & sqrt(summed_invsigsquared(k - currstart + 1))
-               else
-                  g(k, j, 1) = smoothed_gain(k - currstart + 1)
-               end if
+               g(k, j, 1) = smoothed_gain(k - currstart + 1)
+!               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then
+!                  g(k, j, 1) = smoothed_gain(k - currstart + 1) + &
+!                     & rand_gauss(handle) / &
+!                     & sqrt(summed_invsigsquared(k - currstart + 1))
+!               else
+!                  g(k, j, 1) = smoothed_gain(k - currstart + 1)
+!               end if
                if (summed_invsigsquared(k - currstart + 1) > 0) then
                   g(k, j, 2) = 1.d0 / sqrt(summed_invsigsquared(k - currstart + 1))
                else
