@@ -36,8 +36,9 @@ module comm_tod_mod
      real(dp)       :: proctime    = 0.d0                          ! Processing time in seconds
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
-     real(dp)       :: t0                                          ! MJD for first sample
+     real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for first sample
      type(huffcode) :: hkey                                        ! Huffman decompression key
+     integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
 
@@ -97,7 +98,7 @@ module comm_tod_mod
      class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
-     class(map_ptr),     allocatable, dimension(:)     :: slbeam   ! Sidelobe beam data (ndet)
+     class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
@@ -308,6 +309,8 @@ contains
     t_tot = 0.d0
 
     call wall_time(t1)
+
+    self%chunk_num = scan
     call int2string(scan, slabel)
 
     call open_hdf_file(filename, file, "r")

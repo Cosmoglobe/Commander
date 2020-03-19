@@ -39,6 +39,8 @@ def main():
 
     parser.add_argument('--restart', action='store_true', default=False, help="restart from a previous run that didn't finish")
 
+    parser.add_argument('--produce-filelist', action='store_true', default=False, help='force the production of a filelist even if only some files are present')
+
     in_args = parser.parse_args()
 
     random.seed()
@@ -63,8 +65,9 @@ def main():
 
     #write file lists 
     for freq in in_args.freqs:
-        if (in_args.ods[0] is 91 and in_args.ods[1] is 1604):
+        if ((in_args.ods[0] is 91 and in_args.ods[1] is 1604) or in_args.produce_filelist) :
             outfile = open(os.path.join(in_args.out_dir, 'filelist_' + str(freq) + '.txt'), 'w')
+            outfile.write(str(len(outbufs[freq])) + '\n')
             for buf in outbufs[freq].values():
                 #print(buf, len(buf))
                 outfile.write(buf)
@@ -152,6 +155,12 @@ def make_od(freq, od, args, outbuf):
             polangs.append(math.radians(rimo[1].data.field('psi_pol')[rimo_i]))
             mainbeamangs.append(math.radians(mbangs[horn]))
 
+    compstring='huffman'
+    if args.no_compress:
+        compstring = 'uncompressed'
+    #experiment name
+    outFile.create_dateset(prefix + '/datatype', data=np.string('LFI_' + compstring))
+
     #make detector names lookup
     outFile.create_dataset(prefix + '/det', data=np.string_(detNames[0:-2]))
 
@@ -188,8 +197,8 @@ def make_od(freq, od, args, outbuf):
         prefix = str(pid).zfill(6) + '/common'
 
         #time field
-        outFile.create_dataset(prefix + '/time', data=[exFile['Time/MJD'][pid_start]])
-        outFile[prefix + '/time'].attrs['type'] = 'MJD'
+        outFile.create_dataset(prefix + '/time', data=[exFile['Time/MJD'][pid_start], exFile['Time/OBT'][pid_start], exFile['Time/SCET'][pid_start]])
+        outFile[prefix + '/time'].attrs['type'] = 'MJD, OBT, SCET'
 
         #length of the tod
         outFile.create_dataset(prefix + '/ntod', data=[pid_end - pid_start])
@@ -449,7 +458,7 @@ def make_od(freq, od, args, outbuf):
                 #make other
  
                 #write to output file
-                outbuf['id' + str(pid)] = str(pid) + ' "' + outName + '" ' + '1 ' + str(outAng[0]) + ' ' + str(outAng[1])  +'\n'
+                outbuf['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(outName) + '" ' + '1 ' + str(outAng[0][0]) + ' ' + str(outAng[1][0])  +'\n'
 
 if __name__ == '__main__':
     main()

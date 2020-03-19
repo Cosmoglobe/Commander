@@ -310,16 +310,16 @@ contains
     
   end function constructor_map
 
-  function constructor_alms(info, h5_file, hdf, sidelobe, label)
+  function constructor_alms(info, h5_file, hdf, field, label)
     implicit none
     class(comm_mapinfo),                intent(inout), target   :: info
     type(hdf_file),                     intent(in), target   :: h5_file
     character(len=*),                   intent(in)           :: label
-    logical(lgt),                       intent(in)           :: hdf, sidelobe
+    logical(lgt),                       intent(in)           :: hdf
+    character(len=*),                  intent(in)           :: field
     class(comm_map),     pointer                      :: constructor_alms
-    character(len=10)                                 :: fieldName
     !character(len=80),   dimension(:,:) , allocatable :: header
-    integer(i4b)                                      :: mmax, ierr
+    integer(i4b)                                      :: mmax, lmax, ierr
 
     !real(dp), dimension(:,:,:), allocatable           :: tempalms 
 
@@ -329,26 +329,24 @@ contains
     allocate(constructor_alms%map(0:info%np-1,info%nmaps))
     allocate(constructor_alms%alm(0:info%nalm-1,info%nmaps))
 
-    if( sidelobe ) then
-      fieldName = 'sl'
-    else 
-      fieldName = 'beam'
-    end if
-
     info%mmax = 0
 
     if( hdf ) then
       !write(*,*) 'About to call read_hdf'
       if(info%myid == 0) then
-        call read_hdf(h5_file,  trim(label) // '/' // trim(fieldName) // 'mmax', mmax)
+        call read_hdf(h5_file,trim(label) // '/' // trim(field) // 'mmax', mmax)
+        call read_hdf(h5_file,trim(label) // '/' // trim(field) // 'lmax', lmax)
       end if
       call mpi_bcast(mmax, 1, MPI_INTEGER, 0, info%comm, ierr)
-      !bcast mmax to all cores
+      call mpi_bcast(lmax, 1, MPI_INTEGER, 0, info%comm, ierr)
+      !bcast mmax, lmax to all cores
 
+      
+      info%lmax = lmax
       info%mmax = mmax
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(fieldName) // '/T', mmax, 1)
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(fieldName) // '/E', mmax, 2)
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(fieldName) // '/B', mmax, 3)
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1)
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2)
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3)
     else 
       constructor_alms%alm = 0.d0
       mmax = info%lmax
