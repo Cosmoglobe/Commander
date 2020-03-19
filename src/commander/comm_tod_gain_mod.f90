@@ -371,6 +371,7 @@ contains
        end do
        close(58)
 
+       deallocate(window_sizes, pid_ranges)
     end if
 
     ! Distribute and update results
@@ -701,6 +702,7 @@ contains
          end do
          range_idx = range_idx + 1
       end do
+      deallocate(jump_indices, sorted_indices, smoothed_data, smoothed_vars)
 
   end subroutine get_pid_ranges
 
