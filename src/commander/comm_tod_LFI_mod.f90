@@ -1066,6 +1066,7 @@ contains
     if (allocated(b_mono)) deallocate(b_mono)
     if (allocated(sys_mono)) deallocate(sys_mono)
     if (allocated(slist)) deallocate(slist)
+    if (allocated(dipole_mod)) deallocate(dipole_mod)
 
     if (allocated(outmaps)) then
        do i = 1, nout
