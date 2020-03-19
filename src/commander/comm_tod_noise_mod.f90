@@ -317,15 +317,18 @@ contains
           cycle
        end if
        j       = j+1
-       n_corr(:,i) = dt(1:ntod,j) 
-       ! if (i == 1) then
-       !    open(65,file='ncorr_times.dat')
-       !    do j = i, ntod
-       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), tod%scans(scan)%d(i)%tod(j), tod%scans(scan)%d(i)%gain
-       !    end do
-       !    close(65)
-       !    !stop
-       ! end if
+       n_corr(:,i) = dt(1:ntod,j)
+       if (sum(mask(:,i)) > 0 .and. sum(1-mask(:,i)) > 0 .and. i == 1) then
+!          write(*,*) tod%scanid(scan), sum(n_corr(:,i)*(1-mask(:,i)))/sum((1-mask(:,i)))-sum(n_corr(:,i)*mask(:,i))/sum(mask(:,i)), 'q4'
+       end if
+!!$        if (i == 1) then
+!!$           open(65,file='ncorr_times.dat', recl=1024)
+!!$           do j = 1, ntod
+!!$              write(65,*) j, n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), tod%scans(scan)%d(i)%tod(j), tod%scans(scan)%d(i)%gain
+!!$           end do
+!!$           close(65)
+!!$           stop
+!!$        end if
 
     end do
 !    !$OMP END DO                                                          

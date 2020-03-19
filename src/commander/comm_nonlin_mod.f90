@@ -258,10 +258,10 @@ contains
           else if (trim(c%operation) == 'sample' .and. c%lmax_ind >= 0) then
              ! Params
              nalm_tot = (c%lmax_ind+1)**2
-             steplen = 1d0 !c%p_gauss(2,j) ! Init learning rate for proposals
+             steplen = 0.3d0 !c%p_gauss(2,j) ! Init learning rate for proposals
              fwhm_prior = 1200.d0
              sigma_prior = 0.01d0
-             out_every = 10
+             out_every = 30
              nsamp = 2000 ! Maxsamp
              num_accepted = 0
              doexit = .false.
@@ -479,15 +479,15 @@ contains
                 end if
 
                 ! Adjust learning rate every 100th
-                if (mod(i, 10) == 0 .and. info%myid == 0) then 
+                if (mod(i, 30) == 0 .and. info%myid == 0) then 
                    ! Accept rate
-                   accept_rate = num_accepted/10.d0
+                   accept_rate = num_accepted/30.d0
                    num_accepted = 0
                    
-                   diff = chisq(i-10)-chisq(i)
+                   diff = chisq(i-30)-chisq(i)
 
                    ! Write to screen
-                   write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 10: ", diff, " - accept rate: ", accept_rate
+                   write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 30: ", diff, " - accept rate: ", accept_rate
                    
                    ! Adjust steplen
                    if (accept_rate < 0.2.and. iter == 1) then                 
@@ -500,7 +500,7 @@ contains
 
                    ! Burnin
                    if (iter == 1 .and. diff < 20.d0 .and. i > 1000) doexit = .true.
-                   if (iter  >= 1 .and. i==100) doexit = .true.
+                   if (iter  >= 1 .and. i>=100) doexit = .true.
                       !! Check corrlen seudocode
                       !x = alms(i-100:i-50,:,:)
                       !y = alms(i-50:i,:,:)
