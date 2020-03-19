@@ -107,9 +107,7 @@ contains
 
   real(dp) function std_nan(x)
     implicit none
-
     real(sp), intent(in), dimension(:)   :: x
-    real(dp)                             :: mean
     integer(i4b)                         :: n 
 
     real(dp)                             :: st_dev
@@ -142,9 +140,41 @@ contains
   end function std_nan
 
 
+  real(dp) function std_flagged(x,flag)
+    implicit none
+    real(sp),     dimension(:), intent(in)   :: x
+    integer(i4b), dimension(:), intent(in)   :: flag
+
+    integer(i4b)                         :: n 
+    integer(i4b)                         :: counter, i
+    real(sp), allocatable, dimension(:)  :: x_not_flagged
+
+    n = size(x)
+    if (sum(flag)==0) then
+      std_flagged = std(x)
+    else
+      counter = 0
+      do i=1, n
+         if (flag(i)==0) then
+            counter = counter + 1
+         end if
+      end do
+      allocate(x_not_flagged(counter))
+      counter = 1
+      do i=1, n
+         if (flag(i)==0) then
+            x_not_flagged(counter) = x(i)
+            counter = counter + 1
+         end if
+      end do
+      std_flagged = std(x_not_flagged)
+    end if
+
+  end function std_flagged
+
+
   real(dp) function mean_nan(x)
    implicit none
-
    real(sp), dimension(:), intent(in)    :: x
 
    integer(i4b)                          :: n, i, counter, counter2
@@ -177,14 +207,46 @@ contains
   end function mean_nan
 
 
+  real(dp) function mean_flagged(x,flag)
+   implicit none
+   real(sp),     dimension(:), intent(in)    :: x
+   integer(i4b), dimension(:), intent(in)    :: flag
+
+   integer(i4b)                          :: n, i, counter, counter2
+   real(sp), allocatable, dimension(:)   :: x_not_flagged
+
+   n = size(x)
+   if (sum(flag)==0) then
+    mean_flagged = sum(x)/n
+   else
+    counter = 0
+    do i=1, n
+      if (flag(i)==0) then
+          counter = counter + 1
+      end if
+    end do
+    allocate(x_not_flagged(counter))
+    counter2 = 1
+    do i=1, n
+      if (flag(i)==0) then
+          x_not_flagged(counter2) = x(i)
+          counter2 = counter2 + 1
+      end if
+    end do
+    mean_flagged = sum(x_not_flagged)/counter
+   end if
+
+  end function mean_flagged
+
+
   subroutine gap_fill_linear(tod,flag,tod_gapfill,handle,noise)
     implicit none
-    real(dp),     dimension(:), intent(in)     :: tod
+    real(sp),     dimension(:), intent(in)     :: tod
     integer(i4b), dimension(:), intent(in)     :: flag
     real(sp),     dimension(:), intent(inout)  :: tod_gapfill
+    type(planck_rng),           intent(inout)  :: handle
     logical,                    intent(in)     :: noise
-    type(planck_rng),            intent(inout) :: handle
- 
+
     character(len=50)                          :: filename
     integer(i4b)                               :: tod_len, i, j, counter, marker, N
     logical                                    :: switch
@@ -195,17 +257,14 @@ contains
  
     N = 100
     write(*,*) "Routine: Gap fill"
-    filename = 'gapfill/gapfill_avg.txt'
  
     tod_gapfill = tod
-    where (flag==1) tod_gapfill = nan   
- 
     tod_len = size(tod)
     marker = 0
  
     do i=1, tod_len
        if (i<=marker) cycle
-       if (isnan(tod_gapfill(i))) then
+       if (flag(i)==1) then
           counter = 0
           switch = .true.
           do while (switch .and. ((i+counter)<=tod_len))
@@ -214,19 +273,19 @@ contains
                 tod_gapfill(i:counter) = 0
              end if
               
-             if (.not. isnan(tod_gapfill(i+counter))) then
+             if (flag(i+counter)==0) then
                 if (i==1) then
                    tod_gapfill(i:counter) = 0
                 else
  
-                   mean_low  = mean_nan(tod_gapfill(i-1-N:i-1))
-                   mean_high = mean_nan(tod_gapfill(i+counter:i+counter+N))
+                   mean_low  = mean_flagged(tod_gapfill(i-1-N:i-1),flag(i-1-N:i-1))
+                   mean_high = mean_flagged(tod_gapfill(i+counter:i+counter+N),flag(i+counter:i+counter+N))
                    
                    if (noise) then
-                      std1 = std_nan(tod_gapfill(i-1-N:i-1))
-                      std2 = std_nan(tod_gapfill(i+counter:i+counter+N))
+                      std1 = std_flagged(tod_gapfill(i-1-N:i-1),flag(i-1-N:i-1))
+                      std2 = std_flagged(tod_gapfill(i+counter:i+counter+N),flag(i+counter:i+counter+N))
                       std_mean = (std1+std2)/2.0
-                      if (isnan(std_mean)) std_mean = 0
+                      if (isnan(std_mean)) std_mean = 0 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                    end if
                    
                    do j=1, counter
@@ -249,7 +308,7 @@ contains
 
   subroutine jump_scan(tod,flag,jumps,offset_range,offset_level,handle)
     implicit none
-    real(dp),     dimension(:),   intent(in)    :: tod
+    real(sp),     dimension(:),   intent(in)    :: tod
     integer(i4b), dimension(:),   intent(inout) :: flag
     integer(i4b), dimension(:),   intent(inout) :: jumps
     integer(i4b), allocatable,    dimension(:,:), intent(inout) :: offset_range
@@ -396,6 +455,8 @@ contains
     end do
  
   end subroutine expand_offset_list
+
+
 
 
 
