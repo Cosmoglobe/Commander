@@ -1139,5 +1139,6 @@ contains
      end do
 
   end subroutine moving_variance
+
   
 end module comm_utils
