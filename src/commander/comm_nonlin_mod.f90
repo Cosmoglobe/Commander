@@ -84,7 +84,7 @@ contains
     call sample_specind_alm(cpar, iter, handle)
 
     ! Sample spectral indices with local sampler (per-pixel, ptsrc, templates)
-    !call sample_specind_local(cpar, iter, handle)
+    call sample_specind_local(cpar, iter, handle)
 
     ! Sample calibration factors
     do i = 1, numband
@@ -150,7 +150,7 @@ contains
           
           do j = 1, c%npar
              
-             if (c%p_gauss(2,j) == 0.d0 .or. c%lmax_ind >= 0) cycle
+             if (c%p_gauss(2,j) == 0.d0 .or. c%lmax_ind < 0) cycle
              
              ! Set up smoothed data
              if (cpar%myid_chain == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
