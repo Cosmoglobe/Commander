@@ -1647,6 +1647,7 @@ contains
                          ! Compute likelihood by summing over pixels
                          do q = 1, self%src(k)%T(l)%np
                             pix = self%src(k)%T(l)%pix(q,1)
+                            if (data(l)%N%rms_pix(pix,p) == 0.d0) cycle
                             lnL(i) = lnL(i) - 0.5d0 * (data(l)%res%map(pix,p)-&
                                  & self%src(k)%T(l)%map(q,p)*(a-a_curr(l)))**2 / &
                                  & data(l)%N%rms_pix(pix,p)**2
@@ -1762,6 +1763,7 @@ contains
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
+                   if (data(l)%N%rms_pix(pix,p) == 0.d0) cycle
                    w   = s*self%src(k)%T(l)%map(q,p) / data(l)%N%rms_pix(pix,p)**2 
                    a   = a + w * s*self%src(k)%T(l)%map(q,p)
                    b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * s*self%src(k)%T(l)%map(q,p))
@@ -1814,6 +1816,7 @@ contains
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
+                   if (data(l)%N%rms_pix(pix,p) == 0.d0) cycle
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(k)%T(l)%map(q,p) * (amp(k,p)-a_old)
                    if (data(l)%bp(0)%p%nu_c >= self%nu_min_ind(1) .and. data(l)%bp(0)%p%nu_c <= self%nu_max_ind(1)) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
@@ -1918,6 +1921,7 @@ contains
        ! Compute likelihood by summing over pixels
        do q = 1, c_lnL%src(k_lnL)%T(l)%np
           pix = c_lnL%src(k_lnL)%T(l)%pix(q,1)
+          if (data(l)%N%rms_pix(pix,p_lnL) == 0.d0) cycle
           lnL = lnL - 0.5d0 * (data(l)%res%map(pix,p_lnL)-c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a)**2 / &
                & data(l)%N%rms_pix(pix,p_lnL)**2
        end do

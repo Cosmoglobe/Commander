@@ -84,7 +84,7 @@ contains
     call sample_specind_alm(cpar, iter, handle)
 
     ! Sample spectral indices with local sampler (per-pixel, ptsrc, templates)
-    call sample_specind_local(cpar, iter, handle)
+    !call sample_specind_local(cpar, iter, handle)
 
     ! Sample calibration factors
     do i = 1, numband
