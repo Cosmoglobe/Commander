@@ -21,7 +21,7 @@ contains
     real(dp), dimension(3)   :: vnorm
     real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
 
-    !T_0 = T_CMB*k_b/h                           ! T_0 = T_CMB frequency
+    T_0 = T_CMB*k_b/h                           ! T_0 = T_CMB frequency
     b = sqrt(sum(tod%scans(ind)%v_sun**2))/c   ! beta for the given scan
 
     !these are the npipe paper definitions
@@ -30,7 +30,11 @@ contains
     x = h * tod%central_freq/(k_B * T_CMB)
     q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
 
-    !if (trim(tod%label(1)) == '27M') open(58,file='orb_27M.dat')
+!!$    if (trim(tod%label(1)) == '27M') then 
+!!$      open(58,file='orb_27M.dat')
+!!$      if (tod%scans(ind)%chunk_num == 27) write(58,*) " SCET    THETA    PHI    PSI    TOD    ORB_DP    ORB_FSL"
+!!$      open(59,file='orb_27M_debug.dat')
+!!$    end if
     do i = 1,tod%ndet 
        if (.not. tod%scans(ind)%d(i)%accept) cycle
        do j=1,tod%scans(ind)%ntod !length of the tod
@@ -40,7 +44,7 @@ contains
           !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
           s_orb(j,i) = T_CMB * (b_dot + q*(b_dot**2 - b**2/3.)) ! net zero monopole
 
-          !TODO: add sl contribution to orbital dipole here
+!!$          !TODO: add sl contribution to orbital dipole here
 !!$          call pix2ang_ring(tod%info%nside, pix(j,i), theta, phi)
 !!$          !rotate v_sun into frame where pointing is along z axis
 !!$          !write(*,*) -phi, -theta, -tod%psi(psi(j,i)), psi(j,i)
@@ -52,21 +56,28 @@ contains
 !!$          !call compute_euler_matrix_zyz(-phi, -theta, -psi_d, rot_mat)
 !!$          call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
 !!$          vnorm = matmul(rot_mat, tod%scans(ind)%v_sun)
-!!$          vnorm = vnorm / sum(vnorm**2)
-!!$          summation = vnorm(1)*tod%orb_dp_s(i,1)+vnorm(2)*tod%orb_dp_s(i,2)+& 
-!!$            & vnorm(3)*tod%orb_dp_s(i,3)+vnorm(1)*vnorm(1)*tod%orb_dp_s(i,4)+&
-!!$            & vnorm(1)*vnorm(2)*tod%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
-!!$            & tod%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*tod%orb_dp_s(i,7) + &
-!!$            & vnorm(2)*vnorm(2)*tod%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
-!!$            & tod%orb_dp_s(i,9) 
-!!$          !if (trim(tod%label(i)) == '27M') write(*,*) j, T_CMB *summation, vnorm(1), vnorm(2), vnorm(3), tod%orb_dp_s(i,1), tod%scans(ind)%v_sun
-!!$          s_orb(j,i) = s_orb(j,i) + T_CMB *summation
+!!$          vnorm = vnorm / c
+!!$          summation =      vnorm(1)          * tod%orb_dp_s(i,1) + &
+!!$                    &      vnorm(2)          * tod%orb_dp_s(i,2) + & 
+!!$                    &      vnorm(3)          * tod%orb_dp_s(i,3) + &
+!!$                    & q * (vnorm(1)*vnorm(1) * tod%orb_dp_s(i,4) + &
+!!$                    &      vnorm(1)*vnorm(2) * tod%orb_dp_s(i,5) + &
+!!$                    &      vnorm(1)*vnorm(3) * tod%orb_dp_s(i,6) + &
+!!$                    &      vnorm(2)*vnorm(2) * tod%orb_dp_s(i,7) + &
+!!$                    &      vnorm(2)*vnorm(3) * tod%orb_dp_s(i,8) + &
+!!$                    &      vnorm(3)*vnorm(3) * tod%orb_dp_s(i,9))
+!!$          if (trim(tod%label(i)) == '27M' .and. tod%scans(ind)%chunk_num == 27) write(59,*) tod%scans(ind)%t0(3)/1000000.d0 + real(j-1)/(real(tod%samprate)), theta, phi, psi_d, tod%scans(ind)%v_sun, vnorm, tod%scans(ind)%d(i)%tod(j), s_orb(j,i), T_CMB*summation
+!!$          if (trim(tod%label(i)) == '27M' .and. tod%scans(ind)%chunk_num == 27) write(58,"(ES25.18,  ES15.7,  ES15.7,  ES15.7,  ES15.7,  ES15.7,  ES15.7)") tod%scans(ind)%t0(2)/2**16 + real(j-1)/(real(tod%samprate)), theta, phi, psi_d, tod%scans(ind)%d(i)%tod(j)/tod%scans(ind)%d(i)%gain, s_orb(j,i), T_CMB*summation/tod%orb_dp_s(i, 10)
+!!$
+!!$          !s_orb(j,i) = s_orb(j,i) + T_CMB *summation
+!!$          s_orb(j,i) = T_CMB*summation/tod%orb_dp_s(i,10)
 
        end do
    end do
-   !if (trim(tod%label(1)) == '27M') close(58)
-
+!!$   if (trim(tod%label(1)) == '27M') then
+!!$    close(58)
+!!$    close(59)
+!!$   end if
   end subroutine compute_orbital_dipole
-
 
 end module comm_tod_orbdipole_mod

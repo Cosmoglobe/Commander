@@ -244,6 +244,9 @@ contains
                   temp_gain(k-currstart + 1) = 0.d0
                else if (g(k,j,2) > 0.d0) then
                   temp_gain(k-currstart + 1) = g(k, j, 1) / g(k, j, 2)
+                  if (trim(tod%operation) == 'sample') then
+                     temp_gain(k-currstart+1) = temp_gain(k-currstart+1) + rand_gauss(handle) / g(k, j, 2)
+                  end if
                else
                   temp_gain(k-currstart + 1) = 0.d0
                end if
@@ -270,13 +273,14 @@ contains
 !            write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
 !            write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
             do k = currstart, currend
-               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then
-                  g(k, j, 1) = smoothed_gain(k - currstart + 1) + &
-                     & rand_gauss(handle) / &
-                     & sqrt(summed_invsigsquared(k - currstart + 1))
-               else
-                  g(k, j, 1) = smoothed_gain(k - currstart + 1)
-               end if
+               g(k, j, 1) = smoothed_gain(k - currstart + 1)
+!               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then
+!                  g(k, j, 1) = smoothed_gain(k - currstart + 1) + &
+!                     & rand_gauss(handle) / &
+!                     & sqrt(summed_invsigsquared(k - currstart + 1))
+!               else
+!                  g(k, j, 1) = smoothed_gain(k - currstart + 1)
+!               end if
                if (summed_invsigsquared(k - currstart + 1) > 0) then
                   g(k, j, 2) = 1.d0 / sqrt(summed_invsigsquared(k - currstart + 1))
                else
@@ -616,6 +620,7 @@ contains
      real(dp),  allocatable,    dimension(:)        :: smoothed_data, smoothed_vars
      real(dp)                                       :: target_percentile
      real(dp)                                       :: quantile_quantum
+     real(dp)                                       :: prev_jump_var
      real(sp)                                       :: jump_percentile
      integer(i4b)                                   :: i, j, k, percentile_index
      integer(i4b)                                   :: slow_smooth_window_size
@@ -671,13 +676,16 @@ contains
          pid_ranges(i, :) = 0
          pid_ranges(i, 1) = 1
          in_high_var_region = .false.
+         prev_jump_var = 1d30
          do while (j <= nscan)
             if (smoothed_vars(j) > target_percentile .and. .not. in_high_var_region) then
                !write(*, *) 'In high var'
                in_high_var_region = .true.
                start_idx = j
                !write(*, *) 'start_idx: ', start_idx
-            else if (in_high_var_region .and. smoothed_vars(j) <= target_percentile .and. smoothed_vars(j) /= 0) then
+            else if (in_high_var_region .and. & 
+               & smoothed_vars(j) <= target_percentile .and. & 
+               & smoothed_vars(j) /= 0) then
                !write(*, *) 'End high var'
                in_high_var_region = .false.
                end_idx = j
@@ -691,11 +699,18 @@ contains
                   !write(*, *) 'Cycle 1'
                   cycle
                else if (pos - pid_ranges(i, range_idx) < window_sizes(i, pos)) then
+                  ! If this proposed jump has a greater variance, choose it
+                  ! instead of the previous one
+                  if (prev_jump_var < smoothed_vars(pos)) then
+                     pid_ranges(i, range_idx) = pos
+                     prev_jump_var = smoothed_vars(pos)
+                  end if
                   j = j + 1
                   !write(*, *) 'Cycle 2'
                   cycle
                end if
                !write(*, *) 'Not cycling'
+               prev_jump_var = smoothed_vars(pos)
                range_idx = range_idx + 1
                pid_ranges(i, range_idx) = pos
             end if
