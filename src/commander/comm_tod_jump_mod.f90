@@ -226,17 +226,55 @@ contains
       end if
     end do
     allocate(x_not_flagged(counter))
-    counter2 = 1
+    counter2 = 0
     do i=1, n
       if (flag(i)==0) then
-          x_not_flagged(counter2) = x(i)
           counter2 = counter2 + 1
+          x_not_flagged(counter2) = x(i)
       end if
     end do
     mean_flagged = sum(x_not_flagged)/counter
    end if
 
   end function mean_flagged
+
+
+  real(dp) function median_flagged(x,flag)
+   implicit none
+   real(dp),     dimension(:), intent(in)    :: x
+   integer(i4b), dimension(:), intent(in)    :: flag
+
+   real(dp), allocatable, dimension(:)   :: tmp
+   integer(i4b)                          :: n, i, counter, counter2
+   real(dp), allocatable, dimension(:)   :: x_not_flagged
+
+   n = size(x)
+   if (sum(flag)==0) then
+    allocate(tmp(n))
+    tmp = x
+    call QuickSort_real(tmp)
+    median_flagged = tmp(n/2+1)
+    deallocate(tmp)
+   else
+    counter = 0
+    do i=1, n
+      if (flag(i)==0) then
+          counter = counter + 1
+      end if
+    end do
+    allocate(x_not_flagged(counter))
+    counter2 = 0
+    do i=1, n
+      if (flag(i)==0) then
+          counter2 = counter2 + 1
+          x_not_flagged(counter2) = x(i)
+      end if
+    end do
+    call QuickSort_real(x_not_flagged)
+    median_flagged = x_not_flagged(counter2/2+1)
+   end if
+
+  end function median_flagged
 
 
   subroutine gap_fill_linear(tod,flag,tod_gapfill,handle,noise)
@@ -316,7 +354,7 @@ contains
     type(planck_rng),             intent(inout) :: handle
  
     real(sp), allocatable, dimension(:)        :: tod_gapfill
-    real(dp), allocatable, dimension(:)        :: rolling_std, rolling_std_flagged
+    real(dp), allocatable, dimension(:)        :: rolling_std
     integer(i4b)                               :: tod_len, N, i, threshold, num_offsets, counter, low, high, N_delta
     real(dp)                                   :: std_old, mean_old, mean_new, x_new, x_old, st_dev, std_test, med, delta, delta_l, delta_r
     character(len=100)                         :: filename
@@ -335,8 +373,7 @@ contains
  
     ! Compute rolling standard deviation
     allocate(rolling_std(tod_len))
-    allocate(rolling_std_flagged(tod_len))
-    rolling_std = nan
+    rolling_std = 0
     
     do i=N+1, tod_len-N
        if ((i==N+1) .or. (modulo(i,100)==0)) then
@@ -355,9 +392,7 @@ contains
     end do
  
     ! Compute median
-    rolling_std_flagged = rolling_std
-    where (flag==1) rolling_std_flagged = nan
-    med = median(rolling_std_flagged)
+    med = median_flagged(rolling_std,flag)
     
     ! Do the flagging
     where (rolling_std > (threshold*med)) jumps = 1
@@ -375,8 +410,6 @@ contains
     end do
     if (jumps(tod_len)==0) num_offsets = num_offsets + 1
     
- 
- 
     allocate(offset_range(num_offsets,2))
     allocate(offset_level(num_offsets))
  
