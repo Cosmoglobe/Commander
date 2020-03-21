@@ -541,6 +541,8 @@ contains
           select type (c)
           class is (comm_line_comp)
              if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
+          class is (comm_ptsrc_comp)
+             if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label)
           class is (comm_diffuse_comp)
              if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
              call update_status(status, "nonlin start " // trim(c%label)// ' ' // trim(c%indlabel(j)))

@@ -487,6 +487,10 @@ contains
                   & par_string=cpar%ds_tod_initHDF(i))
           end if
        end if
+       if (trim(cpar%ds_tod_type(i)) /= 'none') then
+          call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
+               & par_string=cpar%ds_tod_dets(i))
+       end if
        if (cpar%enable_TOD_analysis) then
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              !all other tod things
@@ -508,8 +512,6 @@ contains
                   & par_lgt=cpar%ds_tod_orb_abscal(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_instfile(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
-                  & par_string=cpar%ds_tod_dets(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_bp_init(i))
           end if
