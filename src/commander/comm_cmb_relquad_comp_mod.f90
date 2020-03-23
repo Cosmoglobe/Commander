@@ -291,14 +291,18 @@ contains
           cycle
        end if
        do j = 0, data(i)%ndet
-          self%F_int(i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, 1)
+          if (.not. associated(self%F_int(i,j)%p)) then
+             self%F_int(i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, 1)
+          else
+             call self%F_int(i,j)%p%update()
+          end if
           self%q(i,j)       = self%F_int(i,j)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
-          if (self%info%myid == 0) write(*,fmt='(a,i4,f8.3,f8.3)') 'relquad q = ', i, data(i)%bp(0)%p%nu_c/1d9, self%q(i,j)
+          !if (self%info%myid == 0) write(*,fmt='(a,i4,f8.3,f8.3)') 'relquad q = ', i, data(i)%bp(0)%p%nu_c/1d9, self%q(i,j)
        end do
     end do
     
-    call mpi_finalize(i)
-    stop
+!!$    call mpi_finalize(i)
+!!$    stop
 
   end subroutine updateIntF
 
