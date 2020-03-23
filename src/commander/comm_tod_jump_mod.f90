@@ -459,14 +459,13 @@ contains
   end subroutine jump_scan
 
 
-  subroutine expand_offset_list(offset_range,offset_level,s_jump,scan,det)
+  subroutine expand_offset_list(offset_range,offset_level,s_jump)
     implicit none
     integer(i4b), dimension(:,:), intent(in)     :: offset_range
     real(sp),     dimension(:),   intent(in)     :: offset_level
     real(sp),     dimension(:),   intent(inout)  :: s_jump
-    integer(i4b),                 intent(in)     :: scan, det
  
-    integer(i4b)                                 :: n_offsets, i, i_scan, i_det, i_low, i_high
+    integer(i4b)                                 :: n_offsets, i, i_low, i_high
  
     write(*,*) "Routine: Expand Offset List"
  
@@ -475,16 +474,10 @@ contains
     s_jump = 0
  
     do i=1, n_offsets
-       i_scan = offset_range(i,1)
-       i_det  = offset_range(i,2)
- 
-       if ((i_scan==scan) .and. (i_det==det)) then
-          i_low  = offset_range(i,3)
-          i_high = offset_range(i,4)
- 
-          s_jump(i_low:i_high) = offset_level(i)      
-       end if
- 
+       i_low  = offset_range(i,1)
+       i_high = offset_range(i,2)
+
+       s_jump(i_low:i_high) = offset_level(i)      
     end do
  
   end subroutine expand_offset_list
