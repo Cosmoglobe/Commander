@@ -1087,6 +1087,23 @@ contains
                curr_mean = sum(input_data(range_start:range_end) * &
                   & weights(range_start:range_end)) / &
                   & sum(weights(range_start:range_end))
+
+!!$               if (i == 3652) then
+!!$                  do j = range_start, range_end
+!!$                     write(*,*) j, padded_weights(j), padded_data(j)
+!!$                  end do
+!!$               end if
+!!$               write(*,*) 'y', i, range_start, range_end
+!!$               write(*,*) 'x', i, lbound(padded_weights),ubound(padded_weights)
+!!$               write(*,*) 'r', i, padded_data(range_start:range_end)
+!!$               !write(*,*) 's', i, input_data
+!!$               if (size(input_data)==3) write(*,*) 'a', i, sum(padded_weights(range_start:range_end))
+!!$               if (size(input_data)==3) write(*,*) 'b', i, sum(padded_data(range_start:range_end))
+!!$               write(*,*) 'c', i, sum(padded_data(range_start:range_end) * &
+!!$                  & padded_weights(range_start:range_end))
+!!$               curr_mean = sum(padded_data(range_start:range_end) * &
+!!$                  & padded_weights(range_start:range_end)) / &
+!!$                  & sum(padded_weights(range_start:range_end))
             end if
             if (present(output_summed_weights)) then
                output_summed_weights(i) = sum(weights(range_start:range_end))
@@ -1122,5 +1139,6 @@ contains
      end do
 
   end subroutine moving_variance
+
   
 end module comm_utils

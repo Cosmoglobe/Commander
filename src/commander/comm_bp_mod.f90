@@ -54,15 +54,17 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs, detlabel)
+  function constructor(cpar, id, id_abs, detlabel, subdets)
     implicit none
-    type(comm_params),           intent(in) :: cpar
-    integer(i4b),                intent(in) :: id, id_abs
-    character(len=*),            intent(in) :: detlabel
+    type(comm_params),                intent(in)           :: cpar
+    integer(i4b),                     intent(in)           :: id, id_abs
+    character(len=*),                 intent(in), optional :: detlabel, subdets
     class(comm_bp),     pointer             :: constructor
 
-    integer(i4b)       :: i
+    integer(i4b)       :: i, j, ndet
     character(len=512) :: dir, label
+    character(len=16)  :: dets(1000)
+    real(dp), allocatable, dimension(:) :: nu0, tau0
 
     label = cpar%ds_label(id_abs)
     
@@ -111,9 +113,23 @@ contains
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
     else
-       call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), detlabel, &
-            & constructor%threshold, &
-            & constructor%n, constructor%nu0, constructor%tau0)
+       if (present(detlabel)) then
+          call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), detlabel, &
+               & constructor%threshold, &
+               & constructor%n, constructor%nu0, constructor%tau0)
+       else 
+          call get_tokens(subdets, ",", dets, ndet)
+          call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
+               & constructor%threshold, &
+               & constructor%n, constructor%nu0, constructor%tau0)
+          do i = 2, ndet
+             call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(i), &
+                  & constructor%threshold, constructor%n, nu0, tau0)
+             constructor%tau0 = constructor%tau0 + tau0
+             deallocate(nu0, tau0)
+          end do
+          constructor%tau0 = constructor%tau0 / ndet
+       end if
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     end if
 

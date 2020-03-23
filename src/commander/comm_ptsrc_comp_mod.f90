@@ -739,7 +739,8 @@ contains
     type(hdf_file)    :: file
     integer(i4b), allocatable, dimension(:)   :: ind, ind_in, nsamp
     integer(i4b), allocatable, dimension(:,:) :: mypix
-    real(dp),     allocatable, dimension(:,:) :: b, b_in, mybeam
+    real(dp),     allocatable, dimension(:)   :: b_in
+    real(dp),     allocatable, dimension(:,:) :: b, mybeam
     real(dp),     allocatable, dimension(:)   :: buffer
 
     if (myid_pre == 0) then
@@ -754,7 +755,8 @@ contains
        m = ext(1)
 
        ! Read full beam from file
-       allocate(ind_in(m), b_in(m,T%nmaps))
+       !allocate(ind_in(m), b_in(m,T%nmaps))
+       allocate(ind_in(m), b_in(m))
        call read_hdf(file, trim(adjustl(itext))//'/indices', ind_in)
        call read_hdf(file, trim(adjustl(itext))//'/values',  b_in)
        call close_hdf_file(file)
@@ -762,8 +764,8 @@ contains
        if (T%nside == T%nside_febecop) then
           n = m
           allocate(ind(n), b(n,T%nmaps))
-          ind = ind_in
-          b   = b_in
+          ind    = ind_in
+          b(:,1) = b_in
        else if (T%nside > T%nside_febecop) then
           q = (T%nside/T%nside_febecop)**2
           n = q*m
@@ -773,7 +775,8 @@ contains
              call ring2nest(T%nside_febecop, ind_in(i), j)
              do p = q*j, q*j-1
                 call nest2ring(T%nside, p, ind(k))
-                b(k,:) = b_in(i,:)
+                !b(k,:) = b_in(i,:)
+                b(k,1) = b_in(i)
                 k      = k+1
              end do
              write(*,*) 'Needs sorting'
@@ -791,7 +794,8 @@ contains
              call nest2ring(T%nside, j, p)
              do k = 1, n
                 if (ind(k) == p) then
-                   b(k,:)   = b(k,:)   + b_in(i,:)
+                   !b(k,:)   = b(k,:)   + b_in(i,:)
+                   b(k,1)   = b(k,1)   + b_in(i)
                    nsamp(k) = nsamp(k) + 1
                    exit
                 end if
@@ -804,7 +808,8 @@ contains
                 b(k+1:n+1,:)   = b(k:n,:)
                 nsamp(k+1:n+1) = nsamp(k:n)
                 ind(k)         = p
-                b(k,:)         = b_in(i,:)
+                !b(k,:)         = b_in(i,:)
+                b(k,1)         = b_in(i)
                 nsamp(k)       = 1
                 n              = n + 1
              end if
@@ -936,7 +941,8 @@ contains
 
              ! Write to HDF file
              call write_hdf(file, trim(adjustl(itext))//'/indices', ind)
-             call write_hdf(file, trim(adjustl(itext))//'/values',  beam)
+             call write_hdf(file, trim(adjustl(itext))//'/values',  beam(:,1))
+             !call write_hdf(file, trim(adjustl(itext))//'/values',  beam)
              deallocate(ind, beam)
           else
              m = self%src(k)%T(i)%np
@@ -1647,6 +1653,7 @@ contains
                          ! Compute likelihood by summing over pixels
                          do q = 1, self%src(k)%T(l)%np
                             pix = self%src(k)%T(l)%pix(q,1)
+                            if (data(l)%N%rms_pix(pix,p) == 0.d0) cycle
                             lnL(i) = lnL(i) - 0.5d0 * (data(l)%res%map(pix,p)-&
                                  & self%src(k)%T(l)%map(q,p)*(a-a_curr(l)))**2 / &
                                  & data(l)%N%rms_pix(pix,p)**2
@@ -1762,6 +1769,7 @@ contains
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
+                   if (data(l)%N%rms_pix(pix,p) == 0.d0) cycle
                    w   = s*self%src(k)%T(l)%map(q,p) / data(l)%N%rms_pix(pix,p)**2 
                    a   = a + w * s*self%src(k)%T(l)%map(q,p)
                    b   = b + w * (data(l)%res%map(pix,p) + amp(k,p) * s*self%src(k)%T(l)%map(q,p))
@@ -1814,6 +1822,7 @@ contains
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
+                   if (data(l)%N%rms_pix(pix,p) == 0.d0) cycle
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(k)%T(l)%map(q,p) * (amp(k,p)-a_old)
                    if (data(l)%bp(0)%p%nu_c >= self%nu_min_ind(1) .and. data(l)%bp(0)%p%nu_c <= self%nu_max_ind(1)) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
@@ -1918,6 +1927,7 @@ contains
        ! Compute likelihood by summing over pixels
        do q = 1, c_lnL%src(k_lnL)%T(l)%np
           pix = c_lnL%src(k_lnL)%T(l)%pix(q,1)
+          if (data(l)%N%rms_pix(pix,p_lnL) == 0.d0) cycle
           lnL = lnL - 0.5d0 * (data(l)%res%map(pix,p_lnL)-c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a)**2 / &
                & data(l)%N%rms_pix(pix,p_lnL)**2
        end do
