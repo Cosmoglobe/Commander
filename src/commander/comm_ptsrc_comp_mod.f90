@@ -739,7 +739,8 @@ contains
     type(hdf_file)    :: file
     integer(i4b), allocatable, dimension(:)   :: ind, ind_in, nsamp
     integer(i4b), allocatable, dimension(:,:) :: mypix
-    real(dp),     allocatable, dimension(:,:) :: b, b_in, mybeam
+    real(dp),     allocatable, dimension(:)   :: b_in
+    real(dp),     allocatable, dimension(:,:) :: b, mybeam
     real(dp),     allocatable, dimension(:)   :: buffer
 
     if (myid_pre == 0) then
@@ -754,7 +755,8 @@ contains
        m = ext(1)
 
        ! Read full beam from file
-       allocate(ind_in(m), b_in(m,T%nmaps))
+       !allocate(ind_in(m), b_in(m,T%nmaps))
+       allocate(ind_in(m), b_in(m))
        call read_hdf(file, trim(adjustl(itext))//'/indices', ind_in)
        call read_hdf(file, trim(adjustl(itext))//'/values',  b_in)
        call close_hdf_file(file)
@@ -762,8 +764,8 @@ contains
        if (T%nside == T%nside_febecop) then
           n = m
           allocate(ind(n), b(n,T%nmaps))
-          ind = ind_in
-          b   = b_in
+          ind    = ind_in
+          b(:,1) = b_in
        else if (T%nside > T%nside_febecop) then
           q = (T%nside/T%nside_febecop)**2
           n = q*m
@@ -773,7 +775,8 @@ contains
              call ring2nest(T%nside_febecop, ind_in(i), j)
              do p = q*j, q*j-1
                 call nest2ring(T%nside, p, ind(k))
-                b(k,:) = b_in(i,:)
+                !b(k,:) = b_in(i,:)
+                b(k,1) = b_in(i)
                 k      = k+1
              end do
              write(*,*) 'Needs sorting'
@@ -791,7 +794,8 @@ contains
              call nest2ring(T%nside, j, p)
              do k = 1, n
                 if (ind(k) == p) then
-                   b(k,:)   = b(k,:)   + b_in(i,:)
+                   !b(k,:)   = b(k,:)   + b_in(i,:)
+                   b(k,1)   = b(k,1)   + b_in(i)
                    nsamp(k) = nsamp(k) + 1
                    exit
                 end if
@@ -804,7 +808,8 @@ contains
                 b(k+1:n+1,:)   = b(k:n,:)
                 nsamp(k+1:n+1) = nsamp(k:n)
                 ind(k)         = p
-                b(k,:)         = b_in(i,:)
+                !b(k,:)         = b_in(i,:)
+                b(k,1)         = b_in(i)
                 nsamp(k)       = 1
                 n              = n + 1
              end if
@@ -936,7 +941,8 @@ contains
 
              ! Write to HDF file
              call write_hdf(file, trim(adjustl(itext))//'/indices', ind)
-             call write_hdf(file, trim(adjustl(itext))//'/values',  beam)
+             call write_hdf(file, trim(adjustl(itext))//'/values',  beam(:,1))
+             !call write_hdf(file, trim(adjustl(itext))//'/values',  beam)
              deallocate(ind, beam)
           else
              m = self%src(k)%T(i)%np

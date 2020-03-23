@@ -480,8 +480,8 @@ contains
             & par_string=cpar%ds_component_sensitivity(i))
 
        !read in all TOD parameters
+       call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
        if (cpar%enable_TOD_analysis .or. cpar%resamp_CMB) then
-          call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_initHDF(i))
@@ -491,6 +491,7 @@ contains
           call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
                & par_string=cpar%ds_tod_dets(i))
        end if
+
        if (cpar%enable_TOD_analysis) then
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              !all other tod things
@@ -586,6 +587,15 @@ contains
        else if (trim(cpar%cs_type(i)) == 'template') then
           call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &
                & par_string=cpar%cs_SED_template(1,i))
+       else if (trim(cpar%cs_type(i)) == 'cmb_relquad') then
+          call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &
+               & par_string=cpar%cs_SED_template(1,i))
+          call get_parameter_hashtable(htbl, 'COMP_DEFAULT_AMPLITUDE'//itext, len_itext=len_itext, &
+               & par_dp=cpar%cs_theta_def(1,i))
+          call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_MEAN'//itext, len_itext=len_itext, &
+               & par_dp=cpar%cs_p_gauss(i,1,1))
+          call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
+               & par_dp=cpar%cs_p_gauss(i,2,1))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%cs_polarization(i))
           if (cpar%cs_polarization(i)) &
@@ -1324,7 +1334,7 @@ contains
           call validate_file(trim(datadir)//trim(cpar%cs_catalog(i)))
           call validate_file(trim(datadir)//trim(cpar%cs_ptsrc_template(i)), &
                & should_exist=.not. cpar%cs_output_ptsrc_beam(i))
-       else if (trim(cpar%cs_class(i)) == 'template') then
+       else if (trim(cpar%cs_type(i)) == 'template' .or. trim(cpar%cs_type(i)) == 'cmb_relquad') then
           call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
        end if
        
