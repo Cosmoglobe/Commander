@@ -11,7 +11,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, initialize_tod_mod, fill_all_masked
+  public comm_tod, initialize_tod_mod, fill_all_masked, tod_pointer
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
@@ -104,7 +104,6 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
      real(sp),           allocatable, dimension(:,:)   :: ind2ang
-     real(dp),           allocatable, dimension(:, :) :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term 
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
@@ -137,6 +136,9 @@ module comm_tod_mod
      end subroutine process_tod
   end interface
 
+  type tod_pointer
+    class(comm_tod), pointer :: p => null()
+  end type tod_pointer
 
 contains
 
