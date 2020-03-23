@@ -37,9 +37,17 @@ module comm_cmb_relquad_comp_mod
 
 contains
 
-  !**************************************************
-  !             Routine definitions
-  !**************************************************
+  !****************************************************************************************
+  ! Purpose: Initializes and returns a comm_cmb_relquad_comp object
+  ! 
+  ! Inputs:
+  !     cpar   -- parameter file structure, defined in comm_param_mod
+  !     id     -- signal component counter, counting only active components
+  !     id_abs -- absolute signal component counter, with order matching the parameter file
+  ! 
+  ! Outputs:
+  !     constructor -- allocated comm_cmb_relquad_comp object
+  !****************************************************************************************
   function constructor(cpar, id, id_abs)
     implicit none
     class(comm_params),           intent(in) :: cpar
@@ -99,9 +107,19 @@ contains
 
   end function constructor
 
-  ! Definition:
-  !    SED  = relativistic quadrupole correction; see Notari and Quartin (2015)
-  !    Note: This must be provided in uK_RJ units
+  !****************************************************************************************
+  ! Purpose: Return SED of relativistic quadrupole correction; see Notari and Quartin (2015)
+  ! 
+  ! Inputs:
+  !     self     -- current object
+  !     nu       -- frequency in Hz
+  !     band     -- not used; included for interface consistency
+  !     pol      -- not used; included for interface consistency
+  !     theta    -- not used; included for interface consistency
+  ! 
+  ! Outputs:
+  !     evalSED  -- SED in uK_RJ, measured in absolute units
+  !****************************************************************************************
   function evalSED(self, nu, band, pol, theta)
     class(comm_cmb_relquad_comp), intent(in)           :: self
     real(dp),                     intent(in), optional :: nu
@@ -119,7 +137,23 @@ contains
 
   end function evalSED
 
-  ! Produce alms or pixels corresponding the component as seen by detector {band,det}
+
+  !****************************************************************************************
+  ! Purpose: Return component map as observed by a given detector, m_out = B*M*alm_in,
+  !          where B denotes beam convolution and M denotes the mixing matrix
+  ! 
+  ! Inputs:
+  !     self     -- current object
+  !     band     -- data set ID, counting only active sets
+  !     amp_in   -- input amplitude alms, with size (1:nalm, nmaps). If not present, use
+  !                 the parameters stored in self%T%alm
+  !     pix      -- not used here, included only for interface consistency
+  !     alm_out  -- output array contains alms instead of pixelized sky map
+  !     det      -- detector index; if not present, assume band-averaged output
+  ! 
+  ! Outputs:
+  !     evalRelquadBand -- map (or alms) of current component as seen by given detector
+  !****************************************************************************************
   function evalRelquadBand(self, band, amp_in, pix, alm_out, det)
     implicit none
     class(comm_cmb_relquad_comp),                 intent(in)            :: self
@@ -183,7 +217,23 @@ contains
     
   end function evalRelquadBand
   
-  ! Return component projected from map
+
+  !****************************************************************************************
+  ! Purpose: Return projected frequency map with respect to current component, 
+  !          alm_out = M^t*B^t*map_in, where B denotes beam convolution and M 
+  !          denotes the mixing matrix. This is the transpose of the above function
+  ! 
+  ! Inputs:
+  !     self     -- current object
+  !     band     -- data set ID, counting only active sets
+  !     map      -- input map, with size (1:npix, nmaps). If not present, use
+  !                 the parameters stored in self%T%alm
+  !     alm_in   -- if true, the 'map' variable actually contains alms
+  !     det      -- detector index; if not present, assume band-averaged output
+  ! 
+  ! Outputs:
+  !     projectRelquadBand -- alms = M^t*B^t*map_in
+  !****************************************************************************************
   function projectRelquadBand(self, band, map, alm_in, det)
     implicit none
     class(comm_cmb_relquad_comp),                 intent(in)            :: self
@@ -236,6 +286,19 @@ contains
   end function projectRelquadBand
 
 
+  !****************************************************************************************
+  ! Purpose: Update spatial relativistic quadrupole template; if input variables are present,
+  !          set object variables equal to input. If not, use internal variables
+  ! 
+  ! Inputs:
+  !     self     -- current object
+  !     v        -- solar dipole velocity in m/s; optional
+  !     lon      -- solar dipole longitude in degrees; optional
+  !     lat      -- solar dipole latitude in degrees; optional
+  ! 
+  ! Outputs:
+  !     Internal object variables, self%T%{map,v,lon,lat}
+  !****************************************************************************************
   subroutine update_template(self, v, lon, lat)
     implicit none
     class(comm_cmb_relquad_comp),    intent(inout)          :: self
@@ -262,13 +325,19 @@ contains
     ! Compute spherical harmonics up to lmax=2
     call self%T%YtW()
 
-!!$    call self%T%writeFITS('map.fits')
-!!$    call mpi_finalize(i)
-!!$    stop
-
   end subroutine update_template
 
-  ! Update band integration lookup tables
+  !****************************************************************************************
+  ! Purpose: Update band integration lookup table (self%F_int) and mixing matrix (self%q).
+  !          Done during initialization or when bandpasses are modified.
+  ! 
+  ! Inputs:
+  !     self     -- current object
+  !     band     -- frequency band index; optional
+  !
+  ! Outputs:
+  !     Internal object variables, self%{F_int,q}
+  !****************************************************************************************
   subroutine updateIntF(self, band)
     implicit none
     class(comm_cmb_relquad_comp),            intent(inout)        :: self
@@ -291,19 +360,29 @@ contains
           cycle
        end if
        do j = 0, data(i)%ndet
-          !if (associated(self%F_int(i,j)%p)) deallocate(self%F_int(i,j)%p)
           self%F_int(i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, 1)
           self%q(i,j)       = self%F_int(i,j)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
-          !if (self%info%myid == 0) write(*,fmt='(a,i4,f8.3,f8.3)') 'relquad q = ', i, data(i)%bp(0)%p%nu_c/1d9, self%q(i,j)
        end do
     end do
     
-!!$    call mpi_finalize(i)
-!!$    stop
-
   end subroutine updateIntF
 
 
+  !****************************************************************************************
+  ! Purpose: Read component definition file. 
+  ! 
+  ! File format: Each line contains {frequency label, .true./.false.}, e.g.,
+  !          030   .true.    # Quadrupole component is active
+  !          044   .true.    # Quadrupole component is active
+  !          Ka    .false.   # Quadrupole component is inactive, ie., assumed already subtracted
+  ! 
+  ! Inputs:
+  !     self     -- current object
+  !     filename -- input filename with path relative to workdir
+  !
+  ! Outputs:
+  !     Internal object variables, self%band_active
+  !****************************************************************************************
   subroutine read_definition_file(self, filename)
     implicit none
     class(comm_cmb_relquad_comp),  intent(inout)  :: self
