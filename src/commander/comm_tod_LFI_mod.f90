@@ -93,7 +93,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
-    constructor%first_call    = .false.  !.true.
+    constructor%first_call    = .false. !.true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
@@ -829,6 +829,7 @@ contains
           end if
 
           do j = 1, ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle
              dipole_mod(self%scanid(i), j) = dipole_modulation(self, s_sky(:, j), mask(:, j))
           end do
 
@@ -1041,6 +1042,7 @@ contains
     if (allocated(b_mono)) deallocate(b_mono)
     if (allocated(sys_mono)) deallocate(sys_mono)
     if (allocated(slist)) deallocate(slist)
+    if (allocated(dipole_mod)) deallocate(dipole_mod)
 
     if (allocated(outmaps)) then
        do i = 1, nout

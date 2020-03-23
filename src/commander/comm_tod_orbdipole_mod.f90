@@ -106,16 +106,16 @@ contains
     end if
 
     !npipe s factors for 27M
-    self%orb_dp_s(:,1) = 0.005130801850847007
-    self%orb_dp_s(:,2) = -0.000516559072591428
-    self%orb_dp_s(:,3) = 0.995234628256561
-    self%orb_dp_s(:,4) = 0.00483461658765793
-    self%orb_dp_s(:,5) = 2.d0* -0.00043088175007651217
-    self%orb_dp_s(:,6) = 2.d0*0.0007072028589201922
-    self%orb_dp_s(:,7) = 0.0005094291355884364
-    self%orb_dp_s(:,8) = 2.d0* -0.00010373401957447322
-    self%orb_dp_s(:,9) = 0.9946559542767537
-    self%orb_dp_s(:,10) = 0.9927374627686433
+!    self%orb_dp_s(:,1) = 0.005130801850847007
+!    self%orb_dp_s(:,2) = -0.000516559072591428
+!    self%orb_dp_s(:,3) = 0.995234628256561
+!    self%orb_dp_s(:,4) = 0.00483461658765793
+!    self%orb_dp_s(:,5) = 2.d0* -0.00043088175007651217
+!    self%orb_dp_s(:,6) = 2.d0*0.0007072028589201922
+!    self%orb_dp_s(:,7) = 0.0005094291355884364
+!    self%orb_dp_s(:,8) = 2.d0* -0.00010373401957447322
+!    self%orb_dp_s(:,9) = 0.9946559542767537
+!    self%orb_dp_s(:,10) = 0.9927374627686433
 
     !dpc s factors for 27M
 !    self%orb_dp_s(:,1) = 4.6679499857542042e-03
@@ -183,11 +183,11 @@ contains
     x = h * self%tod%central_freq/(k_B * T_CMB)
     q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
 
-    if (trim(self%tod%label(1)) == '27M') then 
-      open(58,file='orb_27M_npipe.dat')
-      if (self%tod%scans(ind)%chunk_num == 27) write(58,*) " SCET    THETA    PHI    PSI    TOD    ORB_DP    ORB_FSL"
-      open(59,file='orb_27M_debug.dat')
-    end if
+    !if (trim(self%tod%label(1)) == '27M') then 
+    !  open(58,file='orb_27M_npipe.dat')
+    !  if (self%tod%scans(ind)%chunk_num == 27) write(58,*) " SCET    THETA    PHI    PSI    TOD    ORB_DP    ORB_FSL"
+    !  open(59,file='orb_27M_debug.dat')
+    !end if
     do i = 1,self%tod%ndet 
        if (.not. self%tod%scans(ind)%d(i)%accept) cycle
        do j=1,self%tod%scans(ind)%ntod !length of the tod
@@ -210,18 +210,17 @@ contains
           &self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
           &vnorm(2)*vnorm(3)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
           &self%orb_dp_s(i,9))
-          if (trim(self%tod%label(i)) == '27M' .and. self%tod%scans(ind)%chunk_num == 27) write(59,*) self%tod%scans(ind)%t0(3)/1000000.d0 + real(j-1)/(real(self%tod%samprate)), theta, phi, psi_d, self%tod%scans(ind)%v_sun, vnorm, self%tod%scans(ind)%d(i)%tod(j), s_orb(j,i), T_CMB*summation
-          if (trim(self%tod%label(i)) == '27M' .and. self%tod%scans(ind)%chunk_num == 27) write(58,"(ES25.18,  ES15.7,  ES15.7,  ES15.7,  ES15.7,  ES15.7,  ES15.7)") self%tod%scans(ind)%t0(2)/2**16 + real(j-1)/(real(self%tod%samprate)), theta, phi, psi_d, self%tod%scans(ind)%d(i)%tod(j)/self%tod%scans(ind)%d(i)%gain, s_orb(j,i), T_CMB*summation/self%orb_dp_s(i, 10)
+          !if (trim(self%tod%label(i)) == '27M' .and. self%tod%scans(ind)%chunk_num == 27) write(59,*) self%tod%scans(ind)%t0(3)/1000000.d0 + real(j-1)/(real(self%tod%samprate)), theta, phi, psi_d, self%tod%scans(ind)%v_sun, vnorm, self%tod%scans(ind)%d(i)%tod(j), s_orb(j,i), T_CMB*summation
+          !if (trim(self%tod%label(i)) == '27M' .and. self%tod%scans(ind)%chunk_num == 27) write(58,"(ES25.18,  ES15.7,  ES15.7,  ES15.7,  ES15.7,  ES15.7,  ES15.7)") self%tod%scans(ind)%t0(2)/2**16 + real(j-1)/(real(self%tod%samprate)), theta, phi, psi_d, self%tod%scans(ind)%d(i)%tod(j)/self%tod%scans(ind)%d(i)%gain, s_orb(j,i), T_CMB*summation/self%orb_dp_s(i, 10)
 
           !s_orb(j,i) = s_orb(j,i) + T_CMB *summation
           s_orb(j,i) = T_CMB*summation/self%orb_dp_s(i,10)
 
        end do
    end do
-   if (trim(self%tod%label(1)) == '27M') then
-    close(58)
-    close(59)
-   end if
+   !if (trim(self%tod%label(1)) == '27M') then
+   ! close(58)
+   ! close(59)
+   !end if
   end subroutine compute_orbital_dipole_4pi
-
 end module comm_tod_orbdipole_mod
