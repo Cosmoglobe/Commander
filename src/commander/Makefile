@@ -30,7 +30,7 @@ comm_tod_mapmaking_mod.o:  comm_tod_mod.o
 comm_tod_bandpass_mod.o:   comm_tod_mod.o
 comm_tod_noise_mod.o:      comm_tod_mod.o
 comm_tod_gain_mod.o:       comm_tod_mod.o comm_tod_noise_mod.o
-comm_tod_orbdipole_mod.o:  comm_tod_mod.o
+comm_tod_orbdipole_mod.o:  comm_map_mod.o comm_tod_mod.o
 comm_tod_pointing_mod.o:   comm_tod_mod.o
 comm_utils.o :             comm_defs.o spline_1D_mod.o
 comm_shared_arr_mod.o :    comm_utils.o
