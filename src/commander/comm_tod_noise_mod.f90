@@ -197,13 +197,14 @@ contains
 
   ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(tod, handle, scan, mask, s_sub, n_corr)
+  subroutine sample_n_corr(tod, handle, scan, mask, s_sub, n_corr, tod_input)
     implicit none
-    class(comm_tod),               intent(in)     :: tod
-    type(planck_rng),                  intent(inout)  :: handle
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
-    real(sp),          dimension(:,:), intent(out)    :: n_corr
+    class(comm_tod),                   intent(in)           :: tod
+    type(planck_rng),                  intent(inout)        :: handle
+    integer(i4b),                      intent(in)           :: scan
+    real(sp),          dimension(:,:), intent(in)           :: mask, s_sub
+    real(sp),          dimension(:,:), intent(out)          :: n_corr
+    real(sp),          dimension(:,:), intent(in), optional :: tod_input
     integer(i4b) :: i, j, l, k, n, m, nlive, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
     integer*8    :: plan_fwd, plan_back
@@ -253,7 +254,11 @@ contains
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        j       = j+1
        gain    = tod%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime = tod%scans(scan)%d(i)%tod - S_sub(:,i) * gain
+       if (present(tod_input)) then
+           d_prime = tod_input(:,i) - S_sub(:,i) * gain
+       else
+           d_prime = tod%scans(scan)%d(i)%tod - S_sub(:,i) * gain
+       end if
        sigma_0 = tod%scans(scan)%d(i)%sigma0
 
        call wall_time(t1)       
