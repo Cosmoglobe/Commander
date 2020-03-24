@@ -46,6 +46,8 @@ module comm_tod_LFI_mod
 
 
   type, extends(comm_tod) :: comm_LFI_tod
+    class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
+
    contains
      procedure     :: process_tod        => process_LFI_tod
   end type comm_LFI_tod
@@ -74,6 +76,7 @@ contains
     integer(i4b), allocatable, dimension(:) :: pix
     real(dp), dimension(3) :: v
     character(len=10) :: fieldname
+    class(tod_pointer), pointer :: selfptr
 
     ! Set up LFI specific parameters
     allocate(constructor)
@@ -189,73 +192,16 @@ contains
     allocate(constructor%slbeam(constructor%ndet), constructor%slconv(constructor%ndet))
     allocate(constructor%mbeam(constructor%ndet))
 
-    allocate(constructor%orb_dp_s(constructor%ndet, 10))
     do i = 1, constructor%ndet
        constructor%slbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., "sl", &
             & trim(constructor%label(i)))
        constructor%mbeam(i)%p => comm_map(constructor%slinfo, h5_file, .true., "beam", trim(constructor%label(i)))
-       !Perform integrals for orbital dipole sidelobe correction term
        call constructor%mbeam(i)%p%Y()
-       constructor%orb_dp_s(i, :) = 0.d0
-       do j = 0, constructor%mbeam(i)%p%info%np-1
-         call pix2vec_ring(constructor%mbeam(i)%p%info%nside, constructor%mbeam(i)%p%info%pix(j+1),v)
-         pixVal = constructor%mbeam(i)%p%map(j, 1)
-         !if(pixVal < 0) then
-         !   pixVal = 0.d0
-         !end if
-         !x
-         constructor%orb_dp_s(i, 1) = constructor%orb_dp_s(i, 1) + pixVal * v(1)
-         !y 
-         constructor%orb_dp_s(i, 2) = constructor%orb_dp_s(i, 2) + pixVal * v(2)
-         !z 
-         constructor%orb_dp_s(i, 3) = constructor%orb_dp_s(i, 3) + pixVal * v(3)
-         !x^2 
-         constructor%orb_dp_s(i, 4) = constructor%orb_dp_s(i, 4) +        pixVal*v(1)*v(1)
-         !2xy 
-         constructor%orb_dp_s(i, 5) = constructor%orb_dp_s(i, 5) + 2.d0 * pixVal * v(1) * v(2)
-         !2xz 
-         constructor%orb_dp_s(i, 6) = constructor%orb_dp_s(i, 6) + 2.d0 * pixVal * v(1) * v(3)
-         !y^2 
-         constructor%orb_dp_s(i, 7) =constructor%orb_dp_s(i, 7)+          pixVal*v(2)*v(2)
-         !2yz 
-         constructor%orb_dp_s(i, 8) = constructor%orb_dp_s(i, 8) + 2.d0 * pixVal * v(2) * v(3)
-         !z^2 
-         constructor%orb_dp_s(i, 9) =constructor%orb_dp_s(i, 9) +         pixVal*v(3)*v(3)
-         !full beam integral for normalization
-         constructor%orb_dp_s(i, 10) = constructor%orb_dp_s(i,10) + pixVal
-         !if(constructor%myid == 38) then
-         !  write(*,*) v(1), v(2), v(3), pixVal, constructor%orb_dp_s(i, 6)
-         !end if
-       end do 
     end do
-  
-    !write(*,*) constructor%myid, constructor%orb_dp_s(1,:)
 
+    allocate(constructor%orb_dp)
  
-    call mpi_allreduce(MPI_IN_PLACE, constructor%orb_dp_s, size(constructor%orb_dp_s), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
-
-    do i = 1, constructor%ndet
-      constructor%orb_dp_s(i,:) = constructor%orb_dp_s(i,:)*4*pi/real(constructor%mbeam(i)%p%info%npix)
-    end do
-    
-    if (constructor%myid == 0) then
-      write(*,*) constructor%nside, constructor%mbeam(1)%p%info%nside, constructor%mbeam(1)%p%info%npix
-      do i = 1, 10
-        write(*,*) constructor%orb_dp_s(1, i)
-      end do
-    end if
- 
-    !npipe s factors for 27M
-    constructor%orb_dp_s(:,1) = 0.005130801850847007
-    constructor%orb_dp_s(:,2) = -0.000516559072591428
-    constructor%orb_dp_s(:,3) = 0.995234628256561
-    constructor%orb_dp_s(:,4) = 0.00483461658765793
-    constructor%orb_dp_s(:,5) = 2.d0* -0.00043088175007651217
-    constructor%orb_dp_s(:,6) = 2.d0*0.0007072028589201922
-    constructor%orb_dp_s(:,7) = 0.0005094291355884364
-    constructor%orb_dp_s(:,8) = 2.d0* -0.00010373401957447322
-    constructor%orb_dp_s(:,9) = 0.9946559542767537
-    constructor%orb_dp_s(:,10) = 0.9927374627686433 
+    constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam) 
 
     do i = 1, constructor%ndet
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
@@ -629,7 +575,7 @@ contains
           
           ! Construct orbital dipole template
           call wall_time(t1)
-          call compute_orbital_dipole(self, i, pix, psi, s_orb)
+          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
 
