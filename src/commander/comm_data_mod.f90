@@ -80,7 +80,7 @@ contains
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
-            & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
+            & write(*,fmt='(a,i5,a,a)') '    Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
 
        ! Initialize map structures

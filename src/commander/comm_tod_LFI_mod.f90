@@ -17,6 +17,7 @@ module comm_tod_LFI_mod
   use comm_tod_gain_mod
   use comm_tod_bandpass_mod
   use comm_tod_orbdipole_mod
+  use hdf5
   implicit none
 
   private
@@ -47,7 +48,9 @@ module comm_tod_LFI_mod
 
   type, extends(comm_tod) :: comm_LFI_tod
    contains
-     procedure     :: process_tod        => process_LFI_tod
+     procedure     :: process_tod   => process_LFI_tod
+     procedure     :: simulate_LFI_tod
+     !procedure     :: write_sims_to_hdf
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -109,10 +112,14 @@ contains
     end if
 
     datadir = trim(cpar%datadir)//'/' 
+    !write(*,*) "datadir", datadir
     constructor%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
     constructor%procmaskf1  = trim(datadir)//trim(cpar%ds_tod_procmask1(id_abs))
     constructor%procmaskf2  = trim(datadir)//trim(cpar%ds_tod_procmask2(id_abs))
     constructor%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
+
+    !write(*,*) cpar%ds_tod_filelist(id_abs)
+    !write(*,*) constructor%filelist
 
     call constructor%get_scan_ids(constructor%filelist)
 
@@ -285,7 +292,7 @@ contains
     call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, constructor%info%comm, ierr)
     call mpi_reduce(f_fill, f_fill_lim(3), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, constructor%info%comm, ierr)
     if (constructor%myid == 0) then
-       write(*,*) '  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/constructor%info%nprocs,sp), real(100*f_fill_lim(2),sp)
+       write(*,*) '   Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/constructor%info%nprocs,sp), real(100*f_fill_lim(2),sp)
     end if
 
   end function constructor
@@ -293,9 +300,10 @@ contains
   !**************************************************
   !             Driver routine
   !**************************************************
-  subroutine process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  subroutine process_LFI_tod(self, simsdir, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
     implicit none
     class(comm_LFI_tod),                      intent(inout) :: self
+    character(len=*),                         intent(in)    :: simsdir 
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -360,6 +368,8 @@ contains
     allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
     slist   = ''
+
+    !write(*,*) "simsdir ", simsdir
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -510,6 +520,13 @@ contains
 
        call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
 
+       ! Only if Commander run in simulation mode
+       if (.true.) then 
+           do i = 1, self%nscan
+               if (.not. any(self%scans(i)%d%accept)) cycle
+               call system("cp "//trim(self%hdfname(i))//" "//trim(simsdir))
+           end do
+       end if
        ! Perform main analysis loop
        do i = 1, self%nscan
 
@@ -636,6 +653,10 @@ contains
              if (do_oper(samp_mono)) s_tot(:,j) = s_tot(:,j) + s_mono(:,j)
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
+
+          ! SIMULATION ROUTINE
+          !if (self%output_sim) call self%simulate_LFI_tod(i, handle, s_tot)
+          if (.true.) call self%simulate_LFI_tod(i, handle, s_tot, simsdir)
 
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
@@ -1076,6 +1097,205 @@ contains
 
   end subroutine process_LFI_tod
 
+  subroutine simulate_LFI_tod(self, scan_id, handle, s_tot, simsdir)
+    implicit none
+    class(comm_LFI_tod),                   intent(inout) :: self
+    type(planck_rng),                      intent(inout) :: handle
+    real(sp), allocatable, dimension(:,:), intent(in)    :: s_tot 
+    integer(i4b),                          intent(in)    :: scan_id
+    character(len=*),                      intent(in)    :: simsdir
+
+    type(hdf_file)     :: file
+    real(sp), allocatable, dimension(:,:) :: tod_per_detector    
+    real(sp) :: gain, sigma0
+    integer(i4b) :: ntod, ndet, j, k, myindex
+
+    ! Doing small string manipulation - retreaving the name of thecurrent file
+    character(len=512) :: mystring, mysubstring, cwd, currentHDFFile
+    character(len=6)   :: pidLabel
+    character(len=3)   :: detectorLabel
+    integer(i4b)       :: error
+    integer(HID_T)     :: file_id       ! File identifier
+    integer(HID_T)     :: dset_id       ! Dataset identifier
+    integer(HSIZE_T), dimension(1) :: dims
+
+    ntod = self%scans(scan_id)%ntod
+    ndet = self%ndet
+
+    allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
+
+    do j = 1, ntod
+       do k = 1, ndet
+          ! skipping iteration if scan was not accepted
+          if (.not. self%scans(scan_id)%d(k)%accept) cycle
+          ! getting gain for each detector (units, V / K)
+          ! (gain is assumed to be CONSTANT for EACH SCAN)
+          gain   = self%scans(scan_id)%d(k)%gain
+          sigma0 = self%scans(scan_id)%d(k)%sigma0 
+          tod_per_detector(j,k) = gain * s_tot(j,k) + sigma0 * rand_gauss(handle)
+          !tod_per_detector(j,k) = gain * s_tot(k,j) + n_corr(k,j) + sigma0 * rand_gauss(handle)
+       end do
+    end do
+  
+    ! Saving stuff to hdf file
+    ! Getting the full path and name of the current hdf file to overwrite
+    mystring = trim(self%hdfname(scan_id)) 
+    mysubstring = 'LFI_0'
+    myindex = index(trim(mystring), trim(mysubstring))
+    call getcwd(cwd)
+    currentHDFFile = trim(cwd)//'/'//trim(simsdir)//'/'//trim(mystring(myindex:))
+    ! Converting PID number into string value
+    call int2string(self%scanid(scan_id), pidLabel)
+
+    ! General Guidlines how to create/Operate on HDF files
+    ! 1. Define the dataset characteristics:
+        ! a) Datatype
+        ! b) Dataspace
+        ! c) Properties (or use default)
+    ! 2. Decide which group to attach the dataset to.
+    ! 3. Create the dataset.
+    ! 4. Close the dataset handle from step 3.
+
+    ! To write the HDF in Fortran you do:
+    ! 1. Open a dataspace
+    ! 2. Open a dataset within the dataspace
+    ! 3. Write the data to the dataset
+    ! 4. Close the dataset
+    ! 5. Close the dataspace
+
+
+    ! The steps to read from or write to a dataset are as follows:
+
+    ! » Obtain the dataset identifier.
+    ! » Specify the memory datatype.
+    ! » Specify the memory dataspace.
+    ! » Specify the file dataspace.
+    ! » Specify the transfer properties.
+    ! » Perform the desired operation on the dataset.
+    ! » Close the dataset.
+    ! » Close the dataspace, datatype, and property list if necessary.
+
+    ! 
+    dims(1) = ntod
+    ! Initialize FORTRAN interface.
+    call h5open_f(error)
+    ! Open an existing file - returns file_id
+    call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, file_id, error)
+    do j = 1, ndet
+        detectorLabel = self%label(j)
+        ! Create new dataset inside "PID/Detector" Group
+        ! Open an existing dataset.
+        call h5dopen_f(file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, error)
+        ! Write tod data to a dataset
+        call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, error)
+        ! Close the dataset.
+        call h5dclose_f(dset_id, error)
+    end do
+    ! Close the file.
+    call h5fclose_f(file_id, error)
+    ! Close FORTRAN interface.
+    call h5close_f(error)
+
+  end subroutine simulate_LFI_tod 
+
+!  subroutine write_sims_to_hdf(self, tod, filename, scan, ndet, detlabels)
+!    implicit none
+!    class(comm_LFI_tod),            intent(inout) :: self
+!    class(comm_scan),               intent(inout) :: self
+!    class(comm_tod),                intent(in)    :: tod
+!    character(len=*),               intent(in)    :: filename
+!    integer(i4b),                   intent(in)    :: scan, ndet
+!    character(len=*), dimension(:), intent(in)     :: detlabels
+
+!    integer(i4b)       :: i, n, m, ext(1)
+!    real(dp)           :: t1, t2, t3, t4, t_tot(6), scalars(4)
+!    character(len=6)   :: slabel
+!    character(len=128) :: field
+!    type(hdf_file)     :: file
+!    integer(i4b), allocatable, dimension(:)       :: hsymb
+!    real(sp),     allocatable, dimension(:)       :: buffer_sp
+!    integer(i4b), allocatable, dimension(:)       :: htree
+
+!    call wall_time(t3)
+!    t_tot = 0.d0
+
+!    call wall_time(t1)
+!    call int2string(scan, slabel)
+
+!    call open_hdf_file(filename, file, "r")
+
+    ! Find array sizes
+!    call get_size_hdf(file, slabel // "/" // trim(detlabels(1)) // "/tod", ext)
+    !write(*,*) ext
+    !nhorn     = ext(1)
+!    n         = ext(1)
+    !m = n
+!    m         = get_closest_fft_magic_number(n)
+!!$    m         = get_closest_fft_magic_number(2*n)
+!!$    do while (mod(m,2) == 1)
+!!$       m = get_closest_fft_magic_number(m-1)
+!!$    end do
+!!$    m = m/2
+!    self%ntod = m
+!    self%ext_lowres(1)   = -5    ! Lowres padding
+!    self%ext_lowres(2)   = int(self%ntod/int(tod%samprate/tod%samprate_lowres)) + 1 + self%ext_lowres(1)
+
+    ! Read common scan data
+!    call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
+!    call read_hdf(file, slabel // "/common/time",  self%t0)
+!    call wall_time(t2)
+!    t_tot(1) = t2-t1
+
+    ! Read detector scans
+!    allocate(self%d(ndet), buffer_sp(n))
+!    do i = 1, ndet
+!       call wall_time(t1)
+!       field = detlabels(i)
+!       call wall_time(t2)
+!       t_tot(2) = t_tot(2) + t2-t1
+!       call wall_time(t1)
+!       allocate(self%d(i)%tod(m))
+!       self%d(i)%label = trim(field)
+!       !write(*,*) self%d(i)%label
+!       call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
+!       self%d(i)%gain = scalars(1)
+!       self%d(i)%sigma0 = scalars(2)
+!       self%d(i)%fknee = scalars(3)
+!       self%d(i)%alpha = scalars(4)
+!       call wall_time(t2)
+!       t_tot(3) = t_tot(3) + t2-t1
+!       call wall_time(t1)
+!       call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+!       self%d(i)%tod = buffer_sp(1:m)
+!       !write(*,*) self%d(i)%tod
+!       call wall_time(t2)
+!       t_tot(4) = t_tot(4) + t2-t1
+   
+       ! Read Huffman coded data arrays
+!       call wall_time(t1)
+!       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
+!       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi)
+!       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+!       call wall_time(t2)
+!       t_tot(5) = t_tot(5) + t2-t1
+!    end do
+!    deallocate(buffer_sp)
+
+    ! Initialize Huffman key
+!    call wall_time(t1)
+!    call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
+!    call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
+!    call hufmak_precomp(hsymb,htree,self%hkey)
+    !call hufmak(hsymb,hfreq,self%hkey)
+!    deallocate(hsymb, htree)
+!    call wall_time(t2)
+!    t_tot(6) = t_tot(6) + t2-t1
+
+!    call close_hdf_file(file)
+
+!    call wall_time(t4)
+
+!  end subroutine write_sims_to_hdf 
 
 
 end module comm_tod_LFI_mod

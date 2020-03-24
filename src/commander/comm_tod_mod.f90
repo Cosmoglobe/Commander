@@ -111,7 +111,8 @@ module comm_tod_mod
      procedure                        :: initHDF
      procedure                        :: get_det_id
      procedure                        :: initialize_bp_covar
-     procedure(process_tod), deferred :: process_tod
+     procedure(process_tod),  deferred :: process_tod
+     !procedure(simulate_tod), deferred :: simulate_tod
      procedure                        :: construct_sl_template
      procedure                        :: output_scan_list
      procedure                        :: downsample_tod
@@ -122,10 +123,11 @@ module comm_tod_mod
   end type comm_tod
 
   abstract interface
-     subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+     subroutine process_tod(self, simsdir, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
        import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
        implicit none
        class(comm_tod),                     intent(inout) :: self
+       character(len=*),                    intent(in)    :: simsdir 
        character(len=*),                    intent(in)    :: chaindir
        integer(i4b),                        intent(in)    :: chain, iter
        type(planck_rng),                    intent(inout) :: handle
@@ -135,6 +137,22 @@ module comm_tod_mod
        class(comm_map),                     intent(inout) :: rms_out  
      end subroutine process_tod
   end interface
+
+  !abstract interface
+  !   subroutine simulate_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  !     import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
+  !     implicit none
+  !     class(comm_tod),                     intent(inout) :: self
+  !     character(len=*),                    intent(in)    :: chaindir
+  !     integer(i4b),                        intent(in)    :: chain, iter
+  !     type(planck_rng),                    intent(inout) :: handle
+  !     type(map_ptr),     dimension(:,:),   intent(inout) :: map_in            
+  !     real(dp),          dimension(:,:,:), intent(inout) :: delta
+  !     class(comm_map),                     intent(inout) :: map_out
+  !     class(comm_map),                     intent(inout) :: rms_out  
+  !   end subroutine simulate_tod
+  !end interface
+
 
 
 contains
@@ -179,13 +197,16 @@ contains
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
 
+       !write(*,*) self%initfile!/mn/stornext/d16/cmbco/bp/maksym/Commander_Output/test/LFI_data/LFI_030_000239.h5
 
        !TODO: figure out how to make this work
        call read_hdf_string2(file, "/common/det",    det_buf, n)
+       !write(*,*) det_buf ! gives the detectors, like 27M, 27S etc.
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
        ndet_tot = num_tokens(det_buf(1:n), ",")
+       !write(*,*) ndet_tot ! 4
        allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
        call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
 !!$       do i = 1, ndet_tot
@@ -230,6 +251,7 @@ contains
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels)
+       !write(*,*) detlabels ! gives detector labels, like 27M, 27S etc. 
        do det = 1, self%ndet
           self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
           if (.not. self%scans(i)%d(det)%accept) then
@@ -314,6 +336,7 @@ contains
 
     ! Find array sizes
     call get_size_hdf(file, slabel // "/" // trim(detlabels(1)) // "/tod", ext)
+    !write(*,*) ext
     !nhorn     = ext(1)
     n         = ext(1)
     !m = n
@@ -343,6 +366,7 @@ contains
        call wall_time(t1)
        allocate(self%d(i)%tod(m))
        self%d(i)%label = trim(field)
+       !write(*,*) self%d(i)%label
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain = scalars(1)
        self%d(i)%sigma0 = scalars(2)
@@ -353,6 +377,7 @@ contains
        call wall_time(t1)
        call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
        self%d(i)%tod = buffer_sp(1:m)
+       !write(*,*) self%d(i)%tod
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1
    
@@ -510,7 +535,7 @@ contains
        do k = 1, n_tot
           pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
        end do
-       write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
+       write(*,*) '   Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
        deallocate(id, pweight, weight, sid, spinaxis)
 
        ! Distribute according to consecutive PID

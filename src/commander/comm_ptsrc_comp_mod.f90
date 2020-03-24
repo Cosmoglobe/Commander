@@ -673,7 +673,7 @@ contains
     tempfile = trim(cpar%datadir)//'/'//trim(cpar%cs_ptsrc_template(id_abs))
     do j = 1, self%nsrc
        if (mod(j,100) == 0 .and. self%myid == 0) &
-            & write(*,fmt='(a,i6,a,i6)') '   Initializing src no. ', j, ' of ', self%nsrc
+            & write(*,fmt='(a,i6,a,i6)') '    Initializing src no. ', j, ' of ', self%nsrc
        do i = 1, numband
           self%src(j)%T(i)%nside   = data(i)%info%nside
           self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)

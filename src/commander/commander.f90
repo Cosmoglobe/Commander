@@ -70,13 +70,20 @@ program commander
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
      write(*,*) ''
-     write(*,*) '       **********   Commander   *************'
+     write(*,*) '   *********************   Commander   **********************'
      write(*,*) ''
+     if (cpar%enable_tod_simulations) then
+        write(*,*) '   Regime:       TOD Simulations'
+        write(*,*) ''
+     else
+        write(*,*) '   Regime:       Data Processing'
+        write(*,*) ''
+     end if    
      write(*,*) '   Number of chains                       = ', cpar%numchain
      write(*,*) '   Number of processors in first chain    = ', cpar%numprocs_chain
      write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '   Time to initialize run = ', t2-t0, ' sec'
-     write(*,fmt='(a,f12.3,a)') '   Time to read in parameters = ', t3-t1, ' sec'
+     write(*,fmt='(a,f12.3,a)') '    Time to initialize run                 = ', t2-t0, ' sec'
+     write(*,fmt='(a,f12.3,a)') '    Time to read in parameters             = ', t3-t1, ' sec'
      write(*,*) ''
 
   end if
@@ -166,6 +173,13 @@ program commander
      end if
      ! Process TOD structures
      if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+        !if (cpar%enable_TOD_simulations) then
+            ! performing timestreams simulations and breaking the loop
+        !    call simulate_TOD(cpar, cpar%mychain, iter, handle)
+        !    cycle
+        !else    
+        !    call process_TOD(cpar, cpar%mychain, iter, handle)
+        !end if    
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
      ! Sample linear parameters with CG search; loop over CG sample groups
@@ -328,7 +342,7 @@ contains
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+       call data(i)%tod%process_tod(cpar%simsdir, cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
@@ -360,5 +374,129 @@ contains
     end do
 
   end subroutine process_TOD
+
+  !subroutine simulate_TOD(cpar, chain, iter, handle)
+  !  implicit none
+  !  type(comm_params), intent(in)    :: cpar
+  !  integer(i4b),      intent(in)    :: chain, iter
+  !  type(planck_rng),  intent(inout) :: handle
+
+  !  integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
+  !  real(dp)     :: t1, t2, dnu_prop
+  !  real(dp),      allocatable, dimension(:)     :: eta
+  !  real(dp),      allocatable, dimension(:,:,:) :: delta
+  !  real(dp),      allocatable, dimension(:,:)   :: regnoise
+  !  type(map_ptr), allocatable, dimension(:,:)   :: s_sky
+  !  class(comm_map), pointer :: rms => null()
+
+  !  ndelta      = cpar%num_bp_prop + 1
+
+  !  do i = 1, numband  
+  !     if (trim(data(i)%tod_type) == 'none') cycle
+
+       ! Compute current sky signal for default bandpass and MH proposal
+  !     npar = data(i)%bp(1)%p%npar
+  !     ndet = data(i)%tod%ndet
+  !     allocate(s_sky(ndet,ndelta))
+  !     allocate(delta(0:ndet,npar,ndelta))
+  !     allocate(eta(ndet))
+  !     do k = 1, ndelta
+          ! Propose new bandpass shifts, and compute mixing matrices
+  !        if (k > 1) then
+  !           if (data(i)%info%myid == 0) then
+  !              do l = 1, npar
+  !                 if (mod(iter,2) == 0) then
+  !                    write(*,*) 'relative',  iter
+                      ! Propose only relative changes between detectors, keeping the mean constant
+  !                    delta(0,l,k) = data(i)%bp(0)%p%delta(l)
+  !                    do j = 1, ndet
+  !                       eta(j) = rand_gauss(handle)
+  !                    end do
+  !                    eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
+  !                    do j = 1, ndet
+  !                       delta(j,l,k) = data(i)%bp(j)%p%delta(l) + eta(j)
+  !                    end do
+  !                    delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
+  !                         & data(i)%bp(0)%p%delta(l)
+  !                 else
+  !                    write(*,*) 'absolute',  iter
+                      ! Propose only an overall shift in the total bandpass, keeping relative differences constant
+  !                    dnu_prop = data(i)%tod%prop_bp_mean(l) * rand_gauss(handle)
+  !                    do j = 0, ndet
+  !                       delta(j,l,k) = delta(j,l,1) + dnu_prop
+  !                    end do
+  !                 end if
+  !              end do
+  !           end if
+  !           call mpi_bcast(delta(:,:,k), (data(i)%tod%ndet+1)*npar, MPI_DOUBLE_PRECISION, 0, cpar%comm_chain, ierr)
+  !        else
+  !           do j = 0, ndet
+  !              delta(j,:,k) = data(i)%bp(j)%p%delta
+  !           end do
+  !           do l = 1, npar
+  !              delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + data(i)%bp(0)%p%delta(l)
+  !           end do
+  !        end if
+
+          ! Update mixing matrices
+  !        if (k > 1 .or. iter == 1) then
+  !           do j = 0, ndet
+  !              data(i)%bp(j)%p%delta = delta(j,:,k)
+  !              call data(i)%bp(j)%p%update_tau(delta(j,:,k))
+  !           end do
+  !           call update_mixing_matrices(i, update_F_int=.true.)       
+  !        end if
+
+          ! Evaluate sky for each detector given current bandpass
+  !        do j = 1, data(i)%tod%ndet
+             !s_sky(j,k)%p => comm_map(data(i)%info)
+  !           call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
+             !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
+  !        end do
+
+  !     end do
+
+!       call s_sky(1,1)%p%writeFITS('sky.fits')
+
+       ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
+       ! Needs in-code computation of smoothed RMS maps, so long-term..
+  !     rms => comm_map(data(i)%info)
+       !===================================!
+       ! Calling-in the simulation routine !
+       !===================================!
+  !     call data(i)%tod%simulate_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+
+       !call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+       ! Update rms and data maps
+  !     allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+  !     if (associated(data(i)%procmask)) then
+  !        call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+  !     else
+  !        call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+  !     end if
+  !     if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
+  !     data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
+  !     data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
+  !     deallocate(regnoise)
+  !     call rms%dealloc
+
+       ! Update mixing matrices based on new bandpasses
+  !     do j = 0, data(i)%tod%ndet
+  !        data(i)%bp(j)%p%delta = delta(j,:,1)
+  !        call data(i)%bp(j)%p%update_tau(delta(j,:,1))
+  !     end do
+  !     call update_mixing_matrices(i, update_F_int=.true.)       
+
+       ! Clean up temporary data structures
+  !     do k = 1, ndelta
+  !        do j = 1, data(i)%tod%ndet
+  !           call s_sky(j,k)%p%dealloc
+  !        end do
+  !     end do
+  !     deallocate(s_sky, delta, eta)
+  !  end do
+
+  !end subroutine simulate_TOD
+
 
 end program commander

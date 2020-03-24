@@ -15,20 +15,20 @@ NUM_GIBBS_ITER                = 1000       # Length of each Markov chain
 NUM_ITER_WITH_ML_SEARCH       = 0
 BASE_SEED                     = 163425  # Seed for random number generator
 CHAIN_STATUS                  = append
-INIT_CHAIN                    = "chains_full/chain_c0001.h5:30"  
+INIT_CHAIN                    =  "data_hm/chain_init_full_v4.00.h5:6"  
                                        # If equal to above, append samples.
                                        # If so, chain H5 files must exist in
                                        # output directory. If not,filename
                                        # is absolute, including path
 INIT_SAMPLE_NUMBER            = 14
 
-NUM_GIBBS_STEPS_PER_TOD_SAMPLE = 3
+NUM_GIBBS_STEPS_PER_TOD_SAMPLE = 1
 
 SAMPLE_ONLY_POLARIZATION      = .false.
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
 
-ENABLE_TOD_ANALYSIS           = .true.
+ENABLE_TOD_ANALYSIS           =  .true.
 ENABLE_TOD_SIMULATIONS        = .true.
 TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 0
 TOD_INCLUDE_ZODI              = .false.
@@ -59,7 +59,7 @@ IGNORE_GAIN_AND_BANDPASS_CORR = .false.
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = sims_chains
+OUTPUT_DIRECTORY              = sims_chains 
 THINNING_FACTOR               = 1
 NSIDE_CHISQ                   = 16
 POLARIZATION_CHISQ            = .true.
@@ -77,12 +77,12 @@ OUTPUT_SIGNALS_PER_BAND       = .false.
 ##############################################################	
 
 DATA_DIRECTORY                 = data_hm
-NUMBAND                        = 22
+NUMBAND                        = 25
 
 # LFI
 INCLUDE_BAND001                = .true.   # 30 GHz
-INCLUDE_BAND002                = .true.   # 44 GHz
-INCLUDE_BAND003                = .true.   # 70 GHz
+INCLUDE_BAND002                = .false.   # 44 GHz
+INCLUDE_BAND003                = .false.   # 70 GHz
 
 # HFI no co bands	       	   
 INCLUDE_BAND004                = .false.   # 143 GHz
@@ -109,6 +109,10 @@ INCLUDE_BAND020                = .true.   # WMAP Ka P
 INCLUDE_BAND021                = .true.   # WMAP Q  P
 INCLUDE_BAND022                = .true.   # WMAP V  P
 
+INCLUDE_BAND023                = .true.   # 70 GHz 18-23
+INCLUDE_BAND024                = .true.   # 70 GHz 19-22
+INCLUDE_BAND025                = .true.   # 70 GHz 20-21
+
 
 BAND_TOD_TYPE001               = 'LFI'
 BAND_TOD_TYPE002               = 'LFI'
@@ -134,6 +138,9 @@ BAND_TOD_TYPE020               = none
 BAND_TOD_TYPE021               = none 
 BAND_TOD_TYPE022               = none 
 
+BAND_TOD_TYPE023               = 'LFI'
+BAND_TOD_TYPE024               = 'LFI'
+BAND_TOD_TYPE025               = 'LFI'
 
 
 SOURCE_MASKFILE                = none   #bright_sources.txt
@@ -187,11 +194,12 @@ BAND_TOD_MAIN_PROCMASK001      = mask_30ghz_1deg_1000uK_chisq.fits
 BAND_TOD_SMALL_PROCMASK001     = mask_smap4.fits
 BAND_TOD_BP_INIT_PROP001       = bp_init_030_v1.dat
 BAND_TOD_RIMO001               = LFI_instrument_v4.h5
-BAND_TOD_FILELIST001           = filelist_30_v9.txt
+BAND_TOD_FILELIST001           = filelist_30_v14.txt # all chunks of data you use
 BAND_TOD_START_SCANID001       = 3
 BAND_TOD_END_SCANID001         = 45860
 BAND_TOD_TOT_NUMSCAN001        = 45860
 BAND_TOD_FLAG001               = 6111232
+BAND_TOD_ORBITAL_ONLY_ABSCAL001 =.false.
 BAND_TOD_DETECTOR_LIST001      = "27M,27S,28M,28S"
 BAND_TOD_INIT_FROM_HDF001      = default
 
@@ -234,11 +242,12 @@ BAND_TOD_MAIN_PROCMASK002      = mask_30ghz_1deg_1000uK_chisq.fits
 BAND_TOD_SMALL_PROCMASK002     = mask_smap4.fits
 BAND_TOD_BP_INIT_PROP002       = bp_init_044_v1.dat
 BAND_TOD_RIMO002               = LFI_instrument_v4.h5
-BAND_TOD_FILELIST002           = filelist_44_v9.txt
+BAND_TOD_FILELIST002           = filelist_44_v14.txt
 BAND_TOD_START_SCANID002       = 3 
 BAND_TOD_END_SCANID002         = 45860
 BAND_TOD_TOT_NUMSCAN002        = 45860
 BAND_TOD_FLAG002               = 6111232
+BAND_TOD_ORBITAL_ONLY_ABSCAL002 =.false.
 BAND_TOD_DETECTOR_LIST002      = "24M,24S,25M,25S,26M,26S"
 #BAND_TOD_DETECTOR_LIST002      = "25M,25S,26M,26S"
 BAND_TOD_INIT_FROM_HDF002      = default
@@ -283,11 +292,12 @@ BAND_TOD_MAIN_PROCMASK003      = mask_30ghz_1deg_1000uK_chisq_n1024.fits
 BAND_TOD_SMALL_PROCMASK003     = mask_smap4_n1024.fits
 BAND_TOD_BP_INIT_PROP003       = bp_init_070_v1.dat
 BAND_TOD_RIMO003               = LFI_instrument_v4.h5
-BAND_TOD_FILELIST003           = filelist_70_v9.txt
+BAND_TOD_FILELIST003           = filelist_70_v14.txt
 BAND_TOD_START_SCANID003       = 3
 BAND_TOD_END_SCANID003         = 45860
 BAND_TOD_TOT_NUMSCAN003        = 45860
 BAND_TOD_FLAG003               = 6111232
+BAND_TOD_ORBITAL_ONLY_ABSCAL003 = .true.
 BAND_TOD_DETECTOR_LIST003      = "18M,18S,19M,19S,20M,20S,21M,21S,22M,22S,23M,23S"
 #BAND_TOD_DETECTOR_LIST003      = "18M,18S,23M,23S"
 #BAND_TOD_DETECTOR_LIST003      = "18M"
@@ -1042,6 +1052,150 @@ BAND_DEFAULT_BP_DELTA022       =   0.
 BAND_DEFAULT_NOISEAMP022       =   1.
 BAND_COMPONENT_SENSITIVITY022 = "broadband"
 
+# 70 GHz parameters
+BAND_LABEL023                  = 070ds1
+BAND_OBS_PERIOD023             = 1      
+BAND_POLARIZATION023           = .true.
+BAND_NSIDE023                  = 1024
+BAND_LMAX023                   = 2500
+BAND_UNIT023                   = uK_cmb
+BAND_NOISE_FORMAT023           = rms
+BAND_MAPFILE023                = BP_070_map_hm1_v2.fits
+BAND_NOISEFILE023              = BP_070_rms_hm1_v2.fits
+BAND_REG_NOISEFILE023          = BP_070_rmsreg_v1.fits
+BAND_NOISE_RMS023_SMOOTH01     = none
+BAND_NOISE_UNIFORMIZE_FSKY023  = 0.00
+BAND_MASKFILE023               = fullsky
+BAND_MASKFILE_CALIB023         = fullsky
+BAND_BEAMTYPE023               = b_l         # {b_l, febecop}
+BAND_BEAM_B_L_FILE023          = Bl_TEB_npipe6v19_70GHzx70GHz.fits
+BAND_BEAM_B_PTSRC_FILE023      = febecop_AT20G_GB6_NVSS_PCCS2_v6_070.h5
+BAND_PIXEL_WINDOW023           = pixel_window_n1024.fits
+BAND_SAMP_NOISE_AMP023         = .false.
+BAND_BANDPASS_TYPE023          = LFI
+BAND_BANDPASS_MODEL023         = additive_shift   # {powlaw_tilt, additive_shift}
+BAND_NOMINAL_FREQ023           = 70.1
+BAND_SAMP_BANDPASS023          = .false.
+BAND_BANDPASSFILE023           = LFI_instrument_v4.h5
+BAND_SAMP_GAIN023              = .false.
+BAND_GAIN_CALIB_COMP023        = 'cmb'
+BAND_GAIN_LMIN023              = 25
+BAND_GAIN_LMAX023              = 100
+BAND_GAIN_APOD_MASK023         = fullsky
+BAND_GAIN_APOD_FWHM023         = 120.
+BAND_DEFAULT_GAIN023           =   1.
+BAND_DEFAULT_BP_DELTA023       =   0.
+BAND_DEFAULT_NOISEAMP023       =   1.
+BAND_COMPONENT_SENSITIVITY023  = broadband
+BAND_TOD_MAIN_PROCMASK023      = mask_30ghz_1deg_1000uK_chisq_n1024.fits
+BAND_TOD_SMALL_PROCMASK023     = mask_smap4_n1024.fits
+BAND_TOD_BP_INIT_PROP023       = bp_init_070_v1.dat
+BAND_TOD_RIMO023               = LFI_instrument_v4.h5
+BAND_TOD_FILELIST023           = filelist_70_v14.txt
+BAND_TOD_START_SCANID023       = 3
+BAND_TOD_END_SCANID023         = 45860
+BAND_TOD_TOT_NUMSCAN023        = 45860
+BAND_TOD_FLAG023               = 6111232
+BAND_TOD_ORBITAL_ONLY_ABSCAL023 = .true.
+BAND_TOD_DETECTOR_LIST023      = "18M,18S,23M,23S"
+BAND_TOD_INIT_FROM_HDF023      = default
+
+# 70 GHz parameters
+BAND_LABEL024                  = 070ds2
+BAND_OBS_PERIOD024             = 1      
+BAND_POLARIZATION024           = .true.
+BAND_NSIDE024                  = 1024
+BAND_LMAX024                   = 2500
+BAND_UNIT024                   = uK_cmb
+BAND_NOISE_FORMAT024           = rms
+BAND_MAPFILE024                = BP_070_map_hm1_v2.fits
+BAND_NOISEFILE024              = BP_070_rms_hm1_v2.fits
+BAND_REG_NOISEFILE024          = BP_070_rmsreg_v1.fits
+BAND_NOISE_RMS024_SMOOTH01     = none
+BAND_NOISE_UNIFORMIZE_FSKY024  = 0.00
+BAND_MASKFILE024               = fullsky
+BAND_MASKFILE_CALIB024         = fullsky
+BAND_BEAMTYPE024               = b_l         # {b_l, febecop}
+BAND_BEAM_B_L_FILE024          = Bl_TEB_npipe6v19_70GHzx70GHz.fits
+BAND_BEAM_B_PTSRC_FILE024      = febecop_AT20G_GB6_NVSS_PCCS2_v6_070.h5
+BAND_PIXEL_WINDOW024           = pixel_window_n1024.fits
+BAND_SAMP_NOISE_AMP024         = .false.
+BAND_BANDPASS_TYPE024          = LFI
+BAND_BANDPASS_MODEL024         = additive_shift   # {powlaw_tilt, additive_shift}
+BAND_NOMINAL_FREQ024           = 70.1
+BAND_SAMP_BANDPASS024          = .false.
+BAND_BANDPASSFILE024           = LFI_instrument_v4.h5
+BAND_SAMP_GAIN024              = .false.
+BAND_GAIN_CALIB_COMP024        = 'cmb'
+BAND_GAIN_LMIN024              = 25
+BAND_GAIN_LMAX024              = 100
+BAND_GAIN_APOD_MASK024         = fullsky
+BAND_GAIN_APOD_FWHM024         = 120.
+BAND_DEFAULT_GAIN024           =   1.
+BAND_DEFAULT_BP_DELTA024       =   0.
+BAND_DEFAULT_NOISEAMP024       =   1.
+BAND_COMPONENT_SENSITIVITY024  = broadband
+BAND_TOD_MAIN_PROCMASK024      = mask_30ghz_1deg_1000uK_chisq_n1024.fits
+BAND_TOD_SMALL_PROCMASK024     = mask_smap4_n1024.fits
+BAND_TOD_BP_INIT_PROP024       = bp_init_070_v1.dat
+BAND_TOD_RIMO024               = LFI_instrument_v4.h5
+BAND_TOD_FILELIST024           = filelist_70_v14.txt
+BAND_TOD_START_SCANID024       = 3
+BAND_TOD_END_SCANID024         = 45860
+BAND_TOD_TOT_NUMSCAN024        = 45860
+BAND_TOD_FLAG024               = 6111232
+BAND_TOD_ORBITAL_ONLY_ABSCAL024 = .true.
+BAND_TOD_DETECTOR_LIST024      = "19M,19S,22M,22S"
+BAND_TOD_INIT_FROM_HDF024      = default
+
+# 70 GHz parameters
+BAND_LABEL025                  = 070ds3
+BAND_OBS_PERIOD025             = 1      
+BAND_POLARIZATION025           = .true.
+BAND_NSIDE025                  = 1024
+BAND_LMAX025                   = 2500
+BAND_UNIT025                   = uK_cmb
+BAND_NOISE_FORMAT025           = rms
+BAND_MAPFILE025                = BP_070_map_hm1_v2.fits
+BAND_NOISEFILE025              = BP_070_rms_hm1_v2.fits
+BAND_REG_NOISEFILE025          = BP_070_rmsreg_v1.fits
+BAND_NOISE_RMS025_SMOOTH01     = none
+BAND_NOISE_UNIFORMIZE_FSKY025  = 0.00
+BAND_MASKFILE025               = fullsky
+BAND_MASKFILE_CALIB025         = fullsky
+BAND_BEAMTYPE025               = b_l         # {b_l, febecop}
+BAND_BEAM_B_L_FILE025          = Bl_TEB_npipe6v19_70GHzx70GHz.fits
+BAND_BEAM_B_PTSRC_FILE025      = febecop_AT20G_GB6_NVSS_PCCS2_v6_070.h5
+BAND_PIXEL_WINDOW025           = pixel_window_n1024.fits
+BAND_SAMP_NOISE_AMP025         = .false.
+BAND_BANDPASS_TYPE025          = LFI
+BAND_BANDPASS_MODEL025         = additive_shift   # {powlaw_tilt, additive_shift}
+BAND_NOMINAL_FREQ025           = 70.1
+BAND_SAMP_BANDPASS025          = .false.
+BAND_BANDPASSFILE025           = LFI_instrument_v4.h5
+BAND_SAMP_GAIN025              = .false.
+BAND_GAIN_CALIB_COMP025        = 'cmb'
+BAND_GAIN_LMIN025              = 25
+BAND_GAIN_LMAX025              = 100
+BAND_GAIN_APOD_MASK025         = fullsky
+BAND_GAIN_APOD_FWHM025         = 120.
+BAND_DEFAULT_GAIN025           =   1.
+BAND_DEFAULT_BP_DELTA025       =   0.
+BAND_DEFAULT_NOISEAMP025       =   1.
+BAND_COMPONENT_SENSITIVITY025  = broadband
+BAND_TOD_MAIN_PROCMASK025      = mask_30ghz_1deg_1000uK_chisq_n1024.fits
+BAND_TOD_SMALL_PROCMASK025     = mask_smap4_n1024.fits
+BAND_TOD_BP_INIT_PROP025       = bp_init_070_v1.dat
+BAND_TOD_RIMO025               = LFI_instrument_v4.h5
+BAND_TOD_FILELIST025           = filelist_70_v14.txt
+BAND_TOD_START_SCANID025       = 3
+BAND_TOD_END_SCANID025         = 45860
+BAND_TOD_TOT_NUMSCAN025        = 45860
+BAND_TOD_FLAG025               = 6111232
+BAND_TOD_ORBITAL_ONLY_ABSCAL025 = .true.
+BAND_TOD_DETECTOR_LIST025      = "20M,20S,21M,21S"
+BAND_TOD_INIT_FROM_HDF025      = default
+
 
 
 
@@ -1049,8 +1203,8 @@ BAND_COMPONENT_SENSITIVITY022 = "broadband"
 #                     Model parameters                       #
 ##############################################################	
 
-INSTRUMENT_PARAM_FILE         = instrument_params_bp_v4.dat
-INIT_INSTRUMENT_FROM_HDF      = none   default
+INSTRUMENT_PARAM_FILE         = instrument_params_kja_v1.dat   instrument_params_bp_v5.dat
+INIT_INSTRUMENT_FROM_HDF      = default
 
 CMB_DIPOLE_PRIOR              = none       # 'dx12_v3_common_mask_int_005a_1024_TQU.fits; 3364.4; 263.998; 48.265' # LFI 2018
  
@@ -1082,8 +1236,8 @@ COMP_LMAX_AMP01               = 2500
 COMP_LMAX_IND01               = 0
 COMP_OUTPUT_FWHM01            = 14         # arcmin
 COMP_UNIT01                   = uK_cmb
-COMP_NU_REF_T01               = 100.
-COMP_NU_REF_P01               = 100.
+COMP_NU_REF_T01               = 1  100.
+COMP_NU_REF_P01               = 1  100.
 COMP_CL_TYPE01                = power_law  # {none, single_l, binned, power_law}
 COMP_CL_POLTYPE01             = 1  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}	
 COMP_CL_BETA_PRIOR_MEAN01     =  0.0
@@ -1114,7 +1268,7 @@ COMP_CG_SAMPLE_GROUP02        = 1
 COMP_NSIDE02                  = 1024
 COMP_L_APOD02                 = 1500
 COMP_LMAX_AMP02               = 1500
-COMP_LMAX_IND02               =   -1       # Use input map as is
+COMP_LMAX_IND02               =    0       # Use input map as is
 COMP_OUTPUT_FWHM02            = 60         # arcmin
 COMP_UNIT02                   = uK_RJ
 COMP_NU_REF_T02               = 0.408
@@ -1143,7 +1297,7 @@ COMP_BETA_NU_MIN02            =   0.        # Lowest frequency for index estimat
 COMP_BETA_NU_MAX02            =  80.        # Highest frequency for index estimation in GHz
 COMP_INPUT_AMP_MAP02          = init_synch2_n1024.fits
 COMP_PRIOR_AMP_MAP02          = none
-COMP_INPUT_BETA_MAP02         = synch_beta_n1024_TQU.fits
+COMP_INPUT_BETA_MAP02         = synch_beta_kja_v1_1deg_15arc_n1024.fits  synch_beta_n1024_TQU.fits
 COMP_DEFAULT_BETA02           = -3.11
 COMP_OUTPUT_EB_MAP02          = .false.
 COMP_INIT_FROM_HDF02          = default
@@ -1192,8 +1346,8 @@ COMP_T_SMOOTHING_SCALE03      = 2
 COMP_T_POLTYPE03              = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_INPUT_AMP_MAP03          = dust_c0001_k000001_n1024_TQU_10arc.fits
 COMP_PRIOR_AMP_MAP03          = none  
-COMP_INPUT_BETA_MAP03         = dust_beta_c0001_k000001_n1024_TQU_p0.1.fits
-COMP_INPUT_T_MAP03            = dust_T_c0001_k000001_n1024_TQU.fits
+COMP_INPUT_BETA_MAP03         = dust_beta_kja_v1_1deg_15arc_n1024.fits   dust_beta_c0001_k000001_n1024_TQU_p0.1.fits
+COMP_INPUT_T_MAP03            = dust_T_kja_v1_1deg_15arc_n1024.fits  dust_T_c0001_k000001_n1024_TQU.fits
 COMP_BETA_NU_MIN03            = 95         # Lowest frequency for index estimation in GHz
 COMP_BETA_NU_MAX03            = 1000      # Highest frequency for index estimation in GHz
 COMP_T_NU_MIN03               = 150         # Lowest frequency for index estimation in GHz
@@ -1243,7 +1397,7 @@ COMP_TYPE05                   = md
 COMP_CLASS05                  = diffuse    # {diffuse, ptsrc}
 COMP_POLARIZATION05           = .false.
 COMP_CG_SAMPLE_GROUP05        = 0    # 0 will activate component, but not sample (i.e. constant)
-COMP_MD_DEFINITION_FILE05     = 'md_init_c2p.dat'      #md_init_npipe6v20_v5_from_n0256_v4_s23.dat'
+COMP_MD_DEFINITION_FILE05     = md_kja_v1.dat     # 'md_init_c2p.dat'      #md_init_npipe6v20_v5_from_n0256_v4_s23.dat'
 COMP_INIT_FROM_HDF05          = none
 
 # Radio sources
@@ -1251,7 +1405,7 @@ COMP_LABEL06                   = radio
 COMP_CLASS06                   = ptsrc    # {diffuse, ptsrc, template}
 COMP_TYPE06                    = radio
 COMP_CATALOG06                 = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v7.1_sorted_1Jy.dat
-COMP_PTSRC_TEMPLATE06          = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v24.h5
+COMP_PTSRC_TEMPLATE06          = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v25.h5
 COMP_OUTPUT_PTSRC_TEMPLATE06   = .false.
 COMP_AMP_RMS_SCALE_FACTOR06    = 3.         # Scale amp rms by this factor
 COMP_POLARIZATION06            = .false.
@@ -1533,12 +1687,12 @@ COMP_CL_DEFAULT_BETA_E12      = -0.5d0
 COMP_CL_DEFAULT_BETA_B12      = -0.5d0
 
 COMP_NU_P_POLTYPE12           = 2 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
-COMP_INPUT_NU_P_MAP12         = ame_nu_p_c0001_k000007_n1024.fits #init_ame1_nup_6v20_n2048_60arcmin_v1.fits
+COMP_INPUT_NU_P_MAP12         = default   ame_nu_p_c0001_k000007_n1024.fits #init_ame1_nup_6v20_n2048_60arcmin_v1.fits
 COMP_NU_P_SMOOTHING_SCALE12   = 1
-COMP_DEFAULT_NU_P12           = 22.2
+COMP_DEFAULT_NU_P12           = 19   22.2
 COMP_PRIOR_UNI_NU_P_LOW12     = 10.
 COMP_PRIOR_UNI_NU_P_HIGH12    = 70.
-COMP_PRIOR_GAUSS_NU_P_MEAN12  = 21.
+COMP_PRIOR_GAUSS_NU_P_MEAN12  = 19   .
 COMP_PRIOR_GAUSS_NU_P_RMS12   = 0.
 COMP_NU_P_NU_MIN12            = 15.        # Lowest frequency for index estimation in GHz
 COMP_NU_P_NU_MAX12            = 50.        # Highest frequency for index estimation in GHz
@@ -1549,7 +1703,7 @@ COMP_APPLY_JEFFREYS_PRIOR12   = .true.
 COMP_INPUT_AMP_MAP12          = ame_c0001_k000007_n1024_30arc.fits
 COMP_PRIOR_AMP_MAP12          = none
 COMP_OUTPUT_EB_MAP12          = .false.
-COMP_INIT_FROM_HDF12          = default
+COMP_INIT_FROM_HDF12          = none  default
 
 
 ##############################################################

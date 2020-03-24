@@ -38,7 +38,7 @@ module comm_param_mod
      character(len=512) :: MJysr_convention
      character(len=512) :: fft_magic_number_file
      logical(lgt)       :: only_pol
-     logical(lgt)       :: enable_TOD_analysis
+     logical(lgt)       :: enable_TOD_analysis, enable_TOD_simulations
      integer(i4b)       :: tod_freq
      integer(i4b)       :: output_4D_map_nth_iter
      logical(lgt)       :: include_tod_zodi
@@ -49,7 +49,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: pixwin_smooth
 
      ! Output parameters
-     character(len=512) :: outdir
+     character(len=512) :: outdir, simsdir
      integer(i4b)       :: nside_chisq, nmaps_chisq
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
@@ -64,7 +64,7 @@ module comm_param_mod
      integer(i4b)       :: num_ind_cycle
      integer(i4b)       :: num_bp_prop
 
-     ! Data parameters
+     ! Data parameters (ds stands for dataset)
      integer(i4b)       :: numband
      character(len=512) :: datadir, ds_sourcemask, ds_procmask, ds_procmask2
      real(dp)           :: ds_fwhm_proc
@@ -105,7 +105,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask1
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask2
      character(len=512), allocatable, dimension(:)   :: ds_tod_filelist
-     character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
+     character(len=512), allocatable, dimension(:)   :: ds_tod_instfile ! instrument file
      character(len=512), allocatable, dimension(:)   :: ds_tod_dets
      character(len=512), allocatable, dimension(:)   :: ds_tod_bp_init
      character(len=512), allocatable, dimension(:)   :: ds_tod_initHDF
@@ -348,6 +348,7 @@ contains
     call get_parameter_hashtable(htbl, 'MJYSR_CONVENTION',         par_string=cpar%MJysr_convention)
 
     call get_parameter_hashtable(htbl, 'OUTPUT_DIRECTORY',         par_string=cpar%outdir)
+    call get_parameter_hashtable(htbl, 'SIMS_DIRECTORY',           par_string=cpar%simsdir)
 
     call get_parameter_hashtable(htbl, 'NSIDE_CHISQ',              par_int=cpar%nside_chisq)
     call get_parameter_hashtable(htbl, 'POLARIZATION_CHISQ',       par_lgt=cpar%pol_chisq)
@@ -369,6 +370,8 @@ contains
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 
     call get_parameter_hashtable(htbl, 'ENABLE_TOD_ANALYSIS',      par_lgt=cpar%enable_TOD_analysis)
+
+    call get_parameter_hashtable(htbl, 'ENABLE_TOD_SIMULATIONS',   par_lgt=cpar%enable_TOD_simulations)
 
     if (cpar%enable_TOD_analysis) then
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file)
