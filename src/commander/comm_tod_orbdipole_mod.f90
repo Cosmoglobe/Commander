@@ -59,7 +59,7 @@ contains
     allocate(self%orb_dp_s(self%tod%ndet, 10)) 
     do i = 1, self%tod%ndet
       self%orb_dp_s(i, :) = 0
-      do j = 0, self%tod%info%np-1
+      do j = 0, self%beam(i)%p%info%np-1
         call pix2vec_ring(self%beam(i)%p%info%nside, self%beam(i)%p%info%pix(j+1),v)
          pixVal = self%beam(i)%p%map(j, 1)
          !if(pixVal < 0) then
