@@ -99,11 +99,11 @@ contains
       self%orb_dp_s(i,:) = self%orb_dp_s(i,:)*4*pi/real(self%beam(i)%p%info%npix)
    end do
 
-   if (self%tod%myid == 0) then
-      do i = 1, 10
-        write(*,*) self%orb_dp_s(1, i)
-      end do
-    end if
+!!$   if (self%tod%myid == 0) then
+!!$      do i = 1, 10
+!!$        write(*,*) self%orb_dp_s(1, i)
+!!$      end do
+!!$    end if
 
     !npipe s factors for 27M
 !    self%orb_dp_s(:,1) = 0.005130801850847007
@@ -192,7 +192,7 @@ contains
        if (.not. self%tod%scans(ind)%d(i)%accept) cycle
        do j=1,self%tod%scans(ind)%ntod !length of the tod
 
-          call pix2ang_ring(self%tod%info%nside, pix(j,i), theta, phi)
+          !call pix2ang_ring(self%tod%info%nside, pix(j,i), theta, phi)
           !rotate v_sun into frame where pointing is along z axis
           !write(*,*) -phi, -theta, -self%tod%psi(psi(j,i)), psi(j,i)
           p     = self%tod%pix2ind(pix(j,i))
