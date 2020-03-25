@@ -63,6 +63,7 @@ contains
   ! Definition:
   !    SED  = conversion between thermodynamic and brightness temperature = 1/a2t
   function evalSED(self, nu, band, pol, theta)
+    implicit none
     class(comm_cmb_comp),    intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
@@ -78,6 +79,7 @@ contains
 
   ! Update band integration lookup tables
   subroutine updateIntF(self, band)
+    implicit none
     class(comm_cmb_comp),                    intent(inout)        :: self
     integer(i4b),                            intent(in), optional :: band
 
@@ -94,7 +96,11 @@ contains
                 end if
              end if
              f = comp_a2t(self%nu_ref(k)) / data(i)%bp(j)%p%a2t * data(i)%RJ2data(j)
-             self%F_int(k,i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, k, f_precomp=f)
+             !if (.not. associated(self%F_int(k,i,j)%p)) then
+                self%F_int(k,i,j)%p => comm_F_int_0D(self, data(i)%bp(j)%p, k, f_precomp=f)
+             !else
+             !   call self%F_int(k,i,j)%p%update(f_precomp=f)
+             !end if
           end do
        end do
     end do

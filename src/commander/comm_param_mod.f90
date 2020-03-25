@@ -31,8 +31,7 @@ module comm_param_mod
      logical(lgt)       :: resamp_CMB
      integer(i4b)       :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
      integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
-     integer(i4b)       :: num_gibbs_iter, num_ml_iter, init_samp
-     integer(i4b)       :: nskip_filelist
+     integer(i4b)       :: num_gibbs_iter
      character(len=512) :: chain_status, init_chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
@@ -61,13 +60,11 @@ module comm_param_mod
      integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_miniter, cg_check_conv_freq
      logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
-     integer(i4b)       :: num_ind_cycle
      integer(i4b)       :: num_bp_prop
 
      ! Data parameters
      integer(i4b)       :: numband
-     character(len=512) :: datadir, ds_sourcemask, ds_procmask, ds_procmask2
-     real(dp)           :: ds_fwhm_proc
+     character(len=512) :: datadir, ds_sourcemask, ds_procmask
      logical(lgt),       allocatable, dimension(:)   :: ds_active
      integer(i4b),       allocatable, dimension(:)   :: ds_period
      logical(lgt),       allocatable, dimension(:)   :: ds_polarization
@@ -326,11 +323,8 @@ contains
     cpar%base_seed_noise = 0  ! Not currently in use
     call get_parameter_hashtable(htbl, 'NUMCHAIN',                 par_int=cpar%numchain)
     call get_parameter_hashtable(htbl, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
-    call get_parameter_hashtable(htbl, 'NSKIP_FILELIST',           par_int=cpar%nskip_filelist)
-    call get_parameter_hashtable(htbl, 'NUM_ITER_WITH_ML_SEARCH',  par_int=cpar%num_ml_iter)
     call get_parameter_hashtable(htbl, 'CHAIN_STATUS',             par_string=cpar%chain_status)
     call get_parameter_hashtable(htbl, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
-    call get_parameter_hashtable(htbl, 'INIT_SAMPLE_NUMBER',       par_int=cpar%init_samp)
     call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
 
     call get_parameter_hashtable(htbl, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
@@ -342,7 +336,6 @@ contains
     call get_parameter_hashtable(htbl, 'CG_CONV_CHECK_FREQUENCY',  par_int=cpar%cg_check_conv_freq)
     call get_parameter_hashtable(htbl, 'CG_INIT_AMPS_ON_ZERO',     par_lgt=cpar%cg_init_zero)
     call get_parameter_hashtable(htbl, 'SET_ALL_NOISE_MAPS_TO_MEAN',     par_lgt=cpar%set_noise_to_mean)
-    call get_parameter_hashtable(htbl, 'NUM_INDEX_CYCLES_PER_ITERATION', par_int=cpar%num_ind_cycle)
 
     call get_parameter_hashtable(htbl, 'T_CMB',                    par_dp=cpar%T_cmb)
     call get_parameter_hashtable(htbl, 'MJYSR_CONVENTION',         par_string=cpar%MJysr_convention)
@@ -418,8 +411,6 @@ contains
     call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
     call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask)
     call get_parameter_hashtable(htbl, 'PROCESSING_MASKFILE', par_string=cpar%ds_procmask)
-    call get_parameter_hashtable(htbl, 'PROCESSING_MASKFILE2', par_string=cpar%ds_procmask2)
-    call get_parameter_hashtable(htbl, 'PROC_SMOOTH_SCALE',   par_dp=cpar%ds_fwhm_proc)
 
     n = cpar%numband
     allocate(cpar%ds_active(n), cpar%ds_label(n))
@@ -480,13 +471,18 @@ contains
             & par_string=cpar%ds_component_sensitivity(i))
 
        !read in all TOD parameters
+       call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
        if (cpar%enable_TOD_analysis .or. cpar%resamp_CMB) then
-          call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_initHDF(i))
           end if
        end if
+       if (trim(cpar%ds_tod_type(i)) /= 'none') then
+          call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
+               & par_string=cpar%ds_tod_dets(i))
+       end if
+
        if (cpar%enable_TOD_analysis) then
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              !all other tod things
@@ -508,8 +504,6 @@ contains
                   & par_lgt=cpar%ds_tod_orb_abscal(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_instfile(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
-                  & par_string=cpar%ds_tod_dets(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_bp_init(i))
           end if
@@ -584,6 +578,15 @@ contains
        else if (trim(cpar%cs_type(i)) == 'template') then
           call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &
                & par_string=cpar%cs_SED_template(1,i))
+       else if (trim(cpar%cs_type(i)) == 'cmb_relquad') then
+          call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &
+               & par_string=cpar%cs_SED_template(1,i))
+          call get_parameter_hashtable(htbl, 'COMP_DEFAULT_AMPLITUDE'//itext, len_itext=len_itext, &
+               & par_dp=cpar%cs_theta_def(1,i))
+          call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_MEAN'//itext, len_itext=len_itext, &
+               & par_dp=cpar%cs_p_gauss(i,1,1))
+          call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
+               & par_dp=cpar%cs_p_gauss(i,2,1))
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%cs_polarization(i))
           if (cpar%cs_polarization(i)) &
@@ -1260,8 +1263,6 @@ contains
          & call validate_file(trim(datadir)//trim(cpar%ds_sourcemask))    ! Source mask
     if (trim(cpar%ds_procmask) /= 'none') &
          & call validate_file(trim(datadir)//trim(cpar%ds_procmask))      ! Source mask
-    if (trim(cpar%ds_procmask2) /= 'none') &
-         & call validate_file(trim(datadir)//trim(cpar%ds_procmask2))     ! Source mask
 
     ! Check component files
     do i = 1, cpar%cs_ncomp_tot
@@ -1322,7 +1323,7 @@ contains
           call validate_file(trim(datadir)//trim(cpar%cs_catalog(i)))
           call validate_file(trim(datadir)//trim(cpar%cs_ptsrc_template(i)), &
                & should_exist=.not. cpar%cs_output_ptsrc_beam(i))
-       else if (trim(cpar%cs_class(i)) == 'template') then
+       else if (trim(cpar%cs_type(i)) == 'template' .or. trim(cpar%cs_type(i)) == 'cmb_relquad') then
           call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
        end if
        
