@@ -122,6 +122,7 @@ contains
     character(len=2) :: itext, jtext
     logical :: accepted, exist, doexit
     class(comm_mapinfo), pointer :: info => null()
+    class(comm_comp),    pointer :: c    => null()
     real(dp),          allocatable, dimension(:,:,:)   :: alms, alms_covmat, L
     real(dp),          allocatable, dimension(:) :: buffer, rgs, sigma_priors, chisq
 
