@@ -122,15 +122,8 @@ contains
     character(len=2) :: itext, jtext
     logical :: accepted, exist, doexit
     class(comm_mapinfo), pointer :: info => null()
-    class(comm_N),       pointer :: tmp  => null()
-    class(comm_map),     pointer :: res  => null()
-    class(comm_comp),    pointer :: c    => null()
     real(dp),          allocatable, dimension(:,:,:)   :: alms, alms_covmat, L
-    real(dp),          allocatable, dimension(:,:) :: m
     real(dp),          allocatable, dimension(:) :: buffer, rgs, sigma_priors, chisq
-
-    integer(c_int),    allocatable, dimension(:,:) :: lm
-    integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
 
     ! Sample spectral parameters for each signal component
     allocate(status_fit(numband))
@@ -248,7 +241,7 @@ contains
                    ! p already calculated if larger than poltype ( smart ;) )
                    if (pl > c%poltype(j)) cycle
                       
-                   !chisq_prior = chisq_prior + ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                   chisq_prior = chisq_prior + ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
                    if (nalm_tot > 1) then
                       do p = 1, nalm_tot-1
                          chisq_prior = chisq_prior + (alms(0,p,pl)/sigma_priors(p))**2
@@ -296,7 +289,7 @@ contains
                       
                          ! Adding prior
                       ! Currently applying same prior on all signals
-                      !chisq_prior = chisq_prior + ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                      chisq_prior = chisq_prior + ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
                       if (nalm_tot > 1) then
                          do p = 1, nalm_tot-1
                             chisq_prior = chisq_prior + (alms(i,p,pl)/sigma_priors(p))**2

@@ -480,7 +480,7 @@ contains
        ! Assume filelist; pick the number given by mychain. 
        unit = getlun()
        open(unit, file=trim(cpar%datadir)//'/'//trim(filename), recl=1024)
-       do i = 1, cpar%nskip_filelist + cpar%mychain
+       do i = 1, cpar%mychain
           read(unit,'(a)') mapfile
        end do
        close(unit)
