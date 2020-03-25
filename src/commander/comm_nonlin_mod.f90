@@ -241,7 +241,7 @@ contains
                    ! p already calculated if larger than poltype ( smart ;) )
                    if (pl > c%poltype(j)) cycle
                       
-                   chisq_prior = chisq_prior + ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                   !chisq_prior = chisq_prior + ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
                    if (nalm_tot > 1) then
                       do p = 1, nalm_tot-1
                          chisq_prior = chisq_prior + (alms(0,p,pl)/sigma_priors(p))**2
@@ -289,7 +289,7 @@ contains
                       
                          ! Adding prior
                       ! Currently applying same prior on all signals
-                      chisq_prior = chisq_prior + ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                      !chisq_prior = chisq_prior + ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
                       if (nalm_tot > 1) then
                          do p = 1, nalm_tot-1
                             chisq_prior = chisq_prior + (alms(i,p,pl)/sigma_priors(p))**2
