@@ -3,8 +3,6 @@ module comm_template_comp_mod
   use comm_param_mod
   use comm_comp_mod
   use comm_F_int_mod
-  use comm_F_int_0D_mod
-  use comm_F_int_2D_mod
   use comm_data_mod
   use pix_tools
   use comm_hdf_mod
@@ -61,13 +59,15 @@ module comm_template_comp_mod
   
 contains
 
-  function constructor(cpar, id, id_abs, band, label, mapfile, maskfile, mu, rms, def)
+  function constructor(cpar, id, id_abs, mu, rms, def, band, label, mapfile, maskfile)
     implicit none
-    class(comm_params),       intent(in) :: cpar
-    integer(i4b),             intent(in) :: id, id_abs, band
-    character(len=*),         intent(in) :: label, mapfile, maskfile
-    real(dp),                 intent(in) :: mu, rms, def
-    class(comm_template_comp),   pointer    :: constructor
+    class(comm_params),        intent(in)           :: cpar
+    integer(i4b),              intent(in)           :: id, id_abs
+    real(dp),                  intent(in)           :: mu, rms, def
+    integer(i4b),              intent(in), optional :: band
+    character(len=*),          intent(in), optional :: label
+    character(len=*),          intent(in), optional :: mapfile, maskfile
+    class(comm_template_comp), pointer              :: constructor
 
     character(len=512) :: dir
 
@@ -87,7 +87,6 @@ contains
     constructor%comm      = cpar%comm_chain
     constructor%numprocs  = cpar%numprocs_chain
     constructor%P         = [mu,rms]
-    constructor%band      = band
     npre                  = npre + 1
     comm_pre              = cpar%comm_chain
     myid_pre              = cpar%myid_chain
@@ -100,14 +99,18 @@ contains
        constructor%ncr = 0
     end if
 
-    ! Read template and mask
-    dir = trim(cpar%datadir) // '/'
-    constructor%T => comm_map(data(band)%info, trim(dir)//trim(mapfile))
-    if (trim(maskfile) /= 'fullsky') then
-       constructor%mask  => comm_map(data(band)%info, trim(dir)//trim(maskfile))
-       constructor%P_cg  =  [mu,1.d-6]
-    else
-       constructor%P_cg  =  constructor%P      
+    if (present(mapfile)) then
+       constructor%band      = band
+
+       ! Read template and mask
+       dir = trim(cpar%datadir) // '/'
+       constructor%T => comm_map(data(band)%info, trim(dir)//trim(mapfile))
+       if (trim(maskfile) /= 'fullsky') then
+          constructor%mask  => comm_map(data(band)%info, trim(dir)//trim(maskfile))
+          constructor%P_cg  =  [mu,1.d-6]
+       else
+          constructor%P_cg  =  constructor%P      
+       end if
     end if
 
   end function constructor
@@ -141,10 +144,10 @@ contains
        if (i > numband) cycle
 
        if (n == 0) then
-          initialize_template_comps => comm_template_comp(cpar, id+n, id_abs, i, label, mapfile, maskfile, &
-               & mu, rms, def)
+          initialize_template_comps => comm_template_comp(cpar, id+n, id_abs, mu, rms, def, &
+               & i, label, mapfile, maskfile)
        else
-          c => comm_template_comp(cpar, id+n, id_abs, i, label, mapfile, maskfile, mu, rms, def)
+          c => comm_template_comp(cpar, id+n, id_abs, mu, rms, def, i, label, mapfile, maskfile)
           call initialize_template_comps%add(c)
        end if
        n = n+1

@@ -230,8 +230,10 @@ contains
        call get_size_hdf(file, setname, ext)
        if (any(ext /= s)) then
           write(*,*) 'HDF error -- inconsistent array sizes'
+          write(*,*) '             Filename       = ', trim(file%filename)
+          write(*,*) '             Setname        = ', trim(setname)
           write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', s
+          write(*,*) '             Requested size = ', int(s,i4b)
           !write(*,*) v(-1000000)
           stop
        end if

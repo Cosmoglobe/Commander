@@ -159,7 +159,7 @@ def make_od(freq, od, args, outbuf):
     if args.no_compress:
         compstring = 'uncompressed'
     #experiment name
-    outFile.create_dateset(prefix + '/datatype', data=np.string('LFI_' + compstring))
+    outFile.create_dataset(prefix + '/datatype', data=np.string_('LFI_' + compstring))
 
     #make detector names lookup
     outFile.create_dataset(prefix + '/det', data=np.string_(detNames[0:-2]))

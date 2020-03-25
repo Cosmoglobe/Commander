@@ -200,11 +200,8 @@ program commander
      !call output_FITS_sample(cpar, 1000, .true.)
 
      ! Sample non-linear parameters
-     ! Trygve fix this
      if (cpar%sample_specind) then
-        do i = 1, cpar%num_ind_cycle ! This is 1 in param-file
-           call sample_nonlin_params(cpar, iter, handle)
-        end do
+        call sample_nonlin_params(cpar, iter, handle)
      end if
 
      ! Sample instrumental parameters

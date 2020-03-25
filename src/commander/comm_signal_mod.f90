@@ -3,6 +3,7 @@ module comm_signal_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
   use comm_cmb_comp_mod
+  use comm_cmb_relquad_comp_mod
   use comm_powlaw_comp_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
@@ -73,9 +74,14 @@ contains
           !call mpi_finalize(i)
           !stop
        case ("template")
-          c => initialize_template_comps(cpar, ncomp, i, n)
+          select case (trim(cpar%cs_type(i)))
+          case ("template")
+             c => initialize_template_comps(cpar, ncomp, i, n)
           !write(*,*) cpar%myid, ncomp, n
-          ncomp = ncomp + n - 1
+             ncomp = ncomp + n - 1
+          case ("cmb_relquad")
+             c => comm_cmb_relquad_comp(cpar, ncomp, i)
+          end select
           call add_to_complist(c)
        case default
           call report_error("Unknown component class: "//trim(cpar%cs_class(i)))
@@ -195,7 +201,7 @@ contains
     class(comm_map),    pointer :: rms => null()
     real(dp), allocatable, dimension(:,:) :: bp_delta, regnoise
 
-    if ((cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') .and. &
+    if (trim(cpar%init_chain_prefix) == 'none' .and. &
          & .not. present(init_from_output)) return
 
     ! Open HDF file
