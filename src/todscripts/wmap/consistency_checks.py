@@ -79,3 +79,4 @@ for band in range(len(gal)):
     plt.ylabel(r'$\sin2\gamma$')
     plt.colorbar(label='Time')
     plt.savefig(f'cos2_v_sin2_{band_labels[band]}.png', bbox_inches='tight')
+    plt.close('all')
