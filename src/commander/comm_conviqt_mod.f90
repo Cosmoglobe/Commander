@@ -338,6 +338,7 @@ contains
     deallocate(self%lnorm)
     call dealloc_shared_2d_spc(self%alm_beam)
     call dealloc_shared_2d_sp(self%c)
+    call dealloc_shared_1d_int(self%pixLookup)
 
   end subroutine dealloc
 
