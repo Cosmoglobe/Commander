@@ -10,12 +10,13 @@ contains
 
   ! Sample noise psd
   ! TODO: Add fluctuation term if operation == sample
-  subroutine sample_noise_psd(tod, handle, scan, mask, s_tot, n_corr)
+  subroutine sample_noise_psd(tod, handle, scan, mask, s_tot, n_corr, tod_input)
     implicit none
     class(comm_tod),                 intent(inout)  :: tod
     type(planck_rng),                intent(inout)  :: handle
     integer(i4b),                    intent(in)     :: scan
     real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
+    real(sp),  dimension(:,:), intent(in), optional :: tod_input
     
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod 
@@ -42,12 +43,21 @@ contains
 
        do j = 1, tod%scans(scan)%ntod-1
           if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = (tod%scans(scan)%d(i)%tod(j) - &
-               & (tod%scans(scan)%d(i)%gain * s_tot(j,i) + &
-               & n_corr(j,i)) - &
-               & (tod%scans(scan)%d(i)%tod(j+1) - &
-               & (tod%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
-               & n_corr(j+1,i))))/sqrt(2.)
+          if (present(tod_input)) then
+            res = (tod_input(j,i) - &
+                  & (tod%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                  & n_corr(j,i)) - &
+                  & (tod_input(j+1,i) - &
+                  & (tod%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                  & n_corr(j+1,i))))/sqrt(2.)
+          else
+            res = (tod%scans(scan)%d(i)%tod(j) - &
+                  & (tod%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                  & n_corr(j,i)) - &
+                  & (tod%scans(scan)%d(i)%tod(j+1) - &
+                  & (tod%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                  & n_corr(j+1,i))))/sqrt(2.)
+          end if
           s = s + res**2
           n = n + 1
        end do
