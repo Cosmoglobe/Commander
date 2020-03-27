@@ -132,6 +132,7 @@ contains
     real(dp), allocatable, dimension(:)     :: temp_gain, temp_invsigsquared
     real(dp), allocatable, dimension(:)     :: summed_invsigsquared, smoothed_gain
     real(dp), allocatable, dimension(:,:,:) :: g
+    real(dp), allocatable, dimension(:,:)   :: pidrange_gainarr
     integer(i4b),   allocatable, dimension(:, :) :: pid_ranges
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
     integer(i4b), save :: count = 0
@@ -207,15 +208,25 @@ contains
 !!$       end do
 !!$       close(58)
 
-       call get_pid_ranges(pid_ranges, tod, g(:, :, 1), dipole_mods, window_sizes)
-!!$       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$         do k = 1, size(pid_ranges(j, :))
-!!$            if (pid_ranges(j, k) == 0) exit
-!!$            write(58, *) j, k, pid_ranges(j, k)
-!!$         end do
-!!$       end do
-!!$       close(58)
+       allocate(pidrange_gainarr(nscan_tot, ndet))
+       pidrange_gainarr = 0.d0
+       do j = 1, ndet
+         do k = 1, nscan_tot
+            if (g(k, j, 2) > 0.d0) then
+               pidrange_gainarr(k, j) = g(k, j, 1) / g(k, j, 2)
+            end if
+         end do
+       end do
+       call get_pid_ranges(pid_ranges, tod, pidrange_gainarr, dipole_mods, window_sizes)
+       deallocate(pidrange_gainarr)
+       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+         do k = 1, size(pid_ranges(j, :))
+            if (pid_ranges(j, k) == 0) exit
+            write(58, *) j, k, pid_ranges(j, k)
+         end do
+       end do
+       close(58)
 
        do j = 1, ndet
          lhs = 0.d0
@@ -664,9 +675,24 @@ contains
       do i = 1, tod%ndet
          smoothed_data = 0.d0
          smoothed_vars = 0.d0
+         open(58, file='gain_notmovaverage_' // trim(tod%label(i)) // '.dat', recl=1024)
+         do j = 1, size(dgains(:, i))
+            write(58, *) dgains(j, i)
+         end do
+         close(58)
          call moving_average(dgains(:, i), smoothed_data, slow_smooth_window_size, &
             weights=dipole_mods(:, i))
+         open(58, file='gain_movaverage_' // trim(tod%label(i)) // '.dat', recl=1024)
+         do j = 1, size(smoothed_data)
+            write(58, *) smoothed_data(j)
+         end do
+         close(58)
          call moving_variance(smoothed_data, smoothed_vars, slow_smooth_window_size)
+         open(58, file='gain_variance_' // trim(tod%label(i)) // '.dat', recl=1024)
+         do j = 1, size(smoothed_vars)
+            write(58, *) smoothed_vars(j)
+         end do
+         close(58)
          smoothed_vars = smoothed_vars * dipole_mods(:, i)
          ! Just reusing array as buffer instead of allocating a whole new one
          smoothed_data = smoothed_vars

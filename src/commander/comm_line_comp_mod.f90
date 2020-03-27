@@ -130,7 +130,7 @@ contains
     end do
     
     ! Initialize mixing matrix
-    if (cpar%init_samp < 0 .or. trim(cpar%init_chain_prefix) == 'none' &
+    if (trim(cpar%init_chain_prefix) == 'none' &
          & .or. trim(constructor%init_from_HDF) == 'none') &
          & call constructor%updateMixmat
 
