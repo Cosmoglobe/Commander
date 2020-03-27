@@ -134,7 +134,11 @@ contains
     if (associated(self%rms_reg)) then
        self%rms0%map = sqrt(self%rms0%map**2 + self%rms_reg%map**2) 
     end if
-    self%siN     => comm_map(self%rms0)
+    if (associated(self%siN)) then
+       self%siN%map = self%rms0%map
+    else
+       self%siN     => comm_map(self%rms0)
+    end if
     call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
     self%siN%map = self%siN%map * mask%map ! Apply mask
     if (present(procmask)) then

@@ -401,7 +401,7 @@ contains
                    
                    ! Burnin
                    if (iter == 1 .and. diff < 20.d0 .and. i > 1000) doexit = .true.
-                   if (iter  >= 1 .and. i>=30) doexit = .true.
+                   if (iter  >= 1 .and. i>=60) doexit = .true.
                    !! Check corrlen seudocode
                    !x = alms(i-100:i-50,:,:)
                    !y = alms(i-50:i,:,:)
