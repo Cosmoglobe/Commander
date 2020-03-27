@@ -92,6 +92,8 @@ contains
     real(dp),        dimension(:,:), allocatable :: Ninv, Ncov, sNinv, buffer, mask_fullsky
     class(comm_map),                 pointer     :: invW_tau => null()
 
+    if (allocated(self%iN)) return
+
     ! Set up dense QU invN covariance matrix
     allocate(self%iN(2*self%npix,2*self%np), self%siN(2*self%npix,2*self%np), self%Ncov(2*self%npix,2*self%np))
     allocate(buffer(2*self%npix,2*self%npix))
