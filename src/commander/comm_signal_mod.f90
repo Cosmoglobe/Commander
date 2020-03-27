@@ -201,7 +201,7 @@ contains
     class(comm_map),    pointer :: rms => null()
     real(dp), allocatable, dimension(:,:) :: bp_delta, regnoise
 
-    if ((cpar%init_samp <= 0 .or. trim(cpar%init_chain_prefix) == 'none') .and. &
+    if (trim(cpar%init_chain_prefix) == 'none' .and. &
          & .not. present(init_from_output)) return
 
     ! Open HDF file

@@ -122,15 +122,9 @@ contains
     character(len=2) :: itext, jtext
     logical :: accepted, exist, doexit
     class(comm_mapinfo), pointer :: info => null()
-    class(comm_N),       pointer :: tmp  => null()
-    class(comm_map),     pointer :: res  => null()
     class(comm_comp),    pointer :: c    => null()
     real(dp),          allocatable, dimension(:,:,:)   :: alms, alms_covmat, L
-    real(dp),          allocatable, dimension(:,:) :: m
     real(dp),          allocatable, dimension(:) :: buffer, rgs, sigma_priors, chisq
-
-    integer(c_int),    allocatable, dimension(:,:) :: lm
-    integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
 
     ! Sample spectral parameters for each signal component
     allocate(status_fit(numband))
@@ -407,7 +401,7 @@ contains
                    
                    ! Burnin
                    if (iter == 1 .and. diff < 20.d0 .and. i > 1000) doexit = .true.
-                   if (iter  >= 1 .and. i>=100) doexit = .true.
+                   if (iter  >= 1 .and. i>=30) doexit = .true.
                    !! Check corrlen seudocode
                    !x = alms(i-100:i-50,:,:)
                    !y = alms(i-50:i,:,:)
