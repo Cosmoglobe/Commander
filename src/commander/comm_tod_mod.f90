@@ -36,7 +36,7 @@ module comm_tod_mod
      real(dp)       :: proctime    = 0.d0                          ! Processing time in seconds
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
-     real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for first sample
+     real(dp)       :: t0(1) !t0(3)                                ! MJD, OBT, SCET for first sample
      type(huffcode) :: hkey                                        ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
