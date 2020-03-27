@@ -3,8 +3,10 @@ import matplotlib.pyplot as plt
 
 import h5py
 import healpy as hp
-f= h5py.File('h5_wmap_test.h5', 'r')
+f= h5py.File('wmap_tods.h5', 'r')
 obsid = str(list(f.keys())[0])
+
+print(obsid)
 
 DAs = []
 labels = ['K113', 'K114', 'K123', 'K124']
