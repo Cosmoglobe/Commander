@@ -124,15 +124,11 @@ contains
 
     logical :: accepted, exist, doexit
     class(comm_mapinfo), pointer :: info => null()
-    class(comm_N),       pointer :: tmp  => null()
-    class(comm_map),     pointer :: res  => null()
     class(comm_comp),    pointer :: c    => null()
+
     real(dp),          allocatable, dimension(:,:,:)  :: alms
     real(dp),          allocatable, dimension(:,:)    :: m
     real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, N, C_
-
-    integer(c_int),    allocatable, dimension(:,:) :: lm
-    integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
 
     ! Sample spectral parameters for each signal component
     allocate(status_fit(numband))
@@ -369,6 +365,7 @@ contains
                    end if
                    
                    ! Burnin
+
                    if (iter == 1 .and. diff < thresh) doexit = .true.                   
                 end if
 
