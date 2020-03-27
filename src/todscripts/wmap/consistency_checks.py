@@ -26,8 +26,9 @@ vel  = np.array(f[obsid + '/common/vel'])
 sin2g  = np.array(f[obsid + '/common/sin_2_g'])
 cos2g  = np.array(f[obsid + '/common/cos_2_g'])
 
-print(sin2g.shape)
-print(gal.shape)
+plot_map = False
+
+
 
 band_labels = [
 'K1A',
@@ -52,31 +53,32 @@ band_labels = [
 'W4B']
 
 
-for band in range(len(gal)):
-    print(band_labels[band])
-    hp.mollview(np.zeros(12)+hp.UNSEEN, coord='G', min=time.min(), max=time.max(), unit='Time', title=band_labels[band])
-    for i in range(len(gal[band])):
-        hp.projscatter(gal[band,i,0], gal[band,i,1], color=plt.cm.viridis(i/len(time)), lonlat=True, s=1)
-    
-    plt.savefig(f'time_ordered_pointing_{band_labels[band]}.png', bbox_inches='tight')
-    
-    hp.mollview(np.zeros(12)+hp.UNSEEN, coord='G', min=-1, max=1, unit=r'$\sin2\gamma$', title=band_labels[band])
-    for i in range(len(gal[band])):
-        hp.projscatter(gal[band,i,0], gal[band,i,1], color=plt.cm.viridis((sin2g[band][i]+1)/2), lonlat=True, s=1)
-    
-    plt.savefig(f'sin2gamma_stream_{band_labels[band]}.png', bbox_inches='tight')
-    
-    hp.mollview(np.zeros(12)+hp.UNSEEN, coord='G', min=-1, max=1, unit=r'$\cos2\gamma$', title=band_labels[band])
-    for i in range(len(gal[band])):
-        hp.projscatter(gal[band,i,0], gal[band,i,1], color=plt.cm.viridis((cos2g[band][i]+1)/2), lonlat=True, s=1)
-    
-    plt.savefig(f'cos2gamma_stream_{band_labels[band]}.png', bbox_inches='tight')
-    
-    plt.figure()
-    plt.title(band_labels[band])
-    plt.scatter(cos2g[band], sin2g[band], c=time, s=1)
-    plt.xlabel(r'$\cos2\gamma$')
-    plt.ylabel(r'$\sin2\gamma$')
-    plt.colorbar(label='Time')
-    plt.savefig(f'cos2_v_sin2_{band_labels[band]}.png', bbox_inches='tight')
-    plt.close('all')
+if plot_map:
+    for band in range(len(gal)):
+        print(band_labels[band])
+        hp.mollview(np.zeros(12)+hp.UNSEEN, coord='G', min=time.min(), max=time.max(), unit='Time', title=band_labels[band])
+        for i in range(len(gal[band])):
+            hp.projscatter(gal[band,i,0], gal[band,i,1], color=plt.cm.viridis(i/len(time)), lonlat=True, s=1)
+        
+        plt.savefig(f'plots/time_ordered_pointing_{band_labels[band]}.png', bbox_inches='tight')
+        
+        hp.mollview(np.zeros(12)+hp.UNSEEN, coord='G', min=-1, max=1, unit=r'$\sin2\gamma$', title=band_labels[band])
+        for i in range(len(gal[band])):
+            hp.projscatter(gal[band,i,0], gal[band,i,1], color=plt.cm.viridis((sin2g[band][i]+1)/2), lonlat=True, s=1)
+        
+        plt.savefig(f'plots/sin2gamma_stream_{band_labels[band]}.png', bbox_inches='tight')
+        
+        hp.mollview(np.zeros(12)+hp.UNSEEN, coord='G', min=-1, max=1, unit=r'$\cos2\gamma$', title=band_labels[band])
+        for i in range(len(gal[band])):
+            hp.projscatter(gal[band,i,0], gal[band,i,1], color=plt.cm.viridis((cos2g[band][i]+1)/2), lonlat=True, s=1)
+        
+        plt.savefig(f'cos2gamma_stream_{band_labels[band]}.png', bbox_inches='tight')
+        
+        plt.figure()
+        plt.title(band_labels[band])
+        plt.scatter(cos2g[band], sin2g[band], c=time, s=1)
+        plt.xlabel(r'$\cos2\gamma$')
+        plt.ylabel(r'$\sin2\gamma$')
+        plt.colorbar(label='Time')
+        plt.savefig(f'plots/cos2_v_sin2_{band_labels[band]}.png', bbox_inches='tight')
+        plt.close('all')
