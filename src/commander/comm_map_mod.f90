@@ -119,7 +119,7 @@ contains
     class(comm_mapinfo), pointer             :: constructor_mapinfo
 
     integer(i4b) :: myid, nprocs, ierr
-    integer(i4b) :: l, m, i, j, k, np, ind 
+    integer(i4b) :: l, m, i, j, k, np, ind
     real(dp)     :: nullval
     logical(lgt) :: anynull, distval
     integer(i4b), allocatable, dimension(:) :: pixlist
@@ -168,6 +168,7 @@ contains
     p_new%pol    = pol
     p_new%npix   = 12*nside**2
     p_new%dist   = distval
+
 
     ! Select rings and pixels
     allocate(pixlist(0:4*nside-1))
