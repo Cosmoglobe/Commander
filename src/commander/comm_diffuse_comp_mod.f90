@@ -186,6 +186,7 @@ contains
           if (info%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
           open(unit=11, file=filename, recl=10000)
           read(11,*) self%steplen(j)
+          read(11,*) self%corrlen(j,:)
           read(11,*) self%L(:,:,:,j)
           close(11)
        else

@@ -113,7 +113,7 @@ contains
     integer(i4b),       intent(in)    :: iter
     type(planck_rng),   intent(inout) :: handle    
 
-    integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, delta, corrlen
+    integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, delta
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind
     real(dp)     :: t1, t2, ts, dalm, thresh
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var
@@ -160,8 +160,9 @@ contains
              ! Params
              out_every = 10
              check_every = 50
-             nsamp = 2000 ! Maxsamp
-             thresh = 400.d0
+             nsamp = 2000
+             thresh = 40.d0
+             if (maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
 
              ! Static variables
              num_accepted = 0
@@ -334,56 +335,64 @@ contains
                    alms(i,:,:) = alms(i-1,:,:)
                    call c%updateMixmat                                   
                 end if
-                
-                ! Write to screen
-                if (mod(i,out_every) == 0 .and. info%myid == 0) then
-                   call wall_time(t2)
-                   diff = chisq(i-out_every) - chisq(i) ! Output diff
-                   ts = (t2-t1)/DFLOAT(out_every) ! Average time per sample
-                   write(*,fmt='(a,i6, a, f16.2, a, f10.2, a, f7.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq(i), " - diff: ", diff, " - time/sample: ", ts, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
-                   call wall_time(t1)
-                end if
-                
-                ! Adjust learning rate every 100th
-                if (mod(i, check_every) == 0 .and. info%myid == 0) then 
-                   ! Accept rate
-                   accept_rate = num_accepted/FLOAT(check_every)
-                   num_accepted = 0
-                   
-                   diff = chisq(i-check_every)-chisq(i)
-                   
-                   ! Write to screen
-                   write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 30:  ", diff, " - accept rate: ", accept_rate
-                   
-                   ! Adjust steplen in tuning iteration
-                   if (accept_rate < 0.2 .and. iter == 1) then                 
-                      c%steplen(j) = c%steplen(j)*0.5d0
-                      if (info%myid == 0) write(*,fmt='(a,f10.5)') "Reducing c%steplen(j) -> ", c%steplen(j)
-                   else if (accept_rate > 0.8 .and. iter == 1) then
-                      c%steplen(j) = c%steplen(j)*2.d0
-                      if (info%myid == 0) write(*,fmt='(a,f10.5)') "Increasing c%steplen(j) -> ", c%steplen(j)
+                                
+
+                if (info%myid == 0) then 
+                   ! Output log to file
+                   write(69, *) i, chisq(i), alms(i,:,:)
+
+                   ! Write to screen every out_every'th
+                   if (mod(i,out_every) == 0) then
+                      call wall_time(t2)
+                      diff = chisq(i-out_every) - chisq(i) ! Output diff
+                      ts = (t2-t1)/DFLOAT(out_every) ! Average time per sample
+                      write(*,fmt='(a,i6, a, f16.2, a, f10.2, a, f7.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq(i), " - diff: ", diff, " - time/sample: ", ts, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
+                      call wall_time(t1)
                    end if
-                   
-                   ! Burnin
 
-                   if (iter == 1 .and. diff < thresh) doexit = .true.                   
+                   ! Adjust learning rate every check_every'th
+                   if (mod(i, check_every) == 0) then
+                      ! Accept rate
+                      accept_rate = num_accepted/FLOAT(check_every)
+                      num_accepted = 0
+                   
+                      diff = chisq(i-check_every)-chisq(i)
+                   
+                      ! Write to screen
+                      write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 30:  ", diff, " - accept rate: ", accept_rate
+                   
+                      ! Adjust steplen in tuning iteration
+                      if (accept_rate < 0.2 .and. iter == 1) then                 
+                         c%steplen(j) = c%steplen(j)*0.5d0
+                         write(*,fmt='(a,f10.5)') "Reducing c%steplen(j) -> ", c%steplen(j)
+                      else if (accept_rate > 0.8 .and. iter == 1) then
+                         c%steplen(j) = c%steplen(j)*2.d0
+                         write(*,fmt='(a,f10.5)') "Increasing c%steplen(j) -> ", c%steplen(j)
+                      end if
+
+                      ! Exit if threshold is reached
+                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh) then
+                         doexit = .true.
+                         write(*,*) "Chisq threshold reached", thresh
+                      end if
+                   end if                   
+
+                   
+                   if (i == nsamp) write(*,*) "nsamp samples reached", nsamp
                 end if
 
-                if (iter > 1 .and. i >= maxval(c%corrlen(j,:)) .and. info%myid == 0) doexit = .true.
-
-                ! Output samples, chisq, alms to file
-                if (info%myid == 0) write(69, *) i, chisq(i), alms(i,:,:)
                 
                 call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
                 if (doexit) exit
 
-                if (info%myid == 0 .and. i == nsamp) write(*,*) "nsamp samples reached. Did not converge."
+
              end do
 
              if (info%myid == 0) close(58)
              
-             ! Calculate correlation length and cholesky matrix
-             if (info%myid == 0 .and. iter == 1) then! At this point, id=0 should have all values
+             ! Calculate correlation length and cholesky matrix 
+             ! (Only if first iteration and not initialized from previous)
+             if (info%myid == 0 .and. iter == 1 .and. maxval(c%corrlen(j,:)) == 0) then
                 write(*,*) 'Calculating correlation function'
                 ! Calculate Correlation length
                 delta = 100
@@ -439,6 +448,7 @@ contains
                 
                 open(58, file=filename, recl=10000)
                 write(58,*) c%steplen(j)
+                write(58,*) c%corrlen(j,:)
                 write(58,*) c%L(:,:,:,j)
                 close(58)
                 close(69)          
