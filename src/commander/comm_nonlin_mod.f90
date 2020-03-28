@@ -437,6 +437,7 @@ contains
 
                       where (N>0) C_ = C_/N
                       C_ = C_/alms_var
+                      
                       write(58,*) p, C_ ! Write to file
 
                       ! Find correlation length
