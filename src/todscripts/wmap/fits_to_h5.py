@@ -6,6 +6,7 @@ import h5py
 import healpy as hp
 
 from pytest import approx
+from glob import glob
 
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
@@ -235,53 +236,59 @@ def quat_to_sky_coords(quat, center=True, Nobs=12):
 
 
 def main():
-    file_in = 'wmap.fits'
-    file_out = 'h5_wmap_test.h5'
+    file_out = 'wmap_tods.h5'
 
-    data = fits.open(file_in)
     f = h5py.File(file_out, 'w')
 
-    obsid = '00001'
-    band_labels = ['K113', 'K114', 'K123', 'K124']
-    band_labels = data[2].columns.names[1:-6]
-    
-    
-    time = data[2].data['TIME']
-    for label in band_labels:
-        TOD = data[2].data[label]
-        # Write to h5 file.
-        dset = f.create_dataset(obsid + '/' + label + '/TOD', data=TOD)
+    #/mn/stornext/u3/hke/xsan/wmap/tod
+    files = glob('/mn/stornext/u3/hke/xsan/wmap/tod/*.fits')
+    files.sort()
+    for file_in in files:
+        data = fits.open(file_in)
+
+
+        obsid = file_in.split('/')[-1].split('_')[2] 
+        band_labels = data[2].columns.names[1:-6]
+        print(file_in, obsid)
+        
+        
+        time = data[2].data['TIME']
+        for label in band_labels:
+            TOD = data[2].data[label]
+            # Write to h5 file.
+            dset = f.create_dataset(obsid + '/' + label + '/TOD', data=TOD)
    
-    n_records = data[0].header['NUMREC']
-    
-    # position (and velocity) in km(/s) in Sun-centered coordinates
-    pos = data[1].data['POSITION']
-    vel = data[1].data['VELOCITY']
-    
-    
-    gal, pol = quat_to_sky_coords(data[1].data['QUATERN'])
+        n_records = data[0].header['NUMREC']
+        
+        # position (and velocity) in km(/s) in Sun-centered coordinates
+        pos = data[1].data['POSITION']
+        vel = data[1].data['VELOCITY']
+        
+        
+        gal, pol = quat_to_sky_coords(data[1].data['QUATERN'])
 
-    los_labels = data[5].columns.names
+        los_labels = data[5].columns.names
 
-    sin_2_gamma = np.zeros( (len(gal), len(gal[0])) )
-    cos_2_gamma = np.zeros( (len(gal), len(gal[0])) )
-    for band in range(len(sin_2_gamma)):
-        print(los_labels[band])
-        for t in range(len(sin_2_gamma[band])):
-            sin_2_gi, cos_2_gi = gamma_from_pol(gal[band,t], pol[band, t])
-            sin_2_gamma[band, t] = sin_2_gi
-            cos_2_gamma[band, t] = cos_2_gi
-
-
+        sin_2_gamma = np.zeros( (len(gal), len(gal[0])) )
+        cos_2_gamma = np.zeros( (len(gal), len(gal[0])) )
+        for band in range(len(sin_2_gamma)):
+            print(band_labels[band])
+            for t in range(len(sin_2_gamma[band])):
+                sin_2_gi, cos_2_gi = gamma_from_pol(gal[band,t], pol[band, t])
+                sin_2_gamma[band, t] = sin_2_gi
+                cos_2_gamma[band, t] = cos_2_gi
 
 
 
-    f.create_dataset(obsid + '/common/gal', data=gal)
-    f.create_dataset(obsid + '/common/vel', data=vel)
-    f.create_dataset(obsid + '/common/time', data=time)
-    f.create_dataset(obsid + '/common/sin_2_g', data=sin_2_gamma)
-    f.create_dataset(obsid + '/common/cos_2_g', data=cos_2_gamma)
 
+
+        f.create_dataset(obsid + '/common/gal', data=gal)
+        f.create_dataset(obsid + '/common/vel', data=vel)
+        f.create_dataset(obsid + '/common/time', data=time)
+        f.create_dataset(obsid + '/common/sin_2_g', data=sin_2_gamma)
+        f.create_dataset(obsid + '/common/cos_2_g', data=cos_2_gamma)
+
+        data.close()
 
     f.close()
 

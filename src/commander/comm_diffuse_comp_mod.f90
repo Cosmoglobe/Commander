@@ -140,62 +140,64 @@ contains
     operation          = cpar%operation
 
     ! Init alm sampling params (Trygve)
-    self%npar = 1 !qcpar%cs_npar(id_abs)
-    allocate(self%corrlen(self%npar, self%nmaps), self%steplen(self%npar))
-    self%corrlen    = 0     ! Init correlation length
-    self%steplen    = 0.3d0 ! Init steplength (Better to use pgauss?)
-    
-    self%nalm_tot = (self%lmax_ind + 1)**2
-    ! Initialize cholesky matrix and priors
-    
-    ! Init smooth priors
-    allocate(self%sigma_priors(0:self%nalm_tot-1,self%npar)) !a_00 is given by different one
-    
-    fwhm_prior = 1200.d0
-    do j = 1, self%npar
-       self%sigma_priors(0,j) = cpar%cs_p_gauss(id_abs,2,j)
-       if (self%nalm_tot > 1) then
-          ! Saving and smoothing priors
-          i = 1
-          do l = 1, self%lmax_ind ! Skip a_00 - m-major ordering (0,0)(1,0)(2,0)(1,1)(1,-1)(2,1)(2,-1)(2,2)(2,-2)
-             self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
-             i = i + 1
-          end do
-          do l = 1, self%lmax_ind
-             do m = 1, l
-                self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
-                i = i + 1
+    if (self%lmax_ind >= 0) then
+       self%npar = 1 !qcpar%cs_npar(id_abs)
+
+       allocate(self%corrlen(self%npar, self%nmaps), self%steplen(self%npar))
+       self%corrlen    = 0     ! Init correlation length
+       self%steplen    = 0.3d0 ! Init steplength (Better to use pgauss?)
+
+       self%nalm_tot = (self%lmax_ind + 1)**2
+
+       ! Init smooth priors
+       allocate(self%sigma_priors(0:self%nalm_tot-1,self%npar)) !a_00 is given by different one
+
+       fwhm_prior = 1200.d0
+       do j = 1, self%npar
+          self%sigma_priors(0,j) = cpar%cs_p_gauss(id_abs,2,j)
+          if (self%nalm_tot > 1) then
+             ! Saving and smoothing priors
+             i = 1
+             do l = 1, self%lmax_ind ! Skip a_00 - m-major ordering (0,0)(1,0)(2,0)(1,1)(1,-1)(2,1)(2,-1)(2,2)(2,-2)
                 self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
                 i = i + 1
              end do
-          end do
-       end if
-    end do
+             do l = 1, self%lmax_ind
+                do m = 1, l
+                   self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+                   i = i + 1
+                   self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+                   i = i + 1
+                end do
+             end do
+          end if
+       end do
 
-    ! Initialize cholesky matrix
-    allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))                         
-    self%L = 0.d0
+       ! Initialize cholesky matrix
+       allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))                         
+       self%L = 0.d0
 
-    ! Filename formatting
-    do j = 1, self%npar
-       write(jtext, fmt = '(I1)') j
-       filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_par'//trim(jtext)//'.dat'
+       ! Filename formatting
+       do j = 1, self%npar
+          write(jtext, fmt = '(I1)') j
+          filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_par'//trim(jtext)//'.dat'
 
-       inquire(file=filename, exist=exist)
-       if (exist) then ! If present cholesky file
-          if (info%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
-          open(unit=11, file=filename, recl=10000)
-          read(11,*) self%steplen(j)
-          read(11,*) self%corrlen(j,:)
-          read(11,*) self%L(:,:,:,j)
-          close(11)
-       else
-          if (info%myid == 0) write(*,*) "No cholesky matrix found for paremeter ", j       
-          do p = 0, self%nalm_tot-1
-             self%L(p,p,:,j) = self%sigma_priors(p,j)
-          end do
-       end if
-    end do
+          inquire(file=filename, exist=exist)
+          if (exist) then ! If present cholesky file
+             if (info%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
+             open(unit=11, file=filename, recl=10000)
+             read(11,*) self%steplen(j)
+             read(11,*) self%corrlen(j,:)
+             read(11,*) self%L(:,:,:,j)
+             close(11)
+          else
+             if (info%myid == 0) write(*,*) "No cholesky matrix found for paremeter ", j       
+             do p = 0, self%nalm_tot-1
+                self%L(p,p,:,j) = self%sigma_priors(p,j)
+             end do
+          end if
+       end do
+    end if ! End of alm init
 
     ! Diffuse preconditioner variables
     npre      = npre+1
