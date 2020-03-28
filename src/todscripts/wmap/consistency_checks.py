@@ -28,7 +28,7 @@ vel  = np.array(f[obsid + '/common/vel'])
 sin2g  = np.array(f[obsid + '/common/sin_2_g'])
 cos2g  = np.array(f[obsid + '/common/cos_2_g'])
 
-plot_map = False
+plot_map = True
 
 
 
@@ -74,7 +74,7 @@ if plot_map:
         for i in range(len(gal[band])):
             hp.projscatter(gal[band,i,0], gal[band,i,1], color=plt.cm.viridis((cos2g[band][i]+1)/2), lonlat=True, s=1)
         
-        plt.savefig(f'cos2gamma_stream_{band_labels[band]}.png', bbox_inches='tight')
+        plt.savefig(f'plots/cos2gamma_stream_{band_labels[band]}.png', bbox_inches='tight')
         
         plt.figure()
         plt.title(band_labels[band])
