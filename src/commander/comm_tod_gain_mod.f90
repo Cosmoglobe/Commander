@@ -529,7 +529,7 @@ contains
        end if
        write(*,*) 'abscal = ', tod%gain0(0)
     end if
-    call mpi_bcast(tod%gain0(0), tod%ndet,  MPI_DOUBLE_PRECISION, 0, &
+    call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
          & tod%info%comm, ierr)
 
     do j = 1, tod%nscan
