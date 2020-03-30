@@ -28,13 +28,9 @@ module comm_tod_mod
      real(dp),     allocatable, dimension(:)  :: log_n_psd  ! Noise power spectrum density; in uncalibrated units
      real(dp),     allocatable, dimension(:)  :: log_n_psd2 ! Second derivative (for spline)
      real(dp),     allocatable, dimension(:)  :: log_nu     ! Noise power spectrum bins; in Hz
-     class(offset),allocatable, dimension(:)  :: offset     ! Array of offset (jump) regions
+     integer(i4b), allocatable, dimension(:,:)  :: offset_range    ! Beginning and end tod index of every offset region
+     real(sp),     allocatable, dimension(:)    :: offset_level    ! Amplitude of every offset region(step)
   end type comm_detscan
-
-  type :: offset
-      integer(i4b), allocatable, dimension(:,:):: offset_range  ! Beginning and end tod index of every offset region
-      real(sp),     allocatable, dimension(:)  :: offset_level  ! Amplitude of every offset region(step)
-  end type offset
 
   type :: comm_scan
      integer(i4b)   :: ntod                                        ! Number of time samples
