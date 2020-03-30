@@ -159,9 +159,9 @@ contains
              
              ! Params
              out_every = 10
-             check_every = 50
+             check_every = 25
              nsamp = 2000
-             thresh = 40.d0
+             thresh = 20.d0 ! 40.d0
              if (maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
 
              ! Static variables
@@ -362,7 +362,7 @@ contains
                       write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 30:  ", diff, " - accept rate: ", accept_rate
                    
                       ! Adjust steplen in tuning iteration
-                      if (accept_rate < 0.2 .and. iter == 1) then                 
+                      if (accept_rate < 0.4 .and. iter == 1) then                 
                          c%steplen(j) = c%steplen(j)*0.5d0
                          write(*,fmt='(a,f10.5)') "Reducing c%steplen(j) -> ", c%steplen(j)
                       else if (accept_rate > 0.8 .and. iter == 1) then
@@ -371,36 +371,20 @@ contains
                       end if
 
                       ! Exit if threshold is reached
-                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh) then
+                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.4) then
                          doexit = .true.
-                         write(*,*) "Chisq threshold reached", thresh
+                         write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
                       end if
+
                    end if                   
 
-                   
-                   ! Burnin
-                   if (iter == 1 .and. diff < 20.d0 .and. i > 1000) doexit = .true.
-                   if (iter  >= 1 .and. i>=60) doexit = .true.
-                   !! Check corrlen seudocode
-                   !x = alms(i-100:i-50,:,:)
-                   !y = alms(i-50:i,:,:)
-                   !xmean = mean(alms(i-100:i-50,:,:))
-                   !ymean = mean(alms(i-50:i,:,:))
-                   !do l = 1, 50
-                   !   cov(l, :) = ((x(l,:,:) - xmean)*(y(l,:,:) - ymean))/50.d0
-                   !   sigx(l, :) = sqrt((x(l,:,:) - xmean)**2)/50.d0
-                   !   sigy(l, :) = sqrt((y(l,:,:) - ymean)**2)/50.d0
-                   !   corr_coeff = cov(l,:)/(sigx(l,:)*sigy(l,:))
-                   !   if (corr_coeff >= 0.d0) then
-                   !      corrlen = l
-                   !   end if
-                   !end do
                 end if
 
                 
                 call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
                 if (doexit) exit
-
+                
+                if (i == nsamp) write(*,*) "nsamp samples reached", nsamp
 
              end do
 
@@ -436,7 +420,7 @@ contains
                       end do
 
                       where (N>0) C_ = C_/N
-                      C_ = C_/alms_var
+                      if ( alms_var > 0 ) C_ = C_/alms_var
                       
                       write(58,*) p, C_ ! Write to file
 
