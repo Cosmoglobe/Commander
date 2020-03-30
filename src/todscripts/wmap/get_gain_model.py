@@ -162,10 +162,9 @@ if __name__ == '__main__':
     data = fits.open('wmap.fits')
 
 
-
-
     # The only published gain model I've seen in the WMAP paper is Figure 2 of
     # Jarosik et al. 2007, which plots the V223 detector.
+    par_array = np.loadtxt('T0_sols.txt', dtype=str)
     T0 = 5.4309e1
     V0 = -5.4468e-1
     beta = -2.7406e-3
@@ -173,6 +172,10 @@ if __name__ == '__main__':
     m = -3.6946e-7
     c = 2.5173e-1
     pars = np.array([T0, V0, beta, alpha, m ,c])
+    print(pars)
+    ind = np.where(par_array[:,0] == 'V2')[0][0]
+    pars = par_array[ind,1+2::4].astype('float')
+    print(pars)
 
     mnem_rfb = 'DRV223RFBI14'
     mnem_tfpa = 'DFV22FPATEET'
@@ -209,6 +212,8 @@ if __name__ == '__main__':
     m = -2.7274e-7
     c = -6.7556e-1
     pars = np.array([T0, V0, beta, alpha, m ,c])
+    ind = np.where(par_array[:,0] == 'K1')[0][0]
+    pars = par_array[ind,1::4].astype('float')
     mnem_trxb = 'DRK12RXBRIBT'
     mnem_tfpa = 'DFK1AFEEDT'
     mnem_rfb = 'DRK113RFBI0'
@@ -238,6 +243,8 @@ if __name__ == '__main__':
     m = -2.1019e-7
     c = 4.85e-1
     pars = np.array([T0, V0, beta, alpha, m ,c])
+    ind = np.where(par_array[:,0] == 'V1')[0][0]
+    pars = par_array[ind,1::4].astype('float')
     mnem_trxb = 'DRV111RXBAMPT'
     mnem_tfpa = 'DFV11FPATEET'
     mnem_rfb = 'DRV113RFBI32'
