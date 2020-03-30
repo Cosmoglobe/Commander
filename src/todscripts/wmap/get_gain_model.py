@@ -157,47 +157,22 @@ def get_val_from_mnem(data, mnem):
 
 
 if __name__ == '__main__':
+
+    # to convert to JD, add 2.4500e06
     data = fits.open('wmap.fits')
 
-    mnem = 'DFK1AFEEDT'
-    T_FPA = get_val_from_mnem(data, mnem)
 
-    plt.figure()
-    plt.subplot(221)
-    plt.plot(data[3].data['TIME'], T_FPA, '.')
-    plt.xlabel(r'$t$')
-    plt.ylabel(r'$T$ (Kelvin)')
-
-    T_RXB = get_val_from_mnem(data, 'DRK12RXBRIBT')
-    plt.subplot(222)
-    plt.plot(data[3].data['TIME'], T_RXB, '.')
-    plt.xlabel(r'$t$')
-    plt.ylabel(r'$T$ (Kelvin)')
-
-
-    RF_bias = get_val_from_mnem(data, 'DRK113RFBI0')
-    plt.subplot(223)
-    plt.plot(data[3].data['TIME'], RF_bias, '.')
-    plt.xlabel(r'$t$')
-    plt.ylabel(r'RF bias')
-
-
-    # Let's see if the gain model makse sense for K13
-    T0 = 5.3235e1
-    V0 = -5.5125e-1
-    beta = -7.22e-4
-    alpha = 4.4619e1
-    m = -2.7274e-7
-    c = -6.7556e-1
-    pars = np.array([T0, V0, beta, alpha, m ,c])
-
-    G_K1 = G(RF_bias, T_RXB, T_FPA, data[3].data['TIME'], pars)
-    plt.subplot(224)
-    plt.plot(data[3].data['TIME'], G_K1)
 
 
     # The only published gain model I've seen in the WMAP paper is Figure 2 of
     # Jarosik et al. 2007, which plots the V223 detector.
+    T0 = 5.4309e1
+    V0 = -5.4468e-1
+    beta = -2.7406e-3
+    alpha = -1.6287e1
+    m = -3.6946e-7
+    c = 2.5173e-1
+    pars = np.array([T0, V0, beta, alpha, m ,c])
 
     mnem_rfb = 'DRV223RFBI14'
     mnem_tfpa = 'DFV22FPATEET'
@@ -206,15 +181,82 @@ if __name__ == '__main__':
     T_RXB = get_val_from_mnem(data, mnem_trxb)
     T_FPA = get_val_from_mnem(data, mnem_tfpa)
     RF_bias = get_val_from_mnem(data, mnem_rfb)
-    t = data[3].data['TIME']
+    t_JD = data[3].data['TIME'] + 2.45e6
+    # 2452131.5 is 0:00 of day 222 of 2001.
+    t = t_JD - 2452131.50000
+
     G_V223 = G(RF_bias, T_RXB, T_FPA, t, pars)
 
     fig, axes = plt.subplots(sharex=True, nrows=2, ncols=2)
     axs = axes.flatten()
-    axs[0].plot(t, T_RXB)
-    axs[1].plot(t, T_FPA)
-    axs[2].plot(t, RF_bias)
-    axs[3].plot(t, G_V223)
+    axs[0].plot(t, T_RXB, '.')
+    axs[0].set_title(r'$T_\mathrm{RXB}$')
+    axs[1].plot(t, T_FPA, '.')
+    axs[1].set_title(r'$T_\mathrm{FPA}$')
+    axs[2].plot(t, RF_bias, '.')
+    axs[2].set_title('RF Bias')
+    axs[3].plot(t, G_V223, '.')
+    axs[3].set_title('Gain')
+    fig.suptitle('V223')
 
+
+    # Figure 4 in Hinshaw et al has a couple of figures. K113 and V113;
+    # K113
+    T0 = 5.3235e1
+    V0 = -5.5125e-1
+    beta = -7.220e-4
+    alpha = 4.4619e1
+    m = -2.7274e-7
+    c = -6.7556e-1
+    pars = np.array([T0, V0, beta, alpha, m ,c])
+    mnem_trxb = 'DRK12RXBRIBT'
+    mnem_tfpa = 'DFK1AFEEDT'
+    mnem_rfb = 'DRK113RFBI0'
+
+    T_RXB = get_val_from_mnem(data, mnem_trxb)
+    T_FPA = get_val_from_mnem(data, mnem_tfpa)
+    RF_bias = get_val_from_mnem(data, mnem_rfb)
+    G_K113 = G(RF_bias, T_RXB, T_FPA, t, pars)
+
+    fig, axes = plt.subplots(sharex=True, nrows=2, ncols=2)
+    axs = axes.flatten()
+    axs[0].plot(t, T_RXB, '.')
+    axs[0].set_title(r'$T_\mathrm{RXB}$')
+    axs[1].plot(t, T_FPA, '.')
+    axs[1].set_title(r'$T_\mathrm{FPA}$')
+    axs[2].plot(t, RF_bias, '.')
+    axs[2].set_title('RF Bias')
+    axs[3].plot(t, G_K113, '.')
+    axs[3].set_title('Gain')
+    fig.suptitle('K113')
+
+    #V113
+    T0 = 4.4834e1
+    V0 = -1.0074e0
+    beta = -2.3861e-3
+    alpha = -2.1649e1
+    m = -2.1019e-7
+    c = 4.85e-1
+    pars = np.array([T0, V0, beta, alpha, m ,c])
+    mnem_trxb = 'DRV111RXBAMPT'
+    mnem_tfpa = 'DFV11FPATEET'
+    mnem_rfb = 'DRV113RFBI32'
+
+    T_RXB = get_val_from_mnem(data, mnem_trxb)
+    T_FPA = get_val_from_mnem(data, mnem_tfpa)
+    RF_bias = get_val_from_mnem(data, mnem_rfb)
+    G_V113 = G(RF_bias, T_RXB, T_FPA, t, pars)
+
+    fig, axes = plt.subplots(sharex=True, nrows=2, ncols=2)
+    axs = axes.flatten()
+    axs[0].plot(t, T_RXB, '.')
+    axs[0].set_title(r'$T_\mathrm{RXB}$')
+    axs[1].plot(t, T_FPA, '.')
+    axs[1].set_title(r'$T_\mathrm{FPA}$')
+    axs[2].plot(t, RF_bias, '.')
+    axs[2].set_title('RF Bias')
+    axs[3].plot(t, G_V113, '.')
+    axs[3].set_title('Gain')
+    fig.suptitle('V113')
 
     plt.show()
