@@ -115,7 +115,7 @@ contains
 
     integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, delta
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind
-    real(dp)     :: t1, t2, ts, dalm, thresh
+    real(dp)     :: t1, t2, ts, dalm, thresh, steplen
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
@@ -162,6 +162,7 @@ contains
              check_every = 25
              nsamp = 2000
              thresh = 20.d0 ! 40.d0
+             steplen = 0.3d0
              if (maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
 
              ! Static variables
@@ -245,7 +246,7 @@ contains
                    ! Propose new alms
                    if (info%myid == 0) then
                       ! Steplen(1:) = 0.1*steplen(0)
-                      rgs(0) = c%steplen(j)*rand_gauss(handle)      
+                      rgs(0) = steplen*rand_gauss(handle)      
                       do p = 1, c%nalm_tot-1
                          rgs(p) = 0.3d0*rand_gauss(handle)     
                       end do
@@ -362,24 +363,23 @@ contains
                       write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 30:  ", diff, " - accept rate: ", accept_rate
                    
                       ! Adjust steplen in tuning iteration
-                      if (accept_rate < 0.4 .and. iter == 1) then                 
-                         c%steplen(j) = c%steplen(j)*0.5d0
-                         write(*,fmt='(a,f10.5)') "Reducing c%steplen(j) -> ", c%steplen(j)
-                      else if (accept_rate > 0.8 .and. iter == 1) then
-                         c%steplen(j) = c%steplen(j)*2.d0
-                         write(*,fmt='(a,f10.5)') "Increasing c%steplen(j) -> ", c%steplen(j)
+                      if (.not. c%L_read(j)) then ! Only adjust if tuning
+                         if (accept_rate < 0.4) then                 
+                            steplen = steplen*0.5d0
+                            write(*,fmt='(a,f10.5)') "Reducing steplen -> ", steplen
+                         else if (accept_rate > 0.8) then
+                            steplen = steplen*2.d0
+                            write(*,fmt='(a,f10.5)') "Increasing steplen -> ", steplen
+                         end if
                       end if
 
-                      ! Exit if threshold is reached
+                      ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
                       if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.4) then
                          doexit = .true.
                          write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
                       end if
-
                    end if                   
-
                 end if
-
                 
                 call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
                 if (doexit) exit
@@ -392,67 +392,72 @@ contains
              
              ! Calculate correlation length and cholesky matrix 
              ! (Only if first iteration and not initialized from previous)
-             if (info%myid == 0 .and. iter == 1 .and. maxval(c%corrlen(j,:)) == 0) then
-                write(*,*) 'Calculating correlation function'
-                ! Calculate Correlation length
-                delta = 100
-                allocate(C_(delta))
-                allocate(N(delta))
-                open(58, file=trim(cpar%outdir)//'/C_.dat', recl=10000)
-                do pl = 1, c%theta(j)%p%info%nmaps
+             if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0) then
+                if (c%L_read(j)) then
+                   write(*,*) 'Calculating correlation function'
+                   ! Calculate Correlation length
+                   delta = 100
+                   allocate(C_(delta))
+                   allocate(N(delta))
+                   open(58, file=trim(cpar%outdir)//'/C_.dat', recl=10000)
+                   do pl = 1, c%theta(j)%p%info%nmaps
 
-                   ! Skip signals with poltype tag
-                   if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
-                   if (pl > c%poltype(j)) cycle
-                   
-                   ! Calculate correlation function per alm
-                   do p = 0, c%nalm_tot-1
-                      N(:) = 0
-                      C_(:) = 0.d0
-                      alms_mean = mean(alms(:i,p,pl))
-                      alms_var = variance(alms(:i,p,pl))
-                      do q = 1, i
+                      ! Skip signals with poltype tag
+                      if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
+                      if (pl > c%poltype(j)) cycle
+
+                      ! Calculate correlation function per alm
+                      do p = 0, c%nalm_tot-1
+                         N(:) = 0
+                         C_(:) = 0.d0
+                         alms_mean = mean(alms(:i,p,pl))
+                         alms_var = variance(alms(:i,p,pl))
+                         do q = 1, i
+                            do k = 1, delta
+                               if (q+k > i) cycle
+                               C_(k) = C_(k) + (alms(q,p,pl)-alms_mean)*(alms(q+k,p,pl)-alms_mean)
+                               N(k) = N(k) + 1 ! Less samples every q
+                            end do
+                         end do
+
+                         where (N>0) C_ = C_/N
+                         if ( alms_var > 0 ) C_ = C_/alms_var
+
+                         write(58,*) p, C_ ! Write to file
+
+                         ! Find correlation length
                          do k = 1, delta
-                            if (q+k > i) cycle
-                            C_(k) = C_(k) + (alms(q,p,pl)-alms_mean)*(alms(q+k,p,pl)-alms_mean)
-                            N(k) = N(k) + 1 ! Less samples every q
+                            if (C_(k) < 0.1) then
+                               if (c%corrlen(j,pl) < k) c%corrlen(j,pl) = k
+                               exit
+                            end if
                          end do
                       end do
-
-                      where (N>0) C_ = C_/N
-                      if ( alms_var > 0 ) C_ = C_/alms_var
-                      
-                      write(58,*) p, C_ ! Write to file
-
-                      ! Find correlation length
-                      do k = 1, delta
-                         if (C_(k) < 0.1) then
-                            if (c%corrlen(j,pl) < k) c%corrlen(j,pl) = k
-                            exit
-                         end if
-                      end do
+                      write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
                    end do
-                   write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
-                end do
-                close(58)
-                deallocate(C_, N)
+                   close(58)
+                   deallocate(C_, N)
+                end if
 
-                write(*,*) 'Calculating cholesky matrix'
-                do p = 1, c%theta(j)%p%info%nmaps
-                   call compute_covariance_matrix(alms(INT(i/2):i,0:c%nalm_tot-1,p), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,p,j), .true.)
-                   !call get_eigenvalues(alms_covmat(:,:,p), rgs)
-                   !write(*,*) 'W = ', rgs
-                end do
+                if (.not. c%L_read(j)) then
+                   write(*,*) 'Calculating cholesky matrix'
+                   do p = 1, c%theta(j)%p%info%nmaps
+                      call compute_covariance_matrix(alms(INT(i/2):i,0:c%nalm_tot-1,p), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,p,j), .true.)
+                      !call get_eigenvalues(alms_covmat(:,:,p), rgs)
+                      !write(*,*) 'W = ', rgs
+                   end do
 
-                write(jtext, fmt = '(I1)') j
-                filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_par'//trim(jtext)//'.dat'
-                
-                open(58, file=filename, recl=10000)
-                write(58,*) c%steplen(j)
-                write(58,*) c%corrlen(j,:)
-                write(58,*) c%L(:,:,:,j)
-                close(58)
-                close(69)          
+                   c%L_read(j) = .true. ! L now exists!
+
+                   write(jtext, fmt = '(I1)') j
+                   filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_par'//trim(jtext)//'.dat'
+
+                   open(58, file=filename, recl=10000)
+                   write(58,*) c%corrlen(j,:)
+                   write(58,*) c%L(:,:,:,j)
+                   close(58)
+                   close(69)          
+                end if
              end if
              deallocate(alms, rgs, chisq)
           end do ! End of j
