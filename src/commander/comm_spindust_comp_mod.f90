@@ -57,6 +57,9 @@ contains
     constructor%nu_min_ind(1) = cpar%cs_nu_min(id_abs,1)
     constructor%nu_max_ind(1) = cpar%cs_nu_max(id_abs,1)
 
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar)
+
     ! Component specific parameters for 2 parameter model
     !constructor%npar         = 2
     !allocate(constructor%theta_def(2), constructor%p_gauss(2,2), constructor%p_uni(2,2))

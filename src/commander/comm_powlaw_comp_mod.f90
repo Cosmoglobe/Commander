@@ -53,6 +53,9 @@ contains
     constructor%nu_max_ind(1) = cpar%cs_nu_max(id_abs,1)
     constructor%indlabel(1)  = 'beta'
 
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar)
+
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
          & constructor%nmaps, constructor%pol)

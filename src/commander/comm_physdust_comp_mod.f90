@@ -60,6 +60,9 @@ contains
     constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
     constructor%indlabel(1)  = 'Umin'
 
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar)
+
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
          & constructor%nmaps, constructor%pol)
