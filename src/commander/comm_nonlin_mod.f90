@@ -156,6 +156,9 @@ contains
              
              
              call wall_time(t1)
+
+             info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
+                  & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
              
              ! Params
              write(jtext, fmt = '(I1)') j ! Create j string
@@ -171,8 +174,6 @@ contains
              num_accepted = 0
              doexit = .false.
              
-             info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
-                  & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
              
              allocate(chisq(0:nsamp))
              allocate(alms(0:nsamp, 0:c%nalm_tot-1,info%nmaps))                         
