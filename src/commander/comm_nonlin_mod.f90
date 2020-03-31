@@ -246,9 +246,8 @@ contains
                    ! Propose new alms
                    if (info%myid == 0) then
                       ! Steplen(1:) = 0.1*steplen(0)
-                      rgs(0) = steplen*rand_gauss(handle)      
-                      do p = 1, c%nalm_tot-1
-                         rgs(p) = 0.3d0*rand_gauss(handle)     
+                      do p = 0, c%nalm_tot-1
+                         rgs(p) = steplen*rand_gauss(handle)     
                       end do
                       alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
 !!$                      write(*,*) 'a', alms(i,:,pl)
@@ -363,7 +362,7 @@ contains
                       write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 30:  ", diff, " - accept rate: ", accept_rate
                    
                       ! Adjust steplen in tuning iteration
-                      if (.not. c%L_read(j)) then ! Only adjust if tuning
+                      if (.not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
                          if (accept_rate < 0.4) then                 
                             steplen = steplen*0.5d0
                             write(*,fmt='(a,f10.5)') "Reducing steplen -> ", steplen
@@ -374,7 +373,7 @@ contains
                       end if
 
                       ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
-                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.4) then
+                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.4 .and. i>500) then
                          doexit = .true.
                          write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
                       end if
@@ -437,18 +436,18 @@ contains
                    end do
                    close(58)
                    deallocate(C_, N)
-                end if
+                else 
 
-                if (.not. c%L_read(j)) then
+                   ! If L does not exist yet, calculate
                    write(*,*) 'Calculating cholesky matrix'
                    do p = 1, c%theta(j)%p%info%nmaps
                       call compute_covariance_matrix(alms(INT(i/2):i,0:c%nalm_tot-1,p), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,p,j), .true.)
-                      !call get_eigenvalues(alms_covmat(:,:,p), rgs)
-                      !write(*,*) 'W = ', rgs
                    end do
-
                    c%L_read(j) = .true. ! L now exists!
+                end if
 
+                ! If both corrlen and L have been calulated then output
+                if (c%L_read(j)) then
                    write(jtext, fmt = '(I1)') j
                    filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_par'//trim(jtext)//'.dat'
 
@@ -456,9 +455,10 @@ contains
                    write(58,*) c%corrlen(j,:)
                    write(58,*) c%L(:,:,:,j)
                    close(58)
-                   close(69)          
                 end if
              end if
+
+             close(69)          
              deallocate(alms, rgs, chisq)
           end do ! End of j
        end select
