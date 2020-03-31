@@ -377,13 +377,9 @@ contains
                          write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
                       end if
                    end if                   
-                end if
+                end if                
                 
-                
-                if (i == nsamp .and. info%myid == 0) then
-                   write(*,*) "nsamp samples reached", nsamp
-                   doexit = .true.
-                end if
+                if (i == nsamp .and. info%myid == 0) write(*,*) "nsamp samples reached", nsamp
 
                 call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
                 if (doexit) exit
