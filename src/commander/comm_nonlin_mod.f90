@@ -372,7 +372,7 @@ contains
                       end if
 
                       ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
-                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.4 .and. i>=50) then
+                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.4 .and. i>=500) then
                          doexit = .true.
                          write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
                       end if
