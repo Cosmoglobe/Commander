@@ -477,15 +477,47 @@ contains
        i_low  = offset_range(i,1)
        i_high = offset_range(i,2)
 
-       s_jump(i_low:i_high) = offset_level(i)      
+       s_jump(i_low:i_high) = s_jump(i_low:i_high) + offset_level(i)      
     end do
  
   end subroutine expand_offset_list
 
 
+  subroutine update_offset_list(offset_range_new,offset_level_new,offset_range_global,offset_level_global)
+   implicit none
+   integer(i4b),              dimension(:,:), intent(in)    :: offset_range_new
+   real(sp),                  dimension(:),   intent(in)    :: offset_level_new
+   integer(i4b), allocatable, dimension(:,:), intent(inout) :: offset_range_global
+   real(sp),     allocatable, dimension(:),   intent(inout) :: offset_level_global
 
+   integer(i4b)                                             :: n_row_new, n_row_global
+   integer(i4b), allocatable, dimension(:,:)                :: offset_range_temp
+   real(sp),     allocatable, dimension(:)                  :: offset_level_temp
 
+   n_row_new    = size(offset_level_new)
+   n_row_global = size(offset_level_global)
 
+   if (n_row_new==1) return
+
+   ! Update offset range
+   allocate(offset_range_temp(n_row_global,2))
+   offset_range_temp = offset_range_global
+   deallocate(offset_range_global)
+   allocate(offset_range_global(n_row_global+n_row_new,2))
+   offset_range_global(1:n_row_global,:)                        = offset_range_temp
+   offset_range_global(n_row_global+1:n_row_global+n_row_new,:) = offset_range_new
+   deallocate(offset_range_temp)
+
+   ! Update offset level
+   allocate(offset_level_temp(n_row_global))
+   offset_level_temp = offset_level_global
+   deallocate(offset_level_global)
+   allocate(offset_level_global(n_row_global+n_row_new))
+   offset_level_global(1:n_row_global)                        = offset_level_temp
+   offset_level_global(n_row_global+1:n_row_global+n_row_new) = offset_level_new
+   deallocate(offset_level_temp)
+
+  end subroutine update_offset_list
 
 
 end module comm_tod_jump_mod
