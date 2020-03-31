@@ -198,13 +198,13 @@ contains
 
              call wall_time(t1)
              if (info%myid == 0) then 
-                chisq_prior = 0.d0 
+                ! Add prior 
                 do pl = 1, c%theta(j)%p%info%nmaps
                    ! if sample only pol, skip T
                    if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
                    if (pl > c%poltype(j)) cycle
                     
-                   ! prior on monopole
+                   chisq_prior = 0.d0 
                    !chisq_prior = chisq_prior + ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
                    if (c%nalm_tot > 1) then
                       do p = 1, c%nalm_tot-1
@@ -245,9 +245,9 @@ contains
                    ! Propose new alms
                    if (info%myid == 0) then
                       ! Steplen(1:) = 0.1*steplen(0)
-                      rgs(0) = c%steplen(j)*rand_gauss(handle)                       
+                      rgs(0) = c%steplen(j)*rand_gauss(handle)      
                       do p = 1, c%nalm_tot-1
-                         rgs(p) = 0.1d0*c%steplen(j)*rand_gauss(handle)                       
+                         rgs(p) = 0.3d0*rand_gauss(handle)     
                       end do
                       alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
 !!$                      write(*,*) 'a', alms(i,:,pl)
@@ -384,7 +384,7 @@ contains
                 call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
                 if (doexit) exit
                 
-                if (i == nsamp) write(*,*) "nsamp samples reached", nsamp
+                if (i == nsamp .and. info%myid == 0) write(*,*) "nsamp samples reached", nsamp
 
              end do
 
