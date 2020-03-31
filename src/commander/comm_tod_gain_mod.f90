@@ -217,7 +217,8 @@ contains
             end if
          end do
        end do
-       call get_pid_ranges(pid_ranges, tod, pidrange_gainarr, dipole_mods, window_sizes)
+!       call get_pid_ranges(pid_ranges, tod, pidrange_gainarr, dipole_mods, window_sizes)
+       call get_pid_ranges_tabulated(pid_ranges, tod)
        deallocate(pidrange_gainarr)
        open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
        do j = 1, ndet
@@ -595,29 +596,6 @@ contains
   end subroutine sample_relcal
 
 
-  function dipole_modulation(tod, s_sky, mask)
-     implicit none
-   real(dp)                                         :: dipole_modulation
-   class(comm_tod),                      intent(in) :: tod
-
-   real(sp),    dimension(:), intent(in)             :: s_sky
-   real(sp),    dimension(:), intent(in)             :: mask
-
-   real(dp)         :: currmean, currvar
-   integer(i4b)     :: i, n_unmasked
-
-   n_unmasked = count(mask /= 0)
-   currmean = sum(s_sky * mask) / n_unmasked
-   currvar = 0
-   do i = 1, size(s_sky)
-      if (mask(i) == 0) cycle
-      currvar = currvar + (s_sky(i) - currmean) ** 2
-   end do
-   currvar = currvar / n_unmasked
-   dipole_modulation = currvar
-
-  end function dipole_modulation
-
   subroutine get_pid_ranges(pid_ranges, tod, dgains, dipole_mods, window_sizes)
      implicit none
 
@@ -748,6 +726,38 @@ contains
       deallocate(jump_indices, sorted_indices, smoothed_data, smoothed_vars)
 
   end subroutine get_pid_ranges
+
+
+  subroutine get_pid_ranges_tabulated(pid_ranges, tod)
+     ! From NPIPE's gain jumps
+     implicit none
+     integer(i4b), allocatable, dimension(:, :), intent(out)     :: pid_ranges
+     class(comm_tod),           intent(in)          :: tod
+
+     integer(i4b)           :: n_jumps
+
+     n_jumps = 15
+
+     allocate(pid_ranges(tod%ndet, n_jumps))
+
+     pid_ranges(:, 1) = 3353
+     pid_ranges(:, 2) = 5030
+     pid_ranges(:, 3) = 5484
+     pid_ranges(:, 4) = 10911
+     pid_ranges(:, 5) = 15957
+     pid_ranges(:, 6) = 16455
+     pid_ranges(:, 7) = 21484
+     pid_ranges(:, 8) = 25654
+     pid_ranges(:, 9) = 27110
+     pid_ranges(:, 10) = 27343
+     pid_ranges(:, 11) = 30387
+     pid_ranges(:, 12) = 32763
+     pid_ranges(:, 13) = 38591
+     pid_ranges(:, 14) = 43929
+     pid_ranges(:, 15) = 44063
+     ! Hopefully this last is not too far towards the end
+
+  end subroutine get_pid_ranges_tabulated
 
   subroutine get_smoothing_windows(tod, windows, dipole_mods)
      implicit none
