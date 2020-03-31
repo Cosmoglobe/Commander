@@ -384,12 +384,12 @@ contains
     allocate(cpar%pixwin_smooth(cpar%num_smooth_scales))
     do i = 1, cpar%num_smooth_scales
        call int2string(i, itext)
-       call get_parameter_hashtable(htbl, 'FWHM_SMOOTHING_SCALE'//itext, len_itext=len(trim(itext)), par_dp=cpar%fwhm_smooth(i))
-       call get_parameter_hashtable(htbl, 'FWHM_POSTPROC_SMOOTHING_SCALE'//itext, &
+       call get_parameter_hashtable(htbl, 'SMOOTHING_SCALE_FWHM'//itext, len_itext=len(trim(itext)), par_dp=cpar%fwhm_smooth(i))
+       call get_parameter_hashtable(htbl, 'SMOOTHING_SCALE_FWHM_POSTPROC'//itext, &
             & len_itext=len(trim(itext)), par_dp=cpar%fwhm_postproc_smooth(i))
-       call get_parameter_hashtable(htbl, 'LMAX_SMOOTHING_SCALE'//itext, len_itext=len(trim(itext)), par_int=cpar%lmax_smooth(i))
-       call get_parameter_hashtable(htbl, 'NSIDE_SMOOTHING_SCALE'//itext, len_itext=len(trim(itext)), par_int=cpar%nside_smooth(i))
-       call get_parameter_hashtable(htbl, 'PIXWIN_SMOOTHING_SCALE'//itext, &
+       call get_parameter_hashtable(htbl, 'SMOOTHING_SCALE_LMAX'//itext, len_itext=len(trim(itext)), par_int=cpar%lmax_smooth(i))
+       call get_parameter_hashtable(htbl, 'SMOOTHING_SCALE_NSIDE'//itext, len_itext=len(trim(itext)), par_int=cpar%nside_smooth(i))
+       call get_parameter_hashtable(htbl, 'SMOOTHING_SCALE_PIXWIN'//itext, &
             & len_itext=len(trim(itext)), par_string=cpar%pixwin_smooth(i))
     end do
 
@@ -575,10 +575,7 @@ contains
                & par_lgt=cpar%cs_polarization(i))
           call get_parameter_hashtable(htbl, 'COMP_MD_DEFINITION_FILE'//itext, len_itext=len_itext, &
                & par_string=cpar%cs_SED_template(1,i))
-       else if (trim(cpar%cs_type(i)) == 'template') then
-          call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &
-               & par_string=cpar%cs_SED_template(1,i))
-       else if (trim(cpar%cs_type(i)) == 'cmb_relquad') then
+       else if (trim(cpar%cs_class(i)) == 'template') then
           call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &
                & par_string=cpar%cs_SED_template(1,i))
           call get_parameter_hashtable(htbl, 'COMP_DEFAULT_AMPLITUDE'//itext, len_itext=len_itext, &

@@ -1,10 +1,11 @@
 module comm_4D_map_mod
   use comm_utils
   use hashtbl_4Dmap
+  use comm_hdf_mod
   implicit none
 
   private
-  public comm_4D_map, output_4D_maps
+  public comm_4D_map, output_4D_maps, output_4D_maps_hdf
 
   type ::  comm_4D_map
      integer(i4b) :: n, nside, npsi, ndet
@@ -73,6 +74,118 @@ contains
   !**************************************************
   !             Output routines
   !**************************************************
+  subroutine output_4D_maps_hdf(filename, path, scanid, nside, npsi, detlabel, horn_id, psi0, sigma0, &
+       & pixel, psi, tod, mask, accept)
+    implicit none
+    character(len=*),                      intent(in) :: filename, path
+    integer(i4b),                          intent(in) :: scanid, nside, npsi
+    character(len=*),      dimension(:),   intent(in) :: detlabel
+    integer(i4b),          dimension(:),   intent(in) :: horn_id
+    real(sp),              dimension(:),   intent(in) :: psi0, sigma0
+    integer(i4b),          dimension(:,:), intent(in) :: pixel, psi
+    real(sp),              dimension(:,:), intent(in) :: tod
+    integer(i4b),          dimension(:,:), intent(in) :: mask
+    logical(lgt),          dimension(:),   intent(in) :: accept
+
+    integer(i4b) :: i, j, h, horn, nhorn, ndet, pid(1), nsamp(1)
+    integer(i4b), allocatable, dimension(:) :: d
+    logical(lgt) :: exist
+    character(len=1)   :: itext
+    character(len=6)   :: scantext
+    character(len=16)  :: dlabel
+    character(len=512) :: path_scanid, fullpath
+    class(comm_4D_map), pointer       :: map4D => null()
+    
+    type(hdf_file)     :: file
+
+    inquire(file=trim(filename), exist=exist)
+    if (exist) then
+       call open_hdf_file(filename, file, 'b')
+    else
+       call open_hdf_file(filename, file, 'w')
+    end if
+
+    call int2string(scanid, scantext)
+    path_scanid = trim(adjustl(path))//'/'//scantext
+    call create_hdf_group(file, trim(adjustl(path)))
+    call create_hdf_group(file, trim(adjustl(path_scanid)))
+    
+    ! Find number of unique horns
+    ndet  = size(detlabel)
+    nhorn = 0
+    do horn = minval(horn_id), maxval(horn_id)
+       if (count(horn_id == horn) == 0) cycle
+       nhorn = nhorn + 1       
+    end do
+
+    ! Construct 4D maps for each horn, and output each in a separate HDU
+    h = 0
+    do horn = minval(horn_id), maxval(horn_id)
+       ndet = count(horn_id == horn)
+       if (ndet == 0) cycle
+       h = h+1
+
+       ! Find which detectors belong to current horn
+       allocate(d(ndet))
+       ndet = 0
+       do i = 1, size(horn_id)
+          if (horn_id(i) == horn) then
+             ndet       = ndet+1
+             d(ndet) = i
+          end if
+       end do
+       
+       ! Check that current detectors are accepted
+       if (any(.not. accept(d))) then
+          deallocate(d)
+          cycle
+       end if
+          
+       ! Construct 4D map for current horn
+       map4D => comm_4D_map(nside, npsi, detlabel(d), psi0(d), pixel(:,d(2)), psi(:,d(2)), &
+            & tod(:,d), mask(:,d))
+       
+       ! Output file
+       dlabel   = detlabel(d(1))
+       fullpath = trim(adjustl(path_scanid))//'/'//dlabel(1:2)
+       call create_hdf_group(file, trim(fullpath))
+
+       ! Output general information in HDU1
+       call write_hdf(file, trim(adjustl(fullpath))//'/nside', nside)
+       call write_hdf(file, trim(adjustl(fullpath))//'/nodet', ndet)
+       call write_hdf(file, trim(adjustl(fullpath))//"/npsi",  npsi)
+       call write_hdf(file, trim(adjustl(fullpath))//"/psi0",  0.d0)
+       call write_hdf(file, trim(adjustl(fullpath))//"/horn",  horn)
+       call write_hdf(file, trim(adjustl(fullpath))//"/firstPointingID",  scanid)
+       call write_hdf(file, trim(adjustl(fullpath))//"/lastPointingID",  scanid)
+
+       do i = 1, ndet
+          call int2string(i, itext)
+          call write_hdf(file, trim(adjustl(fullpath))//"/detnam"//itext, trim(detlabel(i)))
+          call write_hdf(file, trim(adjustl(fullpath))//"/psipol"//itext, psi0(i))
+          call write_hdf(file, trim(adjustl(fullpath))//"/sig"//itext,    sigma0(i))
+       end do
+
+       call write_hdf(file, trim(adjustl(fullpath))//"/pixel",    map4D%pixel)
+       call write_hdf(file, trim(adjustl(fullpath))//"/ipsi",    map4D%ipsi)
+       call write_hdf(file, trim(adjustl(fullpath))//"/weight",    map4D%weight)
+       call write_hdf(file, trim(adjustl(fullpath))//"/map",    map4D%map)
+
+       call write_hdf(file, trim(adjustl(fullpath))//"/pid",    scanid)
+       call write_hdf(file, trim(adjustl(fullpath))//"/sample_offset",    0)
+       call write_hdf(file, trim(adjustl(fullpath))//"/nsamp",    map4d%n)
+       call write_hdf(file, trim(adjustl(fullpath))//"/scet",    0.d0)
+       call write_hdf(file, trim(adjustl(fullpath))//"/ecet",    0.d0)
+
+       call map4D%dealloc
+       deallocate(d)
+    end do
+
+    call close_hdf_file(file)
+
+  end subroutine output_4D_maps_hdf
+
+
   subroutine output_4D_maps(prefix, postfix, scanid, nside, npsi, detlabel, horn_id, psi0, sigma0, &
        & pixel, psi, tod, mask, accept)
     implicit none
@@ -133,10 +246,10 @@ contains
           cycle
        end if
           
-       if (psi0(d(2)) /= 0.d0) then
-          write(*,*) 'Error: psi0 for second detector is non-zero'
-          stop
-       end if
+!!$       if (psi0(d(2)) /= 0.d0) then
+!!$          write(*,*) 'Error: psi0 for second detector is non-zero'
+!!$          stop
+!!$       end if
        
 !!$       if (any(pixel(:,d(2)) < 0)) then
 !!$          write(*,*) scanid
@@ -224,8 +337,8 @@ contains
        call ftpkye(unit,"psi0",     0.,        6, "Lower boundary for first psi bin",          status)
        call ftpkye(unit,"sigma1",   sigma0(1), 6, "Sigma for detector 1",                      status)
        call ftpkye(unit,"sigma2",   sigma0(2), 6, "Sigma for detector 2",                      status)
-       call ftpkye(unit,"psipol1",  psi0(1),   6, "Sigma for detector 1",                      status)
-       call ftpkye(unit,"psipol2",  psi0(2),   6, "Sigma for detector 2",                      status)
+       call ftpkye(unit,"psipol1",  psi0(1),   6, "Polarization angle for detector 1",                      status)
+       call ftpkye(unit,"psipol2",  psi0(2),   6, "Polarization angle for detector 2",                      status)
        call ftpkys(unit,"Coordsys", 'G',          "Coordinate system",                         status)
        call ftpkyl(unit,"Calibrated", .true.,     "",                                          status)
        call ftpkyj(unit,"horn",     horn,         "Internal horn ID number",                   status)
