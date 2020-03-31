@@ -17,6 +17,7 @@ module comm_tod_LFI_mod
   use comm_tod_gain_mod
   use comm_tod_bandpass_mod
   use comm_tod_orbdipole_mod
+  use comm_utils
   implicit none
 
   private
@@ -836,7 +837,7 @@ contains
 
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             dipole_mod(self%scanid(i), j) = dipole_modulation(self, s_sky(:, j), mask(:, j))
+             dipole_mod(self%scanid(i), j) = masked_variance(s_sky(:, j), mask(:, j))
           end do
 
           ! Clean up
