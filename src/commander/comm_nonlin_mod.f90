@@ -159,7 +159,7 @@ contains
              
              ! Params
              out_every = 10
-             check_every = 25
+             check_every = 100
              nsamp = 2000
              thresh = 20.d0 ! 40.d0
              steplen = 0.3d0
@@ -225,8 +225,8 @@ contains
                 alms(i,:,:) = alms(i-1,:,:)
                 do pl = 1, c%theta(j)%p%info%nmaps
                    
-!!$                   if (mod(iter,2) == 1 .and. pl == 1) cycle
-!!$                   if (mod(iter,2) == 0 .and. pl >  1) cycle
+                   if (mod(i,2) == 1 .and. pl == 1) cycle
+                   if (mod(i,2) == 0 .and. pl >  1) cycle
                    
                    ! if sample only pol, skip T
                    if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
@@ -363,7 +363,7 @@ contains
                    
                       ! Adjust steplen in tuning iteration
                       if (.not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
-                         if (accept_rate < 0.4) then                 
+                         if (accept_rate < 0.2) then                 
                             steplen = steplen*0.5d0
                             write(*,fmt='(a,f10.5)') "Reducing steplen -> ", steplen
                          else if (accept_rate > 0.8) then
@@ -373,7 +373,7 @@ contains
                       end if
 
                       ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
-                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.4 .and. i>500) then
+                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>500) then
                          doexit = .true.
                          write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
                       end if
