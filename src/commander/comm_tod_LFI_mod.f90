@@ -299,7 +299,7 @@ contains
     logical(lgt)       :: correct_sl
     character(len=512) :: prefix, postfix, prefix4D, filename
     character(len=2048) :: Sfilename
-    character(len=4)   :: ctext
+    character(len=4)   :: ctext, myid_text
     character(len=6)   :: samptext, scantext
     character(len=512), allocatable, dimension(:) :: slist
     type(shared_1d_int) :: sprocmask, sprocmask2
@@ -425,7 +425,7 @@ contains
        do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 0
        do_oper(prep_absbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call
-       do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
+       do_oper(samp_mono)    = .false. !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
@@ -790,13 +790,19 @@ contains
              if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-                call int2string(self%scanid(i), scantext)
-                prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
-                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
+                call int2string(self%myid, myid_text)
+                call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+                     & samptext, self%scanid(i), self%nside, self%npsi, &
                      & self%label, self%horn_id, real(self%polang*180/pi,sp), &
                      & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
                      & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0), &
                      & self%scans(i)%d(:)%accept)
+!                prefix4D = "!"// trim(chaindir) // '/.tod_' // trim(self%freq) // '_' // '4D_pid' // scantext
+!                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
+!                     & self%label, self%horn_id, real(self%polang*180/pi,sp), &
+!                     & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
+!                     & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0), &
+!                     & self%scans(i)%d(:)%accept)
              end if
 
 
