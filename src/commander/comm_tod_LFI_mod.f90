@@ -4,7 +4,7 @@ module comm_tod_LFI_mod
   use comm_map_mod
   use comm_conviqt_mod
   use pix_tools
-  use healpix_types  
+  use healpix_types
   use comm_huffman_mod
   use comm_hdf_mod
   use comm_fft_mod
@@ -39,7 +39,7 @@ module comm_tod_LFI_mod
   integer(i4b), parameter :: sel_data    = 8
   integer(i4b), parameter :: bin_map     = 9
   integer(i4b), parameter :: calc_chisq  = 10
-  integer(i4b), parameter :: output_slist = 12 
+  integer(i4b), parameter :: output_slist = 12
   integer(i4b), parameter :: samp_mono   = 13
   integer(i4b), parameter :: sub_sl      = 14
   integer(i4b), parameter :: sub_zodi    = 17
@@ -113,7 +113,7 @@ contains
        stop
     end if
 
-    datadir = trim(cpar%datadir)//'/' 
+    datadir = trim(cpar%datadir)//'/'
     constructor%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
     constructor%procmaskf1  = trim(datadir)//trim(cpar%ds_tod_procmask1(id_abs))
     constructor%procmaskf2  = trim(datadir)//trim(cpar%ds_tod_procmask2(id_abs))
@@ -181,7 +181,7 @@ contains
     allocate(constructor%psi_ell(constructor%ndet))
     allocate(constructor%mb_eff(constructor%ndet))
     allocate(constructor%nu_c(constructor%ndet))
-    
+
     call open_hdf_file(constructor%instfile, h5_file, 'r')
     nside_beam = 512
     nmaps_beam = 3
@@ -201,8 +201,8 @@ contains
     end do
 
     allocate(constructor%orb_dp)
- 
-    constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam) 
+
+    constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
 
     do i = 1, constructor%ndet
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
@@ -212,12 +212,12 @@ contains
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'centFreq', constructor%nu_c(i))
     end do
 
-    constructor%mb_eff = 1.d0 
+    constructor%mb_eff = 1.d0
     constructor%mb_eff = constructor%mb_eff / mean(constructor%mb_eff)
     constructor%nu_c   = constructor%nu_c * 1d9
 
     call close_hdf_file(h5_file)
- 
+
     ! Lastly, create a vector pointing table for fast look-up for orbital dipole
     np_vec = 12*constructor%nside**2 !npix
     allocate(constructor%pix2vec(3,0:np_vec-1))
@@ -229,7 +229,7 @@ contains
     allocate(constructor%pix2ind(0:12*constructor%nside**2-1))
     constructor%pix2ind = -1
     do i = 1, constructor%nscan
-       allocate(pix(constructor%scans(i)%ntod))          
+       allocate(pix(constructor%scans(i)%ntod))
        do j = 1, constructor%ndet
           call huffman_decode(constructor%scans(i)%hkey, &
                constructor%scans(i)%d(j)%pix, pix)
@@ -241,14 +241,14 @@ contains
        end do
        deallocate(pix)
     end do
-    constructor%nobs = count(constructor%pix2ind == 1) 
+    constructor%nobs = count(constructor%pix2ind == 1)
     allocate(constructor%ind2pix(constructor%nobs))
     allocate(constructor%ind2sl(constructor%nobs))
     allocate(constructor%ind2ang(2,constructor%nobs))
     j = 1
     do i = 0, 12*constructor%nside**2-1
        if (constructor%pix2ind(i) == 1) then
-          constructor%ind2pix(j) = i 
+          constructor%ind2pix(j) = i
           constructor%pix2ind(i) = j
           call pix2ang_ring(constructor%nside, i, theta, phi)
           call ang2pix_ring(nside_beam, theta, phi, constructor%ind2sl(j))
@@ -283,7 +283,7 @@ contains
     integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
     integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
-    real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold
+    real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
     real(dp)     :: t_tot(22)
     real(sp)     :: inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
@@ -306,7 +306,7 @@ contains
     real(sp),           allocatable, dimension(:,:,:,:) :: map_sky
     type(shared_2d_dp) :: sA_map
     type(shared_3d_dp) :: sb_map, sb_mono
-    class(comm_map), pointer :: condmap 
+    class(comm_map), pointer :: condmap
     class(map_ptr), allocatable, dimension(:) :: outmaps
 
     if (iter > 1) self%first_call = .false.
@@ -333,7 +333,7 @@ contains
     chunk_size      = npix/self%numprocs_shared
     if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size+1
     allocate(A_abscal(self%ndet), b_abscal(self%ndet))
-    allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta)) 
+    allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta))
     allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
     allocate(dipole_mod(nscan_tot, ndet))
@@ -415,7 +415,7 @@ contains
        call update_status(status, "tod_istart")
 
        if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
-          
+
        ! Select operations for current iteration
        do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
        do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
@@ -428,7 +428,7 @@ contains
        do_oper(samp_mono)    = .false. !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
        do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
-       do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
+       do_oper(calc_chisq)   = (main_iter == n_main_iter  )
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
        do_oper(output_slist) = mod(iter, 1) == 0
@@ -446,13 +446,13 @@ contains
              n_A  = nmaps*(nmaps+1)/2
              nout = self%output_n_maps
           end if
-          allocate(outmaps(nout)) 
+          allocate(outmaps(nout))
           do i = 1, nout
              outmaps(i)%p => comm_map(map_out%info)
           end do
           if (allocated(A_map)) deallocate(A_map, b_map)
           allocate(A_map(n_A,self%nobs), b_map(nout,ncol,self%nobs))
-          A_map = 0.d0; b_map = 0.d0       
+          A_map = 0.d0; b_map = 0.d0
           if (sA_map%init) call dealloc_shared_2d_dp(sA_map)
           call init_shared_2d_dp(self%myid_shared, self%comm_shared, &
                & self%myid_inter, self%comm_inter, [n_A,npix], sA_map)
@@ -491,6 +491,8 @@ contains
 
        call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
 
+      !  print *, "Total number of scans:", self%nscan
+      !  print *, "Total number of tot scans:", self%nscan_tot
        ! Perform main analysis loop
        do i = 1, self%nscan
 
@@ -503,7 +505,7 @@ contains
           call wall_time(t1)
           ntod = self%scans(i)%ntod
           ndet = self%ndet
-          
+
           ! Set up local data structure for current scan
           allocate(n_corr(ntod, ndet))                 ! Correlated noise in V
           allocate(s_sl(ntod, ndet))                   ! Sidelobe in uKcm
@@ -521,14 +523,14 @@ contains
           allocate(pix(ntod, ndet))                    ! Decompressed pointing
           allocate(psi(ntod, ndet))                    ! Decompressed pol angle
           allocate(flag(ntod, ndet))                   ! Decompressed flags
-          
+
           ! Initializing arrays to zero
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
-          
+
           ! --------------------
           ! Analyze current scan
           ! --------------------
-         
+
           ! Decompress pointing, psi and flags for current scan
           call wall_time(t1)
           do j = 1, ndet
@@ -540,25 +542,25 @@ contains
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
           !call update_status(status, "tod_decomp")
-          
+
           ! Construct sky signal template
           call wall_time(t1)
-          if (do_oper(bin_map) .or. do_oper(prep_relbp)) then 
+          if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
              call project_sky(self, map_sky(:,:,:,1), pix, psi, flag, &
-                  & sprocmask%a, i, s_sky, mask, s_bp=s_bp)  
-          else 
+                  & sprocmask%a, i, s_sky, mask, s_bp=s_bp)
+          else
              call project_sky(self, map_sky(:,:,:,1), pix, psi, flag, &
                   & sprocmask%a, i, s_sky, mask)
           end if
           if (do_oper(prep_relbp)) then
              do j = 2, ndelta
                 call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
-                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
+                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))
              end do
           else if (do_oper(prep_absbp)) then
              do j = 2, ndelta
                 call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
-                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
+                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)
              end do
           end if
           if (main_iter == 1 .and. self%first_call) then
@@ -573,19 +575,22 @@ contains
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
-          
+
           ! Construct orbital dipole template
           call wall_time(t1)
           call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
 
+          call wall_time(t9)
           ! Construct zodical light template
           if (do_oper(sub_zodi)) then
-             call compute_zodi_template(self%nside, pix, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
+             call compute_zodi_template(self%nside, pix, self%scans(i)%satpos, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
           end if
-          
-          ! Construct sidelobe template 
+          call wall_time(t10)
+          print *, "Zodi template took :", t10-t9, "sec"
+
+          ! Construct sidelobe template
           call wall_time(t1)
           if (do_oper(sub_sl)) then
              do j = 1, ndet
@@ -602,7 +607,7 @@ contains
           end if
           call wall_time(t2); t_tot(12) = t_tot(12) + t2-t1
 
-          ! Construct monopole correction template 
+          ! Construct monopole correction template
           call wall_time(t1)
           if (do_oper(samp_mono)) then
              do j = 1, ndet
@@ -673,7 +678,7 @@ contains
              call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
           end if
 
-          ! Fit gain 
+          ! Fit gain
           if (do_oper(samp_G)) then
              call wall_time(t1)
              call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot)
@@ -696,27 +701,26 @@ contains
           else
              n_corr = 0.
           end if
-             
+
           ! Compute noise spectrum
           if (do_oper(samp_N_par)) then
              call wall_time(t1)
              call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
              call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
           end if
-          
           ! Compute chisquare
           if (do_oper(calc_chisq)) then
              call wall_time(t1)
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) 
+                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j)
                 if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
                 call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
-                     & s_buf(:,j), n_corr(:,j))      
+                     & s_buf(:,j), n_corr(:,j))
              end do
              call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
           end if
-          
+
           ! Select data
           if (do_oper(sel_data)) then
              call wall_time(t1)
@@ -765,10 +769,10 @@ contains
           end if
 
 
-          ! Compute binned map 
+          ! Compute binned map
           if (do_oper(bin_map)) then
              call wall_time(t1)
-             allocate(d_calib(nout,ntod, ndet)) 
+             allocate(d_calib(nout,ntod, ndet))
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
@@ -780,13 +784,15 @@ contains
                 if (do_oper(bin_map) .and. do_oper(samp_mono) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
                 if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
                 if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
+                if (do_oper(bin_map) .and. nout > 7) d_calib(8,:,j) = s_zodi(:,j)
+
                 if (do_oper(prep_relbp)) then
                    do k = 2, ndelta
                       d_calib(self%output_n_maps+k-1,:,j) = d_calib(1,:,j) + s_bp(:,j) - s_bp_prop(:,j,k)
                    end do
                 end if
              end do
-            
+
              if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
@@ -904,7 +910,7 @@ contains
        call update_status(status, "scanlist2")
     end if
 
-    ! Solve combined map, summed over all pixels 
+    ! Solve combined map, summed over all pixels
     call wall_time(t1)
     call update_status(status, "shared1")
     if (sA_map%init) then
@@ -922,7 +928,7 @@ contains
           end do
           if (start_chunk < npix)       start_chunk = self%pix2ind(start_chunk)
           if (end_chunk >= start_chunk) end_chunk   = self%pix2ind(end_chunk)
-          
+
           call mpi_win_fence(0, sA_map%win, ierr)
           call mpi_win_fence(0, sb_map%win, ierr)
           do j = start_chunk, end_chunk
@@ -976,7 +982,7 @@ contains
 
        call update_status(status, "finalize2")
        map_out%map = outmaps(1)%p%map
-       
+
        ! Sample monopole coefficients
        if (do_oper(samp_mono)) then
           call sample_mono(self, handle, sys_mono, outmaps(2)%p, rms_out, &
@@ -996,6 +1002,8 @@ contains
        if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
        if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
        if (self%output_n_maps > 6) call outmaps(7)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+       if (self%output_n_maps > 7) call outmaps(8)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+
        call update_status(status, "finalize3")
 
     end if
@@ -1071,7 +1079,7 @@ contains
     call int2string(iter, ctext)
     call update_status(status, "tod_end"//ctext)
 
-    ! Parameter to check if this is first time routine has been 
+    ! Parameter to check if this is first time routine has been
     self%first_call = .false.
 
   end subroutine process_LFI_tod
