@@ -582,13 +582,13 @@ contains
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
 
-          call wall_time(t9)
+         !  call wall_time(t9)
           ! Construct zodical light template
           if (do_oper(sub_zodi)) then
              call compute_zodi_template(self%nside, pix, self%scans(i)%satpos, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
           end if
-          call wall_time(t10)
-          print *, "Zodi template took :", t10-t9, "sec"
+         !  call wall_time(t10)
+         !  print *, "Zodi template took :", t10-t9, "sec"
 
           ! Construct sidelobe template
           call wall_time(t1)
