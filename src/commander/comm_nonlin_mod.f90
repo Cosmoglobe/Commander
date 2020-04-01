@@ -113,7 +113,7 @@ contains
     integer(i4b),       intent(in)    :: iter
     type(planck_rng),   intent(inout) :: handle    
 
-    integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, delta
+    integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, delta, corrlen_init
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind
     real(dp)     :: t1, t2, ts, dalm, thresh, steplen
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var
@@ -167,6 +167,7 @@ contains
              nsamp = 2000
              thresh = 20.d0 ! 40.d0
              steplen = 0.3d0
+             corrlen_init = 1
              if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
              call mpi_bcast(nsamp, 1, MPI_INTEGER, 0, c%comm, ierr)
 
@@ -368,6 +369,9 @@ contains
                          if (accept_rate < 0.2) then                 
                             steplen = steplen*0.5d0
                             write(*,fmt='(a,f10.5)') "Reducing steplen -> ", steplen
+                         else if (accept_rate > 0.45 .and. accept_rate < 0.55) then
+                            steplen = steplen*2.0d0
+                            write(*,fmt='(a,f10.5)') "Equilibrium - Increasing steplen -> ", steplen
                          else if (accept_rate > 0.8) then
                             steplen = steplen*2.d0
                             write(*,fmt='(a,f10.5)') "Increasing steplen -> ", steplen
@@ -427,12 +431,11 @@ contains
                          write(58,*) p, C_ ! Write to file
 
                          ! Find correlation length
-                         do k = 1, delta
-                            if (C_(k) < 0.1) then
-                               if (c%corrlen(j,pl) < k) c%corrlen(j,pl) = k
-                               exit
-                            end if
+                         c%corrlen(j,pl) = corrlen_init
+                         do k = corrlen_init, delta
+                            if (C_(k) > 0.1) c%corrlen(j,pl) = k
                          end do
+
                       end do
                       write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
                    end do
