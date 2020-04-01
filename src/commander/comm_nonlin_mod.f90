@@ -424,12 +424,11 @@ contains
                          write(58,*) p, C_ ! Write to file
 
                          ! Find correlation length
-                         do k = 1, delta
-                            if (C_(k) < 0.1) then
-                               if (c%corrlen(j,pl) < k) c%corrlen(j,pl) = k
-                               exit
-                            end if
+                         c%corrlen(j,pl) = 1
+                         do k = 2, delta
+                            if (C_(k) > 0.1) c%corrlen(j,pl) = k
                          end do
+
                       end do
                       write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
                    end do
