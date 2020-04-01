@@ -21,7 +21,7 @@ module comm_tod_mod
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
      logical(lgt)      :: accept
-     real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)     
+     real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)
      byte,         allocatable, dimension(:)  :: flag       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      byte,         allocatable, dimension(:)  :: pix        ! Compressed pixelized pointing, (ntod,nhorn)
      byte,         allocatable, dimension(:)  :: psi        ! Compressed polarization angle, (ntod,nhorn)
@@ -37,12 +37,13 @@ module comm_tod_mod
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
      real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for first sample
+     real(dp)       :: satpos(2)                                   ! Observatory position (lon, lat)
      type(huffcode) :: hkey                                        ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
 
-  type, abstract :: comm_tod 
+  type, abstract :: comm_tod
      character(len=512) :: freq
      character(len=512) :: filelist
      character(len=512) :: procmaskf1
@@ -82,15 +83,15 @@ module comm_tod_mod
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
-     real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi) 
-     real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi) 
+     real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi)
+     real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi)
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
-     integer(i4b),       allocatable, dimension(:)     :: partner ! Partner detector; for symmetrizing flags     
+     integer(i4b),       allocatable, dimension(:)     :: partner ! Partner detector; for symmetrizing flags
      integer(i4b),       allocatable, dimension(:)     :: horn_id  ! Internal horn number per detector
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
@@ -129,10 +130,10 @@ module comm_tod_mod
        character(len=*),                    intent(in)    :: chaindir
        integer(i4b),                        intent(in)    :: chain, iter
        type(planck_rng),                    intent(inout) :: handle
-       type(map_ptr),     dimension(:,:),   intent(inout) :: map_in            
+       type(map_ptr),     dimension(:,:),   intent(inout) :: map_in
        real(dp),          dimension(:,:,:), intent(inout) :: delta
        class(comm_map),                     intent(inout) :: map_out
-       class(comm_map),                     intent(inout) :: rms_out  
+       class(comm_map),                     intent(inout) :: rms_out
      end subroutine process_tod
   end interface
 
@@ -170,7 +171,7 @@ contains
     real(sp)     :: psi
     type(hdf_file)     :: file
 
-    integer(i4b), dimension(:), allocatable       :: ns   
+    integer(i4b), dimension(:), allocatable       :: ns
     real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
     character(len=1024)                           :: det_buf
     character(len=128), dimension(:), allocatable :: dets
@@ -199,7 +200,7 @@ contains
        call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf)
-       call read_hdf(file, "common/mbang",  mbang_buf)      
+       call read_hdf(file, "common/mbang",  mbang_buf)
 
 
 !!$          do j = 1, ndet_tot
@@ -249,7 +250,7 @@ contains
     self%gain0 = 0.d0
     ns         = 0
     do i = 1, self%nscan
-       do j = 1, self%ndet 
+       do j = 1, self%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
           self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
           ns(j)         = ns(j) + 1
@@ -265,7 +266,7 @@ contains
     end where
 
     do i = 1, self%nscan
-       do j = 1, self%ndet 
+       do j = 1, self%ndet
           self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
 !          self%scans(i)%d(j)%dgain = 0.d0
 !          self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j)
@@ -335,6 +336,7 @@ contains
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
     call read_hdf(file, slabel // "/common/time",  self%t0)
+    call read_hdf(file, slabel // "/common/satpos",  self%satpos)
     call wall_time(t2)
     t_tot(1) = t2-t1
 
@@ -360,7 +362,7 @@ contains
        self%d(i)%tod = buffer_sp(1:m)
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1
-   
+
        ! Read Huffman coded data arrays
        call wall_time(t1)
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
@@ -401,7 +403,7 @@ contains
 
   subroutine get_scan_ids(self, filelist)
     implicit none
-    class(comm_tod),   intent(inout) :: self    
+    class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filelist
 
     integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr
@@ -431,7 +433,7 @@ contains
           stop
        end if
 
-       
+
        open(unit, file=trim(filelist))
        read(unit,*) n
        allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot))
@@ -459,21 +461,21 @@ contains
        end do
        v0 = v0 / sqrt(v0*v0)
 !       v0(1) = 1
-       
+
 
 !!$
 !!$       ! Compute angle between i'th and first vector
 !!$       do i = 1, n
 !!$          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
 !!$          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-!!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)          
+!!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
 !!$       end do
        do i = n_tot, 1, -1
           v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
           v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
           v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
           sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
-          if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
+          if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign
        end do
 
 !!$       ! Sort according to weight
@@ -494,7 +496,7 @@ contains
        do i = np-1, 1, -1
           w = 0.d0
           do k = 1, n_tot
-             if (proc(k) == i) w = w + weight(k) 
+             if (proc(k) == i) w = w + weight(k)
           end do
           do while (w < w_tot/np .and. j <= n_tot)
              proc(id(j)) = i
@@ -553,7 +555,7 @@ contains
        end do
     end if
 
-    deallocate(filename, scanid, proc, spinpos) 
+    deallocate(filename, scanid, proc, spinpos)
 
   end subroutine get_scan_ids
 
@@ -574,7 +576,7 @@ contains
     npar = 6
     allocate(output(self%nscan_tot,self%ndet,npar))
 
-    ! Collect all parameters 
+    ! Collect all parameters
     output = 0.d0
     do j = 1, self%ndet
        do i = 1, self%nscan
@@ -604,11 +606,11 @@ contains
                 if (output(k,j,i) == 0.d0) then
                    l = k
                    if (k == 1) then
-                      do while (output(l,j,i) == 0.d0 .and. l < self%nscan) 
+                      do while (output(l,j,i) == 0.d0 .and. l < self%nscan)
                          l = l+1
                       end do
                    else
-                      do while (output(l,j,i) == 0.d0 .and. l > 1) 
+                      do while (output(l,j,i) == 0.d0 .and. l > 1)
                          l = l-1
                       end do
                    end if
@@ -617,7 +619,7 @@ contains
              end do
 !!$             if (output(
 !!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
-!!$             where (output(:,j,i) == 0.d0) 
+!!$             where (output(:,j,i) == 0.d0)
 !!$                output(:,j,i) = mu
 !!$             end where
           end do
@@ -626,7 +628,7 @@ contains
 !!$       do j = 1, self%ndet
 !!$          do i = 1, 4
 !!$             mu = sum(output(:,j,i)) / count(output(:,j,i) /= 0.d0)
-!!$             where (output(:,j,i) == 0.d0) 
+!!$             where (output(:,j,i) == 0.d0)
 !!$                output(:,j,i) = mu
 !!$             end where
 !!$          end do
@@ -652,7 +654,7 @@ contains
     call rms%writeMapToHDF(chainfile, path, 'rms')
 
     deallocate(output)
- 
+
   end subroutine dumpToHDF
 
   subroutine initHDF(self, chainfile, iter, map, rms)
@@ -719,7 +721,7 @@ contains
     call rms%readMapFromHDF(chainfile, trim(adjustl(path))//'rms')
 
     deallocate(output)
- 
+
   end subroutine initHDF
 
   function get_det_id(self, label)
@@ -794,10 +796,10 @@ contains
           write(*,*) 'Unsupported entry in ', trim(filename)
           stop
        end if
-       
+
     end do
 34  close(unit)
-       
+
     ! Compute square root; mean will be projected out after proposal generation
     do par = 1, npar
        call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
@@ -814,7 +816,7 @@ contains
     integer(i4b),        dimension(:),   intent(in)    :: pix, psi
     real(dp),                            intent(in)   :: polangle
     real(sp),            dimension(:),   intent(out)   :: s_sl
-    
+
     integer(i4b) :: j, pix_, pix_prev, psi_prev
     real(dp)     :: psi_
 
@@ -824,7 +826,7 @@ contains
        if (pix_prev == pix_ .and. psi(j) == psi_prev) then
           s_sl(j) = s_sl(j-1)
        else
-          psi_    = self%psi(psi(j))-polangle 
+          psi_    = self%psi(psi(j))-polangle
           s_sl(j) = slconv%interp(pix_, psi_)
           pix_prev = pix_; psi_prev = psi(j)
        end if
@@ -876,7 +878,7 @@ contains
     integer(i4b),                       intent(inout)  :: ext(2)
     real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
     real(sp), dimension(:),             intent(in),  optional :: mask
- 
+
     integer(i4b) :: i, j, k, n, step, ntod, w, npad
 
     ntod = size(tod_in)
@@ -896,7 +898,7 @@ contains
        if (j > k) then
           tod_out(i) = 0.
        else
-          !write(*,*) i, shape(tod_in), j, k 
+          !write(*,*) i, shape(tod_in), j, k
           if (present(mask)) then
              tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / (2*w+1)
           else
@@ -929,7 +931,7 @@ contains
     implicit none
     real(sp), intent(inout)  :: d_p(:)
     real(sp), intent(in)     :: mask(:)
-    integer(i4b), intent(in) :: i_end, i_start, ntod 
+    integer(i4b), intent(in) :: i_end, i_start, ntod
     real(dp)     :: mu1, mu2
     integer(i4b) :: i, n_mean, earliest, latest
     n_mean = 20
@@ -966,8 +968,8 @@ contains
     logical(lgt),     intent(in) :: sample
     integer(i4b) :: j_end, j_start, j, k
     logical(lgt) :: init_masked_region, end_masked_region
-    
-    ! Fill gaps in data 
+
+    ! Fill gaps in data
     init_masked_region = .true.
     end_masked_region = .false.
     do j = 1,ntod
@@ -1021,13 +1023,13 @@ contains
 
     chisq       = 0.d0
     n           = 0
-    g           = self%scans(scan)%d(det)%gain 
+    g           = self%scans(scan)%d(det)%gain
     do i = 1, self%scans(scan)%ntod
-       if (mask(i) < 0.5) cycle 
+       if (mask(i) < 0.5) cycle
        n     = n+1
        d0    = self%scans(scan)%d(det)%tod(i) - &
             & (g * s_spur(i) + n_corr(i))
-       chisq = chisq + (d0 - g * s_sky(i))**2 
+       chisq = chisq + (d0 - g * s_sky(i))**2
     end do
 
     if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
@@ -1049,7 +1051,7 @@ contains
     !if(self%scans(scan)%d(det)%chisq > 2000.d0 .or. isNaN(self%scans(scan)%d(det)%chisq)) then
       !write(*,*) "chisq", scan, det, sum(mask), sum(s_sky), sum(s_sl), sum(s_orb), sum(n_corr)
     !end if
-    
+
   end subroutine compute_chisq
 
   function get_total_chisq(self, det)
@@ -1064,7 +1066,7 @@ contains
     chisq = 0.d0
     do i = 1, self%nscan ! Sum chisq for all scans
        if (.not. self%scans(i)%d(det)%accept) cycle
-       chisq = chisq + self%scans(i)%d(det)%chisq 
+       chisq = chisq + self%scans(i)%d(det)%chisq
     end do
     call mpi_reduce(chisq, buffer, 1, MPI_DOUBLE_PRECISION, MPI_SUM, &
          & 0, self%info%comm, ierr)
