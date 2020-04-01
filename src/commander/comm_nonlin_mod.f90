@@ -156,27 +156,30 @@ contains
              
              
              call wall_time(t1)
+
+             info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
+                  & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
              
              ! Params
+             write(jtext, fmt = '(I1)') j ! Create j string
              out_every = 10
              check_every = 100
              nsamp = 2000
              thresh = 20.d0 ! 40.d0
              steplen = 0.3d0
-             if (maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
+             if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
+             call mpi_bcast(nsamp, 1, MPI_INTEGER, 0, c%comm, ierr)
 
              ! Static variables
              num_accepted = 0
              doexit = .false.
              
-             info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
-                  & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
              
              allocate(chisq(0:nsamp))
              allocate(alms(0:nsamp, 0:c%nalm_tot-1,info%nmaps))                         
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
 
-             if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples.dat', recl=10000)
+             if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', recl=10000)
             
              ! Save initial alm        
              alms = 0.d0
@@ -220,6 +223,7 @@ contains
              end if
 
              do i = 1, nsamp
+                
                 chisq_prior = 0.d0
                 ! Sample new alms (Account for poltype)
                 alms(i,:,:) = alms(i-1,:,:)
@@ -246,13 +250,11 @@ contains
                    ! Propose new alms
                    if (info%myid == 0) then
                       ! Steplen(1:) = 0.1*steplen(0)
+                      !rgs(0) = steplen*rand_gauss(handle)     
                       do p = 0, c%nalm_tot-1
                          rgs(p) = steplen*rand_gauss(handle)     
                       end do
                       alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
-!!$                      write(*,*) 'a', alms(i,:,pl)
-!!$                      write(*,*) 'b', matmul(L(:,:,pl), rgs)
-!!$                      write(*,*) 'c', rgs
                       
                       ! Adding prior
                       ! Currently applying same prior on all signals
@@ -339,7 +341,7 @@ contains
 
                 if (info%myid == 0) then 
                    ! Output log to file
-                   write(69, *) i, chisq(i), alms(i,:,:)
+                   write(69, *) iter, i, chisq(i), alms(i,:,:)
 
                    ! Write to screen every out_every'th
                    if (mod(i,out_every) == 0) then
@@ -373,18 +375,18 @@ contains
                       end if
 
                       ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
-                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>500) then
+                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
                          doexit = .true.
                          write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
                       end if
                    end if                   
-                end if
-                
-                call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
-                if (doexit) exit
+                end if                
                 
                 if (i == nsamp .and. info%myid == 0) write(*,*) "nsamp samples reached", nsamp
 
+                call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
+                if (doexit) exit
+                
              end do
 
              if (info%myid == 0) close(58)
@@ -437,7 +439,6 @@ contains
                    close(58)
                    deallocate(C_, N)
                 else 
-
                    ! If L does not exist yet, calculate
                    write(*,*) 'Calculating cholesky matrix'
                    do p = 1, c%theta(j)%p%info%nmaps
@@ -448,7 +449,6 @@ contains
 
                 ! If both corrlen and L have been calulated then output
                 if (c%L_read(j)) then
-                   write(jtext, fmt = '(I1)') j
                    filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_par'//trim(jtext)//'.dat'
 
                    open(58, file=filename, recl=10000)
@@ -458,11 +458,12 @@ contains
                 end if
              end if
 
-             close(69)          
+             if (info%myid == 0) close(69)   
+
              deallocate(alms, rgs, chisq)
+
           end do ! End of j
        end select
-
        ! Loop to next component
        c => c%next()
     end do
