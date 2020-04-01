@@ -736,26 +736,30 @@ contains
 
      integer(i4b)           :: n_jumps
 
-     n_jumps = 15
+!     n_jumps = 17 ! Npipe has 15 events + the beginning and end
+     n_jumps = 16 ! Npipe has 15 events + the beginning and end (but two of them are too bunched up)
 
      allocate(pid_ranges(tod%ndet, n_jumps))
+     pid_ranges(:, :) = 0
 
-     pid_ranges(:, 1) = 3353
-     pid_ranges(:, 2) = 5030
-     pid_ranges(:, 3) = 5484
-     pid_ranges(:, 4) = 10911
-     pid_ranges(:, 5) = 15957
-     pid_ranges(:, 6) = 16455
-     pid_ranges(:, 7) = 21484
-     pid_ranges(:, 8) = 25654
-     pid_ranges(:, 9) = 27110
-     pid_ranges(:, 10) = 27343
-     pid_ranges(:, 11) = 30387
-     pid_ranges(:, 12) = 32763
-     pid_ranges(:, 13) = 38591
-     pid_ranges(:, 14) = 43929
-     pid_ranges(:, 15) = 44063
-     ! Hopefully this last is not too far towards the end
+     pid_ranges(:, 1) = 1
+     pid_ranges(:, 2) = 3352
+     pid_ranges(:, 3) = 5030
+     pid_ranges(:, 4) = 5484
+     pid_ranges(:, 5) = 10911
+     pid_ranges(:, 6) = 15957
+     pid_ranges(:, 7) = 16455
+     pid_ranges(:, 8) = 21484
+     pid_ranges(:, 9) = 25654
+     pid_ranges(:, 10) = 27110
+     pid_ranges(:, 11) = 27343
+     pid_ranges(:, 12) = 30387
+     pid_ranges(:, 13) = 32763
+     pid_ranges(:, 14) = 38591
+     pid_ranges(:, 15) = 43929
+!     pid_ranges(:, 16) = 44063
+     ! This last event is too close to the previous one
+     pid_ranges(:, 16) = 0
 
   end subroutine get_pid_ranges_tabulated
 
