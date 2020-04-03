@@ -1140,5 +1140,27 @@ contains
 
   end subroutine moving_variance
 
+  function masked_variance(data, mask)
+   implicit none
+   real(dp)                                         :: masked_variance
+
+   real(sp),    dimension(:), intent(in)             :: data
+   real(sp),    dimension(:), intent(in)             :: mask
+
+   real(dp)         :: currmean, currvar
+   integer(i4b)     :: i, n_unmasked
+
+   n_unmasked = count(mask /= 0)
+   currmean = sum(data * mask) / n_unmasked
+   currvar = 0
+   do i = 1, size(data)
+      if (mask(i) == 0) cycle
+      currvar = currvar + (data(i) - currmean) ** 2
+   end do
+   currvar = currvar / n_unmasked
+   masked_variance = currvar
+
+  end function masked_variance
+
   
 end module comm_utils

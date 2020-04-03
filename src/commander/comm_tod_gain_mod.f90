@@ -217,16 +217,17 @@ contains
             end if
          end do
        end do
-       call get_pid_ranges(pid_ranges, tod, pidrange_gainarr, dipole_mods, window_sizes)
+!       call get_pid_ranges(pid_ranges, tod, pidrange_gainarr, dipole_mods, window_sizes)
+       call get_pid_ranges_tabulated(pid_ranges, tod)
        deallocate(pidrange_gainarr)
-       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
-         do k = 1, size(pid_ranges(j, :))
-            if (pid_ranges(j, k) == 0) exit
-            write(58, *) j, k, pid_ranges(j, k)
-         end do
-       end do
-       close(58)
+!!$       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$         do k = 1, size(pid_ranges(j, :))
+!!$            if (pid_ranges(j, k) == 0) exit
+!!$            write(58, *) j, k, pid_ranges(j, k)
+!!$         end do
+!!$       end do
+!!$       close(58)
 
        do j = 1, ndet
          lhs = 0.d0
@@ -527,7 +528,7 @@ contains
           ! Add fluctuation term if requested
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
-       write(*,*) 'abscal = ', tod%gain0(0)
+       write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A), tod%myid_inter
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
          & tod%info%comm, ierr)
@@ -595,29 +596,6 @@ contains
   end subroutine sample_relcal
 
 
-  function dipole_modulation(tod, s_sky, mask)
-     implicit none
-   real(dp)                                         :: dipole_modulation
-   class(comm_tod),                      intent(in) :: tod
-
-   real(sp),    dimension(:), intent(in)             :: s_sky
-   real(sp),    dimension(:), intent(in)             :: mask
-
-   real(dp)         :: currmean, currvar
-   integer(i4b)     :: i, n_unmasked
-
-   n_unmasked = count(mask /= 0)
-   currmean = sum(s_sky * mask) / n_unmasked
-   currvar = 0
-   do i = 1, size(s_sky)
-      if (mask(i) == 0) cycle
-      currvar = currvar + (s_sky(i) - currmean) ** 2
-   end do
-   currvar = currvar / n_unmasked
-   dipole_modulation = currvar
-
-  end function dipole_modulation
-
   subroutine get_pid_ranges(pid_ranges, tod, dgains, dipole_mods, window_sizes)
      implicit none
 
@@ -675,24 +653,24 @@ contains
       do i = 1, tod%ndet
          smoothed_data = 0.d0
          smoothed_vars = 0.d0
-         open(58, file='gain_notmovaverage_' // trim(tod%label(i)) // '.dat', recl=1024)
-         do j = 1, size(dgains(:, i))
-            write(58, *) dgains(j, i)
-         end do
-         close(58)
+!!$         open(58, file='gain_notmovaverage_' // trim(tod%label(i)) // '.dat', recl=1024)
+!!$         do j = 1, size(dgains(:, i))
+!!$            write(58, *) dgains(j, i)
+!!$         end do
+!!$         close(58)
          call moving_average(dgains(:, i), smoothed_data, slow_smooth_window_size, &
             weights=dipole_mods(:, i))
-         open(58, file='gain_movaverage_' // trim(tod%label(i)) // '.dat', recl=1024)
-         do j = 1, size(smoothed_data)
-            write(58, *) smoothed_data(j)
-         end do
-         close(58)
+!!$         open(58, file='gain_movaverage_' // trim(tod%label(i)) // '.dat', recl=1024)
+!!$         do j = 1, size(smoothed_data)
+!!$            write(58, *) smoothed_data(j)
+!!$         end do
+!!$         close(58)
          call moving_variance(smoothed_data, smoothed_vars, slow_smooth_window_size)
-         open(58, file='gain_variance_' // trim(tod%label(i)) // '.dat', recl=1024)
-         do j = 1, size(smoothed_vars)
-            write(58, *) smoothed_vars(j)
-         end do
-         close(58)
+!!$         open(58, file='gain_variance_' // trim(tod%label(i)) // '.dat', recl=1024)
+!!$         do j = 1, size(smoothed_vars)
+!!$            write(58, *) smoothed_vars(j)
+!!$         end do
+!!$         close(58)
          smoothed_vars = smoothed_vars * dipole_mods(:, i)
          ! Just reusing array as buffer instead of allocating a whole new one
          smoothed_data = smoothed_vars
@@ -748,6 +726,42 @@ contains
       deallocate(jump_indices, sorted_indices, smoothed_data, smoothed_vars)
 
   end subroutine get_pid_ranges
+
+
+  subroutine get_pid_ranges_tabulated(pid_ranges, tod)
+     ! From NPIPE's gain jumps
+     implicit none
+     integer(i4b), allocatable, dimension(:, :), intent(out)     :: pid_ranges
+     class(comm_tod),           intent(in)          :: tod
+
+     integer(i4b)           :: n_jumps
+
+!     n_jumps = 17 ! Npipe has 15 events + the beginning and end
+     n_jumps = 16 ! Npipe has 15 events + the beginning and end (but two of them are too bunched up)
+
+     allocate(pid_ranges(tod%ndet, n_jumps))
+     pid_ranges(:, :) = 0
+
+     pid_ranges(:, 1) = 1
+     pid_ranges(:, 2) = 3352
+     pid_ranges(:, 3) = 5030
+     pid_ranges(:, 4) = 5484
+     pid_ranges(:, 5) = 10911
+     pid_ranges(:, 6) = 15957
+     pid_ranges(:, 7) = 16455
+     pid_ranges(:, 8) = 21484
+     pid_ranges(:, 9) = 25654
+     pid_ranges(:, 10) = 27110
+     pid_ranges(:, 11) = 27343
+     pid_ranges(:, 12) = 30387
+     pid_ranges(:, 13) = 32763
+     pid_ranges(:, 14) = 38591
+     pid_ranges(:, 15) = 43929
+!     pid_ranges(:, 16) = 44063
+     ! This last event is too close to the previous one
+     pid_ranges(:, 16) = 0
+
+  end subroutine get_pid_ranges_tabulated
 
   subroutine get_smoothing_windows(tod, windows, dipole_mods)
      implicit none

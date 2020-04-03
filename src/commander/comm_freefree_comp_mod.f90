@@ -56,6 +56,9 @@ contains
     end do
     constructor%indlabel  = ['Te']
 
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar)
+
     !constructor%npar         = 1
     !allocate(constructor%theta_def(1), constructor%p_gauss(1,1), constructor%p_uni(1,1))
     !allocate(constructor%poltype(1), constructor%indlabel(1))
