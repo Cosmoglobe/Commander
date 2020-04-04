@@ -301,6 +301,7 @@ def main():
 
 
     bands = ['K', 'KA', 'Q', 'V', 'W']
+    bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
 
 
@@ -318,23 +319,39 @@ def main():
         data = fits.open(file_in)
 
         band_labels = data[2].columns.names[1:-6]
+        print(band_labels)
         
         
    
         # position (and velocity) in km(/s) in Sun-centered coordinates
         pos = data[1].data['POSITION']
         vel = data[1].data['VELOCITY']
-        time = data[1].data['TIME']
+        time_aihk = data[1].data['TIME'] + t2jd
+        time = data[2].data['TIME'] + t2jd
+
+        dt0 = np.diff(time).mean()
         
         
         gal, pol = quat_to_sky_coords(data[1].data['QUATERN'])
+        # gal and pol are set up so that the A and B horns are interleaved.
+        # To match the 40 channels in band_labels, it should be ABAB for each
+        # channel
+        gal2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
+        pol2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
+        gal2[::4] = gal[::2]
+        gal2[2::4] = gal[::2]
+        pol2[::4] = pol[::2]
+        pol2[2::4] = pol[::2]
+
+        gal = gal2
+        pol = pol2
 
         #los_labels = data[5].columns.names
 
 
 
         psi = []
-        args = [(gal[i//2],pol[i//2]) for i in range(len(band_labels))]
+        args = [(gal[i],pol[i]) for i in range(len(gal))]
         with Pool() as pool:
             L = pool.starmap(get_psi_multiprocessing, args)
         psi = np.array(L)
@@ -345,51 +362,62 @@ def main():
 
         n_per_day = 25
 
-        file_new = 0
         for i in range(n_per_day):
             print(i, file_ind, file_ind//4)
             obs_ind += 1
             obsid = str(obs_ind).zfill(6)
             for band in bands:
-                file_out = f'data/wmap_{band}_{str(file_ind//4+1).zfill(6)}.h5'
+                file_out = f'data/wmap_{band}_{str(file_ind+1).zfill(6)}.h5'
                 det_list = []
                 with h5py.File(file_out, 'a') as f:
                     for j in range(len(band_labels)):
                         label = band_labels[j]
-                        if label[:-3] == band:
+                        if label[:-2] == band.upper():
                             TOD = data[2].data[label]
                             gain = gain_guesses[j]
                             sigma_0 = TOD.std()
                             scalars = np.array([fknee, sigma_0, alpha, gain])
                             # Write to h5 file.
+                            tod = np.zeros(TOD.size)
                             for n in range(len(TOD[0])):
-                                lab = label + f'_{str(n).zfill(2)}'
-                                f.create_dataset(obsid + '/' + lab+ '/TOD',
-                                        data=np.split(TOD,n_per_day)[i][:,n])
-                                f.create_dataset(obsid + '/' + lab+ '/psi',
-                                        data=np.split(psi[j],n_per_day)[i])
-                                f.create_dataset(obsid + '/' + lab+ '/pix',
-                                        data=np.split(pix[j//2],n_per_day)[i])
-                                f.create_dataset(obsid + '/' + lab+ '/scalars',
-                                        data=scalars)
-                                det_list.append(label)
-                                # filler 
-                                f.create_dataset(obsid + '/' + lab + '/flag',
-                                        data=0)
-                                f.create_dataset(obsid + '/' + lab + '/outP',
-                                        data=0)
+                                tod[n::len(TOD[0])] = TOD[:,n]
+                            f.create_dataset(obsid + '/' + label+ '/tod',
+                                    data=np.split(tod,n_per_day)[i])
+                            # pixA and pixB are interleaved with each other
+                            if j%2 == 0:
+                                pixlab = '/pixA'
+                                psilab = '/psiA'
+                            else:
+                                pixlab = '/pixB'
+                                psilab = '/psiB'
+                            f.create_dataset(obsid + '/' + label+ psilab,
+                                    data=np.split(psi[j],n_per_day)[i])
+                            f.create_dataset(obsid + '/' + label+ pixlab,
+                                    data=np.split(pix[j],n_per_day)[i])
+                            f.create_dataset(obsid + '/' + label+ '/scalars',
+                                    data=scalars)
+                            det_list.append(label)
+                            # filler 
+                            f.create_dataset(obsid + '/' + label + '/flag',
+                                    data=0)
+                            f.create_dataset(obsid + '/' + label + '/outP',
+                                    data=np.array([0,0]))
+                    dt = dt0/len(TOD[0])
+                    time_band = time = np.arange(time.min(), time.min() + dt*len(tod), dt)
                     f.create_dataset(obsid + '/common/satpos',
                             data=np.split(pos,n_per_day)[i])
                     f.create_dataset(obsid + '/common/vsun',
-                            data=np.split(vel,n_per_day)[i])
+                            data=np.split(vel,n_per_day)[i][0])
                     t = np.split(time, n_per_day)[i][0]
                     f.create_dataset(obsid + '/common/time',
-                            data=np.array([t,0,0]))
+                            data=time_band)
+                    f.create_dataset(obsid + '/common/time_aihk',
+                            data=time_aihk)
                     f.create_dataset(obsid + '/common/ntod',
-                            data=len(np.split(time,n_per_day)[i]))
+                            data=len(np.split(tod,n_per_day)[i]))
 
                     if "/common/fsamp" not in f:
-                        f.create_dataset('/common/fsamp', data=fsamp)
+                        f.create_dataset('/common/fsamp', data=fsamp*len(TOD[0]))
                         f.create_dataset('/common/nside', data=nside)
                         f.create_dataset('/common/npsi', data=npsi)
                         f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
