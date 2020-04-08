@@ -16,7 +16,6 @@ module comm_zodi_mod
     !   """
     use comm_utils
     use comm_param_mod
-
     implicit none
 
     private
@@ -25,10 +24,8 @@ module comm_zodi_mod
     integer(i4b) :: n_LOS
     real(dp)     :: T0, const1, const2, delta
     real(dp)     :: R_max, R_sat
-    real(dp)     :: t1, t2
     real(dp), dimension(:), allocatable :: x, y, z
-    real(dp), dimension(:), allocatable :: blackbody, emission
-    real(dp), dimension(:), allocatable :: density, tot_density
+    real(dp), dimension(:), allocatable :: blackbody, ZLE, density, tabulated_zodi
 
     ! =========================================================================
     !                      ZodiComponent Class Definition
@@ -153,14 +150,19 @@ contains
         class(ZodiComponent), pointer  :: comp
 
         integer(i4b) :: i, j, npix, nside
+        real(dp)     :: emissivity
+
         logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, &
-                        use_ring, use_feature
+                        use_ring, use_feature, use_unit_emissivity
 
         real(dp),     dimension(3)                :: vec
         real(dp),     dimension(3,3)              :: gal2ecl_matrix
         integer(i4b), dimension(:),   allocatable :: ds_nside_unique, &
                                                      nside_unique
         real(dp),     dimension(:,:), allocatable :: ecliptic_vec
+        real(dp), dimension(6) :: emissivity30, emissivity44, emissivity70, &
+                emissivity100, emissivity143, emissivity217, emissivity353, &
+                emissivity545, emissivity857
 
         ! Model parameters
         ! ---------------------------------------------------------------------
@@ -169,8 +171,8 @@ contains
         delta = 0.46686260  ! rate at which temperature falls with radius
 
         ! Line-of-sight integration parameters
-        R_max = 6            ! max radial integration distance from the Sun [AU]
-        R_sat = 1.1          ! satellite radial distance from the Sun [AU]
+        R_max = 5.2            ! max radial integration distance from the Sun [AU]
+        R_sat = 1.01          ! satellite radial distance from the Sun [AU]
         n_LOS = 50           ! n integration steps
 
         ! Zodi component selection
@@ -181,10 +183,27 @@ contains
         use_ring = .false.
         use_feature = .false.
 
+        use_unit_emissivity = .false.
+
+        ! Emissivities  (cloud, band1, band2, band3, ring, feature)
+        emissivity857 = (/0.301, 1.777, 0.716, 2.870, 0.578, 0.423/)
+        emissivity545 = (/0.223, 2.235, 0.718 , 3.193, 0.591, -0.182/)
+        emissivity353 = (/0.168, 2.035, 0.436, 2.400, -0.211, 0.676/)
+        emissivity217 = (/0.031, 2.024, 0.338, 2.507, -0.185, 0.243/)
+        emissivity143 = (/-0.014, 1.463, 0.530, 1.794, -0.252, -0.002/)
+        emissivity100 = (/0.003, 1.129, 0.674, 1.106, 0.163, 0.252/)
+
+        if (use_unit_emissivity == .true.) then
+            emissivity = 1.d0
+        end if
+
         ! Initializing zodi components
         ! ---------------------------------------------------------------------
         if (use_cloud == .true.) then
-            cloud_comp = Cloud(emissivity=1.d0, x0=0.011887801, y0=0.0054765065, &
+            if (use_unit_emissivity == .false.) then
+                emissivity = emissivity857(1)
+            end if
+            cloud_comp = Cloud(emissivity=emissivity, x0=0.011887801, y0=0.0054765065, &
                                z0=-0.0021530908, Incl=2.0335188, Omega=77.657956, &
                                n0=1.1344374e-7, alpha=1.3370697, beta=4.1415004, &
                                gamma=0.94206179, mu=0.18873176)
@@ -193,7 +212,10 @@ contains
         end if
 
         if (use_band1 == .true.) then
-            band1_comp = Band(emissivity=1.d0, x0=0.d0, y0=0.d0, z0=0.d0, &
+            if (use_unit_emissivity == .false.) then
+                emissivity = emissivity857(2)
+            end if
+            band1_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=0.56438265, Omega=80d0, n0=5.5890290d-10, &
                               Dz=8.7850534, Dr=1.5, R0=3.d0, Vi=0.1, Vr=0.05, &
                               P_i=4.d0, P_r=1.d0)
@@ -202,7 +224,10 @@ contains
         end if
 
         if (use_band2 == .true.) then
-            band2_comp = Band(emissivity=1.d0, x0=0.d0, y0=0.d0, z0=0.d0, &
+            if (use_unit_emissivity == .false.) then
+                emissivity = emissivity857(3)
+            end if
+            band2_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=1.2, Omega=30.347476, n0=1.9877609d-09, &
                               Dz=1.9917032, Dr=0.94121881, R0=3.d0, &
                               Vi=0.89999998, Vr=0.15, P_i=4.d0, P_r=1.d0)
@@ -211,7 +236,10 @@ contains
         end if
 
         if (use_band3 == .true.) then
-            band3_comp = Band(emissivity=1.d0, x0=0.d0, y0=0.d0, z0=0.d0, &
+            if (use_unit_emissivity == .false.) then
+                emissivity = emissivity857(4)
+            end if
+            band3_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=0.8, Omega=80.0, n0=1.4369827d-10,     &
                               Dz=15.0, Dr=1.5, R0=3.d0, Vi=0.05, Vr=-1.0, &
                               P_i=4.d0, P_r=1.d0)
@@ -220,7 +248,10 @@ contains
         end if
 
         if (use_ring == .true.) then
-            ring_comp = Ring(emissivity=1.d0, x0=0.d0, y0=0.d0, z0=0.d0, &
+            if (use_unit_emissivity == .false.) then
+                emissivity = emissivity857(5)
+            end if
+            ring_comp = Ring(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                              Incl=0.48707166d0, Omega=22.27898d0, &
                              nsr=1.8260528d-8, Rsr=1.0281924d0, &
                              sigmaRsr=0.025d0, sigmaZsr=0.054068037d0)
@@ -229,7 +260,10 @@ contains
         end if
 
         if (use_feature == .true.) then
-            feature_comp = Feature(emissivity=1.d0, x0=0.d0, y0=0.d0, z0=0.d0, &
+            if (use_unit_emissivity == .false.) then
+                emissivity = emissivity857(6)
+            end if
+            feature_comp = Feature(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                                    Incl=0.48707166d0, Omega=22.27898d0, &
                                    ntf=2.0094267d-8, Rtf=1.0579183d0, &
                                    sigmaRtf=0.10287315d0, sigmaZtf=0.091442964d0, &
@@ -251,9 +285,8 @@ contains
         allocate(y(n_LOS))
         allocate(z(n_LOS))
         allocate(density(n_LOS))
-        allocate(tot_density(n_LOS))
         allocate(blackbody(n_LOS))
-        allocate(emission(n_LOS))
+        allocate(ZLE(n_LOS))
 
         ! Precomputing ecliptic to galactic coordinates per pixels for all
         ! relevant nsides
@@ -285,9 +318,10 @@ contains
         do i = 1, size(nside_unique)
             nside = nside_unique(i)
             npix = nside2npix(nside)
-
+            allocate(tabulated_zodi(npix))
             allocate(coord_maps%vectors(i)%elements(npix,3))
-            allocate(ecliptic_vec(npix, 3))
+            allocate(ecliptic_vec(npix,3))
+
             do j = 0, npix-1
                 call pix2vec_ring(nside, j, vec)
                 ecliptic_vec(j+1,1) = vec(1)
@@ -337,7 +371,7 @@ contains
         real(dp),     dimension(1:),    intent(in)  :: nu
         real(sp),     dimension(1:,1:), intent(out) :: s_zodi
 
-        integer(i4b) :: i, j, k, n_det, n_tod
+        integer(i4b) :: i, j, k, n_det, n_tod, pixnum
         real(dp)     :: x0, y0, z0
         real(dp)     :: u_x, u_y, u_z
         real(dp)     :: x1, y1, z1
@@ -345,102 +379,104 @@ contains
         real(dp)     :: s, ds
         real(dp)     :: R_squared, R_cos_theta, R_LOS
         real(dp)     :: integral
-        real(dp)     :: longitude_sat
+        real(dp)     :: longitude_sat, latitude_sat
         real(dp), dimension(:,:), allocatable :: coord_map
 
-        ! Resetting arrays for each call
-        s_zodi(:,:) = 0.0
-        density(:) = 0.0
-        tot_density(:) = 0.0
-        blackbody(:) = 0.0
-        emission(:) = 0.0
+        ! Resetting quantities for each new TOD chunck
+        s_zodi = 0.d0
+        density = 0.d0
+        blackbody = 0.d0
+        ZLE = 0.d0
 
-        n_tod = size(pix,1)  ! n time-ordered data for current chunk
-        n_det = size(pix,2)  ! n detectors
+        ! Extracting n time-orderd data and n detectors for current chunk
+        n_tod = size(pix,1)
+        n_det = size(pix,2)
 
-        ! Selecting coordinate map containing pixel coordinates
+        ! Selecting coordinate map containing heliocentric pixel coordinates
         coord_map = getCoordMap(nside)
 
-        ! Satellite longitude in radians
+        ! Converting satellite longitude and latitude to radians and computing
+        ! heliocentric satellite coordinates (x0, y0, z0)
         longitude_sat = sat_pos(1)*deg2rad
+        latitude_sat = sat_pos(2)*deg2rad
+        x0 = R_sat*cos(latitude_sat)*cos(longitude_sat)
+        y0 = R_sat*cos(latitude_sat)*sin(longitude_sat)
+        z0 = R_sat*sin(latitude_sat)                       !TODO: get more accurate sat pos
 
         ! Computing the zodiacal emission for current time-ordered data chunk
         do j = 1, n_det
-            ! Computing the consant terms in Planck's law B(T)
-            const1 = (2.d0*h*217.d9**3)/(c*c)
-            ! const1 = (2.d0*h*nu(j)**3)/(c*c)
-            const2 = (h*217.d9)/k_B
-            ! const2 = (h*nu(j))/k_B
+            ! Computing terms in Planck's law for blackbody emission
+            const1 = (2.d0*h*nu(j)**3)/(c*c)
+            const2 = (h*nu(j))/k_B
 
+            ! Initializing tabulated zodi values
+            tabulated_zodi = 0.d0
             do i = 1, n_tod
-                ! Computing heliocentric satellite coordinates (x0, y0, z0)
-                x0 = R_sat*cos(longitude_sat)
-                y0 = R_sat*sin(longitude_sat)
-                z0 = 0.d0
+                pixnum = pix(i,j)
 
-                ! Looking up pre-computed HEALPix unit vector pointing to
-                ! pixel at infinity
-                u_x = coord_map(pix(i,j),1)
-                u_y = coord_map(pix(i,j),2)
-                u_z = coord_map(pix(i,j),3)
+                if (tabulated_zodi(pixnum) == 0.d0) then
+                    ! The first time a pixel is hit in the TOD chunk we calculate
+                    ! the ZLE and tabulate for future hits in the same chunk
 
-                ! Finding the coordinates at the end of the line-of-sight
-                ! (x1, y1, z1) used to construct the line-of-sight array.
-                ! The proof for these calculations are provided in my thesis
-                R_squared = x0**2 + y0**2 + z0**2
-                R_cos_theta = x0*u_x + y0*u_y + z0*u_z
-                R_LOS = - R_cos_theta + sqrt(R_cos_theta**2 - R_squared + R_max**2)
+                    ! Looking up pre-computed HEALPix unit vector pointing to
+                    ! pixel at infinity
+                    u_x = coord_map(pixnum,1)
+                    u_y = coord_map(pixnum,2)
+                    u_z = coord_map(pixnum,3)
 
-                x1 = x0 + R_LOS*u_x
-                y1 = y0 + R_LOS*u_y
-                z1 = z0 + R_LOS*u_z
+                    ! Finding the coordinates at the end of the line-of-sight
+                    ! (x1, y1, z1) used to construct the line-of-sight array.
+                    ! The proof for these calculations are provided in my thesis
+                    R_squared = x0**2 + y0**2 + z0**2
+                    R_cos_theta = x0*u_x + y0*u_y + z0*u_z
+                    R_LOS = - R_cos_theta + sqrt(R_cos_theta**2 - R_squared + R_max**2)
 
-                ! Constructing line-of-sight array
-                dx = (x1-x0)/(n_LOS-1)
-                dy = (y1-y0)/(n_LOS-1)
-                dz = (z1-z0)/(n_LOS-1)
-                ds = sqrt(dx**2 + dy**2 + dz**2)
+                    x1 = x0 + R_LOS*u_x
+                    y1 = y0 + R_LOS*u_y
+                    z1 = z0 + R_LOS*u_z
 
-                do k = 1, n_LOS
-                    x(k) = x0 + (k-1)*dx
-                    y(k) = y0 + (k-1)*dy
-                    z(k) = z0 + (k-1)*dz
+                    ! Constructing line-of-sight array
+                    dx = (x1-x0)/(n_LOS-1)
+                    dy = (y1-y0)/(n_LOS-1)
+                    dz = (z1-z0)/(n_LOS-1)
+                    ds = sqrt(dx**2 + dy**2 + dz**2)
 
-                    ! Computing radial distance from the Sun
-                    s = sqrt(x(k)**2 + y(k)**2 + z(k)**2)
+                    do k = 1, n_LOS
+                        x(k) = x0 + (k-1)*dx
+                        y(k) = y0 + (k-1)*dy
+                        z(k) = z0 + (k-1)*dz
 
-                    ! Computing blackbody emission B(T) at radial distance s
-                    ! from the Sun through the Planck function
-                    blackbody(k) = const1/(exp(const2/(T0*s**(-delta))) - 1.d0)
-                end do
+                        ! Radial distance from the Sun
+                        s = sqrt(x(k)**2 + y(k)**2 + z(k)**2)
 
-                ! Looping over all active zodi components
-                comp => comp_list
-                do while (associated(comp))
+                        ! Computing blackbody emission B(T) at radial distance s
+                        ! from the Sun with the Planck function along the LOS
+                        blackbody(k) = const1/(exp(const2/(T0*s**(-delta))) - 1.d0)
+                    end do
 
-                    ! Get density at given x, y, z coordinate along the line-of-sight
-                    call comp%getDensity(x, y, z, density, longitude_sat)
+                    comp => comp_list
+                    do while (associated(comp))
+                        ! For each component calculate density and multiply
+                        ! with the blackbody function. Then integrate this up
+                        ! along the line-of-sight and scale by emissivity
+                        call comp%getDensity(x, y, z, density, longitude_sat)
+                        ZLE = density*blackbody
+                        call trapezoidal(ZLE, ds, n_LOS, integral)
+                        s_zodi(i,j) = s_zodi(i,j) + integral*comp%emissivity
 
-                    ! Adding up density along the line-of-sight
-                    tot_density = tot_density + density
+                        comp => comp%next()
+                    end do
 
-                    comp => comp%next()
-                end do
+                    ! Saving emission and storing for future reference
+                    tabulated_zodi(pixnum) = s_zodi(i,j)
 
-                ! Emission produced by the density
-                emission = tot_density*blackbody
+                else
+                    ! Looking up tabulated emission
+                    s_zodi(i,j) = s_zodi(i,j) + tabulated_zodi(pixnum)
+                end if
 
-                ! Integrating up the emission along the line-of-sight
-                ! with the trapezoidal method
-                call trapezoidal(emission, ds, n_LOS, integral)
-
-                ! Saving emission
-                s_zodi(i,j) = s_zodi(i,j) + integral
             end do
         end do
-
-        ! Converting to MJs/sr before returning signal
-        ! s_zodi = s_zodi*1d20
     end subroutine compute_zodi_template
 
     ! =========================================================================
@@ -535,9 +571,8 @@ contains
             end if
 
             density(i) = self%n0 * R**(-self%alpha) * exp(-self%beta &
-                    * g**self%gamma) * self%emissivity
+                    * g**self%gamma)
         end do
-
     end subroutine getDensityCloud
 
     subroutine initializeBand(self)
@@ -582,8 +617,7 @@ contains
             ViTerm = 1.d0 + ZDz4 * self%ViInv
             WtTerm = 1.d0 - exp(-(R*self%DrInv)**20)
 
-            density(i) = self%n0 * exp(-ZDz6) * ViTerm * WtTerm * self%R0/R &
-                    * self%emissivity
+            density(i) = self%n0 * exp(-ZDz6) * ViTerm * WtTerm * self%R0/R
         end do
     end subroutine getDensityBand
 
@@ -621,7 +655,7 @@ contains
                 + zprime*self%cosIncl
 
             density(i) = self%nsr * exp(-((R-self%Rsr)/self%sigmaRsr)**2 &
-                       - abs(Z_c)*self%sigmaZsrInv) * self%emissivity
+                       - abs(Z_c)*self%sigmaZsrInv)
         end do
     end subroutine getDensityRing
 
@@ -672,7 +706,7 @@ contains
 
             density(i) = self%ntf * exp(-((R-self%Rtf)*self%sigmaRtfInv)**2 &
                     - abs(Z_c)*self%sigmaZtfInv &
-                    - (theta*self%sigmaThetatfRinv)**2) * self%emissivity
+                    - (theta*self%sigmaThetatfRinv)**2)
         end do
     end subroutine getDensityFeature
 

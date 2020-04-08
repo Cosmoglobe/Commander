@@ -7,6 +7,7 @@ import healpy as hp
 
 from pytest import approx
 from glob import glob
+from multiprocessing import Pool
 
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
@@ -208,6 +209,7 @@ def quat_to_sky_coords(quat, center=True, Nobs=12):
         Pll_B = np.array(hp.vec2ang(dir_B_los_gal[i].T, lonlat=True))
         gal.append(Pll_A.T)
         gal.append(Pll_B.T)
+    # I expect an array of length 40 by 50000-something by 2
     gal = np.array(gal)
 
     dir_A_pol_cel = []
@@ -235,62 +237,198 @@ def quat_to_sky_coords(quat, center=True, Nobs=12):
     return gal, pol
 
 
+def get_psi(gal, pol, band_labels):
+    sin_2_gamma = np.zeros( (len(band_labels), len(gal[0])) )
+    cos_2_gamma = np.zeros( (len(band_labels), len(gal[0])) )
+    for band in range(len(band_labels)):
+        print(band_labels[band])
+        for t in range(len(sin_2_gamma[band])):
+            sin_2_gi, cos_2_gi = gamma_from_pol(gal[band//2,t], pol[band//2, t])
+            sin_2_gamma[band, t] = sin_2_gi
+            cos_2_gamma[band, t] = cos_2_gi
+    psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
+    return psi
+
+def get_psi_multiprocessing(gal, pol):
+    sin_2_gamma = np.zeros(len(gal))
+    cos_2_gamma = np.zeros(len(gal))
+    for t in range(len(sin_2_gamma)):
+        sin_2_gi, cos_2_gi = gamma_from_pol(gal[t], pol[t])
+        sin_2_gamma[t] = sin_2_gi
+        cos_2_gamma[t] = cos_2_gi
+    psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
+    return psi
+
+
 def main():
+    '''
+    Make 1 file for every 25th of a day
+    '''
+    # from table 3 of astro-ph/0302222
+    gain_guesses = np.array([   -0.974, +0.997,
+                                +1.177, -1.122,
+                                +0.849, -0.858,
+                                -1.071, +0.985,
+                                +1.015, -0.948,
+                                +0.475, -0.518,
+                                -0.958, +0.986,
+                                -0.783, +0.760,
+                                +0.449, -0.494,
+                                -0.532, +0.532,
+                                -0.450, +0.443,
+                                +0.373, -0.346,
+                                +0.311, -0.332,
+                                +0.262, -0.239,
+                                -0.288, +0.297,
+                                +0.293, -0.293,
+                                -0.260, +0.281,
+                                -0.263, +0.258,
+                                +0.226, -0.232,
+                                +0.302, -0.286])
+
+    alpha = -1
+    fknee = 0.1
+
+    nside = 256
+    npsi = 4096
+    fsamp = 30/1.536 # A single TOD record contains 30 1.536 second major science frames
+    chunk_size = 1875
+    nsamp = chunk_size*fsamp
+    chunk_list = np.arange(25)
+    # WMAP data divides evenly into 25 chunks per day...
+
+
+
+
+    bands = ['K', 'KA', 'Q', 'V', 'W']
+    bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+
+
+
     file_out = 'wmap_tods.h5'
 
-    f = h5py.File(file_out, 'w')
 
     #/mn/stornext/u3/hke/xsan/wmap/tod
-    files = glob('/mn/stornext/u3/hke/xsan/wmap/tod/*.fits')
+    files = glob('tod/*.fits')
     files.sort()
+    obs_ind = 0
+    file_ind = 0
+    t2jd = 2.45e6
     for file_in in files:
+        file_ind += 1
         data = fits.open(file_in)
 
-
-        obsid = file_in.split('/')[-1].split('_')[2] 
         band_labels = data[2].columns.names[1:-6]
-        print(file_in, obsid)
+        print(band_labels)
         
         
-        time = data[2].data['TIME']
-        for label in band_labels:
-            TOD = data[2].data[label]
-            # Write to h5 file.
-            dset = f.create_dataset(obsid + '/' + label + '/TOD', data=TOD)
    
-        n_records = data[0].header['NUMREC']
-        
         # position (and velocity) in km(/s) in Sun-centered coordinates
         pos = data[1].data['POSITION']
         vel = data[1].data['VELOCITY']
+        time_aihk = data[1].data['TIME'] + t2jd
+        time = data[2].data['TIME'] + t2jd
+
+        dt0 = np.diff(time).mean()
         
         
         gal, pol = quat_to_sky_coords(data[1].data['QUATERN'])
+        # gal and pol are set up so that the A and B horns are interleaved.
+        # To match the 40 channels in band_labels, it should be ABAB for each
+        # channel
+        gal2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
+        pol2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
+        gal2[::4] = gal[::2]
+        gal2[2::4] = gal[::2]
+        pol2[::4] = pol[::2]
+        pol2[2::4] = pol[::2]
 
-        los_labels = data[5].columns.names
+        gal = gal2
+        pol = pol2
 
-        sin_2_gamma = np.zeros( (len(gal), len(gal[0])) )
-        cos_2_gamma = np.zeros( (len(gal), len(gal[0])) )
-        for band in range(len(sin_2_gamma)):
-            print(band_labels[band])
-            for t in range(len(sin_2_gamma[band])):
-                sin_2_gi, cos_2_gi = gamma_from_pol(gal[band,t], pol[band, t])
-                sin_2_gamma[band, t] = sin_2_gi
-                cos_2_gamma[band, t] = cos_2_gi
+        #los_labels = data[5].columns.names
 
 
 
+        psi = []
+        args = [(gal[i],pol[i]) for i in range(len(gal))]
+        with Pool() as pool:
+            L = pool.starmap(get_psi_multiprocessing, args)
+        psi = np.array(L)
 
 
-        f.create_dataset(obsid + '/common/gal', data=gal)
-        f.create_dataset(obsid + '/common/vel', data=vel)
-        f.create_dataset(obsid + '/common/time', data=time)
-        f.create_dataset(obsid + '/common/sin_2_g', data=sin_2_gamma)
-        f.create_dataset(obsid + '/common/cos_2_g', data=cos_2_gamma)
+        pix = hp.ang2pix(nside, gal[:,:,0], gal[:,:,1], lonlat=True)
 
+
+        n_per_day = 25
+
+        for i in range(n_per_day):
+            print(i, file_ind, file_ind//4)
+            obs_ind += 1
+            obsid = str(obs_ind).zfill(6)
+            for band in bands:
+                file_out = f'data/wmap_{band}_{str(file_ind+1).zfill(6)}.h5'
+                det_list = []
+                with h5py.File(file_out, 'a') as f:
+                    for j in range(len(band_labels)):
+                        label = band_labels[j]
+                        if label[:-2] == band.upper():
+                            TOD = data[2].data[label]
+                            gain = gain_guesses[j]
+                            sigma_0 = TOD.std()
+                            scalars = np.array([fknee, sigma_0, alpha, gain])
+                            # Write to h5 file.
+                            tod = np.zeros(TOD.size)
+                            for n in range(len(TOD[0])):
+                                tod[n::len(TOD[0])] = TOD[:,n]
+                            f.create_dataset(obsid + '/' + label+ '/tod',
+                                    data=np.split(tod,n_per_day)[i])
+                            # pixA and pixB are interleaved with each other
+                            if j%2 == 0:
+                                pixlab = '/pixA'
+                                psilab = '/psiA'
+                            else:
+                                pixlab = '/pixB'
+                                psilab = '/psiB'
+                            f.create_dataset(obsid + '/' + label+ psilab,
+                                    data=np.split(psi[j],n_per_day)[i])
+                            f.create_dataset(obsid + '/' + label+ pixlab,
+                                    data=np.split(pix[j],n_per_day)[i])
+                            f.create_dataset(obsid + '/' + label+ '/scalars',
+                                    data=scalars)
+                            det_list.append(label)
+                            # filler 
+                            f.create_dataset(obsid + '/' + label + '/flag',
+                                    data=0)
+                            f.create_dataset(obsid + '/' + label + '/outP',
+                                    data=np.array([0,0]))
+                    dt = dt0/len(TOD[0])
+                    time_band = time = np.arange(time.min(), time.min() + dt*len(tod), dt)
+                    f.create_dataset(obsid + '/common/satpos',
+                            data=np.split(pos,n_per_day)[i])
+                    f.create_dataset(obsid + '/common/vsun',
+                            data=np.split(vel,n_per_day)[i][0])
+                    t = np.split(time, n_per_day)[i][0]
+                    f.create_dataset(obsid + '/common/time',
+                            data=time_band)
+                    f.create_dataset(obsid + '/common/time_aihk',
+                            data=time_aihk)
+                    f.create_dataset(obsid + '/common/ntod',
+                            data=len(np.split(tod,n_per_day)[i]))
+
+                    if "/common/fsamp" not in f:
+                        f.create_dataset('/common/fsamp', data=fsamp*len(TOD[0]))
+                        f.create_dataset('/common/nside', data=nside)
+                        f.create_dataset('/common/npsi', data=npsi)
+                        f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
+                        f.create_dataset('/common/datatype', data='WMAP')
+                        # fillers
+                        f.create_dataset('/common/mbang', data=0)
+                        f.create_dataset('/common/ntodsigma', data=100)
+                        f.create_dataset('/common/polang', data=0)
+        
         data.close()
 
-    f.close()
 
 if __name__ == '__main__':
     main()
