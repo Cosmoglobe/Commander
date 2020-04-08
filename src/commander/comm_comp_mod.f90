@@ -254,7 +254,7 @@ contains
        dnu = (nu_dump(2)/nu_dump(1))**(1.d0/(n_dump-1))
        do i = 1, n_dump
           if (self%npar > 0) then
-             S = self%S(nu, theta=self%theta_def(1:self%npar))
+             S = self%S(nu, theta=self%theta_def(1:self%npar), pol=1)
           else
              S = self%S(nu)
           end if
