@@ -1233,13 +1233,13 @@ contains
        n      = 1000
        nu_min = 10d0
        nu_max = 3000d0
-       open(50,file='spec_test.dat')
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          write(50,*) nu, compute_physical_dust_spectrum(nu,0.d0,fg_components(1)%us,545.d9,fg_components(1)%S_phys_dust, fg_components(1)%S_dust_coeff, [0.d0,0.d0])
-       end do
-       close(50)
-       stop
+!!$       open(50,file='spec_test.dat')
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          write(50,*) nu, compute_physical_dust_spectrum(nu,0.d0,fg_components(1)%us,545.d9,fg_components(1)%S_phys_dust, fg_components(1)%S_dust_coeff, [0.d0,0.d0])
+!!$       end do
+!!$       close(50)
+!!$       stop
 !!$       open(58,file='bands.dat')
 !!$       do i = 1, 15
 !!$          write(58,*) bands(i)*0.98, -1e12
@@ -1259,7 +1259,7 @@ contains
 !!$       close(58)
        
 
-!!$       open(58,file='s.dat')
+       open(58,file='s.dat')
 !!$       do j = 1, num_fg_comp
 !!$          do q = 1, numband
 !!$             k = i2f(q)
@@ -1282,51 +1282,51 @@ contains
        nu_min = 0.1d0
        nu_max = 3000d0
        ! CMB
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = 1.d0 / compute_ant2thermo_single(nu)
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       ! TSZ
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = 1.d0/((2.d0*nu**2*k_b/c**2 / &
-               & (compute_bnu_prime_single(nu) * sz_thermo(nu)))) * 1d6
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       ! Synchrotron 
-       nu_min = 0.001d0
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.0d0, -3.0d0, 3.d0, [0.d0,0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -3.d0, 3.d0, [0.d0,0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -3.2d0, 3.d0, [0.d0,0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
-
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -2.8d0, 3.d0, [0.d0,0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = 1.d0 / compute_ant2thermo_single(nu)
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       ! TSZ
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = 1.d0/((2.d0*nu**2*k_b/c**2 / &
+!!$               & (compute_bnu_prime_single(nu) * sz_thermo(nu)))) * 1d6
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       ! Synchrotron 
+!!$       nu_min = 0.001d0
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.0d0, -3.0d0, 3.d0, [0.d0,0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -3.d0, 3.d0, [0.d0,0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -3.2d0, 3.d0, [0.d0,0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
+!!$
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.4d0, -2.8d0, 3.d0, [0.d0,0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
 
 !       open(58,file='s.dat')
 !       do j = 1, num_fg_comp
@@ -1423,13 +1423,13 @@ contains
 !!$
        ! Synchrotron 
        !nu_min = 0.001d0
-       do i = 1, n
-          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          !s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.0d0, -3.0d0, 3.d0, [0.d0,0.d0])
-          s1 = compute_power_law_spectrum(nu, 21.d9, -3.0d0, -0.053d0, [0.d0,0.d0])
-          write(58,*) nu/1.d9, s1
-       end do
-       write(58,*)
+!!$       do i = 1, n
+!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+!!$          !s1 = compute_power_law_break_spectrum(nu, 0.408d9, 0.0d0, -3.0d0, 3.d0, [0.d0,0.d0])
+!!$          s1 = compute_power_law_spectrum(nu, 21.d9, -3.0d0, -0.053d0, [0.d0,0.d0])
+!!$          write(58,*) nu/1.d9, s1
+!!$       end do
+!!$       write(58,*)
 !!$
 !!$       do i = 1, n
 !!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
@@ -1535,14 +1535,14 @@ contains
 !!$       write(58,*)
 
        ! Free-free
-!!$       nu_min = 0.00001d0
-!!$       do i = 1, n
-!!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-!!$          s1 = compute_freefree_EM_spectrum(nu, log(1.d0), 7000d0)
-!!$          s2 = compute_freefree_spectrum(nu, 23.d9, 7000d0)
-!!$          write(58,*) nu/1.d9, s1, s2
-!!$       end do
-!!$       write(58,*)
+       nu_min = 0.00001d0
+       do i = 1, n
+          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
+          s1 = compute_freefree_EM_spectrum(nu, log(1.d0), 7000d0)
+          !s2 = compute_freefree_spectrum(nu, 23.d9, 7000d0)
+          write(58,*) nu/1.d9, s1, s2
+       end do
+       write(58,*)
 !!$
 !!$       do i = 1, n
 !!$          nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9

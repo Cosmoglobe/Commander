@@ -69,6 +69,7 @@ contains
     constructor%comm              = info%comm
     constructor%nprocs            = info%nprocs
     constructor%info              => info
+    constructor%pol_only          = .true.
     call constructor%update_N(info, handle, mask=mask, noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
 
   end function constructor
