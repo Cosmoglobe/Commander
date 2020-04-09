@@ -535,7 +535,7 @@ contains
     integer(i4b),           intent(in)    :: id, id_abs
 
     integer(i4b)        :: unit, i, j, p, npar, nmaps, pix, nside, n, ierr
-    real(dp)            :: glon, glat, nu_ref, dist, vec0(3), vec(3)
+    real(dp)            :: glon, glat, nu_ref, dist, vec0(3), vec(3), chisq
     logical(lgt)        :: pol, skip_src
     character(len=1024) :: line, filename, tempfile
     character(len=128)  :: id_ptsrc, flabel
@@ -589,7 +589,7 @@ contains
        read(unit,'(a)',end=2) line
        line = trim(line)
        if (line(1:1) == '#' .or. trim(line) == '') cycle
-       read(line,*) glon, glat, amp, amp_rms, beta, beta_rms, id_ptsrc
+       read(line,*) glon, glat, amp, amp_rms, beta, beta_rms, chisq, id_ptsrc
        amp_rms = amp_rms * self%amp_rms_scale ! Adjust listed RMS by given value
        do j = 1, npar
           beta(j,:) = max(self%p_uni(1,j),min(self%p_uni(2,j),beta(j,:)))
@@ -1508,10 +1508,12 @@ contains
              n_pix = 0
              do l = 1, numband
                 s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                if (p == 1 .and. data(l)%pol_only) cycle
+                if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
-                   if (data(l)%bp(0)%p%nu_c >= self%nu_min_ind(1) .and. data(l)%bp(0)%p%nu_c <= self%nu_max_ind(1)) then
+                   if (data(l)%N%rms_pix(pix,p) > 0.d0) then
                       chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
                       n_pix = n_pix + 1
                    end if
@@ -1520,7 +1522,8 @@ contains
              
              call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
              call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
-             if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot / n_pix_tot-1.d0) / sqrt(0.5d0/n_pix_tot)
+             if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
+
              if (self%myid == 0 .and. mod(k,1000)==0) write(*,*) k, real(a,sp), &
                   & real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
           end do
@@ -1598,11 +1601,11 @@ contains
 !!$    stop
 
 
-!    if (self%myid == 0) open(68,file='ptsrc.dat', recl=1024)
+    if (self%myid == 0) open(68,file='ptsrc.dat', recl=1024)
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
     do iter = 1, n_gibbs
 
-       !if (self%myid == 0) write(*,*) iter, n_gibbs
+       if (self%myid == 0) write(*,*) iter, n_gibbs
 
        ! Sample spectral parameters
        do j = 1, self%npar
@@ -1619,6 +1622,7 @@ contains
 
                 ! Construct current source model
                 do l = 1, numband
+                   if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    s         = self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
@@ -1641,6 +1645,7 @@ contains
                    lnL = 0.d0
                    do i = 1, n
                       do l = 1, numband
+                         if (p == 1 .and. data(l)%pol_only) cycle
                          if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                          
                          ! Compute mixing matrix
@@ -1761,6 +1766,7 @@ contains
              b     = 0.d0
              theta = self%src(k)%theta(:,p)
              do l = 1, numband
+                if (p == 1 .and. data(l)%pol_only) cycle
                 if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
 
                 ! Compute mixing matrix
@@ -1815,35 +1821,49 @@ contains
              ! Update residuals
              chisq = 0.d0
              n_pix = 0
+             !if (k == 3499 .and. self%myid == 0) open(79,file='src.dat', recl=1024)
              do l = 1, numband
+                !if (k == 3499 .and. self%myid == 0) write(*,*) l, p, data(l)%pol_only, self%src(k)%T(l)%np
+                if (p == 1 .and. data(l)%pol_only) cycle
+
                 ! Compute mixing matrix
                 s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                 
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
+!!$                   if (k == 3499) then
+!!$                      write(*,*) p, l, pix, data(l)%N%rms_pix(pix,p), data(l)%pol_only, self%nu_min_ind(1), data(l)%bp(0)%p%nu_c, self%nu_max_ind(1), self%src(k)%glon*RAD2DEG, self%src(k)%glat*RAD2DEG, self%x(k,1)*self%cg_scale
+!!$
+!!$                   end if
                    if (data(l)%N%rms_pix(pix,p) == 0.d0) cycle
+                   if (p == 1 .and. data(l)%pol_only) cycle
+                   if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(k)%T(l)%map(q,p) * (amp(k,p)-a_old)
-                   if (data(l)%bp(0)%p%nu_c >= self%nu_min_ind(1) .and. data(l)%bp(0)%p%nu_c <= self%nu_max_ind(1)) then
-                      chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
-                      n_pix = n_pix + 1
+                   chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
+                   if (.false. .and. k == 3499) then
+                      write(*,*) 'test', p, l, pix, data(l)%res%map(pix,p), data(l)%N%rms_pix(pix,p), s*self%src(k)%T(l)%map(q,p) * amp(k,p), data(l)%res%map(pix,p) / data(l)%N%rms_pix(pix,p), chisq
                    end if
+                   n_pix = n_pix + 1
                 end do
              end do
+             !if (k == 3499 .and. self%myid == 0) close(79)
+             if (k == 3499) write(*,*) 'chisq_myid = ', chisq, n_pix
 
              call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
              call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
-             if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot / n_pix_tot-1.d0) / sqrt(0.5d0/n_pix_tot)
+             if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
+             if (k == 3499 .and. self%myid == 0) write(*,*) 'chisq_tot = ', chisq_tot, n_pix_tot, self%src(k)%red_chisq
 
              !if (self%myid == 0) write(*,*) 'amp = ', real(amp(k,p),sp), real(mu,sp), real(sigma,sp)
-             !if (self%myid == 0 .and. k == self%nsrc) write(68,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
+             if (self%myid == 0 .and. k == self%nsrc) write(68,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              !if (self%myid == 0 .and. iter==n_gibbs) write(*,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              
           end do
        end do
 
     end do
-    !if (self%myid == 0) close(68)
+    if (self%myid == 0) close(68)
 
 
 !!$    if (self%myid == 0) then
