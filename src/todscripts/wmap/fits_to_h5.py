@@ -121,23 +121,80 @@ def gamma_from_pol(gal, pol, fixed_basis=False):
 
     return sin_2_gamma_A, cos_2_gamma_A
 
-def quat_to_sky_coords(quat, center=True, Nobs=12):
+def q_interp(q_arr, t):
     '''
-    Quaternion is of form (N_frames, 30, 4)
+    Copied from interpolate_quaternions.pro
+
+    This is an implementation of Lagrange polynomials.
+    ;   input_q  - Set of 4 evenly-spaced quaternions (in a 4x4 array).
+    ;          See the COMMENTS section for how this array should
+    ;          be arranged.
+    ;   offset   - Dimensionless time offset relative to the first quaternion.
+    ;   This routine expects a unifomly sampled set of quaternions Q1,Q2,Q3,Q4.
+    ;   It interpolate a quaternion for any time between Q1 and Q4, inclusive.
+    ;   The output is calculated at a time T_Out, expressed in terms of the
+    ;   sampling of the input quaternions:
+    ;
+    ;                   T_Out - T(Q1)
+    ;       Offset = -----------------
+    ;                   T(Q2) - T(Q1)
+    ;
+    ;   where T(Q1) is the time at quaternion Q1, and so forth.  That is,
+    ;   the time for the output quaternion (variable OFFSET) should be
+    ;   a number in the range -1.000 to 4.000 inclusive.  Input values outside
+    ;   that range result in an error.  Input values outside 0.0 to 3.0 result
+    ;   in extrapolation instead of interpolation.
+    ;
+    ;       In other words, Offset is essentially a floating point subscript,
+    ;       similar to the those used by the IDL intrinsic routine INTERPOLATE.
+    ;
+    ;   For optimal results, OFFSET should be in the range [1.0, 2.0] -- that
+    ;   is, the input quaternions Q1...Q4 should be arranged such that 2 come
+    ;   before the desired output and 2 come after.
+
+    '''
+    xp0 = t-1
+    xn0 = -xp0
+    xp1 = xp0 + 1
+    xn1 = xp0 - 1
+    xn2 = xp0 - 2
+    w = np.array([xn0*xn1*xn2/6, xp1*xn1*xn2/2, xp1*xn0*xn2/2, xp1*xp0*xn1/6])
+    Qi = q_arr.dot(w)
+    Qi = Qi/np.sum(Qi**2, axis=0)**0.5
+    return Qi
+
+
+from scipy.interpolate import interp1d
+def quat_to_sky_coords(quat, center=True):
+    Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
+    '''
+    Quaternion is of form (N_frames, 30, 4), with one redundant frame at the
+    beginning and two redundant ones at the end, that match the adjacent frames.
     '''
     nt = len(quat)
-    Q = np.zeros( (4, 30, nt))
-    for i in range(nt):
-        for j in range(30):
-            qt = quat[i,j:j+4]
-            qout = qt
-            Q[:,j,i] = qt
-    Q = np.reshape(Q, (4, 30*nt))
+    Q = np.zeros( (4, 33, nt))
+    q0 = quat[:,0::4]
+    q1 = quat[:,1::4]
+    q2 = quat[:,2::4]
+    q3 = quat[:,3::4]
+    q0 = np.array([q0[0,0]] + q0[:,1:-2].flatten().tolist() +
+            q0[-1,-2:].tolist())
+    q1 = np.array([q1[0,0]] + q1[:,1:-2].flatten().tolist() +
+            q1[-1,-2:].tolist())
+    q2 = np.array([q2[0,0]] + q2[:,1:-2].flatten().tolist() +
+            q2[-1,-2:].tolist())
+    q3 = np.array([q3[0,0]] + q3[:,1:-2].flatten().tolist() +
+            q3[-1,-2:].tolist())
+    Q = np.zeros((4, 30*nt + 3))
+    Q[0] = q0
+    Q[1] = q1
+    Q[2] = q2
+    Q[3] = q3
+    t0 = np.arange(30*nt + 3)
+
 
     da_str = ''
 
-    #dir_A_los = np.array([0, 0.94264149, -0.33380686])#   ; Optical axis
-    #dir_B_los = np.array([0,-0.94264149, -0.33380686])    
     dir_A_los = np.array([
                 [ 0.03997405,  0.92447851, -0.37913264],
                 [-0.03834152,  0.92543237, -0.37696797],
@@ -184,57 +241,58 @@ def quat_to_sky_coords(quat, center=True, Nobs=12):
                 [  0.70521159225086,  0.23611413753036, -0.66852578425466, ],
                 [ -0.70903152581832,  0.23766935833457, -0.66391834701609]])
 
-
-    Npts = np.prod(Q.shape)//4
     M = Q2M(Q)
     M = np.transpose(M, [2,0,1])
 
+    gal_A = []
+    pol_A = []
+    gal_B = []
+    pol_B = []
+    for n, Nobs in enumerate(Nobs_array):
+        # for each group from 0--4, the interpolation is valid between 1.5--2.5,
+        # which is equivalent to cutting out the first 1.5 time units from the
+        # beginning of the total array and the final set of quaternions does not
+        # need the last half of the time interval.
+        t = np.arange(t0.min() + 1.5, t0.max() - 0.5, 1/Nobs)
 
-    dir_A_los_cel = []
-    dir_B_los_cel = []
-    for i in range(len(dir_A_los)):
-        dir_A_los_cel.append(np.sum(M*np.tile(dir_A_los[i, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2))
-        dir_B_los_cel.append(np.sum(M*np.tile(dir_B_los[i, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2))
-    dir_A_los_cel = np.array(dir_A_los_cel)
-    dir_B_los_cel = np.array(dir_B_los_cel)
-
-    dir_A_los_gal = np.zeros_like(dir_A_los_cel)
-    dir_B_los_gal = np.zeros_like(dir_A_los_cel)
-    gal = []
-    for i in range(len(dir_A_los)):
-        dir_A_los_gal[i] = coord_trans(dir_A_los_cel[i], 'C', 'G')
-        Pll_A = np.array(hp.vec2ang(dir_A_los_gal[i].T, lonlat=True))
-
-        dir_B_los_gal[i] = coord_trans(dir_B_los_cel[i], 'C', 'G')
-        Pll_B = np.array(hp.vec2ang(dir_B_los_gal[i].T, lonlat=True))
-        gal.append(Pll_A.T)
-        gal.append(Pll_B.T)
-    # I expect an array of length 40 by 50000-something by 2
-    gal = np.array(gal)
-
-    dir_A_pol_cel = []
-    dir_B_pol_cel = []
-    for i in range(len(dir_A_pol)):
-        dir_A_pol_cel.append(np.sum(M*np.tile(dir_A_pol[i, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2))
-        dir_B_pol_cel.append(np.sum(M*np.tile(dir_B_pol[i, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2))
-    dir_A_pol_cel = np.array(dir_A_pol_cel)
-    dir_B_pol_cel = np.array(dir_B_pol_cel)
-
-    dir_A_pol_gal = np.zeros_like(dir_A_pol_cel)
-    dir_B_pol_gal = np.zeros_like(dir_A_pol_cel)
-    pol = []
-    for i in range(len(dir_A_pol)):
-        dir_A_pol_gal[i] = coord_trans(dir_A_pol_cel[i], 'C', 'G')
-        Pll_A = np.array(hp.vec2ang(dir_A_pol_gal[i].T, lonlat=True))
-
-        dir_B_pol_gal[i] = coord_trans(dir_B_pol_cel[i], 'C', 'G')
-        Pll_B = np.array(hp.vec2ang(dir_B_pol_gal[i].T, lonlat=True))
-        pol.append(Pll_A.T)
-        pol.append(Pll_B.T)
-    pol = np.array(pol)
+        M2 = np.zeros((len(t), 3, 3))
+        for i in range(3):
+            for j in range(3):
+                f = interp1d(t0, M[:,i,j], kind='cubic')
+                M2[:,i,j] = f(t)
 
 
-    return gal, pol
+
+
+        Npts = 30*nt*Nobs
+        dir_A_los_cel = []
+        dir_B_los_cel = []
+        dir_A_los_cel = np.sum(M2*np.tile(dir_A_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
+        dir_B_los_cel = np.sum(M2*np.tile(dir_B_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
+
+        dir_A_los_gal = coord_trans(dir_A_los_cel, 'C', 'G')
+        Pll_A = np.array(hp.vec2ang(dir_A_los_gal, lonlat=True))
+
+        dir_B_los_gal = coord_trans(dir_B_los_cel, 'C', 'G')
+        Pll_B = np.array(hp.vec2ang(dir_B_los_gal, lonlat=True))
+        gal_A.append(Pll_A.T)
+        gal_B.append(Pll_B.T)
+
+        dir_A_pol_cel = np.sum(M2*np.tile(dir_A_pol[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
+        dir_B_pol_cel = np.sum(M2*np.tile(dir_B_pol[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
+
+        dir_A_pol_gal = coord_trans(dir_A_pol_cel, 'C', 'G')
+        Pll_A = np.array(hp.vec2ang(dir_A_pol_gal, lonlat=True))
+
+        dir_B_pol_gal = coord_trans(dir_B_pol_cel, 'C', 'G')
+        Pll_B = np.array(hp.vec2ang(dir_B_pol_gal, lonlat=True))
+        pol_A.append(Pll_A.T)
+        pol_B.append(Pll_B.T)
+
+
+
+
+    return gal_A, gal_B, pol_A, pol_B
 
 
 def get_psi(gal, pol, band_labels):
@@ -319,7 +377,6 @@ def main():
         data = fits.open(file_in)
 
         band_labels = data[2].columns.names[1:-6]
-        print(band_labels)
         
         
    
@@ -332,33 +389,42 @@ def main():
         dt0 = np.diff(time).mean()
         
         
-        gal, pol = quat_to_sky_coords(data[1].data['QUATERN'])
-        # gal and pol are set up so that the A and B horns are interleaved.
+        gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(data[1].data['QUATERN'])
+        np.save('gal_interp', gal)
+        t = np.arange(len(gal[0]))
+        print(t.min(), t.max())
+        plt.plot(t, gal[0][:,0],'.')
+        plt.xlim([0,12000])
+        plt.ylabel('Galactic longitude')
+        # There should be 2 pixels for each band, and two polarizations, because
+        # channel is a differential measurement.
         # To match the 40 channels in band_labels, it should be ABAB for each
         # channel
-        gal2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
-        pol2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
-        gal2[::4] = gal[::2]
-        gal2[2::4] = gal[::2]
-        pol2[::4] = pol[::2]
-        pol2[2::4] = pol[::2]
+        #gal2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
+        #pol2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
+        #gal2[::4] = gal[::2]
+        #gal2[2::4] = gal[::2]
+        #pol2[::4] = pol[::2]
+        #pol2[2::4] = pol[::2]
 
-        gal = gal2
-        pol = pol2
-
-        #los_labels = data[5].columns.names
+        plt.close('all')
 
 
 
         psi = []
-        args = [(gal[i],pol[i]) for i in range(len(gal))]
+        args_A = [(gal_A[i],pol_A[i]) for i in range(len(gal))]
+        args_B = [(gal_B[i],pol_B[i]) for i in range(len(gal))]
         with Pool() as pool:
-            L = pool.starmap(get_psi_multiprocessing, args)
-        psi = np.array(L)
+            psi_A = pool.starmap(get_psi_multiprocessing, args_A)
+        with Pool() as pool:
+            psi_B = pool.starmap(get_psi_multiprocessing, args_B)
 
-
-        pix = hp.ang2pix(nside, gal[:,:,0], gal[:,:,1], lonlat=True)
-
+        pix_A = []
+        pix_B = []
+        for i in range(len(gal_A)):
+            pix_A.append(hp.ang2pix(nside, gal_A[i][:,0], gal_A[i][:,1], lonlat=True))
+        for i in range(len(gal_B)):
+            pix_B.append(hp.ang2pix(nside, gal_B[i][:,0], gal_B[i][:,1], lonlat=True))
 
         n_per_day = 25
 
@@ -381,38 +447,36 @@ def main():
                             tod = np.zeros(TOD.size)
                             for n in range(len(TOD[0])):
                                 tod[n::len(TOD[0])] = TOD[:,n]
-                            f.create_dataset(obsid + '/' + label+ '/tod',
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                                     data=np.split(tod,n_per_day)[i])
                             # pixA and pixB are interleaved with each other
-                            if j%2 == 0:
-                                pixlab = '/pixA'
-                                psilab = '/psiA'
-                            else:
-                                pixlab = '/pixB'
-                                psilab = '/psiB'
-                            f.create_dataset(obsid + '/' + label+ psilab,
-                                    data=np.split(psi[j],n_per_day)[i])
-                            f.create_dataset(obsid + '/' + label+ pixlab,
-                                    data=np.split(pix[j],n_per_day)[i])
-                            f.create_dataset(obsid + '/' + label+ '/scalars',
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ 'psiA',
+                                    data=np.split(psi_A[j//2],n_per_day)[i])
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ 'pixA',
+                                    data=np.split(pix_A[j//2],n_per_day)[i])
+
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ 'psiB',
+                                    data=np.split(psi_B[j//2],n_per_day)[i])
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ 'pixB',
+                                    data=np.split(pix_B[j//2],n_per_day)[i])
+
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/scalars',
                                     data=scalars)
-                            det_list.append(label)
+                            det_list.append(label.replace('KA','Ka'))
                             # filler 
-                            f.create_dataset(obsid + '/' + label + '/flag',
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
                                     data=0)
-                            f.create_dataset(obsid + '/' + label + '/outP',
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/outP',
                                     data=np.array([0,0]))
                     dt = dt0/len(TOD[0])
-                    time_band = time = np.arange(time.min(), time.min() + dt*len(tod), dt)
+                    time_band = np.arange(time.min(), time.min() + dt*len(tod), dt)
                     f.create_dataset(obsid + '/common/satpos',
-                            data=np.split(pos,n_per_day)[i])
+                            data=np.split(pos,n_per_day)[i][0])
                     f.create_dataset(obsid + '/common/vsun',
                             data=np.split(vel,n_per_day)[i][0])
                     t = np.split(time, n_per_day)[i][0]
                     f.create_dataset(obsid + '/common/time',
-                            data=time_band)
-                    f.create_dataset(obsid + '/common/time_aihk',
-                            data=time_aihk)
+                            data=np.split(time_band, n_per_day)[i][0])
                     f.create_dataset(obsid + '/common/ntod',
                             data=len(np.split(tod,n_per_day)[i]))
 
