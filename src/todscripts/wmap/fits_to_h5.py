@@ -7,7 +7,12 @@ import healpy as hp
 
 from pytest import approx
 from glob import glob
+import multiprocessing as mp
 from multiprocessing import Pool
+from joblib import Parallel, delayed
+
+import huffman
+
 
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
@@ -317,6 +322,23 @@ def get_psi_multiprocessing(gal, pol):
     psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
     return psi
 
+def get_psi_multiprocessing_2(i):
+    gal = gals[i]
+    pol = pols[i]
+    sin_2_gamma = np.zeros(len(gal))
+    cos_2_gamma = np.zeros(len(gal))
+    for t in range(len(sin_2_gamma)):
+        sin_2_gi, cos_2_gi = gamma_from_pol(gal[t], pol[t])
+        sin_2_gamma[t] = sin_2_gi
+        cos_2_gamma[t] = cos_2_gi
+    psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
+    return psi
+
+def ang2pix_multiprocessing(nside, lon, lat):
+    return hp.ang2pix(nside, lon, lat, lonlat=True)
+
+def ang2pix_multiprocessing_2(i):
+    return hp.ang2pix(nside, lon, lat, lonlat=True)
 
 def main():
     '''
@@ -348,12 +370,15 @@ def main():
     fknee = 0.1
 
     nside = 256
-    npsi = 4096
+    ntodsigma = 100
+    npsi = 2048
+    psiBins = np.linspace(0, 2*np.pi, npsi)
     fsamp = 30/1.536 # A single TOD record contains 30 1.536 second major science frames
     chunk_size = 1875
     nsamp = chunk_size*fsamp
     chunk_list = np.arange(25)
     # WMAP data divides evenly into 25 chunks per day...
+
 
 
 
@@ -370,13 +395,17 @@ def main():
     files = glob('tod/*.fits')
     files.sort()
     obs_ind = 0
-    file_ind = 0
+    file_ind = -1
     t2jd = 2.45e6
     for file_in in files:
         file_ind += 1
         data = fits.open(file_in)
 
         band_labels = data[2].columns.names[1:-6]
+
+
+        daflags = data[2].data['daflags']
+        print('Unique DA Flags', np.unique(daflags))
         
         
    
@@ -388,14 +417,9 @@ def main():
 
         dt0 = np.diff(time).mean()
         
-        
+       
+        print('getting coordinates from quaternions')
         gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(data[1].data['QUATERN'])
-        np.save('gal_interp', gal)
-        t = np.arange(len(gal[0]))
-        print(t.min(), t.max())
-        plt.plot(t, gal[0][:,0],'.')
-        plt.xlim([0,12000])
-        plt.ylabel('Galactic longitude')
         # There should be 2 pixels for each band, and two polarizations, because
         # channel is a differential measurement.
         # To match the 40 channels in band_labels, it should be ABAB for each
@@ -409,32 +433,46 @@ def main():
 
         plt.close('all')
 
-
+        print('CPU Count')
+        print(mp.cpu_count())
 
         psi = []
-        args_A = [(gal_A[i],pol_A[i]) for i in range(len(gal))]
-        args_B = [(gal_B[i],pol_B[i]) for i in range(len(gal))]
+        print('Preparing pool 1')
+        args_A = [(gal_A[i],pol_A[i]) for i in range(len(gal_A))]
+        args_B = [(gal_B[i],pol_B[i]) for i in range(len(gal_B))]
+        print('Starting pool 1a')
         with Pool() as pool:
             psi_A = pool.starmap(get_psi_multiprocessing, args_A)
+        print(len(psi_A), len(psi_A[0]))
+        print('Starting pool 1b')
         with Pool() as pool:
             psi_B = pool.starmap(get_psi_multiprocessing, args_B)
+        print('finished with psi')
 
-        pix_A = []
-        pix_B = []
-        for i in range(len(gal_A)):
-            pix_A.append(hp.ang2pix(nside, gal_A[i][:,0], gal_A[i][:,1], lonlat=True))
-        for i in range(len(gal_B)):
-            pix_B.append(hp.ang2pix(nside, gal_B[i][:,0], gal_B[i][:,1], lonlat=True))
+        print('Preparing pool 2')
+        args_A = [(nside, gal_A[i][:,0], gal_A[i][:,1]) for i in range(len(gal_A))]
+        args_B = [(nside, gal_B[i][:,0], gal_B[i][:,1]) for i in range(len(gal_B))]
+        print('Starting pool 2a')
+        with Pool() as pool:
+            pix_A = pool.starmap(ang2pix_multiprocessing, args_A)
+        print('Starting pool 2b')
+        with Pool() as pool:
+            pix_B = pool.starmap(ang2pix_multiprocessing, args_B)
+        print('finished getting pixels')
 
         n_per_day = 25
 
         for i in range(n_per_day):
-            print(i, file_ind, file_ind//4)
+            print(i, file_ind, file_ind//10)
             obs_ind += 1
             obsid = str(obs_ind).zfill(6)
             for band in bands:
-                file_out = f'data/wmap_{band}_{str(file_ind+1).zfill(6)}.h5'
+                file_out = f'data/wmap_{band}_{str(file_ind//10+1).zfill(6)}.h5'
                 det_list = []
+                # make huffman code tables
+                pixArray_A = [[], [], []]
+                pixArray_B = [[], [], []]
+                todArray = []
                 with h5py.File(file_out, 'a') as f:
                     for j in range(len(band_labels)):
                         label = band_labels[j]
@@ -442,43 +480,171 @@ def main():
                             TOD = data[2].data[label]
                             gain = gain_guesses[j]
                             sigma_0 = TOD.std()
-                            scalars = np.array([fknee, sigma_0, alpha, gain])
-                            # Write to h5 file.
+                            scalars = np.array([gain, sigma_0, fknee, alpha])
+                                    
                             tod = np.zeros(TOD.size)
                             for n in range(len(TOD[0])):
                                 tod[n::len(TOD[0])] = TOD[:,n]
-                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                                    data=np.split(tod,n_per_day)[i])
-                            # pixA and pixB are interleaved with each other
-                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ 'psiA',
-                                    data=np.split(psi_A[j//2],n_per_day)[i])
-                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ 'pixA',
-                                    data=np.split(pix_A[j//2],n_per_day)[i])
+                            todi = np.array_split(tod, n_per_day)[i]
 
-                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ 'psiB',
-                                    data=np.split(psi_B[j//2],n_per_day)[i])
-                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ 'pixB',
-                                    data=np.split(pix_B[j//2],n_per_day)[i])
+                            todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
+                            delta = np.diff(todInd)
+                            delta = np.insert(delta, 0, todInd[0])
+                            todArray.append(delta)
 
+
+                            pix = np.array_split(pix_A[j//4], n_per_day)[i]
+                            delta = np.diff(pix)
+                            delta = np.insert(delta, 0, pix[0])
+                            pixArray_A[0].append(delta)
+
+                            pix = np.array_split(pix_B[j//4], n_per_day)[i]
+                            delta = np.diff(pix)
+                            delta = np.insert(delta, 0, pix[0])
+                            pixArray_B[0].append(delta)
+
+
+                            psi = np.array_split(psi_A[j//4], n_per_day)[i]
+                            psi = np.where(psi < 0, 2*np.pi+psi, psi)
+                            psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+                            psiIndexes = np.digitize(psi, psiBins)
+                            delta = np.diff(psiIndexes)
+                            delta = np.insert(delta, 0, psiIndexes[0])
+                            pixArray_A[1].append(delta)
+
+                            psi = np.array_split(psi_B[j//4], n_per_day)[i]
+                            psi = np.where(psi < 0, 2*np.pi+psi, psi)
+                            psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+                            psiIndexes = np.digitize(psi, psiBins)
+                            delta = np.diff(psiIndexes)
+                            delta = np.insert(delta, 0, psiIndexes[0])
+                            pixArray_B[1].append(delta)
+
+                            flags = np.array_split(daflags[:,j//4], n_per_day)[i]
+                            t0 = np.arange(len(flags))
+                            t = np.linspace(t0.min(), t0.max(), len(todi))
+                            func = interp1d(t0, flags, kind='previous')
+                            flags = func(t)
+                            delta = np.diff(flags)
+                            delta = np.insert(delta, 0, flags[0])
+                            pixArray_A[2].append(delta)
+                            pixArray_B[2].append(delta)
+
+
+                    h_A = huffman.Huffman("", nside)
+                    h_A.GenerateCode(pixArray_A)
+
+                    h_B = huffman.Huffman("", nside)
+                    h_B.GenerateCode(pixArray_B)
+
+                    h_Tod = huffman.Huffman("", nside)
+                    h_Tod.GenerateCode(todArray)
+
+                    huffarray_A = np.append(np.append(np.array(h_A.node_max), h_A.left_nodes), h_A.right_nodes)
+                    huffarray_B = np.append(np.append(np.array(h_B.node_max), h_B.left_nodes), h_B.right_nodes)
+                    huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
+
+                    f.create_dataset(obsid + '/common/hufftree_A', data=huffarray_A)
+                    f.create_dataset(obsid + '/common/huffsymb_A', data=h_A.symbols)
+
+                    f.create_dataset(obsid + '/common/hufftree_B', data=huffarray_B)
+                    f.create_dataset(obsid + '/common/huffsymb_B', data=h_B.symbols)
+
+                    f.create_dataset(obsid + '/common/todtree', data=huffarray_Tod)
+                    f.create_dataset(obsid + '/common/todsymb', data=h_Tod.symbols)
+
+
+                    for j in range(len(band_labels)):
+                        label = band_labels[j]
+                        if label[:-2] == band.upper():
+                            TOD = data[2].data[label]
+                            gain = gain_guesses[j]
+                            sigma_0 = TOD.std()
+                            scalars = np.array([gain, sigma_0, fknee, alpha])
                             f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/scalars',
                                     data=scalars)
+                            f[obsid + '/' + label.replace('KA','Ka') + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
+
+
+                            tod = np.zeros(TOD.size)
+                            for n in range(len(TOD[0])):
+                                tod[n::len(TOD[0])] = TOD[:,n]
+                            todi = np.array_split(tod, n_per_day)[i]
+
+                            todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
+                            delta = np.diff(todInd)
+                            delta = np.insert(delta, 0, todInd[0])
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                                    data=np.void(bytes(h_Tod.byteCode(delta))))
+
+
+                            pix = np.array_split(pix_A[j//4], n_per_day)[i]
+                            delta = np.diff(pix)
+                            delta = np.insert(delta, 0, pix[0])
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
+                                    data=np.void(bytes(h_A.byteCode(delta))))
+
+
+                            pix = np.array_split(pix_B[j//4], n_per_day)[i]
+                            delta = np.diff(pix)
+                            delta = np.insert(delta, 0, pix[0])
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
+                                    data=np.void(bytes(h_B.byteCode(delta))))
+
+
+                            psi = np.array_split(psi_A[j//4], n_per_day)[i]
+                            psi = np.where(psi < 0, 2*np.pi+psi, psi)
+                            psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+                            psiIndexes = np.digitize(psi, psiBins)
+                            delta = np.diff(psiIndexes)
+                            delta = np.insert(delta, 0, psiIndexes[0])
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
+                                    data=np.void(bytes(h_A.byteCode(delta))))
+
+                            psi = np.array_split(psi_B[j//4], n_per_day)[i]
+                            psi = np.where(psi < 0, 2*np.pi+psi, psi)
+                            psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+                            psiIndexes = np.digitize(psi, psiBins)
+                            delta = np.diff(psiIndexes)
+                            delta = np.insert(delta, 0, psiIndexes[0])
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
+                                    data=np.void(bytes(h_B.byteCode(delta))))
+
+                            flags = np.array_split(daflags[:,j//4], n_per_day)[i]
+                            t0 = np.arange(len(flags))
+                            t = np.linspace(t0.min(), t0.max(), len(todi))
+                            func = interp1d(t0, flags, kind='previous')
+                            flags = func(t)
+                            delta = np.diff(flags)
+                            delta = np.insert(delta, 0, flags[0])
+
+                            f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
+                                    data=np.void(bytes(h_A.byteCode(delta))))
+
                             det_list.append(label.replace('KA','Ka'))
                             # filler 
-                            f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
-                                    data=0)
                             f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/outP',
                                     data=np.array([0,0]))
+
+
+                    f.create_dataset(obsid + '/common/satpos',
+                            data=np.array_split(pos,n_per_day)[i][0])
+                    f[obsid + '/common/satpos'].attrs['info'] = '[x, y, z]'
+                    f[obsid + '/common/satpos'].attrs['coords'] = 'galactic'
+
+                    f.create_dataset(obsid + '/common/vsun',
+                            data=np.array_split(vel,n_per_day)[i][0])
+                    f[obsid + '/common/vsun'].attrs['info'] = '[x, y, z]'
+                    f[obsid + '/common/vsun'].attrs['coords'] = 'galactic'
+
                     dt = dt0/len(TOD[0])
                     time_band = np.arange(time.min(), time.min() + dt*len(tod), dt)
-                    f.create_dataset(obsid + '/common/satpos',
-                            data=np.split(pos,n_per_day)[i][0])
-                    f.create_dataset(obsid + '/common/vsun',
-                            data=np.split(vel,n_per_day)[i][0])
-                    t = np.split(time, n_per_day)[i][0]
                     f.create_dataset(obsid + '/common/time',
-                            data=np.split(time_band, n_per_day)[i][0])
+                            data=np.array_split(time_band, n_per_day)[i][0])
+                    f[obsid + '/common/time'].attrs['type'] = 'JD'
+
                     f.create_dataset(obsid + '/common/ntod',
-                            data=len(np.split(tod,n_per_day)[i]))
+                            data=len(np.array_split(tod,n_per_day)[i]))
 
                     if "/common/fsamp" not in f:
                         f.create_dataset('/common/fsamp', data=fsamp*len(TOD[0]))
@@ -490,7 +656,6 @@ def main():
                         f.create_dataset('/common/mbang', data=0)
                         f.create_dataset('/common/ntodsigma', data=100)
                         f.create_dataset('/common/polang', data=0)
-        
         data.close()
 
 
