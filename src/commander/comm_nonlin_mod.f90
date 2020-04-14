@@ -162,10 +162,10 @@ contains
              
              ! Params
              write(jtext, fmt = '(I1)') j ! Create j string
-             out_every = 10
-             check_every = 100
+             out_every = 5
+             check_every = 25
              nsamp = 2000
-             thresh = 20.d0 ! 40.d0
+             thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
              steplen = 0.3d0
              corrlen_init = 1
              if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
@@ -230,8 +230,8 @@ contains
                 alms(i,:,:) = alms(i-1,:,:)
                 do pl = 1, c%theta(j)%p%info%nmaps
                    
-                   if (mod(i,2) == 1 .and. pl == 1) cycle
-                   if (mod(i,2) == 0 .and. pl >  1) cycle
+                   !if (mod(i,2) == 1 .and. pl == 1) cycle
+                   !if (mod(i,2) == 0 .and. pl >  1) cycle
                    
                    ! if sample only pol, skip T
                    if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
@@ -256,7 +256,8 @@ contains
                          rgs(p) = steplen*rand_gauss(handle)     
                       end do
                       alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
-                      
+                      !write(*,*) "Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI)
+
                       ! Adding prior
                       ! Currently applying same prior on all signals
                       !chisq_prior = chisq_prior + ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
@@ -308,12 +309,17 @@ contains
                 ! Reset accepted bool
                 accepted = .false.
                 if (info%myid == 0) then
+
+
                    chisq(i) = chisq(i) + chisq_prior
+
+                   diff = chisq(i-1)-chisq(i)
+                   !write(*,*) "diff: ", diff, chisq(i), chisq(i-1)
                    !write(*,fmt='(i6,3f12.2)') i, chisq(i), chisq(i-1), alms(i,0,pl)/sqrt(4*pi)
-                   if ( chisq(i) > chisq(i-1) ) then                 
+                   if ( chisq(i) > chisq(i-1) ) then             
                       ! Small chance of accepting this too
                       ! Avoid getting stuck in local mminimum
-                      diff = chisq(i-1)-chisq(i)
+
                       accepted = (rand_uni(handle) < exp(0.5d0*diff))
                    else
                       accepted = .true.
@@ -321,6 +327,7 @@ contains
                    
                    ! Count accepted and assign chisq values
                    if (accepted) then
+                      !write(*,*) "accepted"
                       num_accepted = num_accepted + 1
                    else
                       chisq(i) = chisq(i-1)
@@ -355,11 +362,13 @@ contains
 
                    ! Adjust learning rate every check_every'th
                    if (mod(i, check_every) == 0) then
+                      diff = chisq(i-check_every)-chisq(i)                  
+                      
                       ! Accept rate
                       accept_rate = num_accepted/FLOAT(check_every)
+                      !write(*,*) " numacc ", num_accepted, " checkevery ", FLOAT(check_every), " ar ", accept_rate, " diff ", diff
                       num_accepted = 0
-                   
-                      diff = chisq(i-check_every)-chisq(i)
+                  
                    
                       ! Write to screen
                       write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 30:  ", diff, " - accept rate: ", accept_rate
