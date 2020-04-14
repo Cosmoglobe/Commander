@@ -230,8 +230,8 @@ contains
                 alms(i,:,:) = alms(i-1,:,:)
                 do pl = 1, c%theta(j)%p%info%nmaps
                    
-                   !if (mod(i,2) == 1 .and. pl == 1) cycle
-                   !if (mod(i,2) == 0 .and. pl >  1) cycle
+                   if (mod(i,2) == 1 .and. pl == 1) cycle
+                   if (mod(i,2) == 0 .and. pl >  1) cycle
                    
                    ! if sample only pol, skip T
                    if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
