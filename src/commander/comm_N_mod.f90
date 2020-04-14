@@ -10,7 +10,7 @@ module comm_N_mod
      ! Data variables
      character(len=512)       :: type
      integer(i4b)             :: nside, nside_lowres, nmaps, np, npix, myid, comm, nprocs
-     logical(lgt)             :: pol
+     logical(lgt)             :: pol, pol_only
      logical(lgt)             :: set_noise_to_mean
      character(len=512)       :: cg_precond
      real(dp)                 :: uni_fsky
