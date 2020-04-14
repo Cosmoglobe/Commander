@@ -14,6 +14,12 @@ from joblib import Parallel, delayed
 import huffman
 
 
+from scipy.interpolate import interp1d
+from joblib import Parallel, delayed
+import os
+
+
+prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
     r = hp.rotator.Rotator(coord=[coord_in, coord_out])
@@ -96,19 +102,21 @@ def gamma_from_pol(gal, pol, fixed_basis=False):
     for a one time operation this doesn't seem too slow yet.
     '''
     # gal and pol are galactic lonlat vectors
-    dir_A_gal = hp.ang2vec(gal[0],gal[1], lonlat=True)
-    dir_A_pol = hp.ang2vec(pol[0],pol[1], lonlat=True)
+    dir_A_gal = hp.ang2vec(gal[:,0],gal[:,1], lonlat=False)
+    dir_A_pol = hp.ang2vec(pol[:,0],pol[:,1], lonlat=False)
 
 
     dir_Z = np.array([0,0,1])
 
-    sin_theta_A = np.sqrt(dir_A_gal[0]**2 + dir_A_gal[1]**2)
 
-    dir_A_west_x = dir_A_gal[1]/sin_theta_A
-    dir_A_west_y = -dir_A_gal[0]/sin_theta_A
-    dir_A_west_z = dir_A_gal[1]*0
-    dir_A_west = np.array([dir_A_west_x, dir_A_west_y, dir_A_west_z])
-    dir_A_north = (dir_Z - dir_A_gal[2]*dir_A_gal)/sin_theta_A
+    sin_theta_A = np.sqrt(dir_A_gal[:,0]**2 + dir_A_gal[:,1]**2)
+
+    dir_A_west_x = dir_A_gal[:,1]/sin_theta_A
+    dir_A_west_y = -dir_A_gal[:,0]/sin_theta_A
+    dir_A_west_z = dir_A_gal[:,1]*0
+    dir_A_west = np.array([dir_A_west_x, dir_A_west_y, dir_A_west_z]).T
+    dir_A_north = (dir_Z - dir_A_gal[2]*dir_A_gal)/sin_theta_A[:,np.newaxis]
+    '''
     if sin_theta_A == 0:
         dir_A_west = np.array([1,0,0])
         dir_A_north = np.array([0,1,0])
@@ -116,10 +124,9 @@ def gamma_from_pol(gal, pol, fixed_basis=False):
     assert dir_A_north.dot(dir_A_west) == approx(0), 'Vectors not orthogonal'
     assert dir_A_north.dot(dir_A_north) == approx(1), 'North-vector not normalized'
     assert dir_A_west.dot(dir_A_west) == approx(1), 'North-vector not normalized'
-
-
-    sin_gamma_A = dir_A_pol.dot(dir_A_west)
-    cos_gamma_A = dir_A_pol.dot(dir_A_north)
+    '''
+    sin_gamma_A = dir_A_pol[:,0]*dir_A_west[:,0] + dir_A_pol[:,1]*dir_A_west[:,1] + dir_A_pol[:,2]*dir_A_west[:,2]
+    cos_gamma_A = dir_A_pol[:,0]*dir_A_north[:,0] + dir_A_pol[:,1]*dir_A_north[:,1] + dir_A_pol[:,2]*dir_A_north[:,2]
 
     cos_2_gamma_A = 2*cos_gamma_A**2 - 1
     sin_2_gamma_A = 2*sin_gamma_A*cos_gamma_A
@@ -169,7 +176,6 @@ def q_interp(q_arr, t):
     return Qi
 
 
-from scipy.interpolate import interp1d
 def quat_to_sky_coords(quat, center=True):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
     '''
@@ -276,10 +282,10 @@ def quat_to_sky_coords(quat, center=True):
         dir_B_los_cel = np.sum(M2*np.tile(dir_B_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
 
         dir_A_los_gal = coord_trans(dir_A_los_cel, 'C', 'G')
-        Pll_A = np.array(hp.vec2ang(dir_A_los_gal, lonlat=True))
+        Pll_A = np.array(hp.vec2ang(dir_A_los_gal, lonlat=False))
 
         dir_B_los_gal = coord_trans(dir_B_los_cel, 'C', 'G')
-        Pll_B = np.array(hp.vec2ang(dir_B_los_gal, lonlat=True))
+        Pll_B = np.array(hp.vec2ang(dir_B_los_gal, lonlat=False))
         gal_A.append(Pll_A.T)
         gal_B.append(Pll_B.T)
 
@@ -287,10 +293,10 @@ def quat_to_sky_coords(quat, center=True):
         dir_B_pol_cel = np.sum(M2*np.tile(dir_B_pol[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
 
         dir_A_pol_gal = coord_trans(dir_A_pol_cel, 'C', 'G')
-        Pll_A = np.array(hp.vec2ang(dir_A_pol_gal, lonlat=True))
+        Pll_A = np.array(hp.vec2ang(dir_A_pol_gal, lonlat=False))
 
         dir_B_pol_gal = coord_trans(dir_B_pol_cel, 'C', 'G')
-        Pll_B = np.array(hp.vec2ang(dir_B_pol_gal, lonlat=True))
+        Pll_B = np.array(hp.vec2ang(dir_B_pol_gal, lonlat=False))
         pol_A.append(Pll_A.T)
         pol_B.append(Pll_B.T)
 
@@ -303,13 +309,10 @@ def quat_to_sky_coords(quat, center=True):
 def get_psi(gal, pol, band_labels):
     sin_2_gamma = np.zeros( (len(band_labels), len(gal[0])) )
     cos_2_gamma = np.zeros( (len(band_labels), len(gal[0])) )
+    psi = []
     for band in range(len(band_labels)):
-        print(band_labels[band])
-        for t in range(len(sin_2_gamma[band])):
-            sin_2_gi, cos_2_gi = gamma_from_pol(gal[band//2,t], pol[band//2, t])
-            sin_2_gamma[band, t] = sin_2_gi
-            cos_2_gamma[band, t] = cos_2_gi
-    psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
+        sin2g, cos2g = gamma_from_pol(gal[band], pol[band])
+        psi.append(0.5*np.arctan2(sin2g, cos2g))
     return psi
 
 def get_psi_multiprocessing(gal, pol):
@@ -334,11 +337,9 @@ def get_psi_multiprocessing_2(i):
     psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
     return psi
 
-def ang2pix_multiprocessing(nside, lon, lat):
-    return hp.ang2pix(nside, lon, lat, lonlat=True)
+def ang2pix_multiprocessing(nside, theta, phi):
+    return hp.ang2pix(nside, theta, phi)
 
-def ang2pix_multiprocessing_2(i):
-    return hp.ang2pix(nside, lon, lat, lonlat=True)
 
 def main():
     '''
@@ -383,20 +384,64 @@ def main():
 
 
 
-    bands = ['K', 'KA', 'Q', 'V', 'W']
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
+    # Jarosik et al. (2003), "Design, Implementation, and testing..." defines
+    # the names of the bands as follow:
+    '''
+    Radiometers are identified by a three part designator.  The first part
+    consists of one or two letters (K, Ka, Q, V, or W) that specify the nominal
+    operating frequency band of the radiometer. The second part consists of a
+    single digit (1– 4) that indicates which pair of focal plane feed horns are
+    associated with the radiometer. The final part also consists of a single
+    digit (1 or 2) and is used to denote which of the two linear polarizations
+    of the designated feed horn pair the radiometer senses. Designations of ‘‘ 1
+    ’’ and ‘‘ 2 ’’ indicate that the radiometers are connected to the main-arm
+    and side-arm of the orthomode transducers (OMTs), respec- tively. See Page
+    et al. (2002) for details of the focal plane geometry and polarization
+    orientations of each OMT with respect to the satellite. A pair ofradiometers
+    associated with the two polarizations ofa given feed is termed aDifferencing
+    Assembly (DA) and is specified using only the first two elements ofthe
+    designator, such as Ka1
+    '''
+    # Therefore, we have for example K11 and K12 corresponding to the two
+    # directions of polarization, corresponding to the OMT orientation.
+
+    # Hinshaw et al. (2003), "Data Processing Methods..." describes it as
+    # follows:
+
+    '''
+    In order to produce stable data with a nearly white-noise spectrum, WMAP
+    employs 20 high electron mobility transistor (HEMT) based differential
+    radiometers. Each radiometer measures the brightness difference between two
+    inputs, one fed by an A-side beam and the other by a B-side beam
+    approximately 141? apart. A detailed description of their design and
+    fabrication may be found in Jarosik et al.  (2003a); a summary of their
+    in-flight performance is pre- sented in Jarosik et al. (2003b). The 20
+    radiometers form 10 polarization-sensitive ‘‘ differencing assemblies ’’
+    (DAs), which are designated based on their frequency or waveguide band: K1,
+    Ka1, Q1, Q2, V1, V2, W1,W2, W3, W4. The two radiometers in a DA are
+    sensitive to orthogonal linear polarization modes; the radiometers are
+    designated 1 or 2 (e.g., K11 or K12) depending on which polarization mode is
+    being sensed. Each of the 20 radiometers is intrinsically a two-channel
+    device, with channels designated 3 and 4 in the flight telemetry, e.g., K113
+    or K114.  (Channels 3 and 4 were designated left and right, respectively, in
+    Jarosik et al. 2003a.) There are 40 such data channels in the flight teleme-
+    try. As discussed below, each of the 40 channels is individu- ally
+    calibrated, and then the four channels from a single DA are combined to form
+    differential intensity and polarization signals as follows.
+    '''
 
 
-    file_out = 'wmap_tods.h5'
 
 
-    #/mn/stornext/u3/hke/xsan/wmap/tod
-    files = glob('tod/*.fits')
+    files = glob(prefix + 'tod/*.fits')
     files.sort()
     obs_ind = 0
     file_ind = -1
     t2jd = 2.45e6
+    jd2mjd = 2400000.5
+    2400000.5
     for file_in in files:
         file_ind += 1
         data = fits.open(file_in)
@@ -412,8 +457,8 @@ def main():
         # position (and velocity) in km(/s) in Sun-centered coordinates
         pos = data[1].data['POSITION']
         vel = data[1].data['VELOCITY']
-        time_aihk = data[1].data['TIME'] + t2jd
-        time = data[2].data['TIME'] + t2jd
+        time_aihk = data[1].data['TIME'] + t2jd - jd2mjd
+        time = data[2].data['TIME'] + t2jd - jd2mjd
 
         dt0 = np.diff(time).mean()
         
@@ -433,32 +478,16 @@ def main():
 
         plt.close('all')
 
-        print('CPU Count')
-        print(mp.cpu_count())
+        psi_A = get_psi(gal_A, pol_A, band_labels[::4])
+        psi_B = get_psi(gal_B, pol_B, band_labels[1::4])
 
-        psi = []
-        print('Preparing pool 1')
-        args_A = [(gal_A[i],pol_A[i]) for i in range(len(gal_A))]
-        args_B = [(gal_B[i],pol_B[i]) for i in range(len(gal_B))]
-        print('Starting pool 1a')
-        with Pool() as pool:
-            psi_A = pool.starmap(get_psi_multiprocessing, args_A)
-        print(len(psi_A), len(psi_A[0]))
-        print('Starting pool 1b')
-        with Pool() as pool:
-            psi_B = pool.starmap(get_psi_multiprocessing, args_B)
-        print('finished with psi')
 
-        print('Preparing pool 2')
         args_A = [(nside, gal_A[i][:,0], gal_A[i][:,1]) for i in range(len(gal_A))]
         args_B = [(nside, gal_B[i][:,0], gal_B[i][:,1]) for i in range(len(gal_B))]
-        print('Starting pool 2a')
         with Pool() as pool:
             pix_A = pool.starmap(ang2pix_multiprocessing, args_A)
-        print('Starting pool 2b')
         with Pool() as pool:
             pix_B = pool.starmap(ang2pix_multiprocessing, args_B)
-        print('finished getting pixels')
 
         n_per_day = 25
 
@@ -467,7 +496,9 @@ def main():
             obs_ind += 1
             obsid = str(obs_ind).zfill(6)
             for band in bands:
-                file_out = f'data/wmap_{band}_{str(file_ind//10+1).zfill(6)}.h5'
+                file_out = prefix + f'data/wmap_{band}_{str(file_ind//10+1).zfill(6)}.h5'
+                with open(prefix + f'data/filelist_{band}.txt', 'a') as file_list: 
+                    file_list.write(f'{obs_ind}\t"{file_out}"\t1\t0\t0\n')
                 det_list = []
                 # make huffman code tables
                 pixArray_A = [[], [], []]
@@ -640,8 +671,8 @@ def main():
                     dt = dt0/len(TOD[0])
                     time_band = np.arange(time.min(), time.min() + dt*len(tod), dt)
                     f.create_dataset(obsid + '/common/time',
-                            data=np.array_split(time_band, n_per_day)[i][0])
-                    f[obsid + '/common/time'].attrs['type'] = 'JD'
+                            data=[np.array_split(time_band, n_per_day)[i][0],0,0])
+                    f[obsid + '/common/time'].attrs['type'] = 'MJD, null, null'
 
                     f.create_dataset(obsid + '/common/ntod',
                             data=len(np.array_split(tod,n_per_day)[i]))
