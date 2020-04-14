@@ -16,7 +16,6 @@ module comm_zodi_mod
     !   """
     use comm_utils
     use comm_param_mod
-    use comm_bp_utils
     implicit none
 
     private
@@ -25,11 +24,8 @@ module comm_zodi_mod
     integer(i4b) :: n_LOS
     real(dp)     :: T0, const1, const2, delta
     real(dp)     :: R_max, R_sat
-    real(dp)     :: t1, t2
     real(dp), dimension(:), allocatable :: x, y, z
-    real(dp), dimension(:), allocatable :: blackbody, emission
-    real(dp), dimension(:), allocatable :: density, tot_density
-    real(dp), dimension(:), allocatable :: tabulated_zodi
+    real(dp), dimension(:), allocatable :: blackbody, ZLE, density, tabulated_zodi
 
     ! =========================================================================
     !                      ZodiComponent Class Definition
@@ -175,17 +171,17 @@ contains
         delta = 0.46686260  ! rate at which temperature falls with radius
 
         ! Line-of-sight integration parameters
-        R_max = 6            ! max radial integration distance from the Sun [AU]
-        R_sat = 1.1          ! satellite radial distance from the Sun [AU]
+        R_max = 5.2            ! max radial integration distance from the Sun [AU]
+        R_sat = 1.01          ! satellite radial distance from the Sun [AU]
         n_LOS = 50           ! n integration steps
 
         ! Zodi component selection
         use_cloud = .true.
-        use_band1 = .true.
-        use_band2 = .true.
-        use_band3 = .true.
-        use_ring = .true.
-        use_feature = .true.
+        use_band1 = .false.
+        use_band2 = .false.
+        use_band3 = .false.
+        use_ring = .false.
+        use_feature = .false.
 
         use_unit_emissivity = .false.
 
@@ -289,9 +285,8 @@ contains
         allocate(y(n_LOS))
         allocate(z(n_LOS))
         allocate(density(n_LOS))
-        allocate(tot_density(n_LOS))
         allocate(blackbody(n_LOS))
-        allocate(emission(n_LOS))
+        allocate(ZLE(n_LOS))
 
         ! Precomputing ecliptic to galactic coordinates per pixels for all
         ! relevant nsides
@@ -384,16 +379,14 @@ contains
         real(dp)     :: s, ds
         real(dp)     :: R_squared, R_cos_theta, R_LOS
         real(dp)     :: integral
-        real(dp)     :: f2t
-        real(dp)     :: longitude_sat
+        real(dp)     :: longitude_sat, latitude_sat
         real(dp), dimension(:,:), allocatable :: coord_map
 
         ! Resetting quantities for each new TOD chunck
         s_zodi = 0.d0
         density = 0.d0
-        tot_density = 0.d0
         blackbody = 0.d0
-        emission = 0.d0
+        ZLE = 0.d0
 
         ! Extracting n time-orderd data and n detectors for current chunk
         n_tod = size(pix,1)
@@ -402,21 +395,19 @@ contains
         ! Selecting coordinate map containing heliocentric pixel coordinates
         coord_map = getCoordMap(nside)
 
-        ! Converting satellite longitude to radians and computing
+        ! Converting satellite longitude and latitude to radians and computing
         ! heliocentric satellite coordinates (x0, y0, z0)
         longitude_sat = sat_pos(1)*deg2rad
-        x0 = R_sat*cos(longitude_sat)
-        y0 = R_sat*sin(longitude_sat)
-        z0 = 0.d0                       !TODO: get more accurate sat pos
+        latitude_sat = sat_pos(2)*deg2rad
+        x0 = R_sat*cos(latitude_sat)*cos(longitude_sat)
+        y0 = R_sat*cos(latitude_sat)*sin(longitude_sat)
+        z0 = R_sat*sin(latitude_sat)                       !TODO: get more accurate sat pos
 
         ! Computing the zodiacal emission for current time-ordered data chunk
         do j = 1, n_det
             ! Computing terms in Planck's law for blackbody emission
             const1 = (2.d0*h*nu(j)**3)/(c*c)
             const2 = (h*nu(j))/k_B
-
-            ! Flux to temperature conversion factor
-            f2t = 1.d0 / comp_bnu_prime(nu(j)) * 1.d-14
 
             ! Initializing tabulated zodi values
             tabulated_zodi = 0.d0
@@ -463,16 +454,15 @@ contains
                         blackbody(k) = const1/(exp(const2/(T0*s**(-delta))) - 1.d0)
                     end do
 
-                    ! Looping over all active zodi components and computing their
-                    ! densities and emission along the line-of-sight through the
-                    ! trapezoidal method
                     comp => comp_list
                     do while (associated(comp))
+                        ! For each component calculate density and multiply
+                        ! with the blackbody function. Then integrate this up
+                        ! along the line-of-sight and scale by emissivity
                         call comp%getDensity(x, y, z, density, longitude_sat)
-                        emission = density*blackbody
-                        call trapezoidal(emission, ds, n_LOS, integral)
-
-                        s_zodi(i,j) = s_zodi(i,j) + integral
+                        ZLE = density*blackbody
+                        call trapezoidal(ZLE, ds, n_LOS, integral)
+                        s_zodi(i,j) = s_zodi(i,j) + integral*comp%emissivity
 
                         comp => comp%next()
                     end do
@@ -487,9 +477,6 @@ contains
 
             end do
         end do
-
-        ! Converting to units of uK
-        s_zodi = s_zodi*f2t
     end subroutine compute_zodi_template
 
     ! =========================================================================
@@ -584,9 +571,8 @@ contains
             end if
 
             density(i) = self%n0 * R**(-self%alpha) * exp(-self%beta &
-                    * g**self%gamma) * self%emissivity
+                    * g**self%gamma)
         end do
-
     end subroutine getDensityCloud
 
     subroutine initializeBand(self)
@@ -631,8 +617,7 @@ contains
             ViTerm = 1.d0 + ZDz4 * self%ViInv
             WtTerm = 1.d0 - exp(-(R*self%DrInv)**20)
 
-            density(i) = self%n0 * exp(-ZDz6) * ViTerm * WtTerm * self%R0/R &
-                    * self%emissivity
+            density(i) = self%n0 * exp(-ZDz6) * ViTerm * WtTerm * self%R0/R
         end do
     end subroutine getDensityBand
 
@@ -670,7 +655,7 @@ contains
                 + zprime*self%cosIncl
 
             density(i) = self%nsr * exp(-((R-self%Rsr)/self%sigmaRsr)**2 &
-                       - abs(Z_c)*self%sigmaZsrInv) * self%emissivity
+                       - abs(Z_c)*self%sigmaZsrInv)
         end do
     end subroutine getDensityRing
 
@@ -721,7 +706,7 @@ contains
 
             density(i) = self%ntf * exp(-((R-self%Rtf)*self%sigmaRtfInv)**2 &
                     - abs(Z_c)*self%sigmaZtfInv &
-                    - (theta*self%sigmaThetatfRinv)**2) * self%emissivity
+                    - (theta*self%sigmaThetatfRinv)**2)
         end do
     end subroutine getDensityFeature
 
