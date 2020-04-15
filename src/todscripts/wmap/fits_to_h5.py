@@ -7,8 +7,230 @@ import healpy as hp
 
 from pytest import approx
 from glob import glob
+import multiprocessing as mp
 from multiprocessing import Pool
+from joblib import Parallel, delayed
 
+import huffman
+
+
+from scipy.interpolate import interp1d
+from joblib import Parallel, delayed
+import os
+
+
+prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
+
+from time import sleep
+from time import time as timer
+
+
+from mpi4py import MPI
+rank = MPI.COMM_WORLD.rank
+
+
+
+
+
+
+def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
+        band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
+        ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time):
+    file_out = prefix + f'data/wmap_{band}_{str(file_ind//10+1).zfill(6)}.h5'
+    with open(prefix + f'data/filelist_{band}.txt', 'a') as file_list: 
+        file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
+    dt0 = np.diff(time).mean()
+    det_list = []
+    # make huffman code tables
+    pixArray_A = [[], [], []]
+    pixArray_B = [[], [], []]
+    todArray = []
+    for j in range(len(band_labels)):
+        label = band_labels[j]
+        if label[:-2] == band.upper():
+            TOD = TODs[j]
+            gain = gain_guesses[j]
+            sigma_0 = TOD.std()
+            scalars = np.array([gain, sigma_0, fknee, alpha])
+                    
+            tod = np.zeros(TOD.size)
+            for n in range(len(TOD[0])):
+                tod[n::len(TOD[0])] = TOD[:,n]
+            todi = np.array_split(tod, n_per_day)[i]
+
+            todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
+            delta = np.diff(todInd)
+            delta = np.insert(delta, 0, todInd[0])
+            todArray.append(delta)
+
+
+            pix = np.array_split(pix_A[j//4], n_per_day)[i]
+            delta = np.diff(pix)
+            delta = np.insert(delta, 0, pix[0])
+            pixArray_A[0].append(delta)
+
+            pix = np.array_split(pix_B[j//4], n_per_day)[i]
+            delta = np.diff(pix)
+            delta = np.insert(delta, 0, pix[0])
+            pixArray_B[0].append(delta)
+
+
+            psi = np.array_split(psi_A[j//4], n_per_day)[i]
+            psi = np.where(psi < 0, 2*np.pi+psi, psi)
+            psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+            psiIndexes = np.digitize(psi, psiBins)
+            delta = np.diff(psiIndexes)
+            delta = np.insert(delta, 0, psiIndexes[0])
+            pixArray_A[1].append(delta)
+
+            psi = np.array_split(psi_B[j//4], n_per_day)[i]
+            psi = np.where(psi < 0, 2*np.pi+psi, psi)
+            psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+            psiIndexes = np.digitize(psi, psiBins)
+            delta = np.diff(psiIndexes)
+            delta = np.insert(delta, 0, psiIndexes[0])
+            pixArray_B[1].append(delta)
+
+            flags = np.array_split(daflags[:,j//4], n_per_day)[i]
+            t0 = np.arange(len(flags))
+            t = np.linspace(t0.min(), t0.max(), len(todi))
+            func = interp1d(t0, flags, kind='previous')
+            flags = func(t)
+            delta = np.diff(flags)
+            delta = np.insert(delta, 0, flags[0])
+            pixArray_A[2].append(delta)
+            pixArray_B[2].append(delta)
+
+
+    h_A = huffman.Huffman("", nside)
+    h_A.GenerateCode(pixArray_A)
+
+    h_B = huffman.Huffman("", nside)
+    h_B.GenerateCode(pixArray_B)
+
+    h_Tod = huffman.Huffman("", nside)
+    h_Tod.GenerateCode(todArray)
+
+    huffarray_A = np.append(np.append(np.array(h_A.node_max), h_A.left_nodes), h_A.right_nodes)
+    huffarray_B = np.append(np.append(np.array(h_B.node_max), h_B.left_nodes), h_B.right_nodes)
+    huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
+
+
+    with h5py.File(file_out, 'a') as f:
+        for j in range(len(band_labels)):
+            label = band_labels[j]
+            if label[:-2] == band.upper():
+                TOD = TODs[j]
+                gain = gain_guesses[j]
+                sigma_0 = TOD.std()
+                scalars = np.array([gain, sigma_0, fknee, alpha])
+
+
+                tod = np.zeros(TOD.size)
+                for n in range(len(TOD[0])):
+                    tod[n::len(TOD[0])] = TOD[:,n]
+                todi = np.array_split(tod, n_per_day)[i]
+
+                todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
+                deltatod = np.diff(todInd)
+                deltatod = np.insert(deltatod, 0, todInd[0])
+
+
+                pix = np.array_split(pix_A[j//4], n_per_day)[i]
+                deltapixA = np.diff(pix)
+                deltapixA = np.insert(deltapixA, 0, pix[0])
+
+
+                pix = np.array_split(pix_B[j//4], n_per_day)[i]
+                deltapixB = np.diff(pix)
+                deltapixB = np.insert(deltapixB, 0, pix[0])
+
+
+                psi = np.array_split(psi_A[j//4], n_per_day)[i]
+                psi = np.where(psi < 0, 2*np.pi+psi, psi)
+                psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+                psiIndexes = np.digitize(psi, psiBins)
+                deltapsiA = np.diff(psiIndexes)
+                deltapsiA = np.insert(deltapsiA, 0, psiIndexes[0])
+
+                psi = np.array_split(psi_B[j//4], n_per_day)[i]
+                psi = np.where(psi < 0, 2*np.pi+psi, psi)
+                psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+                psiIndexes = np.digitize(psi, psiBins)
+                deltapsiB = np.diff(psiIndexes)
+                deltapsiB = np.insert(deltapsiB, 0, psiIndexes[0])
+
+                flags = np.array_split(daflags[:,j//4], n_per_day)[i]
+                t0 = np.arange(len(flags))
+                t = np.linspace(t0.min(), t0.max(), len(todi))
+                func = interp1d(t0, flags, kind='previous')
+                flags = func(t)
+                deltaflag = np.diff(flags)
+                deltaflag = np.insert(deltaflag, 0, flags[0])
+
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
+                        data=np.void(bytes(h_A.byteCode(deltaflag))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
+                        data=np.void(bytes(h_A.byteCode(deltapixA))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
+                        data=np.void(bytes(h_B.byteCode(deltapixB))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
+                        data=np.void(bytes(h_A.byteCode(deltapsiA))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
+                        data=np.void(bytes(h_B.byteCode(deltapsiB))))
+
+                det_list.append(label.replace('KA','Ka'))
+
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/scalars',
+                        data=scalars)
+                f[obsid + '/' + label.replace('KA','Ka') + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
+                # filler 
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/outP',
+                        data=np.array([0,0]))
+
+
+
+        f.create_dataset(obsid + '/common/hufftree_A', data=huffarray_A)
+        f.create_dataset(obsid + '/common/huffsymb_A', data=h_A.symbols)
+
+        f.create_dataset(obsid + '/common/hufftree_B', data=huffarray_B)
+        f.create_dataset(obsid + '/common/huffsymb_B', data=h_B.symbols)
+
+        f.create_dataset(obsid + '/common/todtree', data=huffarray_Tod)
+        f.create_dataset(obsid + '/common/todsymb', data=h_Tod.symbols)
+        
+        f.create_dataset(obsid + '/common/satpos',
+                data=np.array_split(pos,n_per_day)[i][0])
+        f[obsid + '/common/satpos'].attrs['info'] = '[x, y, z]'
+        f[obsid + '/common/satpos'].attrs['coords'] = 'galactic'
+
+        f.create_dataset(obsid + '/common/vsun',
+                data=np.array_split(vel,n_per_day)[i][0])
+        f[obsid + '/common/vsun'].attrs['info'] = '[x, y, z]'
+        f[obsid + '/common/vsun'].attrs['coords'] = 'galactic'
+
+        dt = dt0/len(TOD[0])
+        time_band = np.arange(time.min(), time.min() + dt*len(tod), dt)
+        f.create_dataset(obsid + '/common/time',
+                data=[np.array_split(time_band, n_per_day)[i][0],0,0])
+        f[obsid + '/common/time'].attrs['type'] = 'MJD, null, null'
+
+        f.create_dataset(obsid + '/common/ntod',
+                data=len(np.array_split(tod,n_per_day)[i]))
+
+        if "/common/fsamp" not in f:
+            f.create_dataset('/common/fsamp', data=fsamp*len(TOD[0]))
+            f.create_dataset('/common/nside', data=nside)
+            f.create_dataset('/common/npsi', data=npsi)
+            f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
+            f.create_dataset('/common/datatype', data='WMAP')
+            # fillers
+            f.create_dataset('/common/mbang', data=0)
+            f.create_dataset('/common/ntodsigma', data=100)
+            f.create_dataset('/common/polang', data=0)
+    return
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
     r = hp.rotator.Rotator(coord=[coord_in, coord_out])
@@ -91,19 +313,21 @@ def gamma_from_pol(gal, pol, fixed_basis=False):
     for a one time operation this doesn't seem too slow yet.
     '''
     # gal and pol are galactic lonlat vectors
-    dir_A_gal = hp.ang2vec(gal[0],gal[1], lonlat=True)
-    dir_A_pol = hp.ang2vec(pol[0],pol[1], lonlat=True)
+    dir_A_gal = hp.ang2vec(gal[:,0],gal[:,1], lonlat=False)
+    dir_A_pol = hp.ang2vec(pol[:,0],pol[:,1], lonlat=False)
 
 
     dir_Z = np.array([0,0,1])
 
-    sin_theta_A = np.sqrt(dir_A_gal[0]**2 + dir_A_gal[1]**2)
 
-    dir_A_west_x = dir_A_gal[1]/sin_theta_A
-    dir_A_west_y = -dir_A_gal[0]/sin_theta_A
-    dir_A_west_z = dir_A_gal[1]*0
-    dir_A_west = np.array([dir_A_west_x, dir_A_west_y, dir_A_west_z])
-    dir_A_north = (dir_Z - dir_A_gal[2]*dir_A_gal)/sin_theta_A
+    sin_theta_A = np.sqrt(dir_A_gal[:,0]**2 + dir_A_gal[:,1]**2)
+
+    dir_A_west_x = dir_A_gal[:,1]/sin_theta_A
+    dir_A_west_y = -dir_A_gal[:,0]/sin_theta_A
+    dir_A_west_z = dir_A_gal[:,1]*0
+    dir_A_west = np.array([dir_A_west_x, dir_A_west_y, dir_A_west_z]).T
+    dir_A_north = (dir_Z - dir_A_gal[2]*dir_A_gal)/sin_theta_A[:,np.newaxis]
+    '''
     if sin_theta_A == 0:
         dir_A_west = np.array([1,0,0])
         dir_A_north = np.array([0,1,0])
@@ -111,33 +335,88 @@ def gamma_from_pol(gal, pol, fixed_basis=False):
     assert dir_A_north.dot(dir_A_west) == approx(0), 'Vectors not orthogonal'
     assert dir_A_north.dot(dir_A_north) == approx(1), 'North-vector not normalized'
     assert dir_A_west.dot(dir_A_west) == approx(1), 'North-vector not normalized'
-
-
-    sin_gamma_A = dir_A_pol.dot(dir_A_west)
-    cos_gamma_A = dir_A_pol.dot(dir_A_north)
+    '''
+    sin_gamma_A = dir_A_pol[:,0]*dir_A_west[:,0] + dir_A_pol[:,1]*dir_A_west[:,1] + dir_A_pol[:,2]*dir_A_west[:,2]
+    cos_gamma_A = dir_A_pol[:,0]*dir_A_north[:,0] + dir_A_pol[:,1]*dir_A_north[:,1] + dir_A_pol[:,2]*dir_A_north[:,2]
 
     cos_2_gamma_A = 2*cos_gamma_A**2 - 1
     sin_2_gamma_A = 2*sin_gamma_A*cos_gamma_A
 
     return sin_2_gamma_A, cos_2_gamma_A
 
-def quat_to_sky_coords(quat, center=True, Nobs=12):
+def q_interp(q_arr, t):
     '''
-    Quaternion is of form (N_frames, 30, 4)
+    Copied from interpolate_quaternions.pro
+
+    This is an implementation of Lagrange polynomials.
+    ;   input_q  - Set of 4 evenly-spaced quaternions (in a 4x4 array).
+    ;          See the COMMENTS section for how this array should
+    ;          be arranged.
+    ;   offset   - Dimensionless time offset relative to the first quaternion.
+    ;   This routine expects a unifomly sampled set of quaternions Q1,Q2,Q3,Q4.
+    ;   It interpolate a quaternion for any time between Q1 and Q4, inclusive.
+    ;   The output is calculated at a time T_Out, expressed in terms of the
+    ;   sampling of the input quaternions:
+    ;
+    ;                   T_Out - T(Q1)
+    ;       Offset = -----------------
+    ;                   T(Q2) - T(Q1)
+    ;
+    ;   where T(Q1) is the time at quaternion Q1, and so forth.  That is,
+    ;   the time for the output quaternion (variable OFFSET) should be
+    ;   a number in the range -1.000 to 4.000 inclusive.  Input values outside
+    ;   that range result in an error.  Input values outside 0.0 to 3.0 result
+    ;   in extrapolation instead of interpolation.
+    ;
+    ;       In other words, Offset is essentially a floating point subscript,
+    ;       similar to the those used by the IDL intrinsic routine INTERPOLATE.
+    ;
+    ;   For optimal results, OFFSET should be in the range [1.0, 2.0] -- that
+    ;   is, the input quaternions Q1...Q4 should be arranged such that 2 come
+    ;   before the desired output and 2 come after.
+
+    '''
+    xp0 = t-1
+    xn0 = -xp0
+    xp1 = xp0 + 1
+    xn1 = xp0 - 1
+    xn2 = xp0 - 2
+    w = np.array([xn0*xn1*xn2/6, xp1*xn1*xn2/2, xp1*xn0*xn2/2, xp1*xp0*xn1/6])
+    Qi = q_arr.dot(w)
+    Qi = Qi/np.sum(Qi**2, axis=0)**0.5
+    return Qi
+
+
+def quat_to_sky_coords(quat, center=True):
+    Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
+    '''
+    Quaternion is of form (N_frames, 30, 4), with one redundant frame at the
+    beginning and two redundant ones at the end, that match the adjacent frames.
     '''
     nt = len(quat)
-    Q = np.zeros( (4, 30, nt))
-    for i in range(nt):
-        for j in range(30):
-            qt = quat[i,j:j+4]
-            qout = qt
-            Q[:,j,i] = qt
-    Q = np.reshape(Q, (4, 30*nt))
+    Q = np.zeros( (4, 33, nt))
+    q0 = quat[:,0::4]
+    q1 = quat[:,1::4]
+    q2 = quat[:,2::4]
+    q3 = quat[:,3::4]
+    q0 = np.array([q0[0,0]] + q0[:,1:-2].flatten().tolist() +
+            q0[-1,-2:].tolist())
+    q1 = np.array([q1[0,0]] + q1[:,1:-2].flatten().tolist() +
+            q1[-1,-2:].tolist())
+    q2 = np.array([q2[0,0]] + q2[:,1:-2].flatten().tolist() +
+            q2[-1,-2:].tolist())
+    q3 = np.array([q3[0,0]] + q3[:,1:-2].flatten().tolist() +
+            q3[-1,-2:].tolist())
+    Q = np.zeros((4, 30*nt + 3))
+    Q[0] = q0
+    Q[1] = q1
+    Q[2] = q2
+    Q[3] = q3
+    t0 = np.arange(30*nt + 3)
+
 
     da_str = ''
 
-    #dir_A_los = np.array([0, 0.94264149, -0.33380686])#   ; Optical axis
-    #dir_B_los = np.array([0,-0.94264149, -0.33380686])    
     dir_A_los = np.array([
                 [ 0.03997405,  0.92447851, -0.37913264],
                 [-0.03834152,  0.92543237, -0.37696797],
@@ -184,69 +463,67 @@ def quat_to_sky_coords(quat, center=True, Nobs=12):
                 [  0.70521159225086,  0.23611413753036, -0.66852578425466, ],
                 [ -0.70903152581832,  0.23766935833457, -0.66391834701609]])
 
-
-    Npts = np.prod(Q.shape)//4
     M = Q2M(Q)
     M = np.transpose(M, [2,0,1])
 
+    gal_A = []
+    pol_A = []
+    gal_B = []
+    pol_B = []
+    for n, Nobs in enumerate(Nobs_array):
+        # for each group from 0--4, the interpolation is valid between 1.5--2.5,
+        # which is equivalent to cutting out the first 1.5 time units from the
+        # beginning of the total array and the final set of quaternions does not
+        # need the last half of the time interval.
+        t = np.arange(t0.min() + 1.5, t0.max() - 0.5, 1/Nobs)
 
-    dir_A_los_cel = []
-    dir_B_los_cel = []
-    for i in range(len(dir_A_los)):
-        dir_A_los_cel.append(np.sum(M*np.tile(dir_A_los[i, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2))
-        dir_B_los_cel.append(np.sum(M*np.tile(dir_B_los[i, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2))
-    dir_A_los_cel = np.array(dir_A_los_cel)
-    dir_B_los_cel = np.array(dir_B_los_cel)
-
-    dir_A_los_gal = np.zeros_like(dir_A_los_cel)
-    dir_B_los_gal = np.zeros_like(dir_A_los_cel)
-    gal = []
-    for i in range(len(dir_A_los)):
-        dir_A_los_gal[i] = coord_trans(dir_A_los_cel[i], 'C', 'G')
-        Pll_A = np.array(hp.vec2ang(dir_A_los_gal[i].T, lonlat=True))
-
-        dir_B_los_gal[i] = coord_trans(dir_B_los_cel[i], 'C', 'G')
-        Pll_B = np.array(hp.vec2ang(dir_B_los_gal[i].T, lonlat=True))
-        gal.append(Pll_A.T)
-        gal.append(Pll_B.T)
-    # I expect an array of length 40 by 50000-something by 2
-    gal = np.array(gal)
-
-    dir_A_pol_cel = []
-    dir_B_pol_cel = []
-    for i in range(len(dir_A_pol)):
-        dir_A_pol_cel.append(np.sum(M*np.tile(dir_A_pol[i, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2))
-        dir_B_pol_cel.append(np.sum(M*np.tile(dir_B_pol[i, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2))
-    dir_A_pol_cel = np.array(dir_A_pol_cel)
-    dir_B_pol_cel = np.array(dir_B_pol_cel)
-
-    dir_A_pol_gal = np.zeros_like(dir_A_pol_cel)
-    dir_B_pol_gal = np.zeros_like(dir_A_pol_cel)
-    pol = []
-    for i in range(len(dir_A_pol)):
-        dir_A_pol_gal[i] = coord_trans(dir_A_pol_cel[i], 'C', 'G')
-        Pll_A = np.array(hp.vec2ang(dir_A_pol_gal[i].T, lonlat=True))
-
-        dir_B_pol_gal[i] = coord_trans(dir_B_pol_cel[i], 'C', 'G')
-        Pll_B = np.array(hp.vec2ang(dir_B_pol_gal[i].T, lonlat=True))
-        pol.append(Pll_A.T)
-        pol.append(Pll_B.T)
-    pol = np.array(pol)
+        M2 = np.zeros((len(t), 3, 3))
+        for i in range(3):
+            for j in range(3):
+                f = interp1d(t0, M[:,i,j], kind='cubic')
+                M2[:,i,j] = f(t)
 
 
-    return gal, pol
+
+
+        Npts = 30*nt*Nobs
+        dir_A_los_cel = []
+        dir_B_los_cel = []
+        dir_A_los_cel = np.sum(M2*np.tile(dir_A_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
+        dir_B_los_cel = np.sum(M2*np.tile(dir_B_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
+
+        dir_A_los_gal = coord_trans(dir_A_los_cel, 'C', 'G')
+        Pll_A = np.array(hp.vec2ang(dir_A_los_gal, lonlat=False))
+
+        dir_B_los_gal = coord_trans(dir_B_los_cel, 'C', 'G')
+        Pll_B = np.array(hp.vec2ang(dir_B_los_gal, lonlat=False))
+        gal_A.append(Pll_A.T)
+        gal_B.append(Pll_B.T)
+
+        dir_A_pol_cel = np.sum(M2*np.tile(dir_A_pol[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
+        dir_B_pol_cel = np.sum(M2*np.tile(dir_B_pol[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
+
+        dir_A_pol_gal = coord_trans(dir_A_pol_cel, 'C', 'G')
+        Pll_A = np.array(hp.vec2ang(dir_A_pol_gal, lonlat=False))
+
+        dir_B_pol_gal = coord_trans(dir_B_pol_cel, 'C', 'G')
+        Pll_B = np.array(hp.vec2ang(dir_B_pol_gal, lonlat=False))
+        pol_A.append(Pll_A.T)
+        pol_B.append(Pll_B.T)
+
+
+
+
+    return gal_A, gal_B, pol_A, pol_B
 
 
 def get_psi(gal, pol, band_labels):
     sin_2_gamma = np.zeros( (len(band_labels), len(gal[0])) )
     cos_2_gamma = np.zeros( (len(band_labels), len(gal[0])) )
+    psi = []
     for band in range(len(band_labels)):
-        print(band_labels[band])
-        for t in range(len(sin_2_gamma[band])):
-            sin_2_gi, cos_2_gi = gamma_from_pol(gal[band//2,t], pol[band//2, t])
-            sin_2_gamma[band, t] = sin_2_gi
-            cos_2_gamma[band, t] = cos_2_gi
-    psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
+        sin2g, cos2g = gamma_from_pol(gal[band], pol[band])
+        psi.append(0.5*np.arctan2(sin2g, cos2g))
     return psi
 
 def get_psi_multiprocessing(gal, pol):
@@ -259,11 +536,27 @@ def get_psi_multiprocessing(gal, pol):
     psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
     return psi
 
+def get_psi_multiprocessing_2(i):
+    gal = gals[i]
+    pol = pols[i]
+    sin_2_gamma = np.zeros(len(gal))
+    cos_2_gamma = np.zeros(len(gal))
+    for t in range(len(sin_2_gamma)):
+        sin_2_gi, cos_2_gi = gamma_from_pol(gal[t], pol[t])
+        sin_2_gamma[t] = sin_2_gi
+        cos_2_gamma[t] = cos_2_gi
+    psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
+    return psi
 
-def main():
-    '''
-    Make 1 file for every 25th of a day
-    '''
+def ang2pix_multiprocessing(nside, theta, phi):
+    return hp.ang2pix(nside, theta, phi)
+
+def fits_to_h5(file_input, file_ind):
+    f_name = file_input.split('/')[-1][:-8]
+    # It takes about 30 seconds for the extraction from the fits files, which is
+    # very CPU intensive. After that, it maxes out at 1 cpu/process.
+    t0 = timer()
+
     # from table 3 of astro-ph/0302222
     gain_guesses = np.array([   -0.974, +0.997,
                                 +1.177, -1.122,
@@ -290,7 +583,9 @@ def main():
     fknee = 0.1
 
     nside = 256
-    npsi = 4096
+    ntodsigma = 100
+    npsi = 2048
+    psiBins = np.linspace(0, 2*np.pi, npsi)
     fsamp = 30/1.536 # A single TOD record contains 30 1.536 second major science frames
     chunk_size = 1875
     nsamp = chunk_size*fsamp
@@ -300,135 +595,92 @@ def main():
 
 
 
-    bands = ['K', 'KA', 'Q', 'V', 'W']
+
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+    #bands = ['K1']
 
-
-
-    file_out = 'wmap_tods.h5'
-
-
-    #/mn/stornext/u3/hke/xsan/wmap/tod
-    files = glob('tod/*.fits')
-    files.sort()
-    obs_ind = 0
-    file_ind = 0
     t2jd = 2.45e6
-    for file_in in files:
-        file_ind += 1
-        data = fits.open(file_in)
+    jd2mjd = 2400000.5
 
-        band_labels = data[2].columns.names[1:-6]
-        print(band_labels)
-        
-        
+    data = fits.open(file_input)
+
+    band_labels = data[2].columns.names[1:-6]
+
+
+    daflags = data[2].data['daflags']
+
+    TODs = []
+    for key in data[2].columns.names[1:-6]:
+        TODs.append(data[2].data[key])
+
+    
+    
    
-        # position (and velocity) in km(/s) in Sun-centered coordinates
-        pos = data[1].data['POSITION']
-        vel = data[1].data['VELOCITY']
-        time_aihk = data[1].data['TIME'] + t2jd
-        time = data[2].data['TIME'] + t2jd
+    # position (and velocity) in km(/s) in Sun-centered coordinates
+    pos = data[1].data['POSITION']
+    vel = data[1].data['VELOCITY']
+    time_aihk = data[1].data['TIME'] + t2jd - jd2mjd
+    time = data[2].data['TIME'] + t2jd - jd2mjd
 
-        dt0 = np.diff(time).mean()
-        
-        
-        gal, pol = quat_to_sky_coords(data[1].data['QUATERN'])
-        # gal and pol are set up so that the A and B horns are interleaved.
-        # To match the 40 channels in band_labels, it should be ABAB for each
-        # channel
-        gal2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
-        pol2 = np.zeros((gal.shape[0]*2, gal.shape[1], gal.shape[2]))
-        gal2[::4] = gal[::2]
-        gal2[2::4] = gal[::2]
-        pol2[::4] = pol[::2]
-        pol2[2::4] = pol[::2]
+    dt0 = np.diff(time).mean()
+    
+    
+    gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(data[1].data['QUATERN'])
 
-        gal = gal2
-        pol = pol2
-
-        #los_labels = data[5].columns.names
+    psi_A = get_psi(gal_A, pol_A, band_labels[::4])
+    psi_B = get_psi(gal_B, pol_B, band_labels[1::4])
 
 
+    args_A = [(nside, gal_A[i][:,0], gal_A[i][:,1]) for i in range(len(gal_A))]
+    args_B = [(nside, gal_B[i][:,0], gal_B[i][:,1]) for i in range(len(gal_B))]
+    pix_A = []
+    pix_B = []
+    for i in range(len(args_A)):
+        pix_A.append(ang2pix_multiprocessing(*args_A[i]))
+        pix_B.append(ang2pix_multiprocessing(*args_B[i]))
 
-        psi = []
-        args = [(gal[i],pol[i]) for i in range(len(gal))]
-        with Pool() as pool:
-            L = pool.starmap(get_psi_multiprocessing, args)
-        psi = np.array(L)
+    n_per_day = 25
 
-
-        pix = hp.ang2pix(nside, gal[:,:,0], gal[:,:,1], lonlat=True)
-
-
-        n_per_day = 25
-
+    obs_inds = np.arange(n_per_day) + n_per_day*file_ind
+    obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
+    for band in bands:
+        args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses,
+                    band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
+                    alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
+                    fsamp, pos, vel, time) for i in range(len(obs_inds))]
         for i in range(n_per_day):
-            print(i, file_ind, file_ind//4)
-            obs_ind += 1
-            obsid = str(obs_ind).zfill(6)
-            for band in bands:
-                file_out = f'data/wmap_{band}_{str(file_ind+1).zfill(6)}.h5'
-                det_list = []
-                with h5py.File(file_out, 'a') as f:
-                    for j in range(len(band_labels)):
-                        label = band_labels[j]
-                        if label[:-2] == band.upper():
-                            TOD = data[2].data[label]
-                            gain = gain_guesses[j]
-                            sigma_0 = TOD.std()
-                            scalars = np.array([fknee, sigma_0, alpha, gain])
-                            # Write to h5 file.
-                            tod = np.zeros(TOD.size)
-                            for n in range(len(TOD[0])):
-                                tod[n::len(TOD[0])] = TOD[:,n]
-                            f.create_dataset(obsid + '/' + label+ '/tod',
-                                    data=np.split(tod,n_per_day)[i])
-                            # pixA and pixB are interleaved with each other
-                            if j%2 == 0:
-                                pixlab = '/pixA'
-                                psilab = '/psiA'
-                            else:
-                                pixlab = '/pixB'
-                                psilab = '/psiB'
-                            f.create_dataset(obsid + '/' + label+ psilab,
-                                    data=np.split(psi[j],n_per_day)[i])
-                            f.create_dataset(obsid + '/' + label+ pixlab,
-                                    data=np.split(pix[j],n_per_day)[i])
-                            f.create_dataset(obsid + '/' + label+ '/scalars',
-                                    data=scalars)
-                            det_list.append(label)
-                            # filler 
-                            f.create_dataset(obsid + '/' + label + '/flag',
-                                    data=0)
-                            f.create_dataset(obsid + '/' + label + '/outP',
-                                    data=np.array([0,0]))
-                    dt = dt0/len(TOD[0])
-                    time_band = time = np.arange(time.min(), time.min() + dt*len(tod), dt)
-                    f.create_dataset(obsid + '/common/satpos',
-                            data=np.split(pos,n_per_day)[i])
-                    f.create_dataset(obsid + '/common/vsun',
-                            data=np.split(vel,n_per_day)[i][0])
-                    t = np.split(time, n_per_day)[i][0]
-                    f.create_dataset(obsid + '/common/time',
-                            data=time_band)
-                    f.create_dataset(obsid + '/common/time_aihk',
-                            data=time_aihk)
-                    f.create_dataset(obsid + '/common/ntod',
-                            data=len(np.split(tod,n_per_day)[i]))
+            write_file_parallel(*args[i])
 
-                    if "/common/fsamp" not in f:
-                        f.create_dataset('/common/fsamp', data=fsamp*len(TOD[0]))
-                        f.create_dataset('/common/nside', data=nside)
-                        f.create_dataset('/common/npsi', data=npsi)
-                        f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
-                        f.create_dataset('/common/datatype', data='WMAP')
-                        # fillers
-                        f.create_dataset('/common/mbang', data=0)
-                        f.create_dataset('/common/ntodsigma', data=100)
-                        f.create_dataset('/common/polang', data=0)
-        
-        data.close()
+    data.close()
 
+    print(f'\t{f_name} took {int(timer()-t0)} seconds')
+
+    sleep(30)
+
+    return
+
+def main():
+    '''
+    Make 1 hdf5 file for every 10 fits files
+    '''
+
+    files = glob(prefix + 'tod/*.fits')
+    files.sort()
+    files = np.array(files)
+
+    inds = np.arange(len(files))
+    nprocs = 128
+
+    os.environ['OMP_NUM_THREADS'] = '1'
+
+
+    pool = Pool(processes=nprocs)
+    x = [pool.apply_async(fits_to_h5, args=[f, i]) for i, f in zip(inds, files)]
+    for i, res in enumerate(x):
+        #res.get()
+        res.wait()
+    pool.close()
+    pool.join()
 
 if __name__ == '__main__':
     main()
