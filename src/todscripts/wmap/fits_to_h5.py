@@ -21,9 +21,12 @@ import os
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
+from time import sleep
 from time import time as timer
 
 
+from mpi4py import MPI
+rank = MPI.COMM_WORLD.rank
 
 
 
@@ -33,11 +36,9 @@ from time import time as timer
 def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time):
-    print(i, band)
     file_out = prefix + f'data/wmap_{band}_{str(file_ind//10+1).zfill(6)}.h5'
-    f = h5py.File(file_out, 'a')
     with open(prefix + f'data/filelist_{band}.txt', 'a') as file_list: 
-        file_list.write(f'{obs_ind}\t"{file_out}"\t1\t0\t0\n')
+        file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
     dt0 = np.diff(time).mean()
     det_list = []
     # make huffman code tables
@@ -115,120 +116,120 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
     huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
 
 
-    for j in range(len(band_labels)):
-        label = band_labels[j]
-        if label[:-2] == band.upper():
-            TOD = TODs[j]
-            gain = gain_guesses[j]
-            sigma_0 = TOD.std()
-            scalars = np.array([gain, sigma_0, fknee, alpha])
+    with h5py.File(file_out, 'a') as f:
+        for j in range(len(band_labels)):
+            label = band_labels[j]
+            if label[:-2] == band.upper():
+                TOD = TODs[j]
+                gain = gain_guesses[j]
+                sigma_0 = TOD.std()
+                scalars = np.array([gain, sigma_0, fknee, alpha])
 
 
-            tod = np.zeros(TOD.size)
-            for n in range(len(TOD[0])):
-                tod[n::len(TOD[0])] = TOD[:,n]
-            todi = np.array_split(tod, n_per_day)[i]
+                tod = np.zeros(TOD.size)
+                for n in range(len(TOD[0])):
+                    tod[n::len(TOD[0])] = TOD[:,n]
+                todi = np.array_split(tod, n_per_day)[i]
 
-            todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
-            deltatod = np.diff(todInd)
-            deltatod = np.insert(deltatod, 0, todInd[0])
-
-
-            pix = np.array_split(pix_A[j//4], n_per_day)[i]
-            deltapixA = np.diff(pix)
-            deltapixA = np.insert(deltapixA, 0, pix[0])
+                todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
+                deltatod = np.diff(todInd)
+                deltatod = np.insert(deltatod, 0, todInd[0])
 
 
-            pix = np.array_split(pix_B[j//4], n_per_day)[i]
-            deltapixB = np.diff(pix)
-            deltapixB = np.insert(deltapixB, 0, pix[0])
+                pix = np.array_split(pix_A[j//4], n_per_day)[i]
+                deltapixA = np.diff(pix)
+                deltapixA = np.insert(deltapixA, 0, pix[0])
 
 
-            psi = np.array_split(psi_A[j//4], n_per_day)[i]
-            psi = np.where(psi < 0, 2*np.pi+psi, psi)
-            psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
-            psiIndexes = np.digitize(psi, psiBins)
-            deltapsiA = np.diff(psiIndexes)
-            deltapsiA = np.insert(deltapsiA, 0, psiIndexes[0])
-
-            psi = np.array_split(psi_B[j//4], n_per_day)[i]
-            psi = np.where(psi < 0, 2*np.pi+psi, psi)
-            psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
-            psiIndexes = np.digitize(psi, psiBins)
-            deltapsiB = np.diff(psiIndexes)
-            deltapsiB = np.insert(deltapsiB, 0, psiIndexes[0])
-
-            flags = np.array_split(daflags[:,j//4], n_per_day)[i]
-            t0 = np.arange(len(flags))
-            t = np.linspace(t0.min(), t0.max(), len(todi))
-            func = interp1d(t0, flags, kind='previous')
-            flags = func(t)
-            deltaflag = np.diff(flags)
-            deltaflag = np.insert(deltaflag, 0, flags[0])
-
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
-                    data=np.void(bytes(h_A.byteCode(deltaflag))))
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                    data=np.void(bytes(h_Tod.byteCode(deltatod))))
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
-                    data=np.void(bytes(h_A.byteCode(deltapixA))))
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
-                    data=np.void(bytes(h_B.byteCode(deltapixB))))
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
-                    data=np.void(bytes(h_A.byteCode(deltapsiA))))
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
-                    data=np.void(bytes(h_B.byteCode(deltapsiB))))
-
-            det_list.append(label.replace('KA','Ka'))
-
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/scalars',
-                    data=scalars)
-            f[obsid + '/' + label.replace('KA','Ka') + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
-            # filler 
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/outP',
-                    data=np.array([0,0]))
+                pix = np.array_split(pix_B[j//4], n_per_day)[i]
+                deltapixB = np.diff(pix)
+                deltapixB = np.insert(deltapixB, 0, pix[0])
 
 
+                psi = np.array_split(psi_A[j//4], n_per_day)[i]
+                psi = np.where(psi < 0, 2*np.pi+psi, psi)
+                psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+                psiIndexes = np.digitize(psi, psiBins)
+                deltapsiA = np.diff(psiIndexes)
+                deltapsiA = np.insert(deltapsiA, 0, psiIndexes[0])
 
-    f.create_dataset(obsid + '/common/hufftree_A', data=huffarray_A)
-    f.create_dataset(obsid + '/common/huffsymb_A', data=h_A.symbols)
+                psi = np.array_split(psi_B[j//4], n_per_day)[i]
+                psi = np.where(psi < 0, 2*np.pi+psi, psi)
+                psi = np.where(psi >= 2*np.pi, psi - 2*np.pi, psi)
+                psiIndexes = np.digitize(psi, psiBins)
+                deltapsiB = np.diff(psiIndexes)
+                deltapsiB = np.insert(deltapsiB, 0, psiIndexes[0])
 
-    f.create_dataset(obsid + '/common/hufftree_B', data=huffarray_B)
-    f.create_dataset(obsid + '/common/huffsymb_B', data=h_B.symbols)
+                flags = np.array_split(daflags[:,j//4], n_per_day)[i]
+                t0 = np.arange(len(flags))
+                t = np.linspace(t0.min(), t0.max(), len(todi))
+                func = interp1d(t0, flags, kind='previous')
+                flags = func(t)
+                deltaflag = np.diff(flags)
+                deltaflag = np.insert(deltaflag, 0, flags[0])
 
-    f.create_dataset(obsid + '/common/todtree', data=huffarray_Tod)
-    f.create_dataset(obsid + '/common/todsymb', data=h_Tod.symbols)
-    
-    f.create_dataset(obsid + '/common/satpos',
-            data=np.array_split(pos,n_per_day)[i][0])
-    f[obsid + '/common/satpos'].attrs['info'] = '[x, y, z]'
-    f[obsid + '/common/satpos'].attrs['coords'] = 'galactic'
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
+                        data=np.void(bytes(h_A.byteCode(deltaflag))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
+                        data=np.void(bytes(h_A.byteCode(deltapixA))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
+                        data=np.void(bytes(h_B.byteCode(deltapixB))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
+                        data=np.void(bytes(h_A.byteCode(deltapsiA))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
+                        data=np.void(bytes(h_B.byteCode(deltapsiB))))
 
-    f.create_dataset(obsid + '/common/vsun',
-            data=np.array_split(vel,n_per_day)[i][0])
-    f[obsid + '/common/vsun'].attrs['info'] = '[x, y, z]'
-    f[obsid + '/common/vsun'].attrs['coords'] = 'galactic'
+                det_list.append(label.replace('KA','Ka'))
 
-    dt = dt0/len(TOD[0])
-    time_band = np.arange(time.min(), time.min() + dt*len(tod), dt)
-    f.create_dataset(obsid + '/common/time',
-            data=[np.array_split(time_band, n_per_day)[i][0],0,0])
-    f[obsid + '/common/time'].attrs['type'] = 'MJD, null, null'
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/scalars',
+                        data=scalars)
+                f[obsid + '/' + label.replace('KA','Ka') + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
+                # filler 
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/outP',
+                        data=np.array([0,0]))
 
-    f.create_dataset(obsid + '/common/ntod',
-            data=len(np.array_split(tod,n_per_day)[i]))
 
-    if "/common/fsamp" not in f:
-        f.create_dataset('/common/fsamp', data=fsamp*len(TOD[0]))
-        f.create_dataset('/common/nside', data=nside)
-        f.create_dataset('/common/npsi', data=npsi)
-        f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
-        f.create_dataset('/common/datatype', data='WMAP')
-        # fillers
-        f.create_dataset('/common/mbang', data=0)
-        f.create_dataset('/common/ntodsigma', data=100)
-        f.create_dataset('/common/polang', data=0)
-    f.close()
+
+        f.create_dataset(obsid + '/common/hufftree_A', data=huffarray_A)
+        f.create_dataset(obsid + '/common/huffsymb_A', data=h_A.symbols)
+
+        f.create_dataset(obsid + '/common/hufftree_B', data=huffarray_B)
+        f.create_dataset(obsid + '/common/huffsymb_B', data=h_B.symbols)
+
+        f.create_dataset(obsid + '/common/todtree', data=huffarray_Tod)
+        f.create_dataset(obsid + '/common/todsymb', data=h_Tod.symbols)
+        
+        f.create_dataset(obsid + '/common/satpos',
+                data=np.array_split(pos,n_per_day)[i][0])
+        f[obsid + '/common/satpos'].attrs['info'] = '[x, y, z]'
+        f[obsid + '/common/satpos'].attrs['coords'] = 'galactic'
+
+        f.create_dataset(obsid + '/common/vsun',
+                data=np.array_split(vel,n_per_day)[i][0])
+        f[obsid + '/common/vsun'].attrs['info'] = '[x, y, z]'
+        f[obsid + '/common/vsun'].attrs['coords'] = 'galactic'
+
+        dt = dt0/len(TOD[0])
+        time_band = np.arange(time.min(), time.min() + dt*len(tod), dt)
+        f.create_dataset(obsid + '/common/time',
+                data=[np.array_split(time_band, n_per_day)[i][0],0,0])
+        f[obsid + '/common/time'].attrs['type'] = 'MJD, null, null'
+
+        f.create_dataset(obsid + '/common/ntod',
+                data=len(np.array_split(tod,n_per_day)[i]))
+
+        if "/common/fsamp" not in f:
+            f.create_dataset('/common/fsamp', data=fsamp*len(TOD[0]))
+            f.create_dataset('/common/nside', data=nside)
+            f.create_dataset('/common/npsi', data=npsi)
+            f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
+            f.create_dataset('/common/datatype', data='WMAP')
+            # fillers
+            f.create_dataset('/common/mbang', data=0)
+            f.create_dataset('/common/ntodsigma', data=100)
+            f.create_dataset('/common/polang', data=0)
     return
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
@@ -551,7 +552,11 @@ def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
 def fits_to_h5(file_input, file_ind):
-    print(file_ind, file_input)
+    f_name = file_input.split('/')[-1][:-8]
+    # It takes about 30 seconds for the extraction from the fits files, which is
+    # very CPU intensive. After that, it maxes out at 1 cpu/process.
+    t0 = timer()
+
     # from table 3 of astro-ph/0302222
     gain_guesses = np.array([   -0.974, +0.997,
                                 +1.177, -1.122,
@@ -648,6 +653,10 @@ def fits_to_h5(file_input, file_ind):
 
     data.close()
 
+    print(f'\t{f_name} took {int(timer()-t0)} seconds')
+
+    sleep(30)
+
     return
 
 def main():
@@ -660,13 +669,18 @@ def main():
     files = np.array(files)
 
     inds = np.arange(len(files))
-    np.random.shuffle(inds)
-    files = files[inds]
-    with Pool(18) as pool:
-        x = [pool.apply_async(fits_to_h5, args=[f, i]) for i, f in zip(inds, files)]
-        for res in x:
-            res.get()
+    nprocs = 128
 
+    os.environ['OMP_NUM_THREADS'] = '1'
+
+
+    pool = Pool(processes=nprocs)
+    x = [pool.apply_async(fits_to_h5, args=[f, i]) for i, f in zip(inds, files)]
+    for i, res in enumerate(x):
+        #res.get()
+        res.wait()
+    pool.close()
+    pool.join()
 
 if __name__ == '__main__':
     main()
