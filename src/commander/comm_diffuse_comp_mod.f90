@@ -222,7 +222,7 @@ contains
        ! Read map from FITS file, and convert to alms
        self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
        do i = 1, self%x%info%nmaps
-          self%x%map(:,i) = self%x%map(:,i) / self%RJ2unit_(i)
+          self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale)
        end do
        call self%x%YtW
     end if
