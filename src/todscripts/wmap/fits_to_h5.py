@@ -38,7 +38,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time):
     file_out = prefix + f'data/wmap_{band}_{str(file_ind//10+1).zfill(6)}.h5'
     with open(prefix + f'data/filelist_{band}.txt', 'a') as file_list: 
-        file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
+        file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t{np.random.random()}\t{np.random.random()}\n')
     dt0 = np.diff(time).mean()
     det_list = []
     # make huffman code tables
@@ -553,6 +553,7 @@ def ang2pix_multiprocessing(nside, theta, phi):
 
 def fits_to_h5(file_input, file_ind):
     f_name = file_input.split('/')[-1][:-8]
+    print(f'executing {f_name}, file #{file_ind}')
     # It takes about 30 seconds for the extraction from the fits files, which is
     # very CPU intensive. After that, it maxes out at 1 cpu/process.
     t0 = timer()
@@ -641,7 +642,7 @@ def fits_to_h5(file_input, file_ind):
 
     n_per_day = 25
 
-    obs_inds = np.arange(n_per_day) + n_per_day*file_ind
+    obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
     for band in bands:
         args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses,
@@ -655,7 +656,6 @@ def fits_to_h5(file_input, file_ind):
 
     print(f'\t{f_name} took {int(timer()-t0)} seconds')
 
-    sleep(30)
 
     return
 
@@ -669,10 +669,19 @@ def main():
     files = np.array(files)
 
     inds = np.arange(len(files))
-    nprocs = 128
+    nprocs = 64
+    inds_ = []
+    files_ = []
+    # spacing out so that an h5py file isn't opened by two threads
+    # simultaneously.
+    for i in range(45):
+        inds_ += inds[i::45].tolist()
+        files_ += files[i::45].tolist()
+    inds = np.array(inds_)
+    files = np.array(files_)
+
 
     os.environ['OMP_NUM_THREADS'] = '1'
-
 
     pool = Pool(processes=nprocs)
     x = [pool.apply_async(fits_to_h5, args=[f, i]) for i, f in zip(inds, files)]
@@ -681,6 +690,8 @@ def main():
         res.wait()
     pool.close()
     pool.join()
+    for i in range(10):
+        fits_to_h5(files[i], inds[i])
 
 if __name__ == '__main__':
     main()
