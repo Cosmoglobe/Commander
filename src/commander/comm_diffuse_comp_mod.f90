@@ -387,7 +387,7 @@ contains
     allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))           
     allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
     self%L = 0.d0
-    self%steplen = 1.0d0
+    self%steplen = 0.3d0
 
     ! Filename formatting
     do j = 1, self%npar
