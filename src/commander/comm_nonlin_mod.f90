@@ -404,7 +404,7 @@ contains
 
 
                          ! Write to screen
-                         write(*, fmt='(a, i6, a, f8.2, a, f5.3)') tag, i, " - diff last 30:  ", diff, " - accept rate: ", accept_rate
+                         write(*, fmt='(a, i6, a, f8.2, a, f5.3)') tag, i, " - diff last 25:  ", diff, " - accept rate: ", accept_rate
 
                          ! Adjust steplen in tuning iteration
                          if ( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
