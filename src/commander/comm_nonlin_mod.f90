@@ -345,7 +345,7 @@ contains
 
                       ! Count accepted and assign chisq values
                       if (accepted) then
-                         write(*,*) "accepted ", i," Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI), " diff ", diff
+                         !write(*,*) "accepted ", i," Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI), " diff ", diff
                          num_accepted = num_accepted + 1
                       else
                          chisq(i) = chisq(i-1)
