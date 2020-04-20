@@ -217,6 +217,7 @@ contains
                       end do
                    end if
                    chisq(0) = chisq(0) + chisq_prior
+
                 end do
                 
                 ! Output init sample
@@ -281,6 +282,10 @@ contains
                             chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
                          end do
                       end if
+                      
+                      ! Prior adjustments (Nessecary because of loop adjustment)
+                      if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
+                      if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior*2.d0
                    end if
                    
                    ! Broadcast proposed alms from root
