@@ -345,7 +345,7 @@ contains
 
                       ! Count accepted and assign chisq values
                       if (accepted) then
-                         !write(*,*) "accepted ", i," Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI)
+                         write(*,*) "accepted ", i," Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI), " diff ", diff
                          num_accepted = num_accepted + 1
                       else
                          chisq(i) = chisq(i-1)
@@ -359,11 +359,12 @@ contains
                       ! If rejected, restore old values and send to 
                       if (c%poltype(j) == 1) then      ! {T+E+B}
                          do q = 1, c%theta(j)%p%info%nmaps
-                            alms(i,:,q) = alms(i-1,:,pl) ! Save to all maps
+                            alms(i,:,q) = alms(i-1,:,pl) ! Save to all mapsb
                             call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, q, q)
                          end do
                       else if (c%poltype(j) == 2) then ! {T,E+B}
                          if (pl == 1) then
+                            alms(i,:,pl) = alms(i-1,:,pl) 
                             call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, 1)
                          else
                             do q = 2, c%theta(j)%p%info%nmaps
