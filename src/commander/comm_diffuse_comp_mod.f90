@@ -403,7 +403,7 @@ contains
           read(11,*) self%L(:,:,:,j)
           close(11)
        else
-          if (self%myid == 0) write(*,*) "No cholesky matrix found for paremeter ", j       
+          if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter ", j       
           do p = 0, self%nalm_tot-1
              self%L(p,p,:,j) = self%sigma_priors(p,j)
           end do
