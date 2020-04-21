@@ -167,10 +167,12 @@ program commander
         end if
      end if
      ! Process TOD structures
-     if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if ( iter > 1000 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
+
      ! Sample linear parameters with CG search; loop over CG sample groups
+     !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_samp_groups
            if (cpar%myid_chain == 0) then
@@ -203,6 +205,8 @@ program commander
      if (cpar%sample_specind) then
         call sample_nonlin_params(cpar, iter, handle)
      end if
+
+     !call output_FITS_sample(cpar, 2000+iter, .true.)
 
      ! Sample instrumental parameters
 

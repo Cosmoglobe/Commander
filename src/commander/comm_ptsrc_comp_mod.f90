@@ -693,7 +693,7 @@ contains
                 ! Read precomputed Febecop beam from HDF file
                 call read_febecop_beam(cpar, filename, 'none', &
                      & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))
-             else if (trim(cpar%ds_btheta_file(id_abs)) == 'none') then
+             else if (trim(cpar%ds_btheta_file(data(i)%id_abs)) == 'none') then
                 ! Build template internally from b_l
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
                      & self%src(j)%T(i), bl=data(i)%B(0)%p%b_l)
@@ -1167,14 +1167,21 @@ contains
                       if (n1 == 0 .or. n2 == 0) cycle
                       if (pt1%src(k1)%T(l)%pix(1,1)  > pt2%src(k2)%T(l)%pix(n2,1)) cycle
                       if (pt1%src(k1)%T(l)%pix(n1,1) < pt2%src(k2)%T(l)%pix(1,1))  cycle
+                      if (j == 1 .and. data(l)%pol_only) cycle
+                      !if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
+
 
                       p1 = 1
                       p2 = 1
                       do while (.true.)
                          if (pt1%src(k1)%T(l)%pix(p1,1) == pt2%src(k2)%T(l)%pix(p2,1)) then
                             p  = pt1%src(k1)%T(l)%pix(p1,1)
+!!$                            write(*,*) 'a', data(l)%N%invN_diag%map(p,j) 
+!!$                            write(*,*) 'b', pt1%src(k1)%T(l)%map(p1,j), pt2%src(k2)%T(l)%map(p2,j)  
+!!$                            write(*,*) 'c', pt1%src(k1)%T(l)%F(j,0), pt2%src(k2)%T(l)%F(j,0)
+!!$                            write(*,*) 'd', pt1%getScale(l,k1,j), pt2%getScale(l,k2,j)     
                             mat(i1,i2) = mat(i1,i2) + &
-                                 & data(l)%N%invN_diag%map(p,j) * &          ! invN_{p,p}
+                                 & 1.d0/data(l)%N%rms_pix(p,j)**2 * &          ! invN_{p,p}
                                  & pt1%src(k1)%T(l)%map(p1,j) * & ! B_1
                                  & pt2%src(k2)%T(l)%map(p2,j) * & ! B_2
                                  & pt1%src(k1)%T(l)%F(j,0)    * & ! F_1
@@ -1432,104 +1439,109 @@ contains
     n                   = 101
     n_ok                = 50
     n_gibbs             = 10
-    if (first_call .and. self%burn_in) n_gibbs = 100
+    !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
 
     if (trim(operation) == 'optimize') then
        allocate(theta(self%npar))
-       do p = 1, self%nmaps
-          do k = 1, self%nsrc             
-             p_lnL       = p
-             k_lnL       = k
-             c           => compList     ! Extremely ugly hack...
-             do while (self%id /= c%id)
-                c => c%next()
-             end do
-             select type (c)
-             class is (comm_ptsrc_comp)
-                c_lnL => c
-             end select
-             
-             ! Add current point source to latest residual
-             if (self%myid == 0) then
-                a     = self%x(k,p)
-                theta = self%src(k)%theta(:,p)
-             end if
-             call mpi_bcast(a,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-             call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-             
-             do l = 1, numband
-                ! Compute mixing matrix
-                s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
-                do q = 1, self%src(k)%T(l)%np
-                   pix = self%src(k)%T(l)%pix(q,1)
-                   data(l)%res%map(pix,p) = data(l)%res%map(pix,p) + s*self%src(k)%T(l)%map(q,p) * a
+       do iter = 1, n_gibbs
+          if (self%myid == 0 .and. k<20) write(*,*) 'iter', iter, n_gibbs
+          do p = 1, self%nmaps
+             do k = 1, self%nsrc             
+                p_lnL       = p
+                k_lnL       = k
+                c           => compList     ! Extremely ugly hack...
+                do while (self%id /= c%id)
+                   c => c%next()
                 end do
-             end do
-
-             if (self%myid == 0) then
-                ! Perform non-linear search
-                allocate(x(1+self%npar))
-                x(1)                   = self%x(k,p)
-                if (self%apply_pos_prior .and. p == 1 .and. x(1) < 0.d0) x(1) = 0.d0
-                x(2:1+self%npar)       = self%src(k)%theta(:,p)
-                call powell(x, lnL_ptsrc_multi, ierr)
-                a                      = x(1)
-                theta                  = x(2:1+self%npar)
-                do l = 1, c_lnL%npar
-                   if (c_lnL%p_gauss(2,l) == 0.d0 .or. c_lnL%p_uni(1,l) == c_lnL%p_uni(2,l)) &
-                        & theta(l) = c_lnL%p_gauss(1,l)
-                end do
-                self%x(k,p)            = x(1)
-                self%src(k)%theta(:,p) = theta
-                deallocate(x)
+                select type (c)
+                class is (comm_ptsrc_comp)
+                   c_lnL => c
+                end select
                 
-                ! Release slaves
-                flag = 0
-                call mpi_bcast(flag, 1, MPI_INTEGER, 0, c_lnL%comm, ierr)
-             else
-                do while (.true.)
+                ! Add current point source to latest residual
+                if (self%myid == 0) then
+                   a     = self%x(k,p)
+                   theta = self%src(k)%theta(:,p)
+                end if
+                call mpi_bcast(a,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                
+                do l = 1, numband
+                   if (p == 1 .and. data(l)%pol_only) cycle
+                   if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
+                   ! Compute mixing matrix
+                   s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   do q = 1, self%src(k)%T(l)%np
+                      pix = self%src(k)%T(l)%pix(q,1)
+                      data(l)%res%map(pix,p) = data(l)%res%map(pix,p) + s*self%src(k)%T(l)%map(q,p) * a
+                   end do
+                end do
+                
+                if (self%myid == 0) then
+                   ! Perform non-linear search
+                   allocate(x(1+self%npar))
+                   x(1)                   = self%x(k,p)
+                   if (self%apply_pos_prior .and. p == 1 .and. x(1) < 0.d0) x(1) = 0.d0
+                   x(2:1+self%npar)       = self%src(k)%theta(:,p)
+                   call powell(x, lnL_ptsrc_multi, ierr)
+                   a                      = x(1)
+                   theta                  = x(2:1+self%npar)
+                   do l = 1, c_lnL%npar
+                      if (c_lnL%p_gauss(2,l) == 0.d0 .or. c_lnL%p_uni(1,l) == c_lnL%p_uni(2,l)) &
+                           & theta(l) = c_lnL%p_gauss(1,l)
+                   end do
+                   self%x(k,p)            = x(1)
+                   self%src(k)%theta(:,p) = theta
+                   deallocate(x)
+                   
+                   ! Release slaves
+                   flag = 0
                    call mpi_bcast(flag, 1, MPI_INTEGER, 0, c_lnL%comm, ierr)
-                   if (flag == 1) then
-                      chisq = lnL_ptsrc_multi()
-                   else
-                      exit
-                   end if
+                else
+                   do while (.true.)
+                      call mpi_bcast(flag, 1, MPI_INTEGER, 0, c_lnL%comm, ierr)
+                      if (flag == 1) then
+                         chisq = lnL_ptsrc_multi()
+                      else
+                         exit
+                      end if
+                   end do
+                end if
+                
+                ! Distribute updated parameters
+                call mpi_bcast(a,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+                self%src(k)%theta(:,p) = theta
+                
+                ! Update residuals
+                chisq = 0.d0
+                n_pix = 0
+                do l = 1, numband
+                   s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   if (p == 1 .and. data(l)%pol_only) cycle
+                   if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
+                   do q = 1, self%src(k)%T(l)%np
+                      pix = self%src(k)%T(l)%pix(q,1)
+                      data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
+                      if (data(l)%N%rms_pix(pix,p) > 0.d0) then
+                         chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
+                         n_pix = n_pix + 1
+                      end if
+                   end do
                 end do
-             end if
-
-             ! Distribute updated parameters
-             call mpi_bcast(a,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-             call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-             self%src(k)%theta(:,p) = theta
-             
-             ! Update residuals
-             chisq = 0.d0
-             n_pix = 0
-             do l = 1, numband
-                s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
-                if (p == 1 .and. data(l)%pol_only) cycle
-                if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
-                do q = 1, self%src(k)%T(l)%np
-                   pix = self%src(k)%T(l)%pix(q,1)
-                   data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
-                   if (data(l)%N%rms_pix(pix,p) > 0.d0) then
-                      chisq = chisq + data(l)%res%map(pix,p)**2 / data(l)%N%rms_pix(pix,p)**2
-                      n_pix = n_pix + 1
-                   end if
-                end do
+                
+                call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+                call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
+                if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
+                
+                if (self%myid == 0 .and. k<20) write(*,*) k, real(a,sp), &
+                     & real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
              end do
-             
-             call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
-             call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
-             if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
-
-             if (self%myid == 0 .and. mod(k,1000)==0) write(*,*) k, real(a,sp), &
-                  & real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
           end do
        end do
        deallocate(theta)
-
+       
        ! Update mixing matrix
        call self%updateMixmat
        
@@ -1856,7 +1868,7 @@ contains
              if (k == 3499 .and. self%myid == 0) write(*,*) 'chisq_tot = ', chisq_tot, n_pix_tot, self%src(k)%red_chisq
 
              !if (self%myid == 0) write(*,*) 'amp = ', real(amp(k,p),sp), real(mu,sp), real(sigma,sp)
-             if (self%myid == 0 .and. k == self%nsrc) write(68,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
+             if (self%myid == 0 .and. k == 1) write(68,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              !if (self%myid == 0 .and. iter==n_gibbs) write(*,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              
           end do
@@ -1936,6 +1948,7 @@ contains
 
     lnL = 0.d0
     do l = 1, numband
+       if (p_lnL == 1 .and. data(l)%pol_only) cycle
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           
        ! Compute mixing matrix

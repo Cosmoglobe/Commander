@@ -996,6 +996,8 @@ contains
        self%bp_delta = delta(:,:,1)
 
        ! Output maps to disk
+!!$       if (self%myid == 0) write(*,*) 'Boosting rms 5x'
+!!$       rms_out%map = 5*rms_out%map 
        call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
        call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 

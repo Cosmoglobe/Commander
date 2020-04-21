@@ -1775,6 +1775,13 @@ contains
        end do       
     end if
 
+
+!!$       if (trim(self%label)=='dust') then
+!!$          call self%theta(2)%p%writeFITS("test.fits")
+!!$          call mpi_finalize(i)
+!!$          stop
+!!$       end if
+
     !if (trim(self%label) == 'dust') write(*,*) 'range beta = ', minval(self%theta(1)%p%map), maxval(self%theta(1)%p%map)
     call self%updateMixmat
 

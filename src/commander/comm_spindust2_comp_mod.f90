@@ -3,9 +3,9 @@ module comm_spindust2_comp_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
   use comm_map_mod
-  use comm_F_int_1D_mod
+  use comm_F_int_2D_mod
   use comm_data_mod
-  use spline_1D_mod
+  use spline_2D_mod
   implicit none
 
   private
@@ -75,7 +75,7 @@ contains
           ! Read map from FITS file, and convert to alms
           constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
        end if
-       if (constructor%lmax_ind >= 0) call constructor%theta(1)%p%YtW_scalar
+       if (constructor%lmax_ind >= 0) call constructor%theta(i)%p%YtW_scalar
     end do
 
     ! Initialize spectral template !CHANGE??
@@ -99,7 +99,7 @@ contains
                    cycle
                 end if
              end if
-             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
+             constructor%F_int(k,i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
           end do
        end do
     end do
@@ -131,7 +131,7 @@ contains
     nu_p    = theta(1)
     alpha   = theta(2)
     scale   = self%nu_p0 / (nu_p*1.d9) ! nu_p is in GHz
-
+    
     if (scale*nu < self%nu_min .or. scale*nu > self%nu_max) then
        evalSED = 0.d0
     else

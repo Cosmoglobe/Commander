@@ -229,9 +229,11 @@ contains
                 ! Sample new alms (Account for poltype)
                 alms(i,:,:) = alms(i-1,:,:)
                 do pl = 1, c%theta(j)%p%info%nmaps
-                   
-                   if (mod(i,2) == 1 .and. pl == 1) cycle
-                   if (mod(i,2) == 0 .and. pl >  1) cycle
+
+                   if (.false. .and. c%theta(j)%p%info%nmaps > 1) then
+                      if (mod(i,2) == 1 .and. pl == 1) cycle
+                      if (mod(i,2) == 0 .and. pl >  1) cycle
+                   end if
                    
                    ! if sample only pol, skip T
                    if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
@@ -253,7 +255,7 @@ contains
                       ! Steplen(1:) = 0.1*steplen(0)
                       !rgs(0) = steplen*rand_gauss(handle)     
                       do p = 0, c%nalm_tot-1
-                         rgs(p) = steplen*rand_gauss(handle)     
+                         rgs(p) = steplen*rand_gauss(handle)
                       end do
                       alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
                       !write(*,*) "Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI)
@@ -312,19 +314,26 @@ contains
 
 
                    chisq(i) = chisq(i) + chisq_prior
-
                    diff = chisq(i-1)-chisq(i)
                    !write(*,*) "diff: ", diff, chisq(i), chisq(i-1)
                    !write(*,fmt='(i6,3f12.2)') i, chisq(i), chisq(i-1), alms(i,0,pl)/sqrt(4*pi)
                    if ( chisq(i) > chisq(i-1) ) then             
                       ! Small chance of accepting this too
                       ! Avoid getting stuck in local mminimum
-
                       accepted = (rand_uni(handle) < exp(0.5d0*diff))
                    else
                       accepted = .true.
                    end if
                    
+                   ! Output log to file
+                   if (diff > 0) then
+                      write(69, *) iter, i, chisq(i), alms(i,:,:)/sqrt(4*pi), 1
+                      write(*, *) iter, i, chisq(i-1), alms(i-1,0,1)/sqrt(4*pi), chisq(i), alms(i,0,1)/sqrt(4*pi), diff, 1
+                   else
+                      write(69, *) iter, i, chisq(i), alms(i,:,:)/sqrt(4*pi), exp(0.5d0*diff)
+                      write(*, *) iter, i, chisq(i-1), alms(i-1,0,1)/sqrt(4*pi), chisq(i), alms(i,0,1)/sqrt(4*pi), diff, exp(0.5d0*diff)
+                   end if
+
                    ! Count accepted and assign chisq values
                    if (accepted) then
                       !write(*,*) "accepted"
@@ -348,8 +357,6 @@ contains
                                 
 
                 if (info%myid == 0) then 
-                   ! Output log to file
-                   write(69, *) iter, i, chisq(i), alms(i,:,:)
 
                    ! Write to screen every out_every'th
                    if (mod(i,out_every) == 0) then
@@ -555,6 +562,13 @@ contains
                 data(i)%res%map = data(i)%res%map + m
                 deallocate(m)
              end do
+          ELSE
+             do i = 1, numband
+                call int2string(i, itext)
+                call data(i)%res%writeFITS("res"//itext//".fits")
+             end do
+!!$             call mpi_finalize(ierr)
+!!$             stop
           end if
 
           ! Set up smoothed data
