@@ -163,18 +163,18 @@ contains
              
              ! Params
              write(jtext, fmt = '(I1)') j ! Create j string
-             out_every = 5
-             check_every = 25
-             nsamp = 2000
-             thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
+             out_every = 10
+             check_every = 100
+             nsamp = 500
+
+             !thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
              corrlen_init = 1
+             if (info%myid == 0 .and. c%L_read(j)) c%steplen = 0.3d0
              if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
              call mpi_bcast(nsamp, 1, MPI_INTEGER, 0, c%comm, ierr)
 
              ! Static variables
-             num_accepted = 0
              doexit = .false.
-             
              
              allocate(chisq(0:nsamp))
              allocate(alms(0:nsamp, 0:c%nalm_tot-1,info%nmaps))                         
@@ -252,6 +252,8 @@ contains
 
                 ! Sample new alms (Account for poltype)
                 !alms(i,:,:) = alms(i-1,:,:) ! 0.0???
+                num_accepted = 0
+                chisq(1:) = 0.d0
                 do i = 1, nsamp                   
                    
                    ! Gather alms from threads to alms array with correct indices
@@ -270,7 +272,10 @@ contains
                       do p = 0, c%nalm_tot-1
                          rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                       end do
+                      !write(*,*) "steplen", c%steplen(pl,j), "cholesky", c%L(:,:,pl,j)
+                      !write(*,*) "alms", alms(i-1,:,pl)
                       alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
+                      !write(*,*) alms(i,:,pl) - alms(i-1,:,pl)
                       !write(*,*) "Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI)
 
                       ! Adding prior
@@ -284,8 +289,8 @@ contains
                       end if
                       
                       ! Prior adjustments (Nessecary because of loop adjustment)
-                      if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
-                      if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior*2.d0
+                      !if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
+                      !if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior*2.d0
                    end if
                    
                    ! Broadcast proposed alms from root
@@ -405,7 +410,7 @@ contains
 
 
                          ! Write to screen
-                         write(*, fmt='(a, i6, a, f8.2, a, f5.3)') tag, i, " - diff last 25:  ", diff, " - accept rate: ", accept_rate
+                         write(*, fmt='(a, i6, a, f8.2, a, f5.3)') tag, i, " - diff last 100:  ", diff, " - accept rate: ", accept_rate
 
                          ! Adjust steplen in tuning iteration
                          if ( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
@@ -423,10 +428,10 @@ contains
                          end if
 
                          ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
-                         if (c%corrlen(j,pl) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
-                            doexit = .true.
-                            write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
-                         end if
+                         !if (c%corrlen(j,pl) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
+                         !   doexit = .true.
+                         !   write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
+                         !end if
                       end if
                    end if
 
@@ -459,11 +464,11 @@ contains
                       do p = 0, c%nalm_tot-1
                          N(:) = 0
                          C_(:) = 0.d0
-                         alms_mean = mean(alms(:i,p,pl))
-                         alms_var = variance(alms(:i,p,pl))
-                         do q = 1, i
+                         alms_mean = mean(alms(:,p,pl))
+                         alms_var = variance(alms(:,p,pl))
+                         do q = 1, nsamp
                             do k = 1, delta
-                               if (q+k > i) cycle
+                               if (q+k > nsamp) cycle
                                C_(k) = C_(k) + (alms(q,p,pl)-alms_mean)*(alms(q+k,p,pl)-alms_mean)
                                N(k) = N(k) + 1 ! Less samples every q
                             end do
@@ -485,24 +490,23 @@ contains
                    end do
                    close(58)
                    deallocate(C_, N)
-                else 
-                   ! If L does not exist yet, calculate
-                   write(*,*) 'Calculating cholesky matrix'
-                   do p = 1, c%theta(j)%p%info%nmaps
-                      call compute_covariance_matrix(alms(INT(i/2):i,0:c%nalm_tot-1,p), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,p,j), .true.)
-                   end do
-                   c%L_read(j) = .true. ! L now exists!
-                end if
 
-                ! If both corrlen and L have been calulated then output
-                if (c%L_read(j)) then
+                   ! If both corrlen and L have been calulated then output
                    filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_par'//trim(jtext)//'.dat'
-
                    open(58, file=filename, recl=10000)
                    write(58,*) c%corrlen(j,:)
                    write(58,*) c%L(:,:,:,j)
                    close(58)
+                else 
+                   ! If L does not exist yet, calculate
+                   write(*,*) 'Calculating cholesky matrix'
+                   do p = 1, c%theta(j)%p%info%nmaps
+                      call compute_covariance_matrix(alms(INT(nsamp/2):nsamp,0:c%nalm_tot-1,p), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,p,j), .true.)
+                   end do
+                   c%L_read(j) = .true. ! L now exists!
+                   write(*,*) "Cholesky matrix", c%L_read(j)
                 end if
+
              end if
 
              if (info%myid == 0) close(69)   
