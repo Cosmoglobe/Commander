@@ -359,19 +359,19 @@ contains
 !!$         g(:,j,1) = g_smooth - mean(g_smooth)
 !!$         deallocate(g_smooth)
 
-!!$         mu  = 0.d0
-!!$         denom = 0.d0
-!!$         do k = 1, nscan_tot
-!!$            if (g(k, j, 2) <= 0.d0) cycle
-!!$            mu         = mu + g(k, j, 1)! * g(k,j,2)
-!!$            denom      = denom + 1.d0! * g(k,j,2)
-!!$!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
-!!$         end do
-!!$         mu = mu / denom
-!!$
-!!$         ! Make sure fluctuations sum up to zero
-!!$         !write(*,*) 'mu = ', mu
-!!$         g(:,j,1) = g(:,j,1) - mu
+         mu  = 0.d0
+         denom = 0.d0
+         do k = 1, nscan_tot
+            if (g(k, j, 2) <= 0.d0) cycle
+            mu         = mu + g(k, j, 1)! * g(k,j,2)
+            denom      = denom + 1.d0! * g(k,j,2)
+!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
+         end do
+         mu = mu / denom
+
+         ! Make sure fluctuations sum up to zero
+         !write(*,*) 'mu = ', mu
+         g(:,j,1) = g(:,j,1) - mu
        end do
 !!$       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
 !!$       do j = 1, ndet
