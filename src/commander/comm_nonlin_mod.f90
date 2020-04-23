@@ -130,6 +130,7 @@ contains
     real(dp),          allocatable, dimension(:,:,:)  :: alms
     real(dp),          allocatable, dimension(:,:)    :: m
     real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, N, C_
+    integer(c_int),    allocatable, dimension(:)      :: maxit
 
     ! Sample spectral parameters for each signal component
     allocate(status_fit(numband))
@@ -165,9 +166,12 @@ contains
              write(jtext, fmt = '(I1)') j ! Create j string
              out_every = 10
              check_every = 100
-             nsamp = 500
+             nsamp = 2000
 
-             !thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
+             nsamp = 50
+
+             thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
+
              corrlen_init = 1
              if (info%myid == 0 .and. c%L_read(j)) c%steplen = 0.3d0
              if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
@@ -179,6 +183,8 @@ contains
              allocate(chisq(0:nsamp))
              allocate(alms(0:nsamp, 0:c%nalm_tot-1,info%nmaps))                         
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
+             allocate(maxit(info%nmaps)) ! maximum iteration 
+             maxit = 0
 
              if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', recl=10000)
             
@@ -289,8 +295,8 @@ contains
                       end if
                       
                       ! Prior adjustments (Nessecary because of loop adjustment)
-                      !if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
-                      !if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior*2.d0
+                      if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
+                      if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior*2.d0
                    end if
                    
                    ! Broadcast proposed alms from root
@@ -428,17 +434,32 @@ contains
                          end if
 
                          ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
-                         !if (c%corrlen(j,pl) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
-                         !   doexit = .true.
-                         !   write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
-                         !end if
+                         if (c%corrlen(j,pl) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
+                            doexit = .true.
+                            write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
+                         end if
                       end if
                    end if
 
-                   if (i == nsamp .and. info%myid == 0) write(*,*) "nsamp samples reached", nsamp
-
                    call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
-                   if (doexit) exit
+                   if (doexit .or. i == nsamp) then
+                      if (info%myid == 0 .and. i == nsamp) write(*,*) "nsamp samples reached", nsamp
+
+                      ! Save max iteration for this signal
+                      if (c%poltype(j) == 1) then
+                         maxit(:) = i 
+                      else if (c%poltype(j) == 2) then
+                         if (pl==1) then
+                            maxit(pl) = i
+                         else
+                            maxit(pl:) = i
+                         end if
+                      else 
+                         maxit(pl) = i
+                      end if
+                      
+                      exit
+                   end if
                 end do
              end do
 
@@ -466,9 +487,9 @@ contains
                          C_(:) = 0.d0
                          alms_mean = mean(alms(:,p,pl))
                          alms_var = variance(alms(:,p,pl))
-                         do q = 1, nsamp
+                         do q = 1, maxit(pl)
                             do k = 1, delta
-                               if (q+k > nsamp) cycle
+                               if (q+k > maxit(pl)) cycle
                                C_(k) = C_(k) + (alms(q,p,pl)-alms_mean)*(alms(q+k,p,pl)-alms_mean)
                                N(k) = N(k) + 1 ! Less samples every q
                             end do
@@ -500,11 +521,11 @@ contains
                 else 
                    ! If L does not exist yet, calculate
                    write(*,*) 'Calculating cholesky matrix'
-                   do p = 1, c%theta(j)%p%info%nmaps
-                      call compute_covariance_matrix(alms(INT(nsamp/2):nsamp,0:c%nalm_tot-1,p), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,p,j), .true.)
+                   do pl = 1, c%theta(j)%p%info%nmaps
+                      if (maxit(pl) == 0) cycle ! Cycle if not sampled
+                      call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
                    end do
                    c%L_read(j) = .true. ! L now exists!
-                   write(*,*) "Cholesky matrix", c%L_read(j)
                 end if
 
              end if
