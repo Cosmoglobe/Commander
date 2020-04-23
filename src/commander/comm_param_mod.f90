@@ -1310,7 +1310,7 @@ contains
           case ('freefree')
 !!$             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
 !!$                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
-             if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))             
           case ('line')
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))

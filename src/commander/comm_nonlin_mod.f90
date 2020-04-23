@@ -120,6 +120,7 @@ contains
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext, jtext
+    character(len=3) :: tag
     character(len=512) :: filename
 
     logical :: accepted, exist, doexit
@@ -129,6 +130,7 @@ contains
     real(dp),          allocatable, dimension(:,:,:)  :: alms
     real(dp),          allocatable, dimension(:,:)    :: m
     real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, N, C_
+    integer(c_int),    allocatable, dimension(:)      :: maxit
 
     ! Sample spectral parameters for each signal component
     allocate(status_fit(numband))
@@ -165,20 +167,22 @@ contains
              out_every = 10
              check_every = 100
              nsamp = 2000
-             thresh = 20.d0 ! 40.d0
-             steplen = 0.3d0
+
+             thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
+
              corrlen_init = 1
+             if (info%myid == 0 .and. c%L_read(j)) c%steplen = 0.3d0
              if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
              call mpi_bcast(nsamp, 1, MPI_INTEGER, 0, c%comm, ierr)
 
              ! Static variables
-             num_accepted = 0
              doexit = .false.
-             
              
              allocate(chisq(0:nsamp))
              allocate(alms(0:nsamp, 0:c%nalm_tot-1,info%nmaps))                         
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
+             allocate(maxit(info%nmaps)) ! maximum iteration 
+             maxit = 0
 
              if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', recl=10000)
             
@@ -217,27 +221,44 @@ contains
                       end do
                    end if
                    chisq(0) = chisq(0) + chisq_prior
+
                 end do
                 
                 ! Output init sample
                 write(*,fmt='(a, i6, a, f16.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
              end if
 
-             do i = 1, nsamp
+             do pl = 1, c%theta(j)%p%info%nmaps
+                ! if sample only pol, skip T
+                if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
                 
-                chisq_prior = 0.d0
+                ! p already calculated if larger than poltype 
+                if (pl > c%poltype(j)) cycle
+
+                ! Get sampling tag
+                if (c%poltype(j) == 1) then
+                   tag = "TQU"
+                else if (c%poltype(j) == 2) then
+                   if (pl == 1) then
+                      tag = "T"
+                   else
+                      tag = "QU"
+                   end if
+                else if (c%poltype(j) == 3) then
+                   if (pl == 1) then
+                      tag = "T"
+                   else if (pl == 2) then
+                      tag = "Q"
+                   else if (pl == 3) then
+                      tag = "U"
+                   end if
+                end if
+
                 ! Sample new alms (Account for poltype)
-                alms(i,:,:) = alms(i-1,:,:)
-                do pl = 1, c%theta(j)%p%info%nmaps
-                   
-                   if (mod(i,2) == 1 .and. pl == 1) cycle
-                   if (mod(i,2) == 0 .and. pl >  1) cycle
-                   
-                   ! if sample only pol, skip T
-                   if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
-                   
-                   ! p already calculated if larger than poltype ( smart ;) )
-                   if (pl > c%poltype(j)) cycle
+                !alms(i,:,:) = alms(i-1,:,:) ! 0.0???
+                num_accepted = 0
+                chisq(1:) = 0.d0
+                do i = 1, nsamp                   
                    
                    ! Gather alms from threads to alms array with correct indices
                    call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
@@ -253,18 +274,27 @@ contains
                       ! Steplen(1:) = 0.1*steplen(0)
                       !rgs(0) = steplen*rand_gauss(handle)     
                       do p = 0, c%nalm_tot-1
-                         rgs(p) = steplen*rand_gauss(handle)     
+                         rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                       end do
+                      !write(*,*) "steplen", c%steplen(pl,j), "cholesky", c%L(:,:,pl,j)
+                      !write(*,*) "alms", alms(i-1,:,pl)
                       alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
-                      
+                      !write(*,*) alms(i,:,pl) - alms(i-1,:,pl)
+                      !write(*,*) "Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI)
+
                       ! Adding prior
                       ! Currently applying same prior on all signals
                       !chisq_prior = chisq_prior + ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                      chisq_prior = 0.d0
                       if (c%nalm_tot > 1) then
                          do p = 1, c%nalm_tot-1
                             chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
                          end do
                       end if
+                      
+                      ! Prior adjustments (Nessecary because of loop adjustment)
+                      if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
+                      if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior*2.d0
                    end if
                    
                    ! Broadcast proposed alms from root
@@ -282,7 +312,7 @@ contains
                       end do
                    else if (c%poltype(j) == 2) then ! {T,E+B}
                       if (pl == 1) then
-                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, 1)
+                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
                       else
                          do q = 2, c%theta(j)%p%info%nmaps
                             alms(i,:,q) = alms(i,:,pl)
@@ -292,105 +322,143 @@ contains
                    else if (c%poltype(j) == 3) then ! {T,E,B}
                       call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
                    end if
-                end do
                 
-                ! Update mixing matrix with new alms
-                call c%updateMixmat
-                
-                ! Calculate proposed chisq
-                if (allocated(c%indmask)) then
-                   call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask)
-                else
-                   call compute_chisq(c%comm, chisq_fullsky=chisq(i))
-                end if
-                
-                ! Accept/reject test
-                ! Reset accepted bool
-                accepted = .false.
-                if (info%myid == 0) then
-                   chisq(i) = chisq(i) + chisq_prior
-                   !write(*,fmt='(i6,3f12.2)') i, chisq(i), chisq(i-1), alms(i,0,pl)/sqrt(4*pi)
-                   if ( chisq(i) > chisq(i-1) ) then                 
-                      ! Small chance of accepting this too
-                      ! Avoid getting stuck in local mminimum
+                   ! Update mixing matrix with new alms
+                   call c%updateMixmat
+
+                   ! Calculate proposed chisq
+                   if (allocated(c%indmask)) then
+                      call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask)
+                   else
+                      call compute_chisq(c%comm, chisq_fullsky=chisq(i))
+                   end if
+
+                   ! Accept/reject test
+                   ! Reset accepted bool
+                   accepted = .false.
+                   if (info%myid == 0) then
+
+                      ! ??? Could be problem
+                      chisq(i) = chisq(i) + chisq_prior
+
                       diff = chisq(i-1)-chisq(i)
-                      accepted = (rand_uni(handle) < exp(0.5d0*diff))
-                   else
-                      accepted = .true.
-                   end if
-                   
-                   ! Count accepted and assign chisq values
-                   if (accepted) then
-                      num_accepted = num_accepted + 1
-                   else
-                      chisq(i) = chisq(i-1)
-                   end if
-                end if
-                
-                ! Broadcast result of accept/reject test
-                call mpi_bcast(accepted, 1, MPI_LOGICAL, 0, c%comm, ierr)
-                
-                if (.not. accepted) then
-                   ! If rejected, restore old values and send to 
-                   do pl = 1, c%theta(j)%p%info%nmaps
-                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, info%lm, i-1, pl, pl)
-                   end do
-                   alms(i,:,:) = alms(i-1,:,:)
-                   call c%updateMixmat                                   
-                end if
-                                
+                      !write(*,*) "diff: ", diff, chisq(i), chisq(i-1)
+                      !write(*,fmt='(i6,3f12.2)') i, chisq(i), chisq(i-1), alms(i,0,pl)/sqrt(4*pi)
+                      if ( chisq(i) > chisq(i-1) ) then             
+                         ! Small chance of accepting this too
+                         ! Avoid getting stuck in local mminimum
+                         accepted = (rand_uni(handle) < exp(0.5d0*diff))
+                      else
+                         accepted = .true.
+                      end if
 
-                if (info%myid == 0) then 
-                   ! Output log to file
-                   write(69, *) iter, i, chisq(i), alms(i,:,:)
-
-                   ! Write to screen every out_every'th
-                   if (mod(i,out_every) == 0) then
-                      call wall_time(t2)
-                      diff = chisq(i-out_every) - chisq(i) ! Output diff
-                      ts = (t2-t1)/DFLOAT(out_every) ! Average time per sample
-                      write(*,fmt='(a,i6, a, f16.2, a, f10.2, a, f7.2, a, 3f7.2)') "- sample: ", i, " - chisq: " , chisq(i), " - diff: ", diff, " - time/sample: ", ts, " - a_00: ", alms(i,0,:)/sqrt(4.d0*PI)
-                      call wall_time(t1)
+                      ! Count accepted and assign chisq values
+                      if (accepted) then
+                         !write(*,*) "accepted ", i," Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI), " diff ", diff
+                         num_accepted = num_accepted + 1
+                      else
+                         chisq(i) = chisq(i-1)
+                      end if
                    end if
 
-                   ! Adjust learning rate every check_every'th
-                   if (mod(i, check_every) == 0) then
-                      ! Accept rate
-                      accept_rate = num_accepted/FLOAT(check_every)
-                      num_accepted = 0
-                   
-                      diff = chisq(i-check_every)-chisq(i)
-                   
-                      ! Write to screen
-                      write(*, fmt='(a, i6, a, f8.2, a, f5.3)') "# sample: ", i, " - diff last 30:  ", diff, " - accept rate: ", accept_rate
-                   
-                      ! Adjust steplen in tuning iteration
-                      if (.not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
-                         if (accept_rate < 0.2) then                 
-                            steplen = steplen*0.5d0
-                            write(*,fmt='(a,f10.5)') "Reducing steplen -> ", steplen
-                         else if (accept_rate > 0.45 .and. accept_rate < 0.55) then
-                            steplen = steplen*2.0d0
-                            write(*,fmt='(a,f10.5)') "Equilibrium - Increasing steplen -> ", steplen
-                         else if (accept_rate > 0.8) then
-                            steplen = steplen*2.d0
-                            write(*,fmt='(a,f10.5)') "Increasing steplen -> ", steplen
+                   ! Broadcast result of accept/reject test
+                   call mpi_bcast(accepted, 1, MPI_LOGICAL, 0, c%comm, ierr)
+
+                   if (.not. accepted) then
+                      ! If rejected, restore old values and send to 
+                      if (c%poltype(j) == 1) then      ! {T+E+B}
+                         do q = 1, c%theta(j)%p%info%nmaps
+                            alms(i,:,q) = alms(i-1,:,pl) ! Save to all mapsb
+                            call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, q, q)
+                         end do
+                      else if (c%poltype(j) == 2) then ! {T,E+B}
+                         if (pl == 1) then
+                            alms(i,:,pl) = alms(i-1,:,pl) 
+                            call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, 1)
+                         else
+                            do q = 2, c%theta(j)%p%info%nmaps
+                               alms(i,:,q) = alms(i-1,:,pl)
+                               call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, q, q)                            
+                            end do
+                         end if
+                      else if (c%poltype(j) == 3) then ! {T,E,B}
+                         alms(i,:,pl) = alms(i-1,:,pl)
+                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, pl)
+                      end if
+
+                      call c%updateMixmat                                   
+                   end if
+
+
+                   if (info%myid == 0) then 
+                      ! Output log to file
+                      write(69, *) iter, tag, i, chisq(i), alms(i,:,pl)
+
+                      ! Write to screen every out_every'th
+                      if (mod(i,out_every) == 0) then
+                         call wall_time(t2)
+                         diff = chisq(i-out_every) - chisq(i) ! Output diff
+                         ts = (t2-t1)/DFLOAT(out_every) ! Average time per sample
+                         write(*,fmt='(a,i6, a, f16.2, a, f10.2, a, f7.2, a, 3f7.2)') tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - time/sample: ", ts, " - a_00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                         call wall_time(t1)
+                      end if
+
+                      ! Adjust learning rate every check_every'th
+                      if (mod(i, check_every) == 0) then
+                         diff = chisq(i-check_every)-chisq(i)                  
+
+                         ! Accept rate
+                         accept_rate = num_accepted/FLOAT(check_every)
+                         !write(*,*) " numacc ", num_accepted, " checkevery ", FLOAT(check_every), " ar ", accept_rate, " diff ", diff
+                         num_accepted = 0
+
+
+                         ! Write to screen
+                         write(*, fmt='(a, i6, a, f8.2, a, f5.3)') tag, i, " - diff last 100:  ", diff, " - accept rate: ", accept_rate
+
+                         ! Adjust steplen in tuning iteration
+                         if ( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
+
+                            if (accept_rate < 0.2) then                 
+                               c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
+                               write(*,fmt='(a,f10.5)') "Reducing steplen -> ", c%steplen(pl,j)
+                            else if (accept_rate > 0.45 .and. accept_rate < 0.55) then
+                               c%steplen(pl,j) = c%steplen(pl,j)*2.0d0
+                               write(*,fmt='(a,f10.5)') "Equilibrium - Increasing steplen -> ", c%steplen(pl,j)
+                            else if (accept_rate > 0.8) then
+                               c%steplen(pl,j) = c%steplen(pl,j)*2.d0
+                               write(*,fmt='(a,f10.5)') "Increasing steplen -> ", c%steplen(pl,j)
+                            end if
+                         end if
+
+                         ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
+                         if (c%corrlen(j,pl) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
+                            doexit = .true.
+                            write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
                          end if
                       end if
+                   end if
 
-                      ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
-                      if (maxval(c%corrlen(j,:)) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
-                         doexit = .true.
-                         write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
+                   call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
+                   if (doexit .or. i == nsamp) then
+                      if (info%myid == 0 .and. i == nsamp) write(*,*) "nsamp samples reached", nsamp
+
+                      ! Save max iteration for this signal
+                      if (c%poltype(j) == 1) then
+                         maxit(:) = i 
+                      else if (c%poltype(j) == 2) then
+                         if (pl==1) then
+                            maxit(pl) = i
+                         else
+                            maxit(pl:) = i
+                         end if
+                      else 
+                         maxit(pl) = i
                       end if
-                   end if                   
-                end if                
-                
-                if (i == nsamp .and. info%myid == 0) write(*,*) "nsamp samples reached", nsamp
-
-                call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
-                if (doexit) exit
-                
+                      
+                      exit
+                   end if
+                end do
              end do
 
              if (info%myid == 0) close(58)
@@ -415,11 +483,11 @@ contains
                       do p = 0, c%nalm_tot-1
                          N(:) = 0
                          C_(:) = 0.d0
-                         alms_mean = mean(alms(:i,p,pl))
-                         alms_var = variance(alms(:i,p,pl))
-                         do q = 1, i
+                         alms_mean = mean(alms(:,p,pl))
+                         alms_var = variance(alms(:,p,pl))
+                         do q = 1, maxit(pl)
                             do k = 1, delta
-                               if (q+k > i) cycle
+                               if (q+k > maxit(pl)) cycle
                                C_(k) = C_(k) + (alms(q,p,pl)-alms_mean)*(alms(q+k,p,pl)-alms_mean)
                                N(k) = N(k) + 1 ! Less samples every q
                             end do
@@ -441,24 +509,23 @@ contains
                    end do
                    close(58)
                    deallocate(C_, N)
-                else 
-                   ! If L does not exist yet, calculate
-                   write(*,*) 'Calculating cholesky matrix'
-                   do p = 1, c%theta(j)%p%info%nmaps
-                      call compute_covariance_matrix(alms(INT(i/2):i,0:c%nalm_tot-1,p), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,p,j), .true.)
-                   end do
-                   c%L_read(j) = .true. ! L now exists!
-                end if
 
-                ! If both corrlen and L have been calulated then output
-                if (c%L_read(j)) then
+                   ! If both corrlen and L have been calulated then output
                    filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_par'//trim(jtext)//'.dat'
-
                    open(58, file=filename, recl=10000)
                    write(58,*) c%corrlen(j,:)
                    write(58,*) c%L(:,:,:,j)
                    close(58)
+                else 
+                   ! If L does not exist yet, calculate
+                   write(*,*) 'Calculating cholesky matrix'
+                   do pl = 1, c%theta(j)%p%info%nmaps
+                      if (maxit(pl) == 0) cycle ! Cycle if not sampled
+                      call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
+                   end do
+                   c%L_read(j) = .true. ! L now exists!
                 end if
+
              end if
 
              if (info%myid == 0) close(69)   
@@ -546,6 +613,13 @@ contains
                 data(i)%res%map = data(i)%res%map + m
                 deallocate(m)
              end do
+          ELSE
+             do i = 1, numband
+                call int2string(i, itext)
+                call data(i)%res%writeFITS("res"//itext//".fits")
+             end do
+!!$             call mpi_finalize(ierr)
+!!$             stop
           end if
 
           ! Set up smoothed data

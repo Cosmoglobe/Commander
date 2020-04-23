@@ -582,13 +582,13 @@ contains
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
 
-          call wall_time(t9)
+         !  call wall_time(t9)
           ! Construct zodical light template
           if (do_oper(sub_zodi)) then
              call compute_zodi_template(self%nside, pix, self%scans(i)%satpos, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
           end if
-          call wall_time(t10)
-          print *, "Zodi template took :", t10-t9, "sec"
+         !  call wall_time(t10)
+         !  print *, "Zodi template took :", t10-t9, "sec"
 
           ! Construct sidelobe template
           call wall_time(t1)
@@ -697,6 +697,9 @@ contains
                 end if
              end do
              call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
+!!$             do j = 1, ndet
+!!$                n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
+!!$             end do
              call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
              n_corr = 0.
@@ -784,7 +787,7 @@ contains
                 if (do_oper(bin_map) .and. do_oper(samp_mono) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
                 if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
                 if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
-                if (do_oper(bin_map) .and. nout > 7) d_calib(8,:,j) = s_zodi(:,j)
+                if (do_oper(bin_map) .and. nout > 7 .and. do_oper(sub_zodi)) d_calib(8,:,j) = s_zodi(:,j)
 
                 if (do_oper(prep_relbp)) then
                    do k = 2, ndelta
@@ -993,6 +996,8 @@ contains
        self%bp_delta = delta(:,:,1)
 
        ! Output maps to disk
+!!$       if (self%myid == 0) write(*,*) 'Boosting rms 5x'
+!!$       rms_out%map = 5*rms_out%map 
        call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
        call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 

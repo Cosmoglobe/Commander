@@ -872,6 +872,11 @@ contains
       allocate(map(0:npix-1,nmaps))
       if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), map)
       call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+!!$      if (self%info%myid == 0) then
+!!$         call write_map2("test2.fits", map)
+!!$      end if
+!!$      call mpi_finalize(ierr)
+!!$      stop
       do i = 1, nmaps
          self%map(:,i) = map(self%info%pix,i)
       end do

@@ -27,7 +27,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot
 
-     real(dp),     allocatable, dimension(:,:)   :: sigma_priors
+     real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
      logical(lgt),    dimension(:), allocatable :: L_read
@@ -222,7 +222,7 @@ contains
        ! Read map from FITS file, and convert to alms
        self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
        do i = 1, self%x%info%nmaps
-          self%x%map(:,i) = self%x%map(:,i) / self%RJ2unit_(i)
+          self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale)
        end do
        call self%x%YtW
     end if
@@ -359,7 +359,7 @@ contains
 
     self%nalm_tot = (self%lmax_ind + 1)**2
 
-    ! Init smooth priors
+    ! Init smooth prior
     allocate(self%sigma_priors(0:self%nalm_tot-1,self%npar)) !a_00 is given by different one
 
     fwhm_prior = 1200.d0
@@ -384,8 +384,10 @@ contains
     end do
 
     ! Initialize cholesky matrix
-    allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))                         
+    allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))           
+    allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
     self%L = 0.d0
+    self%steplen = 0.3d0
 
     ! Filename formatting
     do j = 1, self%npar
@@ -395,13 +397,13 @@ contains
        inquire(file=filename, exist=exist)
        if (exist) then ! If present cholesky file
           self%L_read(j) = .true.
-          !if (info%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
+          if (self%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
           open(unit=11, file=filename, recl=10000)
           read(11,*) self%corrlen(j,:)
           read(11,*) self%L(:,:,:,j)
           close(11)
        else
-          !if (info%myid == 0) write(*,*) "No cholesky matrix found for paremeter ", j       
+          if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter ", j       
           do p = 0, self%nalm_tot-1
              self%L(p,p,:,j) = self%sigma_priors(p,j)
           end do
@@ -1774,6 +1776,13 @@ contains
           end if
        end do       
     end if
+
+
+!!$       if (trim(self%label)=='dust') then
+!!$          call self%theta(2)%p%writeFITS("test.fits")
+!!$          call mpi_finalize(i)
+!!$          stop
+!!$       end if
 
     !if (trim(self%label) == 'dust') write(*,*) 'range beta = ', minval(self%theta(1)%p%map), maxval(self%theta(1)%p%map)
     call self%updateMixmat

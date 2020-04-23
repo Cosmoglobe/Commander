@@ -720,8 +720,8 @@ contains
     real(dp),                       dimension(0:,1:), intent(in)  :: bl
     type(spline_type), allocatable, dimension(:),     intent(out) :: br
 
-    integer(i4b)  :: i, j, m, n, l, lmax
-    real(dp)      :: theta_max, threshold
+    integer(i4b)  :: i, j, m, n, l, lmax, i_1pct
+    real(dp)      :: theta_max, threshold, sigma, theta_1pct
     real(dp), allocatable, dimension(:)   :: x, pl
     real(dp), allocatable, dimension(:,:) :: y
     
@@ -750,16 +750,38 @@ contains
        end do
     end do
 
+    ! Replace beam under 1% of real-space amplitude with a Gaussian extrapolation
+    do j = 1, nmaps
+       y(:,j) = y(:,j) / maxval(y(:,j))
+
+       i_1pct = 1
+       do while (y(i_1pct,j) > 0.01d0 .and. i_1pct < n)
+          i_1pct = i_1pct+1
+       end do
+       theta_1pct = x(i_1pct)
+       sigma      = theta_1pct / sqrt(-2.d0*log(0.01d0))
+
+       do i = n, i_1pct, -1
+          y(i,j) = exp(-0.5*(x(i)/sigma)**2) * y(i_1pct,j) / exp(-0.5*(x(i_1pct)/sigma)**2)
+       end do
+    end do
+    
     ! Spline significant part of beam profile
     allocate(br(nmaps))
     do j = 1, nmaps
-       y(:,j) = y(:,j) / maxval(y(:,j))
-       m      = 0
+              m      = 0
        do while (y(m+1,j) > threshold .and. m < n)
           m = m+1
        end do
        call spline(br(j), x(1:m), y(1:m,j))
     end do
+
+!!$    open(68,file='beam.dat')
+!!$    do j = 1, m
+!!$       write(68,*) br(1)%x(j)*180/pi, br(1)%y(j)
+!!$    end do
+!!$    close(68)
+!!$    stop
 
     deallocate(x, y, pl)
     

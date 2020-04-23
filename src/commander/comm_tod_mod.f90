@@ -687,7 +687,6 @@ contains
 
        ! Redefine gains; should be removed when proper initfiles are available
        self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
-       !write(*,*) self%gain0(0), minval(output(:,:,1)), maxval(output(:,:,1))
        !stop
        do i = 1, self%ndet
           self%gain0(i) = sum(output(:,i,1))/count(output(:,i,1)>0.d0) - self%gain0(0)
