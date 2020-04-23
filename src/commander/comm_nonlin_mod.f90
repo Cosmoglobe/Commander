@@ -168,8 +168,6 @@ contains
              check_every = 100
              nsamp = 2000
 
-             nsamp = 50
-
              thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 
              corrlen_init = 1
