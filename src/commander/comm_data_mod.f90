@@ -18,6 +18,7 @@ module comm_data_mod
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
      character(len=128)           :: tod_type
+     logical(lgt)                 :: pol_only
 
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_map),     pointer :: map       => null()
@@ -53,7 +54,7 @@ contains
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b)       :: i, j, n, nmaps, numband_tot
+    integer(i4b)       :: i, j, n, nmaps, numband_tot, ierr
     character(len=512) :: dir, mapfile
     class(comm_N), pointer  :: tmp => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
@@ -174,12 +175,13 @@ contains
        case ('QUcov') 
           data(n)%N       => comm_N_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
                & data(n)%procmask)
+          data(n)%pol_only = .true.
        case default
           call report_error("Unknown noise format: " // trim(cpar%ds_noise_format(i)))
        end select
-       data(n)%map%map = data(n)%map%map * data(n)%mask%map
+       data(n)%map%map  = data(n)%map%map * data(n)%mask%map
+       data(n)%pol_only = data(n)%N%pol_only
        call update_status(status, "data_N")
-
 
        ! Initialize bandpass structures; 0 is full freq, i is detector
        allocate(data(n)%bp(0:data(n)%ndet))
