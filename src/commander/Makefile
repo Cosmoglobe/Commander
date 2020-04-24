@@ -73,7 +73,6 @@ comm_N_mod.o :             comm_param_mod.o
 comm_N_rms_mod.o :         comm_N_mod.o
 comm_noise_mod.o :         comm_N_rms_mod.o comm_N_QUcov_mod.o
 comm_bp_mod.o :            comm_bp_utils.o comm_param_mod.o
-comm_fg_component_mod.o :  comm_bp_mod.o
 comm_F_int_mod.o :         comm_utils.o
 comm_F_line_mod.o :        comm_F_int_mod.o 
 comm_F_int_0D_mod.o :      comm_F_int_mod.o 
