@@ -98,6 +98,10 @@ contains
     integer(i4b)                         :: n 
 
     n = size(x)
+    if (n==1) then
+      std = 0
+      return
+    end if
     mean = sum(x(1:n))/n
     std = sqrt(sum((x(1:n)-mean)**2)/(n-1))
 
@@ -276,7 +280,7 @@ contains
   end function median_flagged
 
 
-  subroutine gap_fill_linear_depricated(tod,flag,tod_gapfill,handle,noise)
+  subroutine gap_fill_linear_deprecated(tod,flag,tod_gapfill,handle,noise)
     implicit none
     real(sp),     dimension(:), intent(in)     :: tod
     integer(i4b), dimension(:), intent(in)     :: flag
@@ -293,7 +297,7 @@ contains
     ! noise: If "true", then white noise is added ontop of the interpolation
  
     N = 100
-    write(*,*) "Routine: Gap fill depricated"
+    write(*,*) "Routine: Gap fill deprecated"
  
     tod_gapfill = tod
     tod_len = size(tod)
@@ -340,7 +344,7 @@ contains
        end if
     end do
  
-  end subroutine gap_fill_linear_depricated
+  end subroutine gap_fill_linear_deprecated
 
 
   subroutine gap_fill_linear(tod,flag,tod_gapfill,handle,noise)
@@ -358,7 +362,7 @@ contains
    real(sp)                               :: std_low, std_high, std_combined
 
    ! noise: If "true", then white noise is added ontop of the interpolation
-   write(*,*) "Routine: Gap fill"
+   !write(*,*) "Routine: Gap fill"
    N = 100
 
    tod_gapfill = tod
@@ -404,6 +408,7 @@ contains
                std_high = std_flagged(tod_gapfill(i:high),flag(i:high))
             end if
             std_combined = (std_low + std_high)/2
+            if ((std_low==0) .or. (std_high==0)) std_combined = max(std_low,std_high)
          end if
          
          ! Do the interpolation
@@ -436,7 +441,7 @@ contains
     character(len=100)                         :: filename
     logical                                    :: switch, first_call, counting   
  
-    write(*,*) 'Routine: Jump scan'
+    !write(*,*) 'Routine: Jump scan'
  
     N = 100
     threshold = 2
@@ -447,7 +452,6 @@ contains
     ! Interpolate cosmic ray gaps
     allocate(tod_gapfill(tod_len))
     call gap_fill_linear(tod,flag,tod_gapfill,handle,.false.)
-
  
     ! Compute rolling standard deviation
     allocate(rolling_std(tod_len))
@@ -563,7 +567,7 @@ contains
  
     integer(i4b)                                 :: n_offsets, i, i_low, i_high
  
-    write(*,*) "Routine: Expand Offset List"
+    !write(*,*) "Routine: Expand Offset List"
  
     n_offsets = size(offset_level)
  
