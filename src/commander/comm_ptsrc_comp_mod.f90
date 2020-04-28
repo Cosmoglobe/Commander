@@ -866,6 +866,9 @@ contains
        T%Omega_b(i) = sum(b(:,i))/maxval(b(:,i)) * 4.d0*pi/(12.d0*T%nside**2)
     end do
 
+    ! Adjusting for main beam efficiency
+!    if (trim(label) == '0.4-Haslam') T%map = 1.3 * T%map 
+
     deallocate(ind, b, mypix, mybeam)
 
   end subroutine read_febecop_beam

@@ -48,6 +48,7 @@ module comm_diffuse_comp_mod
      class(map_ptr),  dimension(:), allocatable :: theta        ! Spectral parameters
      class(map_ptr),  dimension(:), allocatable :: theta_smooth ! Spectral parameters
      type(map_ptr),   dimension(:,:), allocatable :: F          ! Mixing matrix
+     type(map_ptr),   dimension(:,:), allocatable :: dF         ! Derivative of mixing matrix
      real(dp),        dimension(:,:), allocatable :: invM_lowl  ! (0:nalm-1,0:nalm-1)
      real(dp),        dimension(:,:), allocatable :: Z_def      ! (0:nalm-1,ndef)
      real(dp),        dimension(:,:), allocatable :: invM_def   ! (0:nalm-1,0:nalm-1)
@@ -364,7 +365,7 @@ contains
 
     fwhm_prior = 1200.d0
     do j = 1, self%npar
-       self%sigma_priors(0,j) = self%p_gauss(2,j) !cpar%cs_p_gauss(id_abs,2,j)
+       self%sigma_priors(0,j) = 0.001d0  ! self%p_gauss(2,j) !cpar%cs_p_gauss(id_abs,2,j)
        if (self%nalm_tot > 1) then
           ! Saving and smoothing priors
           i = 1
@@ -387,7 +388,7 @@ contains
     allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))           
     allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
     self%L = 0.d0
-    self%steplen = 0.3d0
+    self%steplen = 1 !0.3d0
 
     ! Filename formatting
     do j = 1, self%npar
@@ -1766,6 +1767,34 @@ contains
        do i = 1, self%x%info%nmaps
          self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale)
        end do
+
+!!$       if (trim(self%label) == 'synch') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+!!$                write(*,*) 'Adding synch dipole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.d0
+!!$             end if
+!!$          end do
+!!$       end if
+!!$
+!!$       if (trim(self%label) == 'ame') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+!!$                write(*,*) 'Adding synch dipole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 25.d0
+!!$             end if
+!!$          end do
+!!$       end if
+!!$
+!!$       if (trim(self%label) == 'ame2') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+!!$                write(*,*) 'Adding synch dipole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 14.d0
+!!$             end if
+!!$          end do
+!!$       end if
+
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                & '_map', .true.)
@@ -1774,6 +1803,7 @@ contains
                   & '_alm', .false.)
              call self%theta(i)%p%YtW_scalar
           end if
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map = self%theta(i)%p%map - 0.1d0
        end do       
     end if
 
