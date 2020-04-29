@@ -116,7 +116,7 @@ contains
     integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, corrlen_init
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind
     real(dp)     :: t1, t2, ts, dalm, thresh, steplen
-    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var
+    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext, jtext
@@ -126,6 +126,7 @@ contains
     logical :: accepted, exist, doexit
     class(comm_mapinfo), pointer :: info => null()
     class(comm_comp),    pointer :: c    => null()
+    type(map_ptr),     allocatable, dimension(:) :: df
 
     real(dp),          allocatable, dimension(:,:,:)  :: alms
     real(dp),          allocatable, dimension(:,:)    :: m
@@ -156,7 +157,14 @@ contains
              if (cpar%myid_chain == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
              call update_status(status, "spec_alm start " // trim(c%label)// ' ' // trim(c%indlabel(j)))
              
+             if (c%apply_jeffreys) then
+                allocate(df(numband))
+                do k = 1, numband
+                   df(k)%p => comm_map(data(k)%info)
+                end do
+             end if
              
+
              call wall_time(t1)
 
              info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
@@ -223,12 +231,33 @@ contains
                    end if
                 end if
 
+
+                
+
                 ! Calculate initial chisq
-                if (allocated(c%indmask)) then
-                   call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask)
-                else
-                   call compute_chisq(c%comm, chisq_fullsky=chisq(0))
-                end if
+                !if (info%myid == 0) open(54,file='P_jeffreys.dat')
+                !do p = 1, 100
+
+                !   if (c%theta(j)%p%info%nalm > 0) c%theta(j)%p%alm = (-4.d0 + 0.02d0*p)*sqrt(4.d0*pi)
+
+                   if (allocated(c%indmask)) then
+                      call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask)
+                   else
+                      call compute_chisq(c%comm, chisq_fullsky=chisq(0))
+                   end if
+                   if (c%apply_jeffreys) then
+                      call c%updateMixmat(df=df, par=j)
+                      call compute_jeffreys_prior(c, df, pl, j, chisq_jeffreys)
+                   end if
+
+                !   if (info%myid == 0) write(54,*) -4.d0 + 0.02d0*p, chisq_jeffreys, chisq(0)
+                !   if (info%myid == 0) write(*,*) -4.d0 + 0.02d0*p, chisq_jeffreys, chisq(0)
+                   if (c%apply_jeffreys) chisq(0) = chisq(0) + chisq_jeffreys
+
+                !end do
+                !if (info%myid == 0) close(54)
+                !call mpi_finalize(p)
+                !stop
              
 
                 call wall_time(t1)
@@ -242,7 +271,7 @@ contains
                          chisq_prior = chisq_prior + (alms(0,p,pl)/c%sigma_priors(p,j))**2
                       end do
                    end if
-                   !chisq(0) = chisq(0) + chisq_prior
+                   chisq(0) = chisq(0) + chisq_prior
                 
                    ! Output init sample
                    write(*,fmt='(a, i6, a, f16.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
@@ -321,9 +350,14 @@ contains
                    else if (c%poltype(j) == 3) then ! {T,E,B}
                       call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
                    end if
-                
+
                    ! Update mixing matrix with new alms
-                   call c%updateMixmat
+                   if (c%apply_jeffreys) then
+                      call c%updateMixmat(df=df, par=j)
+                      call compute_jeffreys_prior(c, df, pl, j, chisq_jeffreys)
+                   else
+                      call c%updateMixmat
+                   end if
 
                    ! Calculate proposed chisq
                    if (allocated(c%indmask)) then
@@ -331,6 +365,7 @@ contains
                    else
                       call compute_chisq(c%comm, chisq_fullsky=chisq(i))
                    end if
+                   if (c%apply_jeffreys) chisq(i) = chisq(i) + chisq_jeffreys
 
                    ! Accept/reject test
                    ! Reset accepted bool
@@ -338,7 +373,7 @@ contains
                    if (info%myid == 0) then
 
                       ! ??? Could be problem
-                      !chisq(i) = chisq(i) + chisq_prior
+                      chisq(i) = chisq(i) + chisq_prior
 
                       diff = chisq(i-1)-chisq(i)
                       write(*,*) "diff: ", diff, chisq(i), chisq(i-1)
@@ -530,6 +565,14 @@ contains
              if (info%myid == 0) close(69)   
 
              deallocate(alms, rgs, chisq, maxit)
+
+             ! Clean up
+             if (c%apply_jeffreys) then
+                do k = 1, numband
+                   call df(k)%p%dealloc()
+                end do
+                deallocate(df)
+             end if
 
           end do ! End of j
        end select

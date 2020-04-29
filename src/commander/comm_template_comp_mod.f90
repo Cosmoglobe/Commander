@@ -480,12 +480,15 @@ contains
   end subroutine sampleTempSpecInd
 
 
-  subroutine updateTempMixmat(self, theta, beta, band)
+  subroutine updateTempMixmat(self, theta, beta, band, df, par)
     implicit none
-    class(comm_template_comp),         intent(inout)        :: self
-    class(comm_map), dimension(:),     intent(in), optional :: theta
-    real(dp),        dimension(:,:,:), intent(in), optional :: beta  ! (npar,nmaps,nsrc)
-    integer(i4b),                      intent(in), optional :: band
+    class(comm_template_comp),         intent(inout)           :: self
+    class(comm_map), dimension(:),     intent(in),    optional :: theta
+    real(dp),        dimension(:,:,:), intent(in),    optional :: beta  ! (npar,nmaps,nsrc)
+    integer(i4b),                      intent(in),    optional :: band
+    class(map_ptr), dimension(:),      intent(inout), optional :: df
+    integer(i4b),                      intent(in),    optional :: par
+
 
   end subroutine updateTempMixmat
 

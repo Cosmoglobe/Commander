@@ -14,8 +14,9 @@ module comm_F_int_1D_mod
      class(comm_comp), pointer :: comp => null()
    contains
      ! Data procedures
-     procedure :: eval => evalIntF
-     procedure :: update => updateIntF
+     procedure :: eval       => evalIntF
+     procedure :: eval_deriv => evalIntdF
+     procedure :: update     => updateIntF
   end type comm_F_int_1D
 
   interface comm_F_int_1D
@@ -55,6 +56,15 @@ contains
     real(dp)                                        :: evalIntF
     evalIntF = splint_simple(self%s, theta(1))
   end function evalIntF
+
+  ! Evaluate partial derivative of SED in brightness temperature normalized to reference frequency
+  function evalIntdF(self, theta, par)
+    class(comm_F_int_1D),                intent(in) :: self
+    real(dp),             dimension(1:), intent(in) :: theta
+    integer(i4b),                        intent(in) :: par
+    real(dp)                                        :: evalIntdF
+    evalIntdF = splint_deriv(self%s%x, self%s%y, self%s%y2, theta(1))
+  end function evalIntdF
 
   ! Compute/update integration look-up tables
   subroutine updateIntF(self, f_precomp, pol)

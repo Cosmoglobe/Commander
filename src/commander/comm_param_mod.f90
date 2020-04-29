@@ -165,7 +165,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_min_src_dist
      real(dp),           allocatable, dimension(:)     :: cs_amp_rms_scale
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
-
+     logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
   end type comm_params
 
 contains
@@ -560,7 +560,7 @@ contains
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
-    allocate(cpar%cs_smooth_scale(n,MAXPAR))
+    allocate(cpar%cs_smooth_scale(n,MAXPAR), cpar%cs_apply_jeffreys(n))
     do i = 1, n
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'INCLUDE_COMP'//itext, len_itext=len_itext,         par_lgt=cpar%cs_include(i))
@@ -678,6 +678,8 @@ contains
                   & par_int=cpar%cs_smooth_scale(i,1))
              call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
              call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
+             cpar%cs_apply_jeffreys(i) = .false. ! Disabled until properly debugged and validated
           case ('physdust')
              call get_parameter_hashtable(htbl, 'COMP_UMIN_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_INPUT_UMIN_MAP'//itext, len_itext=len_itext,        &
@@ -709,6 +711,7 @@ contains
                   & par_string=cpar%cs_SED_template(4,i))
              call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext, &
                   & par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
              write(*,*) 'ERROR -- smoothing not yet supported.'
              stop
           case ('spindust')
@@ -732,6 +735,7 @@ contains
                   & par_int=cpar%cs_smooth_scale(i,1))
              call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
              call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
           case ('spindust2')
              call get_parameter_hashtable(htbl, 'COMP_NU_P_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext, len_itext=len_itext,        &
@@ -770,6 +774,7 @@ contains
              call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
              call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,2))          
              call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
           case ('MBB')
              call get_parameter_hashtable(htbl, 'COMP_BETA_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext, len_itext=len_itext,        &
@@ -806,6 +811,7 @@ contains
              call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
              call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_min(i,2))
              call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_max(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
           case ('freefree')
 !!$             call get_parameter_hashtable(htbl, 'COMP_EM_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
 !!$             call get_parameter_hashtable(htbl, 'COMP_INPUT_EM_MAP'//itext, len_itext=len_itext,        &
@@ -842,12 +848,14 @@ contains
 !!$             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
              call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
              call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
           case ('line')
              call get_parameter_hashtable(htbl, 'COMP_LINE_TEMPLATE'//itext, len_itext=len_itext,  &
                   & par_string=cpar%cs_SED_template(1,i))
              call get_parameter_hashtable(htbl, 'COMP_BAND_REF'//itext, len_itext=len_itext, &
                   & par_string=cpar%cs_band_ref(i))
              call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
           end select
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
@@ -873,6 +881,7 @@ contains
           call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext, len_itext=len_itext, par_dp=cpar%cs_cg_scale(i))
           select case (trim(cpar%cs_type(i)))
           case ('radio')
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
              call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_ALPHA_LOW'//itext, len_itext=len_itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
              call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_ALPHA_HIGH'//itext, len_itext=len_itext,   &
@@ -898,6 +907,7 @@ contains
              call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,2))
              call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
           case ('fir')
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
              call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_LOW'//itext, len_itext=len_itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,1))
              call get_parameter_hashtable(htbl, 'COMP_PRIOR_UNI_BETA_HIGH'//itext, len_itext=len_itext,   &

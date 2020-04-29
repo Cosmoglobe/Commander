@@ -15,8 +15,9 @@ module comm_F_int_2D_mod
      real(dp), allocatable, dimension(:,:,:,:) :: coeff
    contains
      ! Data procedures
-     procedure :: eval => evalIntF
-     procedure :: update => updateIntF
+     procedure :: eval       => evalIntF
+     procedure :: eval_deriv => evalIntdF
+     procedure :: update     => updateIntF
   end type comm_F_int_2D
 
   interface comm_F_int_2D
@@ -62,6 +63,22 @@ contains
     real(dp)                                        :: evalIntF
     evalIntF = splin2_full_precomp(self%x, self%y, self%coeff, theta(1), theta(2)) 
   end function evalIntF
+
+  ! Evaluate partial derivative of SED in brightness temperature normalized to reference frequency
+  function evalIntdF(self, theta, par)
+    class(comm_F_int_2D),                intent(in) :: self
+    real(dp),             dimension(1:), intent(in) :: theta
+    integer(i4b),                        intent(in) :: par
+    real(dp)                                        :: evalIntdF
+
+    real(dp) :: p(2), delta = 1.d-10, f1, f2
+
+    p      = theta
+    p(par) = p(par) + delta
+    f1     = self%eval(theta)
+    f2     = self%eval(p)
+    evalIntdF = (f2-f1)/delta
+  end function evalIntdF
 
   ! Compute/update integration look-up tables
   subroutine updateIntF(self, f_precomp, pol)
