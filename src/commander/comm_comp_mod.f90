@@ -156,12 +156,14 @@ module comm_comp_mod
      end subroutine sampleSpecInd
 
      ! Update mixing matrices
-     subroutine updateMixmat(self, theta, beta, band)
-       import comm_comp, comm_map, dp, i4b
-       class(comm_comp),                        intent(inout)        :: self
-       class(comm_map), dimension(:),           intent(in), optional :: theta
-       real(dp),        dimension(:,:,:),       intent(in), optional :: beta
-       integer(i4b),                            intent(in), optional :: band
+     subroutine updateMixmat(self, theta, beta, band, df, par)
+       import comm_comp, comm_map, dp, i4b, map_ptr
+       class(comm_comp),                        intent(inout)           :: self
+       class(comm_map), dimension(:),           intent(in),    optional :: theta
+       real(dp),        dimension(:,:,:),       intent(in),    optional :: beta
+       integer(i4b),                            intent(in),    optional :: band
+       class(map_ptr), dimension(:),            intent(inout), optional :: df
+       integer(i4b),                            intent(in),    optional :: par
      end subroutine updateMixmat
 
      ! Update band integration lookup tables

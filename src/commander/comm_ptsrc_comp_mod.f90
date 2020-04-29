@@ -211,12 +211,14 @@ contains
 
 
 
-  subroutine updateF(self, theta, beta, band)
+  subroutine updateF(self, theta, beta, band, df, par)
     implicit none
-    class(comm_ptsrc_comp),            intent(inout)        :: self
-    class(comm_map), dimension(:),     intent(in), optional :: theta
-    real(dp),        dimension(:,:,:), intent(in), optional :: beta  ! (npar,nmaps,nsrc)
-    integer(i4b),                      intent(in), optional :: band
+    class(comm_ptsrc_comp),            intent(inout)           :: self
+    class(comm_map), dimension(:),     intent(in),    optional :: theta
+    real(dp),        dimension(:,:,:), intent(in),    optional :: beta  ! (npar,nmaps,nsrc)
+    integer(i4b),                      intent(in),    optional :: band
+    class(map_ptr), dimension(:),      intent(inout), optional :: df
+    integer(i4b),                      intent(in),    optional :: par
 
     integer(i4b) :: i, j, k
     

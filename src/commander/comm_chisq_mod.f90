@@ -62,6 +62,73 @@ contains
 
   end subroutine compute_chisq
 
+
+  subroutine compute_jeffreys_prior(c, df, pol, par, chisq_jeffreys)
+    implicit none
+    class(comm_diffuse_comp),       intent(in)              :: c
+    type(map_ptr),   dimension(1:), intent(in)              :: df
+    integer(i4b),                   intent(in)              :: pol, par
+    real(dp),                       intent(out)             :: chisq_jeffreys
+
+    integer(i4b) :: i, j, k, p, ierr, nmaps
+    class(comm_map),     pointer :: map
+    class(comm_mapinfo), pointer :: info 
+
+
+    chisq_jeffreys = 0.d0
+    do i = 1, numband   
+
+       if (c%F_null(i,0)) cycle
+
+       ! Initialize amplitude map
+       nmaps =  min(data(i)%info%nmaps, c%nmaps)
+       info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, data(i)%info%lmax, nmaps, nmaps==3)
+       map   => comm_map(info)
+       call c%x%alm_equal(map)
+       call map%Y()
+
+       ! Multiply with derivative of mixing matrix
+       map%map = map%map * df(i)%p%map
+
+       ! Nullify inactive polarization components, depending on polarization type
+       if (c%poltype(par) == 2) then
+          if (pol == 1) then
+             if (map%info%nmaps > 1) map%map(:,2:3) = 0.d0
+          else
+             map%map(:,1) = 0.d0
+          end if
+       else if (c%poltype(par) == 3) then
+          do k = 1, map%info%nmaps
+             if (k /= pol) map%map(:,k) = 0.d0
+          end do
+       end if
+
+       ! Convolve with band-specific beam
+       call map%YtW()
+       call data(i)%B(0)%p%conv(trans=.false., map=map)
+       call map%Y()
+
+       ! Apply mask if requested
+       if (allocated(c%indmask)) map%map = map%map * c%indmask(i)%p%map
+          
+       ! Compute Jeffreys prior, df*invN*df
+       call data(i)%N%sqrtInvN(map)
+       chisq_jeffreys = chisq_jeffreys + sum(map%map**2)
+
+       call map%dealloc()
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, chisq_jeffreys, 1, MPI_DOUBLE_PRECISION, MPI_SUM, c%comm, ierr)    
+    if (chisq_jeffreys > 0.d0) then
+       chisq_jeffreys = -2.d0*log(sqrt(chisq_jeffreys))
+    else
+       chisq_jeffreys = 0.d0
+    end if
+
+  end subroutine compute_jeffreys_prior
+
+
+
   function compute_residual(band, exclude_comps, cg_samp_group) result (res)
     implicit none
 

@@ -15,8 +15,9 @@ module comm_F_line_mod
      integer(i4b) :: ind
    contains
      ! Data procedures
-     procedure :: eval => evalIntF
-     procedure :: update => updateIntF
+     procedure :: eval       => evalIntF
+     procedure :: eval_deriv => evalIntdF
+     procedure :: update     => updateIntF
   end type comm_F_line
 
   interface comm_F_line
@@ -68,6 +69,23 @@ contains
        evalIntF = 0.d0
     end if
   end function evalIntF
+
+  ! Evaluate partial derivative of SED in brightness temperature normalized to reference frequency
+  function evalIntdF(self, theta, par)
+    class(comm_F_line),               intent(in) :: self
+    real(dp),          dimension(1:), intent(in) :: theta
+    integer(i4b),                     intent(in) :: par
+    real(dp)                                     :: evalIntdF
+    if (self%active) then
+       if (self%ind == par) then
+          evalIntdF = self%f_precomp
+       else
+          evalIntdF = 0.d0
+       end if
+    else 
+       evalIntdF = 0.d0
+    end if
+  end function evalIntdF
 
   ! Compute/update integration look-up tables
   subroutine updateIntF(self, f_precomp, pol)

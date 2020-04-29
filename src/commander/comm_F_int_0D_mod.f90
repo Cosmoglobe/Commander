@@ -13,8 +13,9 @@ module comm_F_int_0D_mod
      class(comm_comp), pointer :: comp => null()
    contains
      ! Data procedures
-     procedure :: eval   => evalIntF
-     procedure :: update => updateIntF
+     procedure :: eval         => evalIntF
+     procedure :: eval_deriv   => evalIntdF
+     procedure :: update       => updateIntF
   end type comm_F_int_0D
 
   interface comm_F_int_0D
@@ -57,6 +58,15 @@ contains
     real(dp)                                        :: evalIntF
     evalIntF = self%f_precomp
   end function evalIntF
+
+  ! Evaluate partial derivative of SED in brightness temperature normalized to reference frequency
+  function evalIntdF(self, theta, par)
+    class(comm_F_int_0D),                intent(in) :: self
+    real(dp),             dimension(1:), intent(in) :: theta
+    integer(i4b),                        intent(in) :: par
+    real(dp)                                        :: evalIntdF
+    evalIntdF = 0.d0
+  end function evalIntdF
 
   ! Compute/update integration look-up tables
   subroutine updateIntF(self, f_precomp, pol)

@@ -51,6 +51,7 @@ contains
     constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
     constructor%nu_min_ind(1) = cpar%cs_nu_min(id_abs,1)
     constructor%nu_max_ind(1) = cpar%cs_nu_max(id_abs,1)
+    constructor%apply_jeffreys = cpar%cs_apply_jeffreys(id_abs)
     constructor%indlabel(1)  = 'beta'
 
     ! Init alm 

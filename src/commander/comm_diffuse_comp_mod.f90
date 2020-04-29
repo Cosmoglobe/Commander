@@ -23,7 +23,7 @@ module comm_diffuse_comp_mod
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
-     logical(lgt)       :: pol, output_mixmat, output_EB
+     logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot
 
@@ -128,6 +128,7 @@ contains
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
     self%output_mixmat = cpar%output_mixmat
     self%latmask       = cpar%cs_latmask(id_abs)
+    self%apply_jeffreys = .false.
 
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
@@ -924,12 +925,14 @@ contains
     
   
   ! Evaluate amplitude map in brightness temperature at reference frequency
-  subroutine updateDiffuseMixmat(self, theta, beta, band)
+  subroutine updateDiffuseMixmat(self, theta, beta, band, df, par)
     implicit none
     class(comm_diffuse_comp),                  intent(inout)           :: self
     class(comm_map),           dimension(:),   intent(in),    optional :: theta
     real(dp),  dimension(:,:,:),               intent(in),    optional :: beta  ! Not used here
     integer(i4b),                              intent(in),    optional :: band
+    class(map_ptr), dimension(:),              intent(inout), optional :: df    ! Derivative of mixmat with respect to parameter par; for Jeffreys prior
+    integer(i4b),                              intent(in),    optional :: par   ! Parameter ID for derivative
 
     integer(i4b) :: i, j, k, l, n, nmaps, ierr
     real(dp)     :: lat, lon, t1, t2
@@ -1030,7 +1033,10 @@ contains
        do l = 0, data(i)%ndet
           
           ! Don't update null mixing matrices
-          if (self%F_null(i,l)) cycle
+          if (self%F_null(i,l)) then
+             if (present(df)) df(i)%p%map = 0.d0
+             cycle
+          end if
           
 !!$          ! Compute spectral parameters at the correct resolution for this channel
 !!$          if (self%npar > 0) then
@@ -1168,6 +1174,19 @@ contains
                 end if
              end if
           
+             ! Compute derivative if requested
+             if (present(df) .and. l == 0) then
+                if (self%npar > 0) then
+                   do k = 1, nmaps
+                      if (k <= self%poltype(par)) then
+                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale
+                      end if
+                   end do
+                else
+                   df(i)%p%map = 0.d0
+                end if
+             end if
+
           end do
 
           call wall_time(t2)
@@ -1206,6 +1225,7 @@ contains
     recompute_diffuse_precond = .true.
 
   end subroutine updateDiffuseMixmat
+
 
 
   function evalDiffuseBand(self, band, amp_in, pix, alm_out, det)

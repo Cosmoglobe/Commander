@@ -11,6 +11,7 @@ module comm_F_int_mod
    contains
      ! Data procedures
      procedure(evalIntF),     deferred :: eval
+     procedure(evalIntdF),    deferred :: eval_deriv
      procedure(updateIntF),   deferred :: update
   end type comm_F_int
 
@@ -22,6 +23,15 @@ module comm_F_int_mod
        real(dp),          dimension(1:), intent(in) :: theta
        real(dp)                                     :: evalIntF
      end function evalIntF
+
+     ! Evaluate partial derivative of SED in brightness temperature normalized to reference frequency
+     function evalIntdF(self, theta, par)
+       import comm_F_int, dp, i4b
+       class(comm_F_int),                intent(in) :: self
+       real(dp),          dimension(1:), intent(in) :: theta
+       integer(i4b),                     intent(in) :: par
+       real(dp)                                     :: evalIntdF
+     end function evalIntdF
 
      ! Compute/update integration look-up tables
      subroutine updateIntF(self, f_precomp, pol)
