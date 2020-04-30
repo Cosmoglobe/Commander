@@ -25,8 +25,6 @@ from time import sleep
 from time import time as timer
 
 
-from mpi4py import MPI
-rank = MPI.COMM_WORLD.rank
 
 
 
@@ -669,14 +667,14 @@ def main():
     files = np.array(files)
 
     inds = np.arange(len(files))
-    nprocs = 64
+    nprocs = 120
     inds_ = []
     files_ = []
     # spacing out so that an h5py file isn't opened by two threads
     # simultaneously.
-    for i in range(45):
-        inds_ += inds[i::45].tolist()
-        files_ += files[i::45].tolist()
+    for i in range(24):
+        inds_ += inds[i::24].tolist()
+        files_ += files[i::24].tolist()
     inds = np.array(inds_)
     files = np.array(files_)
 
@@ -690,8 +688,14 @@ def main():
         res.wait()
     pool.close()
     pool.join()
-    for i in range(10):
-        fits_to_h5(files[i], inds[i])
 
+    bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+    for band in bands:
+        file_name = prefix + f'data/filelist_{band}.txt'
+        data = np.loadtxt(file_name, dtype=str)
+        with open(file_name, 'r+') as f:
+            content = f.read()
+            f.seek(0,0)
+            f.write(line.rstrip('\r\n') + '\n' + int(len(data)))
 if __name__ == '__main__':
     main()
