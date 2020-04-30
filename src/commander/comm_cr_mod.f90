@@ -117,7 +117,7 @@ contains
        ! Multiply with sqrt(invS)
        c       => compList
        do while (associated(c))
-          if (c%cg_samp_group /= samp_group) then
+          if (.not. c%active_samp_group(samp_group)) then
              c => c%next()
              cycle
           end if
@@ -226,7 +226,7 @@ contains
              x_out = x
              c       => compList
              do while (associated(c))
-                if (c%cg_samp_group /= samp_group) then
+                if (.not. c%active_samp_group(samp_group)) then
                    c => c%next()
                    cycle
                 end if
@@ -297,7 +297,7 @@ contains
     ! Multiply with sqrt(S), and insert into right object
     c       => compList
     do while (associated(c))
-       if (c%cg_samp_group /= samp_group) then
+       if (.not. c%active_samp_group(samp_group)) then
           c => c%next()
           cycle
        end if
@@ -370,7 +370,7 @@ contains
     x_out = x
     c       => compList
     do while (associated(c))
-       if (c%cg_samp_group /= samp_group) then
+       if (.not. c%active_samp_group(samp_group)) then
           c => c%next()
           cycle
        end if
@@ -426,19 +426,19 @@ contains
        select type (c)
        class is (comm_diffuse_comp) 
           do i = 1, c%x%info%nmaps
-             if (c%cg_samp_group == samp_group) x(ind:ind+c%x%info%nalm-1) = c%x%alm(:,i)
+             if (c%active_samp_group(samp_group)) x(ind:ind+c%x%info%nalm-1) = c%x%alm(:,i)
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
           if (c%myid == 0) then
              do i = 1, c%nmaps
-                if (c%cg_samp_group == samp_group) x(ind:ind+c%nsrc-1) = c%x(:,i)
+                if (c%active_samp_group(samp_group)) x(ind:ind+c%nsrc-1) = c%x(:,i)
                 ind = ind + c%nsrc
              end do
           end if
        class is (comm_template_comp)
           if (c%myid == 0) then
-             if (c%cg_samp_group == samp_group) x(ind) = c%x(1,1)
+             if (c%active_samp_group(samp_group)) x(ind) = c%x(1,1)
              ind    = ind + 1
           end if
        end select
@@ -461,19 +461,19 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           do i = 1, c%x%info%nmaps
-             if (c%cg_samp_group == samp_group) c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
+             if (c%active_samp_group(samp_group)) c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
           do i = 1, c%nmaps
              if (c%myid == 0) then
-                if (c%cg_samp_group == samp_group) c%x(:,i) = x(ind:ind+c%nsrc-1)
+                if (c%active_samp_group(samp_group)) c%x(:,i) = x(ind:ind+c%nsrc-1)
                 ind = ind + c%nsrc
              end if
           end do
        class is (comm_template_comp)
           if (c%myid == 0) then
-             if (c%cg_samp_group == samp_group) c%x(1,1) = x(ind)
+             if (c%active_samp_group(samp_group)) c%x(1,1) = x(ind)
              ind      = ind + 1
           end if
        end select
@@ -545,7 +545,7 @@ contains
        ! insert into correct segment
        c => compList
        do while (associated(c))
-          if (c%cg_samp_group /= samp_group) then
+          if (.not. c%active_samp_group(samp_group)) then
              c => c%next()
              cycle
           end if
@@ -614,7 +614,7 @@ contains
     ! Add prior terms
     c => compList
     do while (associated(c))
-       if (c%cg_samp_group /= samp_group) then
+       if (.not. c%active_samp_group(samp_group)) then
           c => c%next()
           cycle
        end if
@@ -712,7 +712,7 @@ contains
     !call update_status(status, "A3")
     c       => compList
     do while (associated(c))
-       if (c%cg_samp_group /= samp_group) then
+       if (.not. c%active_samp_group(samp_group)) then
           c => c%next()
           cycle
        end if
@@ -761,7 +761,7 @@ contains
        pmap => comm_map(data(i)%info)   ! For point-source components and alm-buffer for diffuse components
        c   => compList
        do while (associated(c))
-          if (c%cg_samp_group /= samp_group) then
+          if (.not. c%active_samp_group(samp_group)) then
              c => c%next()
              cycle
           end if
@@ -818,7 +818,7 @@ contains
        call map%Yt()             ! Prepare for diffuse components
        !call update_status(status, "A13")
        do while (associated(c))
-          if (c%cg_samp_group /= samp_group) then
+          if (.not. c%active_samp_group(samp_group)) then
              c => c%next()
              cycle
           end if
@@ -858,7 +858,7 @@ contains
     call wall_time(t1)
     c   => compList
     do while (associated(c))
-       if (c%cg_samp_group /= samp_group) then
+       if (.not. c%active_samp_group(samp_group)) then
           c => c%next()
           cycle
        end if

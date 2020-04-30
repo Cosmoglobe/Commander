@@ -163,7 +163,7 @@ contains
           end do
        end if
        if (present(cg_samp_group)) then
-          if (c%cg_samp_group == cg_samp_group) skip = .true.
+          if (c%active_samp_group(cg_samp_group)) skip = .true.
        end if
        if (skip) then
           c => c%next()

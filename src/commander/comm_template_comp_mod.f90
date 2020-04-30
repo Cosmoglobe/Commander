@@ -69,6 +69,8 @@ contains
     character(len=*),          intent(in), optional :: mapfile, maskfile
     class(comm_template_comp), pointer              :: constructor
 
+    integer(i4b) :: i, j, n
+    character(len=16), dimension(1000) :: comp_label
     character(len=512) :: dir
 
     ! General parameters
@@ -82,7 +84,6 @@ contains
     constructor%nmaps     = 1    ! Only used for CR book-keeping; must be 1 for templates
     constructor%outprefix = trim(cpar%cs_label(id_abs))
     constructor%cg_scale  = 1.d0
-    constructor%cg_samp_group  = cpar%cs_cg_samp_group(id_abs)
     constructor%myid      = cpar%myid_chain
     constructor%comm      = cpar%comm_chain
     constructor%numprocs  = cpar%numprocs_chain
@@ -112,6 +113,20 @@ contains
           constructor%P_cg  =  constructor%P      
        end if
     end if
+
+    ! Set up CG sampling groups
+    allocate(constructor%active_samp_group(cpar%cg_num_samp_groups))
+    constructor%active_samp_group = .false.
+    do i = 1, cpar%cg_num_samp_groups
+       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+       do j = 1, n
+          if (trim(constructor%label) == trim(comp_label(j))) then
+             constructor%active_samp_group(i) = .true.
+             if (n == 1) constructor%cg_unique_sampgroup = i ! Dedicated sampling group for this component
+             exit
+          end if
+       end do
+    end do
 
   end function constructor
 

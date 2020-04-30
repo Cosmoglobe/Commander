@@ -94,8 +94,9 @@ contains
     integer(i4b),             intent(in) :: id, id_abs
     class(comm_ptsrc_comp),   pointer    :: constructor
 
-    integer(i4b) :: i, j, k, nlist, npix, listpix(0:10000-1), hits(10000)
+    integer(i4b) :: i, j, k, n, nlist, npix, listpix(0:10000-1), hits(10000)
     real(dp)     :: vec0(3), vec(3), r
+    character(len=16), dimension(1000) :: comp_label
     
     ! General parameters
     allocate(constructor)
@@ -114,7 +115,6 @@ contains
     constructor%nside_febecop   = 1024
     constructor%outprefix       = trim(cpar%cs_label(id_abs))
     constructor%cg_scale        = cpar%cs_cg_scale(id_abs)
-    constructor%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     allocate(constructor%poltype(1))
     constructor%poltype         = cpar%cs_poltype(1,id_abs)
     constructor%myid            = cpar%myid_chain
@@ -127,10 +127,7 @@ contains
     constructor%burn_in         = cpar%cs_burn_in(id_abs)
     constructor%amp_rms_scale   = cpar%cs_amp_rms_scale(id_abs)
 
-    if (constructor%cg_samp_group > 0) recompute_ptsrc_precond = .true.
-
-    ! Disable CG search when asking for positivity prior
-    if (constructor%apply_pos_prior)  constructor%cg_samp_group = 0
+    if (.not. constructor%apply_pos_prior) recompute_ptsrc_precond = .true.
 
     ! Initialize frequency scaling parameters
     constructor%ndet = maxval(data%ndet)
@@ -206,6 +203,23 @@ contains
 
     ! Update mixing matrix
     call constructor%updateMixmat
+
+    ! Set up CG sampling groups
+    allocate(constructor%active_samp_group(cpar%cg_num_samp_groups))
+    constructor%active_samp_group = .false.
+    do i = 1, cpar%cg_num_samp_groups
+       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+       do j = 1, n
+          if (trim(constructor%label) == trim(comp_label(j))) then
+             constructor%active_samp_group(i) = .true.
+             if (n == 1) constructor%cg_unique_sampgroup = i ! Dedicated sampling group for this component
+             exit
+          end if
+       end do
+    end do
+
+    ! Disable CG search when asking for positivity prior
+    if (constructor%apply_pos_prior)  constructor%active_samp_group = .false.
 
   end function constructor
 
@@ -1551,7 +1565,7 @@ contains
        call self%updateMixmat
        
        ! Ask for CG preconditioner update
-       if (self%cg_samp_group > 0) recompute_ptsrc_precond = .true.
+       if (any(self%active_samp_group)) recompute_ptsrc_precond = .true.
        return
     end if
 
@@ -1896,7 +1910,7 @@ contains
     call self%updateMixmat
 
     ! Ask for CG preconditioner update
-    if (self%cg_samp_group > 0) recompute_ptsrc_precond = .true.
+    if (any(self%active_samp_group)) recompute_ptsrc_precond = .true.
 
     deallocate(x, P_tot, F, lnL, amp, theta, a_curr)
 

@@ -751,7 +751,7 @@ contains
        do i = 0, info_pre%nalm-1
           if (P_cr%invM_diff(i,j)%n == 0) cycle                
           do k1 = 1, npre
-             if (diffComps(k1)%p%cg_samp_group == samp_group) cycle
+             if (diffComps(k1)%p%active_samp_group(samp_group)) cycle
              p = P_cr%invM_diff(i,j)%comp2ind(k1)
              if (p == -1) cycle
              P_cr%invM_diff(i,j)%M(p,:) = 0.d0
@@ -849,7 +849,7 @@ contains
              do k = 1, npre
                 if (l > diffComps(k)%p%lmax_amp) cycle
                 if (j > diffComps(k)%p%nmaps) cycle
-                if (diffComps(k)%p%cg_samp_group /= samp_group) cycle
+                if (.not. diffComps(k)%p%active_samp_group(samp_group)) cycle
                 mat(q,k) = data(q)%N%alpha_nu(j) * &
                           & data(q)%B(0)%p%b_l(l,j) * &
                           & diffComps(k)%p%F_mean(q,0,j)
@@ -873,7 +873,7 @@ contains
           ! Prior section
           do k = 1, npre
              if (trim(diffComps(k)%p%Cl%type) == 'none' .or. l > diffComps(k)%p%lmax_amp .or. &
-                  & diffComps(k)%p%cg_samp_group /= samp_group) cycle
+                  & .not. diffComps(k)%p%active_samp_group(samp_group)) cycle
              mat(numband+k,k) = 1.d0
           end do
 
@@ -902,13 +902,13 @@ contains
     if (allocated(ind_pre)) deallocate(ind_pre)
     n = 0
     do k = 1, npre
-       if (diffComps(k)%p%cg_samp_group == samp_group) n = n+1
+       if (diffComps(k)%p%active_samp_group(samp_group)) n = n+1
     end do
     if (n > 0) then
        allocate(ind_pre(n))
        i = 0
        do k = 1, npre
-          if (diffComps(k)%p%cg_samp_group == samp_group) then
+          if (diffComps(k)%p%active_samp_group(samp_group)) then
              i = i+1
              ind_pre(i) = k
           end if
@@ -1823,7 +1823,7 @@ contains
                   & '_alm', .false.)
              call self%theta(i)%p%YtW_scalar
           end if
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map = self%theta(i)%p%map + 0.05d0
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map = self%theta(i)%p%map - 0.05d0
        end do       
     end if
 
@@ -1937,7 +1937,7 @@ contains
        call self%updateMixmat
        
        ! Ask for CG preconditioner update
-       if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
+       recompute_diffuse_precond = .true.
 
        deallocate(buffer)
 

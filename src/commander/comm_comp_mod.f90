@@ -21,7 +21,7 @@ module comm_comp_mod
 
      ! Data variables
      logical(lgt)       :: active
-     integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_samp_group
+     integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_unique_sampgroup
      character(len=512) :: label, class, type, unit, operation, init_from_HDF
      real(dp)           :: nu_ref(3), RJ2unit_(3)
      character(len=512), allocatable, dimension(:)   :: indlabel
@@ -32,6 +32,7 @@ module comm_comp_mod
      integer(i4b),       allocatable, dimension(:)   :: smooth_scale
      real(dp),           allocatable, dimension(:)   :: nu_min_ind
      real(dp),           allocatable, dimension(:)   :: nu_max_ind
+     logical(lgt),       allocatable, dimension(:)   :: active_samp_group
 
    contains
      ! Linked list procedures
@@ -196,8 +197,8 @@ contains
     type(comm_params),  intent(in) :: cpar
     integer(i4b),       intent(in) :: id, id_abs
 
-    integer(i4b) :: i
-
+    integer(i4b) :: i, j, n
+    character(len=16), dimension(1000) :: comp_label
 
     self%id              = id
     self%active          = cpar%cs_include(id_abs)
@@ -209,7 +210,6 @@ contains
     self%myid            = cpar%myid_chain    
     self%comm            = cpar%comm_chain
     self%numprocs        = cpar%numprocs_chain
-    self%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     self%init_from_HDF   = cpar%cs_initHDF(id_abs)
     self%operation       = cpar%operation
 
@@ -234,6 +234,20 @@ contains
        case default
           call report_error('Unsupported unit: ' // trim(self%unit))
        end select
+    end do
+
+    ! Set up CG sampling groups
+    allocate(self%active_samp_group(cpar%cg_num_samp_groups))
+    self%active_samp_group = .false.
+    do i = 1, cpar%cg_num_samp_groups
+       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+       do j = 1, n
+          if (trim(self%label) == trim(comp_label(j))) then
+             self%active_samp_group(i) = .true.
+             if (n == 1) self%cg_unique_sampgroup = i ! Dedicated sampling group for this component
+             exit
+          end if
+       end do
     end do
 
   end subroutine initComp
@@ -308,7 +322,7 @@ contains
     integer(i4b),                   intent(in)    :: samp_group
     real(dp),         dimension(:), intent(inout) :: mask
 
-    call cr_mask(self%id, samp_group==self%cg_samp_group, mask)
+    call cr_mask(self%id, self%active_samp_group(samp_group), mask)
 
   end subroutine CG_mask
   
