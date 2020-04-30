@@ -89,6 +89,7 @@ program commander
 
   call update_status(status, "init")
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
+  call define_cg_samp_groups(cpar)
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
@@ -174,10 +175,10 @@ program commander
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then
-        do samp_group = 1, cpar%cg_num_samp_groups
+        do samp_group = 1, cpar%cg_num_user_samp_groups
            if (cpar%myid_chain == 0) then
               write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                   & samp_group, ' of ', cpar%cg_num_samp_groups
+                   & samp_group, ' of ', cpar%cg_num_user_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
 

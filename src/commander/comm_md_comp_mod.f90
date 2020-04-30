@@ -37,7 +37,8 @@ contains
     real(dp),         dimension(2), intent(in) :: rms
     class(comm_md_comp), pointer               :: constructor
 
-    integer(i4b) :: i, j, k, l, m
+    integer(i4b) :: i, j, k, l, m, n
+    character(len=16), dimension(1000) :: comp_label
     type(comm_mapinfo), pointer :: info => null()
 
 !    write(*,*) 'mu', trim(label), real(mu,sp)
@@ -52,7 +53,6 @@ contains
     constructor%label           = data(band)%label
     constructor%type            = cpar%cs_type(id_abs)
     constructor%class           = cpar%cs_class(id_abs)
-    constructor%cg_samp_group   = cpar%cs_cg_samp_group(id_abs)
     constructor%unit            = data(band)%unit
     constructor%nu_ref          = data(band)%bp(0)%p%nu_c
     constructor%cg_scale        = 1.d0
@@ -200,6 +200,20 @@ contains
                 end if
                 constructor%F_int(k,i,j)%p => comm_F_line(constructor, data(i)%bp(j)%p, .true., 0.d0, -1)
              end do
+          end if
+       end do
+    end do
+
+    ! Set up CG sampling groups                                                                                                                                             
+    allocate(constructor%active_samp_group(cpar%cg_num_samp_groups))
+    constructor%active_samp_group = .false.
+    do i = 1, cpar%cg_num_samp_groups
+       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+       do j = 1, n
+          if (trim(constructor%label) == trim(comp_label(j))) then
+             constructor%active_samp_group(i) = .true.
+             if (n == 1) constructor%cg_unique_sampgroup = i ! Dedicated sampling group for this component  
+             exit
           end if
        end do
     end do

@@ -14,8 +14,9 @@ module comm_param_mod
   !       problems. Then, copy parameters over to module structures if convenient
   !       at a later stage. 
 
-  integer(i4b), parameter, private :: MAXPAR    = 10
-  integer(i4b), parameter, private :: MAXAUXPAR = 10
+  integer(i4b), parameter, private :: MAXPAR       = 10
+  integer(i4b), parameter, private :: MAXAUXPAR    = 10
+  integer(i4b), parameter, private :: MAXSAMPGROUP = 100
   type(status_file)                :: status
   
   type comm_params
@@ -57,10 +58,11 @@ module comm_param_mod
      
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
-     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_miniter, cg_check_conv_freq
+     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq
      logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
      integer(i4b)       :: num_bp_prop
+     character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group
 
      ! Data parameters
      integer(i4b)       :: numband
@@ -124,7 +126,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_class
      logical(lgt),       allocatable, dimension(:)     :: cs_polarization
      real(dp),           allocatable, dimension(:)     :: cs_cg_scale
-     integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group
+     !integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
      integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
@@ -217,11 +219,11 @@ contains
        cpar%enable_TOD_analysis = .false.      ! Disable TOD analysis
        cpar%sample_specind      = .false.      ! Disable non-linear parameter fitting
        !cpar%num_gibbs_iter      = (cpar%last_samp_resamp-cpar%first_samp_resamp+1)*cpar%numsamp_per_resamp
-       do i = 1, cpar%cs_ncomp_tot
-          if (trim(cpar%cs_type(i)) /= 'cmb') then
-             cpar%cs_cg_samp_group(i) = 0   ! Disable all other components than CMB from CG search
-          end if
-       end do
+!!$       do i = 1, cpar%cs_ncomp_tot
+!!$          if (trim(cpar%cs_type(i)) /= 'cmb') then
+!!$             cpar%cs_cg_samp_group(i) = 0   ! Disable all other components than CMB from CG search
+!!$          end if
+!!$       end do
     end if
     
     !Deallocate hash table
@@ -543,6 +545,12 @@ contains
     call get_parameter_hashtable(htbl, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
     call get_parameter_hashtable(htbl, 'INIT_INSTRUMENT_FROM_HDF', par_string=cpar%cs_init_inst_hdf)
     call get_parameter_hashtable(htbl, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
+    call get_parameter_hashtable(htbl, 'NUM_CG_SAMPLING_GROUPS', par_int=cpar%cg_num_user_samp_groups)
+
+    do i = 1, cpar%cg_num_user_samp_groups
+       call int2string(i, itext)
+       call get_parameter_hashtable(htbl, 'SAMPLING_GROUP'//itext, par_string=cpar%cg_samp_group(i))
+    end do
 
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
@@ -556,7 +564,7 @@ contains
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
-    allocate(cpar%cs_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(n), cpar%cs_cg_samp_group(n))
+    allocate(cpar%cs_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(n))!, cpar%cs_cg_samp_group(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
@@ -568,8 +576,8 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_LABEL'//itext, len_itext=len_itext,           par_string=cpar%cs_label(i))
        call get_parameter_hashtable(htbl, 'COMP_TYPE'//itext, len_itext=len_itext,            par_string=cpar%cs_type(i))
        call get_parameter_hashtable(htbl, 'COMP_CLASS'//itext, len_itext=len_itext,           par_string=cpar%cs_class(i))
-       call get_parameter_hashtable(htbl, 'COMP_CG_SAMPLE_GROUP'//itext, len_itext=len_itext, par_int=cpar%cs_cg_samp_group(i))
-       if (.not. cpar%cs_include(i)) cpar%cs_cg_samp_group(i) = 0
+       !call get_parameter_hashtable(htbl, 'COMP_CG_SAMPLE_GROUP'//itext, len_itext=len_itext, par_int=cpar%cs_cg_samp_group(i))
+       !if (.not. cpar%cs_include(i)) cpar%cs_cg_samp_group(i) = 0
        if (trim(cpar%cs_type(i)) == 'md') then
           call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext, &
                & par_lgt=cpar%cs_polarization(i))
@@ -871,7 +879,7 @@ contains
                & par_lgt=cpar%cs_output_ptsrc_beam(i))
           call get_parameter_hashtable(htbl, 'COMP_APPLY_POSITIVITY_PRIOR'//itext, len_itext=len_itext, &
                & par_lgt=cpar%cs_apply_pos_prior(i))
-          if (cpar%cs_apply_pos_prior(i)) cpar%cs_cg_samp_group(i) = 0
+          !if (cpar%cs_apply_pos_prior(i)) cpar%cs_cg_samp_group(i) = 0
           call get_parameter_hashtable(htbl, 'COMP_MIN_DIST_BETWEEN_SRC'//itext, &
                & len_itext=len_itext, par_dp=cpar%cs_min_src_dist(i))
           call get_parameter_hashtable(htbl, 'COMP_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
@@ -937,7 +945,7 @@ contains
        
     end do
     cpar%cs_ncomp           = count(cpar%cs_include)
-    cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
+    !cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
     ! Convert to proper units
     cpar%cs_nu_ref = 1d9 * cpar%cs_nu_ref
@@ -1658,5 +1666,32 @@ contains
     read(toks(2),*) initsamp
 
   end subroutine get_chainfile_and_samp
+
+  subroutine define_cg_samp_groups(cpar)
+    implicit none
+    type(comm_params), intent(inout) :: cpar
+
+    integer(i4b) :: i
+
+    ! Add user specified sample groups
+    cpar%cg_num_samp_groups = cpar%cg_num_user_samp_groups 
+
+    ! Add one sample group per component
+    do i = 1, cpar%cs_ncomp_tot
+       if (cpar%cs_include(i)) then
+          cpar%cg_num_samp_groups                     = cpar%cg_num_samp_groups + 1
+          cpar%cg_samp_group(cpar%cg_num_samp_groups) = trim(cpar%cs_label(i))
+       end if
+    end do
+
+    ! More groups may be defined here
+
+    
+    if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
+       write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
+       stop
+    end if
+
+  end subroutine define_cg_samp_groups
 
 end module comm_param_mod
