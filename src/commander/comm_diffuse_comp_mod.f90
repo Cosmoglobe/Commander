@@ -1823,7 +1823,7 @@ contains
                   & '_alm', .false.)
              call self%theta(i)%p%YtW_scalar
           end if
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map = self%theta(i)%p%map - 0.1d0
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map = self%theta(i)%p%map + 0.05d0
        end do       
     end if
 

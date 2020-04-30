@@ -276,7 +276,7 @@ contains
     case ("radio")
        !evalSED = exp(theta(1) * (nu/self%nu_ref) + theta(2) * (log(nu/self%nu_ref))**2) * &
        !     & (self%nu_ref/nu)**2
-       evalSED = (self%nu_ref(pol)/nu)**(2.d0+theta(1)) 
+       evalSED = (nu/self%nu_ref(pol))**(-2.d0+theta(1)) 
     case ("fir")
        x = h/(k_B*theta(2))
        evalSED = (exp(x*self%nu_ref(pol))-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref(pol))**(theta(1)+1.d0)
