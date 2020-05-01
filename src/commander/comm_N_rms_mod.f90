@@ -66,9 +66,10 @@ contains
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
     constructor%info              => info
+
     if (id_smooth == 0) then
        constructor%nside        = info%nside
-       constructor%nside_lowres = min(info%nside,128)
+       constructor%nside_chisq_lowres = min(info%nside, cpar%ds_nside_chisq_lowres(id_abs)) ! Used to be n128
        constructor%np           = info%np
        if (cpar%ds_regnoise(id_abs) /= 'none') then
           constructor%rms_reg => comm_map(constructor%info, trim(dir)//'/'//trim(cpar%ds_regnoise(id_abs)))
@@ -206,14 +207,14 @@ contains
 
     ! Set up lowres map
     if (.not.associated(self%siN_lowres)) then
-       info_lowres => comm_mapinfo(self%info%comm, self%nside_lowres, 0, self%nmaps, self%pol)
+       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
        self%siN_lowres => comm_map(info_lowres)
     end if
     iN => comm_map(self%siN)
     iN%map = iN%map**2
     call iN%udgrade(self%siN_lowres)
     call iN%dealloc()
-    self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_lowres)
+    self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_chisq_lowres)
 
   end subroutine update_N_rms
 

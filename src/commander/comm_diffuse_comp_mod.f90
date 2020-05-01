@@ -2328,7 +2328,7 @@ contains
 
              ! Compute component-summed map, ie., column-wise matrix elements
              nmaps    = min(self%nmaps, data(i)%info%nmaps)
-             info     => comm_mapinfo(self%comm, data(i)%N%nside_lowres, 2*self%lmax_pre_lowl, &
+             info     => comm_mapinfo(self%comm, data(i)%N%nside_chisq_lowres, 2*self%lmax_pre_lowl, &
                   & nmaps, nmaps==3)
              map2     => comm_map(info)
              do k = 1, nmaps
@@ -2631,7 +2631,7 @@ contains
 
           ! Compute component-summed map, ie., column-wise matrix elements
           nmaps  = data(i)%info%nmaps
-          info     => comm_mapinfo(self%comm, data(i)%N%nside_lowres, self%lmax_def, &
+          info     => comm_mapinfo(self%comm, data(i)%N%nside_chisq_lowres, self%lmax_def, &
                & nmaps, nmaps==3)
           map2     => comm_map(info)
           do k = 1, min(self%nmaps, nmaps)
