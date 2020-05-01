@@ -12,23 +12,34 @@ contains
   subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask)
     implicit none
     integer(i4b),                   intent(in)              :: comm
+    !logical(lgt),                   intent(in),    optional :: udgrade_chisq
     class(comm_map),                intent(inout), optional :: chisq_map
     real(dp),                       intent(out),   optional :: chisq_fullsky
     type(map_ptr),   dimension(1:), intent(in),    optional :: mask
 
     integer(i4b) :: i, j, k, p, ierr, nmaps
     real(dp)     :: t1, t2
-    logical(lgt) :: apply_mask
-    class(comm_map), pointer :: res, chisq_sub
-    class(comm_mapinfo), pointer :: info
+    logical(lgt) :: apply_mask, lowres
+    class(comm_map), pointer :: res, res_lowres, chisq_sub
+    class(comm_mapinfo), pointer :: info, info_lowres
 
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
        do i = 1, numband
           res => compute_residual(i)
-          call data(i)%N%sqrtInvN(res)
-          res%map = res%map**2
+          
+          if (data(i)%N%type == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky)) then
+             lowres = .true.
+             info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+             res_lowres => comm_map(info_lowres)
+             call res%udgrade(res_lowres)
+             call data(i)%N%invN_lowres(res_lowres)
+          else
+             lowres=.false.
+             call data(i)%N%sqrtInvN(res)
+             res%map = res%map**2
+          end if
 
           apply_mask = present(mask)
           if (apply_mask) apply_mask = associated(mask(i)%p)
@@ -50,8 +61,14 @@ contains
              call chisq_sub%dealloc()
           end if
           if (present(chisq_fullsky)) then
-             chisq_fullsky = chisq_fullsky + sum(res%map)
+             if (lowres) then
+                chisq_fullsky = chisq_fullsky + sum(res_lowres%map)
+             else
+                chisq_fullsky = chisq_fullsky + sum(res%map)
+             end if
           end if
+
+          call res_lowres%dealloc()
           call res%dealloc()
        end do
     end if

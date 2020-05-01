@@ -9,7 +9,7 @@ module comm_N_mod
   type, abstract :: comm_N
      ! Data variables
      character(len=512)       :: type
-     integer(i4b)             :: nside, nside_lowres, nmaps, np, npix, myid, comm, nprocs
+     integer(i4b)             :: nside, nside_chisq_lowres, nmaps, np, npix, myid, comm, nprocs
      logical(lgt)             :: pol, pol_only
      logical(lgt)             :: set_noise_to_mean
      character(len=512)       :: cg_precond

@@ -376,7 +376,7 @@ contains
                       chisq(i) = chisq(i) + chisq_prior
 
                       diff = chisq(i-1)-chisq(i)
-                      write(*,*) "diff: ", diff, chisq(i), chisq(i-1)
+                      !write(*,*) "diff: ", diff, chisq(i), chisq(i-1)
                       write(*,fmt='(i6,3f12.2)') i, chisq(i), chisq(i-1), alms(i,0,pl)/sqrt(4*pi)
                       if ( chisq(i) > chisq(i-1) ) then             
                          ! Small chance of accepting this too
