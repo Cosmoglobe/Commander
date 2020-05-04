@@ -366,7 +366,7 @@ contains
 
     fwhm_prior = 1200.d0
     do j = 1, self%npar
-       self%sigma_priors(0,j) = 0.001d0  ! self%p_gauss(2,j) !cpar%cs_p_gauss(id_abs,2,j)
+       self%sigma_priors(0,j) = 0.01
        if (self%nalm_tot > 1) then
           ! Saving and smoothing priors
           i = 1
@@ -406,7 +406,8 @@ contains
           close(11)
        else
           if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter ", j       
-          do p = 0, self%nalm_tot-1
+          self%L(0,0,:,j) = 10.0*self%sigma_priors(0,j)
+          do p = 1, self%nalm_tot-1
              self%L(p,p,:,j) = self%sigma_priors(p,j)
           end do
        end if
