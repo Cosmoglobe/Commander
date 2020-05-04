@@ -62,7 +62,7 @@ contains
     constructor%set_noise_to_mean = .false.
     constructor%cg_precond        = cpar%cg_precond
     constructor%nside             = info%nside
-    constructor%nside_chisq_lowres = info%nside
+    constructor%nside_chisq_lowres = cpar%cs_nside_chisq_lowres(id_abs)
     constructor%npix              = 12*info%nside**2
     constructor%np                = info%np
     constructor%myid              = info%myid
