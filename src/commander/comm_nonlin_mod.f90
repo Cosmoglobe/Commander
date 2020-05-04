@@ -121,6 +121,7 @@ contains
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext, jtext
     character(len=3) :: tag
+    character(len=9) :: ar_tag
     character(len=512) :: filename
 
     logical :: accepted, exist, doexit
@@ -263,9 +264,7 @@ contains
                 call wall_time(t1)
                 if (info%myid == 0) then 
                    ! Add prior 
-                   !chisq_prior = 0.d0 
                    chisq_prior = ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-                   !chisq_prior = chisq_prior + ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
                    if (c%nalm_tot > 1) then
                       do p = 1, c%nalm_tot-1
                          chisq_prior = chisq_prior + (alms(0,p,pl)/c%sigma_priors(p,j))**2
@@ -280,7 +279,6 @@ contains
 
 
                 ! Sample new alms (Account for poltype)
-                !alms(i,:,:) = alms(i-1,:,:) ! 0.0???
                 num_accepted = 0
                 chisq(1:) = 0.d0
                 do i = 1, nsamp                   
@@ -296,24 +294,16 @@ contains
                    
                    ! Propose new alms
                    if (info%myid == 0) then
-                      ! Steplen(1:) = 0.1*steplen(0)
-                      !rgs(0) = steplen*rand_gauss(handle)
-                      !rgs = 0.d0
                       do p = 0, c%nalm_tot-1
                          rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                       end do                                               
+                      alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
 
                       !write(*,*) "steplen", c%steplen(pl,j), "cholesky", c%L(:,:,pl,j)
                       !write(*,*) "alms", alms(i-1,:,pl)
-                      alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
-                      !if (mod(i,2)== 0) alms(i,1:c%nalm_tot-1,pl) = alms(i-1,1:c%nalm_tot-1,pl)
-                      !write(*,*) alms(i,:,pl) - alms(i-1,:,pl)
-                      !write(*,*) "Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI)
 
                       ! Adding prior
-                      ! Currently applying same prior on all signals
                       chisq_prior = ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-                      !chisq_prior = 0.d0
                       if (c%nalm_tot > 1) then
                          do p = 1, c%nalm_tot-1
                             chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
@@ -372,12 +362,9 @@ contains
                    accepted = .false.
                    if (info%myid == 0) then
 
-                      ! ??? Could be problem
                       chisq(i) = chisq(i) + chisq_prior
 
                       diff = chisq(i-1)-chisq(i)
-                      !write(*,*) "diff: ", diff, chisq(i), chisq(i-1)
-                      write(*,fmt='(i6,3f12.2)') i, chisq(i), chisq(i-1), alms(i,0,pl)/sqrt(4*pi)
                       if ( chisq(i) > chisq(i-1) ) then             
                          ! Small chance of accepting this too
                          ! Avoid getting stuck in local mminimum
@@ -388,11 +375,14 @@ contains
 
                       ! Count accepted and assign chisq values
                       if (accepted) then
-                         !write(*,*) "accepted ", i," Proposed alm: ", alms(i,:,pl)/sqrt(4.d0*PI), " diff ", diff
                          num_accepted = num_accepted + 1
+                         ar_tag = " accepted"
                       else
                          chisq(i) = chisq(i-1)
+                         ar_tag = " rejected"
                       end if
+
+                      write(*,fmt='(a,i6, a, f14.2, a, f10.2, a, f7.4, a)') tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - a00-prop: ", alms(i,0,pl)/sqrt(4.d0*PI), ar_tag
                    end if
 
                    ! Broadcast result of accept/reject test
@@ -430,11 +420,8 @@ contains
 
                       ! Write to screen every out_every'th
                       if (mod(i,out_every) == 0) then
-                         call wall_time(t2)
                          diff = chisq(i-out_every) - chisq(i) ! Output diff
-                         ts = (t2-t1)/DFLOAT(out_every) ! Average time per sample
-                         write(*,fmt='(a,i6, a, f16.2, a, f10.2, a, f7.2, a, 3f7.2)') tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - time/sample: ", ts, " - a_00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                         call wall_time(t1)
+                         write(*,fmt='(a,i6, a, f14.2, a, f10.2, a, f7.4)') tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - a00-curr: ", alms(i,0,pl)/sqrt(4.d0*PI)
                       end if
 
                       ! Adjust learning rate every check_every'th
@@ -443,12 +430,13 @@ contains
 
                          ! Accept rate
                          accept_rate = num_accepted/FLOAT(check_every)
-                         !write(*,*) " numacc ", num_accepted, " checkevery ", FLOAT(check_every), " ar ", accept_rate, " diff ", diff
                          num_accepted = 0
 
-
                          ! Write to screen
-                         write(*, fmt='(a, i6, a, f8.2, a, f5.3)') tag, i, " - diff last 100:  ", diff, " - accept rate: ", accept_rate
+                         call wall_time(t2)
+                         ts = (t2-t1)/DFLOAT(check_every) ! Average time per sample
+                         write(*, fmt='(a, i6, a, i6, a, f8.2, a, f5.3, a, f6.2)') tag, i, " - diff last ", check_every, " ", diff, " - accept rate: ", accept_rate, " - time/sample: ", ts
+                         call wall_time(t1)
 
                          ! Adjust steplen in tuning iteration
                          if ( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
@@ -506,7 +494,7 @@ contains
                    delta = 100
                    allocate(C_(delta))
                    allocate(N(delta))
-                   open(58, file=trim(cpar%outdir)//'/C_.dat', recl=10000)
+                   open(58, file=trim(cpar%outdir)//'/correlation_function_'//trim(c%label)//'_par'//trim(jtext)//'.dat', recl=10000)
                    do pl = 1, c%theta(j)%p%info%nmaps
 
                       ! Skip signals with poltype tag
