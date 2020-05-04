@@ -306,6 +306,7 @@ contains
                       chisq_prior = ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
                       if (c%nalm_tot > 1) then
                          do p = 1, c%nalm_tot-1
+                            !write(*,*) "alms ", p, alms(i,p,pl), c%sigma_priors(p,j)
                             chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
                          end do
                       end if
