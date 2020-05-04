@@ -20,7 +20,7 @@ contains
     integer(i4b) :: i, j, k, p, ierr, nmaps
     real(dp)     :: t1, t2
     logical(lgt) :: apply_mask, lowres
-    class(comm_map), pointer :: res, res_lowres, chisq_sub
+    class(comm_map), pointer :: res, res_lowres, res_lowres_temp, chisq_sub
     class(comm_mapinfo), pointer :: info, info_lowres
 
     if (present(chisq_fullsky) .or. present(chisq_map)) then
@@ -28,18 +28,6 @@ contains
        if (present(chisq_map))     chisq_map%map = 0.d0
        do i = 1, numband
           res => compute_residual(i)
-          
-          if (data(i)%N%type == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky)) then
-             lowres = .true.
-             info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
-             res_lowres => comm_map(info_lowres)
-             call res%udgrade(res_lowres)
-             call data(i)%N%invN_lowres(res_lowres)
-          else
-             lowres=.false.
-             call data(i)%N%sqrtInvN(res)
-             res%map = res%map**2
-          end if
 
           apply_mask = present(mask)
           if (apply_mask) apply_mask = associated(mask(i)%p)
@@ -50,6 +38,28 @@ contains
 !!$             call mpi_finalize(j)
 !!$             stop
           end if
+          
+          if (data(i)%N%type == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky)) then
+             lowres = .true.
+             info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+
+             res_lowres => comm_map(info_lowres)
+             res_lowres_temp => comm_map(info_lowres)
+
+             call res%udgrade(res_lowres)
+             res_lowres_temp%map = res_lowres%map ! Save temporarily
+
+             call data(i)%N%invN_lowres(res_lowres) ! invN*res
+             res_lowres%map = res_lowres_temp%map*res_lowres%map ! res*(invN*res)
+
+             call res_lowres_temp%dealloc()
+
+          else
+             lowres=.false.
+             call data(i)%N%sqrtInvN(res) 
+             res%map = res%map**2 !(sqrtInvN*res)**2 = res*invN*res
+          end if
+
           
           if (present(chisq_map)) then
              info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)

@@ -71,7 +71,6 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)   :: ds_period
      logical(lgt),       allocatable, dimension(:)   :: ds_polarization
      integer(i4b),       allocatable, dimension(:)   :: ds_nside
-     integer(i4b),       allocatable, dimension(:)   :: ds_nside_chisq_lowres
      integer(i4b),       allocatable, dimension(:)   :: ds_lmax
      character(len=512), allocatable, dimension(:)   :: ds_label
      character(len=512), allocatable, dimension(:)   :: ds_unit
@@ -129,6 +128,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_cg_scale
      !integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
+     integer(i4b),       allocatable, dimension(:)     :: cs_nside_chisq_lowres
      integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
      integer(i4b),       allocatable, dimension(:)     :: cs_l_apod
@@ -417,7 +417,7 @@ contains
 
     n = cpar%numband
     allocate(cpar%ds_active(n), cpar%ds_label(n))
-    allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n), cpar%ds_nside_chisq_lowres(n))
+    allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
     allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
     allocate(cpar%ds_regnoise(n))
@@ -446,7 +446,6 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_LMAX'//itext, len_itext=len_itext, par_int=cpar%ds_lmax(i))
        call get_parameter_hashtable(htbl, 'BAND_UNIT'//itext, len_itext=len_itext, par_string=cpar%ds_unit(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISE_FORMAT'//itext, len_itext=len_itext, par_string=cpar%ds_noise_format(i))
-       call get_parameter_hashtable(htbl, 'BAND_NSIDE_CHISQ_LOWRES'//itext, len_itext=len_itext, par_int=cpar%ds_nside_chisq_lowres(i))
        call get_parameter_hashtable(htbl, 'BAND_MAPFILE'//itext, len_itext=len_itext, par_string=cpar%ds_mapfile(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISEFILE'//itext, len_itext=len_itext, par_string=cpar%ds_noisefile(i))
        call get_parameter_hashtable(htbl, 'BAND_REG_NOISEFILE'//itext, len_itext=len_itext, par_string=cpar%ds_regnoise(i))
@@ -556,7 +555,7 @@ contains
 
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
-    allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
+    allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_nside_chisq_lowres(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
     allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
@@ -600,6 +599,7 @@ contains
                & call get_parameter_hashtable(htbl, 'COMP_OUTPUT_EB_MAP'//itext, len_itext=len_itext, par_lgt=cpar%cs_output_EB(i))
           call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext, len_itext=len_itext,        par_dp=cpar%cs_cg_scale(i))
           call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,           par_int=cpar%cs_nside(i))
+          call get_parameter_hashtable(htbl, 'COMP_NSIDE_CHISQ_LOWRES'//itext, len_itext=len_itext, par_int=cpar%cs_nside_chisq_lowres(i))
           call get_parameter_hashtable(htbl, 'COMP_LMAX_AMP'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_amp(i))
           call get_parameter_hashtable(htbl, 'COMP_L_APOD'//itext, len_itext=len_itext,          par_int=cpar%cs_l_apod(i))
           call get_parameter_hashtable(htbl, 'COMP_LMAX_IND'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_ind(i))
