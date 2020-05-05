@@ -175,8 +175,8 @@ contains
              write(jtext, fmt = '(I1)') j ! Create j string
              out_every = 10
              check_every = 100
-             nsamp = 500
-             burnin = 3 ! Gibbs iter burnin. Tunes steplen.
+             nsamp = 2000
+             burnin = 5 ! Gibbs iter burnin. Tunes steplen.
              cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
 
              thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
@@ -210,6 +210,12 @@ contains
                 alms(0,:,pl) = buffer
                 deallocate(buffer)
              end do
+
+             ! uniform fix
+             !if (c%lmax_ind > 0 .and. alms(0,1:,:) == 0.d0) then
+             !   alms(0,1:,:) = alms(0,1:,:) + 1e-6
+             !   c%theta(j)%p%alm = c%theta(j)%p%alm + 1e-6
+             !end if
              
              do pl = 1, c%theta(j)%p%info%nmaps
                 ! if sample only pol, skip T
@@ -493,7 +499,7 @@ contains
              ! Calculate correlation length and cholesky matrix 
              ! (Only if first iteration and not initialized from previous)
              if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0) then
-                if (c%L_read(j)) then
+                if (c%L_read(j)  .and. iter > burnin) then
                    write(*,*) 'Calculating correlation function'
                    ! Calculate Correlation length
                    delta = 100
