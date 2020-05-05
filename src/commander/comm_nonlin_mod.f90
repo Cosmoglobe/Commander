@@ -113,7 +113,7 @@ contains
     integer(i4b),       intent(in)    :: iter
     type(planck_rng),   intent(inout) :: handle    
 
-    integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, corrlen_init
+    integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, corrlen_init, burnin, cholesky_calc
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind
     real(dp)     :: t1, t2, ts, dalm, thresh, steplen
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys
@@ -175,12 +175,17 @@ contains
              write(jtext, fmt = '(I1)') j ! Create j string
              out_every = 10
              check_every = 100
-             nsamp = 100
+             nsamp = 500
+             burnin = 3 ! Gibbs iter burnin. Tunes steplen.
+             cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
 
              thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 
              corrlen_init = 1
-             if (info%myid == 0 .and. c%L_read(j)) c%steplen = 0.3d0
+             if (info%myid == 0 .and. c%L_read(j)) then
+                write(*,*) "Sampling with cholesky matrix"
+             end if
+
              if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
              call mpi_bcast(nsamp, 1, MPI_INTEGER, 0, c%comm, ierr)
 
@@ -193,8 +198,8 @@ contains
              allocate(maxit(info%nmaps)) ! maximum iteration 
              maxit = 0
 
-             if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', recl=10000)
-            
+             if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', status = 'unknown', access = 'append', recl=10000)
+
              ! Save initial alm        
              alms = 0.d0
              ! Gather alms from threads to alms array with correct indices
@@ -275,7 +280,6 @@ contains
                    ! Output init sample
                    write(*,fmt='(a, i6, a, f16.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
                 end if
-
 
 
                 ! Sample new alms (Account for poltype)
@@ -440,7 +444,7 @@ contains
                          call wall_time(t1)
 
                          ! Adjust steplen in tuning iteration
-                         if ( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
+                         if (iter < burnin) then !( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
 
                             if (accept_rate < 0.2) then                 
                                c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
@@ -539,13 +543,14 @@ contains
                    write(58,*) c%corrlen(j,:)
                    write(58,*) c%L(:,:,:,j)
                    close(58)
-                else if (.false.) then 
+                else if (iter == cholesky_calc) then !if (.false.) then 
                    ! If L does not exist yet, calculate
                    write(*,*) 'Calculating cholesky matrix'
                    do pl = 1, c%theta(j)%p%info%nmaps
                       if (maxit(pl) == 0) cycle ! Cycle if not sampled
                       call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
                    end do
+                   c%steplen(:,j) = 0.3d0
                    c%L_read(j) = .true. ! L now exists!
                 end if
 
