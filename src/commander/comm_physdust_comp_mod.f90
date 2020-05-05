@@ -61,7 +61,7 @@ contains
     constructor%indlabel(1)  = 'Umin'
 
     ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar)
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &

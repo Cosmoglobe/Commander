@@ -57,7 +57,7 @@ contains
     constructor%indlabel  = ['Te']
 
     ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar)
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     !constructor%npar         = 1
     !allocate(constructor%theta_def(1), constructor%p_gauss(1,1), constructor%p_uni(1,1))

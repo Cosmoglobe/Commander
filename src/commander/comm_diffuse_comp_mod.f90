@@ -281,10 +281,11 @@ contains
     
   end subroutine initDiffuse
 
-  subroutine initSpecindProp(self,cpar)
+  subroutine initSpecindProp(self,cpar, id, id_abs)
     implicit none
     class(comm_diffuse_comp)            :: self
     type(comm_params),       intent(in) :: cpar
+    integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
     character(len=2) :: jtext
@@ -307,7 +308,7 @@ contains
     ! Init smooth prior
     allocate(self%sigma_priors(0:self%nalm_tot-1,self%npar)) !a_00 is given by different one
 
-    fwhm_prior = 600.d0 ! 1200.d0
+    fwhm_prior = cpar%cs_prior_fwhm(id_abs)   !600.d0 ! 1200.d0
     do j = 1, self%npar
        self%sigma_priors(0,j) = 0.05 !p_gauss(2,j)*0.1
        if (self%nalm_tot > 1) then

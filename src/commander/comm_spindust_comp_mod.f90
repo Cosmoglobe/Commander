@@ -58,7 +58,7 @@ contains
     constructor%nu_max_ind(1) = cpar%cs_nu_max(id_abs,1)
 
     ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar)
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Component specific parameters for 2 parameter model
     !constructor%npar         = 2

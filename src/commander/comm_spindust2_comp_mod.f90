@@ -60,7 +60,7 @@ contains
     constructor%indlabel  = ['nu_p ','alpha']
     
     ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar)
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize spectral index map for two parameter model
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
