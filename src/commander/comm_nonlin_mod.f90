@@ -178,7 +178,6 @@ contains
              nsamp = 2000
              burnin = 5 ! Gibbs iter burnin. Tunes steplen.
              cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
-
              thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 
              corrlen_init = 1
@@ -281,7 +280,7 @@ contains
                          chisq_prior = chisq_prior + (alms(0,p,pl)/c%sigma_priors(p,j))**2
                       end do
                    end if
-                   chisq(0) = chisq(0) + chisq_prior
+                   !chisq(0) = chisq(0) + chisq_prior
                 
                    ! Output init sample
                    write(*,fmt='(a, i6, a, f16.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
@@ -373,7 +372,7 @@ contains
                    accepted = .false.
                    if (info%myid == 0) then
 
-                      chisq(i) = chisq(i) + chisq_prior
+                      !chisq(i) = chisq(i) + chisq_prior
 
                       diff = chisq(i-1)-chisq(i)
                       if ( chisq(i) > chisq(i-1) ) then             

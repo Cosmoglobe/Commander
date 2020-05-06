@@ -268,13 +268,9 @@ contains
     class(comm_map), pointer :: invN_res => null()
     
     invN_res => comm_map(self%res)
-!    write(*,*) 'a', sum(abs(self%res%map))
     call self%N%invN(invN_res)
-!    write(*,*) 'b', sum(abs(invN_res%map))
     chisq = sum(self%res%map*invN_res%map)
-!    write(*,*) 'c', chisq
     call mpi_allreduce(chisq, get_chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-!    write(*,*) 'c', get_chisq
     call invN_res%dealloc()
 
   end function get_chisq

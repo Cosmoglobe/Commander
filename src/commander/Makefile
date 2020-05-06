@@ -28,7 +28,7 @@ comm_fft_mod.o :           locate_mod.o comm_utils.o comm_param_mod.o
 comm_tod_mod.o :           comm_utils.o comm_fft_mod.o comm_map_mod.o comm_hdf_mod.o comm_param_mod.o comm_huffman_mod.o comm_zodi_mod.o
 comm_tod_mapmaking_mod.o:  comm_tod_mod.o
 comm_tod_bandpass_mod.o:   comm_tod_mod.o
-comm_tod_noise_mod.o:      comm_tod_mod.o
+comm_tod_noise_mod.o:      comm_tod_mod.o InvSamp_mod.o
 comm_tod_gain_mod.o:       comm_tod_mod.o comm_tod_noise_mod.o
 comm_tod_orbdipole_mod.o:  comm_map_mod.o comm_tod_mod.o
 comm_tod_pointing_mod.o:   comm_tod_mod.o

@@ -1732,11 +1732,46 @@ contains
          self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale)
        end do
 
-!!$       if (trim(self%label) == 'synch') then
+!!$       if (trim(self%label) == 'cmb') then
 !!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+!!$                write(*,*) 'Adding monopole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 6 *sqrt(4*pi)
+!!$             end if
 !!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
-!!$                write(*,*) 'Adding synch dipole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.d0
+!!$                write(*,*) 'Adding x dipole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.77d0 * sqrt(4.d0*pi/3.d0)
+!!$             end if
+!!$          end do
+!!$       end if
+
+!!$       if (trim(self%label) == 'ff') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+!!$                write(*,*) 'Adding monopole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 16 *sqrt(4*pi)
+!!$             end if
+!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+!!$                write(*,*) 'Adding x dipole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.77d0 * sqrt(4.d0*pi/3.d0)
+!!$             end if
+!!$          end do
+!!$       end if
+
+!!$       if (trim(self%label) == 'ame') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+!!$                write(*,*) 'Adding monopole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 21.6 *sqrt(4*pi)
+!!$             end if
+!!$          end do
+!!$       end if
+!!$
+!!$       if (trim(self%label) == 'ame2') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+!!$                write(*,*) 'Adding monopole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 11 *sqrt(4*pi)
 !!$             end if
 !!$          end do
 !!$       end if
