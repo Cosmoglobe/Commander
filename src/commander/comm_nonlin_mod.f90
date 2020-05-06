@@ -376,10 +376,12 @@ contains
                       chisq(i) = chisq(i) + chisq_prior
 
                       diff = chisq(i-1)-chisq(i)
-                      if ( chisq(i) > chisq(i-1) .and. .not. trim(c%operation) == 'optimize') then             
+                      if ( chisq(i) > chisq(i-1)) then             
                          ! Small chance of accepting this too
                          ! Avoid getting stuck in local mminimum
-                         accepted = (rand_uni(handle) < exp(0.5d0*diff))
+                         if ( .not. (iter > burnin .and. trim(c%operation) == 'optimize')) then
+                            accepted = (rand_uni(handle) < exp(0.5d0*diff))
+                         end if
                       else
                          accepted = .true.
                       end if
@@ -450,7 +452,7 @@ contains
                          call wall_time(t1)
 
                          ! Adjust steplen in tuning iteration
-                         if (iter < burnin) then !( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
+                         if (iter <= burnin) then !( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
 
                             if (accept_rate < 0.2) then                 
                                c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
@@ -499,7 +501,7 @@ contains
              ! Calculate correlation length and cholesky matrix 
              ! (Only if first iteration and not initialized from previous)
              if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0) then
-                if (c%L_read(j)  .and. iter > burnin) then
+                if (c%L_read(j)  .and. iter >= burnin) then
                    write(*,*) 'Calculating correlation function'
                    ! Calculate Correlation length
                    delta = 100
