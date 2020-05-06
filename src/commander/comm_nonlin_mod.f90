@@ -124,7 +124,7 @@ contains
     character(len=9) :: ar_tag
     character(len=512) :: filename
 
-    logical :: accepted, exist, doexit
+    logical :: accepted, exist, doexit, optimize
     class(comm_mapinfo), pointer :: info => null()
     class(comm_comp),    pointer :: c    => null()
     type(map_ptr),     allocatable, dimension(:) :: df
@@ -175,9 +175,10 @@ contains
              write(jtext, fmt = '(I1)') j ! Create j string
              out_every = 10
              check_every = 100
-             nsamp = 2000
+             nsamp = cpar%nsamp_alm !2000
              burnin = 5 ! Gibbs iter burnin. Tunes steplen.
              cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
+             optimize = .true.
 
              thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 
@@ -243,24 +244,24 @@ contains
                    end if
                 end if
 
-
-                
-
                 ! Calculate initial chisq
                 !if (info%myid == 0) open(54,file='P_jeffreys.dat')
                 !do p = 1, 100
 
                 !   if (c%theta(j)%p%info%nalm > 0) c%theta(j)%p%alm = (-4.d0 + 0.02d0*p)*sqrt(4.d0*pi)
+                if (allocated(c%indmask)) then
+                   call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask)
+                else
+                   call compute_chisq(c%comm, chisq_fullsky=chisq(0))
+                end if
 
-                   if (allocated(c%indmask)) then
-                      call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask)
-                   else
-                      call compute_chisq(c%comm, chisq_fullsky=chisq(0))
-                   end if
-                   if (c%apply_jeffreys) then
-                      call c%updateMixmat(df=df, par=j)
-                      call compute_jeffreys_prior(c, df, pl, j, chisq_jeffreys)
-                   end if
+                ! Use chisq from last iteration
+                if (optimize .and. iter > 1 .and. chisq(0)>c%chisq_min(j)) chisq(0) = c%chisq_min(j)                   
+
+                if (c%apply_jeffreys) then
+                   call c%updateMixmat(df=df, par=j)
+                   call compute_jeffreys_prior(c, df, pl, j, chisq_jeffreys)
+                end if
 
                 !   if (info%myid == 0) write(54,*) -4.d0 + 0.02d0*p, chisq_jeffreys, chisq(0)
                 !   if (info%myid == 0) write(*,*) -4.d0 + 0.02d0*p, chisq_jeffreys, chisq(0)
@@ -473,7 +474,7 @@ contains
                          end if
                       end if
                    end if
-
+                   
                    call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
                    if (doexit .or. i == nsamp) then
                       if (info%myid == 0 .and. i == nsamp) write(*,*) "nsamp samples reached", nsamp
@@ -490,11 +491,12 @@ contains
                       else 
                          maxit(pl) = i
                       end if
-                      
                       exit
                    end if
                 end do
              end do
+
+             if (optimize) c%chisq_min(j) = chisq(i) ! Save per poltype?
 
              if (info%myid == 0) close(58)
              

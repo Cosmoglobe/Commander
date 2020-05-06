@@ -69,7 +69,7 @@ contains
 
     if (id_smooth == 0) then
        constructor%nside        = info%nside
-       constructor%nside_chisq_lowres = min(info%nside, cpar%cs_nside_chisq_lowres(id_abs)) ! Used to be n128
+       constructor%nside_chisq_lowres = min(info%nside, cpar%nside_chisq_lowres) ! Used to be n128
        constructor%np           = info%np
        if (cpar%ds_regnoise(id_abs) /= 'none') then
           constructor%rms_reg => comm_map(constructor%info, trim(dir)//'/'//trim(cpar%ds_regnoise(id_abs)))

@@ -27,6 +27,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot
 
+     real(dp),     allocatable, dimension(:)   :: chisq_min
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
@@ -302,13 +303,15 @@ contains
     allocate(self%L_read(self%npar))
     self%L_read    = .false.
 
+    ! save minimum chisq per iteration
+    allocate(self%chisq_min(self%npar))
 
     self%nalm_tot = (self%lmax_ind + 1)**2
 
     ! Init smooth prior
     allocate(self%sigma_priors(0:self%nalm_tot-1,self%npar)) !a_00 is given by different one
 
-    fwhm_prior = cpar%cs_prior_fwhm(id_abs)   !600.d0 ! 1200.d0
+    fwhm_prior = cpar%prior_fwhm   !600.d0 ! 1200.d0
     do j = 1, self%npar
        self%sigma_priors(0,j) = 0.05 !p_gauss(2,j)*0.1
        if (self%nalm_tot > 1) then
