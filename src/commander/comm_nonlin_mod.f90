@@ -376,7 +376,7 @@ contains
                       chisq(i) = chisq(i) + chisq_prior
 
                       diff = chisq(i-1)-chisq(i)
-                      if ( chisq(i) > chisq(i-1) ) then             
+                      if ( chisq(i) > chisq(i-1) .and. .not. trim(c%operation) == 'optimize') then             
                          ! Small chance of accepting this too
                          ! Avoid getting stuck in local mminimum
                          accepted = (rand_uni(handle) < exp(0.5d0*diff))
