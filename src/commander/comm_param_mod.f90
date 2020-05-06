@@ -40,6 +40,7 @@ module comm_param_mod
      logical(lgt)       :: only_pol
      logical(lgt)       :: enable_TOD_analysis
      integer(i4b)       :: tod_freq
+     integer(i4b)       :: nsamp_alm, nside_chisq_lowres, prior_fwhm !alm sampler
      integer(i4b)       :: output_4D_map_nth_iter
      logical(lgt)       :: include_tod_zodi
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
@@ -128,12 +129,10 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_cg_scale
      !integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
-     integer(i4b),       allocatable, dimension(:)     :: cs_nside_chisq_lowres
      integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
      integer(i4b),       allocatable, dimension(:)     :: cs_l_apod
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
-     integer(i4b),       allocatable, dimension(:)     :: cs_prior_fwhm
      character(len=512), allocatable, dimension(:)     :: cs_unit
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_ref
      character(len=512), allocatable, dimension(:)     :: cs_band_ref
@@ -396,6 +395,10 @@ contains
        call get_parameter_hashtable(htbl, 'SMOOTHING_SCALE_PIXWIN'//itext, &
             & len_itext=len(trim(itext)), par_string=cpar%pixwin_smooth(i))
     end do
+    
+    call get_parameter_hashtable(htbl, 'NSAMP_ALM',          par_int=cpar%nsamp_alm)
+    call get_parameter_hashtable(htbl, 'PRIOR_FWHM',         par_int=cpar%prior_fwhm)
+    call get_parameter_hashtable(htbl, 'NSIDE_CHISQ_LOWRES', par_int=cpar%nside_chisq_lowres)
 
   end subroutine read_global_params_hash
 
@@ -556,7 +559,7 @@ contains
 
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
-    allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_nside_chisq_lowres(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n), cpar%cs_prior_fwhm(n))
+    allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_ind(n))
     allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
@@ -600,11 +603,9 @@ contains
                & call get_parameter_hashtable(htbl, 'COMP_OUTPUT_EB_MAP'//itext, len_itext=len_itext, par_lgt=cpar%cs_output_EB(i))
           call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext, len_itext=len_itext,        par_dp=cpar%cs_cg_scale(i))
           call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,           par_int=cpar%cs_nside(i))
-          call get_parameter_hashtable(htbl, 'COMP_NSIDE_CHISQ_LOWRES'//itext, len_itext=len_itext, par_int=cpar%cs_nside_chisq_lowres(i))
           call get_parameter_hashtable(htbl, 'COMP_LMAX_AMP'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_amp(i))
           call get_parameter_hashtable(htbl, 'COMP_L_APOD'//itext, len_itext=len_itext,          par_int=cpar%cs_l_apod(i))
           call get_parameter_hashtable(htbl, 'COMP_LMAX_IND'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_ind(i))
-          call get_parameter_hashtable(htbl, 'COMP_PRIOR_FWHM'//itext, len_itext=len_itext,        par_int=cpar%cs_prior_fwhm(i))
           call get_parameter_hashtable(htbl, 'COMP_UNIT'//itext, len_itext=len_itext,            par_string=cpar%cs_unit(i))
           call get_parameter_hashtable(htbl, 'COMP_NU_REF_T'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_ref(i,1))
           call get_parameter_hashtable(htbl, 'COMP_NU_REF_P'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_ref(i,2))
