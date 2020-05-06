@@ -45,16 +45,10 @@ from scipy.optimize import curve_fit, minimize
 import reproject
 
 
-def gauss(x, sigma2, A):
-    if sigma2 < 0:
-        return np.inf
-    else:
-        return A*np.exp(-x**2/(2*sigma2))
 
-
-fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/wmap/data/WMAP_instrument_v1.h5'
+fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/wmap/data/WMAP_instrument_v2.h5'
+#fname_out = 'data/test.h5'
 labels = ['K', 'Ka', 'Q', 'V', 'W']
-
 
 
 with h5py.File(fname_out, 'a') as f:
@@ -71,8 +65,8 @@ with h5py.File(fname_out, 'a') as f:
         f.create_dataset(band + '4/bandpassx', data=nu)
         f.create_dataset(band + '3/bandpass', data=B1)
         f.create_dataset(band + '4/bandpass', data=B2)
-        centFreq1 = trapz(nu*B1, nu)/trapz(nu, B1)
-        centFreq2 = trapz(nu*B2, nu)/trapz(nu, B2)
+        centFreq1 = trapz(nu*B1, nu)/trapz(B1, nu)
+        centFreq2 = trapz(nu*B2, nu)/trapz(B2, nu)
         f.create_dataset(band + '3/centFreq', data=[centFreq1])
         f.create_dataset(band + '4/centFreq', data=[centFreq2])
     
@@ -94,9 +88,9 @@ with h5py.File(fname_out, 'a') as f:
     fnames.sort()
     for fname in fnames:
         theta, B = np.loadtxt(fname).T
-        popt, pcov = curve_fit(gauss, theta, B, p0=[1, 10])
-        sigma = popt[0]**0.5
-        fwhm = 2*np.sqrt(2*np.log(2))*sigma
+
+        fwhm_deg = 2*np.sqrt(2*np.log(2))*theta[B <= B.max()/2][0]
+        fwhm = 60*fwhm_deg
     
         DA = fname.split('_')[4]
         f.create_dataset(DA + '13/fwhm', data=[fwhm])
@@ -114,7 +108,6 @@ with h5py.File(fname_out, 'a') as f:
         f.create_dataset(DA + '14/elip', data=[0])
         f.create_dataset(DA + '23/elip', data=[0])
         f.create_dataset(DA + '24/elip', data=[0])
-
 
 
 
@@ -146,12 +139,12 @@ target_header = fits.Header.fromstring("""
 NAXIS   =                    2
 NAXIS1  =                  600
 NAXIS2  =                  600
-CTYPE1  = 'RA---ZEA'
+CTYPE1  = 'GLON-ZEA'
 CRPIX1  =                0.5
 CRVAL1  =                -11.98
 CDELT1  =               0.04
 CUNIT1  = 'deg     '
-CTYPE2  = 'DEC--ZEA'
+CTYPE2  = 'GLAT-ZEA'
 CRPIX2  =                0.5
 CRVAL2  =                -11.98
 CDELT2  =                0.04
@@ -162,10 +155,13 @@ COORDSYS= 'icrs    '
 for fname in fnames:
     data = fits.open(fname)
     
-    m_A, footprint_A = reproject.reproject_to_healpix((data[0].data[0], target_header), 'C', 
+    m_A, footprint_A = reproject.reproject_to_healpix((data[0].data[0], target_header), 'G', 
                                                    nside=nside_beam,
                                                    order=3)
-    m_B, footprint_B = reproject.reproject_to_healpix((data[0].data[2], target_header), 'C', 
+
+    #hp.mollview(m_A)
+    #plt.show()
+    m_B, footprint_B = reproject.reproject_to_healpix((data[0].data[2], target_header), 'G', 
                                                    nside=nside_beam,
                                                    order=3)
     m_A[footprint_A==0] = 0
@@ -269,7 +265,7 @@ for fname in fnames:
 #        idx = hp.sphtfunc.Alm.getidx(lmax, li, -mi)
 #        T_lmcpx[idx] += 1j*T_lm[i]
 
-plt.show()
+#plt.show()
 """
 # far sidelobes
 fnames = glob('data/wmap_sidelobe_map_*_9yr_v5.fits')
