@@ -18,6 +18,7 @@ module comm_N_mod
      class(comm_map),     pointer :: invN_diag => null()
      class(comm_map),     pointer :: rms_reg   => null()
      class(comm_mapinfo), pointer :: info      => null()
+     class(map_ptr), allocatable, dimension(:) :: samp_group_mask
    contains
      ! Data procedures
      procedure(matmulInvN),       deferred :: invN
@@ -31,52 +32,58 @@ module comm_N_mod
 
   abstract interface
      ! Return map_out = invN * map
-     subroutine matmulInvN(self, map)
+     subroutine matmulInvN(self, map, samp_group)
        import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
+       integer(i4b),    intent(in),   optional :: samp_group
      end subroutine matmulInvN
 
      ! Return map_out = invN * map
-     subroutine matmulInvNlowres(self, map)
+     subroutine matmulInvNlowres(self, map, samp_group)
        import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
+       integer(i4b),    intent(in),   optional :: samp_group
      end subroutine matmulInvNlowres
 
      ! Return map_out = N * map
-     subroutine matmulN(self, map)
+     subroutine matmulN(self, map, samp_group)
        import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
+       integer(i4b),    intent(in),   optional :: samp_group
      end subroutine matmulN
 
      ! Return map_out = sqrtInvN * map
-     subroutine matmulSqrtInvN(self, map)
+     subroutine matmulSqrtInvN(self, map, samp_group)
        import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
+       integer(i4b),    intent(in),   optional :: samp_group
      end subroutine matmulSqrtInvN
 
      ! Return rms map
-     subroutine returnRMS(self, res)
-       import comm_map, comm_N, dp
+     subroutine returnRMS(self, res, samp_group)
+       import comm_map, comm_N, dp, i4b
        implicit none
-       class(comm_N),   intent(in)    :: self
-       class(comm_map), intent(inout) :: res
+       class(comm_N),   intent(in)             :: self
+       class(comm_map), intent(inout)          :: res
+       integer(i4b),    intent(in),   optional :: samp_group
      end subroutine returnRMS
 
      ! Return rms map
-     function returnRMSpix(self, pix, pol)
-       import i4b, comm_N, dp
+     function returnRMSpix(self, pix, pol, samp_group)
+       import i4b, comm_N, dp, i4b
        implicit none
-       class(comm_N),   intent(in)    :: self
-       integer(i4b),    intent(in)    :: pix, pol
-       real(dp)                       :: returnRMSpix
+       class(comm_N),   intent(in)             :: self
+       integer(i4b),    intent(in)             :: pix, pol
+       real(dp)                                :: returnRMSpix
+       integer(i4b),    intent(in),   optional :: samp_group
      end function returnRMSpix
 
      ! Update noise model
