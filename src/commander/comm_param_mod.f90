@@ -396,11 +396,11 @@ contains
             & len_itext=len(trim(itext)), par_string=cpar%pixwin_smooth(i))
     end do
     
-    call get_parameter_hashtable(htbl, 'NSAMP_ALM',          par_int=cpar%nsamp_alm)
-    call get_parameter_hashtable(htbl, 'BURN_IN',            par_int=cpar%burnin)
-    call get_parameter_hashtable(htbl, 'PRIOR_FWHM',         par_int=cpar%prior_fwhm)
-    call get_parameter_hashtable(htbl, 'NSIDE_CHISQ_LOWRES', par_int=cpar%nside_chisq_lowres)
-    call get_parameter_hashtable(htbl, 'OPTIMIZE_ALM',       par_lgt=cpar%optimize_alm)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_NSAMP_ALM',          par_int=cpar%nsamp_alm)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_BURN_IN',            par_int=cpar%burnin)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_PRIOR_FWHM',         par_int=cpar%prior_fwhm)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_NSIDE_CHISQ_LOWRES', par_int=cpar%nside_chisq_lowres)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_OPTIMIZE_ALM',       par_lgt=cpar%optimize_alm)
 
   end subroutine read_global_params_hash
 

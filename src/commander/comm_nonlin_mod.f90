@@ -124,7 +124,7 @@ contains
     character(len=9) :: ar_tag
     character(len=512) :: filename
 
-    logical :: accepted, exist, doexit, optimize
+    logical :: accepted, exist, doexit, optimize, apply_prior
     class(comm_mapinfo), pointer :: info => null()
     class(comm_comp),    pointer :: c    => null()
     type(map_ptr),     allocatable, dimension(:) :: df
@@ -178,7 +178,8 @@ contains
              nsamp = cpar%nsamp_alm !2000
              burnin = cpar%burnin ! Gibbs iter burnin. Tunes steplen.
              cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
-             optimize = cpar%optimize_alm !.true.
+             optimize = cpar%optimize_alm
+             apply_prior = .false.
 
              thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 
@@ -275,19 +276,21 @@ contains
 
                 call wall_time(t1)
                 if (info%myid == 0) then 
-                   ! Add prior 
-                   chisq_prior = ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-                   if (c%nalm_tot > 1) then
-                      do p = 1, c%nalm_tot-1
-                         chisq_prior = chisq_prior + (alms(0,p,pl)/c%sigma_priors(p,j))**2
-                      end do
+
+                   if (apply_prior) then
+                      ! Add prior 
+                      chisq_prior = ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                      if (c%nalm_tot > 1) then
+                         do p = 1, c%nalm_tot-1
+                            chisq_prior = chisq_prior + (alms(0,p,pl)/c%sigma_priors(p,j))**2
+                         end do
+                      end if
+                      chisq(0) = chisq(0) + chisq_prior
                    end if
-                   chisq(0) = chisq(0) + chisq_prior
-                
+
                    ! Output init sample
                    write(*,fmt='(a, i6, a, f16.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
                 end if
-
 
                 ! Sample new alms (Account for poltype)
                 num_accepted = 0
@@ -309,22 +312,6 @@ contains
                          rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                       end do                                               
                       alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
-
-                      !write(*,*) "steplen", c%steplen(pl,j), "cholesky", c%L(:,:,pl,j)
-                      !write(*,*) "alms", alms(i-1,:,pl)
-
-                      ! Adding prior
-                      chisq_prior = ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-                      if (c%nalm_tot > 1) then
-                         do p = 1, c%nalm_tot-1
-                            !write(*,*) "alms ", p, alms(i,p,pl), c%sigma_priors(p,j)
-                            chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
-                         end do
-                      end if
-                      
-                      ! Prior adjustments (Nessecary because of loop adjustment)
-!                      if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
-!                      if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior!*2.d0
                    end if
                    
                    ! Broadcast proposed alms from root
@@ -367,14 +354,30 @@ contains
                    else
                       call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true.)
                    end if
-                   if (c%apply_jeffreys) chisq(i) = chisq(i) + chisq_jeffreys
 
                    ! Accept/reject test
                    ! Reset accepted bool
                    accepted = .false.
                    if (info%myid == 0) then
+                      
+                      
+                      ! Adding prior
+                      if (c%apply_jeffreys) chisq(i) = chisq(i) + chisq_jeffreys
 
-                      chisq(i) = chisq(i) + chisq_prior
+                      if (apply_prior) then
+                         chisq_prior = ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                         if (c%nalm_tot > 1) then
+                            do p = 1, c%nalm_tot-1
+                               !write(*,*) "alms ", p, alms(i,p,pl), c%sigma_priors(p,j)
+                               chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
+                            end do
+                         end if
+                         ! Prior adjustments (Nessecary because of loop adjustment)
+                         !if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
+                         !if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior!*2.d0
+
+                         chisq(i) = chisq(i) + chisq_prior
+                      end if
 
                       diff = chisq(i-1)-chisq(i)
                       if ( chisq(i) > chisq(i-1)) then             
