@@ -37,10 +37,10 @@ module comm_param_mod
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
      character(len=512) :: fft_magic_number_file
-     logical(lgt)       :: only_pol
+     logical(lgt)       :: only_pol, optimize_alm
      logical(lgt)       :: enable_TOD_analysis
      integer(i4b)       :: tod_freq
-     integer(i4b)       :: nsamp_alm, nside_chisq_lowres, prior_fwhm !alm sampler
+     integer(i4b)       :: nsamp_alm, nside_chisq_lowres, prior_fwhm, burnin !alm sampler
      integer(i4b)       :: output_4D_map_nth_iter
      logical(lgt)       :: include_tod_zodi
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
@@ -399,8 +399,10 @@ contains
     end do
     
     call get_parameter_hashtable(htbl, 'NSAMP_ALM',          par_int=cpar%nsamp_alm)
+    call get_parameter_hashtable(htbl, 'BURN_IN',            par_int=cpar%burnin)
     call get_parameter_hashtable(htbl, 'PRIOR_FWHM',         par_int=cpar%prior_fwhm)
     call get_parameter_hashtable(htbl, 'NSIDE_CHISQ_LOWRES', par_int=cpar%nside_chisq_lowres)
+    call get_parameter_hashtable(htbl, 'OPTIMIZE_ALM',       par_lgt=cpar%optimize_alm)
 
   end subroutine read_global_params_hash
 

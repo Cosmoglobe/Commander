@@ -176,9 +176,9 @@ contains
              out_every = 10
              check_every = 100
              nsamp = cpar%nsamp_alm !2000
-             burnin = 5 ! Gibbs iter burnin. Tunes steplen.
+             burnin = cpar%burnin ! Gibbs iter burnin. Tunes steplen.
              cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
-             optimize = .true.
+             optimize = cpar%optimize_alm !.true.
              thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 
              corrlen_init = 1
@@ -249,9 +249,9 @@ contains
 
                 !   if (c%theta(j)%p%info%nalm > 0) c%theta(j)%p%alm = (-4.d0 + 0.02d0*p)*sqrt(4.d0*pi)
                 if (allocated(c%indmask)) then
-                   call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask)
+                   call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true.)
                 else
-                   call compute_chisq(c%comm, chisq_fullsky=chisq(0))
+                   call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true.)
                 end if
 
                 ! Use chisq from last iteration
@@ -362,9 +362,9 @@ contains
 
                    ! Calculate proposed chisq
                    if (allocated(c%indmask)) then
-                      call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask)
+                      call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask, lowres_eval=.true.)
                    else
-                      call compute_chisq(c%comm, chisq_fullsky=chisq(i))
+                      call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true.)
                    end if
                    if (c%apply_jeffreys) chisq(i) = chisq(i) + chisq_jeffreys
 
