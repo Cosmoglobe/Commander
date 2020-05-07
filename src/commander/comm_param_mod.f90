@@ -64,6 +64,7 @@ module comm_param_mod
      real(dp)           :: cg_tol
      integer(i4b)       :: num_bp_prop
      character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group
+     character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group_mask
 
      ! Data parameters
      integer(i4b)       :: numband
@@ -142,6 +143,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_binfile
      integer(i4b),       allocatable, dimension(:)     :: cs_lpivot
      character(len=512), allocatable, dimension(:)     :: cs_mask
+     character(len=512), allocatable, dimension(:)     :: cs_mono_prior
      real(dp),           allocatable, dimension(:)     :: cs_latmask
      character(len=512), allocatable, dimension(:)     :: cs_indmask
      character(len=512), allocatable, dimension(:)     :: cs_defmask
@@ -557,6 +559,7 @@ contains
     do i = 1, cpar%cg_num_user_samp_groups
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'SAMPLING_GROUP'//itext, par_string=cpar%cg_samp_group(i))
+       call get_parameter_hashtable(htbl, 'SAMPLING_GROUP_MASK'//itext, par_string=cpar%cg_samp_group_mask(i))
     end do
 
     n = cpar%cs_ncomp_tot
@@ -565,7 +568,7 @@ contains
     allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
-    allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
+    allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_mono_prior(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_latmask(n), cpar%cs_defmask(n))
     allocate(cpar%cs_indmask(n), cpar%cs_amp_rms_scale(n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
@@ -643,6 +646,7 @@ contains
              end if
              cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(i)**2
           end if
+          call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i))
           call get_parameter_hashtable(htbl, 'COMP_MASK'//itext, len_itext=len_itext,            par_string=cpar%cs_mask(i))
           maskfile = adjustl(trim(cpar%cs_mask(i)))
           if (maskfile(1:4) == '|b|<') then
@@ -1249,6 +1253,10 @@ contains
     datadir  = trim(cpar%datadir) // '/'
     chaindir = trim(cpar%outdir) // '/'
     
+    do i = 1, cpar%cg_num_user_samp_groups
+       if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') call validate_file(trim(datadir)//trim(cpar%cg_samp_group_mask(i)))
+    end do
+
     ! Check that all dataset files exist
     do i = 1, cpar%numband
        if (.not. cpar%ds_active(i)) cycle

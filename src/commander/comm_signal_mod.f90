@@ -163,6 +163,16 @@ contains
     call update_status(status, "cr_end")
     deallocate(rhs,x)
 
+    ! Apply monopole priors for active diffuse components
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (c%active_samp_group(samp_group)) call c%applyMonopolePrior
+       end select
+       c => c%next()
+    end do
+
   end subroutine sample_amps_by_CG
 
   subroutine initPrecond(comm)
