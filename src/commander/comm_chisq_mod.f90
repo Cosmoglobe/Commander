@@ -9,9 +9,10 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, lowres_eval)
     implicit none
     integer(i4b),                   intent(in)              :: comm
+    logical(lgt),                   intent(in),    optional :: lowres_eval
     !logical(lgt),                   intent(in),    optional :: udgrade_chisq
     class(comm_map),                intent(inout), optional :: chisq_map
     real(dp),                       intent(out),   optional :: chisq_fullsky
@@ -39,7 +40,7 @@ contains
 !!$             stop
           end if
           
-          if (data(i)%N%type == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky)) then
+          if (data(i)%N%type == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. lowres_eval) then
              lowres = .true.
              info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
 
