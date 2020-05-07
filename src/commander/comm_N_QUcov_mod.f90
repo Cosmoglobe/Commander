@@ -62,7 +62,7 @@ contains
     constructor%set_noise_to_mean = .false.
     constructor%cg_precond        = cpar%cg_precond
     constructor%nside             = info%nside
-    constructor%nside_chisq_lowres = cpar%cs_nside_chisq_lowres(id_abs)
+    constructor%nside_chisq_lowres = cpar%nside_chisq_lowres
     constructor%npix              = 12*info%nside**2
     constructor%np                = info%np
     constructor%myid              = info%myid
@@ -242,10 +242,11 @@ contains
 
 
   ! Return map_out = invN * map
-  subroutine matmulInvN_1map(self, map)
+  subroutine matmulInvN_1map(self, map, samp_group)
     implicit none
     class(comm_N_QUcov), intent(in)              :: self
     class(comm_map),     intent(inout)           :: map
+    integer(i4b),        intent(in),   optional  :: samp_group
     
     integer(i4b) :: ierr
     real(dp), allocatable, dimension(:) :: m, invN_m
@@ -264,10 +265,11 @@ contains
 
 
   ! Return map_out = N * map
-  subroutine matmulN_1map(self, map)
+  subroutine matmulN_1map(self, map, samp_group)
     implicit none
     class(comm_N_QUcov), intent(in)              :: self
     class(comm_map),     intent(inout)           :: map
+    integer(i4b),        intent(in),   optional  :: samp_group
 
     integer(i4b) :: ierr
     real(dp), allocatable, dimension(:) :: m, invN_m
@@ -285,10 +287,11 @@ contains
   end subroutine matmulN_1map
   
   ! Return map_out = sqrtInvN * map
-  subroutine matmulSqrtInvN_1map(self, map)
+  subroutine matmulSqrtInvN_1map(self, map, samp_group)
     implicit none
     class(comm_N_QUcov), intent(in)              :: self
-    class(comm_map),   intent(inout)           :: map
+    class(comm_map),     intent(inout)           :: map
+    integer(i4b),        intent(in),   optional  :: samp_group
 
     integer(i4b) :: ierr
     real(dp), allocatable, dimension(:) :: m, invN_m
@@ -351,10 +354,11 @@ contains
 !!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
-  subroutine returnRMS(self, res)
+  subroutine returnRMS(self, res, samp_group)
     implicit none
-    class(comm_N_QUcov), intent(in)    :: self
-    class(comm_map),     intent(inout) :: res
+    class(comm_N_QUcov), intent(in)              :: self
+    class(comm_map),     intent(inout)           :: res
+    integer(i4b),        intent(in),   optional  :: samp_group
     where (self%siN_diag%map > 0.d0)
        res%map = 1.d0/self%siN_diag%map
     elsewhere
@@ -363,11 +367,13 @@ contains
   end subroutine returnRMS
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol)
+  function returnRMSpix(self, pix, pol, samp_group)
     implicit none
-    class(comm_N_QUcov),   intent(in)    :: self
-    integer(i4b),          intent(in)    :: pix, pol
-    real(dp)                             :: returnRMSpix
+    class(comm_N_QUcov),   intent(in)            :: self
+    integer(i4b),          intent(in)            :: pix, pol
+    real(dp)                                     :: returnRMSpix
+    integer(i4b),        intent(in),   optional  :: samp_group
+
     if (self%siN_diag%map(pix,pol) > 0.d0) then
        returnRMSpix = 1.d0/self%siN_diag%map(pix,pol)
     else

@@ -27,6 +27,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot
 
+     real(dp),     allocatable, dimension(:)   :: chisq_min
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
@@ -35,6 +36,8 @@ module comm_diffuse_comp_mod
      real(dp)           :: cg_scale, latmask, fwhm_def, test
      real(dp), allocatable, dimension(:,:)   :: cls
      real(dp), allocatable, dimension(:,:,:) :: F_mean
+     character(len=512) :: mono_prior_type
+     class(comm_map),               pointer     :: mono_prior_map => null()
      class(comm_map),               pointer     :: mask => null()
      class(comm_map),               pointer     :: procmask => null()
      class(map_ptr),  dimension(:), allocatable :: indmask
@@ -69,6 +72,7 @@ module comm_diffuse_comp_mod
      procedure :: applyLowlPrecond
      procedure :: updateDeflatePrecond
      procedure :: applyDeflatePrecond
+     procedure :: applyMonopolePrior
   end type comm_diffuse_comp
 
   type diff_ptr
@@ -278,6 +282,13 @@ contains
     ! Initialize pointers for non-linear search
     if (.not. allocated(res_smooth)) allocate(res_smooth(numband))
     if (.not. allocated(rms_smooth)) allocate(rms_smooth(numband))
+
+    ! Set up monopole prior
+    self%mono_prior_type = get_token(cpar%cs_mono_prior(id_abs), ":", 1)
+    if (trim(self%mono_prior_type) /= 'none') then
+       filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
+       self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+    end if
     
   end subroutine initDiffuse
 
@@ -302,13 +313,15 @@ contains
     allocate(self%L_read(self%npar))
     self%L_read    = .false.
 
+    ! save minimum chisq per iteration
+    allocate(self%chisq_min(self%npar))
 
     self%nalm_tot = (self%lmax_ind + 1)**2
 
     ! Init smooth prior
     allocate(self%sigma_priors(0:self%nalm_tot-1,self%npar)) !a_00 is given by different one
 
-    fwhm_prior = cpar%cs_prior_fwhm(id_abs)   !600.d0 ! 1200.d0
+    fwhm_prior = cpar%prior_fwhm   !600.d0 ! 1200.d0
     do j = 1, self%npar
        self%sigma_priors(0,j) = 0.05 !p_gauss(2,j)*0.1
        if (self%nalm_tot > 1) then
@@ -2906,6 +2919,44 @@ contains
 
   end subroutine setup_needlets
 
+  subroutine applyMonopolePrior(self)
+    implicit none
+    class(comm_diffuse_comp), intent(inout)          :: self
+
+    integer(i4b) :: i, ierr
+    real(dp)     :: mu, a, b
+
+    ! Compute monopole offset given the specified prior
+    if (trim(self%mono_prior_type) == 'none') then ! No active monopole prior
+       return
+    else if (trim(self%mono_prior_type) == 'mask') then        ! Set monopole to zero outside user-specified mask
+       ! Generate real-space component map
+       call self%x%Y()
+
+       ! Compute mean outside mask; no noise weighting for now at least
+       a = sum(self%x%map(:,1) * self%mono_prior_map%map(:,1))
+       b = sum(self%mono_prior_map%map(:,1))
+       call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       mu = a / b
+    else if (trim(self%mono_prior_type) == 'crosscorr') then ! Enforce zero intercept in correlation with specified map
+       write(*,*) 'Error: Cross-correlation monopole prior not implemented yet'
+       stop
+    end if
+
+    if (self%x%info%myid == 0) write(*,fmt='(a,e10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu
+
+    ! Subtract mean in real space
+    self%x%map(:,1) = self%x%map(:,1) - mu
+    
+    ! Subtract mean in harmonic space
+    do i = 0, self%x%info%nalm-1
+       if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+          self%x%alm(i,1) = self%x%alm(i,1) - mu * sqrt(4.d0*pi)
+       end if
+    end do
+    
+  end subroutine applyMonopolePrior
 
 
 end module comm_diffuse_comp_mod

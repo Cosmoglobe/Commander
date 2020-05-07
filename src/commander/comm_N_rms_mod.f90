@@ -69,8 +69,7 @@ contains
 
     if (id_smooth == 0) then
        constructor%nside        = info%nside
-       constructor%nside_chisq_lowres = min(info%nside, 16) ! Used to be n128
-       !constructor%nside_chisq_lowres = min(info%nside, cpar%cs_nside_chisq_lowres(id_abs)) ! Used to be n128
+       constructor%nside_chisq_lowres = min(info%nside, cpar%nside_chisq_lowres) ! Used to be n128
        constructor%np           = info%np
        if (cpar%ds_regnoise(id_abs) /= 'none') then
           constructor%rms_reg => comm_map(constructor%info, trim(dir)//'/'//trim(cpar%ds_regnoise(id_abs)))
@@ -111,6 +110,18 @@ contains
 
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
+
+    ! Initialize CG sample group masks
+    allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups))
+    do i = 1, cpar%cg_num_user_samp_groups
+       if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
+       constructor%samp_group_mask(i)%p => comm_map(constructor%info, trim(dir)//trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
+       where (constructor%samp_group_mask(i)%p%map > 0.d0)
+          constructor%samp_group_mask(i)%p%map = 1.d0
+       elsewhere
+          constructor%samp_group_mask(i)%p%map = 0.d0
+       end where
+    end do
 
   end function constructor
 
@@ -220,39 +231,55 @@ contains
   end subroutine update_N_rms
 
   ! Return map_out = invN * map
-  subroutine matmulInvN_1map(self, map)
+  subroutine matmulInvN_1map(self, map, samp_group)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
+    integer(i4b),      intent(in),   optional  :: samp_group
     map%map = (self%siN%map)**2 * map%map
+    if (present(samp_group)) then
+       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+    end if
   end subroutine matmulInvN_1map
 
   ! Return map_out = invN * map
-  subroutine matmulInvN_1map_lowres(self, map)
+  subroutine matmulInvN_1map_lowres(self, map, samp_group)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
+    integer(i4b),      intent(in),   optional  :: samp_group
     map%map = (self%siN_lowres%map)**2 * map%map
+    if (present(samp_group)) then
+       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+    end if
   end subroutine matmulInvN_1map_lowres
 
   ! Return map_out = N * map
-  subroutine matmulN_1map(self, map)
+  subroutine matmulN_1map(self, map, samp_group)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
+    integer(i4b),      intent(in),   optional  :: samp_group
     where (self%siN%map > 0.d0)
        map%map = map%map / (self%siN%map)**2 
     elsewhere
        map%map = 0.d0
     end where
+    if (present(samp_group)) then
+       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+    end if
   end subroutine matmulN_1map
   
   ! Return map_out = sqrtInvN * map
-  subroutine matmulSqrtInvN_1map(self, map)
+  subroutine matmulSqrtInvN_1map(self, map, samp_group)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
+    integer(i4b),      intent(in),   optional  :: samp_group
     map%map = self%siN%map * map%map
+    if (present(samp_group)) then
+       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+    end if
   end subroutine matmulSqrtInvN_1map
 
 !!$  ! Return map_out = invN * map
@@ -274,27 +301,43 @@ contains
 !!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
-  subroutine returnRMS(self, res)
+  subroutine returnRMS(self, res, samp_group)
     implicit none
-    class(comm_N_rms), intent(in)    :: self
-    class(comm_map),   intent(inout) :: res
+    class(comm_N_rms), intent(in)              :: self
+    class(comm_map),   intent(inout)           :: res
+    integer(i4b),      intent(in),   optional  :: samp_group
     where (self%siN%map > 0.d0)
        res%map = 1.d0/self%siN%map
     elsewhere
        res%map = infinity
     end where
+    if (present(samp_group)) then
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          where (self%samp_group_mask(samp_group)%p%map == 0.d0)
+             res%map = infinity
+          end where
+       end if
+    end if
   end subroutine returnRMS
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol)
+  function returnRMSpix(self, pix, pol, samp_group)
     implicit none
-    class(comm_N_rms),   intent(in)    :: self
-    integer(i4b),        intent(in)    :: pix, pol
-    real(dp)                           :: returnRMSpix
+    class(comm_N_rms),   intent(in)              :: self
+    integer(i4b),        intent(in)              :: pix, pol
+    real(dp)                                     :: returnRMSpix
+    integer(i4b),        intent(in),   optional  :: samp_group
     if (self%siN%map(pix,pol) > 0.d0) then
        returnRMSpix = 1.d0/self%siN%map(pix,pol)
     else
        returnRMSpix = infinity
+    end if
+    if (present(samp_group)) then
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          if (self%samp_group_mask(samp_group)%p%map(pix,pol) == 0.d0) then
+             returnRMSpix = infinity
+          end if
+       end if
     end if
   end function returnRMSpix
 
