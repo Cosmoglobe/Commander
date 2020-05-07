@@ -571,7 +571,8 @@ contains
     if (tod%myid == 0) then
        do j = 1, tod%ndet
          coeff_matrix(j, j) = A(j)
-         rhs(j) = b(j) + sqrt(A(j)) * rand_gauss(handle)
+         rhs(j) = b(j) 
+         if (trim(tod%operation) == 'sample') rhs(j) = sqrt(A(j)) * rand_gauss(handle)
          coeff_matrix(j, tod%ndet+1) = 0.5d0
          coeff_matrix(tod%ndet+1, j) = 1
        end do

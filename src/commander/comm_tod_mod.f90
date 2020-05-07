@@ -11,7 +11,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, initialize_tod_mod, fill_all_masked, tod_pointer
+  public comm_tod, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label

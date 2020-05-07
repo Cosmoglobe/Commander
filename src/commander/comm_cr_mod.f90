@@ -524,7 +524,7 @@ contains
 
        ! Add channel-dependent white noise fluctuation
        if (trim(operation) == 'sample') then
-          call data(i)%N%sqrtInvN(map)           ! Multiply with sqrt(invN)
+          call data(i)%N%sqrtInvN(map, samp_group=samp_group)           ! Multiply with sqrt(invN)
           do k = 1, map%info%nmaps
              do j = 0, map%info%np-1
                 map%map(j,k) = map%map(j,k) + rand_gauss(handle)
@@ -532,9 +532,9 @@ contains
                 !map%map(j,k) = map%map(j,k) + rand_gauss(handle_noise)
              end do
           end do
-          call data(i)%N%sqrtInvN(map)          ! Multiply with sqrt(invN)
+          call data(i)%N%sqrtInvN(map, samp_group=samp_group)          ! Multiply with sqrt(invN)
        else
-          call data(i)%N%invN(map)          ! Multiply with sqrt(invN)
+          call data(i)%N%invN(map, samp_group=samp_group)          ! Multiply with sqrt(invN)
        end if
 
        ! Convolve with transpose beam
@@ -807,7 +807,7 @@ contains
 
        ! Multiply with invN
        call wall_time(t1)
-       call data(i)%N%InvN(map)
+       call data(i)%N%InvN(map, samp_group=samp_group)
        call wall_time(t2)
        !call update_status(status, "A12")
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'invN time = ', real(t2-t1,sp)

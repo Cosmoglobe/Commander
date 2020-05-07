@@ -360,7 +360,6 @@ contains
                    accepted = .false.
                    if (info%myid == 0) then
                       
-                      
                       ! Adding prior
                       if (c%apply_jeffreys) chisq(i) = chisq(i) + chisq_jeffreys
 

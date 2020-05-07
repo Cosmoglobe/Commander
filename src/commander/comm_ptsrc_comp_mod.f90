@@ -1457,7 +1457,7 @@ contains
     delta_lnL_threshold = 25.d0
     n                   = 101
     n_ok                = 50
-    n_gibbs             = 10
+    n_gibbs             = 3  !10
     !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
 
