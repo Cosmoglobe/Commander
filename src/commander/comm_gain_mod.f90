@@ -6,11 +6,12 @@ module comm_gain_mod
 
 contains
   
-  subroutine sample_gain(operation, band, outdir, chain, iter, handle)
+  subroutine sample_gain(operation, band, outdir, chain, iter, resamp_hard_prior, handle)
     implicit none
     integer(i4b),     intent(in)    :: band
     character(len=*), intent(in)    :: operation, outdir
     integer(i4b),     intent(in)    :: chain, iter
+    logical(lgt),     intent(in)    :: resamp_hard_prior
     type(planck_rng), intent(inout) :: handle
 
     integer(i4b)  :: i, l, lmin, lmax, ierr, root, ncomp, dl_low, dl_high
@@ -21,6 +22,19 @@ contains
     real(dp), allocatable, dimension(:,:) :: m, cls1, cls2
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_sig => null(), map => null(), sig => null(), res => null()
+
+    ! Handle bands with hard gain prior
+    if (data(band)%gain_prior(2) < 0.d0) then
+       if (resamp_hard_prior) then
+          if (data(band)%info%myid == root) then
+             data(band)%gain = data(band)%gain_prior(1) + rand_gauss(handle) * abs(data(band)%gain_prior(2))
+          end if
+          call mpi_bcast(data(band)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(band)%info%comm, ierr)          
+       else
+          return
+       end if
+    end if
+
 
     ierr    = 0
     root    = 0
