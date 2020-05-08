@@ -130,7 +130,7 @@ contains
     type(map_ptr),     allocatable, dimension(:) :: df
 
     real(dp),          allocatable, dimension(:,:,:)  :: alms
-    real(dp),          allocatable, dimension(:,:)    :: m
+    real(dp),          allocatable, dimension(:,:)    :: m, buffer2
     real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, N, C_
     integer(c_int),    allocatable, dimension(:)      :: maxit
 
@@ -560,7 +560,11 @@ contains
                    write(*,*) 'Calculating cholesky matrix'
                    do pl = 1, c%theta(j)%p%info%nmaps
                       if (maxit(pl) == 0) cycle ! Cycle if not sampled
-                      call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
+                      allocate(buffer2(0:c%nalm_tot-1,0:c%nalm_tot-1))
+                      write(*,*) "maxit, pl, choleskymat", maxit(pl), pl, buffer2
+                      call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), buffer2, .true.)
+                      c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j) = buffer2(:,:)
+                      deallocate(buffer2)
                    end do
                    c%steplen(:,j) = 0.3d0
                    c%L_read(j) = .true. ! L now exists!
