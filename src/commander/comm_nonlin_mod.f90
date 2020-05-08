@@ -89,7 +89,7 @@ contains
     ! Sample calibration factors
     do i = 1, numband
        if (.not. data(i)%sample_gain) cycle
-       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, handle)
+       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, mod(iter,cpar%resamp_hard_gain_prior_nth_iter)==0, handle)
     end do
 
     ! Update mixing matrices if gains have been sampled

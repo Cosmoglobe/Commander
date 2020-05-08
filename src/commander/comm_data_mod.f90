@@ -14,7 +14,7 @@ module comm_data_mod
      character(len=512)           :: label, unit, comp_sens
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
-     real(dp)                     :: gain
+     real(dp)                     :: gain, gain_prior(2)
      character(len=128)           :: gain_comp
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
@@ -77,6 +77,7 @@ contains
        data(n)%unit           = cpar%ds_unit(i)
        data(n)%sample_gain    = cpar%ds_sample_gain(i)
        data(n)%gain_comp      = cpar%ds_gain_calib_comp(i)
+       data(n)%gain_prior     = cpar%ds_gain_prior(i,:)
        data(n)%gain_lmin      = cpar%ds_gain_lmin(i)
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
