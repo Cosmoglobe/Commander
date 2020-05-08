@@ -41,6 +41,7 @@ module comm_param_mod
      logical(lgt)       :: enable_TOD_analysis
      integer(i4b)       :: tod_freq
      integer(i4b)       :: nsamp_alm, nside_chisq_lowres, prior_fwhm, burnin !alm sampler
+     integer(i4b)       :: resamp_hard_gain_prior_nth_iter
      integer(i4b)       :: output_4D_map_nth_iter
      logical(lgt)       :: include_tod_zodi
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
@@ -94,6 +95,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_bpmodel
      real(dp),           allocatable, dimension(:)   :: ds_nu_c
      logical(lgt),       allocatable, dimension(:)   :: ds_sample_gain
+     real(dp),           allocatable, dimension(:,:) :: ds_gain_prior
      character(len=512), allocatable, dimension(:)   :: ds_gain_calib_comp
      integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmin
      integer(i4b),       allocatable, dimension(:)   :: ds_gain_lmax
@@ -368,6 +370,8 @@ contains
 
     call get_parameter_hashtable(htbl, 'ENABLE_TOD_ANALYSIS',      par_lgt=cpar%enable_TOD_analysis)
 
+    call get_parameter_hashtable(htbl, 'NUMITER_RESAMPLE_HARD_GAIN_PRIORS', par_int=cpar%resamp_hard_gain_prior_nth_iter)
+
     if (cpar%enable_TOD_analysis) then
        call get_parameter_hashtable(htbl, 'FFTW3_MAGIC_NUMBERS',   par_string=cpar%fft_magic_number_file)
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
@@ -434,7 +438,7 @@ contains
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
     allocate(cpar%ds_period(n), cpar%ds_beamtype(n), cpar%ds_blfile(n))
     allocate(cpar%ds_pixwin(n), cpar%ds_btheta_file(n))
-    allocate(cpar%ds_sample_gain(n), cpar%ds_gain_calib_comp(n), cpar%ds_gain_lmax(n))
+    allocate(cpar%ds_sample_gain(n), cpar%ds_gain_prior(n,2), cpar%ds_gain_calib_comp(n), cpar%ds_gain_lmax(n))
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
@@ -471,6 +475,8 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_BANDPASSFILE'//itext, len_itext=len_itext,    par_string=cpar%ds_bpfile(i))
        call get_parameter_hashtable(htbl, 'BAND_BANDPASS_MODEL'//itext, len_itext=len_itext,  par_string=cpar%ds_bpmodel(i))
        call get_parameter_hashtable(htbl, 'BAND_SAMP_GAIN'//itext, len_itext=len_itext,       par_lgt=cpar%ds_sample_gain(i))
+       call get_parameter_hashtable(htbl, 'BAND_GAIN_PRIOR_MEAN'//itext, len_itext=len_itext, par_dp=cpar%ds_gain_prior(i,1))
+       call get_parameter_hashtable(htbl, 'BAND_GAIN_PRIOR_RMS'//itext, len_itext=len_itext, par_dp=cpar%ds_gain_prior(i,2))
        call get_parameter_hashtable(htbl, 'BAND_GAIN_CALIB_COMP'//itext, len_itext=len_itext, par_string=cpar%ds_gain_calib_comp(i))
        call get_parameter_hashtable(htbl, 'BAND_GAIN_LMAX'//itext, len_itext=len_itext,       par_int=cpar%ds_gain_lmax(i))
        call get_parameter_hashtable(htbl, 'BAND_GAIN_LMIN'//itext, len_itext=len_itext,       par_int=cpar%ds_gain_lmin(i))

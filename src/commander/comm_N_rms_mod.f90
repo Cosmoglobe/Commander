@@ -137,7 +137,7 @@ contains
     character(len=*),                    intent(in),   optional :: noisefile
     class(comm_map),                     intent(in),   optional :: map
 
-    integer(i4b) :: i, ierr
+    integer(i4b) :: i, j, ierr
     real(dp)     :: sum_tau, sum_tau2, sum_noise, npix
     class(comm_map),     pointer :: invW_tau => null(), iN => null()
     class(comm_mapinfo), pointer :: info_lowres => null()
@@ -163,11 +163,21 @@ contains
        end where
     end if
 
+    ! Invert rms
     where (self%siN%map > 0.d0) 
        self%siN%map = 1.d0 / self%siN%map
     elsewhere
        self%siN%map = 0.d0
     end where
+
+    ! Add white noise corresponding to the user-specified regularization noise map
+    if (associated(self%rms_reg) .and. present(regnoise)) then
+       do j = 1, self%rms_reg%info%nmaps
+          do i = 0, self%rms_reg%info%np-1
+             regnoise(i,j) = regnoise(i,j) + self%rms_reg%map(i,j) * rand_gauss(handle) 
+          end do
+       end do
+    end if
 
     ! Set siN to its mean; useful for debugging purposes
     if (self%set_noise_to_mean) then
