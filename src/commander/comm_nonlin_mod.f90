@@ -151,7 +151,6 @@ contains
        class is (comm_diffuse_comp)
           
           do j = 1, c%npar
-             !write(*,*) "L ", c%L(:,:,1,j)
              if (c%p_gauss(2,j) == 0.d0 .or. c%lmax_ind < 0) cycle
              
              ! Set up smoothed data
@@ -174,7 +173,7 @@ contains
              ! Params
              write(jtext, fmt = '(I1)') j ! Create j string
              out_every = 10
-             check_every = 100
+             check_every = 50 !100
              nsamp = cpar%nsamp_alm !2000
              burnin = cpar%burnin ! Gibbs iter burnin. Tunes steplen.
              cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
@@ -257,8 +256,7 @@ contains
                 end if
 
                 ! Use chisq from last iteration
-                if (optimize .and. iter > 1 .and. chisq(0)>c%chisq_min(j)) chisq(0) = c%chisq_min(j)                   
-
+                if (optimize .and. iter > 1 .and. chisq(0)>c%chisq_min(j,pl)) chisq(0) = c%chisq_min(j,pl)
                 if (c%apply_jeffreys) then
                    call c%updateMixmat(df=df, par=j)
                    call compute_jeffreys_prior(c, df, pl, j, chisq_jeffreys)
@@ -479,6 +477,8 @@ contains
                    
                    call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
                    if (doexit .or. i == nsamp) then
+                      if (optimize) c%chisq_min(j,pl) = chisq(i) ! Stop increase in chisq
+
                       if (info%myid == 0 .and. i == nsamp) write(*,*) "nsamp samples reached", nsamp
 
                       ! Save max iteration for this signal
@@ -498,7 +498,7 @@ contains
                 end do
              end do
 
-             if (optimize) c%chisq_min(j) = chisq(i) ! Save per poltype?
+
 
              if (info%myid == 0) close(58)
              
@@ -562,6 +562,7 @@ contains
                       if (maxit(pl) == 0) cycle ! Cycle if not sampled
                       call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
                    end do
+
                    c%steplen(:,j) = 0.3d0
                    c%L_read(j) = .true. ! L now exists!
                 end if
