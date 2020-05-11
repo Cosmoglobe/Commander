@@ -1692,7 +1692,8 @@ contains
     implicit none
     type(comm_params), intent(inout) :: cpar
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j, k, n
+    character(len=16), dimension(1000) :: comp_label
 
     ! Add user specified sample groups
     cpar%cg_num_samp_groups = cpar%cg_num_user_samp_groups 
@@ -1703,6 +1704,18 @@ contains
           cpar%cg_num_samp_groups                     = cpar%cg_num_samp_groups + 1
           cpar%cg_samp_group(cpar%cg_num_samp_groups) = trim(cpar%cs_label(i))
        end if
+    end do
+
+    ! Expand md type if present
+    do i = 1, cpar%cg_num_samp_groups
+       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+       do j = 1, n
+          if (trim(comp_label(j)) == 'md') then
+             do k = 1, cpar%numband
+                if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
+             end do
+          end if
+       end do
     end do
 
     ! More groups may be defined here

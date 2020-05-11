@@ -362,6 +362,10 @@ contains
           end do
        end do
        deallocate(s_sky, delta, eta)
+
+       ! Set monopole component to zero, if active. Now part of n_corr
+       call nullify_monopole_amp(data(i)%label)
+
     end do
 
   end subroutine process_TOD

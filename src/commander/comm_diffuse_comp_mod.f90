@@ -15,7 +15,7 @@ module comm_diffuse_comp_mod
 
   private
   public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
-       & res_smooth, rms_smooth, print_precond_mat
+       & res_smooth, rms_smooth, print_precond_mat, nullify_monopole_amp
   
   !**************************************************
   !            Diffuse component class
@@ -72,7 +72,7 @@ module comm_diffuse_comp_mod
      procedure :: applyLowlPrecond
      procedure :: updateDeflatePrecond
      procedure :: applyDeflatePrecond
-     procedure :: applyMonopolePrior
+     procedure :: applyMonoDipolePrior
   end type comm_diffuse_comp
 
   type diff_ptr
@@ -2919,44 +2919,121 @@ contains
 
   end subroutine setup_needlets
 
-  subroutine applyMonopolePrior(self)
+  subroutine applyMonoDipolePrior(self)
     implicit none
     class(comm_diffuse_comp), intent(inout)          :: self
 
-    integer(i4b) :: i, ierr
-    real(dp)     :: mu, a, b
+    integer(i4b) :: i, j, k, l, m, ierr
+    real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3)
+    class(comm_map), pointer :: map 
 
-    ! Compute monopole offset given the specified prior
     if (trim(self%mono_prior_type) == 'none') then ! No active monopole prior
        return
-    else if (trim(self%mono_prior_type) == 'mask') then        ! Set monopole to zero outside user-specified mask
-       ! Generate real-space component map
-       call self%x%Y()
+    end if
+
+    ! Compute monopole offset given the specified prior
+    mu = 0.d0
+
+    ! Generate real-space component map
+    map => comm_map(self%x)
+    call self%B_out%conv(trans=.false., map=map)
+    call map%Y
+!!$    call map%writeFITS('ff.fits')
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+    if (trim(self%mono_prior_type) == 'monopole') then        ! Set monopole to zero outside user-specified mask
 
        ! Compute mean outside mask; no noise weighting for now at least
-       a = sum(self%x%map(:,1) * self%mono_prior_map%map(:,1))
+       a = sum(map%map(:,1) * self%mono_prior_map%map(:,1))
        b = sum(self%mono_prior_map%map(:,1))
        call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
-       mu = a / b
+       mu(0) = a / b
+
+       ! Subtract mean in real space
+       self%x%map(:,1) = self%x%map(:,1) - mu(0)
+
+       if (self%x%info%myid == 0) write(*,fmt='(a,f10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu(0)
+
+    else if (trim(self%mono_prior_type) == 'monopole+dipole') then        ! Set monopole and dipole to zero outside user-specified mask
+       ! Generate real-space component map
+
+       ! Compute mean outside mask; no noise weighting for now at least
+       Amat = 0.d0; bmat = 0.d0
+       do i = 0, self%x%info%np-1
+          if (self%mono_prior_map%map(i,1) < 0.5d0) cycle
+          v(0) = 1.d0
+          call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
+          do j = 0, 3
+             do k = 0, 3
+                Amat(j,k) = Amat(j,k) + v(j)*v(k)
+             end do
+             bmat(j) = bmat(j) + v(j)*map%map(i,1)
+          end do
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, Amat, 16, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, bmat,  4, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call solve_system_real(Amat, mu, bmat)
+
+       ! Subtract mean and dipole in real space
+       do i = 0, self%x%info%np-1
+          v(0) = 1.d0
+          call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
+          self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
+       end do
+
+       if (self%x%info%myid == 0) write(*,fmt='(a,4f10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu
+
     else if (trim(self%mono_prior_type) == 'crosscorr') then ! Enforce zero intercept in correlation with specified map
        write(*,*) 'Error: Cross-correlation monopole prior not implemented yet'
        stop
     end if
-
-    if (self%x%info%myid == 0) write(*,fmt='(a,e10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu
-
-    ! Subtract mean in real space
-    self%x%map(:,1) = self%x%map(:,1) - mu
     
     ! Subtract mean in harmonic space
     do i = 0, self%x%info%nalm-1
        if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
-          self%x%alm(i,1) = self%x%alm(i,1) - mu * sqrt(4.d0*pi)
+          self%x%alm(i,1) = self%x%alm(i,1) - mu(0) * sqrt(4.d0*pi)
+       end if
+       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == -1) then
+          self%x%alm(i,1) = self%x%alm(i,1) - mu(2) * sqrt(4.d0*pi/3.d0)
+       end if
+       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 0) then
+          self%x%alm(i,1) = self%x%alm(i,1) - mu(3) * sqrt(4.d0*pi/3.d0)
+       end if
+       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+          self%x%alm(i,1) = self%x%alm(i,1) + mu(1) * sqrt(4.d0*pi/3.d0)
        end if
     end do
+
+    call map%dealloc()
     
-  end subroutine applyMonopolePrior
+  end subroutine applyMonoDipolePrior
+
+  subroutine nullify_monopole_amp(band)
+    implicit none
+    character(len=*), intent(in) :: band
+
+    integer(i4b) :: i
+    class(comm_comp), pointer :: c => null()
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == trim(band)) then
+             do i = 0, c%x%info%nalm-1
+                if (c%x%info%lm(1,i) == 0 .and. c%x%info%lm(2,i) == 0) then
+                   c%x%alm(i,1) = 0.d0
+                   return
+                end if
+             end do
+          end if
+       end select
+       c => c%next()
+    end do
+
+  end subroutine nullify_monopole_amp
 
 
 end module comm_diffuse_comp_mod
