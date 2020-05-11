@@ -27,8 +27,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot
 
-     real(dp),     allocatable, dimension(:)   :: chisq_min
-     real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen
+     real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen, chisq_min
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
      logical(lgt),    dimension(:), allocatable :: L_read
@@ -314,7 +313,7 @@ contains
     self%L_read    = .false.
 
     ! save minimum chisq per iteration
-    allocate(self%chisq_min(self%npar))
+    allocate(self%chisq_min(self%npar, self%nmaps))
 
     self%nalm_tot = (self%lmax_ind + 1)**2
 

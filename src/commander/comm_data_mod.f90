@@ -114,10 +114,10 @@ contains
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info)
+             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
-             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info)
+             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else

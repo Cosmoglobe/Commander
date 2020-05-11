@@ -62,11 +62,12 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(cpar, id_abs, info)
+  function constructor(cpar, id_abs, info, tod_type)
     implicit none
     type(comm_params),       intent(in) :: cpar
     integer(i4b),            intent(in) :: id_abs
     class(comm_mapinfo),     target     :: info
+    character(len=128),      intent(in) :: tod_type
     class(comm_LFI_tod),     pointer    :: constructor
 
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
@@ -81,6 +82,7 @@ contains
 
     ! Set up LFI specific parameters
     allocate(constructor)
+    constructor%tod_type      = tod_type
     constructor%myid          = cpar%myid_chain
     constructor%comm          = cpar%comm_chain
     constructor%numprocs      = cpar%numprocs_chain
