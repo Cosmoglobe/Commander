@@ -127,7 +127,7 @@ contains
     ! Sample calibration factors
     do i = 1, numband
        if (.not. data(i)%sample_gain) cycle
-       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, handle)
+       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, mod(iter,cpar%resamp_hard_gain_prior_nth_iter)==0, handle)
     end do
 
     ! Update mixing matrices if gains have been sampled
@@ -165,7 +165,7 @@ contains
     character(len=9) :: ar_tag
     character(len=512) :: filename
 
-    logical :: accepted, exist, doexit
+    logical :: accepted, exist, doexit, optimize, apply_prior
     class(comm_mapinfo), pointer :: info => null()
     class(comm_comp),    pointer :: c    => null()
     type(map_ptr),     allocatable, dimension(:) :: df
@@ -191,7 +191,7 @@ contains
        ! Set up smoothed data
        if (cpar%myid_chain == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
        call update_status(status, "spec_alm start " // trim(c%label)// ' ' // trim(c%indlabel(j)))
-       
+
        if (c%apply_jeffreys) then
           allocate(df(numband))
           do k = 1, numband
@@ -208,10 +208,12 @@ contains
        ! Params
        write(jtext, fmt = '(I1)') j ! Create j string
        out_every = 10
-       check_every = 100
-       nsamp = 2000
-       burnin = 5 ! Gibbs iter burnin. Tunes steplen.
+       check_every = 50 !100
+       nsamp = cpar%nsamp_alm !2000
+       burnin = cpar%burnin ! Gibbs iter burnin. Tunes steplen.
        cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
+       optimize = cpar%optimize_alm
+       apply_prior = .false.
 
        thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 
@@ -250,16 +252,17 @@ contains
        !   alms(0,1:,:) = alms(0,1:,:) + 1e-6
        !   c%theta(j)%p%alm = c%theta(j)%p%alm + 1e-6
        !end if
-       
+
        do pl = 1, c%theta(j)%p%info%nmaps
           ! if sample only pol, skip T
           if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
-                
+
           ! p already calculated if larger than poltype 
           if (pl > c%poltype(j)) cycle
 
-          if (c%lmax_ind_pol(pl,j) < 0) cycle !p is to be local sampled
-          
+          ! p to be sampled with a local sampler 
+          if (c%lmax_ind_pol(pl,j) < 0) cycle
+
           ! Get sampling tag
           if (c%poltype(j) == 1) then
              tag = "TQU"
@@ -278,21 +281,20 @@ contains
                 tag = "U"
              end if
           end if
-          
-          
-          
-          
+
           ! Calculate initial chisq
           !if (info%myid == 0) open(54,file='P_jeffreys.dat')
           !do p = 1, 100
-          
+
           !   if (c%theta(j)%p%info%nalm > 0) c%theta(j)%p%alm = (-4.d0 + 0.02d0*p)*sqrt(4.d0*pi)
-          
           if (allocated(c%indmask)) then
-             call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask)
+             call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true.)
           else
-             call compute_chisq(c%comm, chisq_fullsky=chisq(0))
+             call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true.)
           end if
+
+          ! Use chisq from last iteration
+          if (optimize .and. iter > 1 .and. chisq(0)>c%chisq_min(j,pl)) chisq(0) = c%chisq_min(j,pl)
           if (c%apply_jeffreys) then
              call c%updateMixmat(df=df, par=j)
              call compute_jeffreys_prior(c, df, pl, j, chisq_jeffreys)
@@ -310,19 +312,21 @@ contains
 
           call wall_time(t1)
           if (info%myid == 0) then 
-             ! Add prior 
-             chisq_prior = ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-             if (c%nalm_tot > 1) then
-                do p = 1, c%nalm_tot-1
-                   chisq_prior = chisq_prior + (alms(0,p,pl)/c%sigma_priors(p,j))**2
-                end do
+
+             if (apply_prior) then
+                ! Add prior 
+                chisq_prior = ((alms(0,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                if (c%nalm_tot > 1) then
+                   do p = 1, c%nalm_tot-1
+                      chisq_prior = chisq_prior + (alms(0,p,pl)/c%sigma_priors(p,j))**2
+                   end do
+                end if
+                chisq(0) = chisq(0) + chisq_prior
              end if
-             chisq(0) = chisq(0) + chisq_prior
 
              ! Output init sample
              write(*,fmt='(a, i6, a, f16.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
           end if
-
 
           ! Sample new alms (Account for poltype)
           num_accepted = 0
@@ -344,22 +348,6 @@ contains
                    rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                 end do
                 alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
-
-                !write(*,*) "steplen", c%steplen(pl,j), "cholesky", c%L(:,:,pl,j)
-                !write(*,*) "alms", alms(i-1,:,pl)
-
-                ! Adding prior
-                chisq_prior = ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-                if (c%nalm_tot > 1) then
-                   do p = 1, c%nalm_tot-1
-                      !write(*,*) "alms ", p, alms(i,p,pl), c%sigma_priors(p,j)
-                      chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
-                   end do
-                end if
-
-                ! Prior adjustments (Nessecary because of loop adjustment)
-                !                      if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
-                !                      if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior!*2.d0
              end if
 
              ! Broadcast proposed alms from root
@@ -398,24 +386,41 @@ contains
 
              ! Calculate proposed chisq
              if (allocated(c%indmask)) then
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask)
+                call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask, lowres_eval=.true.)
              else
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i))
+                call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true.)
              end if
-             if (c%apply_jeffreys) chisq(i) = chisq(i) + chisq_jeffreys
 
              ! Accept/reject test
              ! Reset accepted bool
              accepted = .false.
              if (info%myid == 0) then
 
-                chisq(i) = chisq(i) + chisq_prior
+                ! Adding prior
+                if (c%apply_jeffreys) chisq(i) = chisq(i) + chisq_jeffreys
+
+                if (apply_prior) then
+                   chisq_prior = ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                   if (c%nalm_tot > 1) then
+                      do p = 1, c%nalm_tot-1
+                         !write(*,*) "alms ", p, alms(i,p,pl), c%sigma_priors(p,j)
+                         chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
+                      end do
+                   end if
+                   ! Prior adjustments (Nessecary because of loop adjustment)
+                   !if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
+                   !if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior!*2.d0
+
+                   chisq(i) = chisq(i) + chisq_prior
+                end if
 
                 diff = chisq(i-1)-chisq(i)
-                if ( chisq(i) > chisq(i-1) ) then             
+                if ( chisq(i) > chisq(i-1)) then             
                    ! Small chance of accepting this too
                    ! Avoid getting stuck in local mminimum
-                   accepted = (rand_uni(handle) < exp(0.5d0*diff))
+                   if ( .not. (iter > burnin .and. trim(c%operation) == 'optimize')) then
+                      accepted = (rand_uni(handle) < exp(0.5d0*diff))
+                   end if
                 else
                    accepted = .true.
                 end if
@@ -485,7 +490,7 @@ contains
                    call wall_time(t1)
 
                    ! Adjust steplen in tuning iteration
-                   if (iter < burnin) then !( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
+                   if (iter <= burnin) then !( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
 
                       if (accept_rate < 0.2) then                 
                          c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
@@ -509,6 +514,8 @@ contains
 
              call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
              if (doexit .or. i == nsamp) then
+                if (optimize) c%chisq_min(j,pl) = chisq(i) ! Stop increase in chisq
+
                 if (info%myid == 0 .and. i == nsamp) write(*,*) "nsamp samples reached", nsamp
 
                 ! Save max iteration for this signal
@@ -523,18 +530,19 @@ contains
                 else 
                    maxit(pl) = i
                 end if
-
                 exit
              end if
-          end do !nsamp
-       end do !pl = 1,nmaps
+          end do
+       end do
+
+
 
        if (info%myid == 0) close(58)
 
        ! Calculate correlation length and cholesky matrix 
        ! (Only if first iteration and not initialized from previous)
        if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0) then
-          if (c%L_read(j)  .and. iter > burnin) then
+          if (c%L_read(j)  .and. iter >= burnin) then
              write(*,*) 'Calculating correlation function'
              ! Calculate Correlation length
              delta = 100
@@ -591,6 +599,7 @@ contains
                 if (maxit(pl) == 0) cycle ! Cycle if not sampled
                 call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
              end do
+
              c%steplen(:,j) = 0.3d0
              c%L_read(j) = .true. ! L now exists!
           end if
@@ -608,7 +617,6 @@ contains
           end do
           deallocate(df)
        end if
-
     end select
     
     deallocate(status_fit)
@@ -2163,7 +2171,7 @@ contains
              if (first_sample) then
                 old_theta = old_thetas(pr)
                 proplen=c_lnL%proplen_pixreg(pr,p,id)
-                if (cpar%verbosity>2 .and. c_lnL%pixreg_single) then                
+                if (cpar%verbosity>2) then                
                    write(*,fmt='(a, i3, a, f10.5)') "  initial pix.reg. ",pr,"  -- spec. ind. value: ", init_thetas(pr)
                    write(*,fmt='(a, e14.5)') "  initial proposal length: ",proplen
                 end if

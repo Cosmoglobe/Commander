@@ -6,6 +6,7 @@ module comm_data_mod
   use comm_map_mod
   use comm_tod_mod
   use comm_tod_LFI_mod
+  use comm_tod_WMAP_mod
   use locate_mod
   implicit none
 
@@ -13,7 +14,7 @@ module comm_data_mod
      character(len=512)           :: label, unit, comp_sens
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
-     real(dp)                     :: gain
+     real(dp)                     :: gain, gain_prior(2)
      character(len=128)           :: gain_comp
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
@@ -76,6 +77,7 @@ contains
        data(n)%unit           = cpar%ds_unit(i)
        data(n)%sample_gain    = cpar%ds_sample_gain(i)
        data(n)%gain_comp      = cpar%ds_gain_calib_comp(i)
+       data(n)%gain_prior     = cpar%ds_gain_prior(i,:)
        data(n)%gain_lmin      = cpar%ds_gain_lmin(i)
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
@@ -112,7 +114,10 @@ contains
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info)
+             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'WMAP') then
+             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else
@@ -268,13 +273,9 @@ contains
     class(comm_map), pointer :: invN_res => null()
     
     invN_res => comm_map(self%res)
-!    write(*,*) 'a', sum(abs(self%res%map))
     call self%N%invN(invN_res)
-!    write(*,*) 'b', sum(abs(invN_res%map))
     chisq = sum(self%res%map*invN_res%map)
-!    write(*,*) 'c', chisq
     call mpi_allreduce(chisq, get_chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-!    write(*,*) 'c', get_chisq
     call invN_res%dealloc()
 
   end function get_chisq

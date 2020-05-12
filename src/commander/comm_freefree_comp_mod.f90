@@ -33,16 +33,16 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_freefree_comp), pointer   :: constructor
 
-    integer(i4b) :: i, j, k, l, m, n, ierr
+    integer(i4b) :: i, j, k, l, m, n, p, ierr
     type(comm_mapinfo), pointer :: info => null()
     real(dp)           :: par_dp
-    integer(i4b), allocatable, dimension(:) :: sum_pix
-    real(dp),    allocatable, dimension(:) :: sum_theta 
+    integer(i4b), allocatable, dimension(:) :: sum_pix, sum_nprop
+    real(dp),    allocatable, dimension(:) :: sum_theta, sum_proplen 
     character(len=512) :: temptxt, partxt
     integer(i4b) :: smooth_scale, p_min, p_max
     class(comm_mapinfo), pointer :: info2 => null()
-    class(comm_map),     pointer :: theta_single_pol => null() 
-    class(comm_map),     pointer :: theta_single_pol_smooth => null() 
+    class(comm_map),     pointer :: tp => null() 
+    class(comm_map),     pointer :: tp_smooth => null() 
 
     ! General parameters
     allocate(constructor)
@@ -81,20 +81,63 @@ contains
     
     !constructor%indlabel  = ['Te']
 
-    ! Initialize spectral parameter maps
+    ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
          & constructor%nmaps, constructor%pol)
 
+    allocate(constructor%lmax_ind_pol(3,constructor%npar))       ! {integer}: lmax per. poltype sample per spec. index
     allocate(constructor%theta(constructor%npar))
     do i = 1, constructor%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default') then
           constructor%theta(i)%p => comm_map(info)
-          constructor%theta(i)%p%map = constructor%theta_def(i)
+          constructor%theta(i)%p%map = constructor%theta_def(1)
        else
           ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_ind(i,id_abs)))
+          constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
        end if
-       if (constructor%lmax_ind >= 0) call constructor%theta(i)%p%YtW_scalar
+
+       do j = 1, constructor%poltype(i)
+          !assign lmax per spec ind per polarization sample type (poltype)
+          constructor%lmax_ind_pol(j,i) = cpar%cs_lmax_ind_pol(j,i,id_abs)
+       end do
+
+       if (constructor%lmax_ind >= 0) then
+          ! if any polarization is local sampled, only use alms to set polarizations with alm sampling
+          if (any(constructor%lmax_ind_pol(1:constructor%poltype(i),i) < 0)) then
+             tp => comm_map(info)
+             tp%alm=constructor%theta(i)%p%alm
+             call tp%Y_scalar
+             do p = 1,constructor%poltype(i)
+                if (constructor%lmax_ind_pol(p,i) < 0) cycle
+                if (constructor%poltype(i) == 1) then
+                   p_min=1
+                   p_max=constructor%nmaps
+                   if (cpar%only_pol) p_min = 2
+                else if (constructor%poltype(i)==2) then
+                   if (p == 1) then
+                      p_min = 1
+                      p_max = 1
+                   else
+                      p_min = 2
+                      p_max = constructor%nmaps
+                   end if
+                else if (constructor%poltype(i)==3) then
+                   p_min = p
+                   p_max = p
+                else
+                   write(*,*) '  Unknown poltype in component ',id_abs,', parameter ',i 
+                   stop
+                end if
+
+                do j = p_min,p_max
+                   constructor%theta(i)%p%map(:,j) = tp%map(:,p)
+                end do
+             end do
+             call tp%dealloc()
+          else
+             call constructor%theta(i)%p%YtW_scalar
+          end if
+       end if
     end do
 
     ! Precompute mixmat integrator for each band
@@ -113,12 +156,10 @@ contains
        end do
     end do
 
-    ! Initialize mixing matrix
-    call constructor%updateMixmat
-
     ! Set up smoothing scale information
     allocate(constructor%smooth_scale(constructor%npar))
     constructor%smooth_scale = cpar%cs_smooth_scale(id_abs,1:constructor%npar)
+
 
     !!! (local) sampling specific parameters!!!
 
@@ -127,16 +168,14 @@ contains
     allocate(constructor%pol_sample_proplen(3,constructor%npar)) ! {.true., .false.}: sample proplen on first iteration
     allocate(constructor%pol_pixreg_type(3,constructor%npar))    ! {1=fullsky, 2=single_pix, 3=pixel_regions}
     allocate(constructor%nprop_uni(2,constructor%npar))          ! {integer}: upper and lower limits on nprop
-    allocate(constructor%lmax_ind_pol(3,constructor%npar))       ! {integer}: lmax per. poltype sample per spec. index
     allocate(constructor%npixreg(3,constructor%npar))            ! {integer}: number of pixel regions per poltye per spec ind
+    allocate(constructor%first_ind_sample(3,constructor%npar)) !used for pixelregion sampling
+    constructor%first_ind_sample=.true.
 
+    constructor%npixreg = 0
     do i = 1,constructor%npar
        constructor%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
        do j = 1,constructor%poltype(i)
-          !assign lmax per spec ind per polarization sample type (poltype)
-          constructor%lmax_ind_pol(j,i) = cpar%cs_lmax_ind_pol(j,i,id_abs)
-          !find the highest lmax of the component in total
-          constructor%lmax_ind = max(constructor%lmax_ind,constructor%lmax_ind_pol(j,i)) 
           constructor%pol_lnLtype(j,i)  = cpar%cs_spec_lnLtype(j,i,id_abs)
           constructor%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
           constructor%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
@@ -159,6 +198,19 @@ contains
        end do
     end do
 
+    if (any(constructor%pol_pixreg_type(:,:) == 3)) then
+       k = 0
+       do i = 1,constructor%npar
+          do j = 1,constructor%poltype(i)
+             if (constructor%npixreg(j,i) > k) k = constructor%npixreg(j,i)
+          end do
+       end do
+       allocate(constructor%nprop_pixreg(k,3,constructor%npar))
+       allocate(constructor%npix_pixreg(k,3,constructor%npar))
+       allocate(constructor%proplen_pixreg(k,3,constructor%npar))
+       allocate(constructor%B_pp_fr(constructor%npar))
+    end if
+
     ! Set up spectral index sampling masks, proposal length maps and nprop maps
     allocate(constructor%pol_ind_mask(constructor%npar)) ! masks per spectral index (all poltypes)
     allocate(constructor%pol_nprop(constructor%npar))    ! nprop map per spectral index (all poltypes
@@ -178,7 +230,7 @@ contains
     end if
 
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
-         & 3, constructor%pol)
+         & constructor%nmaps, constructor%pol)
 
     if (any(constructor%pol_pixreg_type == 3)) then
        if (any(constructor%poltype > 1)) then
@@ -272,17 +324,30 @@ contains
             & constructor%nprop_uni(2,i)*1.d0)
 
        ! initialize pixel regions if relevant 
-       if (any(constructor%pol_pixreg_type(:,i) == 3)) then
+       if (any(constructor%pol_pixreg_type(1:constructor%poltype(i),i) == 3)) then
+
+          info2  => comm_mapinfo(constructor%theta(i)%p%info%comm, constructor%nside, &
+               & 2*constructor%nside, 1, .false.) 
+
+          smooth_scale = constructor%smooth_scale(i)
+          if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+             if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                !create beam for smoothing
+                constructor%B_pp_fr(i)%p => comm_B_bl(cpar, info2, 1, 1, fwhm=cpar%fwhm_smooth(smooth_scale), &
+                     & init_realspace=.false.)
+             end if
+          end if
+
           ! Read map from FITS file
           constructor%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
-          do j =1,constructor%poltype(i)
-             constructor%theta_pixreg(:,j,i)=0.d0
+          do j = 1,constructor%poltype(i)
+             constructor%theta_pixreg(:,j,i)=constructor%p_gauss(1,i) !prior
              if (.not. constructor%pol_pixreg_type(j,i) == 3) cycle
 
              n=constructor%npixreg(j,i)
-             allocate(sum_pix(n),sum_theta(n))
+             allocate(sum_pix(n),sum_theta(n),sum_nprop(n),sum_proplen(n))
              sum_theta=0.d0
              sum_pix=0
 
@@ -291,6 +356,8 @@ contains
                    if ( constructor%ind_pixreg_map(i)%p%map(k,j) > (m-0.5d0) .and. &
                         & constructor%ind_pixreg_map(i)%p%map(k,j) < (m+0.5d0) ) then
                       sum_theta(m)=sum_theta(m)+constructor%theta(i)%p%map(k,j)
+                      sum_proplen(m)=sum_proplen(m)+constructor%pol_proplen(i)%p%map(k,j)
+                      sum_nprop(m)=sum_nprop(m)+IDINT(constructor%pol_nprop(i)%p%map(k,j))
                       sum_pix(m)=sum_pix(m)+1
                       constructor%ind_pixreg_arr(k,j,i)=m !assign pixel region index 
                       exit
@@ -300,72 +367,82 @@ contains
 
              !allreduce
              call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, sum_nprop, n, MPI_INTEGER, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_pix, n, MPI_INTEGER, MPI_SUM, info%comm, ierr)
             
              do k = 1,n
-                if (sum_pix(n) > 0) then
+                !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- numbe of pixels',sum_pix(k)
+                if (sum_pix(k) > 0) then
                    constructor%theta_pixreg(k,j,i)=sum_theta(k)/(1.d0*sum_pix(k))
+                   constructor%nprop_pixreg(k,j,i)=IDINT(sum_nprop(k)/(1.d0*sum_pix(k)))
+                   constructor%proplen_pixreg(k,j,i)=sum_proplen(k)/(1.d0*sum_pix(k))
                 else
                    constructor%theta_pixreg(k,j,i)=constructor%p_gauss(1,i) ! the prior as theta
+                   constructor%nprop_pixreg(k,j,i)=0
+                   constructor%proplen_pixreg(k,j,i)=1.d0
                 end if
+                constructor%npix_pixreg(k,j,i)=sum_pix(k)
              end do
              constructor%theta_pixreg(0,j,i)=constructor%p_gauss(1,i) !all pixels in region 0 has the prior as theta
 
-             deallocate(sum_pix,sum_theta)
+             deallocate(sum_pix,sum_theta,sum_proplen,sum_nprop)
+             
 
-             !Should also smooth and assign to theta map.
-             if (constructor%poltype(i) == 1) then
-                p_min = 1; p_max = constructor%nmaps
-                if (cpar%only_pol) p_min = 2
-             else if (constructor%poltype(i) == 2) then
-                if (j == 1) then
-                   p_min = 1; p_max = 1
-                else
-                   p_min = 2; p_max = constructor%nmaps
-                end if
-             else if (constructor%poltype(i) == 3) then
-                p_min = j
-                p_max = j
-             else
-                write(*,*) 'Unsupported polarization type'
-                stop
-             end if
-             smooth_scale = constructor%smooth_scale(i)
-             if (cpar%num_smooth_scales > 0) then
-                if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
-                   if (p_min<=p_max) then !just a guaranty that we dont smooth for nothing
-                   
-                      info2  => comm_mapinfo(constructor%theta(i)%p%info%comm, cpar%nside_smooth(smooth_scale), &
-                           & cpar%lmax_smooth(smooth_scale), 1, constructor%theta(i)%p%info%pol) !only want 1 map
-
-                      !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
-                      theta_single_pol => comm_map(info2)
-
-                      do k = 0,info2%np-1
-                         theta_single_pol%map(k,1) = constructor%theta_pixreg(constructor%ind_pixreg_arr(k,j,i),j,i)
-                      end do
-                      !smooth single map as intensity (i.e. zero spin)
-                      call smooth_map(info2, .false., &
-                           & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, theta_single_pol, &  
-                           & data(1)%B_postproc(smooth_scale)%p%b_l, theta_single_pol_smooth)
-
-                      do k = p_min,p_max
-                         constructor%theta(i)%p%map(:,k) = theta_single_pol_smooth%map(:,1)
-                      end do
-                      call theta_single_pol_smooth%dealloc()
-                      theta_single_pol_smooth => null()
-                      call theta_single_pol%dealloc()
-                      theta_single_pol => null()
-
+             !Should also assign (and smooth) theta map. This might be dangerous so we don't assign for now
+             ! might put in a flag for this if wanted
+             if (.false.) then
+                if (constructor%poltype(i) == 1) then
+                   p_min = 1; p_max = constructor%nmaps
+                   if (cpar%only_pol) p_min = 2
+                else if (constructor%poltype(i) == 2) then
+                   if (j == 1) then
+                      p_min = 1; p_max = 1
+                   else
+                      p_min = 2; p_max = constructor%nmaps
                    end if
+                else if (constructor%poltype(i) == 3) then
+                   p_min = j
+                   p_max = j
+                else
+                   write(*,*) 'Unsupported polarization type'
+                   stop
                 end if
-             end if !num smooth scales > 0
 
-          end do
+                smooth_scale = constructor%smooth_scale(i)
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                   if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                      if (p_min<=p_max) then !just a guaranty that we dont smooth for nothing
+
+                         !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
+                         tp => comm_map(info2)
+
+                         do k = 0,info2%np-1
+                            tp%map(k,1) = constructor%theta_pixreg(constructor%ind_pixreg_arr(k,j,i),j,i)
+                         end do
+                         !smooth single map as intensity (i.e. zero spin)
+                         call smooth_map(info2, .false., &
+                              & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, tp, &  
+                              & data(1)%B_postproc(smooth_scale)%p%b_l, tp_smooth)
+
+                         do k = p_min,p_max
+                            constructor%theta(i)%p%map(:,k) = tp_smooth%map(:,1)
+                         end do
+                         call tp_smooth%dealloc()
+                         call tp%dealloc()
+
+                      end if
+                   end if
+                end if !num smooth scales > 0
+             end if
+          end do !poltype
           
-       end if
+       end if !any pixreg_type == 3
 
-    end do
+    end do !npar
+
+    ! Initialize mixing matrix
+    call constructor%updateMixmat
 
   end function constructor
 
