@@ -156,7 +156,7 @@ contains
     self%output_mixmat = cpar%output_mixmat
     self%latmask       = cpar%cs_latmask(id_abs)
     self%apply_jeffreys = .false.
-    self%sample_first_niter = cpar%cs_samp_samp_params_niter(id_abs)
+    self%sample_first_niter = cpar%cs_local_burn_in
 
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
