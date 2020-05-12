@@ -11,7 +11,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, initialize_tod_mod, fill_all_masked, tod_pointer
+  public comm_tod, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
@@ -105,6 +105,8 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
      real(sp),           allocatable, dimension(:,:)   :: ind2ang
+     character(len=128)                                :: tod_type
+     integer(i4b)                                      :: nside_beam
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
@@ -120,6 +122,8 @@ module comm_tod_mod
      procedure                        :: get_total_chisq
      procedure                        :: symmetrize_flags
      procedure                        :: decompress_pointing_and_flags
+     procedure                        :: tod_constructor
+     procedure                        :: load_instrument_file
   end type comm_tod
 
   abstract interface
@@ -156,10 +160,199 @@ contains
 
   end subroutine initialize_tod_mod
 
+  !common constructor functionality for all tod processing classes
+  subroutine tod_constructor(self, cpar, id_abs, info, tod_type)
+    implicit none
+    class(comm_tod),                intent(inout)  :: self
+    integer(i4b),                   intent(in)     :: id_abs
+    type(comm_params),              intent(in)     :: cpar
+    class(comm_mapinfo),            target         :: info
+    character(len=128),             intent(in)     :: tod_type
+
+    integer(i4b) :: i, j, k, ndelta, np_vec, ierr
+    real(dp)     :: f_fill, f_fill_lim(3), theta, phi
+    integer(i4b), allocatable, dimension(:) :: pix
+    character(len=512) :: datadir
+
+    self%tod_type      = tod_type
+    self%myid          = cpar%myid_chain
+    self%comm          = cpar%comm_chain
+    self%numprocs      = cpar%numprocs_chain
+    self%myid_shared   = cpar%myid_shared
+    self%comm_shared   = cpar%comm_shared
+    self%myid_inter    = cpar%myid_inter
+    self%comm_inter    = cpar%comm_inter
+    self%info          => info
+    self%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
+    self%freq          = cpar%ds_label(id_abs)
+    self%operation     = cpar%operation
+    self%outdir        = cpar%outdir
+    self%first_call    = .false. !.true.
+    self%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
+    self%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
+    self%flag0         = cpar%ds_tod_flag(id_abs)
+    self%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
+    self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
+    self%output_4D_map = cpar%output_4D_map_nth_iter
+    self%subtract_zodi = cpar%include_TOD_zodi
+    self%central_freq  = cpar%ds_nu_c(id_abs)
+
+    call mpi_comm_size(cpar%comm_shared, self%numprocs_shared, ierr)
+
+    if (self%first_scan > self%last_scan) then
+       write(*,*) 'Error: First scan larger than last scan for ', trim(self%freq)
+       call mpi_finalize(ierr)
+       stop
+    end if
+
+    datadir = trim(cpar%datadir)//'/'
+    self%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
+    self%procmaskf1  = trim(datadir)//trim(cpar%ds_tod_procmask1(id_abs))
+    self%procmaskf2  = trim(datadir)//trim(cpar%ds_tod_procmask2(id_abs))
+    self%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
+
+    call self%get_scan_ids(self%filelist)
+
+    self%procmask => comm_map(self%info, self%procmaskf1)
+    self%procmask2 => comm_map(self%info, self%procmaskf2)
+    do i = 0, self%info%np-1
+       if (any(self%procmask%map(i,:) < 0.5d0)) then
+          self%procmask%map(i,:) = 0.d0
+       else
+          self%procmask%map(i,:) = 1.d0
+       end if
+       if (any(self%procmask2%map(i,:) < 0.5d0)) then
+          self%procmask2%map(i,:) = 0.d0
+       else
+          self%procmask2%map(i,:) = 1.d0
+       end if
+    end do
+
+    self%nmaps    = info%nmaps
+    !TODO: this should be changed to not require a really long string
+    self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+
+    allocate(self%stokes(self%nmaps))
+    allocate(self%w(self%nmaps, self%nhorn, self%ndet))
+    allocate(self%label(self%ndet))
+    allocate(self%partner(self%ndet))
+    allocate(self%horn_id(self%ndet))
+    self%stokes = [1,2,3]
+    self%w      = 1.d0
+
+    if (trim(cpar%ds_bpmodel(id_abs)) == 'additive_shift') then
+       ndelta = 1
+    else if (trim(cpar%ds_bpmodel(id_abs)) == 'powlaw_tilt') then
+       ndelta = 1
+    else
+       write(*,*) 'Unknown bandpass model'
+       stop
+    end if
+    allocate(self%bp_delta(0:self%ndet,ndelta))
+    self%bp_delta = 0.d0
+
+    ! Lastly, create a vector pointing table for fast look-up for orbital dipole
+    np_vec = 12*self%nside**2 !npix
+    allocate(self%pix2vec(3,0:np_vec-1))
+    do i = 0, np_vec-1
+       call pix2vec_ring(self%nside, i, self%pix2vec(:,i))
+    end do
+
+    ! Construct observed pixel array
+    allocate(self%pix2ind(0:12*self%nside**2-1))
+    self%pix2ind = -1
+    do i = 1, self%nscan
+       allocate(pix(self%scans(i)%ntod))
+       do j = 1, self%ndet
+          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix, pix)
+          self%pix2ind(pix(1)) = 1
+          do k = 2, self%scans(i)%ntod
+             pix(k)  = pix(k-1)  + pix(k)
+             self%pix2ind(pix(k)) = 1
+          end do
+       end do
+       deallocate(pix)
+    end do
+    self%nobs = count(self%pix2ind == 1)
+    allocate(self%ind2pix(self%nobs))
+    allocate(self%ind2sl(self%nobs))
+    allocate(self%ind2ang(2,self%nobs))
+    j = 1
+    do i = 0, 12*self%nside**2-1
+       if (self%pix2ind(i) == 1) then
+          self%ind2pix(j) = i
+          self%pix2ind(i) = j
+          call pix2ang_ring(self%nside, i, theta, phi)
+          call ang2pix_ring(self%nside_beam, theta, phi, self%ind2sl(j))
+          self%ind2ang(:,j) = [theta,phi]
+          j = j+1
+       end if
+    end do
+    f_fill = self%nobs/(12.*self%nside**2)
+    call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, self%info%comm, ierr)
+    call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, self%info%comm, ierr)
+    call mpi_reduce(f_fill, f_fill_lim(3), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+    if (self%myid == 0) then
+       write(*,*) '  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/self%info%nprocs,sp), real(100*f_fill_lim(2),sp)
+    end if
+
+
+  end subroutine tod_constructor
 
   !**************************************************
   !             Utility routines
   !**************************************************
+
+  subroutine load_instrument_file(self, nside_beam, nmaps_beam, pol_beam, comm_chain)
+    implicit none
+    class(comm_tod),   intent(inout) :: self
+    integer(i4b),      intent(in)    :: nside_beam
+    integer(i4b),      intent(in)    :: nmaps_beam
+    logical(lgt),      intent(in)    :: pol_beam
+    integer(i4b),      intent(in)    :: comm_chain 
+
+    type(hdf_file) :: h5_file
+    integer(i4b) :: lmax_beam, i
+
+    if(len(trim(self%instfile)) == 0) then
+      write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
+    end if
+
+    allocate(self%fwhm(self%ndet))
+    allocate(self%elip(self%ndet))
+    allocate(self%psi_ell(self%ndet))
+    allocate(self%mb_eff(self%ndet))
+    allocate(self%nu_c(self%ndet))
+
+    allocate(self%slbeam(self%ndet))
+    allocate(self%mbeam(self%ndet))
+    call open_hdf_file(self%instfile, h5_file, 'r')
+
+    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
+    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+
+    do i = 1, self%ndet
+       call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
+       call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
+       call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
+       call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'mbeam_eff', self%mb_eff(i))
+       call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
+       self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
+       call self%mbeam(i)%p%Y()
+    end do
+
+    call close_hdf_file(h5_file)
+
+    !mb_eff isn't used at the moment
+    self%mb_eff = 1.d0
+    self%mb_eff = self%mb_eff / mean(self%mb_eff)
+
+    self%nu_c   = self%nu_c * 1d9
+
+  end subroutine load_instrument_file
+
+
 
   subroutine read_tod(self, detlabels)
     implicit none

@@ -11,11 +11,12 @@ module comm_diffuse_comp_mod
   use comm_hdf_mod
   use InvSamp_mod
   use powell_mod
+  use comm_beam_mod
   implicit none
 
   private
   public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
-       & res_smooth, rms_smooth, print_precond_mat, recompute_diffuse_precond
+       & res_smooth, rms_smooth, print_precond_mat, nullify_monopole_amp, recompute_diffuse_precond
   
   !**************************************************
   !            Diffuse component class
@@ -27,7 +28,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
-     real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen
+     real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen, chisq_min
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
      logical(lgt),    dimension(:), allocatable :: L_read
@@ -35,20 +36,27 @@ module comm_diffuse_comp_mod
      real(dp)           :: cg_scale, latmask, fwhm_def, test
      real(dp),           allocatable, dimension(:,:)   :: cls
      real(dp),           allocatable, dimension(:,:,:) :: F_mean
-     character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'chisq_lowres', 'chisq_smooth', 'ridge', 'marginal'}
+     character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'ridge', 'marginal'}
      integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_pol    ! lmax per poltype per spec. ind  
      integer(i4b),       allocatable, dimension(:,:)   :: pol_pixreg_type ! {1=fullsky, 2=single_pix, 3=pixel_regions}
      integer(i4b),       allocatable, dimension(:,:)   :: nprop_uni       ! limits on nprop
      integer(i4b),       allocatable, dimension(:,:)   :: npixreg         ! number of pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
+     real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
+     integer(i4b),       allocatable, dimension(:,:,:) :: nprop_pixreg    ! number of proposals for pixregs
+     integer(i4b),       allocatable, dimension(:,:,:) :: npix_pixreg     ! number of pixels per pixel region
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
+     logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
      class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
      class(map_ptr),     allocatable, dimension(:)     :: pol_nprop
+     class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_pp_fr
 
+     character(len=512) :: mono_prior_type
+     class(comm_map),               pointer     :: mono_prior_map => null()
      class(comm_map),               pointer     :: mask => null()
      class(comm_map),               pointer     :: procmask => null()
      class(map_ptr),  dimension(:), allocatable :: indmask
@@ -86,6 +94,7 @@ module comm_diffuse_comp_mod
      procedure :: applyLowlPrecond
      procedure :: updateDeflatePrecond
      procedure :: applyDeflatePrecond
+     procedure :: applyMonoDipolePrior
   end type comm_diffuse_comp
 
   type diff_ptr
@@ -140,7 +149,7 @@ contains
     self%nside         = cpar%cs_nside(id_abs)
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
-    self%lmax_ind      = cpar%cs_lmax_ind_pol(1,1,id_abs) !all have this value
+    self%lmax_ind      = cpar%cs_lmax_ind(id_abs) 
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
@@ -297,6 +306,13 @@ contains
     ! Initialize pointers for non-linear search
     if (.not. allocated(res_smooth)) allocate(res_smooth(numband))
     if (.not. allocated(rms_smooth)) allocate(rms_smooth(numband))
+
+    ! Set up monopole prior
+    self%mono_prior_type = get_token(cpar%cs_mono_prior(id_abs), ":", 1)
+    if (trim(self%mono_prior_type) /= 'none') then
+       filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
+       self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+    end if
     
   end subroutine initDiffuse
 
@@ -321,13 +337,15 @@ contains
     allocate(self%L_read(self%npar))
     self%L_read    = .false.
 
+    ! save minimum chisq per iteration
+    allocate(self%chisq_min(self%npar, self%nmaps))
 
     self%nalm_tot = (self%lmax_ind + 1)**2
 
     ! Init smooth prior
     allocate(self%sigma_priors(0:self%nalm_tot-1,self%npar)) !a_00 is given by different one
 
-    fwhm_prior = cpar%cs_prior_fwhm(id_abs)   !600.d0 ! 1200.d0
+    fwhm_prior = cpar%prior_fwhm   !600.d0 ! 1200.d0
     do j = 1, self%npar
        self%sigma_priors(0,j) = 0.05 !p_gauss(2,j)*0.1
        if (self%nalm_tot > 1) then
@@ -897,14 +915,14 @@ contains
     class(map_ptr), dimension(:),              intent(inout), optional :: df    ! Derivative of mixmat with respect to parameter par; for Jeffreys prior
     integer(i4b),                              intent(in),    optional :: par   ! Parameter ID for derivative
 
-    integer(i4b) :: i, j, k, l, n, nmaps, ierr
+    integer(i4b) :: i, j, k, l, n, p, p_min, p_max, nmaps, ierr
     real(dp)     :: lat, lon, t1, t2
     logical(lgt) :: precomp, mixmatnull, bad ! NEW
     character(len=2) :: ctext
     real(dp),        allocatable, dimension(:,:,:) :: theta_p
     real(dp),        allocatable, dimension(:)     :: nu, s, buffer, buff2
     class(comm_mapinfo),          pointer          :: info => null(), info_tp => null()
-    class(comm_map),              pointer          :: t => null(), tp => null()
+    class(comm_map),              pointer          :: t => null(), tp => null(), td => null()
     class(map_ptr),  allocatable, dimension(:)     :: theta_prev
 
 
@@ -936,16 +954,48 @@ contains
        if (self%npar > 0) then
           nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
           allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
-          
-          do j = 1, self%npar
-             if (self%lmax_ind >= 0) then
-                info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
-                     & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
-                t    => comm_map(info)
+
+          do j = 1,self%npar
+             info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
+                  & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
+             td => comm_map(info)
+             
+             ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
+             if (any(self%lmax_ind_pol(1:self%poltype(j),j) >= 0)) then
+                t => comm_map(info)
                 t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
                 call t%Y_scalar
-             else
-                call wall_time(t1)
+                do p = 1,self%poltype(j)
+                   if (self%lmax_ind_pol(p,j) < 0) cycle
+                   if (self%poltype(j) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(j)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(j)==3) then
+                      p_min = p
+                      p_max = p
+                   else
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(j) 
+                      stop
+                   end if
+
+                   do k = p_min,p_max
+                      td%map(:,k) = t%map(:,k)
+                   end do
+                end do
+                call t%dealloc()
+             end if
+
+             ! if any polarization is local sampled. Only set theta using polarizations with local sampling
+             if (any(self%lmax_ind_pol(1:self%poltype(j),j) < 0)) then
                 info_tp => comm_mapinfo(self%theta(j)%p%info%comm, self%theta(j)%p%info%nside, &
                      & 2*self%theta(j)%p%info%nside, nmaps, .false.)
                 tp    => comm_map(info_tp)
@@ -982,13 +1032,42 @@ contains
                 
                 call wall_time(t2)
 
+                do p = 1,self%poltype(j)
+                   if (self%lmax_ind_pol(p,j) < 0) cycle
+                   if (self%poltype(j) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(j)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(j)==3) then
+                      p_min = p
+                      p_max = p
+                   else
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(j) 
+                      stop
+                   end if
+
+                   do k = p_min,p_max
+                      td%map(:,k) = t%map(:,k)
+                   end do
+                end do
+
+                call t%dealloc()
+
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
-             theta_p(:,:,j) = t%map
+             theta_p(:,:,j) = td%map
              !write(*,*) 'q1', minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
 !!$             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
 !!$             theta_prev(j)%p => comm_map(t)
-             call t%dealloc()
+             call td%dealloc()
           end do
        end if
 
@@ -1559,11 +1638,13 @@ contains
     character(len=*),                        intent(in)           :: dir
 
     integer(i4b)       :: i, l, j, k, m, ierr, unit
+    integer(i4b)       :: p, p_min, p_max
     real(dp)           :: vals(10)
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
     character(len=512) :: filename, path
-    class(comm_map), pointer :: map => null()
+    class(comm_mapinfo), pointer :: info => null()
+    class(comm_map), pointer :: map => null(), tp => null()
     real(dp), allocatable, dimension(:,:) :: sigma_l
 
     if (trim(self%type) == 'md') then
@@ -1690,7 +1771,49 @@ contains
        do i = 1, self%npar
           filename = trim(self%label) // '_' // trim(self%indlabel(i)) // '_' // &
                & trim(postfix) // '.fits'
-          if (self%lmax_ind >= 0) call self%theta(i)%p%Y_scalar
+
+          ! need to only take alms from polarizations with lmax > 0
+          if (self%lmax_ind >= 0) then
+             info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                  & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+             
+             ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
+             if (all(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+                call self%theta(i)%p%Y_scalar
+             else if (any(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+                tp => comm_map(info)
+                tp%alm = self%theta(i)%p%alm
+                call tp%Y_scalar
+                do p = 1,self%poltype(i)
+                   if (self%lmax_ind_pol(p,i) < 0) cycle
+                   if (self%poltype(i) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(i)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(i)==3) then
+                      p_min = p
+                      p_max = p
+                   else
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                      stop
+                   end if
+
+                   do k = p_min,p_max
+                      self%theta(i)%p%map(:,k) = tp%map(:,k)
+                   end do
+                end do
+                call tp%dealloc()
+             end if
+          end if
+
 
           if (output_hdf) then
              call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename), &
@@ -1709,7 +1832,46 @@ contains
              filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
                   & '_nprop_'  // trim(postfix) // '.fits'
              call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+
+             !if pixelregions, create map without smoothed thetas (for input in new runs)
+             if (any(self%pol_pixreg_type(1:self%poltype(i),i) == 3)) then
              
+                info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                     & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+                tp => comm_map(info)
+                tp%map = self%theta(i)%p%map
+                do p = 1,self%poltype(i)
+                   if (self%pol_pixreg_type(p,i) /=3) cycle
+                   if (self%poltype(i) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(i)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(i)==3) then
+                      p_min = p
+                      p_max = p
+                   else
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                      stop
+                   end if
+
+                   do j = 0,info%np-1
+                      tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   end do
+                end do
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_noSmooth_'  // trim(postfix) // '.fits'
+                call tp%writeFITS(trim(dir)//'/'//trim(filename))
+                call tp%dealloc()
+
+             end if
           end if
 
        end do
@@ -1737,9 +1899,12 @@ contains
     type(hdf_file),            intent(in)    :: hdffile
     character(len=*),          intent(in)    :: hdfpath
 
-    integer(i4b)       :: i, l, m
+    integer(i4b)       :: i, j, l, m
+    integer(i4b)       :: p, p_min, p_max
     real(dp)           :: md(4)
     character(len=512) :: path
+    class(comm_mapinfo), pointer :: info => null()
+    class(comm_map), pointer     :: tp => null()
     
     if (trim(self%type) == 'md') then
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'md/'//trim(adjustl(self%label)), md)
@@ -1764,11 +1929,46 @@ contains
          self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale)
        end do
 
-!!$       if (trim(self%label) == 'synch') then
+!!$       if (trim(self%label) == 'cmb') then
 !!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+!!$                write(*,*) 'Adding monopole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 6 *sqrt(4*pi)
+!!$             end if
 !!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
-!!$                write(*,*) 'Adding synch dipole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.d0
+!!$                write(*,*) 'Adding x dipole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.77d0 * sqrt(4.d0*pi/3.d0)
+!!$             end if
+!!$          end do
+!!$       end if
+
+!!$       if (trim(self%label) == 'ff') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+!!$                write(*,*) 'Adding monopole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 16 *sqrt(4*pi)
+!!$             end if
+!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+!!$                write(*,*) 'Adding x dipole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.77d0 * sqrt(4.d0*pi/3.d0)
+!!$             end if
+!!$          end do
+!!$       end if
+
+!!$       if (trim(self%label) == 'ame') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+!!$                write(*,*) 'Adding monopole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 21.6 *sqrt(4*pi)
+!!$             end if
+!!$          end do
+!!$       end if
+!!$
+!!$       if (trim(self%label) == 'ame2') then
+!!$          do i = 0, self%x%info%nalm-1
+!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+!!$                write(*,*) 'Adding monopole'
+!!$                self%x%alm(i,1) = self%x%alm(i,1) + 11 *sqrt(4*pi)
 !!$             end if
 !!$          end do
 !!$       end if
@@ -1797,10 +1997,47 @@ contains
           if (self%lmax_ind >= 0) then
              call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                   & '_alm', .false.)
-             call self%theta(i)%p%YtW_scalar
-          end if
+             ! need to only take alms from polarizations with lmax > 0
+             ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
+             if (all(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+                call self%theta(i)%p%Y_scalar
+             else if (any(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+                info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                     & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+                tp => comm_map(info)
+                tp%alm = self%theta(i)%p%alm
+                call tp%Y_scalar
+                do p = 1,self%poltype(i)
+                   if (self%lmax_ind_pol(p,i) < 0) cycle
+                   if (self%poltype(i) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(i)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(i)==3) then
+                      p_min = p
+                      p_max = p
+                   else
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                      stop
+                   end if
+
+                   do j = p_min,p_max
+                      self%theta(i)%p%map(:,j) = tp%map(:,j)
+                   end do
+                end do
+                call tp%dealloc()
+             end if
+          end if !lmax_ind > 0
           !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map = self%theta(i)%p%map - 0.05d0
-       end do       
+       end do !i = 1,npar
     end if
 
 
@@ -4655,6 +4892,121 @@ contains
 
   end subroutine setup_needlets
 
+  subroutine applyMonoDipolePrior(self)
+    implicit none
+    class(comm_diffuse_comp), intent(inout)          :: self
+
+    integer(i4b) :: i, j, k, l, m, ierr
+    real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3)
+    class(comm_map), pointer :: map 
+
+    if (trim(self%mono_prior_type) == 'none') then ! No active monopole prior
+       return
+    end if
+
+    ! Compute monopole offset given the specified prior
+    mu = 0.d0
+
+    ! Generate real-space component map
+    map => comm_map(self%x)
+    call self%B_out%conv(trans=.false., map=map)
+    call map%Y
+!!$    call map%writeFITS('ff.fits')
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+    if (trim(self%mono_prior_type) == 'monopole') then        ! Set monopole to zero outside user-specified mask
+
+       ! Compute mean outside mask; no noise weighting for now at least
+       a = sum(map%map(:,1) * self%mono_prior_map%map(:,1))
+       b = sum(self%mono_prior_map%map(:,1))
+       call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       mu(0) = a / b
+
+       ! Subtract mean in real space
+       self%x%map(:,1) = self%x%map(:,1) - mu(0)
+
+       if (self%x%info%myid == 0) write(*,fmt='(a,f10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu(0)
+
+    else if (trim(self%mono_prior_type) == 'monopole+dipole') then        ! Set monopole and dipole to zero outside user-specified mask
+       ! Generate real-space component map
+
+       ! Compute mean outside mask; no noise weighting for now at least
+       Amat = 0.d0; bmat = 0.d0
+       do i = 0, self%x%info%np-1
+          if (self%mono_prior_map%map(i,1) < 0.5d0) cycle
+          v(0) = 1.d0
+          call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
+          do j = 0, 3
+             do k = 0, 3
+                Amat(j,k) = Amat(j,k) + v(j)*v(k)
+             end do
+             bmat(j) = bmat(j) + v(j)*map%map(i,1)
+          end do
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, Amat, 16, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, bmat,  4, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call solve_system_real(Amat, mu, bmat)
+
+       ! Subtract mean and dipole in real space
+       do i = 0, self%x%info%np-1
+          v(0) = 1.d0
+          call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
+          self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
+       end do
+
+       if (self%x%info%myid == 0) write(*,fmt='(a,4f10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu
+
+    else if (trim(self%mono_prior_type) == 'crosscorr') then ! Enforce zero intercept in correlation with specified map
+       write(*,*) 'Error: Cross-correlation monopole prior not implemented yet'
+       stop
+    end if
+    
+    ! Subtract mean in harmonic space
+    do i = 0, self%x%info%nalm-1
+       if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+          self%x%alm(i,1) = self%x%alm(i,1) - mu(0) * sqrt(4.d0*pi)
+       end if
+       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == -1) then
+          self%x%alm(i,1) = self%x%alm(i,1) - mu(2) * sqrt(4.d0*pi/3.d0)
+       end if
+       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 0) then
+          self%x%alm(i,1) = self%x%alm(i,1) - mu(3) * sqrt(4.d0*pi/3.d0)
+       end if
+       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+          self%x%alm(i,1) = self%x%alm(i,1) + mu(1) * sqrt(4.d0*pi/3.d0)
+       end if
+    end do
+
+    call map%dealloc()
+    
+  end subroutine applyMonoDipolePrior
+
+  subroutine nullify_monopole_amp(band)
+    implicit none
+    character(len=*), intent(in) :: band
+
+    integer(i4b) :: i
+    class(comm_comp), pointer :: c => null()
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == trim(band)) then
+             do i = 0, c%x%info%nalm-1
+                if (c%x%info%lm(1,i) == 0 .and. c%x%info%lm(2,i) == 0) then
+                   c%x%alm(i,1) = 0.d0
+                   return
+                end if
+             end do
+          end if
+       end select
+       c => c%next()
+    end do
+
+  end subroutine nullify_monopole_amp
 
 
 end module comm_diffuse_comp_mod
