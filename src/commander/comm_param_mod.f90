@@ -120,7 +120,7 @@ module comm_param_mod
      ! Component parameters
      character(len=512) :: cs_inst_parfile
      character(len=512) :: cs_init_inst_hdf
-     integer(i4b)       :: cs_ncomp, cs_ncomp_tot
+     integer(i4b)       :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
      real(dp)           :: cmb_dipole_prior(3)
      character(len=512) :: cmb_dipole_prior_mask
      logical(lgt),       allocatable, dimension(:)     :: cs_include
@@ -595,7 +595,7 @@ contains
 
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
-    allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n),cpar%cs_samp_samp_params_niter(n))
+    allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n))
     allocate(cpar%cs_spec_pixreg(3,MAXPAR,n),cpar%cs_spec_mask(MAXPAR,n))
     allocate(cpar%cs_spec_nprop(MAXPAR,n),cpar%cs_spec_uni_nprop(2,MAXPAR,n))
     allocate(cpar%cs_spec_proplen(MAXPAR,n))
@@ -626,6 +626,9 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_TYPE'//itext, len_itext=len_itext,            par_string=cpar%cs_type(i))
        call get_parameter_hashtable(htbl, 'COMP_CLASS'//itext, len_itext=len_itext,           par_string=cpar%cs_class(i))
        !call get_parameter_hashtable(htbl, 'COMP_CG_SAMPLE_GROUP'//itext, len_itext=len_itext, par_int=cpar%cs_cg_samp_group(i))
+       call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN'//itext, len_itext=len_itext,   &
+            & par_int=cpar%cs_local_burn_in)
+
        !if (.not. cpar%cs_include(i)) cpar%cs_cg_samp_group(i) = 0
        if (trim(cpar%cs_type(i)) == 'md') then
           call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext, &
@@ -660,8 +663,6 @@ contains
           call get_parameter_hashtable(htbl, 'COMP_INPUT_AMP_MAP'//itext, len_itext=len_itext,   par_string=cpar%cs_input_amp(i))
           call get_parameter_hashtable(htbl, 'COMP_PRIOR_AMP_MAP'//itext, len_itext=len_itext,   par_string=cpar%cs_prior_amp(i))
           call get_parameter_hashtable(htbl, 'COMP_OUTPUT_FWHM'//itext, len_itext=len_itext,     par_dp=cpar%cs_fwhm(i))
-          call get_parameter_hashtable(htbl, 'COMP_SAMPLE_SAMPLING_PAR_NITER'//itext, len_itext=len_itext,   &
-               & par_int=cpar%cs_samp_samp_params_niter(i))
 
           if (trim(cpar%cs_cltype(i)) == 'binned') then
              call get_parameter_hashtable(htbl, 'COMP_CL_BIN_FILE'//itext, len_itext=len_itext,     par_string=cpar%cs_binfile(i))
