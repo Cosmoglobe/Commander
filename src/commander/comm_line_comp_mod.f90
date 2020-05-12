@@ -204,11 +204,13 @@ contains
   end subroutine read_line_template
 
   ! Sample line ratios
-  subroutine sampleLineRatios(self, handle, id)
+  subroutine sampleLineRatios(self, cpar, handle, id, iter)
     implicit none
     class(comm_line_comp),                   intent(inout)        :: self
+    type(comm_params),                       intent(in)           :: cpar
     type(planck_rng),                        intent(inout)        :: handle
     integer(i4b),                            intent(in)           :: id
+    integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
 
     integer(i4b)    :: i, j, l, n, m, band, ierr
     real(dp)        :: A, b, mu, sigma, par, sigma_p, scale, w

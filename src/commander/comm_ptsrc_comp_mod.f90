@@ -1438,14 +1438,16 @@ contains
   end subroutine read_radial_beam
 
   ! Sample spectral parameters
-  subroutine samplePtsrcSpecInd(self, handle, id)
+  subroutine samplePtsrcSpecInd(self, cpar, handle, id, iter)
     implicit none
     class(comm_ptsrc_comp),                  intent(inout)  :: self
+    type(comm_params),                       intent(in)     :: cpar
     type(planck_rng),                        intent(inout)  :: handle
     integer(i4b),                            intent(in)     :: id
+    integer(i4b),                            intent(in)     :: iter    !Gibbs iteration
 
     integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min
-    integer(i4b) :: i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
+    integer(i4b) :: i_max, status, n_gibbs, iter2, n_pix, n_pix_tot, flag
     real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
     real(dp)     :: mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
     logical(lgt) :: ok
@@ -1463,8 +1465,8 @@ contains
 
     if (trim(operation) == 'optimize') then
        allocate(theta(self%npar))
-       do iter = 1, n_gibbs
-          if (self%myid == 0 .and. k<20) write(*,*) 'iter', iter, n_gibbs
+       do iter2 = 1, n_gibbs
+          if (self%myid == 0 .and. k<20) write(*,*) 'iter', iter2, n_gibbs
           do p = 1, self%nmaps
              do k = 1, self%nsrc             
                 p_lnL       = p
@@ -1634,9 +1636,9 @@ contains
 
     if (self%myid == 0) open(68,file='ptsrc.dat', recl=1024)
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
-    do iter = 1, n_gibbs
+    do iter2 = 1, n_gibbs
 
-       if (self%myid == 0) write(*,*) iter, n_gibbs
+       if (self%myid == 0) write(*,*) iter2, n_gibbs
 
        ! Sample spectral parameters
        do j = 1, self%npar
@@ -1649,7 +1651,7 @@ contains
              !do k = self%nsrc, self%nsrc
                 theta = self%src(k)%theta(:,p)
                 
-                !if (self%myid == 0) write(*,*) iter
+                !if (self%myid == 0) write(*,*) iter2
 
                 ! Construct current source model
                 do l = 1, numband
@@ -1887,7 +1889,8 @@ contains
              if (k == 3499 .and. self%myid == 0) write(*,*) 'chisq_tot = ', chisq_tot, n_pix_tot, self%src(k)%red_chisq
 
              !if (self%myid == 0) write(*,*) 'amp = ', real(amp(k,p),sp), real(mu,sp), real(sigma,sp)
-             if (self%myid == 0 .and. k == 1) write(68,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
+
+             if (self%myid == 0 .and. k == 1) write(68,*) iter2, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              !if (self%myid == 0 .and. iter==n_gibbs) write(*,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              
           end do
