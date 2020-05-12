@@ -964,7 +964,7 @@ contains
              if (any(self%lmax_ind_pol(1:self%poltype(j),j) >= 0)) then
                 t => comm_map(info)
                 t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-                call t%Y_scalar
+                call t%Y_scalar()
                 do p = 1,self%poltype(j)
                    if (self%lmax_ind_pol(p,j) < 0) cycle
                    if (self%poltype(j) == 1) then
@@ -1033,7 +1033,7 @@ contains
                 call wall_time(t2)
 
                 do p = 1,self%poltype(j)
-                   if (self%lmax_ind_pol(p,j) < 0) cycle
+                   if (self%lmax_ind_pol(p,j) >= 0) cycle
                    if (self%poltype(j) == 1) then
                       p_min=1
                       p_max=info%nmaps
