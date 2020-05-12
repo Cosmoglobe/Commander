@@ -592,6 +592,8 @@ contains
        call get_parameter_hashtable(htbl, 'SAMPLING_GROUP'//itext, par_string=cpar%cg_samp_group(i))
        call get_parameter_hashtable(htbl, 'SAMPLING_GROUP_MASK'//itext, par_string=cpar%cg_samp_group_mask(i))
     end do
+    call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN', par_int=cpar%cs_local_burn_in)
+
 
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
@@ -626,9 +628,6 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_TYPE'//itext, len_itext=len_itext,            par_string=cpar%cs_type(i))
        call get_parameter_hashtable(htbl, 'COMP_CLASS'//itext, len_itext=len_itext,           par_string=cpar%cs_class(i))
        !call get_parameter_hashtable(htbl, 'COMP_CG_SAMPLE_GROUP'//itext, len_itext=len_itext, par_int=cpar%cs_cg_samp_group(i))
-       call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN'//itext, len_itext=len_itext,   &
-            & par_int=cpar%cs_local_burn_in)
-
        !if (.not. cpar%cs_include(i)) cpar%cs_cg_samp_group(i) = 0
        if (trim(cpar%cs_type(i)) == 'md') then
           call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext, &
