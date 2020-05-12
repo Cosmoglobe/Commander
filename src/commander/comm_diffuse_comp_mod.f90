@@ -15,7 +15,7 @@ module comm_diffuse_comp_mod
 
   private
   public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
-       & res_smooth, rms_smooth, print_precond_mat
+       & res_smooth, rms_smooth, print_precond_mat, recompute_diffuse_precond
   
   !**************************************************
   !            Diffuse component class
@@ -25,7 +25,7 @@ module comm_diffuse_comp_mod
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
-     integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot
+     integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
@@ -33,8 +33,22 @@ module comm_diffuse_comp_mod
      logical(lgt),    dimension(:), allocatable :: L_read
 
      real(dp)           :: cg_scale, latmask, fwhm_def, test
-     real(dp), allocatable, dimension(:,:)   :: cls
-     real(dp), allocatable, dimension(:,:,:) :: F_mean
+     real(dp),           allocatable, dimension(:,:)   :: cls
+     real(dp),           allocatable, dimension(:,:,:) :: F_mean
+     character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'chisq_lowres', 'chisq_smooth', 'ridge', 'marginal'}
+     integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_pol    ! lmax per poltype per spec. ind  
+     integer(i4b),       allocatable, dimension(:,:)   :: pol_pixreg_type ! {1=fullsky, 2=single_pix, 3=pixel_regions}
+     integer(i4b),       allocatable, dimension(:,:)   :: nprop_uni       ! limits on nprop
+     integer(i4b),       allocatable, dimension(:,:)   :: npixreg         ! number of pixel regions
+     integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
+     real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
+     logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
+     logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
+     class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
+     class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
+     class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
+     class(map_ptr),     allocatable, dimension(:)     :: pol_nprop
+
      class(comm_map),               pointer     :: mask => null()
      class(comm_map),               pointer     :: procmask => null()
      class(map_ptr),  dimension(:), allocatable :: indmask
@@ -65,6 +79,9 @@ module comm_diffuse_comp_mod
      procedure :: dumpFITS      => dumpDiffuseToFITS
      procedure :: initHDF       => initDiffuseHDF
      procedure :: sampleSpecInd => sampleDiffuseSpecInd
+     procedure :: sampleDiffuseSpecIndFullsky
+     procedure :: sampleDiffuseSpecIndSinglePix
+     procedure :: sampleDiffuseSpecIndPixReg
      procedure :: updateLowlPrecond
      procedure :: applyLowlPrecond
      procedure :: updateDeflatePrecond
@@ -94,6 +111,7 @@ module comm_diffuse_comp_mod
   integer(i4b),                            private :: k_lnL, p_lnL, id_lnL
   real(dp), allocatable, dimension(:),     private :: a_lnL
   real(dp), allocatable, dimension(:),     private :: theta_lnL        
+  real(dp), allocatable, dimension(:,:),   private :: buffer_lnL        
   logical(lgt),                            private :: apply_mixmat = .true.
   type(map_ptr),        allocatable, dimension(:) :: res_smooth
   type(comm_N_rms_ptr), allocatable, dimension(:) :: rms_smooth
@@ -122,13 +140,14 @@ contains
     self%nside         = cpar%cs_nside(id_abs)
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
-    self%lmax_ind      = cpar%cs_lmax_ind(id_abs)
+    self%lmax_ind      = cpar%cs_lmax_ind_pol(1,1,id_abs) !all have this value
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
     self%output_mixmat = cpar%output_mixmat
     self%latmask       = cpar%cs_latmask(id_abs)
     self%apply_jeffreys = .false.
+    self%sample_first_niter = cpar%cs_samp_samp_params_niter(id_abs)
 
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
@@ -1680,6 +1699,19 @@ contains
           else
              call self%theta(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
           end if
+          
+          !write proposal length and number of proposals maps if local sampling was used
+          if (any(self%lmax_ind_pol(:self%poltype(i),i)<0)) then
+             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                  & '_proplen_'  // trim(postfix) // '.fits'
+             call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+
+             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                  & '_nprop_'  // trim(postfix) // '.fits'
+             call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+             
+          end if
+
        end do
        !call update_status(status, "writeFITS_8")
        
@@ -1793,14 +1825,16 @@ contains
   end subroutine add_to_npre
 
   ! Sample spectral parameters
-  subroutine sampleDiffuseSpecInd(self, handle, id)
+  subroutine sampleDiffuseSpecInd(self, cpar, handle, id, iter)
     implicit none
     class(comm_diffuse_comp),                intent(inout)        :: self
+    type(comm_params),                       intent(in)           :: cpar
     type(planck_rng),                        intent(inout)        :: handle
     integer(i4b),                            intent(in)           :: id
+    integer(i4b),                            intent(in)           :: iter
 
     integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok
-    integer(i4b) :: i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag, npar, np, nmaps
+    integer(i4b) :: i_min, i_max, status, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps
     real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
     real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
     real(dp)     :: x(1), theta_min, theta_max
@@ -1809,7 +1843,12 @@ contains
     class(comm_comp), pointer :: c => null()
     real(dp),     allocatable, dimension(:)   :: lnL, P_tot, F, theta, a_curr
     real(dp),     allocatable, dimension(:,:) :: amp, buffer, alm_old
-
+    !Following is for the local sampler
+    real(dp)     :: old_theta, new_theta, mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL, accept_rate
+    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop
+    integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len
+    logical(lgt) :: first_sample
+    class(comm_mapinfo),            pointer :: info => null()
 
     delta_lnL_threshold = 25.d0
     n                   = 101
@@ -1827,6 +1866,10 @@ contains
        c_lnL => c
     end select
 
+    info  => comm_mapinfo(c_lnL%x%info%comm, c_lnL%x%info%nside, &
+         & c_lnL%x%info%lmax, c_lnL%x%info%nmaps, c_lnL%x%info%pol)
+
+
     npar      = c%npar
     np        = self%x_smooth%info%np
     nmaps     = self%x_smooth%info%nmaps
@@ -1834,10 +1877,12 @@ contains
     theta_min = c_lnL%p_uni(1,id_lnL)
     theta_max = c_lnL%p_uni(2,id_lnL)
 
+    !needs rewriting to only sample polarizations covered by polt_id
     if (trim(operation) == 'optimize') then
        allocate(buffer(0:self%x_smooth%info%np-1,self%x_smooth%info%nmaps))
        buffer = max(min(self%theta(id)%p%map,theta_max),theta_min)
-       do p = 1, nmaps
+       !do p = 1, nmaps
+       do p = 1,self%poltype(id)  !I think this is the only change needed (now it only samples the poltype index polt_id)
           if (self%poltype(id) > 1 .and. only_pol .and. p == 1) cycle
           if (p > self%poltype(id)) cycle
           p_lnL = p
@@ -1887,11 +1932,1750 @@ contains
 
    
     else if (trim(operation) == 'sample') then
-       ! This has been moved to comm_nonlin mod.
-    end if
 
+       !allocate a buffer "map" with the same number of pixels as the processor is handling
+       !if I understand correctly, each comm_map%info has info for the given processor. np = npix for that processor
+       ! when a map is made, only the pixels that the processor is to handle is put in the map.
+       ! that is why buffer goes to x_smooth%info%np and not to 12*nside**2
+       ! Note: pix goes from 0 to np-1, so pix is not equal to the true pixel number. But, as all comm_maps of 
+       ! the same nside have their pixels divided equally, then we still look up the correct pixels indep. of proc.
+       
+       allocate(buffer_lnL(0:self%x_smooth%info%np-1,self%x_smooth%info%nmaps))
+       buffer_lnL=max(min(self%theta(id)%p%map,theta_max),theta_min) 
+
+       do p = 1,self%poltype(id)
+          if (self%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
+          if (self%poltype(id) > 1 .and. only_pol .and. p == 1) cycle !only polarization (poltype > 1)
+
+          if (info%myid == 0) write(*,*) 'Sampling poltype index',p,'of ',self%poltype(id) !Needed?
+
+          
+          call wall_time(t1)
+          p_lnL = p !global parameter for poltype
+          if (self%pol_pixreg_type(p,id)==1) then
+             call self%sampleDiffuseSpecIndFullsky(handle, id, p, iter)
+          else if (self%pol_pixreg_type(p,id)==2) then
+             call self%sampleDiffuseSpecIndSinglePix(handle, id, p, iter)
+          else if (self%pol_pixreg_type(p,id)==3) then
+             call self%sampleDiffuseSpecIndPixReg(cpar, handle, id, p, iter) ! not yet written, needs some thought on execution
+          else
+             write(*,*) 'Undefined spectral index sample region'
+             write(*,*) 'Component:',trim(self%label),'ind:',trim(self%indlabel(id))
+             stop
+          end if
+          call wall_time(t2)
+          if (info%myid == 0) write(*,*) 'poltype:',self%poltype(id),' pol:', &
+               & p,'CPU time specind = ', real(t2-t1,sp)
+
+
+
+       end do
+
+       !after sampling is done we assign the spectral index its new value(s)
+       self%theta(id)%p%map = buffer_lnL
+
+       ! Update mixing matrix
+       call self%updateMixmat
+
+       ! Ask for CG preconditioner update
+       if (self%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
+
+       ! deallocate
+
+       deallocate(buffer_lnL)
+
+
+
+    end if !sample
 
   end subroutine sampleDiffuseSpecInd
+
+  subroutine sampleDiffuseSpecIndSinglePix(self, handle, id, p, iter)
+    implicit none
+    class(comm_diffuse_comp),                intent(inout)        :: self
+    type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: id
+    integer(i4b),                            intent(in)           :: p       !incoming polarization
+    integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
+
+    integer(i4b) :: i, j, k, l, n, q, pix, ierr, ind(1), counter, n_ok
+    integer(i4b) :: i_min, i_max, status, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
+    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
+    real(dp)     :: x(1), theta_min, theta_max
+    logical(lgt) :: ok
+    logical(lgt), save :: first_call = .true.
+    class(comm_comp), pointer :: c => null()
+    real(dp),     allocatable, dimension(:)   :: lnL, P_tot, F, theta, a_curr
+    real(dp),     allocatable, dimension(:,:) :: amp, buffer, alm_old
+    !Following is for the local sampler
+    real(dp)     :: old_theta, new_theta, mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL
+    real(dp)     :: accept_rate, accept_scale, lnL_sum, sum_proplen, sum_accept
+    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, burn_in, count_accept
+    integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len
+    logical(lgt) :: first_sample, use_det, burned_in
+    real(dp),     allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
+    real(dp),     allocatable, dimension(:) :: theta_corr_arr
+    integer(i4b), allocatable, dimension(:) :: band_i, pol_j
+    class(comm_mapinfo),            pointer :: info => null()
+
+
+    info  => comm_mapinfo(c_lnL%x%info%comm, c_lnL%x%info%nside, &
+         & c_lnL%x%info%lmax, c_lnL%x%info%nmaps, c_lnL%x%info%pol)
+                
+                
+    delta_lnL_threshold = 25.d0
+    n                   = 101
+    n_ok                = 50
+    burn_in             = 20
+    burned_in           = .false.
+    first_call          = .false.
+    
+    n_prop_limit = 40
+    n_corr_limit = 40
+    count_accept = 0
+    sum_accept   = 0.d0
+    sum_proplen   = 0.d0
+    !p_lnL = p
+
+    ! we have allready got globally from sampleDiffuseSpecInd: c_lnL, p_lnL (also in input), id_lnL (also in input),
+    !     buffer_lnL (theta, limited by min/max)
+
+    if (c_lnL%poltype(id) == 1) then
+       p_min = 1; p_max = c_lnL%nmaps
+       if (only_pol) p_min = 2
+    else if (c_lnL%poltype(id) == 2) then
+       if (p == 1) then
+          p_min = 1; p_max = 1
+       else
+          p_min = 2; p_max = c_lnL%nmaps
+       end if
+    else if (c_lnL%poltype(id) == 3) then
+       p_min = p
+       p_max = p
+    else
+       write(*,*) 'Unsupported polarization type'
+       stop
+    end if
+
+    npar      = c_lnL%npar
+    np        = self%x_smooth%info%np
+    nmaps     = self%x_smooth%info%nmaps
+
+    theta_min = c_lnL%p_uni(1,id)
+    theta_max = c_lnL%p_uni(2,id)
+
+    !set up which bands and polarizations to include
+    !this is to exclude the need of checking this for each time the mixing matrix needs to be computed per pixel
+    allocate(band_i(1000),pol_j(1000))
+    band_count=0
+    do k = 1,numband !run over all active bands
+       !check if the band is associated with the component, i.e. frequencies are within 
+       !freq. limits for the component
+       if (.not. associated(rms_smooth(k)%p)) cycle
+       if (data(k)%bp(0)%p%nu_c < self%nu_min_ind(id) .or. data(k)%bp(0)%p%nu_c > self%nu_max_ind(id)) cycle
+
+       do l = p_min,p_max !loop all maps of band k associated with p (given poltype)
+          if (l > data(k)%info%nmaps) cycle !no map in band k for polarization l
+          band_count = band_count + 1
+          band_i(band_count)=k
+          pol_j(band_count)=l
+       end do
+    end do
+
+    if (band_count==0) then
+       buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set all thata to prior, as no bands are valid, no data
+       deallocate(band_i,pol_j)
+       if (info%myid == 0)  write(*,*) 'no data bands available for sampling of spec ind'
+       return
+    else
+       if (info%myid == 0 .and. .true.) then
+             write(*,fmt='(a)') '  Active bands'
+          do k = 1,band_count
+             write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
+          end do
+       end if
+    end if
+
+    allocate(all_thetas(npar))
+    allocate(mixing_old_arr(band_count),mixing_new_arr(band_count),invN_arr(band_count),data_arr(band_count))
+    do pix = 0,np-1 !loop over the number of pixels the processor is handling
+       
+       if (self%pol_ind_mask(id)%p%map(pix,p) < 0.5d0) then     ! if pixel is masked out
+          buffer_lnL(pix,p_min:p_max) = c_lnL%p_gauss(1,id) ! set spec. ind to prior
+          self%pol_nprop(id)%p%map(pix,p)=0.d0 !to mark that the pixel is masked out, we set nprop to zero
+          cycle
+       end if
+       
+       if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id)) then
+          pixreg_nprop = 10000 !should be enough to find correlation length (and proposal length if prompted) 
+          allocate(theta_corr_arr(pixreg_nprop))
+          n_spec_prop = 0
+          n_corr_prop = 0 
+          !self%pol_sample_nprop(p,id) = boolean array of size (poltype,npar)
+          !self%pol_sample_proplen(p,id) = boolean array of size (poltype,npar)
+       else
+          pixreg_nprop = IDINT(self%pol_nprop(id)%p%map(pix,p)) ! comm_map is real(dp), use IDINT to get the integer value
+       end if
+
+       n_accept = 0
+       first_sample = .true.
+
+       do j = 1,pixreg_nprop !propose new sample n times (for faster mixing in total)
+          
+          if (first_sample) then
+             old_theta = buffer_lnL(pix,p)
+
+             !get the values of the remaining spec inds of the component
+             do i = 1, npar
+                if (i == id) cycle
+                all_thetas(i) = self%theta_smooth(i)%p%map(pix,p)
+             end do
+          end if
+
+          !draw new spec ind
+          new_theta = old_theta + self%pol_proplen(id)%p%map(pix,p)*rand_gauss(handle)
+
+          !init log-like for new sample
+          if (first_sample) lnL_old = 0.d0
+          lnL_new = 0.d0
+          
+          if (new_theta > theta_max .or. new_theta < theta_min) then !new proposal is outside limits
+             lnL_new = -1.d30 
+             ! skip the true caclulation of lnL, we reject the sample ~100%
+          else
+             ! do a clever way of computing the lnL for the different evaluation types
+             if (trim(self%pol_lnLtype(p,id))=='chisq') then
+                !write the chisq sampling here
+
+                do k = 1,band_count !run over all active bands
+                   ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
+                   ! both for old and new spec. ind.
+                   if (first_sample) then
+                      all_thetas(id)=old_theta
+                      mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale
+                   end if
+                   all_thetas(id)=new_theta
+                   mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                        & data(band_i(k))%gain * c_lnL%cg_scale
+
+                   !compute chisq for pixel 'pix' of the associated band
+                   if (first_sample) then
+                      res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_old*self%x_smooth%map(pix,pol_j(k))
+                      lnL_old = lnL_old -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+                   end if
+                   res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new*self%x_smooth%map(pix,pol_j(k))
+                   lnL_new = lnL_new -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+                end do
+
+             else if ((trim(self%pol_lnLtype(p,id))=='ridge') .or. &
+                  & (trim(self%pol_lnLtype(p,id))=='marginal')) then
+                if (trim(self%pol_lnLtype(p,id))=='ridge') then
+                   use_det = .false.
+                else
+                   use_det = .true.
+                end if
+
+                !! build mixing matrix, invN and data for pixel
+                do k = 1,band_count !run over all active bands
+                   ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
+                   ! both for old and new spec. ind.
+                   if (first_sample) then
+                      all_thetas(id)=old_theta
+                      mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale
+                   end if
+                   all_thetas(id)=new_theta
+                   mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                        & data(band_i(k))%gain * c_lnL%cg_scale
+
+                   data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
+                   invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
+                end do
+
+                !compute the marginal/ridge log-likelihood for the pixel
+                if (first_sample) then
+                   lnL_old = lnL_old + comp_lnL_marginal_diagonal(mixing_old_arr, invN_arr, data_arr, &
+                        & use_det, band_count)
+                end if
+                lnL_new = lnL_new + comp_lnL_marginal_diagonal(mixing_new_arr, invN_arr, data_arr, &
+                     & use_det, band_count)
+
+             else 
+                write(*,*) 'invalid polarized lnL sampler type'
+                stop
+
+             end if !chisq/marginal/ridge
+
+             !add spec. ind. priors
+             if (first_sample) then
+                all_thetas(id)=old_theta
+                do l = 1, npar
+                   if (c_lnL%p_gauss(2,l) > 0.d0) then
+                      lnL_old = lnL_old - 0.5d0 * (all_thetas(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+                   end if
+                   all_thetas(id)=new_theta
+                end do
+             end if
+             do l = 1, npar
+                if (c_lnL%p_gauss(2,l) > 0.d0) then
+                   lnL_new = lnL_new - 0.5d0 * (all_thetas(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+                end if
+             end do
+             !first sample done
+             first_sample = .false.
+
+          end if !outside spec limits
+
+          !accept/reject new spec ind
+          delta_lnL = lnL_new-lnL_old
+
+          if (delta_lnL < 0.d0) then
+             !if delta_lnL is more negative than -25.d0, limit to -25.d0
+             if (abs(delta_lnL) > delta_lnL_threshold) delta_lnL = -delta_lnL_threshold 
+
+             !draw random uniform number
+             a = rand_uni(handle) !draw uniform number from 0 to 1
+             if (exp(delta_lnL) > a) then
+                !accept
+                old_theta = new_theta
+                lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+                n_accept = n_accept + 1
+             end if
+          else
+             !accept new sample, higher likelihood
+             old_theta = new_theta
+             lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+             n_accept = n_accept + 1
+          end if
+          
+          if (j > burn_in) burned_in = .true.
+          ! evaluate proposal_length, then correlation length. 
+          !This should only be done the first gibbs iteration, if prompted to do so from parameter file.
+          if (self%pol_sample_proplen(p,id)) then
+             n_spec_prop = n_spec_prop + 1
+             accept_rate = n_accept*1.d0/n_spec_prop
+             if (.not. burned_in) then 
+                !giving som time to let the first steps "burn in" if one starts far away from max lnL
+                n_spec_prop = 0
+                n_accept = 0
+             else if (n_spec_prop > n_prop_limit) then
+                if (accept_rate > 0.7d0) then
+                   accept_scale = 1.5d0
+                else if (accept_rate < 0.3d0) then
+                   accept_scale = 0.5d0
+                else 
+                   accept_scale = -1.d0
+                end if
+
+                if (accept_scale > 0.d0) then
+                   self%pol_proplen(id)%p%map(pix,p) = self%pol_proplen(id)%p%map(pix,p)* &
+                        & accept_scale !set new proposal length
+                   n_accept = 0 !reset with new prop length
+                   n_spec_prop = 0 !reset with new prop length
+                else
+                   sum_accept = sum_accept + accept_rate
+                   count_accept = count_accept + 1
+                   sum_proplen = sum_proplen + self%pol_proplen(id)%p%map(pix,p)
+                   if (.not. self%pol_sample_nprop(p,id)) then
+                      exit 
+                      !ugly, but we only end up here in the first gibbs sample if we are only fitting proposal
+                      !lengths and not correlation length
+                   end if
+                end if
+             end if
+
+          else if (self%pol_sample_nprop(p,id)) then
+             ! if we are keeping track of spec inds for corr. length, then save current spec ind
+             n_corr_prop = n_corr_prop + 1
+             theta_corr_arr(n_corr_prop) = old_theta
+             if (.not. burned_in) then 
+                !giving som time to let the first steps "burn in" if one starts far away from max lnL
+                n_corr_prop = 0
+             else if (n_corr_prop > n_corr_limit) then
+                corr_len = calc_corr_len(theta_corr_arr(1:n_corr_prop),n_corr_prop) !returns -1 if no corr.len. is found
+                if (corr_len > 0) then ! .or. n_corr_prop > 4*self%nprop_uni(2,id)) then
+                   !set nprop (for pix region) to x*corr_len, x=2, but inside limits from parameter file
+                   self%pol_nprop(id)%p%map(pix,p) = 1.d0*min(max(2*corr_len,self%nprop_uni(1,id)),self%nprop_uni(2,id))
+                   exit 
+                   !ugly, but we only end up here in the first gibbs sample if we are fitting correlation length
+
+                end if
+             end if
+          else
+             accept_rate = n_accept*1.d0/j
+             sum_accept = sum_accept + accept_rate
+             count_accept = count_accept + 1
+             sum_proplen = sum_proplen + self%pol_proplen(id)%p%map(pix,p)
+          end if
+          
+       end do !pixreg_nprop
+
+
+       if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
+       
+       !assign last accepted theta value (old_theta) to the pixels of the current pixel region, 
+       !in the polarizations given by poltype and p
+       buffer_lnL(pix,p_min:p_max) = old_theta
+       
+    end do !pix = 1,np
+
+
+    call mpi_allreduce(MPI_IN_PLACE, sum_accept, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, count_accept, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, sum_proplen, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+    if (info%myid==0) then
+       write(*,fmt='(a,f6.4)') '   avg. accept rate     = ', sum_accept/count_accept
+       write(*,fmt='(a,e14.4)') '   avg. proposal length = ', sum_proplen/count_accept
+    end if
+    if (iter >= 2) then !only stop sampling after 2nd iteration, in case first iter is far off.
+       self%pol_sample_nprop(p,id) = .false. !set sampling of correlation length (number of proposals and
+       self%pol_sample_proplen(p,id) = .false. !proposal length to false (this is only to be done first gibbs iteration)
+    end if
+    !deallocate
+    deallocate(mixing_old_arr,mixing_new_arr,data_arr,invN_arr,all_thetas)
+    deallocate(band_i,pol_j)
+
+
+  end subroutine sampleDiffuseSpecIndSinglePix
+
+
+  subroutine sampleDiffuseSpecIndFullsky(self, handle, id, p, iter)
+    implicit none
+    class(comm_diffuse_comp),                intent(inout)        :: self
+    type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: id
+    integer(i4b),                            intent(in)           :: p       !incoming polarization
+    integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
+
+    integer(i4b) :: i, j, k, l, n, q, pix, ierr, ind(1), counter, n_ok
+    integer(i4b) :: i_min, i_max, status, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
+    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
+    real(dp)     :: buff1_r(1), buff2_r(1), theta_min, theta_max
+    logical(lgt) :: ok
+    logical(lgt), save :: first_call = .true.
+    class(comm_comp), pointer :: c => null()
+    !Following is for the local sampler
+    real(dp)     :: old_theta, new_theta, mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL
+    real(dp)     :: accept_rate, accept_scale, lnL_sum, init_theta
+    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
+    integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
+    logical(lgt) :: first_sample, loop_exit, use_det, burned_in
+    real(dp),     allocatable, dimension(:)   :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
+    real(dp),     allocatable, dimension(:)   :: theta_corr_arr
+    integer(i4b), allocatable, dimension(:)   :: band_i, pol_j
+    class(comm_mapinfo),            pointer   :: info => null()
+
+
+    info  => comm_mapinfo(c_lnL%x%info%comm, c_lnL%x%info%nside, &
+         & c_lnL%x%info%lmax, c_lnL%x%info%nmaps, c_lnL%x%info%pol)
+                
+
+    delta_lnL_threshold = 25.d0
+    n                   = 101
+    n_ok                = 50
+    burn_in             = 20
+    burned_in           = .false.
+    first_call          = .false.
+    
+    n_prop_limit = 20
+    n_corr_limit = 20
+    out_every    = 10
+    !p_lnL = p
+
+    ! we have allready got globally from sampleDiffuseSpecInd: c_lnL, p_lnL (also in input), id_lnL (also in input),
+    !     buffer_lnL (theta, limited by min/max)
+
+    if (c_lnL%poltype(id) == 1) then
+       p_min = 1; p_max = c_lnL%nmaps
+       if (only_pol) p_min = 2
+    else if (c_lnL%poltype(id) == 2) then
+       if (p == 1) then
+          p_min = 1; p_max = 1
+       else
+          p_min = 2; p_max = c_lnL%nmaps
+       end if
+    else if (c_lnL%poltype(id) == 3) then
+       p_min = p
+       p_max = p
+    else
+       write(*,*) 'Unsupported polarization type'
+       stop
+    end if
+
+    npar      = c_lnL%npar
+    np        = self%x_smooth%info%np
+    nmaps     = self%x_smooth%info%nmaps
+
+    theta_min = c_lnL%p_uni(1,id)
+    theta_max = c_lnL%p_uni(2,id)
+
+    !set up which bands and polarizations to include
+
+    allocate(band_i(3*numband),pol_j(3*numband))
+
+    band_count=0
+    do k = 1,numband !run over all active bands
+       !check if the band is associated with the smoothed component, and if band frequencies are within 
+       !freq. limits for the component
+       if (.not. associated(rms_smooth(k)%p)) cycle
+       if (data(k)%bp(0)%p%nu_c < self%nu_min_ind(id) .or. data(k)%bp(0)%p%nu_c > self%nu_max_ind(id)) cycle
+                   
+       do l = p_min,p_max !loop all maps of band k associated with p (given poltype)
+          if (l > data(k)%info%nmaps) cycle !no map in band k for polarization l
+          band_count = band_count + 1
+          band_i(band_count)=k
+          pol_j(band_count)=l
+       end do
+    end do
+
+    if (band_count==0) then
+       buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set theta to prior, as no bands are valid, no data
+       deallocate(band_i,pol_j)
+       if (info%myid == 0)  write(*,*) 'no data bands available for sampling of spec ind'
+       return
+    else
+       if (info%myid == 0 .and. .true.) then
+             write(*,fmt='(a)') '  Active bands'
+          do k = 1,band_count
+             write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
+          end do
+       end if
+    end if
+
+    allocate(all_thetas(npar))
+    allocate(mixing_old_arr(band_count),mixing_new_arr(band_count),invN_arr(band_count),data_arr(band_count))
+
+    n_spec_prop = 0
+    n_accept = 0
+    n_corr_prop = 0 
+    if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id)) then
+       pixreg_nprop = 10000 !should be enough to find correlation length (and proposal length if prompted) 
+       allocate(theta_corr_arr(pixreg_nprop))
+       !self%pol_sample_nprop(j,p,id) = boolean array of size (n_pixreg,poltype)
+       !self%pol_sample_proplen(j,p,id) = boolean array of size (n_pixreg,poltype)
+    else
+       pixreg_nprop = IDINT(self%pol_nprop(id)%p%map(0,p)) ! comm_map is real(dp), use IDINT() to convert to integer
+    end if
+
+    first_sample  = .true.
+    loop_exit     = .false.
+    
+    call wall_time(t1)
+    do j = 1,pixreg_nprop !propose new sample n times (for faster mixing in total)
+       if (info%myid == 0) then
+          if (first_sample) then
+             old_theta = buffer_lnL(0,p_min) !taking the first pixel value (should be full sky) 
+                ! that the root processor operates on
+             init_theta = old_theta
+             write(*,fmt='(a, f10.5)') "  initial sepc. ind. value: ", init_theta
+          end if
+
+          !draw new spec ind, 
+          new_theta = old_theta + self%pol_proplen(id)%p%map(0,p)*rand_gauss(handle)
+
+       end if
+
+
+       !broadcast new_theta, and new old_theta, and all_thetas to the other processors
+       if (first_sample) call mpi_bcast(old_theta, 1, MPI_DOUBLE_PRECISION, &
+            & 0, c_lnL%comm, ierr)
+       call mpi_bcast(new_theta, 1, MPI_DOUBLE_PRECISION, 0, c_lnL%comm, ierr)
+
+       if (info%myid==0 .and. mod(j,out_every)==0) then
+          write(*,fmt='(a, i6, a, f10.5, a, f10.5)') "  proposal: ", j," -- Current ind: ", &
+               & old_theta, " -- proposed ind: ", new_theta
+       end if
+
+
+       !init log-like for new sample
+       if (first_sample) lnL_old = 0.d0
+       lnL_new = 0.d0       
+
+       if (new_theta > theta_max .or. new_theta < theta_min) then !new proposal is outside limits
+          lnL_new = -1.d30 
+          ! skip the true caclulation of lnL, we reject the sample ~100%
+          if (info%myid==0) write(*,fmt='(a, f10.5, a, f10.5)') "    Proposed ind outside limits.  min: ", &
+               & theta_min," -- max: ", theta_max
+       else
+          pix_count = 0
+          all_thetas(id)=new_theta
+          !lnL type should split here
+          if (trim(self%pol_lnLtype(p,id))=='chisq') then
+             !loop bands and then pixels
+
+             do pix = 0,np-1 !loop over pixels covered by the processor
+                if (self%pol_ind_mask(id)%p%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out
+
+                !get the values of the remaining spec inds of the component for the given pixel
+                do i = 1, npar
+                   if (i == id) cycle
+                   all_thetas(i) = self%theta_smooth(i)%p%map(pix,p) 
+                end do
+
+                do k = 1,band_count !run over all active bands
+                   pix_count = pix_count + 1
+
+                   ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
+                   ! both for old and new spec. ind. and calc. log likelihood (chisq)
+                   if (first_sample) then
+                      all_thetas(id)=old_theta
+                      mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale
+                      all_thetas(id)=new_theta
+
+                      res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_old* &
+                           & self%x_smooth%map(pix,pol_j(k))
+                      lnL_old = lnL_old -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+
+                   end if
+                   mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                        & data(band_i(k))%gain * c_lnL%cg_scale
+
+                   res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
+                        & self%x_smooth%map(pix,pol_j(k))
+                   lnL_new = lnL_new -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+                end do
+             end do
+
+          else if ((trim(self%pol_lnLtype(p,id))=='ridge') .or. &
+               & (trim(self%pol_lnLtype(p,id))=='marginal')) then
+             if (trim(self%pol_lnLtype(p,id))=='ridge') then
+                use_det = .false.
+             else
+                use_det = .true.
+             end if
+
+             do pix = 0,np-1 !More precise, we need to loop over pixels covered by the processor
+                
+                if (self%pol_ind_mask(id)%p%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out
+
+                !get the values of the remaining spec inds of the component for the given pixel
+                do i = 1, npar
+                   if (i == id) cycle
+                   all_thetas(i) = self%theta_smooth(i)%p%map(pix,p) 
+                end do
+
+                !build mixing matrix
+                do k = 1,band_count !run over all active bands
+                   pix_count = pix_count + 1
+
+                   if (first_sample) then
+                      all_thetas(id)=old_theta
+                      mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale
+                      all_thetas(id)=new_theta
+                   end if
+                   mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                        & data(band_i(k))%gain * c_lnL%cg_scale
+                   pix_count = pix_count + 1
+                   data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
+                   invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
+                end do
+
+                !compute the marginal/ridge log-like for the pixel
+                if (first_sample) then
+                   lnL_old = lnL_old + comp_lnL_marginal_diagonal(mixing_old_arr, invN_arr, data_arr, &
+                        & use_det, band_count)
+                end if
+                lnL_new = lnL_new + comp_lnL_marginal_diagonal(mixing_new_arr, invN_arr, data_arr, &
+                     & use_det, band_count)
+             end do
+          else 
+             if (info%myid==0) write(*,*) 'invalid polarized lnL sampler type'
+             stop
+
+          end if !chisq/marginal/ridge
+
+
+          !Sum lnL_new (and lnL_old) among all processors
+          if (first_sample) then
+             !there is a problem with the mpi_allreduce call. Commander3 crashes
+             call mpi_allreduce(lnL_old, buff2_r, 1, MPI_DOUBLE_PRECISION, & 
+                  & MPI_SUM, info%comm, ierr)
+             lnL_old = buff2_r(1)
+
+             call mpi_allreduce(pix_count, k, 1, MPI_INTEGER, & 
+                  & MPI_SUM, info%comm, ierr)
+             pix_count = k
+
+             if (pix_count == 0) then! there are no data that is valid
+                old_theta = c_lnL%p_gauss(1,id) !set theta to prior
+                !set nprop to 0, write error message, then exit sampling
+                self%pol_nprop(id)%p%map(:,p) = 0.d0
+                if (info%myid==0) write(*,*) "    No valid pixels to sample spectral index from"
+                exit
+             end if
+
+          end if
+
+          call mpi_allreduce(lnL_new, lnl_sum, 1, MPI_DOUBLE_PRECISION, & 
+               & MPI_SUM, info%comm, ierr)
+          lnL_new = lnL_sum
+
+          !add spec. ind. priors
+          if (info%myid == 0) then
+             if (first_sample) then
+                all_thetas(id)=old_theta
+                do l = 1, npar
+                   if (c_lnL%p_gauss(2,l) > 0.d0) then
+                      lnL_old = lnL_old - 0.5d0 * (all_thetas(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+                   end if
+                   all_thetas(id)=new_theta
+                end do
+             end if
+             do l = 1, npar
+                if (c_lnL%p_gauss(2,l) > 0.d0) then
+                   lnL_new = lnL_new - 0.5d0 * (all_thetas(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+                end if
+             end do
+          end if
+
+          !first sample done
+          first_sample = .false.
+
+          if (pix_count==0) then
+             !set theta to prior
+             old_theta = c_lnL%p_gauss(1,id)
+             !set number of proposals to zero, i.e. spectral index will not be sampled in later iterations 
+             !as there are no unmasked data
+             self%pol_nprop(id)%p%map(:,p)=0.d0
+             exit   !exit sampling
+          end if
+
+       end if !new_theta outside spec limits
+
+       if (info%myid == 0) then
+          !accept/reject new spec ind
+          delta_lnL = lnL_new-lnL_old
+
+          if (mod(j,out_every)==0) write(*,fmt='(a, e14.5)') "    lnL_new - lnL_old = ", delta_lnL
+
+
+          if (delta_lnL < 0.d0) then
+             !if delta_lnL is more negative than -25.d0, limit to -25.d0
+             if (abs(delta_lnL) > delta_lnL_threshold) delta_lnL = -delta_lnL_threshold 
+
+             !draw random uniform number
+             a = rand_uni(handle) !draw uniform number from 0 to 1
+             if (exp(delta_lnL) > a) then
+                !accept
+                old_theta = new_theta
+                lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+                n_accept = n_accept + 1
+             end if
+          else
+             !accept new sample, higher likelihood
+             old_theta = new_theta
+             lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+             n_accept = n_accept + 1
+          end if
+
+          if (j > burn_in) burned_in = .true.
+          ! evaluate proposal_length, then correlation length. 
+          !This should only be done the first gibbs iteration, if prompted to do so from parameter file.
+          if (self%pol_sample_proplen(p,id)) then
+             n_spec_prop = n_spec_prop + 1
+             accept_rate = n_accept*1.d0/n_spec_prop
+             if (mod(n_spec_prop,out_every)==0) write(*,fmt='(a, f6.4)') "   accept rate = ", accept_rate
+             if (.not. burned_in) then 
+                !giving som time to let the first steps "burn in" if one starts far away from max lnL
+                n_spec_prop = 0
+                n_accept = 0
+             else if (n_spec_prop > n_prop_limit) then
+                if (accept_rate > 0.7d0) then
+                   accept_scale = 1.5d0
+                else if (accept_rate < 0.3d0) then
+                   accept_scale = 0.5d0
+                else 
+                   accept_scale = -1.d0
+                end if
+
+                if (accept_scale > 0.d0) then
+                   !prop_len only ever used by root processor
+                   self%pol_proplen(id)%p%map(0,p) = self%pol_proplen(id)%p%map(0,p)*accept_scale !set new proposal length
+                   n_accept = 0 !reset with new prop length
+                   n_spec_prop = 0 !reset with new prop length
+                   write(*,fmt='(a, e14.5)') "     New prop. len. = ", self%pol_proplen(id)%p%map(0,p)
+                else
+                   self%pol_sample_proplen(p,id)=.false. !making sure we dont go back into prop. len. sampling
+                   !only necessary to update for myid==0
+                   if (.not. self%pol_sample_nprop(p,id)) then
+                      loop_exit=.true. !we have found the ideal proposal length, not looking for correlation length
+                   end if
+                end if
+             end if
+
+          else if (self%pol_sample_nprop(p,id)) then
+             ! if we are keeping track of spec inds for corr. length, then save current spec ind
+             n_corr_prop = n_corr_prop + 1
+             theta_corr_arr(n_corr_prop) = old_theta
+             if (.not. burned_in) then
+                n_corr_prop = 0
+             else if (n_corr_prop > n_corr_limit) then
+                corr_len = calc_corr_len(theta_corr_arr(1:n_corr_prop),n_corr_prop) !returns -1 if no corr.len. is found
+                if (corr_len > 0) then ! .or. n_corr_prop > 4*self%nprop_uni(2,id)) then
+                   !set pixreg_nprop (for pix region) to x*corr_len, x=2, but inside limits from parameter file
+                   self%pol_nprop(id)%p%map(:,p) = 1.d0*min(max(2*corr_len,self%nprop_uni(1,id)),self%nprop_uni(2,id))
+                   loop_exit=.true. !we have found the correlation length
+                   self%pol_sample_nprop(p,id)=.false. !making sure we dont go back into corr. len. sampling
+                end if
+             end if
+          else
+             accept_rate = n_accept*1.d0/j
+             if (mod(j,out_every)==0) write(*,fmt='(a, f6.4)') "   accept rate = ", accept_rate
+          end if
+          
+       end if
+
+       call wall_time(t2)
+
+       if (info%myid == 0 .and. mod(j,out_every)==0) write(*,*) '   Sample:',j,'  Wall time per sample:',real((t2-t1)/j,sp)
+
+       call mpi_bcast(loop_exit, 1, MPI_LOGICAL, 0, c_lnL%comm, ierr)
+
+       if (loop_exit) exit
+       
+    end do !nprop
+
+    !bcast proposal length
+    call mpi_bcast(self%pol_proplen(id)%p%map(0,p), 1, MPI_DOUBLE_PRECISION, 0, &
+         & c_lnL%comm, ierr)
+    self%pol_proplen(id)%p%map(:,p) = self%pol_proplen(id)%p%map(0,p)
+
+    !bcast number of proposals
+    call mpi_bcast(self%pol_nprop(id)%p%map(0,p), 1, MPI_DOUBLE_PRECISION, 0, &
+         & c_lnL%comm, ierr)
+    self%pol_nprop(id)%p%map(:,p) = self%pol_nprop(id)%p%map(0,p)
+
+    !bcast last valid theta to all procs to update theta map
+    call mpi_bcast(old_theta, 1, MPI_DOUBLE_PRECISION, 0, c_lnL%comm, ierr)
+
+    buffer_lnL(:,p_min:p_max) = old_theta
+
+    if (info%myid==0) then
+       write(*,fmt='(a, f10.5)') "    Final spec. ind. value: ", old_theta
+       write(*,fmt='(a, i5, a, e14.5)') "    Number of proposals: ",IDINT(self%pol_nprop(id)%p%map(0,p)), &
+            & "  --  Proposal length: ", self%pol_proplen(id)%p%map(0,p)
+       write(*,fmt='(a, e14.5)') "    Difference in spec. ind., new - old: ", old_theta-init_theta
+       write(*,*) ''
+    end if
+
+    if (iter >= 2) then !only stop sampling after 2nd iteration, in case first iter is far off.
+       self%pol_sample_nprop(p,id) = .false. !set sampling of correlation length (number of proposals) and
+       self%pol_sample_proplen(p,id) = .false. !proposal length to false (this is only to be done in the first 
+                                               !gibbs iteration anyways)
+    end if
+
+    !deallocate
+    deallocate(mixing_old_arr,mixing_new_arr,data_arr,invN_arr,all_thetas)
+    deallocate(band_i,pol_j)
+    if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
+
+  end subroutine sampleDiffuseSpecIndFullsky
+
+
+  subroutine sampleDiffuseSpecIndPixReg(self, cpar, handle, id, p, iter)
+    implicit none
+    class(comm_diffuse_comp),                intent(inout)        :: self
+    type(comm_params),                       intent(in)           :: cpar
+    type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: id
+    integer(i4b),                            intent(in)           :: p       !incoming polarization
+    integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
+
+    integer(i4b) :: i, j, k, l, n, q, pix, ierr, ind(1), counter, n_ok
+    integer(i4b) :: i_min, i_max, status, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
+    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
+    real(dp)     :: buff1_r(1), buff2_r(1), theta_min, theta_max
+    logical(lgt) :: ok
+    logical(lgt), save :: first_call = .true.
+    class(comm_comp), pointer :: c => null()
+    !Following is for the local sampler
+    real(dp)     :: mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL, lnL_prior, lnL_init
+    real(dp)     :: accept_rate, accept_scale, lnL_sum, proplen, chisq_jeffreys
+    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
+    integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
+    integer(i4b) :: npixreg, smooth_scale
+    logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen
+    real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
+    real(dp),      allocatable, dimension(:) :: theta_corr_arr, old_thetas, new_thetas, init_thetas
+    real(dp),      allocatable, dimension(:) :: old_theta_smooth, new_theta_smooth
+    integer(i4b),  allocatable, dimension(:) :: band_i, pol_j
+    class(comm_mapinfo),             pointer :: info => null()
+    class(comm_map),                 pointer :: theta_single_pol => null() ! Spectral parameter of polt_id index
+    class(comm_map),                 pointer :: theta_single_pol_smooth => null() ! smoothed spec. ind. of polt_id index
+    type(map_ptr), allocatable, dimension(:) :: df
+
+
+    info  => comm_mapinfo(c_lnL%x%info%comm, c_lnL%x%info%nside, &
+         & c_lnL%x%info%lmax, c_lnL%x%info%nmaps, c_lnL%x%info%pol)
+                
+
+    delta_lnL_threshold = 25.d0
+    n                   = 101
+    n_ok                = 50
+    burn_in             = 20
+    burned_in           = .false.
+    first_call          = .false.
+    
+    n_prop_limit = 20
+    n_corr_limit = 20
+    out_every    = 10
+    !p_lnL = p
+
+    ! we have allready got globally from sampleDiffuseSpecInd: c_lnL, p_lnL (also in input), id_lnL (also in input),
+    !     buffer_lnL (theta, limited by min/max)
+
+    if (c_lnL%poltype(id) == 1) then
+       p_min = 1; p_max = c_lnL%nmaps
+       if (only_pol) p_min = 2
+    else if (c_lnL%poltype(id) == 2) then
+       if (p == 1) then
+          p_min = 1; p_max = 1
+       else
+          p_min = 2; p_max = c_lnL%nmaps
+       end if
+    else if (c_lnL%poltype(id) == 3) then
+       p_min = p
+       p_max = p
+    else
+       write(*,*) 'Unsupported polarization type'
+       stop
+    end if
+
+    npar      = c_lnL%npar
+    np        = self%x_smooth%info%np
+    nmaps     = self%x_smooth%info%nmaps
+    npixreg   = self%npixreg(p,id)
+
+    theta_min = c_lnL%p_uni(1,id)
+    theta_max = c_lnL%p_uni(2,id)
+
+    !Pixregs are going to have a slightly different structure than fullsky (fullsky will be changed later too)
+
+    !1) we need active bands for evaluation.
+
+    !2) We need to set up sampling of theta (nprop, proplen)
+
+    !2.1) draw new theta for each pixel reg, bcast and smooth theta map
+
+    !2.2) evaluate loglike. If chisq use normal chisq code. If lowres_chisq use trygves new code. 
+    !if marg/ridge use underlying code (for now)
+
+    !step 1) 
+    !set up which bands and polarizations to include, make sure to set masks of unincluded bands/polarizations to zero
+
+    allocate(band_i(3*numband),pol_j(3*numband))
+
+    band_count=0
+    do k = 1,numband !run over all active bands
+       !check if the band is associated with the smoothed component, and if band frequencies are within 
+       !freq. limits for the component
+       if (.not. associated(rms_smooth(k)%p)) cycle
+       if (data(k)%bp(0)%p%nu_c < self%nu_min_ind(id) .or. data(k)%bp(0)%p%nu_c > self%nu_max_ind(id)) cycle
+                   
+       do l = p_min,p_max !loop all maps of band k associated with p (given poltype)
+          if (l > data(k)%info%nmaps) cycle !no map in band k for polarization l
+          band_count = band_count + 1
+          band_i(band_count)=k
+          pol_j(band_count)=l
+       end do
+    end do
+
+    if (band_count==0) then
+       buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set theta to prior, as no bands are valid, no data
+       deallocate(band_i,pol_j)
+       if (info%myid == 0)  write(*,*) 'no data bands available for sampling of spec ind'
+       return
+    else
+       if (info%myid == 0 .and. .true.) then
+             write(*,fmt='(a)') '  Active bands'
+          do k = 1,band_count
+             write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
+          end do
+       end if
+    end if
+
+    ! This is used for marginal/ridge sampling
+    allocate(all_thetas(npar))
+    allocate(mixing_old_arr(band_count),mixing_new_arr(band_count),invN_arr(band_count),data_arr(band_count))
+
+    !This is used for all
+    allocate(old_thetas(0:npixreg),new_thetas(0:npixreg),init_thetas(0:npixreg))
+    allocate(old_theta_smooth(0:np-1), new_theta_smooth(0:np-1))
+
+    !This is used for chisq
+    if (self%apply_jeffreys) then
+       allocate(df(numband))
+       do k = 1, numband
+          df(k)%p => comm_map(data(k)%info)
+       end do
+    end if
+
+    n_spec_prop = 0
+    n_accept = 0
+    n_corr_prop = 0 
+    sampled_nprop = .true.
+    sampled_proplen = .true.
+
+    if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id)) then
+       pixreg_nprop = 10000 !should be enough to find correlation length (and proposal length if prompted) 
+       allocate(theta_corr_arr(pixreg_nprop))
+       !self%pol_sample_nprop(j,p,id) = boolean array of size (n_pixreg,poltype)
+       !self%pol_sample_proplen(j,p,id) = boolean array of size (n_pixreg,poltype)
+       if (self%pol_sample_nprop(p,id)) sampled_nprop = .true.
+       if (self%pol_sample_proplen(p,id)) sampled_proplen = .true.
+    else
+       if (np > 0) then
+          pixreg_nprop = IDINT(sum(self%pol_nprop(id)%p%map(:,p))/np) ! comm_map is real(dp), use IDINT() to convert to integer
+       else
+          pixreg_nprop = 0
+       end if
+    end if
+
+    first_sample  = .true.
+    loop_exit     = .false.
+
+    !Init a smoothing map with nmaps = 1
+    
+    call wall_time(t1)
+    lnl_init=0.d0
+
+    !Step 2)
+
+    do j = 1,pixreg_nprop !propose new sample n times (for faster mixing in total)
+       if (info%myid == 0) then
+
+          if (first_sample) then
+             if (np > 0) then
+                proplen=sum(self%pol_proplen(id)%p%map(:,p))/np
+             else
+                proplen=1.d0
+             end if
+
+             old_thetas = self%theta_pixreg(:,p,id)
+             old_thetas = min(max(old_thetas,theta_min),theta_max)
+             ! that the root processor operates on
+             init_thetas = old_thetas
+             write(*,fmt='(a, f10.5)') "  initial (avg) sepc. ind. value: ", sum(init_thetas)/npixreg
+          end if
+
+          !draw new spec ind, using same proposal length per pixreg
+          !may add code later to support sampling of one pixelregion at the time later
+
+          new_thetas(0)=old_thetas(0) !prior value, not to be sampled
+          do i = 1,npixreg
+             new_thetas(i) = old_thetas(i) + proplen*rand_gauss(handle)
+          end do
+
+       end if
+
+
+       !broadcast new_theta, and new old_theta, and all_thetas to the other processors
+       if (first_sample) call mpi_bcast(old_thetas(0:npixreg), npixreg+1, MPI_DOUBLE_PRECISION, &
+            & 0, c_lnL%comm, ierr)
+       call mpi_bcast(new_thetas(0:npixreg), npixreg+1, MPI_DOUBLE_PRECISION, 0, c_lnL%comm, ierr)
+
+       if (info%myid==0 .and. mod(j,out_every)==0) then
+          write(*,fmt='(a, i6, a, f10.5, a, f10.5)') "  proposal: ", j," -- Current (avg) ind (per pixreg): ", &
+               & sum(old_thetas(1:npixreg))/npixreg, " -- proposed (avg) ind (per pixreg): ",  &
+               & sum(new_thetas(1:npixreg))/npixreg
+       end if
+
+
+       !init log-like for new sample
+       if (first_sample) lnL_old = 0.d0
+       lnL_new = 0.d0       
+
+       if (any(new_thetas > theta_max) .or. any(new_thetas < theta_min)) then !new proposal is outside limits
+          lnL_new = -1.d30 
+          ! skip the true caclulation of lnL, we reject the sample ~100%
+          if (info%myid==0) write(*,fmt='(a, f10.5, a, f10.5)') "    Proposed ind (partially) outside limits.  min: ", &
+               & theta_min," -- max: ", theta_max
+       else
+          !Step 2.1) set up theta maps and smooth, using beam equal to post-processing beam of the given smoothing scale
+
+          if (first_sample) then
+             !set up the old theta map
+             do pix=0,np-1
+                old_theta_smooth(pix)=old_thetas(self%ind_pixreg_arr(pix,p,id))
+             end do
+          end if
+          !set up the new theta map
+          do pix=0,np-1
+             new_theta_smooth(pix)=new_thetas(self%ind_pixreg_arr(pix,p,id))
+          end do
+
+          smooth_scale = c_lnL%smooth_scale(id)
+          if (cpar%num_smooth_scales > 0) then
+             if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                if (p_min<=p_max) then !just a guaranty that we dont smooth for nothing
+                   ! Smooth index map with a postprocessing beam
+                   !deallocate(c%theta_smooth)             
+                   
+                   info  => comm_mapinfo(c_lnL%theta(id)%p%info%comm, cpar%nside_smooth(smooth_scale), &
+                        & cpar%lmax_smooth(smooth_scale), 1, c_lnL%theta(id)%p%info%pol) !only want 1 map
+
+                   !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
+                   theta_single_pol => comm_map(info)
+                   if (first_sample) then
+                      theta_single_pol%map(:,1) = old_theta_smooth
+                      !smooth single map as intensity (i.e. zero spin)
+                      call smooth_map(info, .false., &
+                           & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, theta_single_pol, &  
+                           & data(1)%B_postproc(smooth_scale)%p%b_l, theta_single_pol_smooth)
+
+                      ! assign smoothed theta map to theta buffers
+                      old_theta_smooth = theta_single_pol_smooth%map(:,1)
+
+                      call theta_single_pol_smooth%dealloc()
+                      theta_single_pol_smooth => null()
+                   end if
+                   theta_single_pol%map(:,1) = new_theta_smooth
+                   !smooth single map as intensity (i.e. zero spin)
+                   call smooth_map(info, .false., &
+                        & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, theta_single_pol, &  
+                        & data(1)%B_postproc(smooth_scale)%p%b_l, theta_single_pol_smooth)
+
+                   ! assign smoothed theta map to theta buffers
+                   new_theta_smooth = theta_single_pol_smooth%map(:,1)
+
+                   call theta_single_pol_smooth%dealloc()
+                   theta_single_pol_smooth => null()
+
+
+                   call theta_single_pol%dealloc()
+                   theta_single_pol => null()
+
+                end if
+             end if
+          end if
+
+          pix_count = 0
+          !lnL type should split here
+          if (trim(self%pol_lnLtype(p,id))=='chisq') then
+
+             !!due to circular dependencies, we have to comment out this for now
+             !!use normal, fullsky chisq
+             !if (first_sample) then
+             !   do i = p_min,p_max
+             !      self%theta(id)%p%map(:,i)=old_theta_smooth
+             !   end do
+             !   
+             !   ! Update mixing matrix with new alms
+             !   if (c_lnL%apply_jeffreys) then
+             !      call self%updateMixmat(df=df, par=id)
+             !      call compute_jeffreys_prior(c_lnL, df, p, id, chisq_jeffreys)
+             !   else
+             !      call self%updateMixmat
+             !   end if
+             !
+             !   ! Calculate proposed chisq
+             !   if (allocated(c_lnL%indmask)) then
+             !      call compute_chisq(c_lnL%comm, chisq_fullsky=lnL_old, mask=c_lnL%indmask)
+             !   else
+             !      call compute_chisq(c_lnL%comm, chisq_fullsky=lnl_old)
+             !   end if
+             !   if (c_lnL%apply_jeffreys) lnL_old = lnL_old + chisq_jeffreys
+             !   lnL_old = -0.5d0*lnL_old
+             !end if
+             !
+             !do i = p_min,p_max
+             !   self%theta(id)%p%map(:,i)=new_theta_smooth
+             !end do
+             !
+             !! Update mixing matrix with new alms
+             !if (c_lnL%apply_jeffreys) then
+             !   call self%updateMixmat(df=df, par=id)
+             !   call compute_jeffreys_prior(c_lnL, df, p, id, chisq_jeffreys)
+             !else
+             !   call self%updateMixmat
+             !end if
+             !
+             !! Calculate proposed chisq
+             !if (allocated(c_lnL%indmask)) then
+             !   call compute_chisq(c_lnL%comm, chisq_fullsky=lnL_new, mask=c_lnL%indmask)
+             !else
+             !   call compute_chisq(c_lnL%comm, chisq_fullsky=lnl_new)
+             !end if
+             !if (c_lnL%apply_jeffreys) lnL_new = lnL_new + chisq_jeffreys
+             !lnL_new = -0.5d0*lnL_new
+             !
+             lnL_old=0.d0
+             lnL_new=0.d0
+             
+          else if (trim(self%pol_lnLtype(p,id))=='chisq_lowres') then
+             !use low resolution (nside 16?) chisq evaluation
+             !need to add code for support later
+             lnL_old=0.d0
+             lnL_new=0.d0
+
+          else if (trim(self%pol_lnLtype(p,id))=='chisq_smooth') then
+
+             !The old, evaluate all chisq at smoothing scale, chisq evaluation
+             do pix = 0,np-1 !loop over pixels covered by the processor
+                if (self%pol_ind_mask(id)%p%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out
+
+                all_thetas(id)=new_theta_smooth(pix)
+                !get the values of the remaining spec inds of the component for the given pixel
+                do i = 1, npar
+                   if (i == id) cycle
+                   all_thetas(i) = self%theta_smooth(i)%p%map(pix,p) 
+                end do
+
+                do k = 1,band_count !run over all active bands
+                   pix_count = pix_count + 1
+
+                   ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
+                   ! both for old and new spec. ind. and calc. log likelihood (chisq)
+                   if (first_sample) then
+                      all_thetas(id)=old_theta_smooth(pix)
+                      mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale
+                      all_thetas(id)=new_theta_smooth(pix)
+
+                      res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_old* &
+                           & self%x_smooth%map(pix,pol_j(k))
+                      lnL_old = lnL_old -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+
+                   end if
+                   mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                        & data(band_i(k))%gain * c_lnL%cg_scale
+
+                   res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
+                        & self%x_smooth%map(pix,pol_j(k))
+                   lnL_new = lnL_new -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+                end do
+             end do
+
+          else if ((trim(self%pol_lnLtype(p,id))=='ridge') .or. &
+               & (trim(self%pol_lnLtype(p,id))=='marginal')) then
+             if (trim(self%pol_lnLtype(p,id))=='ridge') then
+                use_det = .false.
+             else
+                use_det = .true.
+             end if
+
+             do pix = 0,np-1 !More precise, we need to loop over pixels covered by the processor
+                
+                if (self%pol_ind_mask(id)%p%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out
+
+                all_thetas(id)=new_theta_smooth(pix)
+                !get the values of the remaining spec inds of the component for the given pixel
+                do i = 1, npar
+                   if (i == id) cycle
+                   all_thetas(i) = self%theta_smooth(i)%p%map(pix,p) 
+                end do
+
+                !build mixing matrix
+                do k = 1,band_count !run over all active bands
+                   pix_count = pix_count + 1
+
+                   if (first_sample) then
+                      all_thetas(id)=old_theta_smooth(pix)
+                      mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale
+                      all_thetas(id)=new_theta_smooth(pix)
+                   end if
+                   mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                        & data(band_i(k))%gain * c_lnL%cg_scale
+                   pix_count = pix_count + 1
+                   data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
+                   invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
+                end do
+
+                !compute the marginal/ridge log-like for the pixel
+                if (first_sample) then
+                   lnL_old = lnL_old + comp_lnL_marginal_diagonal(mixing_old_arr, invN_arr, data_arr, &
+                        & use_det, band_count)
+                end if
+                lnL_new = lnL_new + comp_lnL_marginal_diagonal(mixing_new_arr, invN_arr, data_arr, &
+                     & use_det, band_count)
+             end do
+          else 
+             if (info%myid==0) write(*,*) 'invalid polarized lnL sampler type'
+             stop
+
+          end if !chisq/marginal/ridge
+
+
+          !Sum lnL_new (and lnL_old) among all processors
+          if (first_sample) then
+             !there is a problem with the mpi_allreduce call. Commander3 crashes
+             call mpi_allreduce(MPI_IN_PLACE, lnL_old, 1, MPI_DOUBLE_PRECISION, & 
+                  & MPI_SUM, info%comm, ierr)
+
+             if (.not. ( (trim(self%pol_lnLtype(p,id))=='chisq') .or. (trim(self%pol_lnLtype(p,id))=='chisq_lowres'))) then
+                call mpi_allreduce(MPI_IN_PLACE, pix_count, 1, MPI_INTEGER, & 
+                     & MPI_SUM, info%comm, ierr)
+                
+                if (pix_count == 0) then! there are no data that is valid
+                   old_thetas = c_lnL%p_gauss(1,id) !set theta to prior
+                   !set nprop to 0, write error message, then exit sampling
+                   self%pol_nprop(id)%p%map(:,p) = 0.d0
+                   if (info%myid==0) write(*,*) "    No valid pixels to sample spectral index from"
+                   exit
+                end if
+             end if
+          end if
+
+          call mpi_allreduce(MPI_IN_PLACE, lnL_new, 1, MPI_DOUBLE_PRECISION, & 
+               & MPI_SUM, info%comm, ierr)
+
+          !add spec. ind. prior
+          if (c_lnL%p_gauss(2,id) > 0.d0) then
+             !Find average prior "chisq" and add it to lnL
+             if (first_sample) then
+                lnL_prior=0.d0
+                do pix = 0,np-1
+                   lnL_prior = (old_theta_smooth(pix)-c_lnL%p_gauss(1,id))**2
+                end do
+                if (np > 0) lnL_prior = -0.5d0 * lnl_prior/c_lnL%p_gauss(2,id)**2
+                pix_count=np
+                call mpi_allreduce(MPI_IN_PLACE, lnL_prior, 1, MPI_DOUBLE_PRECISION, & 
+                     & MPI_SUM, info%comm, ierr)
+                call mpi_allreduce(MPI_IN_PLACE, pix_count, 1, MPI_INTEGER, & 
+                     & MPI_SUM, info%comm, ierr)
+                lnL_old = lnL_old + lnL_prior/pix_count
+                lnl_init = lnL_old
+             end if
+             lnL_prior=0.d0
+             do pix = 0,np-1
+                lnL_prior = (new_theta_smooth(pix)-c_lnL%p_gauss(1,id))**2
+             end do
+             if (np > 0) lnL_prior = -0.5d0 * lnl_prior/c_lnL%p_gauss(2,id)**2
+             pix_count=np
+             call mpi_allreduce(MPI_IN_PLACE, lnL_prior, 1, MPI_DOUBLE_PRECISION, & 
+                  & MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, pix_count, 1, MPI_INTEGER, & 
+                  & MPI_SUM, info%comm, ierr)
+             lnL_new = lnL_new + lnL_prior/pix_count
+          end if
+
+          !first sample done
+          first_sample = .false.
+
+       end if !new_theta outside spec limits
+
+       if (info%myid == 0) then
+          !accept/reject new spec ind
+          delta_lnL = lnL_new-lnL_old
+
+          if (mod(j,out_every)==0) write(*,fmt='(a, e14.5)') "    lnL_new - lnL_old = ", delta_lnL
+
+
+          if (delta_lnL < 0.d0) then
+             !if delta_lnL is more negative than -25.d0, limit to -25.d0
+             if (abs(delta_lnL) > delta_lnL_threshold) delta_lnL = -delta_lnL_threshold 
+
+             !draw random uniform number
+             a = rand_uni(handle) !draw uniform number from 0 to 1
+             if (exp(delta_lnL) > a) then
+                !accept
+                old_thetas = new_thetas
+                lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+                n_accept = n_accept + 1
+             end if
+          else
+             !accept new sample, higher likelihood
+             old_thetas = new_thetas
+             lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+             n_accept = n_accept + 1
+          end if
+
+          if (j > burn_in) burned_in = .true.
+          ! evaluate proposal_length, then correlation length. 
+          !This should only be done the first gibbs iteration, if prompted to do so from parameter file.
+          if (self%pol_sample_proplen(p,id)) then
+             n_spec_prop = n_spec_prop + 1
+             accept_rate = n_accept*1.d0/n_spec_prop
+             if (mod(n_spec_prop,out_every)==0) write(*,fmt='(a, f6.4)') "   accept rate = ", accept_rate
+             if (.not. burned_in) then 
+                !giving som time to let the first steps "burn in" if one starts far away from max lnL
+                n_spec_prop = 0
+                n_accept = 0
+             else if (n_spec_prop > n_prop_limit) then
+                if (accept_rate > 0.7d0) then
+                   accept_scale = 1.5d0
+                else if (accept_rate < 0.3d0) then
+                   accept_scale = 0.5d0
+                else 
+                   accept_scale = -1.d0
+                end if
+
+                if (accept_scale > 0.d0) then
+                   !prop_len only ever used by root processor
+                   proplen = proplen*accept_scale !set new proposal length
+                   n_accept = 0 !reset with new prop length
+                   n_spec_prop = 0 !reset with new prop length
+                   write(*,fmt='(a, e14.5)') "     New prop. len. = ", proplen
+                else
+                   self%pol_sample_proplen(p,id)=.false. !making sure we dont go back into prop. len. sampling
+                   !only necessary to update for myid==0
+                   if (.not. self%pol_sample_nprop(p,id)) then
+                      loop_exit=.true. !we have found the ideal proposal length, not looking for correlation length
+                   end if
+                end if
+             end if
+
+          else if (self%pol_sample_nprop(p,id)) then
+             ! if we are keeping track of spec inds for corr. length, then save current spec ind
+             n_corr_prop = n_corr_prop + 1
+             theta_corr_arr(n_corr_prop) = sum(old_thetas(1:npixreg))/npixreg
+             if (.not. burned_in) then
+                n_corr_prop = 0
+             else if (n_corr_prop > n_corr_limit) then
+                corr_len = calc_corr_len(theta_corr_arr(1:n_corr_prop),n_corr_prop) !returns -1 if no corr.len. is found
+                if (corr_len > 0) then ! .or. n_corr_prop > 4*self%nprop_uni(2,id)) then
+                   !set pixreg_nprop (for pix region) to x*corr_len, x=2, but inside limits from parameter file
+                   self%pol_nprop(id)%p%map(:,p) = 1.d0*min(max(2*corr_len,self%nprop_uni(1,id)),self%nprop_uni(2,id))
+                   loop_exit=.true. !we have found the correlation length
+                   self%pol_sample_nprop(p,id)=.false. !making sure we dont go back into corr. len. sampling
+                end if
+             end if
+          else
+             accept_rate = n_accept*1.d0/j
+             if (mod(j,out_every)==0) write(*,fmt='(a, f6.4)') "   accept rate = ", accept_rate
+          end if
+          
+       end if
+
+       call wall_time(t2)
+
+       if (info%myid == 0 .and. mod(j,out_every)==0) write(*,*) '   Sample:',j,'  Wall time per sample:',real((t2-t1)/j,sp)
+
+       call mpi_bcast(loop_exit, 1, MPI_LOGICAL, 0, c_lnL%comm, ierr)
+
+       if (loop_exit) exit
+       
+    end do !nprop
+
+    !bcast proposal length
+    call mpi_bcast(proplen, 1, MPI_DOUBLE_PRECISION, 0, &
+         & c_lnL%comm, ierr)
+    self%pol_proplen(id)%p%map(:,p) = proplen
+
+    !bcast number of proposals
+    call mpi_bcast(self%pol_nprop(id)%p%map(0,p), 1, MPI_DOUBLE_PRECISION, 0, &
+         & c_lnL%comm, ierr)
+    self%pol_nprop(id)%p%map(:,p) = self%pol_nprop(id)%p%map(0,p)
+
+    !bcast last valid theta to all procs to update theta map
+    call mpi_bcast(old_thetas(0:npixreg), npixreg+1, MPI_DOUBLE_PRECISION, 0, c_lnL%comm, ierr)
+    !assign thatas to pixel regions
+    do pix=0,np-1
+       old_theta_smooth=old_thetas(self%ind_pixreg_arr(pix,p,id))
+    end do
+
+    do i = p_min,p_max
+       buffer_lnL(:,i) = old_theta_smooth
+    end do
+    self%theta_pixreg(0:npixreg,p,id)=old_thetas
+
+    if (info%myid==0) then
+       write(*,fmt='(a, f10.5)') "    Final (avg) spec. ind. value: ", sum(old_thetas(1:npixreg)/npixreg)
+       write(*,fmt='(a, i5, a, e14.5)') "    Number of proposals: ",IDINT(self%pol_nprop(id)%p%map(0,p)), &
+            & "  --  Proposal length: ", proplen
+       write(*,fmt='(a, e14.5)') "    Difference in (avg) spec. ind., new - old: ", &
+            & sum((old_thetas(1:npixreg)-init_thetas(1:npixreg))/npixreg)
+       write(*,fmt='(a, e14.5)') "    New Log-Likelihood                      : ", &
+            & lnl_old
+       write(*,fmt='(a, e14.5)') "    Difference in Log-Likelihood (new - old): ", &
+            & lnl_old-lnl_init
+       write(*,*) ''
+    end if
+
+    if (iter >= self%sample_first_niter) then !only stop sampling after n'th iteration, in case first iter is far off.
+       self%pol_sample_nprop(p,id) = .false. !set sampling of correlation length (number of proposals) and
+       self%pol_sample_proplen(p,id) = .false. !proposal length to false (this is only to be done in the first 
+                                               !gibbs iteration anyways)
+    else !reset sampling to true if we have sampled
+       if (sampled_nprop) self%pol_sample_nprop(p,id) = .true. 
+       if (sampled_proplen) self%pol_sample_proplen(p,id) = .true. 
+    end if
+
+    !deallocate
+    deallocate(mixing_old_arr,mixing_new_arr,data_arr,invN_arr,all_thetas)
+    deallocate(band_i,pol_j)
+    if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
+    deallocate(old_thetas,new_thetas,init_thetas,old_theta_smooth, new_theta_smooth)
+    if (allocated(df)) deallocate(df)
+
+
+  end subroutine sampleDiffuseSpecIndPixReg
+
+  function calc_corr_len(spec_arr,n_spec) 
+    implicit none
+    integer(i4b),               intent(in) :: n_spec
+    real(dp),     dimension(:), intent(in) :: spec_arr
+    integer(i4b)                           :: calc_corr_len
+
+    integer(i4b) :: i, j, maxcorr, ns
+    real(dp)     :: x_mean, y_mean, sig_x, sig_y
+    real(dp), dimension(:), allocatable :: xarr, yarr,covarr
+
+    calc_corr_len = -1 !default if no corr length is found
+
+    maxcorr = n_spec/2
+    allocate(xarr(maxcorr),yarr(maxcorr),covarr(maxcorr))
+
+    do i = 1,maxcorr
+       ns=maxcorr-i
+       xarr=spec_arr(1:ns)
+       yarr=spec_arr(1+i:ns+i)
+       x_mean=sum(xarr)/ns
+       y_mean=sum(yarr)/ns
+       sig_x = sqrt(sum((xarr-x_mean)**2)/ns)
+       sig_y = sqrt(sum((yarr-y_mean)**2)/ns)
+       covarr(i) = sum((xarr-x_mean)*(yarr-y_mean))/(ns*sig_x*sig_y)
+       if (covarr(i) < 0.d0) then
+          calc_corr_len = i
+          exit
+       end if
+    end do
+
+    deallocate(xarr,yarr,covarr)
+
+  end function calc_corr_len
+
+  function comp_lnL_marginal_diagonal(mixing,invN_arr,data,use_det,arr_len)
+    implicit none
+    logical(lgt),               intent(in)           :: use_det
+    real(dp),     dimension(:), intent(in)           :: mixing
+    real(dp),     dimension(:), intent(in)           :: invN_arr
+    real(dp),     dimension(:), intent(in)           :: data
+    integer(i4b),               intent(in), optional :: arr_len
+    real(dp)                                         :: comp_lnL_marginal_diagonal
+
+    integer(i4b) :: i, j, mat_len
+    real(dp)     :: MNd,MNM
+    real(dp), dimension(:), allocatable :: MN
+
+    if (present(arr_len)) then
+       allocate(MN(arr_len))
+       MN=mixing(1:arr_len)*invN_arr(1:arr_len)
+       MNd=sum(MN*data(1:arr_len))
+       MNM=sum(MN*mixing(1:arr_len))
+    else
+       allocate(MN(size(mixing)))
+       MN=mixing*invN_arr
+       MNd=sum(MN*data)
+       MNM=sum(MN*mixing)
+    end if
+
+    comp_lnL_marginal_diagonal = 0.d0
+
+    if (MNM /= 0.d0) then 
+       MNM=1.d0/MNM !invert 1x1 matrix
+    else
+       comp_lnL_marginal_diagonal=1.d30 !MNM = 0.d0, i.e. no inversion possible 
+       deallocate(MN)
+       return
+    end if
+
+    comp_lnL_marginal_diagonal = 0.5d0*MNd*MNM*MNd
+
+    !determinant of 1x1 matrix is the value of the matrix itself
+    if (use_det) comp_lnL_marginal_diagonal = comp_lnL_marginal_diagonal - 0.5d0*log(MNM) 
+
+    deallocate(MN)
+
+
+  end function comp_lnL_marginal_diagonal
+
+  ! Sample spectral parameters
+  subroutine computeMarginalLogLikelihood(self, handle, id, use_det, marg_fullsky, marg_map, theta_map, theta_mask, p_ind)
+    implicit none
+    class(comm_diffuse_comp),                intent(inout)           :: self
+    type(planck_rng),                        intent(inout)           :: handle
+    integer(i4b),                            intent(in)              :: id
+    logical(lgt),                            intent(in)              :: use_det
+    real(dp),                                intent(out),   optional :: marg_fullsky
+    class(comm_map),                         intent(inout), optional :: marg_map
+    class(comm_map),                         intent(in),    optional :: theta_map
+    class(comm_map),                         intent(in),    optional :: theta_mask
+    !type(map_ptr),            dimension(1:), intent(in),    optional :: data_mask !data masks, if they are to be used they must have been ud_graded to correct nside
+    integer(i4b),                            intent(in),    optional :: p_ind !poltype index, only compute for the given poltype ind
+
+    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok
+    integer(i4b) :: i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag, npar, np, nmaps
+    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
+    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
+    real(dp)     :: x(1), theta_min, theta_max
+    logical(lgt) :: ok
+    logical(lgt), save :: first_call = .true.
+    class(comm_comp), pointer :: c => null()
+    !Following is for the local sampler
+    real(dp)     :: lnL_new
+    integer(i4b) :: i_s, p_min, p_max, band_count
+    real(dp),     allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_arr
+    real(dp),     allocatable, dimension(:) :: theta_corr_arr
+    integer(i4b), allocatable, dimension(:) :: band_i, pol_j
+    class(comm_mapinfo),            pointer :: info => null()
+
+
+    if (.not. (present(marg_fullsky) .or. present(marg_map))) return !no log-like output specified
+
+    delta_lnL_threshold = 25.d0
+    n                   = 101
+    n_ok                = 50
+
+    !c_lnL       => self
+    id_lnL      = id
+    c           => compList     ! Extremely ugly hack...
+    do while (self%id /= c%id)
+       c => c%next()
+    end do
+    select type (c)
+    class is (comm_diffuse_comp)
+       c_lnL => c
+    end select
+
+    info  => comm_mapinfo(c_lnL%x%info%comm, c_lnL%x%info%nside, &
+         & c_lnL%x%info%lmax, c_lnL%x%info%nmaps, c_lnL%x%info%pol)
+
+
+    npar      = c%npar
+    np        = self%x_smooth%info%np
+    nmaps     = self%x_smooth%info%nmaps
+
+    theta_min = c_lnL%p_uni(1,id_lnL)
+    theta_max = c_lnL%p_uni(2,id_lnL)
+       
+    allocate(buffer_lnL(0:self%x_smooth%info%np-1,self%x_smooth%info%nmaps))
+    if (present(theta_map)) then
+       buffer_lnL=max(min(theta_map%map,theta_max),theta_min) 
+    else
+       buffer_lnL=max(min(self%theta(id)%p%map,theta_max),theta_min) 
+    end if
+
+    ! Choose which polarization fields to include in evaluation
+    if (present(p_ind)) then
+       if (p_ind == 1) then
+          if (c_lnL%poltype(id_lnL) == 1) then
+             p_min = 1; p_max = c_lnL%nmaps
+             if (only_pol) p_min = 2
+          else 
+             p_min = 1; p_max = 1
+          end if
+       else if (p_ind == 2) then
+          if (c_lnL%poltype(id_lnL) == 1) then
+             write(*,*) 'Trying to evaluate poltype index (', p_ind, ') higher than defined poltype'
+             write(*,*) 'Component '//trim(self%label)//', spec. ind. '//trim(self%indlabel(id))
+             stop
+          else if (c_lnL%poltype(id_lnL) == 2) then
+             p_min = 2; p_max = c_lnL%nmaps
+          else if (c_lnL%poltype(id_lnL) == 3) then
+             p_min = 2; p_max = 2
+          else
+             write(*,*) 'Unsupported polarization type'
+             write(*,*) 'Component '//trim(self%label)//', spec. ind. '//trim(self%indlabel(id))
+             stop
+          end if
+       else if  (p_ind == 3) then
+          if (c_lnL%poltype(id_lnL) < 3) then
+             write(*,*) 'Trying to evaluate poltype index (', p_ind, ') higher than defined poltype in'
+             write(*,*) 'Component '//trim(self%label)//', spec. ind. '//trim(self%indlabel(id))
+             stop
+          else if (c_lnL%poltype(id_lnL) == 3) then
+             p_min = 3; p_max = 3
+          else
+             write(*,*) 'Unsupported polarization type'
+             write(*,*) 'Component '//trim(self%label)//', spec. ind. '//trim(self%indlabel(id))
+             stop
+          end if
+       else
+          write(*,*) 'Unsupported polarization index', p_ind, 'in marginal log-likelihood evaluation' 
+          stop
+       end if
+    else
+       p_min = 1; p_max = c_lnL%nmaps
+       if (only_pol) p_min = 2
+    end if
+
+    allocate(band_i(3*numband),pol_j(3*numband))
+
+    band_count=0
+    do k = 1,numband !run over all active bands
+       !check if the band is associated with the smoothed component, and if band frequencies are within 
+       !freq. limits for the component
+       if (.not. associated(rms_smooth(k)%p)) cycle
+       if (data(k)%bp(0)%p%nu_c < self%nu_min_ind(id) .or. data(k)%bp(0)%p%nu_c > self%nu_max_ind(id)) cycle
+                   
+       do l = p_min,p_max !loop all maps of band k associated with p (given poltype)
+          if (l > data(k)%info%nmaps) cycle !no map in band k for polarization l
+          band_count = band_count + 1
+          band_i(band_count)=k
+          pol_j(band_count)=l
+       end do
+    end do
+
+    if (band_count==0) then
+       if (present(marg_fullsky)) marg_fullsky = 0.d0
+       if (present(marg_map))     marg_map%map = 0.d0
+       deallocate(band_i,pol_j)
+       if (info%myid == 0) then
+          write(*,*) 'no data bands available for evaluating marginal log-likelihood'
+          write(*,*) 'Component '//trim(self%label)//', spec. ind. '//trim(self%indlabel(id))
+       end if
+       return
+    end if
+
+    allocate(all_thetas(npar))
+    allocate(mixing_arr(band_count),invN_arr(band_count),data_arr(band_count))
+
+    if (present(marg_fullsky)) marg_fullsky = 0.d0
+    if (present(marg_map)) marg_map%map = 0.d0
+
+    do pix = 0,np-1 !loop over the number of pixels the processor is handling
+       
+       if (present(theta_mask)) then 
+          if (theta_mask%map(pix,1) < 0.5d0) cycle
+       end if
+
+       
+       !! build mixing matrix, invN and data for pixel
+       do k = 1,band_count !run over all active bands
+
+          ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
+          ! both for old and new spec. ind.
+          do i = 1, npar
+             if (i == id) then
+                all_thetas(i) = buffer_lnL(pix,pol_j(k))
+             else
+                all_thetas(i) = self%theta_smooth(i)%p%map(pix,pol_j(k))
+             end if
+          end do
+
+          mixing_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+               & data(band_i(k))%gain * c_lnL%cg_scale
+
+          data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
+          invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
+       end do
+
+       lnL_new = comp_lnL_marginal_diagonal(mixing_arr, invN_arr, data_arr, &
+            & use_det, band_count)
+
+       if (present(marg_fullsky)) marg_fullsky = marg_fullsky + lnL_new
+       if (present(marg_map)) marg_map%map(pix,1)  = lnL_new
+    end do !pix = 1,np
+
+    if (present(marg_fullsky)) then
+       call mpi_allreduce(MPI_IN_PLACE, marg_fullsky, 1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+    end if
+
+    deallocate(all_thetas)
+    deallocate(invN_arr)
+    deallocate(data_arr)
+    deallocate(mixing_arr)    
+    deallocate(buffer_lnL)
+
+  end subroutine computeMarginalLogLikelihood
 
 
   function lnL_diffuse_multi(p)
@@ -2094,7 +3878,7 @@ contains
 !!$       call self%updateMixmat
 !!$       
 !!$       ! Ask for CG preconditioner update
-!!$       if (self%cg_samp_group > 0) recompute_diffuse_precond = .true.
+!!$       if (self%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
 !!$
 !!$       deallocate(amps_lnL)
 !!$       return
