@@ -334,6 +334,8 @@ contains
              allocate(sum_pix(n),sum_theta(n),sum_nprop(n),sum_proplen(n))
              sum_theta=0.d0
              sum_pix=0
+             sum_nprop=0
+             sum_proplen=0
 
              do k = 0,constructor%theta(i)%p%info%np-1
                 do m = 1,n

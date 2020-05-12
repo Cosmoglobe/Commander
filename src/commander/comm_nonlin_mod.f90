@@ -2071,7 +2071,6 @@ contains
     init_thetas = old_thetas
     if (cpar%verbosity>2 .and. info_fr%myid == 0) write(*,fmt='(a, f10.5)') "  initial (avg) spec. ind. value: ", &
          & sum(init_thetas)/npixreg
-          
 
     do pr = 1,npixreg
 
