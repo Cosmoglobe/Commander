@@ -38,12 +38,11 @@ contains
     integer(i4b) :: i, j, k
     real(dp)     :: f
     
+
     ! General parameters
     allocate(constructor)
-    call constructor%initDiffuse(cpar, id, id_abs)
-
-    ! Component specific parameters
     constructor%npar         = 0
+    call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(3,numband,0:constructor%ndet))

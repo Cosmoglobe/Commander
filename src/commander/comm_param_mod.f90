@@ -138,8 +138,8 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_mask
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_nprop
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_proplen
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_nprop_init
-     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_proplen_init
+     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_nprop_init
+     real(dp),           allocatable, dimension(:,:,:) :: cs_spec_proplen_init
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_uni_nprop
      logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_nprop
      logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_proplen
@@ -748,9 +748,9 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
                      & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_nprop_init(j,1,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_proplen_init(j,1,i))
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
              end do
@@ -812,9 +812,9 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_UMIN_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
                      & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_UMIN_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_nprop_init(j,1,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_UMIN_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_proplen_init(j,1,i))
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_UMIN_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
              end do
@@ -881,9 +881,9 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
                      & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_nprop_init(j,1,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_proplen_init(j,1,i))
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
              end do
@@ -944,9 +944,9 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
                      & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_nprop_init(j,1,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_proplen_init(j,1,i))
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
              end do
@@ -989,9 +989,9 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
                      & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_nprop_init(j,2,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_proplen_init(j,2,i))
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
              end do
@@ -1056,9 +1056,9 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
                      & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_nprop_init(j,1,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_proplen_init(j,1,i))
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
              end do
@@ -1101,9 +1101,9 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
                      & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_nprop_init(j,2,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_proplen_init(j,2,i))
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
              end do
@@ -1179,9 +1179,9 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_SAMPLE_PROPLEN'//itext, &
                      & len_itext=len_itext, par_lgt=cpar%cs_spec_samp_proplen(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_NPROP_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_nprop_init(j,1,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_proplen_init(j,1,i))
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
              end do
