@@ -455,7 +455,7 @@ contains
                          ! Adjust steplen in tuning iteration
                          if (iter <= burnin) then !( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
 
-                            if (accept_rate < 0.2) then                 
+                            if (accept_rate < 0.25) then                 
                                c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
                                write(*,fmt='(a,f10.5)') "Reducing steplen -> ", c%steplen(pl,j)
                             else if (accept_rate > 0.45 .and. accept_rate < 0.55) then
@@ -493,7 +493,9 @@ contains
                       else 
                          maxit(pl) = i
                       end if
+                      doexit = .false. 
                       exit
+
                    end if
                 end do
              end do
