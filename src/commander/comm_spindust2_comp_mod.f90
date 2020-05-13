@@ -51,15 +51,24 @@ contains
 
     ! General parameters
     allocate(constructor)
+
+    constructor%npar         = 2
+    allocate(constructor%poltype(constructor%npar))
+    allocate(constructor%lmax_ind_pol(3,constructor%npar))       ! {integer}: lmax per. poltype sample per spec. index
+    do i = 1, constructor%npar
+       constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
+       do j = 1, constructor%poltype(i)
+          !assign lmax per spec ind per polarization sample type (poltype)
+          constructor%lmax_ind_pol(j,i) = cpar%cs_lmax_ind_pol(j,i,id_abs)
+       end do
+    end do
     call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters for 2 parameter model
-    constructor%npar         = 2
     allocate(constructor%theta_def(2), constructor%p_gauss(2,2), constructor%p_uni(2,2))
-    allocate(constructor%poltype(2), constructor%indlabel(2))
+    allocate(constructor%indlabel(2))
     allocate(constructor%nu_min_ind(2), constructor%nu_max_ind(2))
     do i = 1, 2
-       constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
        constructor%theta_def(i) = cpar%cs_theta_def(i,id_abs)
        constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
        constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
@@ -76,7 +85,6 @@ contains
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
          & constructor%nmaps, constructor%pol)
 
-    allocate(constructor%lmax_ind_pol(3,constructor%npar))       ! {integer}: lmax per. poltype sample per spec. index
     allocate(constructor%theta(constructor%npar))
     do i = 1, constructor%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default') then
@@ -86,11 +94,6 @@ contains
           ! Read map from FITS file, and convert to alms
           constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
        end if
-
-       do j = 1, constructor%poltype(i)
-          !assign lmax per spec ind per polarization sample type (poltype)
-          constructor%lmax_ind_pol(j,i) = cpar%cs_lmax_ind_pol(j,i,id_abs)
-       end do
 
        if (constructor%lmax_ind >= 0) then
           ! if any polarization is local sampled, only use alms to set polarizations with alm sampling
@@ -286,10 +289,8 @@ contains
        
        ! replace proplen of input map for given poltype with user specified value, if given
        do j = 1,constructor%poltype(i)
-          if (.not. trim(cpar%cs_spec_proplen_init(j,i,id_abs))=='none') then
-             partxt=trim(cpar%cs_spec_proplen_init(j,i,id_abs))
-             read(partxt,*) par_dp
-             constructor%pol_proplen(i)%p%map(:,j)=par_dp
+          if (cpar%cs_spec_proplen_init(j,i,id_abs) > 0.d0) then
+             constructor%pol_proplen(i)%p%map(:,j)=cpar%cs_spec_proplen_init(j,i,id_abs)
           end if
        end do
     
@@ -314,12 +315,11 @@ contains
        end if
        ! replace nprop of input map for given poltype with user specified value, if given       
        do j = 1,constructor%poltype(i)
-          if (.not. trim(cpar%cs_spec_nprop_init(j,i,id_abs))=='none') then
-             partxt=trim(cpar%cs_spec_nprop_init(j,i,id_abs))
-             read(partxt,*) k
-             constructor%pol_nprop(i)%p%map(:,j)=k*1.d0
+          if (cpar%cs_spec_nprop_init(j,i,id_abs) > 0) then
+             constructor%pol_nprop(i)%p%map(:,j)=cpar%cs_spec_nprop_init(j,i,id_abs)*1.d0
           end if
        end do
+
        ! limit nprop
        constructor%pol_nprop(i)%p%map = min(max(constructor%pol_nprop(i)%p%map,constructor%nprop_uni(1,i)*1.d0), &
             & constructor%nprop_uni(2,i)*1.d0)
@@ -425,8 +425,8 @@ contains
                          end do
                          !smooth single map as intensity (i.e. zero spin)
                          call smooth_map(info2, .false., &
-                              & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, tp, &  
-                              & data(1)%B_postproc(smooth_scale)%p%b_l, tp_smooth)
+                              & constructor%B_pp_fr(i)%p%b_l*0.d0+1.d0, tp, &  
+                              & constructor%B_pp_fr(i)%p%b_l, tp_smooth)
 
                          do k = p_min,p_max
                             constructor%theta(i)%p%map(:,k) = tp_smooth%map(:,1)
