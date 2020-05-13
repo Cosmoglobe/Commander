@@ -487,11 +487,13 @@ contains
   end subroutine applyTemplatePrecond
 
   ! Sample spectral parameters
-  subroutine sampleTempSpecInd(self, handle, id)
+  subroutine sampleTempSpecInd(self, cpar, handle, id, iter)
     implicit none
     class(comm_template_comp),               intent(inout)        :: self
+    type(comm_params),                       intent(in)           :: cpar
     type(planck_rng),                        intent(inout)        :: handle
     integer(i4b),                            intent(in)           :: id
+    integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
   end subroutine sampleTempSpecInd
 
 

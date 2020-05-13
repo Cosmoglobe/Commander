@@ -25,7 +25,8 @@ comm_map_mod.o :           sharp.o comm_hdf_mod.o comm_param_mod.o
 comm_conviqt_mod.o :       sharp.o comm_map_mod.o comm_shared_arr_mod.o
 comm_hdf_mod.o :           comm_utils.o
 comm_fft_mod.o :           locate_mod.o comm_utils.o comm_param_mod.o
-comm_tod_mod.o :           comm_utils.o comm_fft_mod.o comm_map_mod.o comm_hdf_mod.o comm_param_mod.o comm_huffman_mod.o comm_zodi_mod.o
+comm_tod_mod.o :           comm_utils.o comm_fft_mod.o comm_map_mod.o comm_hdf_mod.o comm_param_mod.o \
+			   comm_huffman_mod.o comm_zodi_mod.o
 comm_tod_mapmaking_mod.o:  comm_tod_mod.o
 comm_tod_bandpass_mod.o:   comm_tod_mod.o
 comm_tod_noise_mod.o:      comm_tod_mod.o InvSamp_mod.o
@@ -47,7 +48,7 @@ comm_cr_precond_mod.o :    comm_utils.o
 comm_comp_mod.o :          comm_bp_mod.o comm_param_mod.o comm_cr_utils.o comm_data_mod.o
 comm_Cl_mod.o :            comm_map_mod.o
 comm_diffuse_comp_mod.o :  comm_comp_mod.o comm_data_mod.o comm_F_int_mod.o comm_Cl_mod.o \
-                           comm_cr_precond_mod.o
+                           comm_cr_precond_mod.o comm_beam_mod.o
 comm_template_comp_mod.o : comm_comp_mod.o
 comm_ptsrc_comp_mod.o :    comm_template_comp_mod.o comm_F_int_0D_mod.o comm_F_int_2D_mod.o \
                            comm_hdf_mod.o comm_cr_precond_mod.o powell_mod.o
@@ -67,7 +68,7 @@ comm_signal_mod.o :        comm_powlaw_comp_mod.o comm_cmb_comp_mod.o comm_cmb_r
                            comm_md_comp_mod.o comm_template_comp_mod.o \
                            comm_cr_mod.o comm_physdust_comp_mod.o
 comm_nonlin_mod.o :        comm_data_mod.o comm_comp_mod.o comm_chisq_mod.o \
-                           comm_gain_mod.o comm_output_mod.o
+                           comm_gain_mod.o comm_output_mod.o comm_signal_mod.o
 comm_gain_mod.o :          comm_data_mod.o comm_comp_mod.o comm_chisq_mod.o
 comm_N_mod.o :             comm_param_mod.o
 comm_N_rms_mod.o :         comm_N_mod.o
@@ -88,14 +89,16 @@ comm_cr_mod.o :            comm_data_mod.o comm_comp_mod.o \
 comm_chisq_mod.o :         comm_data_mod.o comm_comp_mod.o
 comm_output_mod.o :        comm_comp_mod.o comm_hdf_mod.o comm_Cl_mod.o
 comm_4D_map_mod.o :        hashtbl_4Dmap.o comm_hdf_mod.o comm_utils.o
-comm_zodi_mod.o :          comm_utils.o comm_param_mod.o
+comm_zodi_mod.o :          comm_utils.o comm_param_mod.o comm_bp_utils.o
 comm_tod_LFI_mod.o :       comm_tod_mod.o comm_shared_arr_mod.o comm_conviqt_mod.o comm_4D_map_mod.o comm_zodi_mod.o \
-                           comm_tod_mapmaking_mod.o comm_tod_bandpass_mod.o comm_tod_pointing_mod.o comm_tod_orbdipole_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o
-comm_tod_WMAP_mod.o :       comm_tod_mod.o comm_shared_arr_mod.o comm_conviqt_mod.o comm_4D_map_mod.o comm_zodi_mod.o \
-                           comm_tod_mapmaking_mod.o comm_tod_bandpass_mod.o comm_tod_pointing_mod.o comm_tod_orbdipole_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o
+                           comm_tod_mapmaking_mod.o comm_tod_bandpass_mod.o comm_tod_pointing_mod.o \
+			   comm_tod_orbdipole_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o 
+comm_tod_WMAP_mod.o :      comm_tod_mod.o comm_shared_arr_mod.o comm_conviqt_mod.o comm_4D_map_mod.o comm_zodi_mod.o \
+                           comm_tod_mapmaking_mod.o comm_tod_bandpass_mod.o comm_tod_pointing_mod.o \
+			   comm_tod_orbdipole_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o
 
 commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_chisq_mod.o \
-                           comm_output_mod.o
+                           comm_output_mod.o comm_nonlin_mod.o
 sharp_test.o :              ARS_mod.o
 
 
