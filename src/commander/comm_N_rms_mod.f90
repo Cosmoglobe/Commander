@@ -112,7 +112,7 @@ contains
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
 
     ! Initialize CG sample group masks
-    allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups))
+    allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) !had to add number og active components so that the array is long enough for the unique sample groups
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
        constructor%samp_group_mask(i)%p => comm_map(constructor%info, trim(dir)//trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
