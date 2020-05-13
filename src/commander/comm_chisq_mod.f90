@@ -1,4 +1,4 @@
-module comm_chisq_mod
+wssdasdmmodule comm_chisq_mod
   use comm_data_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
