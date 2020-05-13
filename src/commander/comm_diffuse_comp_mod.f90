@@ -149,7 +149,7 @@ contains
     self%nside         = cpar%cs_nside(id_abs)
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
-    self%lmax_ind      = cpar%cs_lmax_ind(id_abs) 
+    self%lmax_ind      = cpar%cs_lmax_ind(id_abs) !should add check tos set this to max of lmax_ind and any lmax_ind_pol 
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
