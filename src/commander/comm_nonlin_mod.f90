@@ -87,12 +87,6 @@ contains
           c => c%next()
           cycle
        end if
-
-       !Only sample spec. ind. with non-zero RMS
-       if (all(c%p_gauss(2,:) == 0.d0)) then
-          c => c%next()
-          cycle
-       end if
                     
        do j = 1, c%npar
           if (c%p_gauss(2,j) == 0.d0) cycle
@@ -155,7 +149,7 @@ contains
 
     integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, corrlen_init, burnin, cholesky_calc
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind
-    integer(i4b) :: p_min, p_max
+    integer(i4b) :: p_min, p_max, nalm_tot
     real(dp)     :: t1, t2, ts, dalm, thresh, steplen
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
@@ -331,6 +325,8 @@ contains
           ! Sample new alms (Account for poltype)
           num_accepted = 0
           chisq(1:) = 0.d0
+
+          nalm_tot = (c%lmax_ind_pol(pl,j) + 1)**2
           do i = 1, nsamp                   
 
              ! Gather alms from threads to alms array with correct indices
@@ -344,7 +340,9 @@ contains
 
              ! Propose new alms
              if (info%myid == 0) then
-                do p = 0, c%nalm_tot-1
+                rgs = 0.d0
+                !cahnge nalm_tot
+                do p = 0, nalm_tot-1
                    rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                 end do
                 alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
@@ -401,8 +399,8 @@ contains
 
                 if (apply_prior) then
                    chisq_prior = ((alms(i,0,pl) - sqrt(4*PI)*c%p_gauss(1,j))/c%p_gauss(2,j))**2
-                   if (c%nalm_tot > 1) then
-                      do p = 1, c%nalm_tot-1
+                   if (nalm_tot > 1) then
+                      do p = 1, nalm_tot-1
                          !write(*,*) "alms ", p, alms(i,p,pl), c%sigma_priors(p,j)
                          chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
                       end do
@@ -554,9 +552,10 @@ contains
                 ! Skip signals with poltype tag
                 if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
                 if (pl > c%poltype(j)) cycle
+                if (c%lmax_ind_pol(pl,j) < 0) cycle
 
                 ! Calculate correlation function per alm
-                do p = 0, c%nalm_tot-1
+                do p = 0, nalm_tot-1
                    N(:) = 0
                    C_(:) = 0.d0
                    alms_mean = mean(alms(:,p,pl))
