@@ -48,6 +48,7 @@ contains
     
     ! General parameters
     allocate(constructor)
+    constructor%npar = 0 !temporary value so that lmax_ind can be checked in initDiffuse
     call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Read line template file
