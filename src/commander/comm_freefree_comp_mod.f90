@@ -338,8 +338,28 @@ contains
              end if
           end if
 
-          ! Read map from FITS file
-          constructor%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
+          ! Check if 'fullsky' or 'none' 
+          if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
+             constructor%ind_pixreg_map(i)%p => comm_map(info)
+             constructor%ind_pixreg_map(i)%p%map = 1.d0
+          else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'none') then
+             constructor%ind_pixreg_map(i)%p => comm_map(info)
+             constructor%ind_pixreg_map(i)%p%map = 0.d0
+          else
+             ! Read map from FITS file
+             constructor%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
+             if (constructor%poltype(i) > constructor%ind_pixreg_map(i)%p%info%nmaps) then
+                write(*,fmt='(a,i2,a,i2,a,i2)') trim(constructor%indlabel(i))//' pixreg map has fewer maps (', & 
+                     & constructor%pol_ind_mask(i)%p%info%nmaps,') than poltype (',constructor%poltype(i), &
+                     & ') for component nr. ',id_abs
+                stop
+             else if (constructor%theta(i)%p%info%nside /= constructor%ind_pixreg_map(i)%p%info%nside) then
+                write(*,fmt='(a,i4,a,i4,a,i2)') trim(constructor%indlabel(i))//' pixreg map has different nside (', & 
+                     & constructor%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                     & constructor%theta(i)%p%info%nside, ') for component nr. ',id_abs
+                stop
+             end if
+          end if
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
           do j = 1,constructor%poltype(i)

@@ -544,6 +544,7 @@ contains
           call get_parameter_hashtable(htbl, 'BAND_NOISE_RMS'//itext//'_SMOOTH'//jtext, &
                & par_string=cpar%ds_noise_rms_smooth(i,j))
           if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'native') then
+             if (cpar%ds_noise_format(i) == 'QUcov') cycle !we allow this, as residuals are udgraded to nside of QUcov
              if (cpar%ds_nside(i) /= cpar%nside_smooth(j)) then
                 write(*,fmt='(a,i3,a,i2)') "nside of band ",i," doesn't match the nside of smoothing scale ",j
                 stop 
@@ -993,10 +994,10 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,2,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_ALPHA_PIXREG_MAP'//itext, &
-                  & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
+                  & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(2,i))
              call get_parameter_hashtable(htbl, 'COMP_INPUT_ALPHA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
              call get_parameter_hashtable(htbl, 'COMP_DEFAULT_ALPHA'//itext, len_itext=len_itext,          &
@@ -1105,10 +1106,10 @@ contains
                 call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
+                     & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,2,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_T_PIXREG_MAP'//itext, &
-                  & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
+                  & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(2,i))
              call get_parameter_hashtable(htbl, 'COMP_INPUT_T_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
              call get_parameter_hashtable(htbl, 'COMP_DEFAULT_T'//itext, len_itext=len_itext,          &
