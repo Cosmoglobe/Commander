@@ -289,6 +289,7 @@ contains
        
        ! replace proplen of input map for given poltype with user specified value, if given
        do j = 1,constructor%poltype(i)
+          if (j > constructor%nmaps) cycle
           if (cpar%cs_spec_proplen_init(j,i,id_abs) > 0.d0) then
              constructor%pol_proplen(i)%p%map(:,j)=cpar%cs_spec_proplen_init(j,i,id_abs)
           end if
@@ -315,6 +316,7 @@ contains
        end if
        ! replace nprop of input map for given poltype with user specified value, if given       
        do j = 1,constructor%poltype(i)
+          if (j > constructor%nmaps) cycle
           if (cpar%cs_spec_nprop_init(j,i,id_abs) > 0) then
              constructor%pol_nprop(i)%p%map(:,j)=cpar%cs_spec_nprop_init(j,i,id_abs)*1.d0
           end if
@@ -364,6 +366,7 @@ contains
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
           do j = 1,constructor%poltype(i)
+             if (j > constructor%nmaps) cycle
              constructor%theta_pixreg(:,j,i)=constructor%p_gauss(1,i) !prior
              if (.not. constructor%pol_pixreg_type(j,i) == 3) cycle
 
