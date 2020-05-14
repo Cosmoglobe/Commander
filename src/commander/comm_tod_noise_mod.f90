@@ -279,6 +279,10 @@ contains
       implicit none
       real(dp), intent(in) :: x
       real(dp)             :: lnL_fknee, sconst, f, s
+      if (x <= 1e-6 .or. x > 10.d0) then
+         lnL_fknee = 1.d30
+         return
+      end if
       lnL_fknee = 0.d0
       sconst = sigma0 ** 2 * x ** alpha 
       do l = 1, n_f  ! n-1
@@ -293,6 +297,10 @@ contains
       implicit none
       real(dp), intent(in) :: x
       real(dp)             :: lnL_alpha, sconst, f, s
+      if (abs(x) > 5.d0) then
+         lnL_alpha = 1.d30
+         return
+      end if
       lnL_alpha = 0.d0
       sconst = sigma0 ** 2 * fknee ** x 
       do l = 1, n_f  ! n-1

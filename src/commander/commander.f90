@@ -204,7 +204,7 @@ program commander
 
      ! Sample non-linear parameters
      if (cpar%sample_specind) then
-        call sample_nonlin_params(cpar, iter, handle)
+        call sample_nonlin_params(cpar, iter, handle, handle_noise)
      end if
 
      !call output_FITS_sample(cpar, 2000+iter, .true.)
@@ -362,6 +362,10 @@ contains
           end do
        end do
        deallocate(s_sky, delta, eta)
+
+       ! Set monopole component to zero, if active. Now part of n_corr
+       call nullify_monopole_amp(data(i)%label)
+
     end do
 
   end subroutine process_TOD

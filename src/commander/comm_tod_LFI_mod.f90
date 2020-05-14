@@ -819,14 +819,14 @@ contains
 
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
-             if (.false. .and. self%scanid(i) == 1000 .and. do_oper(bin_map) ) then
+             if (.false. .and. do_oper(bin_map) ) then
                 call int2string(self%scanid(i), scantext)
                 do k = 1, self%ndet
                    open(78,file='tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                    write(78,*) "# Sample     Data (V)     Mask    cal_TOD (K)   res (K)"// &
                         & "   n_corr (K)   s_corr (K)   s_mono (K)   s_orb  (K)   s_sl (K)"
                    do j = 1, ntod
-                      write(78,*) j, self%scans(i)%d(k)%tod(j), mask(j,1), d_calib(:,j,1)
+                      write(78,*) j, self%scans(i)%d(k)%tod(j), mask(j,1), d_calib(:,j,k)
                    end do
                    close(78)
                 end do

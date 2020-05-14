@@ -64,6 +64,7 @@ contains
     constructor%lmax_def        = -1
     constructor%nside_def       = 0
     constructor%fwhm_def        = 0.d0
+    constructor%mono_prior_type = 'none'
 
     !constructor%ref_band = band
 
