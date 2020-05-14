@@ -95,12 +95,12 @@ contains
              if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) then !lmax_ind_pol is the lmax of poltype index p, for spec. ind. j 
                 call sample_specind_alm(cpar, iter, handle, c%id, j)
              else if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) then !lmax_ind_pol is the lmax of poltype index p, for spec. ind. j 
-                call sample_specind_local_new(cpar, iter, handle, c%id, j)
+                call sample_specind_local(cpar, iter, handle, c%id, j)
              end if
           class is (comm_line_comp) !these codes should (maybe) not need to change
-             call sample_specind_local_new(cpar, iter, handle, c%id, j)
+             call sample_specind_local(cpar, iter, handle, c%id, j)
           class is (comm_ptsrc_comp)
-             call sample_specind_local_new(cpar, iter, handle, c%id, j)
+             call sample_specind_local(cpar, iter, handle, c%id, j)
           
           end select
 
@@ -622,7 +622,7 @@ contains
 
   end subroutine sample_specind_alm
 
-  subroutine sample_specind_local_new(cpar, iter, handle, comp_id, par_id)
+  subroutine sample_specind_local(cpar, iter, handle, comp_id, par_id)
     implicit none
     type(comm_params),  intent(in)    :: cpar
     integer(i4b),       intent(in)    :: iter
@@ -893,8 +893,8 @@ contains
        end do
     end if
    
-  end subroutine sample_specind_local_new
-
+  end subroutine sample_specind_local
+  
 
   subroutine gather_alms(alm, alms, nalm, lm, i, pl, pl_tar)
     implicit none
@@ -1987,7 +1987,7 @@ contains
        allocate(sum_theta(c_lnL%npixreg(p,id)))
        sum_theta=0.d0
 
-       do k = 0,c_lnL%theta(i)%p%info%np-1
+       do k = 0,c_lnL%theta(id)%p%info%np-1
           m = c_lnL%ind_pixreg_arr(k,p,id)
           sum_theta(m)=sum_theta(m)+c_lnL%theta(id)%p%map(k,p)
        end do
@@ -1995,12 +1995,12 @@ contains
        !allreduce
        call mpi_allreduce(MPI_IN_PLACE, sum_theta, c_lnL%npixreg(p,id), MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
 
-       do k = 1,c_lnL%npixreg(j,i)
+       do k = 1,c_lnL%npixreg(p,id)
           !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- numbe of pixels',sum_pix(k)
           if (c_lnL%npix_pixreg(k,p,id) > 0) then
-             c_lnL%theta_pixreg(k,j,i)=sum_theta(k)/(1.d0*c_lnL%npix_pixreg(k,p,id))
+             c_lnL%theta_pixreg(k,p,id)=sum_theta(k)/(1.d0*c_lnL%npix_pixreg(k,p,id))
           else
-             c_lnL%theta_pixreg(k,j,i)=c_lnL%p_gauss(1,i) ! the prior as theta
+             c_lnL%theta_pixreg(k,p,id)=c_lnL%p_gauss(1,id) ! the prior as theta
           end if
        end do
        deallocate(sum_theta)
