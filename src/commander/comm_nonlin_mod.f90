@@ -2068,8 +2068,8 @@ contains
     new_thetas = old_thetas
     ! that the root processor operates on
     init_thetas = old_thetas
-    if (cpar%verbosity>2 .and. info_fr%myid == 0) write(*,fmt='(a, f10.5)') "  initial (avg) spec. ind. value: ", &
-         & sum(init_thetas)/npixreg
+    if (cpar%verbosity>3 .and. info_fr%myid == 0 .and. npixreg > 0) write(*,fmt='(a, f10.5)') "  initial (avg) spec. ind. value: ", &
+         & sum(init_thetas(1:npixreg))/npixreg
 
     do pr = 1,npixreg
 
@@ -2206,7 +2206,7 @@ contains
           if (outside) then
              lnL_new = -1.d30 
              ! skip the true caclulation of lnL, we reject the sample ~100%
-             if (myid_pix==0) then
+             if (myid_pix==0 .and. cpar%verbosity > 2) then
                 write(*,fmt='(a, f10.5, a, f10.5)') "    Proposed ind outside limits.  min: ", &
                      & theta_min," -- max: ", theta_max
                 write(*,fmt='(a, f10.5)') "    Proposed ind ",new_theta
@@ -2258,7 +2258,7 @@ contains
                          lnL_new = lnL_new -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
                       end do
 
-                   else !QU_cov rms, udgrade if necessary
+                   else if (data(band_i(k))%N%type == "QUcov")!QU_cov rms, udgrade if necessary
                       if (first_sample) then
                          !build residual map
                          res_map%map = 0.d0
@@ -2386,7 +2386,7 @@ contains
                         & use_det, band_count)
                 end do
              else 
-                if (info_lr%myid==0) write(*,*) 'invalid polarized lnL sampler type'
+                write(*,*) 'invalid polarized lnL sampler type'
                 stop
 
              end if !chisq/marginal/ridge
@@ -2419,7 +2419,7 @@ contains
              end if
 
              !first sample done
-             if (first_sample .and. myid_pix == 0) write(*,fmt='(a, e14.5)') "    lnL_init = ", lnL_init
+             if (first_sample .and. myid_pix == 0 .and. cpar%verbosity > 2) write(*,fmt='(a, e14.5)') "    lnL_init = ", lnL_init
              first_sample = .false.
 
           end if !new_theta outside spec limits
@@ -2472,7 +2472,7 @@ contains
              !This should only be done the first gibbs iteration, if prompted to do so from parameter file.
              accept_rate = n_accept*1.d0/n_spec_prop
              if (c_lnL%pol_sample_proplen(p,id)) then
-                if (cpar%verbosity>2 .and. mod(n_spec_prop,out_every)==0) then
+                if (cpar%verbosity>3 .and. mod(n_spec_prop,out_every)==0) then
                    write(*,fmt='(a, f6.4)') "   accept rate = ", running_accept
                    write(*,fmt='(a, e14.5)') "   avg. abs. delta_lnL = ", running_dlnL
                    write(*,fmt='(a, e14.5)') "    lnL_new = ", lnL_new
@@ -2500,7 +2500,7 @@ contains
                       n_accept = 0 !reset with new prop length
                       n_spec_prop = 0 !reset with new prop length
                       avg_dlnL = 0.d0
-                      if (cpar%verbosity>2) then
+                      if (cpar%verbosity>3) then
                          write(*,fmt='(a, f6.4)')  "      accept rate =         ", running_accept
                          write(*,fmt='(a, e14.5)') "      avg. abs. delta_lnL = ", running_dlnL
                          write(*,fmt='(a, e14.5)') "      New prop. len. =      ", proplen
@@ -2566,21 +2566,18 @@ contains
        if (cpar%verbosity>2) then !pixreg pr
           if (myid_pix==0) then
              write(*,fmt='(a, i5)')    "    Pixel region: ",pr
-             write(*,fmt='(a, f10.5)') "    Final spec. ind. value:                   ", old_thetas(pr)
-             write(*,fmt='(a, e14.5)') "    Difference in spec. ind., new - old:      ", &
+             write(*,fmt='(a, f10.5)') "      Final spec. ind. value:                   ", old_thetas(pr)
+             write(*,fmt='(a, e14.5)') "      Difference in spec. ind., new - old:      ", &
                   & (old_thetas(pr)-init_thetas(pr))
-             write(*,*) '   Samples:',nsamp
-             write(*,*) '        Wall time per sample (sec):                 ',real((t2-t1)/nsamp,sp)
+             write(*,*) '      Samples:',nsamp
+             if (nsamp > 0) write(*,*) '        Wall time per sample (sec):                 ',real((t2-t1)/nsamp,sp)
              write(*,*) '        Initialization wall time pixel region (sec):',real((t1-t0),sp)
              write(*,*) '        Total wall time pixel region (sec):         ',real((t2-t0),sp)
-             if (cpar%verbosity>3) then
-                write(*,fmt='(a, i5, a, e14.5)') "    Number of proposals: ",c_lnL%nprop_pixreg(pr,p,id), &
-                     & "  --  Proposal length: ", proplen
 
-                write(*,fmt='(a, e14.5)') "    New Log-Likelihood:                       ", &
-                     & lnl_old
-                write(*,fmt='(a, e14.5)') "    Difference in Log-Likelihood (new - old): ", &
-                     & lnl_old-lnl_init
+             if (sampled_nprop) write(*,fmt='(a, i5)') "      Number of proposals after tuning: ",c_lnL%nprop_pixreg(pr,p,id)
+             if (sampled_proplen) write(*,fmt='(a, e14.5)') "      Proposal length after tuning: ",c_lnL%proplen_pixreg(pr,p,id)
+             write(*,fmt='(a, e14.5)') "      New Log-Likelihood:                       ", lnl_old
+             write(*,fmt='(a, e14.5)') "      Difference in Log-Likelihood (new - old): ", lnl_old-lnl_init
              end if
              write(*,*) ''
           end if
@@ -2619,7 +2616,7 @@ contains
     end do
     c_lnL%theta_pixreg(0:npixreg,p,id)=old_thetas
 
-    if (cpar%verbosity>2 .and. myid_pix==0) then
+    if (cpar%verbosity>2 .and. myid_pix==0 .and. npixreg > 1) then
        write(*,*) "    Average values from pixel region sampling"
        write(*,fmt='(a, i5)') "    Number of proposals (after tuning):  ", &
             & sum(c_lnL%nprop_pixreg(1:npixreg,p,id))/npixreg

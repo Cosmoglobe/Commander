@@ -41,8 +41,8 @@ contains
     integer(i4b) :: i, j, k, l, m, n, p, ierr
     type(comm_mapinfo), pointer :: info => null()
     real(dp)           :: par_dp
-    integer(i4b), allocatable, dimension(:) :: sum_pix, sum_nprop
-    real(dp),    allocatable, dimension(:) :: sum_theta, sum_proplen 
+    integer(i4b), allocatable, dimension(:) :: sum_pix
+    real(dp),    allocatable, dimension(:) :: sum_theta, sum_proplen, sum_nprop
     character(len=512) :: temptxt, partxt
     integer(i4b) :: smooth_scale, p_min, p_max
     class(comm_mapinfo), pointer :: info2 => null()
@@ -374,8 +374,8 @@ contains
              allocate(sum_pix(n),sum_theta(n),sum_nprop(n),sum_proplen(n))
              sum_theta=0.d0
              sum_pix=0
-             sum_nprop=0
-             sum_proplen=0
+             sum_nprop=0.d0
+             sum_proplen=0.d0
 
              do k = 0,constructor%theta(i)%p%info%np-1
                 do m = 1,n
@@ -383,7 +383,7 @@ contains
                         & constructor%ind_pixreg_map(i)%p%map(k,j) < (m+0.5d0) ) then
                       sum_theta(m)=sum_theta(m)+constructor%theta(i)%p%map(k,j)
                       sum_proplen(m)=sum_proplen(m)+constructor%pol_proplen(i)%p%map(k,j)
-                      sum_nprop(m)=sum_nprop(m)+IDINT(constructor%pol_nprop(i)%p%map(k,j))
+                      sum_nprop(m)=sum_nprop(m)+constructor%pol_nprop(i)%p%map(k,j)
                       sum_pix(m)=sum_pix(m)+1
                       constructor%ind_pixreg_arr(k,j,i)=m !assign pixel region index 
                       exit
@@ -394,7 +394,7 @@ contains
              !allreduce
              call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             call mpi_allreduce(MPI_IN_PLACE, sum_nprop, n, MPI_INTEGER, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, sum_nprop, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_pix, n, MPI_INTEGER, MPI_SUM, info%comm, ierr)
             
              do k = 1,n
