@@ -1884,6 +1884,9 @@ contains
     integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
     integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix
     logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen
+    character(len=512) :: filename, postfix
+    character(len=6) :: itext
+    character(len=4) :: ctext
     real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
     real(dp),      allocatable, dimension(:) :: theta_corr_arr, old_thetas, new_thetas, init_thetas, sum_theta
     real(dp),      allocatable, dimension(:) :: old_theta_smooth, new_theta_smooth, dlnL_arr
@@ -1901,6 +1904,7 @@ contains
     class(comm_map),                 pointer :: mask_lr => null() ! lowres mask
     class(comm_map),                 pointer :: res_map => null() ! lowres  residual map
     class(comm_map),                 pointer :: temp_res => null() 
+    type(map_ptr), allocatable, dimension(:) :: lr_chisq
     type(map_ptr), allocatable, dimension(:) :: df
 
     c           => compList     ! Extremely ugly hack...
@@ -2033,10 +2037,17 @@ contains
        if (cpar%verbosity>2 .and. myid_pix == 0)  write(*,*) 'no data bands available for sampling of spec ind'
        return
     else
-       if (cpar%verbosity>2 .and. myid_pix == 0) then
+       if (cpar%verbosity>3 .and. myid_pix == 0) then
              write(*,fmt='(a)') '  Active bands'
           do k = 1,band_count
              write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
+          end do
+       end if
+       if (trim(c_lnL%pol_lnLtype(p,id))=='chisq' .and. .true.) then !debug chisq (RMS scaling) for smoothing scale
+          allocate(lr_chisq(band_count))
+          do k = 1,band_count
+             lr_chisq(k)%p => comm_map(info_lr_single)
+             lr_chisq(k)%p%map=0.d0
           end do
        end if
     end if
@@ -2255,10 +2266,15 @@ contains
 
                          res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                               & c_lnL%x_smooth%map(pix,pol_j(k))
+
+                         if (allocated(lr_chisq)) then !for debugging
+                            lr_chisq(k)%p%map(pix,1) = (res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+                         end if
+
                          lnL_new = lnL_new -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
                       end do
 
-                   else if (data(band_i(k))%N%type == "QUcov")!QU_cov rms, udgrade if necessary
+                   else if (data(band_i(k))%N%type == "QUcov") then !QU_cov rms, udgrade if necessary
                       if (first_sample) then
                          !build residual map
                          res_map%map = 0.d0
@@ -2578,7 +2594,6 @@ contains
              if (sampled_proplen) write(*,fmt='(a, e14.5)') "      Proposal length after tuning: ",c_lnL%proplen_pixreg(pr,p,id)
              write(*,fmt='(a, e14.5)') "      New Log-Likelihood:                       ", lnl_old
              write(*,fmt='(a, e14.5)') "      Difference in Log-Likelihood (new - old): ", lnl_old-lnl_init
-             end if
              write(*,*) ''
           end if
        end if
@@ -2633,12 +2648,28 @@ contains
     end if
 
     !debug
-    !if (myid_pix==0) then
-    !   write(*,*) myid_pix, 'init theta ',init_thetas
-    !   write(*,*) myid_pix, 'final theta',old_thetas
-    !else if (myid_pix==1) then
-    !   write(*,*) myid_pix, 'final theta',old_thetas
-    !end if
+    if (allocated(lr_chisq)) then
+       call int2string(cpar%mychain, ctext)
+       call int2string(iter,         itext)
+       postfix = 'c'//ctext//'_k'//itext
+
+       do k = 1,band_count
+          filename=trim(cpar%outdir)//'/'//'chisq_local_'//trim(data(band_i(k))%label)
+
+          if (pol_j(k) == 1) then
+             filename=trim(filename)//'_I'
+          else if (pol_j(k) == 2) then
+             filename=trim(filename)//'_Q'
+          else if (pol_j(k) == 3) then
+             filename=trim(filename)//'_U'             
+          end if
+          filename=trim(filename)//'_'//trim(postfix)//'.fits'
+
+          call lr_chisq(k)%p%writeFITS(trim(filename))
+          call lr_chisq(k)%p%dealloc()
+       end do
+       deallocate(lr_chisq)
+    end if
 
     if (iter >= c_lnL%sample_first_niter) then !only stop sampling after n'th iteration, in case first iter is far off.
        c_lnL%pol_sample_nprop(p,id) = .false. !set sampling of correlation length (number of proposals) and
