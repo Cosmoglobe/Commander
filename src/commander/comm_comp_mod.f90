@@ -149,11 +149,13 @@ module comm_comp_mod
      end subroutine initHDF
 
      ! Sample spectral parameters
-     subroutine sampleSpecInd(self, handle, id)
-       import comm_comp, planck_rng, i4b
+     subroutine sampleSpecInd(self, cpar, handle, id, iter)
+       import comm_comp, comm_params, planck_rng, i4b
        class(comm_comp),                        intent(inout)        :: self
+       type(comm_params),                       intent(in)           :: cpar
        type(planck_rng),                        intent(inout)        :: handle
        integer(i4b),                            intent(in)           :: id
+       integer(i4b),                            intent(in)           :: iter
      end subroutine sampleSpecInd
 
      ! Update mixing matrices
