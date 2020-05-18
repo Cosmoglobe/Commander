@@ -45,6 +45,10 @@ contains
 
     stat = 0
     if (present(prior)) then
+       if (prior(2) < prior(1)) then
+          write(*,*) 'InvSamp_mod -- error: Upper prior is lower than lower prior', prior
+          stop
+       end if
        prior_ = prior
     else
        prior_ = [-1d100, 1d100]

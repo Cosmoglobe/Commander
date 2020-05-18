@@ -572,7 +572,7 @@ contains
        do j = 1, tod%ndet
          coeff_matrix(j, j) = A(j)
          rhs(j) = b(j) 
-         if (trim(tod%operation) == 'sample') rhs(j) = sqrt(A(j)) * rand_gauss(handle)
+         if (trim(tod%operation) == 'sample') rhs(j) = rhs(j) + sqrt(A(j)) * rand_gauss(handle)
          coeff_matrix(j, tod%ndet+1) = 0.5d0
          coeff_matrix(tod%ndet+1, j) = 1
        end do
