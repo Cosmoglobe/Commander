@@ -203,11 +203,11 @@ contains
        write(jtext, fmt = '(I1)') j ! Create j string
        out_every = 10
        check_every = 50 !100
-       nsamp = cpar%nsamp_alm !2000
-       burnin = cpar%burnin ! Gibbs iter burnin. Tunes steplen.
+       nsamp = cpar%almsamp_nsamp !2000
+       burnin = cpar%almsamp_burnin ! Gibbs iter burnin. Tunes steplen.
        cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
-       optimize = cpar%optimize_alm
-       apply_prior = .false.
+       optimize = cpar%almsamp_optimize
+       apply_prior = cpar%almsamp_apply_prior
 
        thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 

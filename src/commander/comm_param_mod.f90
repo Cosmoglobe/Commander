@@ -37,10 +37,9 @@ module comm_param_mod
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
      character(len=512) :: fft_magic_number_file
-     logical(lgt)       :: only_pol, optimize_alm
+     logical(lgt)       :: only_pol
      logical(lgt)       :: enable_TOD_analysis
      integer(i4b)       :: tod_freq
-     integer(i4b)       :: nsamp_alm, nside_chisq_lowres, prior_fwhm, burnin !alm sampler
      integer(i4b)       :: resamp_hard_gain_prior_nth_iter
      integer(i4b)       :: output_4D_map_nth_iter
      logical(lgt)       :: include_tod_zodi
@@ -49,6 +48,10 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
      integer(i4b),       allocatable, dimension(:)     :: nside_smooth
      character(len=512), allocatable, dimension(:)     :: pixwin_smooth
+
+     ! alm-sampler
+     integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
+     logical(lgt)       :: almsamp_optimize, almsamp_apply_prior
 
      ! Output parameters
      character(len=512) :: outdir
@@ -415,11 +418,12 @@ contains
             & len_itext=len(trim(itext)), par_string=cpar%pixwin_smooth(i))
     end do
     
-    call get_parameter_hashtable(htbl, 'ALMSAMP_NSAMP_ALM',          par_int=cpar%nsamp_alm)
-    call get_parameter_hashtable(htbl, 'ALMSAMP_BURN_IN',            par_int=cpar%burnin)
-    call get_parameter_hashtable(htbl, 'ALMSAMP_PRIOR_FWHM',         par_int=cpar%prior_fwhm)
-    call get_parameter_hashtable(htbl, 'ALMSAMP_NSIDE_CHISQ_LOWRES', par_int=cpar%nside_chisq_lowres)
-    call get_parameter_hashtable(htbl, 'ALMSAMP_OPTIMIZE_ALM',       par_lgt=cpar%optimize_alm)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_NSAMP_ALM',          par_int=cpar%almsamp_nsamp)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_BURN_IN',            par_int=cpar%almsamp_burnin)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_PRIOR_FWHM',         par_int=cpar%almsamp_prior_fwhm)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_NSIDE_CHISQ_LOWRES', par_int=cpar%almsamp_nside_chisq_lowres)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_OPTIMIZE_ALM',       par_lgt=cpar%almsamp_optimize)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_APPLY_PRIOR',        par_lgt=cpar%almsamp_apply_prior)
 
   end subroutine read_global_params_hash
 
