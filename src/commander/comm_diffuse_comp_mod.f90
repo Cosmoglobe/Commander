@@ -353,7 +353,7 @@ contains
     ! Init smooth prior
     allocate(self%sigma_priors(0:self%nalm_tot-1,self%npar)) !a_00 is given by different one
 
-    fwhm_prior = cpar%prior_fwhm   !600.d0 ! 1200.d0
+    fwhm_prior = cpar%almsamp_prior_fwhm   !600.d0 ! 1200.d0
     do j = 1, self%npar
        self%sigma_priors(0,j) = 0.05 !p_gauss(2,j)*0.1
        if (self%nalm_tot > 1) then
