@@ -26,7 +26,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
-    
+    character(len=1024) :: filename
+
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
     nomp = omp_get_max_threads()
@@ -48,6 +49,7 @@ contains
     allocate(dt(nfft), dv(0:n-1))
     allocate(d_prime(ntod))
 
+       
     !$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
@@ -55,7 +57,6 @@ contains
        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
 
        sigma_0 = self%scans(scan)%d(i)%sigma0
-       
        ! Fill gaps in data 
        init_masked_region = .true.
        end_masked_region = .false.
@@ -132,14 +133,21 @@ contains
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        dt          = dt / nfft
        n_corr(:,i) = dt(1:ntod) 
-       ! if (i == 1) then
-       !    open(65,file='ncorr_times.dat')
+       ! if (i < 10) then
+       !    write(filename, "(A, I0.3, A, I0.3, A)") 'ncorr_times', scan, '_', i, '.dat' 
+       !    open(65,file=trim(filename),status='REPLACE')
        !    do j = i, ntod
        !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
        !    end do
        !    close(65)
        !    !stop
        ! end if
+       ! write(*,*) " ----------------- in NCORR -------------------- "
+       ! write(*,*) "scan nr: ", scan, self%scanid(scan)
+       ! write(*,*) "sigma0: ", self%scans(scan)%d(1)%sigma0, self%scans(scan)%d(2)%sigma0
+       ! write(*,*) "ndet: i ", ndet, i
+       ! write(*,*) "ncorr 17 ", n_corr(17, i)
+       ! write(*,*) " ----------------- end NCORR -------------------- "
 
     end do
     !$OMP END DO                                                          
@@ -147,6 +155,7 @@ contains
     deallocate(d_prime)
     !deallocate(diff)
     !$OMP END PARALLEL
+    
     
 
     call sfftw_destroy_plan(plan_fwd)                                           
@@ -171,6 +180,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+    character(len=1024) :: filename
+
     
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
@@ -179,7 +190,6 @@ contains
     ! compute sigma_0 the old way
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
-    
        s = 0.d0
        n = 0
 
@@ -200,7 +210,7 @@ contains
        if (n > 100) self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
     end do
 
-    return
+    ! return
     
     n = ntod + 1
 
@@ -235,29 +245,33 @@ contains
 
        ! n_f should be the index representing fknee
        ! we want to only use smaller frequencies than this in the likelihood
-       n_f = ceiling(fknee * (n-1) / (samprate/2))  
-
+       n_f = ceiling(0.01d0 * (n-1) / (samprate/2)) ! n-1 !ceiling(fknee * (n-1) / (samprate/2))  
+       !n_f = 1000
        do l = 1, n_f !n-1
-          ps(l) = abs(dv(l)) ** 2 / (2 * ntod)
+          ps(l) = abs(dv(l)) ** 2 / (2 * ntod)          
        end do
- 
+
        ! Sampling noise parameters given n_corr
-       
+
        ! TODO: get prior parameters from parameter file
        ! Sampling fknee
-       x_in(1) = fknee - 0.02
+       
+       x_in(1) = fknee - 0.05
        x_in(2) = fknee
-       x_in(3) = fknee + 0.02
-       prior(1) = 0.05
+       x_in(3) = fknee + 0.05
+
+
+       prior(1) = 0.005
        prior(2) = 0.3
        fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior)
+      
        
        ! Sampling alpha
-       x_in(1) = alpha - 0.1
+       x_in(1) = alpha - 0.2
        x_in(2) = alpha
-       x_in(3) = alpha + 0.1
-       prior(1) = -0.5
-       prior(2) = -2.0
+       x_in(3) = alpha + 0.2
+       prior(1) = -2.5
+       prior(2) = -0.5
        alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior)
        
        self%scans(scan)%d(i)%alpha = alpha
@@ -280,16 +294,20 @@ contains
       real(dp), intent(in) :: x
       real(dp)             :: lnL_fknee, sconst, f, s
       if (x <= 1e-6 .or. x > 10.d0) then
-         lnL_fknee = 1.d30
+         lnL_fknee = -1.d30
          return
       end if
       lnL_fknee = 0.d0
-      sconst = sigma0 ** 2 * x ** alpha 
+      sconst = sigma0 ** 2 * x ** (-alpha) 
+         
       do l = 1, n_f  ! n-1
          f = l*(samprate/2)/(n-1)
-         s = sconst * f ** (-alpha)
-         lnL_fknee = lnL_fknee - 0.5 * (ps(l) / s + log(s))
+         s = sconst * f ** (alpha)
+         lnL_fknee = lnL_fknee - (ps(l) / s + log(s))
       end do
+
+!      write(*,*) "in lnL_fknee", lnL_fknee, x, alpha, sigma0
+      
     end function lnL_fknee
 
     function lnL_alpha(x) 
@@ -297,17 +315,20 @@ contains
       implicit none
       real(dp), intent(in) :: x
       real(dp)             :: lnL_alpha, sconst, f, s
+      
       if (abs(x) > 5.d0) then
-         lnL_alpha = 1.d30
+         lnL_alpha = -1.d30
          return
       end if
       lnL_alpha = 0.d0
-      sconst = sigma0 ** 2 * fknee ** x 
+      sconst = sigma0 ** 2 * fknee ** (-x) 
+      
       do l = 1, n_f  ! n-1
          f = l*(samprate/2)/(n-1)
-         s = sconst * f ** (-x)
-         lnL_alpha = lnL_alpha - 0.5 * (ps(l) / s + log(s))
+         s = sconst * f ** (x)
+         lnL_alpha = lnL_alpha - (ps(l) / s + log(s))
       end do
+      
     end function lnL_alpha
 
        
