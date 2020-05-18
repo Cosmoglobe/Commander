@@ -25,6 +25,8 @@ contains
 
     ! Handle bands with hard gain prior
     if (data(band)%gain_prior(2) < 0.d0) then
+       data(band)%gain = sum(data(6:9)%gain)/4.d0
+       return
        if (resamp_hard_prior) then
           if (data(band)%info%myid == root) then
              data(band)%gain = data(band)%gain_prior(1) + rand_gauss(handle) * abs(data(band)%gain_prior(2))
