@@ -1881,12 +1881,12 @@ contains
                 end do
              end do
              !if (k == 3499 .and. self%myid == 0) close(79)
-             if (k == 3499) write(*,*) 'chisq_myid = ', chisq, n_pix
+             !if (k == 3499) write(*,*) 'chisq_myid = ', chisq, n_pix
 
              call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
              call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
              if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
-             if (k == 3499 .and. self%myid == 0) write(*,*) 'chisq_tot = ', chisq_tot, n_pix_tot, self%src(k)%red_chisq
+             !if (k == 3499 .and. self%myid == 0) write(*,*) 'chisq_tot = ', chisq_tot, n_pix_tot, self%src(k)%red_chisq
 
              !if (self%myid == 0) write(*,*) 'amp = ', real(amp(k,p),sp), real(mu,sp), real(sigma,sp)
 

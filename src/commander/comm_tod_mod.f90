@@ -879,11 +879,11 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
 
        ! Redefine gains; should be removed when proper initfiles are available
-       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
-       !stop
-       do i = 1, self%ndet
-          self%gain0(i) = sum(output(:,i,1))/count(output(:,i,1)>0.d0) - self%gain0(0)
-       end do
+!!$       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
+!!$       !stop
+!!$       do i = 1, self%ndet
+!!$          self%gain0(i) = sum(output(:,i,1))/count(output(:,i,1)>0.d0) - self%gain0(0)
+!!$       end do
     end if
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &
