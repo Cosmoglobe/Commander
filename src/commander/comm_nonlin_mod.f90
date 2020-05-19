@@ -104,8 +104,17 @@ contains
                      & trim(c%indlabel(j))
              end if
              call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
+
           class is (comm_line_comp) !these codes should (maybe) not need to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
+
+             !call sample amplitude for the component specific cg_sample group
+             if (cpar%myid == cpar%root) then
+                write(*,*) 'Sampling component amplitude of ',trim(c%label),' after spectral index sampling of ', &
+                     & trim(c%indlabel(j))
+             end if
+             call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
+
           class is (comm_ptsrc_comp)
              call sample_specind_local(cpar, iter, handle, c%id, j)
           
