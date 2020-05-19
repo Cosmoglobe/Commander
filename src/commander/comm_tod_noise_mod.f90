@@ -211,28 +211,33 @@ contains
     end do
 
     ! return
-    
-    n = ntod + 1
+    ! if (trim(self%freq) == '044') return
+    ! if (trim(self%freq) == '070') return
+
+!    n = ntod + 1
+    n = ntod/2 + 1
 
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
 
-    allocate(dt(2*ntod), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+!    allocate(dt(2*ntod), dv(0:n-1))
+!    call sfftw_plan_dft_r2c_1d(plan_fwd,  2*ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    allocate(dt(ntod), dv(0:n-1))
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  ntod, dt, dv, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
     ! Commented out OMP since we had problems with global parameters 
     ! in the likelihood functions
 !    !$OMP PARALLEL PRIVATE(i,l,j,dt,dv,f,d_prime,gain,ps,sigma0,alpha,fknee,samprate)
-    allocate(dt(2*ntod), dv(0:n-1))
-    allocate(d_prime(ntod))
+!    allocate(dt(2*ntod), dv(0:n-1))
+    allocate(dt(ntod), dv(0:n-1))
     
     allocate(ps(0:n-1))
 !    !$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        dt(1:ntod) = n_corr(:,i)
-       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+       !dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 
        ps(:) = 0
        
@@ -248,38 +253,68 @@ contains
        n_f = ceiling(0.01d0 * (n-1) / (samprate/2)) ! n-1 !ceiling(fknee * (n-1) / (samprate/2))  
        !n_f = 1000
        do l = 1, n_f !n-1
-          ps(l) = abs(dv(l)) ** 2 / (2 * ntod)          
+          ps(l) = abs(dv(l)) ** 2 / ntod          
        end do
 
        ! Sampling noise parameters given n_corr
-
        ! TODO: get prior parameters from parameter file
        ! Sampling fknee
-       
-       x_in(1) = fknee - 0.05
+       if (trim(self%freq) == '030') then
+          prior(1) = 0.04
+          prior(2) = 0.35
+       else if (trim(self%freq) == '044') then
+          prior(1) = 0.005
+          prior(2) = 0.15
+       else if (trim(self%freq) == '070') then
+          prior(1) = 0.002
+          prior(2) = 0.20
+       else 
+          write(*,*) "invalid band label in sample_noise_psd"
+          stop
+       end if
+
+       x_in(1) = max(fknee - 0.5 * fknee, prior(1))
        x_in(2) = fknee
-       x_in(3) = fknee + 0.05
+       x_in(3) = min(fknee + 0.5 * fknee, prior(2))
 
-
-       prior(1) = 0.005
-       prior(2) = 0.3
+       
        fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior)
-      
+
+       if ((fknee < prior(1)) .or. (fknee > prior(2))) then
+          fknee = self%scans(scan)%d(i)%fknee
+       end if
        
        ! Sampling alpha
-       x_in(1) = alpha - 0.2
+       if (trim(self%freq) == '030') then
+          prior(1) = -1.5
+          prior(2) = -0.4
+       else if (trim(self%freq) == '044') then
+          prior(1) = -1.6
+          prior(2) = -0.4
+       else if (trim(self%freq) == '070') then
+          prior(1) = -2.5
+          prior(2) = -0.4
+       else 
+          write(*,*) "invalid band label in sample_noise_psd"
+          stop
+       end if
+
+       x_in(1) = max(alpha - 0.2 * abs(alpha), prior(1))
        x_in(2) = alpha
-       x_in(3) = alpha + 0.2
-       prior(1) = -2.5
-       prior(2) = -0.5
+       x_in(3) = min(alpha + 0.2 * abs(alpha), prior(2))
+
        alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior)
-       
+
+       if ((alpha < prior(1)) .or. (alpha > prior(2))) then
+          alpha = self%scans(scan)%d(i)%alpha
+       end if
+
+
        self%scans(scan)%d(i)%alpha = alpha
        self%scans(scan)%d(i)%fknee = fknee
     end do
 !    !$OMP END DO
     deallocate(dt, dv)
-    deallocate(d_prime)
     deallocate(ps)
     
 !    !$OMP END PARALLEL
@@ -305,8 +340,6 @@ contains
          s = sconst * f ** (alpha)
          lnL_fknee = lnL_fknee - (ps(l) / s + log(s))
       end do
-
-!      write(*,*) "in lnL_fknee", lnL_fknee, x, alpha, sigma0
       
     end function lnL_fknee
 
