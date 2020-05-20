@@ -274,8 +274,8 @@ contains
        end if
 
        x_in(1) = max(fknee - 0.5 * fknee, prior(1))
-       x_in(2) = fknee
        x_in(3) = min(fknee + 0.5 * fknee, prior(2))
+       x_in(2) = 0.5 * (x_in(1) + x_in(3))
 
        
        fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior)
@@ -300,8 +300,8 @@ contains
        end if
 
        x_in(1) = max(alpha - 0.2 * abs(alpha), prior(1))
-       x_in(2) = alpha
        x_in(3) = min(alpha + 0.2 * abs(alpha), prior(2))
+       x_in(2) = 0.5 * (x_in(1) + x_in(3))
 
        alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior)
 
