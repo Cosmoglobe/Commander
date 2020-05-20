@@ -77,6 +77,7 @@ contains
 
     integer(i4b) :: i, j, p
     real(dp)     :: t1, t2
+    logical(lgt) :: samp_cg
     class(comm_comp),    pointer :: c    => null()
 
     call wall_time(t1)
@@ -95,25 +96,30 @@ contains
              !lmax_ind_pol is the lmax of poltype index p, for spec. ind. j 
              if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) &
                   & call sample_specind_alm(cpar, iter, handle, c%id, j)
-             if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) &
-                  & call sample_specind_local(cpar, iter, handle, c%id, j)
+             if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) then
+                call sample_specind_local(cpar, iter, handle, c%id, j)
 
-             !call sample amplitude for the component specific cg_sample group
-             if (cpar%myid == cpar%root) then
-                write(*,*) 'Sampling component amplitude of ',trim(c%label),' after spectral index sampling of ', &
-                     & trim(c%indlabel(j))
-             end if
-             call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
+                !check if any poltype has been sampled with ridge/marginal lnL
+                samp_cg = .false.
+                do p = 1,c%poltype(j)
+                   if (p > c%nmaps) cycle
+                   if (c%lmax_ind_pol(p,j) < 0 .and. &
+                        & trim(c%pol_lnLtype(p,j)) /= 'chisq') samp_cg = .true.
+                end do
+
+                if (samp_cg) then !need to resample amplitude
+                   !call sample amplitude for the component specific cg_sample group
+                   if (cpar%myid == cpar%root) then
+                      write(*,*) 'Sampling component amplitude of ',trim(c%label),' after spectral index sampling of ', &
+                           & trim(c%indlabel(j))
+                   end if
+                   call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
+                end if
+                !if/when 3x3 cov matrices are implemented, this CG-search needs to go inside local sampler routine (after every poltype index has been sampled)
+             end if !any local sampling
 
           class is (comm_line_comp) !these codes should (maybe) not need to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
-
-             !call sample amplitude for the component specific cg_sample group
-             if (cpar%myid == cpar%root) then
-                write(*,*) 'Sampling component amplitude of ',trim(c%label),' after spectral index sampling of ', &
-                     & trim(c%indlabel(j))
-             end if
-             call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
 
           class is (comm_ptsrc_comp)
              call sample_specind_local(cpar, iter, handle, c%id, j)
