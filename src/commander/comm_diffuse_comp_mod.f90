@@ -2044,7 +2044,9 @@ contains
                 call tp%dealloc()
              end if
           end if !lmax_ind > 0
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map = self%theta(i)%p%map - 0.05d0
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,:) = 1.60d0 
+          !if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,2:3) = -3.0d0 * sqrt(4*pi)
+          !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
        end do !i = 1,npar
     end if
 
