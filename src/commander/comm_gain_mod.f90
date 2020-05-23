@@ -25,16 +25,15 @@ contains
 
     ! Handle bands with hard gain prior
     if (data(band)%gain_prior(2) < 0.d0) then
-       data(band)%gain = sum(data(6:9)%gain)/4.d0
-       return
+!!$       data(band)%gain = sum(data(6:9)%gain)/4.d0
+!!$       return
        if (resamp_hard_prior) then
           if (data(band)%info%myid == root) then
              data(band)%gain = data(band)%gain_prior(1) + rand_gauss(handle) * abs(data(band)%gain_prior(2))
           end if
-          call mpi_bcast(data(band)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(band)%info%comm, ierr)          
-       else
-          return
+          call mpi_bcast(data(band)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(band)%info%comm, ierr)  
        end if
+       return
     end if
 
 

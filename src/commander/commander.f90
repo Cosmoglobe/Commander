@@ -168,7 +168,7 @@ program commander
         end if
      end if
      ! Process TOD structures
-     if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
@@ -276,7 +276,7 @@ contains
           if (k > 1) then
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
-                   if (mod(iter,2) == 0) then
+                   if (.true. .or. mod(iter,2) == 0) then
                       write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
