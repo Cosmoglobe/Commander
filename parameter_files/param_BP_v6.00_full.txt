@@ -14,7 +14,7 @@ NUMCHAIN                      = 1       # Number of independent chains
 NUM_GIBBS_ITER                = 1000       # Length of each Markov chain
 BASE_SEED                     = 163425  # Seed for random number generator
 CHAIN_STATUS                  = append
-INIT_CHAIN                    = "chains_70_c83/chain_c0001.h5:2"  "chains_BP6.0/chain_c0001.h5:6"  
+INIT_CHAIN                    = "data/chain_init_BP6.13.h5:1" 
 
 NUM_GIBBS_STEPS_PER_TOD_SAMPLE = 1
 
@@ -25,7 +25,7 @@ SAMPLE_SPECTRAL_INDICES       = .true.
 ENABLE_TOD_ANALYSIS           = .true.
 TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 10
 TOD_INCLUDE_ZODI              = .false.
-FFTW3_MAGIC_NUMBERS           = 'data_hm/fft3_magic_numbers_230810.txt'
+FFTW3_MAGIC_NUMBERS           = 'data/fft3_magic_numbers_230810.txt'
 
 # Options for CMB resampling (for constrained realization production)
 RESAMPLE_CMB                  = .false.
@@ -67,7 +67,7 @@ OUTPUT_SIGNALS_PER_BAND       = .false.
 #                         Data sets                          #
 ##############################################################	
 
-DATA_DIRECTORY                 = data_hm
+DATA_DIRECTORY                 = data
 NUMBAND                        = 14
 
 # LFI
@@ -165,7 +165,7 @@ BAND_TOD_MAIN_PROCMASK001      = mask_30ghz_1deg_1000uK_chisq_res.fits
 BAND_TOD_SMALL_PROCMASK001     = mask_smap6.fits
 BAND_TOD_BP_INIT_PROP001       = bp_init_030_v1.dat
 BAND_TOD_RIMO001               = LFI_instrument_v4.h5
-BAND_TOD_FILELIST001           = filelist_30_v14.txt
+BAND_TOD_FILELIST001           = filelist_30_v15.txt
 BAND_TOD_START_SCANID001       = 3
 BAND_TOD_END_SCANID001         = 45860
 BAND_TOD_TOT_NUMSCAN001        = 45860
@@ -215,7 +215,7 @@ BAND_TOD_MAIN_PROCMASK002      = mask_30ghz_1deg_1000uK_chisq.fits
 BAND_TOD_SMALL_PROCMASK002     = mask_smap6.fits
 BAND_TOD_BP_INIT_PROP002       = bp_init_044_v1.dat
 BAND_TOD_RIMO002               = LFI_instrument_v4.h5
-BAND_TOD_FILELIST002           = filelist_44_v14.txt
+BAND_TOD_FILELIST002           = filelist_44_v15.txt
 BAND_TOD_START_SCANID002       = 3 
 BAND_TOD_END_SCANID002         = 45860
 BAND_TOD_TOT_NUMSCAN002        = 45860
@@ -267,7 +267,7 @@ BAND_TOD_MAIN_PROCMASK003      = mask_30ghz_1deg_1000uK_chisq_n1024.fits
 BAND_TOD_SMALL_PROCMASK003     = mask_smap6_n1024.fits
 BAND_TOD_BP_INIT_PROP003       = bp_init_070_v1.dat
 BAND_TOD_RIMO003               = LFI_instrument_v4.h5
-BAND_TOD_FILELIST003           = filelist_70_v14.txt
+BAND_TOD_FILELIST003           = filelist_70_v15.txt
 BAND_TOD_START_SCANID003       = 3
 BAND_TOD_END_SCANID003         = 45860
 BAND_TOD_TOT_NUMSCAN003        = 45860
@@ -429,8 +429,8 @@ BAND_NOMINAL_FREQ007           = 40.6
 BAND_SAMP_BANDPASS007          = .true.
 BAND_BANDPASSFILE007           = bp_wmap9_Q1_v3.dat
 BAND_SAMP_GAIN007              = .true.
-BAND_GAIN_PRIOR_MEAN007        = 1
-BAND_GAIN_PRIOR_RMS007         = 0.1
+BAND_GAIN_PRIOR_MEAN007        =  0.9980
+BAND_GAIN_PRIOR_RMS007         = -0.0002
 BAND_GAIN_CALIB_COMP007        = cmb
 BAND_GAIN_LMIN007              = -1  25
 BAND_GAIN_LMAX007              = -1  100
@@ -729,7 +729,7 @@ BAND_COMPONENT_SENSITIVITY014 = "broadband"
 ##############################################################	
 
 INSTRUMENT_PARAM_FILE         = instrument_params_BP6.12.dat
-INIT_INSTRUMENT_FROM_HDF      = default
+INIT_INSTRUMENT_FROM_HDF      = none  default
 
 CMB_DIPOLE_PRIOR              = none       # 'mask_common_dx12_n1024_TQU.fits; 3364.4; 263.998; 48.265' # LFI 2018
  
@@ -1135,7 +1135,7 @@ COMP_CL_DEFAULT_BETA_B07      = -0.5d0
 COMP_NU_P_POLTYPE07           = 2 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_INPUT_NU_P_MAP07         = default  init_ame_nup_c43.fits default   ame_nu_p_c0001_k000007_n1024.fits #init_ame1_nup_6v20_n2048_60arcmin_v1.fits
 COMP_NU_P_SMOOTHING_SCALE07   = 0
-COMP_DEFAULT_NU_P07           = 21   19   22.2
+COMP_DEFAULT_NU_P07           = 18   22.2
 COMP_PRIOR_UNI_NU_P_LOW07     = 10.
 COMP_PRIOR_UNI_NU_P_HIGH07    = 70.
 COMP_PRIOR_GAUSS_NU_P_MEAN07  = 19.   
