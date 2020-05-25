@@ -620,7 +620,7 @@ contains
        end if
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%cltype) == 'none') then
+          if (trim(c%cltype) /= 'none') then
              n = ind_comp(c%id,2)
              allocate(eta(0:c%x%info%nalm-1,c%x%info%nmaps))
              eta = 0.d0
