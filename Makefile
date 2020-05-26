@@ -15,7 +15,7 @@ export TOPDIR
 
 
 ifdef COMMANDER
-	include $(TOPDIR)/config/config.$(COMMANDER)
+	include $(TOPDIR)/commander3/config/config.$(COMMANDER)
 	ifndef INSTALL
 		INSTALL := $(TOPDIR)/install_$(COMMANDER)
 	endif
@@ -83,20 +83,20 @@ export F90COMP := $(F90FLAGS) $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INC
 export FCOMP := $(FFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
 export CCOMP := $(CFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
 export LINK := -L. -lcommander $(SHARP_LINK) $(HEALPIX_LINK) $(CFITSIO_LINK) $(LAPACK_LINK) $(HDF_LINK) $(LDFLAGS) $(F90OMPFLAGS) 
-export TEMPITA := "$(TOPDIR)/src/python/tempita_proc.py"
+export TEMPITA := "$(TOPDIR)/commander3/python/tempita_proc.py"
 
 
 all : commander 
 
 commander : 
-	@cd src/commander; $(MAKE)
+	@cd commander3/src; $(MAKE)
 
 camb : 
-	@cd src/camb; $(MAKE)
+	@cd commander3/camb; $(MAKE)
 
 messcomm : 
-	@cd src/messcomm; $(MAKE) 
+	@cd commander3/messcomm; $(MAKE) 
 
 clean :
-	@cd src/commander; $(MAKE) clean
+	@cd commander3/src; $(MAKE) clean
 
