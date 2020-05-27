@@ -86,6 +86,9 @@ set(sources
 	comm_tod_WMAP_mod.f90
 	)
 
+#
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
+#
 set(executable commander3)
 add_executable(${executable} "")
 # make sure that commander executable will be built last
@@ -104,6 +107,8 @@ target_link_libraries(${executable}
 	MPI::MPI_Fortran
 	# linking OpenMP
 	OpenMP::OpenMP_Fortran
+	#-ffree-line-length-none
+	#-fno-strict-overflow
 	#hdf5_lib
 	#${HDF5_Fortran_LIBRARIES}
 	#${HDF5_Fortran_LIBRARIES}

@@ -193,14 +193,17 @@ contains
         emissivity143 = (/-0.014, 1.463, 0.530, 1.794, -0.252, -0.002/)
         emissivity100 = (/0.003, 1.129, 0.674, 1.106, 0.163, 0.252/)
 
-        if (use_unit_emissivity == .true.) then
+        !if (use_unit_emissivity == .true.) then
+        if (use_unit_emissivity) then
             emissivity = 1.d0
         end if
 
         ! Initializing zodi components
         ! ---------------------------------------------------------------------
-        if (use_cloud == .true.) then
-            if (use_unit_emissivity == .false.) then
+        !if (use_cloud == .true.) then
+        if (use_cloud) then
+            !if (use_unit_emissivity == .false.) then
+            if (.not. use_unit_emissivity) then
                 emissivity = emissivity857(1)
             end if
             cloud_comp = Cloud(emissivity=emissivity, x0=0.011887801, y0=0.0054765065, &
@@ -211,8 +214,10 @@ contains
             call add2Complist(comp)
         end if
 
-        if (use_band1 == .true.) then
-            if (use_unit_emissivity == .false.) then
+        !if (use_band1 == .true.) then
+        if (use_band1) then
+            !if (use_unit_emissivity == .false.) then
+            if (.not. use_unit_emissivity) then
                 emissivity = emissivity857(2)
             end if
             band1_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
@@ -223,8 +228,10 @@ contains
             call add2Complist(comp)
         end if
 
-        if (use_band2 == .true.) then
-            if (use_unit_emissivity == .false.) then
+        !if (use_band2 == .true.) then
+        if (use_band2) then
+            !if (use_unit_emissivity == .false.) then
+            if (.not. use_unit_emissivity) then
                 emissivity = emissivity857(3)
             end if
             band2_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
@@ -235,8 +242,10 @@ contains
             call add2Complist(comp)
         end if
 
-        if (use_band3 == .true.) then
-            if (use_unit_emissivity == .false.) then
+        !if (use_band3 == .true.) then
+        if (use_band3) then
+            !if (use_unit_emissivity == .false.) then
+            if (.not. use_unit_emissivity) then
                 emissivity = emissivity857(4)
             end if
             band3_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
@@ -247,8 +256,10 @@ contains
             call add2Complist(comp)
         end if
 
-        if (use_ring == .true.) then
-            if (use_unit_emissivity == .false.) then
+        !if (use_ring == .true.) then
+        if (use_ring) then
+            !if (use_unit_emissivity == .false.) then
+            if (.not. use_unit_emissivity) then
                 emissivity = emissivity857(5)
             end if
             ring_comp = Ring(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
@@ -259,8 +270,10 @@ contains
             call add2Complist(comp)
         end if
 
-        if (use_feature == .true.) then
-            if (use_unit_emissivity == .false.) then
+        !if (use_feature == .true.) then
+        if (use_feature) then
+            !if (use_unit_emissivity == .false.) then
+            if (.not. use_unit_emissivity) then
                 emissivity = emissivity857(6)
             end if
             feature_comp = Feature(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &

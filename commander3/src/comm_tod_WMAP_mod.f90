@@ -301,7 +301,7 @@ contains
       ! Select data
      call wall_time(t1)
      !TODO: cut scans here
-     if(self%first_scan) then 
+     !if (self%first_scan) then 
          !do j = 1, ndet
          !   ntot= ntot + 1
          !   if (.not. self%scans(i)%d(j)%accept) cycle
@@ -318,7 +318,7 @@ contains
          !      naccept = naccept + 1
          !   end if
          !end do
-     end if
+     !end if
      
      if (any(.not. self%scans(i)%d%accept)) self%scans(i)%d%accept = .false.
      do j = 1, ndet
