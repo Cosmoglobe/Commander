@@ -10,13 +10,13 @@ if(NOT FFTW3_FOUND)
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		INSTALL_DIR "${out_install_dir}"
+		INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}"
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		COMMAND ./configure --prefix=<INSTALL_DIR> 
 		#BUILD_IN_SOURCE 1	
 		)
-	set(FFTW3_LIBRARIES ${out_lib_dir}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3${CMAKE_STATIC_LIBRARY_SUFFIX})
+	set(FFTW3_LIBRARIES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3${CMAKE_STATIC_LIBRARY_SUFFIX})
 else()
 	add_custom_target(${project} ALL "")
 	message(STATUS "FFTW3 LFLAGS are: ${FFTW3_LFLAGS}")
