@@ -91,11 +91,11 @@ all : commander
 commander : 
 	@cd commander3/src; $(MAKE)
 
-camb : 
-	@cd commander3/camb; $(MAKE)
+#camb : 
+#	@cd commander3/camb; $(MAKE)
 
-messcomm : 
-	@cd commander3/messcomm; $(MAKE) 
+#messcomm : 
+#	@cd commander3/messcomm; $(MAKE) 
 
 clean :
 	@cd commander3/src; $(MAKE) clean

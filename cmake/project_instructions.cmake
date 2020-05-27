@@ -18,10 +18,10 @@ set(DOXYGEN_BUILD_DOCS TRUE
 	"Determine whether to use doxygen or not")
 
 # Commander source dir
-set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/commander")
+set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
 
 # tempita source dir
-set(tempita_dir ${CMAKE_SOURCE_DIR}/src/python)
+set(tempita_dir ${CMAKE_SOURCE_DIR}/commander3/python)
 # setting dir to download .tar.gz files 
 #set(download_dir ${CMAKE_SOURCE_DIR}/build/downloads)
 # setting an install dir
