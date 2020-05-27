@@ -1786,40 +1786,40 @@ contains
                   & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
              
              ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
-             if (all(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
-                call self%theta(i)%p%Y_scalar
-             else if (any(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
-                tp => comm_map(info)
-                tp%alm = self%theta(i)%p%alm
-                call tp%Y_scalar
-                do p = 1,self%poltype(i)
-                   if (self%lmax_ind_pol(p,i) < 0) cycle
-                   if (self%poltype(i) == 1) then
-                      p_min=1
-                      p_max=info%nmaps
-                      if (only_pol) p_min = 2
-                   else if (self%poltype(i)==2) then
-                      if (p == 1) then
-                         p_min = 1
-                         p_max = 1
-                      else
-                         p_min = 2
-                         p_max = info%nmaps
-                      end if
-                   else if (self%poltype(i)==3) then
-                      p_min = p
-                      p_max = p
-                   else
-                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
-                      stop
-                   end if
+             !if (all(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+             !   call self%theta(i)%p%Y_scalar
+             !else if (any(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
+             !   tp => comm_map(info)
+             !   tp%alm = self%theta(i)%p%alm
+             !   call tp%Y_scalar
+             !   do p = 1,self%poltype(i)
+             !      if (self%lmax_ind_pol(p,i) < 0) cycle
+             !      if (self%poltype(i) == 1) then
+             !         p_min=1
+             !         p_max=info%nmaps
+             !         if (only_pol) p_min = 2
+             !      else if (self%poltype(i)==2) then
+             !         if (p == 1) then
+             !            p_min = 1
+             !            p_max = 1
+             !         else
+             !            p_min = 2
+             !            p_max = info%nmaps
+             !         end if
+             !      else if (self%poltype(i)==3) then
+             !         p_min = p
+             !         p_max = p
+             !      else
+             !         write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+             !         stop
+             !      end if
 
-                   do k = p_min,p_max
-                      self%theta(i)%p%map(:,k) = tp%map(:,k)
-                   end do
-                end do
-                call tp%dealloc()
-             end if
+             !      do k = p_min,p_max
+             !         self%theta(i)%p%map(:,k) = tp%map(:,k)
+             !      end do
+             !   end do
+             !   call tp%dealloc()
+             !end if
           end if
 
 

@@ -504,7 +504,8 @@ contains
                       end if
                       k = k + 1
                    end do
-                   if (temp_bool==.true.) then !not possible to invert matrix
+                   !if (temp_bool==.true.) then !not possible to invert matrix
+                   if (temp_bool) then !not possible to invert matrix
                       temp_marg = -1.d30
                       goto 1
                    end if
