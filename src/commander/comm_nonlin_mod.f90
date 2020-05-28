@@ -1024,11 +1024,7 @@ contains
 
              call wall_time(t1)
 
-             if (c_lnL%pol_pixreg_type(p,id)==1) then
-                call sampleDiffuseSpecIndFullsky_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
-             else if (c_lnL%pol_pixreg_type(p,id)==2) then
-                call sampleDiffuseSpecIndSinglePix_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
-             else if (c_lnL%pol_pixreg_type(p,id)==3) then
+             if (c_lnL%pol_pixreg_type(p,id) > 0) then
                 call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
              else
                 write(*,*) 'Undefined spectral index sample region'
@@ -2006,7 +2002,7 @@ contains
     if (c_lnL%first_ind_sample(p,id) .and. (.not. (trim(cpar%init_chain_prefix) == 'none' .or. &
          & trim(c_lnL%init_from_HDF) == 'none'))) then
        
-       allocate(sum_theta(c_lnL%npixreg(p,id)))
+       allocate(sum_theta(0:c_lnL%npixreg(p,id)))
        sum_theta=0.d0
 
        do k = 0,c_lnL%theta(id)%p%info%np-1
@@ -2015,7 +2011,7 @@ contains
        end do
 
        !allreduce
-       call mpi_allreduce(MPI_IN_PLACE, sum_theta, c_lnL%npixreg(p,id), MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, sum_theta, c_lnL%npixreg(p,id)+1, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
 
        do k = 1,c_lnL%npixreg(p,id)
           !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- numbe of pixels',sum_pix(k)
@@ -2155,7 +2151,7 @@ contains
 
        !assign values to pixel regions that are not in sampled pixreg, those in pix.reg. are set to 1.d0 in single map
        !write(*,*) info_fr%myid,c_lnL%pol_ind_mask(id)%p%info%myid, np_fr, c_lnL%pol_ind_mask(id)%p%info%np
-       do pix = 1,np_fr-1
+       do pix = 0,np_fr-1
           if (pr /= c_lnL%ind_pixreg_arr(pix,p,id)) then
              theta_fr%map(pix,1) = old_thetas(c_lnL%ind_pixreg_arr(pix,p,id))
           else
