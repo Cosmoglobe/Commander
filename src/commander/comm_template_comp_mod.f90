@@ -250,7 +250,7 @@ contains
   
   ! Dump current sample to HEALPix FITS file
   subroutine dumpTemplateToFITS(self, iter, chainfile, output_hdf, postfix, dir)
-    class(comm_template_comp),               intent(in)           :: self
+    class(comm_template_comp),               intent(inout)        :: self
     integer(i4b),                            intent(in)           :: iter
     type(hdf_file),                          intent(in)           :: chainfile
     logical(lgt),                            intent(in)           :: output_hdf

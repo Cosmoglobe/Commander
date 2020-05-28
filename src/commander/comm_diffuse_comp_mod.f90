@@ -24,7 +24,7 @@ module comm_diffuse_comp_mod
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
-     logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys
+     logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg
      integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
@@ -78,6 +78,7 @@ module comm_diffuse_comp_mod
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
    contains
      procedure :: initDiffuse
+     procedure :: initPixregSampling
      procedure :: initSpecindProp
      procedure :: updateMixmat  => updateDiffuseMixmat
      procedure :: update_F_int  => updateDiffuseFInt
@@ -287,7 +288,7 @@ contains
 
     ! Initialize prior mean
     if (trim(cpar%cs_prior_amp(id_abs)) /= 'none') then
-       self%mu => comm_map(info, cpar%cs_prior_amp(id_abs))
+       self%mu => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_prior_amp(id_abs)))
        call self%mu%YtW
     end if
 
@@ -323,6 +324,396 @@ contains
     end if
     
   end subroutine initDiffuse
+
+  subroutine initPixregSampling(self, cpar, id, id_abs)
+    implicit none
+    class(comm_diffuse_comp)            :: self
+    type(comm_params),       intent(in) :: cpar
+    integer(i4b),            intent(in) :: id, id_abs
+
+    integer(i4b) :: i, j, k, l, m, n, p, ierr
+    type(comm_mapinfo), pointer :: info => null()
+    real(dp)           :: par_dp
+    integer(i4b), allocatable, dimension(:) :: sum_pix
+    real(dp),     allocatable, dimension(:) :: sum_theta, sum_proplen, sum_nprop
+    real(dp),     allocatable, dimension(:,:) :: m_in, m_out, buffer
+    character(len=512) :: temptxt, partxt
+    integer(i4b) :: smooth_scale, p_min, p_max
+    class(comm_mapinfo), pointer :: info2 => null(), info_ud => null()
+    class(comm_map),     pointer :: tp => null() 
+    class(comm_map),     pointer :: tp_smooth => null() 
+
+    ! Initialize spectral index map
+    info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
+         & self%nmaps, self%pol)
+
+
+
+    ! Set up smoothing scale information
+    allocate(self%smooth_scale(self%npar))
+    self%smooth_scale = cpar%cs_smooth_scale(id_abs,1:self%npar)
+
+
+    !!! (local) sampling specific parameters!!!
+
+    allocate(self%pol_lnLtype(3,self%npar))        ! {chisq, ridge, marginal}: evaluation type for lnL
+    allocate(self%pol_sample_nprop(3,self%npar))   ! {.true., .false.}: sample nprop on first iteration
+    allocate(self%pol_sample_proplen(3,self%npar)) ! {.true., .false.}: sample proplen on first iteration
+    allocate(self%pol_pixreg_type(3,self%npar))    ! {1=fullsky, 2=single_pix, 3=pixel_regions}
+    allocate(self%nprop_uni(2,self%npar))          ! {integer}: upper and lower limits on nprop
+    allocate(self%npixreg(3,self%npar))            ! {integer}: number of pixel regions per poltye per spec ind
+    allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
+    self%first_ind_sample=.true.
+
+    self%npixreg = 0
+    do i = 1,self%npar
+       self%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
+       do j = 1,self%poltype(i)
+          self%pol_lnLtype(j,i)  = cpar%cs_spec_lnLtype(j,i,id_abs)
+          self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
+          self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
+
+          if (self%lmax_ind_pol(j,i) < 0) then
+             if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='fullsky') then
+                self%pol_pixreg_type(j,i) = 1
+                self%npixreg(j,i) = 1
+             else if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='single_pix') then
+                self%pol_pixreg_type(j,i) = 2
+                if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
+                   self%npixreg(j,i) = 12*(cpar%nside_smooth(self%smooth_scale(i))**2)
+                else
+                   self%npixreg(j,i) = 12*(self%theta(i)%p%info%nside**2)
+                end if
+             else if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='pixreg') then
+                self%pol_pixreg_type(j,i) = 3
+                self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
+             else
+                write(*,*) 'Unspecified pixel region type for poltype',j,'of spectral index',i,'in component',id_abs
+                stop
+             end if
+          else
+             self%pol_pixreg_type(j,i) = 0
+             !check if alm using defined pixel regions to suggest theta (then to smooth and get alms from map)
+             !if so, pixreg values needs to be added. 
+             if (self%almsamp_pixreg) then
+                self%pol_pixreg_type(j,i) = 3
+                self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
+             end if
+          end if
+       end do
+    end do
+
+    if (any(self%pol_pixreg_type(:,:) > 0)) then
+       !find highest number of pixel regions
+       k = 0
+       do i = 1,self%npar
+          do j = 1,self%poltype(i)
+             if (j > self%nmaps) cycle
+             if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
+          end do
+       end do
+       allocate(self%nprop_pixreg(k,3,self%npar))
+       allocate(self%npix_pixreg(k,3,self%npar))
+       allocate(self%proplen_pixreg(k,3,self%npar))
+       allocate(self%B_pp_fr(self%npar))
+    end if
+
+    ! Set up spectral index sampling masks, proposal length maps and nprop maps
+    allocate(self%pol_ind_mask(self%npar)) ! masks per spectral index (all poltypes)
+    allocate(self%pol_nprop(self%npar))    ! nprop map per spectral index (all poltypes
+    allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
+    allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
+
+    if (any(self%pol_pixreg_type(:,:) > 0)) then
+       k=0
+       do i = 1,self%npar
+          do j = 1,self%poltype(i)
+             if (self%pol_pixreg_type(j,i) > 0) then
+                if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
+             end if
+          end do
+       end do
+       allocate(self%theta_pixreg(0:k,3,self%npar))
+    end if
+
+    info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
+         & self%nmaps, self%pol)
+
+    if (any(self%pol_pixreg_type > 0)) then
+       if (any(self%poltype > 1)) then
+          allocate(self%ind_pixreg_arr(0:info%np-1,3,self%npar)) 
+       else
+          allocate(self%ind_pixreg_arr(0:info%np-1,1,self%npar)) 
+       end if
+       self%ind_pixreg_arr = 0 !all pixels assigned to pixelregion 0 (not to be sampled), will read in pixreg later
+    end if
+
+    do i = 1,self%npar
+       ! spec. ind. mask
+       if (trim(cpar%cs_spec_mask(i,id_abs)) == 'fullsky') then
+          self%pol_ind_mask(i)%p => comm_map(info)
+          self%pol_ind_mask(i)%p%map = 1.d0
+       else
+          ! Read map from FITS file
+          self%pol_ind_mask(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_mask(i,id_abs)))
+
+          if (min(self%poltype(i),self%nmaps) > &
+               & self%pol_ind_mask(i)%p%info%nmaps) then
+             write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' mask has fewer maps (', & 
+                  & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                  & ') for component nr. ',id_abs
+             stop
+          else if (self%theta(i)%p%info%nside /= self%pol_ind_mask(i)%p%info%nside) then
+             write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' mask has different nside (', & 
+                  & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                  & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+             stop
+          end if
+       end if
+
+       ! prop. len. map
+       if (trim(cpar%cs_spec_proplen(i,id_abs)) == 'fullsky') then
+          self%pol_proplen(i)%p => comm_map(info)
+          self%pol_proplen(i)%p%map = 1.d0
+       else
+          ! Read map from FITS file
+          self%pol_proplen(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_proplen(i,id_abs)))
+          if (min(self%poltype(i),self%nmaps) > &
+               & self%pol_proplen(i)%p%info%nmaps) then
+             write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' proplen map has fewer maps (', & 
+                  & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                  & ') for component nr. ',id_abs
+             stop
+          else if (self%theta(i)%p%info%nside /= self%pol_proplen(i)%p%info%nside) then
+             write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' proplen map has different nside (', & 
+                  & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                  & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+             stop
+          end if
+       end if
+       
+       ! replace proplen of input map for given poltype with user specified value, if given
+       do j = 1,self%poltype(i)
+          if (j > self%nmaps) cycle
+          if (cpar%cs_spec_proplen_init(j,i,id_abs) > 0.d0) then
+             self%pol_proplen(i)%p%map(:,j)=cpar%cs_spec_proplen_init(j,i,id_abs)
+          end if
+       end do
+    
+       ! nprop map
+       if (trim(cpar%cs_spec_nprop(i,id_abs)) == 'fullsky') then
+          self%pol_nprop(i)%p => comm_map(info)
+          self%pol_nprop(i)%p%map = 1.d0
+       else
+          ! Read map from FITS file
+          self%pol_nprop(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_nprop(i,id_abs)))
+          if (min(self%poltype(i),self%nmaps) > &
+               & self%pol_nprop(i)%p%info%nmaps) then
+             write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' nprop map has fewer maps (', & 
+                  & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                  & ') for component nr. ',id_abs
+             stop
+          else if (self%theta(i)%p%info%nside /= self%pol_nprop(i)%p%info%nside) then
+             write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' nprop map has different nside (', & 
+                  & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                  & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+             stop
+          end if
+       end if
+       ! replace nprop of input map for given poltype with user specified value, if given       
+       do j = 1,self%poltype(i)
+          if (j > self%nmaps) cycle
+          if (cpar%cs_spec_nprop_init(j,i,id_abs) > 0) then
+             self%pol_nprop(i)%p%map(:,j)=cpar%cs_spec_nprop_init(j,i,id_abs)*1.d0
+          end if
+       end do
+
+       ! limit nprop
+       self%pol_nprop(i)%p%map = min(max(self%pol_nprop(i)%p%map,self%nprop_uni(1,i)*1.d0), &
+            & self%nprop_uni(2,i)*1.d0)
+
+       ! initialize pixel regions if relevant 
+       if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
+
+          info2  => comm_mapinfo(self%theta(i)%p%info%comm, self%nside, &
+               & 2*self%nside, 1, .false.) 
+
+          smooth_scale = self%smooth_scale(i)
+          if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+             if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                !create beam for smoothing
+                self%B_pp_fr(i)%p => comm_B_bl(cpar, info2, 1, 1, fwhm=cpar%fwhm_smooth(smooth_scale), &
+                     & init_realspace=.false.)
+             end if
+          end if
+
+          ! Check if 'fullsky' or 'none' 
+          if (self%pol_pixreg_type(j,i) == 1) then !fullsky
+             self%ind_pixreg_map(i)%p => comm_map(info)
+             self%ind_pixreg_map(i)%p%map = 1.d0
+          else if (self%pol_pixreg_type(j,i) == 2) then 
+             !single pix at smoothing scale pix size
+             !make a map at smooth scale nside, give pixels value from 1 to npix
+             !udgrade to full resolution
+             if (cpar%nside_smooth(smooth_scale) > self%nside) then
+                !only allow nside up to full resolution
+                info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
+                     & self%theta(i)%p%info%nside, -1, 1, .false.) 
+             else
+                info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
+                     & cpar%nside_smooth(smooth_scale), -1, 1, .false.) 
+             end if
+             self%ind_pixreg_map(i)%p => comm_map(info)
+
+             if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
+                tp => comm_map(info_ud)
+                tp%map(:,1) = tp%info%pix*1.d0 + 1.d0 !set pixel value equal to pixel number+1
+                allocate(m_in(0:info_ud%npix-1,1))
+                allocate(m_out(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
+                allocate(buffer(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
+                m_in(tp%info%pix,1) = tp%map(:,1)
+                call udgrade_ring(m_in, info_ud%nside, m_out, &
+                     & self%ind_pixreg_map(i)%p%info%nside)
+                call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, &
+                     & MPI_SUM, self%ind_pixreg_map(i)%p%info%comm, ierr)
+
+                self%ind_pixreg_map(i)%p%map(:,j) = buffer(self%ind_pixreg_map(i)%p%info%pix,1)
+                deallocate(m_in, m_out, buffer)
+                call tp%dealloc()
+                tp => null()
+             else
+                self%ind_pixreg_map(i)%p%map(:,j) = self%ind_pixreg_map(i)%p%info%pix*1.d0 +1.d0
+             end if
+
+          !from here pixreg_type == 3
+          else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
+             self%ind_pixreg_map(i)%p => comm_map(info)
+             self%ind_pixreg_map(i)%p%map = 1.d0
+          else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'none') then
+             self%ind_pixreg_map(i)%p => comm_map(info)
+             self%ind_pixreg_map(i)%p%map = 0.d0
+          else
+             ! Read map from FITS file
+             self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
+             if (min(self%poltype(i),self%nmaps) > &
+                  & self%ind_pixreg_map(i)%p%info%nmaps) then
+                write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' pixreg map has fewer maps (', & 
+                     & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                     & ') for component nr. ',id_abs
+                stop
+             else if (self%theta(i)%p%info%nside /= self%ind_pixreg_map(i)%p%info%nside) then
+                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' pixreg map has different nside (', & 
+                     & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                     & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+                stop
+             end if
+          end if
+
+
+          !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
+          do j = 1,self%poltype(i)
+             if (j > self%nmaps) cycle
+             self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
+             if (.not. self%pol_pixreg_type(j,i) == 3) cycle
+
+             n=self%npixreg(j,i)
+             allocate(sum_pix(n),sum_theta(n),sum_nprop(n),sum_proplen(n))
+             sum_theta=0.d0
+             sum_pix=0
+             sum_nprop=0.d0
+             sum_proplen=0.d0
+
+             do k = 0,self%theta(i)%p%info%np-1
+                do m = 1,n
+                   if ( self%ind_pixreg_map(i)%p%map(k,j) > (m-0.5d0) .and. &
+                        & self%ind_pixreg_map(i)%p%map(k,j) < (m+0.5d0) ) then
+                      sum_theta(m)=sum_theta(m)+self%theta(i)%p%map(k,j)
+                      sum_proplen(m)=sum_proplen(m)+self%pol_proplen(i)%p%map(k,j)
+                      sum_nprop(m)=sum_nprop(m)+self%pol_nprop(i)%p%map(k,j)
+                      sum_pix(m)=sum_pix(m)+1
+                      self%ind_pixreg_arr(k,j,i)=m !assign pixel region index 
+                      exit
+                   end if
+                end do
+             end do
+
+             
+             !allreduce
+             call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, sum_nprop, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, sum_pix, n, MPI_INTEGER, MPI_SUM, info%comm, ierr)
+
+             do k = 1,n
+                !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- numbe of pixels',sum_pix(k)
+                if (sum_pix(k) > 0) then
+                   self%theta_pixreg(k,j,i) = sum_theta(k)/(1.d0*sum_pix(k))
+                   self%nprop_pixreg(k,j,i) = IDINT(sum_nprop(k)/(1.d0*sum_pix(k)))
+                   self%proplen_pixreg(k,j,i) = sum_proplen(k)/(1.d0*sum_pix(k))
+                else
+                   self%theta_pixreg(k,j,i) = self%p_gauss(1,i) ! the prior as theta
+                   self%nprop_pixreg(k,j,i) = 0
+                   self%proplen_pixreg(k,j,i) = 1.d0
+                end if
+                self%npix_pixreg(k,j,i)=sum_pix(k)
+             end do
+             self%theta_pixreg(0,j,i)=self%p_gauss(1,i) !all pixels in region 0 has the prior as theta
+             
+             deallocate(sum_pix,sum_theta,sum_proplen,sum_nprop)
+             
+             !Should also assign (and smooth) theta map. This might be dangerous so we don't assign for now
+             ! might put in a flag for this if wanted
+             if (.false.) then
+                if (self%poltype(i) == 1) then
+                   p_min = 1; p_max = self%nmaps
+                   if (cpar%only_pol) p_min = 2
+                else if (self%poltype(i) == 2) then
+                   if (j == 1) then
+                      p_min = 1; p_max = 1
+                   else
+                      p_min = 2; p_max = self%nmaps
+                   end if
+                else if (self%poltype(i) == 3) then
+                   p_min = j
+                   p_max = j
+                else
+                   write(*,*) 'Unsupported polarization type'
+                   stop
+                end if
+
+                smooth_scale = self%smooth_scale(i)
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                   if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                      if (p_min<=p_max) then !just a guaranty that we dont smooth for nothing
+
+                         !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
+                         tp => comm_map(info2)
+
+                         do k = 0,info2%np-1
+                            tp%map(k,1) = self%theta_pixreg(self%ind_pixreg_arr(k,j,i),j,i)
+                         end do
+                         !smooth single map as intensity (i.e. zero spin)
+                         call smooth_map(info2, .false., &
+                              & self%B_pp_fr(i)%p%b_l*0.d0+1.d0, tp, &  
+                              & self%B_pp_fr(i)%p%b_l, tp_smooth)
+
+                         do k = p_min,p_max
+                            self%theta(i)%p%map(:,k) = tp_smooth%map(:,1)
+                         end do
+                         call tp_smooth%dealloc()
+                         call tp%dealloc()
+
+                      end if
+                   end if
+                end if !num smooth scales > 0
+             end if
+          end do !poltype
+          
+       end if !any pixreg_type == 3
+
+    end do !npar
+
+  end subroutine initPixregSampling
 
   subroutine initSpecindProp(self,cpar, id, id_abs)
     implicit none
@@ -1638,7 +2029,7 @@ contains
   ! Dump current sample to HEALPix FITS file
   subroutine dumpDiffuseToFITS(self, iter, chainfile, output_hdf, postfix, dir)
     implicit none
-    class(comm_diffuse_comp),                intent(in)           :: self
+    class(comm_diffuse_comp),                intent(inout)        :: self
     integer(i4b),                            intent(in)           :: iter
     type(hdf_file),                          intent(in)           :: chainfile
     logical(lgt),                            intent(in)           :: output_hdf
@@ -1787,7 +2178,7 @@ contains
              
              ! if any polarization is alm sampled. Only use alms to set polarizations with alm sampling
              if (all(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
-                call self%theta(i)%p%Y_scalar
+                call self%theta(i)%p%Y_scalar()
              else if (any(self%lmax_ind_pol(1:self%poltype(i),i) >= 0)) then
                 tp => comm_map(info)
                 tp%alm = self%theta(i)%p%alm

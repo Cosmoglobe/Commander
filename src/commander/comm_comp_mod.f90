@@ -131,7 +131,7 @@ module comm_comp_mod
      ! Dump current sample to HEALPix FITS file
      subroutine dumpFITS(self, iter, chainfile, output_hdf, postfix, dir)
        import comm_comp, i4b, hdf_file, lgt
-       class(comm_comp),                        intent(in)           :: self
+       class(comm_comp),                        intent(inout)        :: self
        integer(i4b),                            intent(in)           :: iter
        type(hdf_file),                          intent(in)           :: chainfile
        logical(lgt),                            intent(in)           :: output_hdf
