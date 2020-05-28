@@ -1,0 +1,222 @@
+# Mnemonic,         index, arr
+#
+#
+#			PDU Analog array
+#
+DFQ111B1DNI        , 1 ,  1 
+DFV111B2DNI        , 2 ,  1 
+DFKA111B3DNI       , 3 ,  1 
+DFW111B4DNI        , 4 ,  1 
+DFW211B5DNI        , 5 ,  1 
+DFW311B6DNI        , 6 ,  1 
+DFW411B7DNI        , 7 ,  1 
+DFK111B8DNI        , 8 ,  1 
+DFV211B9DNI        , 9 ,  1 
+DFQ211B10DNI       ,10 ,  1 
+DPPINTT1           ,11 ,  1 
+DPPINTT2           ,12 ,  1 
+DPPINTT3           ,13 ,  1 
+DPRM7_2V           ,14 ,  1 
+DPFLDAM6_2V        ,15 ,  1 
+DFQ112B1DNI        ,16 ,  1 
+DFV112B2DNI        ,17 ,  1 
+DFKA112B3DNI       ,18 ,  1 
+DFW112B4DNI        ,19 ,  1 
+DFW212B5DNI        ,20 ,  1 
+DFW312B6DNI        ,21 ,  1 
+DFW412B7DNI        ,22 ,  1 
+DFK112B8DNI        ,23 ,  1 
+DFV212B9DNI        ,24 ,  1 
+DFQ212B10DNI       ,25 ,  1 
+DPRP7_2V           ,26 ,  1 
+DPFLDBM6_2V        ,27 ,  1 
+DFQ121B1DNI        ,28 ,  1 
+DFV121B2DNI        ,29 ,  1 
+DFKA121B3DNI       ,30 ,  1 
+DFW121B4DNI        ,31 ,  1 
+DFW221B5DNI        ,32 ,  1 
+DFW321B6DNI        ,33 ,  1 
+DFW421B7DNI        ,34 ,  1 
+DFK121B8DNI        ,35 ,  1 
+DFV221B9DNI        ,36 ,  1 
+DFQ221B10DNI       ,37 ,  1 
+DPFLEDP10V         ,38 ,  1 
+DPPHSWCONVP9V      ,39 ,  1 
+DFQ122B1DNI        ,40 ,  1 
+DFV122B2DNI        ,41 ,  1 
+DFKA122B3DNI       ,42 ,  1 
+DFW122B4DNI        ,43 ,  1 
+DFW222B5DNI        ,44 ,  1 
+DFW322B6DNI        ,45 ,  1 
+DFW422B7DNI        ,46 ,  1 
+DFK122B8DNI        ,47 ,  1 
+DFV222B9DNI        ,48 ,  1 
+DFQ222B10DNI       ,49 ,  1 
+DPFM7_2V           ,50 ,  1 
+DPPHSWCONVM9V      ,51 ,  1 
+DRQ111B1DNI        ,52 ,  1 
+DRV111B2DNI        ,53 ,  1 
+DRKA111B3DNI       ,54 ,  1 
+DRW111B4DNI        ,55 ,  1 
+DRW211B5DNI        ,56 ,  1 
+DRW311B6DNI        ,57 ,  1 
+DRW411B7DNI        ,58 ,  1 
+DRK111B8DNI        ,59 ,  1 
+DRV211B9DNI        ,60 ,  1 
+DRQ211B10DNI       ,61 ,  1 
+DPFP7_2V           ,62 ,  1 
+DPHKM15V           ,63 ,  1 
+DRQ112B1DNI        ,64 ,  1 
+DRV112B2DNI        ,65 ,  1 
+DRKA112B3DNI       ,66 ,  1 
+DRW112B4DNI        ,67 ,  1 
+DRW212B5DNI        ,68 ,  1 
+DRW312B6DNI        ,69 ,  1 
+DRW412B7DNI        ,70 ,  1 
+DRK112B8DNI        ,71 ,  1 
+DRV212B9DNI        ,72 ,  1 
+DRQ212B10DNI       ,73 ,  1 
+DPFLDAP6_2V        ,74 ,  1 
+DPHKP15V           ,75 ,  1 
+DRQ121B1DNI        ,76 ,  1 
+DRV121B2DNI        ,77 ,  1 
+DRKA121B3DNI       ,78 ,  1 
+DRW121B4DNI        ,79 ,  1 
+DRW221B5DNI        ,80 ,  1 
+DRW321B6DNI        ,81 ,  1 
+DRW421B7DNI        ,82 ,  1 
+DRK121B8DNI        ,83 ,  1 
+DRV221B9DNI        ,84 ,  1 
+DRQ221B10DNI       ,85 ,  1 
+DPHKP5V            ,86 ,  1 
+DRQ122B1DNI        ,87 ,  1 
+DRV122B2DNI        ,88 ,  1 
+DRKA122B3DNI       ,89 ,  1 
+DRW122B4DNI        ,90 ,  1 
+DRW222B5DNI        ,91 ,  1 
+DRW322B6DNI        ,92 ,  1 
+DRW422B7DNI        ,93 ,  1 
+DRK122B8DNI        ,94 ,  1 
+DRV222B9DNI        ,95 ,  1 
+DRQ222B10DNI       ,96 ,  1 
+DPFLDBP6_2V        ,97 ,  1 
+#
+#  	First AEU Analog sweep array
+#
+DABD1V             , 1 ,  2 
+DARREF1BD1         , 2 ,  2 
+DAW323_4AMPT       , 3 ,  2 
+DAV113_4ADT        , 4 ,  2 
+DAW2_14_23AMP_ADT  , 5 ,  2 
+DAIHK1BDT          , 6 ,  2 
+DACONVBDT          , 7 ,  2 
+DPV221_2RXBT       , 8 ,  2 
+DPW111_2RXBT       , 9 ,  2 
+DPW321_2FPAT       ,10 ,  2 
+DRV222RXBAMPT      ,11 ,  2 
+DRW111RXBAMPT      ,12 ,  2 
+DRW221RXBAMPT      ,13 ,  2 
+DRKA12RXBRIBT      ,14 ,  2 
+DRQ2RXBRIBT        ,15 ,  2 
+DRPYPSHPRTKT       ,16 ,  2 
+DARREF2BD1         ,17 ,  2 
+DFK1AFEEDT         ,18 ,  2 
+DFQ1AFEEDT         ,19 ,  2 
+DFW3BFEEDT         ,20 ,  2 
+DFK1BOMTT          ,21 ,  2 
+DFQ1BOMTT          ,22 ,  2 
+DFW3AOMTT          ,23 ,  2 
+DFV22FPATEET       ,24 ,  2 
+DFW32FPATEET       ,25 ,  2 
+DTATOPSECT         ,26 ,  2 
+DTABOTSECT         ,27 ,  2 
+DTBMIDSECT         ,28 ,  2 
+DTBTOPPRIT         ,29 ,  2 
+DTAMIDPRIT         ,30 ,  2 
+DTAPXMIDRADT       ,31 ,  2 
+DTBMXBOTRADT       ,32 ,  2 
+DRK113RFBI0        ,33 ,  2 
+DRK114RFBI1        ,34 ,  2 
+DRK123RFBI2        ,35 ,  2 
+DRK124RFBI3        ,36 ,  2 
+DRW413RFBI8        ,37 ,  2 
+DRW414RFBI9        ,38 ,  2 
+DRW423RFBI10       ,39 ,  2 
+DRW424RFBI11       ,40 ,  2 
+DRW313RFBI16       ,41 ,  2 
+DRW314RFBI17       ,42 ,  2 
+DRW323RFBI18       ,43 ,  2 
+DRW324RFBI19       ,44 ,  2 
+DRW213RFBI24       ,45 ,  2 
+DRW214RFBI25       ,46 ,  2 
+DRW223RFBI26       ,47 ,  2 
+DRW224RFBI27       ,48 ,  2 
+DRV113RFBI32       ,49 ,  2 
+DRV114RFBI33       ,50 ,  2 
+DRV123RFBI34       ,51 ,  2 
+DRV124RFBI35       ,52 ,  2 
+DAP15VBD1          ,53 ,  2 
+DAM15VBD1          ,54 ,  2 
+DAP12VBD1          ,55 ,  2 
+DAM12VBD1          ,56 ,  2 
+DAP5VBD1           ,57 ,  2 
+#
+#  	Second AEU Analog sweep array
+#
+DABD2V             , 1 ,  3 
+DARREF1BD2         , 2 ,  3 
+DAW113_4ADT        , 3 ,  3 
+DAV223_4AMPT       , 4 ,  3 
+DAQ113_4ADT        , 5 ,  3 
+DAIHK2BDT          , 6 ,  3 
+DASPARE1           , 7 ,  3 
+DPV111_2FPAT       , 8 ,  3 
+DPW321_2RXBT       , 9 ,  3 
+DPW221_2FPAT       ,10 ,  3 
+DRV111RXBAMPT      ,11 ,  3 
+DRW321RXBAMPT      ,12 ,  3 
+DRK12RXBRIBT       ,13 ,  3 
+DRQ1RXBRIBT        ,14 ,  3 
+DRW3RXBRIBT        ,15 ,  3 
+DRMYPSHPRTKT       ,16 ,  3 
+DARREF2BD2         ,17 ,  3 
+DFKA1BFEEDT        ,18 ,  3 
+DFQ2BFEEDT         ,19 ,  3 
+DFW3AFEEDT         ,20 ,  3 
+DFKA1AOMTT         ,21 ,  3 
+DFQ2AOMTT          ,22 ,  3 
+DFW3BOMTT          ,23 ,  3 
+DFV11FPATEET       ,24 ,  3 
+DFW11FPATEET       ,25 ,  3 
+DFW22FPATEET       ,26 ,  3 
+DTAMIDSECT         ,27 ,  3 
+DTBTOPSECT         ,28 ,  3 
+DTATOPPRIT         ,29 ,  3 
+DTBMIDPRIT         ,30 ,  3 
+DTBPXMIDRADT       ,31 ,  3 
+DTAMXTOPRADT       ,32 ,  3 
+DRW113RFBI4        ,33 ,  3 
+DRW114RFBI5        ,34 ,  3 
+DRW123RFBI2        ,35 ,  3 
+DRW124RFBI3        ,36 ,  3 
+DRV213RFBI12       ,37 ,  3 
+DRV214RFBI13       ,38 ,  3 
+DRV223RFBI14       ,39 ,  3 
+DRV224RFBI15       ,40 ,  3 
+DRQ113RFBI20       ,41 ,  3 
+DRQ114RFBI21       ,42 ,  3 
+DRQ123RFBI22       ,43 ,  3 
+DRQ124RFBI23       ,44 ,  3 
+DRQ213RFBI28       ,45 ,  3 
+DRQ214RFBI29       ,46 ,  3 
+DRQ223RFBI30       ,47 ,  3 
+DRQ224RFBI31       ,48 ,  3 
+DRKA113RFBI36      ,49 ,  3 
+DRKA114RFBI37      ,50 ,  3 
+DRKA123RFBI38      ,51 ,  3 
+DRKA124RFBI39      ,52 ,  3 
+DAP15VBD2          ,53 ,  3 
+DAM15VBD2          ,54 ,  3 
+DAP12VBD2          ,55 ,  3 
+DAM12VBD2          ,56 ,  3 
+DAP5VBD2           ,57 ,  3 
