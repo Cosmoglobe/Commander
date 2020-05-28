@@ -1,0 +1,85 @@
+# Config file for a generic GCC based compile,
+# Using the reference LAPACK/Blas and assuming
+# both LAPACK and CFITSIO are in /usr/local.
+
+
+# =============== Installation ===================
+
+# Final install location.  This defaults to a
+# subdirectory of the top-level directory called
+# install_$COMMANDER.
+#export INSTALL := /usr/local
+
+
+# =============== System Tools ===================
+
+# The defaults should be fine for any normal
+# GNU/Linux operating system...
+
+# Here you can override the make version to use
+#export MAKE := gmake
+
+# How to make a tar.gz file
+#export CTAR := tar czvf
+
+# The archive command
+#export AR := ar
+
+# Archive options to create a library
+#export ARFLAGS := crv
+
+# The ranlib command
+#export RANLIB := ranlib
+
+
+# ================= Compilers ====================
+
+# Serial Fortran 90 compiler.  Default is "f90".
+export F90 := gfortran
+
+# MPI Fortran 90 compiler.  Default is "mpif90".
+export MPF90 := mpif90
+
+# MPI Fortran 77 compiler.  Default is "mpif77".
+export MPF77 := mpif77
+
+# MPI C compiler.  Default is "mpicc".
+export MPCC := mpicc
+
+
+# =========== Compiler Optimizations =============
+
+# Fortran 90 compiler flags
+export F90FLAGS := -O3 -march=native -fPIC
+
+# Fortran 77 compiler flags
+export FFLAGS := -O3 -march=native -fPIC
+
+# C compiler flags.
+export CFLAGS := -O3 -march=native -fPIC
+
+# Extra flags used for linking
+export LDFLAGS := -lm
+
+
+# ============== Fortran Features ================
+
+# Set this variable to 1 if the fortran compiler
+# produces module files with capitalization (*.MOD)
+# instead of lowercase (*.mod).
+#export FORTRAN_UPPER := 1
+
+
+# =============== CFITSIO Linking ================
+
+# The include and linking commands for cfitsio.
+#export CFITSIO_INCLUDE := -I/usr/local/include
+#export CFITSIO_LINK := -L/usr/local/lib -lcfitsio
+
+
+# =============== LAPACK Linking =================
+
+# The include and linking commands for LAPACK.
+#export LAPACK_INCLUDE := -I/usr/local/include
+#export LAPACK_LINK := -L/usr/local/lib -llapack -lblas
+
