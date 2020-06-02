@@ -1,0 +1,18 @@
+#Mnemonic,           Description
+DFK1AFEEDT,          K1 A side feed temp (upper)
+DFW3BFEEDT,          W3 B side feed temp (middle) 
+DFQ1AFEEDT,          Q1 A side feed temp (lower)
+DFKA1BFEEDT,         Ka1 B side feed temp (upper) 
+DFW3AFEEDT,          W3 A side feed temp (middle) 
+DFQ2BFEEDT,          Q2 B side feed temp (lower)
+DFK1BOMTT,           K1 B side OMT temp (upper)
+DFW3AOMTT,           W3 A side OMT temp (middle)
+DFQ1BOMTT,           Q1 B side OMT temp (lower)
+DFKA1AOMTT,          Ka1 A side OMT temp (upper) 
+DFW3BOMTT,           W3 B side OMT temp (middle)
+DFQ2AOMTT,           Q2 A side OMT temp (lower)
+DFV11FPATEET,        V11 FPA magic tee temp 
+DFV22FPATEET,        V22 FPA magic tee temp 
+DFW11FPATEET,        W11 FPA magic tee temp 
+DFW22FPATEET,        W22 FPA magic tee temp 
+DFW32FPATEET,        W32 FPA magic tee temp
