@@ -15,7 +15,7 @@ To successfully run Commander, you need the following libraries:
 
 - [HDF5](https://www.hdfgroup.org/)
 - [FFTW](http://www.fftw.org/)
-- [LibSharp](https://github.com/Libsharp/libsharp)
+- [LibSharp](https://gitlab.mpcdf.mpg.de/mtr/libsharp/-/tree/master)
 - [Healpix](https://healpix.sourceforge.io/)
 - [CFITSIO](https://heasarc.gsfc.nasa.gov/fitsio/)
 - [LAPACK](http://www.netlib.org/lapack/)
