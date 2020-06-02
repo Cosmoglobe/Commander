@@ -33,9 +33,9 @@ rank = MPI.COMM_WORLD.rank
 def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, compress=False):
-    file_out = prefix + f'data/wmap_{band}_{str(file_ind//10+1).zfill(6)}_v3.h5'
-    with open(prefix + f'data/filelist_{band}_v3.txt', 'a') as file_list: 
-        file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
+    file_out = prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v5.h5'
+    if os.path.exists(file_out):
+        return
     dt0 = np.diff(time).mean()
     det_list = []
     # make huffman code tables
@@ -238,6 +238,8 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         #f.create_dataset('/common/mbang', data=0)
         f.create_dataset('/common/ntodsigma', data=100)
         #f.create_dataset('/common/polang', data=0)
+    with open(prefix + f'data/filelist_{band}_v5.txt', 'a') as file_list: 
+        file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
     return
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
@@ -275,12 +277,12 @@ def Q2M(Q):
     q3=-Q[2,:]
     q4= Q[3,:]
     
-    q11=q1*q1
-    q22=q2*q2
-    q33=q3*q3
-    q44=q4*q4
+    q11=q1**2
+    q22=q2**2
+    q33=q3**2
+    q44=q4**2
     s=q11+q22+q33+q44
-    w = (abs(s-1.0) > 1.0e-5)
+    w = (abs(s-1.0) > 1e-5)
     if sum(w) > 0:
         s=np.sqrt(s)
         q1=q1/s
@@ -321,9 +323,8 @@ def gamma_from_pol(gal, pol, fixed_basis=False):
     for a one time operation this doesn't seem too slow yet.
     '''
     # gal and pol are galactic lonlat vectors
-    dir_A_gal = hp.ang2vec(gal[:,0],gal[:,1], lonlat=False)
-    dir_A_pol = hp.ang2vec(pol[:,0],pol[:,1], lonlat=False)
-
+    dir_A_gal = hp.ang2vec(gal[:,0]%np.pi,gal[:,1]%(2*np.pi), lonlat=False)
+    dir_A_pol = hp.ang2vec(pol[:,0]%np.pi,pol[:,1]%(2*np.pi), lonlat=False)
 
     dir_Z = np.array([0,0,1])
 
@@ -559,10 +560,13 @@ def get_psi_multiprocessing_2(i):
 def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
-def fits_to_h5(file_input, file_ind):
+def fits_to_h5(file_input, file_ind, plot):
     f_name = file_input.split('/')[-1][:-8]
     # It takes about 30 seconds for the extraction from the fits files, which is
     # very CPU intensive. After that, it maxes out at 1 cpu/process.
+    file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v5.h5'
+    if os.path.exists(file_out):
+        return
     t0 = timer()
 
     # from table 3 of astro-ph/0302222
@@ -610,7 +614,7 @@ def fits_to_h5(file_input, file_ind):
     t2jd = 2.45e6
     jd2mjd = 2400000.5
 
-    data = fits.open(file_input)
+    data = fits.open(file_input, memmap=False)
 
     band_labels = data[2].columns.names[1:-6]
 
@@ -632,10 +636,41 @@ def fits_to_h5(file_input, file_ind):
 
     dt0 = np.diff(time).mean()
     
-    
+    if np.any(~np.isfinite(data[1].data['QUATERN'])):
+        print(f'{file_input} has NaNs in the quaternion...')
+        return
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(data[1].data['QUATERN'])
+    # This file has NaNs in the quaternion???
+    #/mn/stornext/d16/cmbco/bp/wmap/tod/wmap_tod_20013082358_20013091720_uncalibrated_v5.fits
 
     data.close()
+
+
+    if plot:
+        # Are gal and pol behaving as expected?
+        for i in range(len(gal_A)):
+            plt.figure('galtheta')
+            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), gal_A[i][:,0],
+                    color=plt.cm.viridis(i/len(gal_A)))
+            plt.figure('poltheta')
+            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), pol_A[i][:,0],
+                    color=plt.cm.viridis(i/len(gal_A)))
+            plt.figure('galphi')
+            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), gal_A[i][:,1],
+                    color=plt.cm.viridis(i/len(gal_A)))
+            plt.figure('polphi')
+            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), pol_A[i][:,1],
+                    color=plt.cm.viridis(i/len(gal_A)))
+        plt.figure('galtheta')
+        fi = str(file_ind).zfill(5)
+        plt.savefig(f'plots/pointing/galtheta_{fi}.png', bbox_inches='tight')
+        plt.figure('galphi')
+        plt.savefig(f'plots/pointing/galphi_{fi}.png', bbox_inches='tight')
+        plt.figure('poltheta')
+        plt.savefig(f'plots/pointing/poltheta_{fi}.png', bbox_inches='tight')
+        plt.figure('polphi')
+        plt.savefig(f'plots/pointing/polphi_{fi}.png', bbox_inches='tight')
+        plt.close('all')
 
     psi_A = get_psi(gal_A, pol_A, band_labels[::4])
     psi_B = get_psi(gal_B, pol_B, band_labels[1::4])
@@ -649,7 +684,7 @@ def fits_to_h5(file_input, file_ind):
         pix_A.append(ang2pix_multiprocessing(*args_A[i]))
         pix_B.append(ang2pix_multiprocessing(*args_B[i]))
 
-    n_per_day = 25
+    n_per_day = 1
 
     obs_inds = np.arange(n_per_day) + n_per_day*file_ind
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
@@ -662,18 +697,20 @@ def fits_to_h5(file_input, file_ind):
             write_file_parallel(*args[i])
 
 
-    print(f'\t{f_name} took {int(timer()-t0)} seconds')
+    #print(f'\t{f_name} took {int(timer()-t0)} seconds')
 
     #sleep(30)
 
     return
 
-def main(par=True):
+def main(par=True, plot=False):
     '''
     Make 1 hdf5 file for every 10 fits files
+    # Actually, just doing 1 hdf5 file for every fits file. Too much clashing is
+    # happening right now.
     '''
 
-    files = glob(prefix + 'tod/*.fits')
+    files = glob(prefix + 'tod/new/*.fits')
     files.sort()
     files = np.array(files)
 
@@ -681,20 +718,23 @@ def main(par=True):
 
 
     if par:
-        nprocs = 128
+        nprocs = 90
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
-        x = [pool.apply_async(fits_to_h5, args=[f, i]) for i, f in zip(inds, files)]
+        x = [pool.apply_async(fits_to_h5, args=[f, i, plot]) for i, f in zip(inds, files)]
         for i, res in enumerate(x):
-            #res.get()
-            res.wait()
+            res.get()
+            #res.wait()
         pool.close()
         pool.join()
     else:
         for i, f in zip(inds, files):
             print(i, f)
-            fits_to_h5(f,i)
+            fits_to_h5(f,i,plot)
 
 if __name__ == '__main__':
-    main(par=True)
+    '''
+    If the file exists, skip it!
+    '''
+    main(par=True, plot=False)
