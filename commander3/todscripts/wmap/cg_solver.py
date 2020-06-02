@@ -41,7 +41,7 @@ def cg_test():
     return
 
 def check_hdf5():
-    fname = '/mn/stornext/d16/cmbco/bp/wmap/data/wmap_K1_000001_v4.h5'
+    fname = '/mn/stornext/d16/cmbco/bp/wmap/data/wmap_K1_000024_v6.h5'
 
     f= h5py.File(fname, 'r')
     obsid = str(list(f.keys())[0])
@@ -55,16 +55,9 @@ def check_hdf5():
         gain = f[obsid + '/' + label + '/scalars'][0]
         DAs.append(TODs/gain)
         if label == 'K113':
-            pixA = f[obsid + '/' + label + '/pixA']
-            pixB = f[obsid + '/' + label + '/pixA']
+            pixA = np.array(f[obsid + '/' + label + '/pixA'])
+            pixB = np.array(f[obsid + '/' + label + '/pixB'])
     DAs = np.array(DAs)
-
-
-
-    hufftreeA = f[obsid + '/common/hufftree_A']
-    huffsymbA = f[obsid + '/common/huffsymb_A']
-    hufftreeB = f[obsid + '/common/hufftree_B']
-    huffsymbB = f[obsid + '/common/huffsymb_B']
     
     
     d1 = 0.5*(DAs[0] + DAs[1])
@@ -72,9 +65,13 @@ def check_hdf5():
     
     d = 0.5*(d1 + d2) # = i_A - i_B
     p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
+
+
     
     #plt.plot(d)
     #plt.show()
+    plt.plot(pixA)
+    plt.show()
 
     return
 
