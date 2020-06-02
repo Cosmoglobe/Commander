@@ -269,7 +269,6 @@ contains
        !   c%theta(j)%p%alm = c%theta(j)%p%alm + 1e-6
        !end if
        do pl = 1, c%theta(j)%p%info%nmaps
-          if (info%myid == 0) write(*,*) "number of pixreg ", c%npixreg(pl,j), "ind pixreg 1 ", c%ind_pixreg_arr(1,pl,j)          
           ! if sample only pol, skip T
           if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
 
@@ -284,7 +283,7 @@ contains
 
           if (cpar%almsamp_pixreg) then
              allocate(theta_pixreg_prop(c%npixreg(pl,j))) 
-             allocate(rgs(c%npixreg(pl,j))) ! Allocate random vector
+             allocate(rgs(0:c%npixreg(pl,j)-1)) ! Allocate random vector
           else 
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
           end if
@@ -477,10 +476,6 @@ contains
                          chisq_prior = chisq_prior + (alms(i,p,pl)/c%sigma_priors(p,j))**2
                       end do
                    end if
-                   ! Prior adjustments (Nessecary because of loop adjustment)
-                   !if (c%poltype(j) == 1) chisq_prior = chisq_prior*c%theta(j)%p%info%nmaps ! IF sampling pol
-                   !if (c%poltype(j) == 2 .and. pl == 2) chisq_prior = chisq_prior!*2.d0
-
                    chisq(i) = chisq(i) + chisq_prior
                 end if
 
@@ -507,7 +502,7 @@ contains
                 end if
 
                 write(*,fmt='(a,i6, a, f14.2, a, f10.2, a, f7.4, a)') tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - a00-prop: ", alms(i,0,pl)/sqrt(4.d0*PI), ar_tag
-                write(*,*) "pixregs_prop", theta_pixreg_prop(:)
+                write(*,fmt='(a,*(f7.3))') "pixreg-prop ", theta_pixreg_prop(1:)
              end if
 
              ! Broadcast result of accept/reject test
