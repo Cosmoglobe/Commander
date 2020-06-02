@@ -16,7 +16,7 @@ if(NOT HDF5_FOUND)
 		INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}"
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
-		COMMAND ./configure --prefix=<INSTALL_DIR> --enable-fortran #--enable-cxx #--enable-parallel
+		COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR> --enable-fortran #--enable-cxx #--enable-parallel
 		#BUILD_IN_SOURCE 1	
 		)
 	# adding hdf5_fortran and hdf5 into a variable (to be consistent with cmake docs)

@@ -33,10 +33,10 @@ ExternalProject_Add(${project}
 	CONFIGURE_COMMAND "${${project}_configure_command}"
 	#COMMAND ./configure --prefix=<INSTALL_DIR> #--enable-float --enable-threads --enable-openmp --enable-mpi 
 	# setting the compiler environment variable (gives weird errors for intel compiler otherwise)
-	COMMAND ${CMAKE_COMMAND} -E env CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} ./configure --prefix=<INSTALL_DIR> --enable-float --enable-threads --enable-openmp --with-sgimp #--enable-mpi 
+	COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR> --enable-float --enable-threads --enable-openmp --with-sgimp #--enable-mpi 
 	COMMAND make
 	COMMAND make install
-	COMMAND ${CMAKE_COMMAND} -E env CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} ./configure --prefix=<INSTALL_DIR> --enable-threads --enable-openmp --with-sgimp #--enable-mpi 
+	COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER}     MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR> --enable-threads --enable-openmp --with-sgimp #--enable-mpi 
 	COMMAND make
 	COMMAND make install
 	BUILD_COMMAND ""

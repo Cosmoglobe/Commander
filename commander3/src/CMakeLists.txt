@@ -139,6 +139,8 @@ target_link_libraries(${executable}
 	#"${out_lib_dir}/libhdf5_fortran.a"
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhdf5.a"
 	#"${out_lib_dir}/libhdf5.a"
+	# linking math library
+	-lm
 	${HDF5_Fortran_LIBRARIES}
 	#${HDF5_LIBRARIES}
 	#${hdf5_fortran}
