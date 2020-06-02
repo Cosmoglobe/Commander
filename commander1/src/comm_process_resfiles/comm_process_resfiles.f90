@@ -12,6 +12,7 @@ program comm_process_resfiles
      write(*,*) '  Valid operations are:'
      write(*,*) '     cl2fits            -- '
      write(*,*) '     sigma2fits         -- '
+     write(*,*) '     map2mean_cov       -- '
      write(*,*) '     pix2mean_cov       -- '
      write(*,*) '     alm2mean_cov       -- '
      write(*,*) '     free_temp2fits     -- '
@@ -67,6 +68,8 @@ program comm_process_resfiles
      call cl2fits_singlechain('mcmc')
   else if (trim(operation) == 'trim') then
      call trim_file
+  else if (trim(operation) == 'map2mean_cov') then
+     call maps2mean_cov
   else if (trim(operation) == 'pix2mean_cov') then
      call chain2mean_cov('pix')
   else if (trim(operation) == 'alm2mean_cov') then
@@ -654,6 +657,206 @@ contains
     end if
 
   end subroutine chain2mean_cov
+
+  subroutine maps2mean_cov
+    implicit none
+
+    character(len=256) :: outfile, temp, infile, prefix, beamfile, maskfile
+    character(len=4)   :: chain_text
+    character(len=5)   :: pix_text
+    character(len=1)   :: s_text(3) = ['T', 'Q', 'U']
+    integer(i4b)       :: i, j, k, l, m, n, p, unit, nreal, ordering, chain, lmax, counter, nval
+    integer(i4b)       :: nside, npix, nmaps, comp, ncomp, burnin, numiter, numchain, seed, numcomp, nmax
+    real(dp)           :: sigma_reg(3)
+    logical(lgt)       :: compute_covar
+    type(planck_rng)   :: handle
+    integer(i4b), allocatable, dimension(:)        :: ind, n_per_chain
+    integer(i4b), allocatable, dimension(:,:)      :: mask2map
+    real(dp),     allocatable, dimension(:)        :: map_1D, mean_1D, W
+    real(dp),     allocatable, dimension(:,:)      :: mean, cov, map, beam, alms_mean, map_1d_, mask
+    real(dp),     pointer,     dimension(:,:)      :: pixwin
+    real(sp),     allocatable, dimension(:,:)      :: alms
+    complex(dpc), allocatable, dimension(:,:,:)    :: alms_cmplx
+    real(sp),     allocatable, dimension(:,:,:)    :: fg_amp
+
+    if (iargc() < 8) then
+       write(*,*) '    Compute mean and covariance from pixel amplitude chain files'
+       write(*,*) '    Options:  [outprefix] [T regnoise] [QU regnoise] [seed] [compute_covar] [maskfile] [map1] [map22] ...'
+       stop
+    end if
+
+    call getarg(2,prefix)
+    call getarg(3,temp)
+    read(temp,*) sigma_reg(1)
+    call getarg(4,temp)
+    read(temp,*) sigma_reg(2)
+    sigma_reg(3) = sigma_reg(2)
+    call getarg(5,temp)
+    read(temp,*) seed
+    call getarg(6,temp)
+    read(temp,*) compute_covar
+    call getarg(7,maskfile)
+    nreal    = iargc()-7
+
+    i = getsize_fits(trim(maskfile), nside=nside, nmaps=nmaps, ordering=ordering)
+    npix = 12*nside**2
+
+    ! Read maskfile
+    allocate(mask(0:12*nside**2-1,nmaps))
+    call read_map(maskfile, mask)
+    n = count(mask > 0.5d0)
+    allocate(mask2map(n,2))
+    k = 1
+    do j = 1, nmaps
+       do i = 0, 12*nside**2-1
+          if (mask(i,j) > 0.5d0) then
+             mask2map(k,1) = i
+             mask2map(k,2) = j
+             k             = k+1
+          end if
+       end do
+    end do
+
+    ! Compute mean 
+    allocate(mean(0:npix-1,nmaps), mean_1D(n), cov(n,n), map(0:npix-1,nmaps), map_1D(n), map_1D_(n,1))
+    mean  = 0.d0
+    do i = 1, nreal       
+       call getarg(7+i,infile)
+       call read_map(infile, map)
+       mean  = mean + map
+       write(*,*) 'Computing mean -- i = ', i, ', n = ', nreal
+    end do
+    mean = mean / nreal
+
+    if (ordering == 2) then
+       do i = 1, nmaps
+          call convert_ring2nest(nside, mean(:,i))
+       end do
+    end if
+
+    if (compute_covar) then
+       ! Compute covariance matrix
+       cov   = 0.d0
+       do k = 1, nreal
+          call getarg(7+k,infile)
+          call read_map(infile, map)
+          write(*,*) 'Computing covmat -- i = ', k, ' of ', nreal
+             
+          if (ordering == 2) then
+             do j = 1, nmaps
+                call convert_ring2nest(nside, map(:,j))
+             end do
+          end if
+             
+          ! Linearize map
+          do j = 1, n
+             map_1D(j) = map(mask2map(j,1),mask2map(j,2)) - mean(mask2map(j,1),mask2map(j,2))
+          end do
+             
+          ! Compute outer product 
+          !$OMP PARALLEL PRIVATE(i,j) 
+          !$OMP DO SCHEDULE(guided)                   
+          do i = 1, n
+             do j = i, n
+                cov(j,i) = cov(j,i) + map_1D(i)*map_1D(j)
+             end do
+          end do
+          !$OMP END DO                             
+          !$OMP END PARALLEL           
+
+       end do
+       cov = cov / (nreal-1)
+       do i = 1, n
+          do j = 1, i
+             cov(j,i) = cov(i,j)
+          end do
+       end do
+    end if
+
+    ! Apply mask
+    where (mask < 0.5d0)
+       mean = -1.6375d30
+    end where
+    
+    ! Add regularization noise if requested
+    call rand_init(handle, seed)
+    if (any(sigma_reg > 0.d0)) then
+       do i = 1, n
+          j = mask2map(i,1)
+          k = mask2map(i,2)
+          if (sigma_reg(k) > 0.d0) then
+             mean(j,k) = mean(j,k) + sigma_reg(k)*rand_gauss(handle)
+             cov(i,i)  = cov(i,i) + sigma_reg(k)**2
+          end if
+       end do
+    end if
+
+    ! Output to standard formats
+    outfile = trim(prefix) // '_mean.fits'
+    call write_map3(outfile, mean, ordering=ordering)    
+
+    if (compute_covar) then
+       outfile = trim(prefix) // '_N.unf'
+       open(unit,file=trim(outfile),form='unformatted')
+       write(unit) n
+       write(unit) ordering ! Ordering
+       write(unit) nmaps ! Polarization status
+       do i = 1, n
+          write(unit) cov(:,i)
+       end do
+       write(unit) .false. ! Not inverse
+       close(unit)
+       
+!!$       open(54,file='test.dat')
+!!$       do i = 1, n
+!!$          write(58,*) i, cov(i,7418)
+!!$       end do
+!!$       close(54)
+       
+!!$       do k = 1, nmaps
+!!$          do p = nint(0.3*npix), npix-1, nint(0.3*npix)
+!!$             do i = 1, nmaps
+!!$                mean(:,i) = cov((i-1)*npix+1:i*npix,(k-1)*npix+1+p)
+!!$             end do
+!!$             if (any(mean /= 0.d0)) then
+!!$                call int2string(p,pix_text)
+!!$                outfile = trim(prefix) // '_' // s_text(k) // &
+!!$                     & '_pix' // pix_text // '.fits'
+!!$                call write_map3(outfile, mean, ordering=ordering)    
+!!$             end if
+!!$          end do
+!!$       end do
+       
+       k = 0
+       mean = -1.6375d30
+       do i = 1, n
+          j = mask2map(i,1)
+          k = mask2map(i,2)
+          mean(j,k) = sqrt(cov(i,i))
+       end do
+       outfile = trim(prefix) // '_rms.fits'
+       call write_map3(outfile, mean, ordering=ordering)    
+       
+       write(*,*) 'Computing eigenspectrum'
+       allocate(W(n))
+       call get_eigenvalues(cov, W)
+       open(unit,file=trim(prefix)//'_W.dat')
+       do i = 1, n
+          if (W(i) == 0.d0) then
+             write(unit,*) '# ', i, 0., 0.
+          else
+             write(unit,*) i, abs(real(W(i),sp)), real(W(i),sp)
+          end if
+       end do
+       close(unit)
+       j = 1
+       do while (W(j) == 0.d0)
+          j = j+1
+       end do
+       write(*,*) '   Condition number = ', W(n)/W(j)
+    end if
+
+  end subroutine maps2mean_cov
 
 
   subroutine mean_rms2fits

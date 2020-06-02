@@ -13,7 +13,9 @@ The latest version - **Commander 3** - brings together critical features such as
 
 To successfully run Commander, you need the following libraries:
 
-- [LibSharp](https://github.com/Libsharp/libsharp)
+- [HDF5](https://www.hdfgroup.org/)
+- [FFTW](http://www.fftw.org/)
+- [LibSharp](https://gitlab.mpcdf.mpg.de/mtr/libsharp/-/tree/master)
 - [Healpix](https://healpix.sourceforge.io/)
 - [CFITSIO](https://heasarc.gsfc.nasa.gov/fitsio/)
 - [LAPACK](http://www.netlib.org/lapack/)
