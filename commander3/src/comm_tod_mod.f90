@@ -124,6 +124,7 @@ module comm_tod_mod
      procedure                        :: decompress_pointing_and_flags
      procedure                        :: tod_constructor
      procedure                        :: load_instrument_file
+     procedure                        :: precompute_lookups
   end type comm_tod
 
   abstract interface
@@ -169,9 +170,7 @@ contains
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
 
-    integer(i4b) :: i, j, k, ndelta, np_vec, ierr
-    real(dp)     :: f_fill, f_fill_lim(3), theta, phi
-    integer(i4b), allocatable, dimension(:) :: pix
+    integer(i4b) :: i, ndelta, ierr
     character(len=512) :: datadir
 
     self%tod_type      = tod_type
@@ -251,6 +250,17 @@ contains
     allocate(self%bp_delta(0:self%ndet,ndelta))
     self%bp_delta = 0.d0
 
+  end subroutine tod_constructor
+
+  subroutine precompute_lookups(self)
+    implicit none
+    class(comm_tod),                intent(inout)  :: self
+
+    real(dp)     :: f_fill, f_fill_lim(3), theta, phi
+    integer(i4b) :: i, j, k,np_vec, ierr
+    integer(i4b), allocatable, dimension(:) :: pix
+
+
     ! Lastly, create a vector pointing table for fast look-up for orbital dipole
     np_vec = 12*self%nside**2 !npix
     allocate(self%pix2vec(3,0:np_vec-1))
@@ -296,8 +306,7 @@ contains
        write(*,*) '  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/self%info%nprocs,sp), real(100*f_fill_lim(2),sp)
     end if
 
-
-  end subroutine tod_constructor
+  end subroutine precompute_lookups
 
   !**************************************************
   !             Utility routines
@@ -392,8 +401,8 @@ contains
        call read_hdf(file, "common/nside",  self%nside)
        call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
-       call read_hdf(file, "common/polang", polang_buf)
-       call read_hdf(file, "common/mbang",  mbang_buf)
+       call read_hdf(file, "common/polang", polang_buf, opt=.true.)
+       call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
 
 
 !!$          do j = 1, ndet_tot
@@ -529,7 +538,7 @@ contains
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
     call read_hdf(file, slabel // "/common/time",  self%t0)
-    call read_hdf(file, slabel // "/common/satpos",  self%satpos)
+    call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
     call wall_time(t2)
     t_tot(1) = t2-t1
 
