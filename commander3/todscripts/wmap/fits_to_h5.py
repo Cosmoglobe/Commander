@@ -722,7 +722,7 @@ def main(par=True, plot=False):
 
     files = glob(prefix + 'tod/new/*.fits')
     files.sort()
-    files = np.array(files)[:50]
+    files = np.array(files)
 
     inds = np.arange(len(files))
 
@@ -742,14 +742,17 @@ def main(par=True, plot=False):
             print(i, f)
             fits_to_h5(f,i,plot)
 
+    # I don't know what this line of code was doing, so I will skip it...
+    '''
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for band in bands:
-        file_name = prefix + f'data/filelist_{band}.txt'
+        file_name = prefix + f'data/filelist_{band}_v6.txt'
         data = np.loadtxt(file_name, dtype=str)
         with open(file_name, 'r+') as f:
             content = f.read()
             f.seek(0,0)
             f.write(line.rstrip('\r\n') + '\n' + int(len(data)))
+    '''
 if __name__ == '__main__':
     '''
     If the file exists, skip it!
