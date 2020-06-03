@@ -104,6 +104,8 @@ contains
     ! TODO: this probabl needs a seperate fucntion/ modifications for wmap
     call constructor%read_tod(constructor%label)
 
+    call constructor%precompute_lookups()
+
     datadir = trim(cpar%datadir)//'/'
 
     ! Initialize bandpass mean and proposal matrix
@@ -165,6 +167,8 @@ contains
     t_tot   = 0.d0
     call wall_time(t5)
 
+
+    write(*,*) "Into Process WMAP tod"
 
     ! Set up full-sky map structures
     call wall_time(t1)
