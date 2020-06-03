@@ -1,0 +1,211 @@
+import h5py
+import commander_tools.tod_tools.huffman as huffman
+import healpy as hp
+import numpy as np
+import multiprocessing as mp
+import os
+
+class commander_tod:
+
+    def __init__(self, outPath, freqs, version, dicts):
+        self.outPath = outPath
+        self.filelists = dicts
+        self.version = version
+
+    #initilizes a file for a single od
+    def init_file(self, freq, od, overwrite):
+        self.huffDict = {}
+        self.attrDict = {}
+        self.encodings = {}
+        self.pids = {}
+
+        self.od = od
+        self.freq = freq
+        self.outName = os.path.join(self.outPath, 'LFI_0' + str(freq) + '_' + str(od).zfill(6) + '.h5')
+
+        self.exists = False
+        if os.path.exists(self.outName):
+            self.exists = True
+
+        if self.exists and overwrite:
+            os.remove(self.outName)
+        try:
+            self.outFile = h5py.File(self.outName, 'a')
+
+            if self.exists and not overwrite:
+                for pid in self.load_field('/common/pids'):
+                    loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
+                    self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+        except (KeyError, OSError):
+            if(hasattr(self, 'outFile')):
+                self.outFile.close()
+            os.remove(self.outName)
+            self.exists = False
+            self.outFile = h5py.File(self.outName, 'a')
+
+    #File Writing functions
+    def add_field(self, fieldName, data, compression=None):
+        writeField = True
+        if(compression is not None and compression is not []):
+            compInfo = ''
+            for compArr in compression:
+                compInfo += compArr[0] + ' '
+                if compArr[0] == 'dtype':
+                    data=np.array(data, dtype=compArr[1]['dtype'])
+
+                elif compArr[0] == 'sigma':
+                    data = np.int32(compArr[1]['nsigma'] * data/(compArr[1]['sigma0']))
+                    metaName = '/common/n' + fieldName.split('/')[-1] + 'sigma'
+                    self.encodings[metaName] = compArr[1]['nsigma']
+                    self.add_attribute(fieldName, 'nsigma', compArr[1]['nsigma'])
+                    self.add_attribute(fieldName, 'sigma0', compArr[1]['sigma0'])
+
+                elif compArr[0] == 'digitize':
+                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
+                    data = np.digitize(data, bins)
+                    metaName = '/common/n' + fieldName.split('/')[-1]
+                    self.add_encoding(metaName, compArr[1]['nbins'])
+                    self.add_attribute(fieldName, 'min', compArr[1]['min'])
+                    self.add_attribute(fieldName, 'max', compArr[1]['max'])
+                    self.add_attribute(fieldName, 'nbins', compArr[1]['nbins'])
+                
+
+                elif compArr[0] == 'huffman':
+                    dictNum = compArr[1]['dictNum']
+                    if dictNum not in self.huffDict.keys():
+                        self.huffDict[dictNum] = {}
+                    delta = np.diff(data)
+                    delta = np.insert(delta, 0, data[0])
+                    self.huffDict[dictNum][fieldName] = delta
+                    self.add_attribute(fieldName, 'huffmanDictNumber', dictNum)
+                    writeField = False 
+
+                else:
+                    raise ValueError('Compression type ' + compArr[0] + ' is not a recognized compression')
+            self.add_attribute(fieldName, 'compression', compInfo)
+            print("adding " + compInfo + ' to ' + fieldName)
+
+        if writeField:
+            self.outFile.create_dataset(fieldName, data=data)
+            for attr in self.attrDict.copy().keys():
+                fName, attrName = attr.split('@')
+                if fName == fieldName:
+                    self.add_attribute(fieldName, attrName, self.attrDict.pop(attr))
+
+    def add_attribute(self, fieldName, attrName, data):
+        try:
+            self.outFile[fieldName].attrs[attrName] = data
+        except KeyError as k:
+            self.attrDict[fieldName + '@' + attrName] = data   
+ 
+    def add_encoding(self, encoding, value):
+        if encoding not in self.encodings.keys():
+            self.encodings[encoding] = value
+        else:
+            if self.encodings[encoding] != value:
+               print('Warning: Inconsistant encoding value ' + encoding + ' is set to ' + str(self.encodings[encoding]) + ' but wants to be ' + str(value))
+
+    def finalize_file(self):
+
+        if(not self.exists):
+            for encoding in self.encodings.keys():
+                self.add_field(encoding, self.encodings[encoding])
+
+            self.add_field('/common/version', self.version)
+            self.add_field('/common/pids', list(self.pids.keys()))
+
+        for pid in self.pids.keys():
+            self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
+ 
+        return
+
+    def finalize_chunk(self, pid, loadBalance=[0,0]):
+        if len(loadBalance) != 2:
+            raise ValueError('Load Balancing numbers must be length 2')
+        for key in self.huffDict.keys():
+            h = huffman.Huffman()
+            h.GenerateCode(list(self.huffDict[key].values()))
+            huffArray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
+            numStr = str(key)
+            if(key == 1):
+                numStr = ''
+
+            self.add_field('/' + str(pid).zfill(6) + '/common/hufftree' + numStr, huffArray)
+            self.add_field('/' + str(pid).zfill(6) + '/common/huffsymb' + numStr, h.symbols)
+            with np.printoptions(threshold=np.inf):
+                print(huffArray, len(huffArray), len(h.symbols))
+            for field in self.huffDict[key].keys():
+                self.add_field(field, np.void(bytes(h.byteCode(self.huffDict[key][field]))))
+
+        self.huffDict = {}
+        self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)
+        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+
+    def compute_version(self):
+        return
+
+    def make_filelists(self):
+        for freq in self.filelists.keys():
+            outfile = open(os.path.join(self.outPath, 'filelist_' + str(freq) + '.txt'), 'w')
+            outfile.write(str(len(self.filelists[freq])) + '\n')
+            for buf in self.filelists[freq].values():
+                #print(buf, len(buf))
+                outfile.write(buf)
+
+            outfile.close()
+
+        return
+
+    #File Reading Functions
+    def load_field(self, fieldName):
+        try:
+            compStr = self.outFile[fieldName].attrs['compression']
+        except KeyError:
+            return self.outFile[fieldName]
+
+        return self.decompress(fieldName, compStr)       
+
+    def load_all_fields(self):
+        return
+
+    def read_across_files(self, fieldName):
+        return
+
+    def decompress(self, field, data=None, huffTree=None, huffSymb=None, compression=''):
+        comps = compression.split(' ')
+        if(data==None):
+            data = self.outFile[field]
+        for comp in comps.reverse():
+            if comp == 'dtype':
+                pass
+            elif comp == 'sigma':
+                sigma0 = self.outFile[field].attrs['sigma0']
+                nsigma = self.outFile[field].attrs['nsigma']
+                data = data * sigma0/nsigma                
+
+            elif comp == 'digitize':
+                nbins = self.outFile[field].attrs['nbins']
+                nmin = self.outFile[field].attrs['min']
+                nmax = self.outFile[field].attrs['max']
+
+                bins = np.linspace(nmin, nmax, num = nbins)
+                data = bins[data]
+
+            elif comp == 'huffman':
+                raise NotImplementedError()
+                if(huffTree == None and huffSymb == None):
+                    pid = field.split('/')[0]
+                    huffNum = str(self.outFile[field].attrs['huffmanDictNumber'])
+                    if huffNum == '1':
+                        huffNum = ''
+                    huffTree = self.load_field('/' + pid + '/common/hufftree' + huffNum)
+                    huffSymb = self.load_field('/' + pid + '/common/huffsymb' + huffNum)
+                #TODO: the huffman decoding stuff needs to be written
+                h = huffman.Huffman(tree=huffTree, symb=huffSymb)
+                data = h.Decoder(data)
+                
+            else:
+                raise ValueError('Decompression type ' + comp + ' is not a recognized operation')
+        return data
+
+

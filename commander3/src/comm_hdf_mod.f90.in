@@ -208,19 +208,29 @@ contains
 
   {{for d in range(ndim)}}
   {{for t in types}}
-  subroutine read_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val)
+  subroutine read_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val, opt)
     implicit none
     type(hdf_file) :: file
     character(len=*), intent(in)  :: setname
+    logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
     integer(hsize_t) :: s({{d}})
     integer(i4b)     :: ext({{d}})
     {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(out) :: val
+    logical(lgt) :: opt_   
+ 
+    if(.not. present(opt)) then
+      opt_ = .false.
+    else
+      opt_ = opt
+    end if
     call h5eset_auto_f(0, hdferr)
     call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
     if (hdferr /= 0) then
-       write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       if(.not. opt_) then
+         write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       end if
        return
     end if
     call open_hdf_set(file, setname)
@@ -229,6 +239,7 @@ contains
        ! Validate that sizes are consistent
        call get_size_hdf(file, setname, ext)
        if (any(ext /= s)) then
+        if(.not. opt_) then
           write(*,*) 'HDF error -- inconsistent array sizes'
           write(*,*) '             Filename       = ', trim(file%filename)
           write(*,*) '             Setname        = ', trim(setname)
@@ -236,6 +247,14 @@ contains
           write(*,*) '             Requested size = ', int(s,i4b)
           !write(*,*) v(-1000000)
           stop
+        else
+          write(*,*) 'Warning: Optional HDF field has wrong dimentions'
+          write(*,*) '             Filename       = ', trim(file%filename)
+          write(*,*) '             Setname        = ', trim(setname)
+          write(*,*) '             HDF size       = ', ext
+          write(*,*) '             Requested size = ', int(s,i4b)
+          return
+        end if
        end if
     end if
     call h5dread_f(file%sethandle, {{t[4]}}, val, s, file%status)
@@ -350,7 +369,6 @@ contains
   end subroutine read_hdf_string2
 
 
-
   ! *****************************************************
   ! Set write operations
   ! *****************************************************
@@ -374,7 +392,7 @@ contains
   ! Sliced set operations.
   !  These are like read/write, but the dataset is
   !  indexed with a slice. Note that the dataset must
-  !  exist beforehand. Use crate_hdf_set for this.
+  !  exist beforehand. Use create_hdf_set for this.
   ! *****************************************************
 
   {{for op in [["read","out"],["write","in"]]}}
@@ -411,6 +429,11 @@ contains
   {{endfor}}
   {{endfor}}
   {{endfor}}
+
+  ! *****************************************************
+  ! Optional Reads
+  ! *****************************************************
+
 
   ! *****************************************************
   ! Dataset creation operation
