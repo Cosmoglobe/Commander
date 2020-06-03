@@ -495,7 +495,8 @@ contains
     real(dp), dimension(1:),    intent(out)           :: eigenvals
     real(dp), dimension(1:,1:), intent(out)           :: eigenvectors
 
-    integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
+    integer(i8b)     :: i, ldb
+    integer(i4b)     :: n, lda, lwork, liwork, info
     character(len=1) :: job, uplo
     real(dp),     allocatable, dimension(:)   :: work
     integer(i4b), allocatable, dimension(:)   :: iwork    
@@ -573,8 +574,9 @@ contains
   subroutine eigen_decomp(matrix, eigenvals, eigenvectors, status)
     implicit none
     real(dp)              :: matrix(:,:), eigenvals(:), eigenvectors(:,:)
-    real(dp), allocatable :: work(:), iwork(:)
-    integer(i4b)          :: n, status
+    real(dp), allocatable :: work(:)
+    integer(i4b),allocatable :: iwork(:)
+    integer(i4b)          :: status, n
     n = size(matrix,1)
     allocate(work(2*n**2+6*n+1), iwork(5*n+3))
     eigenvectors = matrix
@@ -590,7 +592,8 @@ contains
     real(dp), dimension(1:,1:), intent(inout) :: A
     logical(lgt), intent(in), optional :: trunc
 
-    integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
+    integer(i8b)     :: i, ldb
+    integer(i4b) :: n, lda, lwork, liwork, info
     character(len=1) :: job, uplo
     real(dp),     allocatable, dimension(:,:) :: V
     real(dp),     allocatable, dimension(:)   :: W, work
@@ -650,7 +653,8 @@ contains
     real(dp),                   intent(in),    optional :: pow2
     real(dp), dimension(1:,1:), intent(inout), optional :: A2
 
-    integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
+    ! changed kind8 to kind4
+    integer(i4b)     :: i, n, liwork, lwork, lda, ldb, info
     character(len=1) :: job, uplo
     real(dp),     allocatable, dimension(:,:) :: V, WVt
     real(dp),     allocatable, dimension(:)   :: W, work
@@ -784,7 +788,8 @@ contains
     
     real(dp), allocatable, dimension(:)               :: eigenvals
     real(dp), allocatable, dimension(:,:)             :: eigenvectors, matrix2
-    integer(i4b)                                      :: myid, i, n    
+    integer(i4b)                                      :: myid, i    
+    integer(i4b) :: n
     real(dp)                                          :: maxeigenval  
 
     myid = 1000

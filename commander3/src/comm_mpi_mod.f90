@@ -16,14 +16,16 @@ contains
     integer(i4b),                   intent(in)              :: dim, comm
     integer(i4b),                   intent(inout)           :: ierr
     logical(lgt),                   intent(in)              :: in_place
-    real(dp),     dimension(:),     intent(in),    optional :: in_dp_1d
+    !real(dp),     dimension(:),     intent(in),    optional :: in_dp_1d
+    integer(i4b),     dimension(:),     intent(in),    optional :: in_dp_1d
     real(dp),     dimension(:),     intent(inout), optional :: out_dp_1d
     real(dp),     dimension(:,:),   intent(in),    optional :: in_dp_2d
     real(dp),     dimension(:,:),   intent(inout), optional :: out_dp_2d
     real(dp),     dimension(:,:,:), intent(in),    optional :: in_dp_3d
     real(dp),     dimension(:,:,:), intent(inout), optional :: out_dp_3d
 
-    integer(i4b) :: i, j, n, m
+    ! should be of kind8 <= getting mistmatch error if they are of kind4
+    integer(i8b) :: i, j, n, m
 
     if (present(out_dp_1d)) then
        n = size(out_dp_1d,dim=1)

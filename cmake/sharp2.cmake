@@ -1,10 +1,12 @@
-# Project: LibSharp
+# Project: LibSharp2
+# Link: https://gitlab.mpcdf.mpg.de/mtr/libsharp/-/tree/master
 # File which contains setup for the project 
 # Author: Maksym Brilenkov
 
 # define this variable here for easier reference in the future
 
 #message("MY CMAKE FLAGS ARE "${CMAKE_C_FLAGS})#"${${project}_configure_command}")
+set(SHARP2_C_FLAGS "-DUSE_MPI -std=c99 -O3 -ffast-math")
 
 ExternalProject_Add(${project}
 	URL "${${project}_url}"
@@ -15,7 +17,7 @@ ExternalProject_Add(${project}
 	# commands how to build the project
 	CONFIGURE_COMMAND "${${project}_configure_command}"
 	#COMMAND CFLAGS="-DUSE_MPI" ${download_dir}/${project}/src/${project}/configure --prefix=<INSTALL_DIR>
-	COMMAND CFLAGS=-DUSE_MPI ./configure #--prefix=<INSTALL_DIR>
+	COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
 	#BUILD_IN_SOURCE 1	
 	INSTALL_COMMAND ""
 	#DEPENDS mpi

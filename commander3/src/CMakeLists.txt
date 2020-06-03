@@ -89,9 +89,11 @@ set(sources
 # manually setting Fortran compiler flags for different compilers
 if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
 	# To prevent error with length and turn type mismatch into a warnings
-	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -W -ffree-line-length-none -fallow-argument-mismatch")
+	# -fallow-argument-mismatch <= is for 10x compilers
+	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -W -ffree-line-length-none -fallow-argument-mismatch -std=legacy")
 	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wl -ffree-line-length-none -fallow-argument-mismatch")
-	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -Wno-argument-mismatch")
+	# -Wno-argument-mismatch <= is th flag for 9x and older compilers
+	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -Wno-argument-mismatch")
 	message(STATUS "CMAKE_Fortran_FLAGS are: ${CMAKE_Fortran_FLAGS}")
 endif()
 #

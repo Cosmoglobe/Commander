@@ -17,7 +17,7 @@ ExternalProject_Add(${project}
 	BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" 
 	INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}"
 	# commands how to build the project
-	CONFIGURE_COMMAND ./configure #COMMAND cd <SOURCE_DIR> 
+	CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure #COMMAND cd <SOURCE_DIR> 
 	#COMMAND ${CMAKE_COMMAND} cd "${download_dir}/${project}/src/${project}" #"${${project}_configure_command}"
 	#COMMAND ${download_dir}/${project}/src/${project}/configure --auto=f90 --prefix=<INSTALL_DIR>
 	#COMMAND ./configure #--prefix=<INSTALL_DIR>

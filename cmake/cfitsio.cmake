@@ -28,7 +28,7 @@ ExternalProject_Add(${project}
 	#COMMAND ./configure --prefix=<INSTALL_DIR> #"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild2/build/install/bin"
 	#COMMAND export PATH=${out_install_dir}/include/:${out_lib_dir}/:${out_bin_dir}/curl-config #"${${project}_configure_command}"
 	#COMMAND export PATH=$PATH:/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild2/build/install/bin #"${${project}_configure_command}"
-	COMMAND ./configure --prefix=<INSTALL_DIR> --disable-curl # <= if specified manually, the cmake args will not work
+	COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR> --disable-curl # <= if specified manually, the cmake args will not work
 	#CMAKE_ARGS
 	# specifying where to find curl library
 	#-DCURL_INCLUDE_DIR:PATH=${CURL_INCLUDE_DIR}

@@ -13,7 +13,7 @@ set(CMAKE_INSTALL_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/install"
 	"Directory where to install commander dependencies")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/lib")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/bin")
-set(DOXYGEN_BUILD_DOCS OFF 
+set(DOXYGEN_BUILD_DOCS ON #OFF 
 	CACHE BOOL
 	"Determine whether to use doxygen or not")
 
