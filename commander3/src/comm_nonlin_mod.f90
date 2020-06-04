@@ -283,8 +283,8 @@ contains
           if (c%lmax_ind_pol(pl,j) < 0) cycle
 
           if (cpar%almsamp_pixreg) then
-             allocate(theta_pixreg_prop(c%npixreg(pl,j))) 
-             allocate(rgs(0:c%npixreg(pl,j)-1)) ! Allocate random vector
+             allocate(theta_pixreg_prop(0:c%npixreg(pl,j))) 
+             allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vector
           else 
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
           end if
@@ -341,6 +341,7 @@ contains
                    do p = 1, c%npixreg(pl,j)
                       !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
                       chisq_prior = chisq_prior + ((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                      chisq_prior = chisq_prior*c%npix_pixreg(p,pl,j)/c%theta(j)%p%info%npix
                    end do
                    !write(*,*) "prior 0", chisq_prior
                 end if
@@ -390,7 +391,7 @@ contains
                    theta_pixreg_prop = c%theta_pixreg(:,pl,j) + 0.05d0*rgs !matmul(c%L(:,:,pl,j), rgs)
                 end if
 
-                call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j), MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
+                call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
 
                 ! Loop over pixels in region
                 do pix = 0, theta%info%np-1
@@ -480,9 +481,8 @@ contains
                       ! Apply a prior per region
                       chisq_prior = 0.d0
                       do p = 1, c%npixreg(pl,j)
-                         !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
-                         !write(*,*) ((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2
                          chisq_prior = chisq_prior + ((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2
+                         chisq_prior = chisq_prior*c%npix_pixreg(p,pl,j)/c%theta(j)%p%info%npix
                       end do
                       !write(*,*) "prior ", chisq_prior
                    end if
@@ -512,10 +512,10 @@ contains
                    ar_tag = achar(27)//'[91m'
                 end if
 
-                write(outmessage,fmt='(a,i6, a, f12.2, a, f10.2, a, f7.4)') tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - a00-prop: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f10.2, a, f7.4)') tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - a00-prop: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 if (cpar%almsamp_pixreg) then
-                   write(outmessage, fmt='(a, *(f7.3))') "regs:", theta_pixreg_prop(:9) ! Max space
+                   write(outmessage, fmt='(a, *(f7.3))') "regs:", theta_pixreg_prop(1:) ! Max space
                    write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 end if
              end if
@@ -557,7 +557,7 @@ contains
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
                    write(*,fmt='(a,i6, a, f12.2, a, f10.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - a00-curr: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                   if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(:,pl,j)
+                   if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
@@ -570,7 +570,7 @@ contains
                    ! Write to screen
                    call wall_time(t2)
                    ts = (t2-t1)/DFLOAT(check_every) ! Average time per sample
-                   write(*, fmt='(a, i6, a, i6, a, f8.2, a, f5.3, a, f6.2)') tag, i, " - diff last ", check_every, " ", diff, " - accept rate: ", accept_rate, " - time/sample: ", ts
+                   write(*, fmt='(a, i6, a, i4, a, f8.2, a, f5.3, a, f5.2)') " "//tag, i, " - diff last ", check_every, " ", diff, " - accept rate: ", accept_rate, " - time/sample: ", ts
                    call wall_time(t1)
 
                    ! Adjust steplen in tuning iteration
