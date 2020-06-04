@@ -338,10 +338,11 @@ contains
                 else
                    ! Apply a prior per region
                    chisq_prior = 0.d0
-                   do p = 0, c%npixreg(pl,j)-1
+                   do p = 1, c%npixreg(pl,j)
+                      !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
                       chisq_prior = chisq_prior + ((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2
                    end do
-                   !write(*,*) "prior ", chisq_prior
+                   !write(*,*) "prior 0", chisq_prior
                 end if
 
                 chisq(0) = chisq(0) + chisq_prior
@@ -381,7 +382,7 @@ contains
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
                    rgs = 0.d0
-                   do p = 0, c%npixreg(pl,j)-1
+                   do p = 1, c%npixreg(pl,j)
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                    end do
 
@@ -478,7 +479,9 @@ contains
                    else
                       ! Apply a prior per region
                       chisq_prior = 0.d0
-                      do p = 0, c%npixreg(pl,j)-1
+                      do p = 1, c%npixreg(pl,j)
+                         !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
+                         !write(*,*) ((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2
                          chisq_prior = chisq_prior + ((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2
                       end do
                       !write(*,*) "prior ", chisq_prior
