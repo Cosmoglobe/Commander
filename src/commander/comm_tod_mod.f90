@@ -30,6 +30,7 @@ module comm_tod_mod
      real(dp),     allocatable, dimension(:)  :: log_nu     ! Noise power spectrum bins; in Hz
      integer(i4b), allocatable, dimension(:,:)  :: offset_range    ! Beginning and end tod index of every offset region
      real(sp),     allocatable, dimension(:)    :: offset_level    ! Amplitude of every offset region(step)
+     integer(i4b), allocatable, dimension(:,:)  :: jumpflag_range  ! Beginning and end tod index of regions where jumps occur
   end type comm_detscan
 
   type :: comm_scan

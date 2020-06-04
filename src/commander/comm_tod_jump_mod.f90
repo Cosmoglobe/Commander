@@ -425,7 +425,7 @@ contains
   end subroutine gap_fill_linear
 
 
-  subroutine jump_scan(tod,flag,jumps,offset_range,offset_level,handle)
+  subroutine jump_scan(tod,flag,jumps,offset_range,offset_level,handle,jumpflag_range)
     implicit none
     real(sp),     dimension(:),   intent(in)    :: tod
     integer(i4b), dimension(:),   intent(inout) :: flag
@@ -433,6 +433,7 @@ contains
     integer(i4b), allocatable,    dimension(:,:), intent(inout) :: offset_range
     real(sp),    allocatable,     dimension(:),   intent(inout) :: offset_level
     type(planck_rng),             intent(inout) :: handle
+    integer(i4b), allocatable,    dimension(:,:), intent(inout) :: jumpflag_range
  
     real(sp), allocatable, dimension(:)        :: tod_gapfill
     real(dp), allocatable, dimension(:)        :: rolling_std
@@ -512,7 +513,7 @@ contains
     
     allocate(offset_range(num_offsets,2))
     allocate(offset_level(num_offsets))
-
+    if (num_offsets>1) allocate(jumpflag_range(num_offsets-1,2))
     
     ! Define offset regions
     switch = .true.
@@ -552,9 +553,17 @@ contains
        if (i==num_offsets) exit
        delta_r = sum(tod_gapfill(high-len_min:high))/(len_min+1) - offset_level(i)
     end do
-    
+
     ! Add jump regions to full flags
     where (jumps==1) flag=1
+
+    if (num_offsets>1) then
+      do i=1, num_offsets-1
+         jumpflag_range(i,1) = offset_range(i,2)   + 1
+         jumpflag_range(i,2) = offset_range(i+1,1) - 1
+      end do
+   end if
+
   
   end subroutine jump_scan
 
@@ -618,6 +627,47 @@ contains
    deallocate(offset_level_temp)
 
   end subroutine update_offset_list
+
+
+  subroutine add_jumpflags(jumpflag_range,flag)
+   implicit none
+   integer(i4b), dimension(:,:), intent(in)    :: jumpflag_range
+   integer(i4b), dimension(:),   intent(inout) :: flag
+
+   integer(i4b)                                :: num_jump, i, i_min, i_max
+
+   num_jump = size(jumpflag_range)/2
+
+   do i=1, num_jump
+      i_min = jumpflag_range(i,1)
+      i_max = jumpflag_range(i,2)
+
+      flag(i_min:i_max) = 1
+   end do
+  end subroutine add_jumpflags
+
+
+  subroutine update_jumpflag(jumpflag_new,jumpflag_global)
+   implicit none
+   integer(i4b),              dimension(:,:), intent(in)    :: jumpflag_new
+   integer(i4b), allocatable, dimension(:,:), intent(inout) :: jumpflag_global
+
+   integer(i4b)                                             :: n_row_new, n_row_global
+   integer(i4b), allocatable, dimension(:,:)                :: jumpflag_temp
+
+   n_row_new    = size(jumpflag_new)/2
+   n_row_global = size(jumpflag_global)/2
+
+
+   allocate(jumpflag_temp(n_row_global,2))
+   jumpflag_temp = jumpflag_global
+   deallocate(jumpflag_global)
+   allocate(jumpflag_global(n_row_global+n_row_new,2))
+   jumpflag_global(1:n_row_global,:)                        = jumpflag_temp
+   jumpflag_global(n_row_global+1:n_row_global+n_row_new,:) = jumpflag_new
+   deallocate(jumpflag_temp)
+
+  end subroutine update_jumpflag
 
 
 end module comm_tod_jump_mod
