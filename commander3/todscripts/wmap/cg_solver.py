@@ -76,6 +76,7 @@ def cg_test():
     return
 
 def get_data(fname, nside=256):
+    ntodsigma = 100
     npix = hp.nside2npix(nside)
     M = np.zeros(npix)
     b = np.zeros(npix)
@@ -93,8 +94,11 @@ def get_data(fname, nside=256):
     pixBs = []
     sigmas = []
     for num, label in enumerate(labels):
-        TODs = np.array(f[obsid + '/' + label + '/tod'])
+        TODInds = np.array(f[obsid + '/' + label + '/tod'])
+
         gain, sigma0 = f[obsid + '/' + label + '/scalars'][0:2]
+        TODs = TODInds*sigma0/ntodsigma
+        TODs -= TODs.mean()
         DAs[num] = DAs[num] + TODs.tolist()
         sigmas.append(sigma0)
         if label == 'K113':
@@ -132,7 +136,9 @@ def get_cg_K(nside=256):
     from glob import glob
     fnames = glob('/mn/stornext/d16/cmbco/bp/wmap/data/wmap_K1_*v6.h5')
     fnames.sort()
+    print(len(fnames))
     fnames = fnames[:1000]
+    #fnames = fnames[:100]
     #fnames = [fnames[0]]
     pool = Pool(processes=120)
     x = [pool.apply_async(get_data, args=[fname]) for fname in fnames]
@@ -211,13 +217,13 @@ def get_cg_K(nside=256):
     print(f'Done with {i} iterations, delta is {delta_new}')
     print(f"Each iteration is {np.mean(dts)}\pm{np.std(dts)}")
 
-    #hp.mollview(b, cmap='coolwarm', norm='hist', title='Noise-weighted average')
-    #hp.mollview(M_diag, norm='hist', title='Preconditioner')
-    #hp.mollview(x, norm='hist', title='Solution')
-    #hp.mollview(x, min=-250, max=250, title='Solution')
+    hp.mollview(b, cmap='coolwarm', norm='hist', title='Noise-weighted average')
+    hp.mollview(M_diag, norm='hist', title='Preconditioner')
+    hp.mollview(x, norm='hist', title='Solution')
+    hp.mollview(x, min=-250, max=250, title='Solution')
 
 
-    #plt.show()
+    plt.show()
 
     
 

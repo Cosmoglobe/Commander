@@ -634,7 +634,7 @@ def fits_to_h5(file_input, file_ind, plot):
     daflags = data[2].data['daflags']
 
     TODs = []
-    for key in data[2].columns.names[1:-6]:
+    for key in band_labels:
         TODs.append(data[2].data[key])
 
     
