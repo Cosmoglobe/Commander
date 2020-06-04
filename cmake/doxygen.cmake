@@ -59,20 +59,6 @@ if(DOXYGEN_BUILD_DOCS)
 			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 			-DCMAKE_BUILD_TYPE=Release
 			)
-		# refer to cmake docs about doxygen variables and options
-		#message(STATUS "Building Commander3 documentation from source code with Doxygen.")
-		#set(DOXYGEN_PROJECT_NAME "Commander3")
-		#set(DOXYGEN_PROJECT_NUMBER "${CMAKE_PROJECT_VERSION}")
-		#set(DOXYGEN_PROJECT_BRIEF "${CMAKE_PROJECT_DESCRIPTION}")
-		#set(DOXYGEN_GENERATE_HTML YES)
-		#set(DOXYGEN_GENERATE_LATEX YES)
-		#set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/docs)
-		
-		#doxygen_add_docs(${project}_docs
-		#	ALL
-		#	${COMMANDER3_SOURCE_DIR}
-		#	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-		#	)
 	else()
 		add_custom_target(${project} ALL "")
 		# refer to cmake docs about doxygen variables and options
@@ -83,6 +69,20 @@ if(DOXYGEN_BUILD_DOCS)
 		set(DOXYGEN_GENERATE_HTML YES)
 		set(DOXYGEN_GENERATE_LATEX YES)
 		set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/docs)
+		#
+		set(DOXYGEN_FULL_PATH_NAMES NO)
+		# Set the OPTIMIZE_FOR_FORTRAN tag to YES if your project consists of Fortran
+		# sources. Doxygen will then generate output that is tailored for Fortran.
+		# The default value is: NO.
+		set(DOXYGEN_OPTIMIZE_FOR_FORTRAN YES)
+		# If the EXTRACT_ALL tag is set to YES, doxygen will assume all entities in
+		# documentation are documented, even if no documentation was available. Private
+		# class members and static file members will be hidden unless the
+		# EXTRACT_PRIVATE respectively EXTRACT_STATIC tags are set to YES.
+		# Note: This will also disable the warnings about undocumented members that are
+		# normally produced when WARNINGS is set to YES.
+		# The default value is: NO.
+		set(DOXYGEN_EXTRACT_ALL YES)
 		
 		doxygen_add_docs(${project}_docs
 			ALL

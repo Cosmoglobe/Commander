@@ -92,8 +92,9 @@ if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
 	# -fallow-argument-mismatch <= is for 10x compilers
 	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -W -ffree-line-length-none -fallow-argument-mismatch -std=legacy")
 	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wl -ffree-line-length-none -fallow-argument-mismatch")
+	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -fallow-argument-mismatch")
 	# -Wno-argument-mismatch <= is th flag for 9x and older compilers
-	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -Wno-argument-mismatch")
+	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -Wno-argument-mismatch")
 	message(STATUS "CMAKE_Fortran_FLAGS are: ${CMAKE_Fortran_FLAGS}")
 endif()
 #
@@ -108,6 +109,7 @@ target_sources(${executable}
 set_property(TARGET ${executable} PROPERTY ENABLE_EXPORTS TRUE)
 set_property(TARGET ${executable} PROPERTY LINKER_LANGUAGE Fortran)
 
+message("cmake dl libs are ${CMAKE_DL_LIBS}")
 # the linking order in libraries is important
 target_link_libraries(${executable} 
 	PUBLIC	
@@ -141,8 +143,11 @@ target_link_libraries(${executable}
 	#"${out_lib_dir}/libhdf5_fortran.a"
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhdf5.a"
 	#"${out_lib_dir}/libhdf5.a"
-	# linking math library
+	# to avoid error error dlclose@@GLIBC_2.2.5', so 
+	# we need to link math library
 	-lm
+	# and -ldl (dl library)
+	${CMAKE_DL_LIBS}
 	${HDF5_Fortran_LIBRARIES}
 	#${HDF5_LIBRARIES}
 	#${hdf5_fortran}
