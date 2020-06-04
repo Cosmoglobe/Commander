@@ -340,7 +340,7 @@ contains
                    chisq_prior = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
-                      chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2) &
+                      chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2) &
                                        & *c%npix_pixreg(p,pl,j)/c%theta(j)%p%info%npix
                    end do
                    chisq_prior = chisq_prior*c%npixreg(pl,j)
