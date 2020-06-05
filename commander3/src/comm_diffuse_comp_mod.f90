@@ -729,6 +729,8 @@ contains
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
 
+
+
     ! Init alm sampling params (Trygve)
     allocate(self%corrlen(self%npar, self%nmaps))
     self%corrlen    = 0     ! Init correlation length
@@ -774,6 +776,7 @@ contains
 
     ! Filename formatting
     do j = 1, self%npar
+
        write(jtext, fmt = '(I1)') j
        filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_par'//trim(jtext)//'.dat'
 
