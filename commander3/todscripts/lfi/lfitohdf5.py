@@ -60,7 +60,7 @@ def main():
     manager = mp.Manager()
     dicts = {30:manager.dict(), 44:manager.dict(), 70:manager.dict()}
 
-    comm_tod = tod.commander_tod(in_args.out_dir, in_args.freqs, in_args.version, dicts)
+    comm_tod = tod.commander_tod(in_args.out_dir, in_args.version, dicts, not args.restart)
 
     x = [[pool.apply_async(make_od, args=[comm_tod, freq, od, in_args]) for freq in in_args.freqs] for od in ods]
 
@@ -81,7 +81,7 @@ def make_od(comm_tod, freq, od, args):
 
     nside = lfi.nsides[freq]
 
-    comm_tod.init_file(freq, od, not args.restart)
+    comm_tod.init_file(freq, od, mode='w')
 
     if(args.restart and comm_tod.exists):
         comm_tod.finalize_file()
@@ -213,7 +213,7 @@ def make_od(comm_tod, freq, od, args):
 
                 if len(pixels > 0):
                     #compute average outer product
-                    outAng = lfi.ring_inner_product(newTheta, newPhi)
+                    outAng = lfi.ring_outer_product(newTheta, newPhi)
                     comm_tod.add_field(prefix + '/outP', data=outAng)
                     if(args.no_compress):
                         comm_tod.add_field(prefix+'/theta', data=newTheta)

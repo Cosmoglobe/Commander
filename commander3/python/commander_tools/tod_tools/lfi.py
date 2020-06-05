@@ -43,7 +43,7 @@ class lfi(object):
         return 'LFI_instrument_v' + str(version) + '.h5'
 
     @staticmethod
-    def ring_inner_product(theta, phi):
+    def ring_outer_product(theta, phi):
         outAng = [0, 0]
         nsamps = min(100, len(theta))
         pair1 = random.sample(range(len(theta)), nsamps)
