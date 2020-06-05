@@ -31,7 +31,7 @@ from time import time as timer
 def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, compress=False):
-    file_out = prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v5.h5'
+    file_out = prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v6.h5'
     if os.path.exists(file_out):
         return
     dt0 = np.diff(time).mean()
@@ -166,25 +166,38 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             deltaflag = np.diff(flags)
             deltaflag = np.insert(deltaflag, 0, flags[0])
 
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
-                    data=np.void(bytes(h_A.byteCode(deltaflag))))
-            
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
-                    data=np.void(bytes(h_A.byteCode(deltapixA))))
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
-                    data=np.void(bytes(h_B.byteCode(deltapixB))))
-
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
-                    data=np.void(bytes(h_A.byteCode(deltapsiA))))
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
-                    data=np.void(bytes(h_B.byteCode(deltapsiB))))
 
             if compress:
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                         data=np.void(bytes(h_Tod.byteCode(deltatod))))
+
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
+                        data=np.void(bytes(h_A.byteCode(deltaflag))))
+                
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
+                        data=np.void(bytes(h_A.byteCode(deltapixA))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
+                        data=np.void(bytes(h_B.byteCode(deltapixB))))
+
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
+                        data=np.void(bytes(h_A.byteCode(deltapsiA))))
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
+                        data=np.void(bytes(h_B.byteCode(deltapsiB))))
             else:
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                         data=todInd)
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
+                        data=flags)
+                
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
+                        data=pixA)
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
+                        data=pixB)
+
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
+                        data=psiA)
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
+                        data=psiB)
 
 
             det_list.append(label.replace('KA','Ka'))
@@ -197,15 +210,16 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                     data=np.array([0,0]))
 
 
-    f.create_dataset(obsid + '/common/hufftree_A', data=huffarray_A)
-    f.create_dataset(obsid + '/common/huffsymb_A', data=h_A.symbols)
-
-    f.create_dataset(obsid + '/common/hufftree_B', data=huffarray_B)
-    f.create_dataset(obsid + '/common/huffsymb_B', data=h_B.symbols)
 
     if compress:
         f.create_dataset(obsid + '/common/todtree', data=huffarray_Tod)
         f.create_dataset(obsid + '/common/todsymb', data=h_Tod.symbols)
+
+        f.create_dataset(obsid + '/common/hufftree_A', data=huffarray_A)
+        f.create_dataset(obsid + '/common/huffsymb_A', data=h_A.symbols)
+
+        f.create_dataset(obsid + '/common/hufftree_B', data=huffarray_B)
+        f.create_dataset(obsid + '/common/huffsymb_B', data=h_B.symbols)
     
     f.create_dataset(obsid + '/common/satpos',
             data=np.array_split(pos,n_per_day)[i][0])
@@ -236,7 +250,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         #f.create_dataset('/common/mbang', data=0)
         f.create_dataset('/common/ntodsigma', data=100)
         #f.create_dataset('/common/polang', data=0)
-    with open(prefix + f'data/filelist_{band}_v5.txt', 'a') as file_list: 
+    with open(prefix + f'data/filelist_{band}_v6.txt', 'a') as file_list: 
         file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
     return
 
@@ -560,10 +574,9 @@ def ang2pix_multiprocessing(nside, theta, phi):
 
 def fits_to_h5(file_input, file_ind, plot):
     f_name = file_input.split('/')[-1][:-8]
-    print(f'executing {f_name}, file #{file_ind}')
     # It takes about 30 seconds for the extraction from the fits files, which is
     # very CPU intensive. After that, it maxes out at 1 cpu/process.
-    file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v5.h5'
+    file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v6.h5'
     if os.path.exists(file_out):
         return
     t0 = timer()
@@ -621,7 +634,7 @@ def fits_to_h5(file_input, file_ind, plot):
     daflags = data[2].data['daflags']
 
     TODs = []
-    for key in data[2].columns.names[1:-6]:
+    for key in band_labels:
         TODs.append(data[2].data[key])
 
     
@@ -729,14 +742,17 @@ def main(par=True, plot=False):
             print(i, f)
             fits_to_h5(f,i,plot)
 
+    # I don't know what this line of code was doing, so I will skip it...
+    '''
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for band in bands:
-        file_name = prefix + f'data/filelist_{band}.txt'
+        file_name = prefix + f'data/filelist_{band}_v6.txt'
         data = np.loadtxt(file_name, dtype=str)
         with open(file_name, 'r+') as f:
             content = f.read()
             f.seek(0,0)
             f.write(line.rstrip('\r\n') + '\n' + int(len(data)))
+    '''
 if __name__ == '__main__':
     '''
     If the file exists, skip it!
