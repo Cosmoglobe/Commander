@@ -251,7 +251,9 @@ contains
        allocate(maxit(info%nmaps)) ! maximum iteration 
        maxit = 0
 
+       ! Open log files
        if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', status = 'unknown', access = 'append', recl=10000)
+       if (info%myid == 0) open(66, file=trim(cpar%outdir)//'/region-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', status = 'unknown', access = 'append', recl=10000)
 
        ! Save initial alm        
        alms = 0.d0
@@ -340,10 +342,8 @@ contains
                    chisq_prior = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
-                      chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2) &
-                                       & *c%npix_pixreg(p,pl,j)/c%theta(j)%p%info%npix
+                      chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
                    end do
-                   chisq_prior = chisq_prior*c%npixreg(pl,j)
                 end if
 
                 chisq(0) = chisq(0) + chisq_prior
@@ -481,10 +481,8 @@ contains
                       ! Apply a prior per region
                       chisq_prior = 0.d0
                       do p = 1, c%npixreg(pl,j)
-                         chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2) &
-                                       & *c%npix_pixreg(p,pl,j)/c%theta(j)%p%info%npix
+                         chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
                       end do
-                      chisq_prior = chisq_prior*c%npixreg(pl,j)
                       !write(*,*) "prior ", chisq_prior
                    end if
 
@@ -553,6 +551,7 @@ contains
              if (info%myid == 0) then 
                 ! Output log to file
                 write(69, *) iter, tag, i, chisq(i), alms(i,:,pl)
+                write(66, *) iter, tag, i, chisq(i), c%theta_pixreg(:, pl, j)
 
                 ! Write to screen every out_every'th
                 if (mod(i,out_every) == 0) then
@@ -692,10 +691,10 @@ contains
              c%steplen(:,j) = 0.3d0
              c%L_read(j) = .true. ! L now exists!
           end if
-
        end if
 
        if (info%myid == 0) close(69)   
+       if (info%myid == 0) close(66)   
 
        deallocate(alms, chisq, maxit)
        call theta%dealloc()
