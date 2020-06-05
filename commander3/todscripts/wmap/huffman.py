@@ -3,6 +3,9 @@ import numpy as np
 import heapq
 import os
 
+# Check Numerical recipes, that's where the implementation of the algorithm was
+# written up, section 20.4
+
 _node_number = 0
 
 class LeafNode:
