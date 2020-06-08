@@ -212,7 +212,6 @@ contains
           end do
        end if
 
-
        call wall_time(t1)
 
        info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
@@ -346,11 +345,13 @@ contains
                    end do
                 end if
 
+                ! Output init sample
+                write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
                 chisq(0) = chisq(0) + chisq_prior
+             else 
+                write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
              end if
 
-             ! Output init sample
-             write(*,fmt='(a, i6, a, f16.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
           end if
 
           ! Sample new alms (Account for poltype)
@@ -511,7 +512,7 @@ contains
                    ar_tag = achar(27)//'[91m'
                 end if
 
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f10.2, a, f7.4)') tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - a00-prop: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 if (cpar%almsamp_pixreg) then
                    write(outmessage, fmt='(a, *(f7.3))') "regs:", theta_pixreg_prop(1:) ! Max space
@@ -556,7 +557,7 @@ contains
                 ! Write to screen every out_every'th
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
-                   write(*,fmt='(a,i6, a, f12.2, a, f10.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i), " - diff: ", diff, " - a00-curr: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                   write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                    if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
                 end if
                 ! Adjust learning rate every check_every'th
