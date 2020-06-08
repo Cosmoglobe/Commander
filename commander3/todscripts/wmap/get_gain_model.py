@@ -5,6 +5,9 @@ from scipy.interpolate import BSpline
 
 import matplotlib.pyplot as plt
 
+from glob import glob
+prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
+
 '''
 The gain model as described by the explanatory supplement requires the total
 radiometer bias power, T_FPA, and T_RXB as inputs.
@@ -20,7 +23,7 @@ fits table ("index" and "arr").
 AIHK_GetMnemonic.pro returns the physical value associated with a mnemonic.
 '''
 
-mnem_list = np.loadtxt('mnem_indices.txt', delimiter=',', dtype=str)
+mnem_list = np.loadtxt('gain_params/mnem_indices.txt', delimiter=',', dtype=str)
 
 def aihk_mnemonic(mnem):
     for i in range(len(mnem_list)):
@@ -145,7 +148,7 @@ def get_val_from_mnem(data, mnem):
     # Get temperature from index
     Temp = get_resist(data, index, arr)
     
-    coefs_array = np.loadtxt('mnem_coefs.txt', dtype=str, delimiter=',')
+    coefs_array = np.loadtxt('gain_params/mnem_coefs.txt', dtype=str, delimiter=',')
     for i in range(len(coefs_array)):
         if mnem in coefs_array[i,0]:
             ind = i
@@ -159,12 +162,16 @@ def get_val_from_mnem(data, mnem):
 if __name__ == '__main__':
 
     # to convert to JD, add 2.4500e06
-    data = fits.open('wmap.fits')
+    files = glob(prefix + 'tod/new/*.fits')
+    files.sort()
+    files = np.array(files)
+
+    data = fits.open(files[0])
 
 
     # The only published gain model I've seen in the WMAP paper is Figure 2 of
     # Jarosik et al. 2007, which plots the V223 detector.
-    par_array = np.loadtxt('T0_sols.txt', dtype=str)
+    par_array = np.loadtxt('gain_params/T0_sols.txt', dtype=str)
     T0 = 5.4309e1
     V0 = -5.4468e-1
     beta = -2.7406e-3

@@ -185,7 +185,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                         data=np.void(bytes(h_B.byteCode(deltapsiB))))
             else:
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                        data=todInd)
+                        data=np.int32(todi))
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
                         data=flags)
                 
@@ -657,32 +657,6 @@ def fits_to_h5(file_input, file_ind, plot):
 
     data.close()
 
-
-    if plot:
-        # Are gal and pol behaving as expected?
-        for i in range(len(gal_A)):
-            plt.figure('galtheta')
-            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), gal_A[i][:,0],
-                    color=plt.cm.viridis(i/len(gal_A)))
-            plt.figure('poltheta')
-            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), pol_A[i][:,0],
-                    color=plt.cm.viridis(i/len(gal_A)))
-            plt.figure('galphi')
-            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), gal_A[i][:,1],
-                    color=plt.cm.viridis(i/len(gal_A)))
-            plt.figure('polphi')
-            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), pol_A[i][:,1],
-                    color=plt.cm.viridis(i/len(gal_A)))
-        plt.figure('galtheta')
-        fi = str(file_ind).zfill(5)
-        plt.savefig(f'plots/pointing/galtheta_{fi}.png', bbox_inches='tight')
-        plt.figure('galphi')
-        plt.savefig(f'plots/pointing/galphi_{fi}.png', bbox_inches='tight')
-        plt.figure('poltheta')
-        plt.savefig(f'plots/pointing/poltheta_{fi}.png', bbox_inches='tight')
-        plt.figure('polphi')
-        plt.savefig(f'plots/pointing/polphi_{fi}.png', bbox_inches='tight')
-        plt.close('all')
 
     psi_A = get_psi(gal_A, pol_A, band_labels[::4])
     psi_B = get_psi(gal_B, pol_B, band_labels[1::4])
