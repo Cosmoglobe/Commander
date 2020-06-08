@@ -4,16 +4,19 @@ import healpy as hp
 import numpy as np
 import multiprocessing as mp
 import os
+import sys
 
 class commander_tod:
 
-    def __init__(self, outPath, freqs, version, dicts):
+    def __init__(self, outPath, version=None, dicts=None, overwrite=False):
         self.outPath = outPath
         self.filelists = dicts
         self.version = version
+        #TODO: something with the version number
+        self.overwrite = overwrite
 
     #initilizes a file for a single od
-    def init_file(self, freq, od, overwrite):
+    def init_file(self, freq, od, mode='r'):
         self.huffDict = {}
         self.attrDict = {}
         self.encodings = {}
@@ -26,28 +29,36 @@ class commander_tod:
         self.exists = False
         if os.path.exists(self.outName):
             self.exists = True
+        if mode == 'w':
+            if self.exists and self.overwrite:
+                os.remove(self.outName)
+            try:
+                self.outFile = h5py.File(self.outName, 'a')
 
-        if self.exists and overwrite:
-            os.remove(self.outName)
-        try:
-            self.outFile = h5py.File(self.outName, 'a')
-
-            if self.exists and not overwrite:
-                for pid in self.load_field('/common/pids'):
-                    loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
-                    self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
-        except (KeyError, OSError):
-            if(hasattr(self, 'outFile')):
-                self.outFile.close()
-            os.remove(self.outName)
-            self.exists = False
-            self.outFile = h5py.File(self.outName, 'a')
-
+                if self.exists and not self.overwrite:
+                    for pid in self.load_field('/common/pids'):
+                        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
+                        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+            except (KeyError, OSError):
+                if(hasattr(self, 'outFile')):
+                    self.outFile.close()
+                os.remove(self.outName)
+                self.exists = False
+                self.outFile = h5py.File(self.outName, 'a')
+        
+        if mode == 'r':
+            if not self.exists:
+                raise OSError('Cannot find file ' + self.outName)
+            self.outFile = h5py.File(self.outName, 'r')
+            
     #File Writing functions
     def add_field(self, fieldName, data, compression=None):
         writeField = True
         if(compression is not None and compression is not []):
             compInfo = ''
+            if(len(compression) == 2 and type(compression[0]) == str):
+                #catch case with only one compression argument not in array
+                compression = [compression]
             for compArr in compression:
                 compInfo += compArr[0] + ' '
                 if compArr[0] == 'dtype':
@@ -58,7 +69,7 @@ class commander_tod:
                     metaName = '/common/n' + fieldName.split('/')[-1] + 'sigma'
                     self.encodings[metaName] = compArr[1]['nsigma']
                     self.add_attribute(fieldName, 'nsigma', compArr[1]['nsigma'])
-                    self.add_attribute(fieldName, 'sigma0', compArr[1]['sigma0'])
+                    self .add_attribute(fieldName, 'sigma0', compArr[1]['sigma0'])
 
                 elif compArr[0] == 'digitize':
                     bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
@@ -86,7 +97,14 @@ class commander_tod:
             print("adding " + compInfo + ' to ' + fieldName)
 
         if writeField:
-            self.outFile.create_dataset(fieldName, data=data)
+            try:
+                self.outFile.create_dataset(fieldName, data=data)
+            except OSError as e:
+                if self.overwrite:
+                    del self.outFile[fieldName]
+                    self.outFile.create_dataset(fieldName, data=data)
+                else:
+                    raise OSError(e)
             for attr in self.attrDict.copy().keys():
                 fName, attrName = attr.split('@')
                 if fName == fieldName:
@@ -114,8 +132,9 @@ class commander_tod:
             self.add_field('/common/version', self.version)
             self.add_field('/common/pids', list(self.pids.keys()))
 
-        for pid in self.pids.keys():
-            self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
+        if self.filelists is not None:
+            for pid in self.pids.keys():
+                self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
  
         return
 
@@ -136,6 +155,7 @@ class commander_tod:
                 print(huffArray, len(huffArray), len(h.symbols))
             for field in self.huffDict[key].keys():
                 self.add_field(field, np.void(bytes(h.byteCode(self.huffDict[key][field]))))
+                print(self.huffDict[key][field], bin(int.from_bytes(h.byteCode(self.huffDict[key][field]), byteorder=sys.byteorder)))
 
         self.huffDict = {}
         self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)
@@ -163,7 +183,7 @@ class commander_tod:
         except KeyError:
             return self.outFile[fieldName]
 
-        return self.decompress(fieldName, compStr)       
+        return self.decompress(fieldName, compression=compStr)       
 
     def load_all_fields(self):
         return
@@ -171,12 +191,14 @@ class commander_tod:
     def read_across_files(self, fieldName):
         return
 
-    def decompress(self, field, data=None, huffTree=None, huffSymb=None, compression=''):
+    def decompress(self, field, compression=''):
         comps = compression.split(' ')
-        if(data==None):
-            data = self.outFile[field]
-        for comp in comps.reverse():
-            if comp == 'dtype':
+        data = self.outFile[field]
+        for comp in comps[::-1]: # apply the filters in the reverse order
+            if comp == '':
+                #residual from str.split()
+                pass
+            elif comp == 'dtype':
                 pass
             elif comp == 'sigma':
                 sigma0 = self.outFile[field].attrs['sigma0']
@@ -192,17 +214,17 @@ class commander_tod:
                 data = bins[data]
 
             elif comp == 'huffman':
-                raise NotImplementedError()
-                if(huffTree == None and huffSymb == None):
-                    pid = field.split('/')[0]
+                pid = field.split('/')[1]
+                try:
                     huffNum = str(self.outFile[field].attrs['huffmanDictNumber'])
-                    if huffNum == '1':
-                        huffNum = ''
-                    huffTree = self.load_field('/' + pid + '/common/hufftree' + huffNum)
-                    huffSymb = self.load_field('/' + pid + '/common/huffsymb' + huffNum)
-                #TODO: the huffman decoding stuff needs to be written
+                except KeyError:
+                    huffNum = ""
+                if huffNum == '1':
+                    huffNum = ''
+                huffTree = self.load_field('/' + pid + '/common/hufftree' + huffNum)
+                huffSymb = self.load_field('/' + pid + '/common/huffsymb' + huffNum)
                 h = huffman.Huffman(tree=huffTree, symb=huffSymb)
-                data = h.Decoder(data)
+                data = h.Decoder(np.array(data))
                 
             else:
                 raise ValueError('Decompression type ' + comp + ' is not a recognized operation')
