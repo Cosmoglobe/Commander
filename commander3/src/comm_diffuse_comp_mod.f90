@@ -2254,7 +2254,7 @@ contains
           end if
 
           !if pixelregions, create map without smoothed thetas (for input in new runs)
-          if (any(self%pol_pixreg_type(1:self%poltype(i),i) == 3)) then
+          if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
              
              info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
                   & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
