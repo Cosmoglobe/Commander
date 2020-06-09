@@ -347,6 +347,7 @@ contains
 
                 ! Output init sample
                 write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
                 chisq(0) = chisq(0) + chisq_prior
              else 
                 write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
@@ -505,7 +506,6 @@ contains
                 if (accepted) then
                    num_accepted = num_accepted + 1
                    ar_tag = achar(27)//'[92m'
-
                    if (cpar%almsamp_pixreg) c%theta_pixreg(:,pl,j) = theta_pixreg_prop
                 else
                    chisq(i) = chisq(i-1)
@@ -522,6 +522,7 @@ contains
 
              ! Broadcast result of accept/reject test
              call mpi_bcast(accepted, 1, MPI_LOGICAL, 0, c%comm, ierr)
+             if (cpar%almsamp_pixreg) call mpi_bcast(c%theta_pixreg(:,pl,j), c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
 
              if (.not. accepted) then
                 ! If rejected, restore old values and send to 
