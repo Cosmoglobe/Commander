@@ -2074,7 +2074,7 @@ contains
 
     ! Initialize new theta values if this is the first time sampling and theta has been initialized from HDF-file
     if (c_lnL%first_ind_sample(p,id) .and. (.not. (trim(cpar%init_chain_prefix) == 'none' .or. &
-         & trim(c_lnL%init_from_HDF) == 'none'))) then
+         & trim(c_lnL%init_from_HDF) == 'none')) .and. (c_lnL%init_pixreg_after_hdf(id))) then
        
        if (myid_pix == 0 .and. cpar%verbosity > 2) write(*,*) 'Initializing new spec. ind. values as read from HDF'
 
