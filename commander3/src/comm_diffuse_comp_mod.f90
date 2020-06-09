@@ -49,6 +49,7 @@ module comm_diffuse_comp_mod
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
+     logical(lgt),       allocatable, dimension(:)     :: init_pixreg_after_hdf
      class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
@@ -424,7 +425,7 @@ contains
     allocate(self%pol_nprop(self%npar))    ! nprop map per spectral index (all poltypes
     allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
-
+    allocate(self%init_pixreg_after_hdf(self%npar))
     if (any(self%pol_pixreg_type(:,:) > 0)) then
        k=0
        do i = 1,self%npar
@@ -615,9 +616,11 @@ contains
           if (cpar%cs_pixreg_init_theta(i,id_abs) == 'none') then
              tp => comm_map(self%theta(i)%p%info)
              tp%map = self%theta(i)%p%map !take avrage from existing theta map
+             self%init_pixreg_after_hdf(i) = .true. !in case one reads from HDF
           else
              !read map from init map (non-smoothed theta map)
              tp => comm_map(self%theta(i)%p%info, trim(cpar%datadir) // '/' // trim(cpar%cs_pixreg_init_theta(i,id_abs)))
+             self%init_pixreg_after_hdf(i) = .false. !We do NOT read from HDF
           end if
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
