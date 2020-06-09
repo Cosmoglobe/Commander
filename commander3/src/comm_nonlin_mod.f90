@@ -1019,21 +1019,22 @@ contains
              if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
              if (p > c_lnL%nmaps) cycle ! poltype > number of maps
 
-             if (info%myid == 0) write(*,*) 'Sampling poltype index',p,'of ',c_lnL%poltype(id) !Needed?
 
 
              call wall_time(t1)
 
              if (c_lnL%pol_pixreg_type(p,id) > 0) then
+                if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
+                     & 'of ', c_lnL%poltype(id) !Needed?
                 call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
+                call wall_time(t2)
+                if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
+                     & p,'CPU time specind = ', real(t2-t1,sp)
              else
                 write(*,*) 'Undefined spectral index sample region'
                 write(*,*) 'Component:',trim(c_lnL%label),'ind:',trim(c_lnL%indlabel(id))
                 stop
              end if
-             call wall_time(t2)
-             if (info%myid == 0) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
-                  & p,'CPU time specind = ', real(t2-t1,sp)
 
 
 
@@ -1042,7 +1043,7 @@ contains
           !after sampling is done we assign the spectral index its new value(s)
           c_lnL%theta(id)%p%map = buffer_lnL
           
-
+          if (info%myid == 0 .and. cpar%verbosity > 2) write(*,*) 'Updating Mixing matrix'
           ! Update mixing matrix
           call c_lnL%updateMixmat
 
@@ -1896,14 +1897,16 @@ contains
     real(dp)     :: old_theta, new_theta
     integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
     integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
-    integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix
+    integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix, unit
     logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen
-    character(len=512) :: filename, postfix
+    character(len=512) :: filename, postfix, fmt_pix, npixreg_txt
     character(len=6) :: itext
     character(len=4) :: ctext
+    character(len=2) :: pind_txt
     real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
     real(dp),      allocatable, dimension(:) :: theta_corr_arr, old_thetas, new_thetas, init_thetas, sum_theta
     real(dp),      allocatable, dimension(:) :: old_theta_smooth, new_theta_smooth, dlnL_arr
+    real(dp),      allocatable, dimension(:,:) :: theta_MC_arr
     integer(i4b),  allocatable, dimension(:) :: band_i, pol_j, accept_arr
     class(comm_mapinfo),             pointer :: info_fr => null() !full resolution
     class(comm_mapinfo),             pointer :: info_fr_single => null() !full resolution, nmaps=1
@@ -2002,6 +2005,8 @@ contains
     if (c_lnL%first_ind_sample(p,id) .and. (.not. (trim(cpar%init_chain_prefix) == 'none' .or. &
          & trim(c_lnL%init_from_HDF) == 'none'))) then
        
+       if (myid_pix == 0 .and. cpar%verbosity > 2) write(*,*) 'Initializing new spec. ind. values as read from HDF'
+
        allocate(sum_theta(0:c_lnL%npixreg(p,id)))
        sum_theta=0.d0
 
@@ -2029,7 +2034,6 @@ contains
 
 
     !set up which bands and polarizations to include
-
     allocate(band_i(3*numband),pol_j(3*numband))
 
     band_count=0
@@ -2050,7 +2054,7 @@ contains
     if (band_count==0) then
        buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set theta to prior, as no bands are valid, no data
        deallocate(band_i,pol_j)
-       if (cpar%verbosity>2 .and. myid_pix == 0)  write(*,*) 'no data bands available for sampling of spec ind'
+       if (myid_pix == 0)  write(*,*) 'no data bands available for sampling of spec ind'
        return
     else
        if (cpar%verbosity>3 .and. myid_pix == 0) then
@@ -2095,8 +2099,13 @@ contains
     new_thetas = old_thetas
     ! that the root processor operates on
     init_thetas = old_thetas
-    if (cpar%verbosity>3 .and. info_fr%myid == 0 .and. npixreg > 0) write(*,fmt='(a, f10.5)') "  initial (avg) spec. ind. value: ", &
+    if (cpar%verbosity>2 .and. info_fr%myid == 0 .and. npixreg > 0) write(*,fmt='(a, f10.5)') "  initial (avg) spec. ind. value: ", &
          & sum(init_thetas(1:npixreg))/npixreg
+
+    if (myid_pix==0) then
+       allocate(theta_MC_arr(10000,npixreg))
+       theta_MC_arr = 0.d0
+    end if
 
     do pr = 1,npixreg
 
@@ -2135,6 +2144,7 @@ contains
              if (c_lnL%pol_ind_mask(id)%p%map(pix,p) > 0.5d0) pix_count = pix_count + 1
           end if
        end do
+
        call mpi_allreduce(MPI_IN_PLACE, pix_count, 1, MPI_INTEGER, & 
             & MPI_SUM, info_fr%comm, ierr)
        if (pix_count == 0) cycle !all pixels in pixreg is masked out
@@ -2496,6 +2506,8 @@ contains
                 n_accept = n_accept + 1
                 accept_arr(arr_ind) = 1 !accept
              end if
+             
+             theta_MC_arr(j,pr) = old_theta
 
              running_accept = (1.d0*sum(accept_arr(1:min(n_spec_prop,n_prop_limit))))/max(min(n_spec_prop,n_prop_limit),1)
 
@@ -2667,7 +2679,6 @@ contains
     if (allocated(lr_chisq)) then
        call int2string(cpar%mychain, ctext)
        call int2string(iter,         itext)
-       postfix = 'c'//ctext//'_k'//itext
 
        do k = 1,band_count
           filename=trim(cpar%outdir)//'/'//'chisq_local_'//trim(data(band_i(k))%label)
@@ -2694,6 +2705,36 @@ contains
     else !reset sampling to true if we have sampled
        if (sampled_nprop) c_lnL%pol_sample_nprop(p,id) = .true. 
        if (sampled_proplen) c_lnL%pol_sample_proplen(p,id) = .true. 
+    end if
+
+    call int2string(iter,         itext)
+    call int2string(p,         pind_txt)
+    call int2string(cpar%mychain, ctext)
+    postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
+
+    !print MC theta to file
+    if (myid_pix==0) then
+       unit = getlun()
+       filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
+            & '_theta_MC_'//trim(postfix)//'.dat'
+       open(unit,file=trim(filename))
+       !read(npixreg_txt,*) npixreg
+       !fmt_pix=trim(npixreg_txt)//'f12.6'
+       !write(*,*) fmt_pix
+       do i = 1,10000
+          !write(unit,'(i8,'//trim(fmt_pix)//')') i,theta_MC_arr(i,:)
+          write(unit,'(i8,f12.6)') i,theta_MC_arr(i,1)
+       end do
+       close(unit)
+       deallocate(theta_MC_arr)
+    end if
+
+    if (.true.) then
+       do i = 1,band_count
+          filename=trim(cpar%outdir)//'/'//'reduced_data_band_'//trim(data(band_i(i))%label)//'_'// &
+               & trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//'_'//trim(postfix)//'.fits'
+          call res_smooth(band_i(i))%p%writeFITS(trim(filename))
+       end do
     end if
 
     !deallocate
