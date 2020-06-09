@@ -14,9 +14,10 @@ module comm_tod_mod
   public comm_tod, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
   type :: comm_detscan
-     character(len=10) :: label                           ! Detector label
-     real(dp)          :: gain, dgain, gain_sigma         ! Gain; assumed constant over scan
-     real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
+     character(len=10) :: label                             ! Detector label
+     real(dp)          :: gain, dgain, gain_sigma           ! Gain; assumed constant over scan
+     real(dp)          :: sigma0, alpha, fknee              ! Noise parameters
+     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def  ! Default parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
@@ -544,10 +545,14 @@ contains
        allocate(self%d(i)%tod(m))
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-       self%d(i)%gain = scalars(1)
-       self%d(i)%sigma0 = scalars(2)
-       self%d(i)%fknee = scalars(3)
-       self%d(i)%alpha = scalars(4)
+       self%d(i)%gain_def   = scalars(1)
+       self%d(i)%sigma0_def = scalars(2)
+       self%d(i)%fknee_def  = scalars(3)
+       self%d(i)%alpha_def  = scalars(4)
+       self%d(i)%gain       = self%d(i)%gain_def
+       self%d(i)%sigma0     = self%d(i)%sigma0_def
+       self%d(i)%fknee      = self%d(i)%fknee_def
+       self%d(i)%alpha      = self%d(i)%alpha_def
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)

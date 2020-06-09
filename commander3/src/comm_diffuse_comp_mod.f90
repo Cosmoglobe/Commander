@@ -394,7 +394,7 @@ contains
           else
              !check if alm using defined pixel regions to suggest theta (then to smooth and get alms from map)
              !if so, pixreg values needs to be added. 
-             if (self%almsamp_pixreg) then
+             if (cpar%almsamp_pixreg) then
                 self%pol_pixreg_type(j,i) = 3
                 self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
              else
@@ -741,10 +741,12 @@ contains
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
 
+
+
     ! Init alm sampling params (Trygve)
     allocate(self%corrlen(self%npar, self%nmaps))
     self%corrlen    = 0     ! Init correlation length
-
+    
     ! Init bool for L_read
     allocate(self%L_read(self%npar))
     self%L_read    = .false.
@@ -786,6 +788,7 @@ contains
 
     ! Filename formatting
     do j = 1, self%npar
+
        write(jtext, fmt = '(I1)') j
        filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_par'//trim(jtext)//'.dat'
 
