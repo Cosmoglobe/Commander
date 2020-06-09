@@ -51,7 +51,7 @@ module comm_param_mod
 
      ! alm-sampler
      integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
-     logical(lgt)       :: almsamp_optimize, almsamp_apply_prior
+     logical(lgt)       :: almsamp_optimize, almsamp_apply_prior, almsamp_pixreg
 
      ! Output parameters
      character(len=512) :: outdir
@@ -330,7 +330,7 @@ contains
   subroutine read_global_params_hash(htbl, cpar)
     implicit none
 
-    type(hash_tbl_sll), intent(in) :: htbl
+     type(hash_tbl_sll), intent(in) :: htbl
     type(comm_params),  intent(inout) :: cpar
 
     integer(i4b)     :: i
@@ -424,6 +424,7 @@ contains
     call get_parameter_hashtable(htbl, 'ALMSAMP_NSIDE_CHISQ_LOWRES', par_int=cpar%almsamp_nside_chisq_lowres)
     call get_parameter_hashtable(htbl, 'ALMSAMP_OPTIMIZE_ALM',       par_lgt=cpar%almsamp_optimize)
     call get_parameter_hashtable(htbl, 'ALMSAMP_APPLY_PRIOR',        par_lgt=cpar%almsamp_apply_prior)
+    call get_parameter_hashtable(htbl, 'ALMSAMP_PIXREG',             par_lgt=cpar%almsamp_pixreg)
 
   end subroutine read_global_params_hash
 
@@ -625,6 +626,7 @@ contains
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
     allocate(cpar%cs_smooth_scale(n,MAXPAR), cpar%cs_apply_jeffreys(n))
+
     do i = 1, n
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'INCLUDE_COMP'//itext, len_itext=len_itext,         par_lgt=cpar%cs_include(i))
