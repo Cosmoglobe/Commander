@@ -177,7 +177,7 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
 
-       call update_status(status, "cg1")
+       !call update_status(status, "cg1")
        
        ! Check convergence
        if (mod(i,cpar%cg_check_conv_freq) == 0) then
@@ -193,7 +193,7 @@ contains
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
        end if
        
-       call update_status(status, "cg2")
+       !call update_status(status, "cg2")
    
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
@@ -208,7 +208,7 @@ contains
           r = r - alpha*q
        end if
 
-       call update_status(status, "cg3")
+       !call update_status(status, "cg3")
        call wall_time(t3)
        s         = cr_invM(cpar%comm_chain, r, samp_group)
        call wall_time(t4)
@@ -217,7 +217,7 @@ contains
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
-       call update_status(status, "cg4")
+       !call update_status(status, "cg4")
 
        if (cpar%output_cg_freq > 0) then
           if (mod(i,cpar%output_cg_freq) == 0) then
@@ -266,7 +266,7 @@ contains
              call cr_x2amp(samp_group, x)
           end if
        end if
-       call update_status(status, "cg5")
+       !call update_status(status, "cg5")
 
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
@@ -290,7 +290,7 @@ contains
           end if
        end if
 
-       call update_status(status, "cg6")
+       !call update_status(status, "cg6")
 
     end do
 
@@ -348,7 +348,7 @@ contains
     end if
 
     deallocate(Ax, r, d, q, s)
-    call update_status(status, "cr9")
+    !call update_status(status, "cr9")
     
   end subroutine solve_cr_eqn_by_CG
 
