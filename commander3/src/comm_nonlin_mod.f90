@@ -401,10 +401,22 @@ contains
                    theta%map(pix,1) = theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j))
                 end do
 
-                ! Smooth after regions are set  
-                call smooth_map(info_theta, .false., &
-                     & c%B_pp_fr(j)%p%b_l*0.d0+1.d0, theta, &  
-                     & c%B_pp_fr(j)%p%b_l, theta_smooth)
+                ! Smooth after regions are set, if smoothing scale > 0 and beam FWHM > 0.0
+                smooth_scale = c%smooth_scale(j)
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                   if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                      call smooth_map(info_theta, .false., &
+                           & c%B_pp_fr(j)%p%b_l*0.d0+1.d0, theta, &  
+                           & c%B_pp_fr(j)%p%b_l, theta_smooth)
+                   else
+                      theta_smooth => comm_map(info_theta)
+                      theta_smooth%map=theta%map
+                   end if
+                else
+                   theta_smooth => comm_map(info_theta)
+                   theta_smooth%map=theta%map
+                end if
+
 
                 call theta_smooth%YtW_scalar
                 call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
