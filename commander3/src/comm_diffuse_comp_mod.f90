@@ -49,6 +49,7 @@ module comm_diffuse_comp_mod
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
+     logical(lgt),       allocatable, dimension(:)     :: init_pixreg_after_hdf
      class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
@@ -424,7 +425,7 @@ contains
     allocate(self%pol_nprop(self%npar))    ! nprop map per spectral index (all poltypes
     allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
-
+    allocate(self%init_pixreg_after_hdf(self%npar))
     if (any(self%pol_pixreg_type(:,:) > 0)) then
        k=0
        do i = 1,self%npar
@@ -548,46 +549,7 @@ contains
              end if
           end if
 
-          ! Check if 'fullsky' or 'none' 
-          if (self%pol_pixreg_type(j,i) == 1) then !fullsky
-             self%ind_pixreg_map(i)%p => comm_map(info)
-             self%ind_pixreg_map(i)%p%map = 1.d0
-          else if (self%pol_pixreg_type(j,i) == 2) then 
-             !single pix at smoothing scale pix size
-             !make a map at smooth scale nside, give pixels value from 1 to npix
-             !udgrade to full resolution
-             if (cpar%nside_smooth(smooth_scale) > self%nside) then
-                !only allow nside up to full resolution
-                info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
-                     & self%theta(i)%p%info%nside, -1, 1, .false.) 
-             else
-                info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
-                     & cpar%nside_smooth(smooth_scale), -1, 1, .false.) 
-             end if
-             self%ind_pixreg_map(i)%p => comm_map(info)
-
-             if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
-                tp => comm_map(info_ud)
-                tp%map(:,1) = tp%info%pix*1.d0 + 1.d0 !set pixel value equal to pixel number+1
-                allocate(m_in(0:info_ud%npix-1,1))
-                allocate(m_out(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
-                allocate(buffer(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
-                m_in(tp%info%pix,1) = tp%map(:,1)
-                call udgrade_ring(m_in, info_ud%nside, m_out, &
-                     & self%ind_pixreg_map(i)%p%info%nside)
-                call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, &
-                     & MPI_SUM, self%ind_pixreg_map(i)%p%info%comm, ierr)
-
-                self%ind_pixreg_map(i)%p%map(:,j) = buffer(self%ind_pixreg_map(i)%p%info%pix,1)
-                deallocate(m_in, m_out, buffer)
-                call tp%dealloc()
-                tp => null()
-             else
-                self%ind_pixreg_map(i)%p%map(:,j) = self%ind_pixreg_map(i)%p%info%pix*1.d0 +1.d0
-             end if
-
-          !from here pixreg_type == 3
-          else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
+          if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
              self%ind_pixreg_map(i)%p => comm_map(info)
              self%ind_pixreg_map(i)%p%map = 1.d0
           else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'none') then
@@ -610,12 +572,62 @@ contains
              end if
           end if
 
+          ! Check if pixel region type = 'fullsky' og 'single_pix' for given poltype index  
+          do j = 1,self%poltype(i)
+             if (j > self%nmaps) cycle
+             if (self%pol_pixreg_type(j,i) == 1) then !fullsky
+                self%ind_pixreg_map(i)%p%map(:,j) = 1.d0
+             else if (self%pol_pixreg_type(j,i) == 2) then 
+                !single pix at smoothing scale pix size
+                !make a map at smooth scale nside, give pixels value from 1 to npix
+                !udgrade to full resolution
+                if (cpar%nside_smooth(smooth_scale) > self%nside) then
+                   !only allow nside up to full resolution
+                   info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
+                        & self%theta(i)%p%info%nside, -1, 1, .false.) 
+                else
+                   info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
+                        & cpar%nside_smooth(smooth_scale), -1, 1, .false.) 
+                end if
+
+                if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
+                   tp => comm_map(info_ud)
+                   tp%map(:,1) = tp%info%pix*1.d0 + 1.d0 !set pixel value equal to pixel number+1
+                   allocate(m_in(0:info_ud%npix-1,1))
+                   allocate(m_out(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
+                   allocate(buffer(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
+                   m_in(tp%info%pix,1) = tp%map(:,1)
+                   call udgrade_ring(m_in, info_ud%nside, m_out, &
+                        & self%ind_pixreg_map(i)%p%info%nside)
+                   call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, &
+                        & MPI_SUM, self%ind_pixreg_map(i)%p%info%comm, ierr)
+
+                   self%ind_pixreg_map(i)%p%map(:,j) = buffer(self%ind_pixreg_map(i)%p%info%pix,1)
+                   deallocate(m_in, m_out, buffer)
+                   call tp%dealloc()
+                   tp => null()
+                else
+                   self%ind_pixreg_map(i)%p%map(:,j) = self%ind_pixreg_map(i)%p%info%pix*1.d0 +1.d0
+                end if
+             end if
+          end do
+
+          ! check if there is a non-smoothed init map for theta of pixelregions
+          if (cpar%cs_pixreg_init_theta(i,id_abs) == 'none') then
+             tp => comm_map(self%theta(i)%p%info)
+             tp%map = self%theta(i)%p%map !take avrage from existing theta map
+             self%init_pixreg_after_hdf(i) = .true. !in case one reads from HDF
+          else
+             !read map from init map (non-smoothed theta map)
+             tp => comm_map(self%theta(i)%p%info, trim(cpar%datadir) // '/' // trim(cpar%cs_pixreg_init_theta(i,id_abs)))
+             self%init_pixreg_after_hdf(i) = .false. !We do NOT read from HDF
+          end if
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
              self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
-             if (.not. self%pol_pixreg_type(j,i) == 3) cycle
+             if (self%pol_pixreg_type(j,i) < 1) cycle
 
              n=self%npixreg(j,i)
              allocate(sum_pix(n),sum_theta(n),sum_nprop(n),sum_proplen(n))
@@ -628,7 +640,8 @@ contains
                 do m = 1,n
                    if ( self%ind_pixreg_map(i)%p%map(k,j) > (m-0.5d0) .and. &
                         & self%ind_pixreg_map(i)%p%map(k,j) < (m+0.5d0) ) then
-                      sum_theta(m)=sum_theta(m)+self%theta(i)%p%map(k,j)
+                      !sum_theta(m)=sum_theta(m)+self%theta(i)%p%map(k,j)
+                      sum_theta(m)=sum_theta(m)+tp%map(k,j)
                       sum_proplen(m)=sum_proplen(m)+self%pol_proplen(i)%p%map(k,j)
                       sum_nprop(m)=sum_nprop(m)+self%pol_nprop(i)%p%map(k,j)
                       sum_pix(m)=sum_pix(m)+1
@@ -709,8 +722,10 @@ contains
                 end if !num smooth scales > 0
              end if
           end do !poltype
-          
-       end if !any pixreg_type == 3
+
+          call tp%dealloc()
+
+       end if !any pixreg_type > 0
 
     end do !npar
 
@@ -2236,45 +2251,46 @@ contains
                   & '_nprop_'  // trim(postfix) // '.fits'
              call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
 
-             !if pixelregions, create map without smoothed thetas (for input in new runs)
-             if (any(self%pol_pixreg_type(1:self%poltype(i),i) == 3)) then
+          end if
+
+          !if pixelregions, create map without smoothed thetas (for input in new runs)
+          if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
              
-                info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
-                     & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
-                tp => comm_map(info)
-                tp%map = self%theta(i)%p%map
-                do p = 1,self%poltype(i)
-                   if (self%pol_pixreg_type(p,i) /=3) cycle
-                   if (self%poltype(i) == 1) then
-                      p_min=1
-                      p_max=info%nmaps
-                      if (only_pol) p_min = 2
-                   else if (self%poltype(i)==2) then
-                      if (p == 1) then
-                         p_min = 1
-                         p_max = 1
-                      else
-                         p_min = 2
-                         p_max = info%nmaps
-                      end if
-                   else if (self%poltype(i)==3) then
-                      p_min = p
-                      p_max = p
+             info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                  & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+             tp => comm_map(info)
+             tp%map = self%theta(i)%p%map
+             do p = 1,self%poltype(i)
+                if (self%pol_pixreg_type(p,i) /=3) cycle
+                if (self%poltype(i) == 1) then
+                   p_min=1
+                   p_max=info%nmaps
+                   if (only_pol) p_min = 2
+                else if (self%poltype(i)==2) then
+                   if (p == 1) then
+                      p_min = 1
+                      p_max = 1
                    else
-                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
-                      stop
+                      p_min = 2
+                      p_max = info%nmaps
                    end if
+                else if (self%poltype(i)==3) then
+                   p_min = p
+                   p_max = p
+                else
+                   write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                   stop
+                end if
 
-                   do j = 0,info%np-1
-                      tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
-                   end do
+                do j = 0,info%np-1
+                   tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
                 end do
-                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                     & '_noSmooth_'  // trim(postfix) // '.fits'
-                call tp%writeFITS(trim(dir)//'/'//trim(filename))
-                call tp%dealloc()
+             end do
+             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                  & '_noSmooth_'  // trim(postfix) // '.fits'
+             call tp%writeFITS(trim(dir)//'/'//trim(filename))
+             call tp%dealloc()
 
-             end if
           end if
 
        end do
