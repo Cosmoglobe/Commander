@@ -49,7 +49,6 @@ module comm_diffuse_comp_mod
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
-     logical(lgt),       allocatable, dimension(:)     :: init_pixreg_after_hdf
      class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
@@ -425,7 +424,6 @@ contains
     allocate(self%pol_nprop(self%npar))    ! nprop map per spectral index (all poltypes
     allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
-    allocate(self%init_pixreg_after_hdf(self%npar))
     if (any(self%pol_pixreg_type(:,:) > 0)) then
        k=0
        do i = 1,self%npar
@@ -616,11 +614,9 @@ contains
           if (cpar%cs_pixreg_init_theta(i,id_abs) == 'none') then
              tp => comm_map(self%theta(i)%p%info)
              tp%map = self%theta(i)%p%map !take avrage from existing theta map
-             self%init_pixreg_after_hdf(i) = .true. !in case one reads from HDF
           else
              !read map from init map (non-smoothed theta map)
              tp => comm_map(self%theta(i)%p%info, trim(cpar%datadir) // '/' // trim(cpar%cs_pixreg_init_theta(i,id_abs)))
-             self%init_pixreg_after_hdf(i) = .false. !We do NOT read from HDF
           end if
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
@@ -2056,7 +2052,7 @@ contains
     character(len=*),                        intent(in)           :: dir
 
     integer(i4b)       :: i, l, j, k, m, ierr, unit
-    integer(i4b)       :: p, p_min, p_max
+    integer(i4b)       :: p, p_min, p_max, npr, npol
     real(dp)           :: vals(10)
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
@@ -2064,6 +2060,8 @@ contains
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map), pointer :: map => null(), tp => null()
     real(dp), allocatable, dimension(:,:) :: sigma_l
+    real(dp),     allocatable, dimension(:,:) :: dp_pixreg
+    integer(i4b), allocatable, dimension(:,:) :: int_pixreg
 
     if (trim(self%type) == 'md') then
        filename = trim(dir)//'/md_' // trim(postfix) // '.dat'
@@ -2293,6 +2291,38 @@ contains
 
           end if
 
+          !output theta, proposal length and number of proposals per pixel region to HDF
+          if (output_hdf) then
+             npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
+             if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+                npr=0
+                do j = 1,npol
+                   if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
+                end do
+                if (npr == 0) then !no pixelregions, theta = prior
+                   if (self%theta(i)%p%info%myid == 0) write(*,*) 'No defined pixel regions for ',trim(self%label)//'_'//&
+                        & trim(self%indlabel(i))//' in writing to HDF'
+                else
+                   allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
+                   !pixel region values for theta
+                   dp_pixreg=self%theta_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_val', real(dp_pixreg,sp))
+                   !pixel region values for proposal length
+                   dp_pixreg=self%proplen_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', real(dp_pixreg,sp))
+                   !pixel region values for number of proposals
+                   int_pixreg=self%nprop_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_nprop', int_pixreg)
+
+                   deallocate(dp_pixreg,int_pixreg)
+                end if
+             end if
+
+          end if
+
        end do
        !call update_status(status, "writeFITS_8")
        
@@ -2318,12 +2348,14 @@ contains
     type(hdf_file),            intent(in)    :: hdffile
     character(len=*),          intent(in)    :: hdfpath
 
-    integer(i4b)       :: i, j, l, m
-    integer(i4b)       :: p, p_min, p_max
+    integer(i4b)       :: i, j, l, m, ierr
+    integer(i4b)       :: p, p_min, p_max, npr, npol
     real(dp)           :: md(4)
     character(len=512) :: path
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map), pointer     :: tp => null()
+    real(dp),     allocatable, dimension(:,:) :: dp_pixreg
+    integer(i4b), allocatable, dimension(:,:) :: int_pixreg
     
     if (trim(self%type) == 'md') then
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'md/'//trim(adjustl(self%label)), md)
@@ -2458,6 +2490,38 @@ contains
           !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,:) = 1.60d0 
           !if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.1d0 * sqrt(4*pi)
           !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
+
+          !Need to initialize pixelregions and local sampler from chain as well (where relevant)
+          npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
+          if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+             npr=0
+             do j = 1,npol
+                if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
+             end do
+             if (npr == 0) then !no pixelregions, theta = prior
+                if (self%theta(i)%p%info%myid == 0) write(*,*) 'No defined pixel regions for ',trim(self%label)//'_'//&
+                     & trim(self%indlabel(i))
+             else
+                allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
+                !pixel region values for theta
+                if (self%theta(i)%p%info%myid == 0) call read_hdf(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
+                call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
+                self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
+                !pixel region values for proposal length
+                if (self%theta(i)%p%info%myid == 0) call read_hdf(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', dp_pixreg)
+                call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
+                self%proplen_pixreg(1:npr,1:npol,i)=dp_pixreg
+                !pixel region values for number of proposals
+                if (self%theta(i)%p%info%myid == 0) call read_hdf(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_nprop', int_pixreg)
+                call mpi_bcast(int_pixreg, size(int_pixreg),  MPI_INTEGER, 0, self%theta(i)%p%info%comm, ierr)
+                self%nprop_pixreg(1:npr,1:npol,i)=int_pixreg
+
+                deallocate(dp_pixreg,int_pixreg)
+             end if
+          end if
        end do !i = 1,npar
     end if
 
