@@ -163,6 +163,15 @@ contains
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(cpar%comm_chain, b, samp_group))
     !call update_status(status, "cr8")
 
+    if (delta0 > 1d30) then
+       if(cpar%myid == root) then
+          write(*,*) 'CR error: Too large initial residual = ', delta0
+          write(*,*) '          Probably something wrong with signal model'
+       end if
+       call mpi_finalize(ierr)
+       stop
+    end if
+
     ! Set up convergence criterion
     if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
        lim_convergence = eps*delta0
@@ -273,9 +282,9 @@ contains
        call wall_time(t2)
        if (cpar%myid_chain == root .and. cpar%verbosity > 2) then
           if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
-!             write(*,*) '  CG iter. ', i, ' -- res = ', &
-!                  & val_convergence, ', tol = ', lim_convergence, &
-!                  & ', time = ', real(t2-t1,sp)
+!!$             write(*,*) '  CG iter. ', i, ' -- res = ', &
+!!$                  & val_convergence, ', tol = ', lim_convergence, &
+!!$                  & ', time = ', real(t2-t1,sp)
              buff = min(val_convergence,1d30)
              write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
                   & buff, ', tol = ', real(lim_convergence,sp), &
