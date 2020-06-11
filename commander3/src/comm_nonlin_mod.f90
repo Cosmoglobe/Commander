@@ -2085,38 +2085,6 @@ contains
     theta_max = c_lnL%p_uni(2,id)
 
 
-    ! Initialize new theta values if this is the first time sampling and theta has been initialized from HDF-file
-    if (c_lnL%first_ind_sample(p,id) .and. (.not. (trim(cpar%init_chain_prefix) == 'none' .or. &
-         & trim(c_lnL%init_from_HDF) == 'none')) .and. (c_lnL%init_pixreg_after_hdf(id))) then
-       
-       if (myid_pix == 0 .and. cpar%verbosity > 2) write(*,*) 'Initializing new spec. ind. values as read from HDF'
-
-       allocate(sum_theta(0:c_lnL%npixreg(p,id)))
-       sum_theta=0.d0
-
-       do k = 0,c_lnL%theta(id)%p%info%np-1
-          m = c_lnL%ind_pixreg_arr(k,p,id)
-          sum_theta(m)=sum_theta(m)+c_lnL%theta(id)%p%map(k,p)
-       end do
-
-       !allreduce
-       call mpi_allreduce(MPI_IN_PLACE, sum_theta, c_lnL%npixreg(p,id)+1, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
-
-       c_lnL%theta_pixreg(0,p,id)=c_lnL%p_gauss(1,id) ! pixregs zero to prior value
-
-       do k = 1,c_lnL%npixreg(p,id)
-          !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- numbe of pixels',sum_pix(k)
-          if (c_lnL%npix_pixreg(k,p,id) > 0) then
-             c_lnL%theta_pixreg(k,p,id)=sum_theta(k)/(1.d0*c_lnL%npix_pixreg(k,p,id))
-          else
-             c_lnL%theta_pixreg(k,p,id)=c_lnL%p_gauss(1,id) ! the prior as theta
-          end if
-       end do
-       deallocate(sum_theta)
-       c_lnL%first_ind_sample(p,id)=.false.
-    end if
-
-
     !set up which bands and polarizations to include
     allocate(band_i(3*numband),pol_j(3*numband))
 
