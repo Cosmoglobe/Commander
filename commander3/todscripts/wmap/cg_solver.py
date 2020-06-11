@@ -15,6 +15,8 @@ from scipy import sparse
 import sys
 from glob import glob
 
+version = 7
+
 
 def cg_solve(A, b, Minv, imax=1000, eps=1e-6):
     x = np.zeros_like(b)
@@ -101,10 +103,8 @@ def get_data(fname, band, nside=256):
     pixBs = []
     sigmas = []
     for num, label in enumerate(labels):
-        tod_raw = np.array(f[obsid + '/' + label + '/tod'])
-        gain, sigma0 = f[obsid + '/' + label + '/scalars'][0:2]
-        TODs = tod_raw/gain
-        TODs -= TODs.mean()
+        TODs = np.array(f[obsid + '/' + label + '/tod'])
+        #TODs -= TODs.mean()
         DAs[num] = DAs[num] + TODs.tolist()
         sigmas.append(TODs.std())
         if label == f'{band}13':
@@ -139,7 +139,7 @@ def get_cg(band='K1', nside=256, nfiles=200):
     b = np.zeros(hp.nside2npix(nside))
     M_diag = np.zeros(npix)
 
-    fnames = glob(f'/mn/stornext/d16/cmbco/bp/wmap/data/wmap_{band}_*v6.h5')
+    fnames = glob(f'/mn/stornext/d16/cmbco/bp/wmap/data/wmap_{band}_*v{version}.h5')
     fnames.sort()
     if nfiles == 1:
         fnames = [fnames[0]]
@@ -240,15 +240,16 @@ def get_cg(band='K1', nside=256, nfiles=200):
         d = s + beta*d
         i += 1
         dts.append(time()-t0)
-    hp.write_map('cg_v4.fits', x, overwrite=True)
+    hp.write_map(f'cg_v{version}.fits', x, overwrite=True)
 
     print(f'Done with {i} iterations, delta is {delta_new}')
     print(f"Each iteration is {np.mean(dts)}\pm{np.std(dts)}")
 
-    hp.mollview(b, cmap='coolwarm', norm='hist', title='Noise-weighted average')
+    hp.mollview(b, min=-25, max=25, cmap='coolwarm', title='Noise-weighted average')
+    hp.mollview(b, min=-250, max=250, cmap='coolwarm', title='Noise-weighted average')
     hp.mollview(M_diag, norm='hist', title='Preconditioner')
-    hp.mollview(x, norm='hist', title='Solution')
-    hp.mollview(x, min=-250, max=250, title='Solution')
+    hp.mollview(x, min=-25, max=25, title='Solution', cmap='coolwarm')
+    hp.mollview(x, min=-250, max=250, title='Solution', cmap='coolwarm')
 
 
     plt.show()
@@ -267,7 +268,7 @@ def check_hdf5(nside=256):
     M_diag = np.zeros(npix)
 
     from glob import glob
-    fnames = glob('/mn/stornext/d16/cmbco/bp/wmap/data/wmap_V1_*v6.h5')
+    fnames = glob('/mn/stornext/d16/cmbco/bp/wmap/data/wmap_V1_*v{version}.h5')
     fnames.sort()
     fname = fnames[0]
     f= h5py.File(fname, 'r')
@@ -280,10 +281,8 @@ def check_hdf5(nside=256):
     labels = ['V113', 'V114', 'V123', 'V124']
     ntodsigma = 100
     for num, label in enumerate(labels):
-        tod_raw = np.array(f[obsid + '/' + label + '/tod'])
-        gain, sigma0 = f[obsid + '/' + label + '/scalars'][0:2]
-        TODs = tod_raw/gain
-        TODs -= TODs.mean()
+        TODs = np.array(f[obsid + '/' + label + '/tod'])
+        #TODs -= TODs.mean()
         DAs[num] = DAs[num] + TODs.tolist()
         sigmas.append(TODs.std())
         if label == 'V113':
@@ -329,8 +328,8 @@ def check_hdf5(nside=256):
 
 if __name__ == '__main__':
     #cg_test()
-    #get_cg(band='K1')
-    get_cg(band='V1')
+    get_cg(band='K1', nfiles=1000)
+    #get_cg(band='V1')
     #check_hdf5()
 
 
