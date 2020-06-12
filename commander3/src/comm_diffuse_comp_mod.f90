@@ -1805,6 +1805,7 @@ contains
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
        if (all(self%lmax_ind_pol(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
+          if (self%myid == 0) write(*,*) 'constant mixmat', trim(self%label)
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
@@ -2557,8 +2558,12 @@ contains
                 call tp%dealloc()
              end if
           end if !lmax_ind > 0
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,:) = 1.60d0 
-          !if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.1d0 * sqrt(4*pi)
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,1) = 1.8d0 
+          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%map(:,1) = 18.d0 
+          !if (trim(self%label) == 'dust' .and. i > 1) self%theta(i)%p%map(:,1) = 1.6d0 
+!!$          if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%alm(:,:) = 1.8 * sqrt(4*pi)
+!!$          if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
+!!$          if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.0d0 * sqrt(4*pi)
           !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
 
           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
