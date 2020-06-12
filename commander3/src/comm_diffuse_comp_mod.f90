@@ -38,6 +38,7 @@ module comm_diffuse_comp_mod
      real(dp),           allocatable, dimension(:,:,:) :: F_mean
      character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'ridge', 'marginal'}
      integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_pol    ! lmax per poltype per spec. ind  
+     integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_mix    ! equal to lmax_ind_pol, but 0 where lmax=-1 and fullsky pixreg
      integer(i4b),       allocatable, dimension(:,:)   :: pol_pixreg_type ! {1=fullsky, 2=single_pix, 3=pixel_regions}
      integer(i4b),       allocatable, dimension(:,:)   :: nprop_uni       ! limits on nprop
      integer(i4b),       allocatable, dimension(:,:)   :: npixreg         ! number of pixel regions
@@ -333,6 +334,8 @@ contains
     if (cpar%cs_polarization(id_abs)) nmaps=3
 
     allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
+    allocate(self%lmax_ind_mix(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
+                                              ! Set to zero if lmax = -1 and fullsky pixregions are used
 
     !self%lmax_ind      = cpar%cs_lmax_ind(id_abs) !not to be used anymore
 
@@ -387,6 +390,7 @@ contains
        end do
     end do
 
+    self%lmax_ind_mix = self%lmax_ind_pol
     ! Comment: We are defining lmax per poltype index (or polarization) so that only the valid polarizations contribute
     !          to the overall lmax_ind. It also makes sure that if all valid lmax_ind parameters per poltype index and 
     !          parameter is 0, then all non-active are set to zero as well, i.e. we save some time on SHT.
@@ -793,6 +797,50 @@ contains
           call tp%dealloc()
 
        end if !any pixreg_type > 0
+
+       !final check to see if lmax < 0 and pixel region is fullsky
+       do j = 1,self%poltype(i)
+          if (self%lmax_ind_pol(j,i) >= 0) cycle
+          if (j > self%nmaps) then
+             self%lmax_ind_mix(j:,i) = self%lmax_ind_mix(self%nmaps,i)
+             cycle
+          end if
+
+          if (self%poltype(i) == 1) then
+             p_min = 1; p_max = 3
+          else if (self%poltype(i) == 2) then
+             if (j == 1) then
+                if (cpar%only_pol) cycle
+                p_min = 1; p_max = 1
+             else
+                p_min = 2; p_max = 3
+                if (cpar%only_pol) p_min = 1 !add the first index to this case
+             end if
+          else if (self%poltype(i) == 3) then
+             p_min = j
+             p_max = j
+             if (cpar%only_pol .and. j == 2) p_min = 1 !add the first index to this case
+          else
+             write(*,*) 'Unsupported polarization type'
+             stop
+          end if
+             
+          if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
+             self%lmax_ind_mix(p_min:p_max,i) = 0
+          else if (self%pol_pixreg_type(j,i) == 3) then
+             !not to sure about these checks, omitting them for now
+             if (.false.) then
+                if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then !pixel region map is a fullsky map
+                   self%lmax_ind_mix(p_min:p_max,i) = 0
+                else
+                   !check if any pixel region has as many pixels as the full theta map (i.e. only one pixel region is defined)
+                   if (any(self%npix_pixreg(:,j,i)==self%theta(i)%p%info%npix)) then 
+                      self%lmax_ind_mix(p_min:p_max,i) = 0
+                   end if
+                end if
+             end if
+          end if
+       end do
 
     end do !npar
 
@@ -1612,7 +1660,7 @@ contains
                 end if
              end if
 
-!          if (all(self%lmax_ind_pol(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
+!          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
 
@@ -1804,7 +1852,7 @@ contains
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-       if (all(self%lmax_ind_pol(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
+       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
@@ -1877,7 +1925,7 @@ contains
     end if
     call data(band)%B(d)%p%conv(trans=.true., map=m)
     
-    if (all(self%lmax_ind_pol(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
+    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
        do i = 1, nmaps
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
