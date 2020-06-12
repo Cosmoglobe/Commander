@@ -634,7 +634,7 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
-                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, .false.)
+                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle)
                    call self%downsample_tod(s_buf(:,j), ext, &
                         & s_lowres(:,j))!, mask(:,j))
                 else
@@ -665,7 +665,7 @@ contains
                    s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
              end do
-             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal)
+             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
 
              if (.false.) then
                 call int2string(self%scanid(i), scantext)
