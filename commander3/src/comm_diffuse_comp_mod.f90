@@ -153,7 +153,11 @@ contains
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
 
-    if(self%npar == 0) self%lmax_ind = 0 !default
+    if(self%npar == 0) then
+       self%lmax_ind = 0 !default
+       allocate(self%lmax_ind_mix(3,1))
+       self%lmax_ind_mix = 0
+    end if
 
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
@@ -333,9 +337,9 @@ contains
     nmaps = 1
     if (cpar%cs_polarization(id_abs)) nmaps=3
 
+    if (self%npar==0) return !do not go further, lmax_ind is set in initDiffuse 
+
     allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
-    allocate(self%lmax_ind_mix(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
-                                              ! Set to zero if lmax = -1 and fullsky pixregions are used
 
     !self%lmax_ind      = cpar%cs_lmax_ind(id_abs) !not to be used anymore
 
@@ -389,6 +393,10 @@ contains
           if (l > self%lmax_ind) self%lmax_ind = l
        end do
     end do
+
+
+    allocate(self%lmax_ind_mix(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
+                                              ! Set to zero if lmax = -1 and fullsky pixregions are used
 
     self%lmax_ind_mix = self%lmax_ind_pol
     ! Comment: We are defining lmax per poltype index (or polarization) so that only the valid polarizations contribute
