@@ -54,14 +54,11 @@ contains
 
     constructor%npar         = 2
     allocate(constructor%poltype(constructor%npar))
-    allocate(constructor%lmax_ind_pol(3,constructor%npar))       ! {integer}: lmax per. poltype sample per spec. index
     do i = 1, constructor%npar
        constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
-       do j = 1, constructor%poltype(i)
-          !assign lmax per spec ind per polarization sample type (poltype)
-          constructor%lmax_ind_pol(j,i) = cpar%cs_lmax_ind_pol(j,i,id_abs)
-       end do
     end do
+    call constructor%initLmaxSpecind(cpar, id, id_abs)
+
     call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters for 2 parameter model
