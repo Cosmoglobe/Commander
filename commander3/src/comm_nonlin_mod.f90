@@ -401,10 +401,22 @@ contains
                    theta%map(pix,1) = theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j))
                 end do
 
-                ! Smooth after regions are set  
-                call smooth_map(info_theta, .false., &
-                     & c%B_pp_fr(j)%p%b_l*0.d0+1.d0, theta, &  
-                     & c%B_pp_fr(j)%p%b_l, theta_smooth)
+                ! Smooth after regions are set, if smoothing scale > 0 and beam FWHM > 0.0
+                smooth_scale = c%smooth_scale(j)
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                   if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                      call smooth_map(info_theta, .false., &
+                           & c%B_pp_fr(j)%p%b_l*0.d0+1.d0, theta, &  
+                           & c%B_pp_fr(j)%p%b_l, theta_smooth)
+                   else
+                      theta_smooth => comm_map(info_theta)
+                      theta_smooth%map=theta%map
+                   end if
+                else
+                   theta_smooth => comm_map(info_theta)
+                   theta_smooth%map=theta%map
+                end if
+
 
                 call theta_smooth%YtW_scalar
                 call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
@@ -2071,38 +2083,6 @@ contains
 
     theta_min = c_lnL%p_uni(1,id)
     theta_max = c_lnL%p_uni(2,id)
-
-
-    ! Initialize new theta values if this is the first time sampling and theta has been initialized from HDF-file
-    if (c_lnL%first_ind_sample(p,id) .and. (.not. (trim(cpar%init_chain_prefix) == 'none' .or. &
-         & trim(c_lnL%init_from_HDF) == 'none')) .and. (c_lnL%init_pixreg_after_hdf(id))) then
-       
-       if (myid_pix == 0 .and. cpar%verbosity > 2) write(*,*) 'Initializing new spec. ind. values as read from HDF'
-
-       allocate(sum_theta(0:c_lnL%npixreg(p,id)))
-       sum_theta=0.d0
-
-       do k = 0,c_lnL%theta(id)%p%info%np-1
-          m = c_lnL%ind_pixreg_arr(k,p,id)
-          sum_theta(m)=sum_theta(m)+c_lnL%theta(id)%p%map(k,p)
-       end do
-
-       !allreduce
-       call mpi_allreduce(MPI_IN_PLACE, sum_theta, c_lnL%npixreg(p,id)+1, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
-
-       c_lnL%theta_pixreg(0,p,id)=c_lnL%p_gauss(1,id) ! pixregs zero to prior value
-
-       do k = 1,c_lnL%npixreg(p,id)
-          !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- numbe of pixels',sum_pix(k)
-          if (c_lnL%npix_pixreg(k,p,id) > 0) then
-             c_lnL%theta_pixreg(k,p,id)=sum_theta(k)/(1.d0*c_lnL%npix_pixreg(k,p,id))
-          else
-             c_lnL%theta_pixreg(k,p,id)=c_lnL%p_gauss(1,id) ! the prior as theta
-          end if
-       end do
-       deallocate(sum_theta)
-       c_lnL%first_ind_sample(p,id)=.false.
-    end if
 
 
     !set up which bands and polarizations to include
