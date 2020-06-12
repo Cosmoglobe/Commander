@@ -80,6 +80,7 @@ module comm_diffuse_comp_mod
      procedure :: initDiffuse
      procedure :: initPixregSampling
      procedure :: initSpecindProp
+     procedure :: initLmaxSpecind
      procedure :: updateMixmat  => updateDiffuseMixmat
      procedure :: update_F_int  => updateDiffuseFInt
 !!$     procedure :: dumpHDF    => dumpDiffuseToHDF
@@ -151,13 +152,7 @@ contains
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
 
-    self%lmax_ind      = cpar%cs_lmax_ind(id_abs) 
-    !should add check to set this to max of lmax_ind and any lmax_ind_pol 
-    do i = 1,self%npar
-       do j = 1,self%poltype(i)
-          if (self%lmax_ind_pol(j,i) > self%lmax_ind) self%lmax_ind = self%lmax_ind_pol(j,i)
-       end do
-    end do
+    if(self%npar == 0) self%lmax_ind = 0 !default
 
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
@@ -324,6 +319,82 @@ contains
     end if
     
   end subroutine initDiffuse
+
+  subroutine initLmaxSpecind(self, cpar, id, id_abs)
+    implicit none
+    class(comm_diffuse_comp)            :: self
+    type(comm_params),       intent(in) :: cpar
+    integer(i4b),            intent(in) :: id, id_abs
+
+    integer(i4b) :: i, j, k, l, m, nmaps, p, ierr
+
+    !check nmaps of the component
+    nmaps = 1
+    if (cpar%cs_polarization(id_abs)) nmaps=3
+
+    allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
+
+    !self%lmax_ind      = cpar%cs_lmax_ind(id_abs) !not to be used anymore
+
+    self%lmax_ind = -1 !default
+    do i = 1,self%npar
+       do p = 1, self%poltype(i)
+          l = cpar%cs_lmax_ind_pol(p,i,id_abs)
+
+          !assign lmax per spec ind per polarization (poltype)
+          if (self%poltype(i)==1) then !all polarizations have the same lmax
+             self%lmax_ind_pol(:,i) = l 
+          else if (self%poltype(i)==2) then 
+             if (p == 1) then 
+                if (cpar%only_pol) cycle
+                self%lmax_ind_pol(1,i) = l
+             else
+                !if only_pol, we don't want a possible Stokes I to slow down a potential lmax_ind == 0 speed up in SHT
+                if (cpar%only_pol) self%lmax_ind_pol(1,i) = l 
+                if (p > nmaps) then
+                   self%lmax_ind_pol(2:3,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(2:3,i) = l
+                end if
+             end if
+          else if (self%poltype(i)==3) then 
+             if (p == 1) then 
+                if (cpar%only_pol) cycle
+                self%lmax_ind_pol(1,i) = l
+             else if (p == 2) then 
+                !if only_pol, we don't want a possible Stokes I to slow down a potential lmax_ind == 0 speed up in SHT
+                if (cpar%only_pol) self%lmax_ind_pol(1,i) = l 
+                if (p > nmaps) then
+                   self%lmax_ind_pol(2,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(2,i) = l
+                end if
+             else
+                if (p > nmaps) then
+                   self%lmax_ind_pol(3,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(3,i) = l
+                end if
+             end if
+          else
+             write(*,fmt='(a,i1,a)') 'Incompatiple poltype ',p,' for '//trim(self%label)//' '//trim(self%indlabel(i))
+             stop
+          end if
+          if (l > self%lmax_ind) self%lmax_ind = l
+       end do
+    end do
+
+    ! Comment: We are defining lmax per poltype index (or polarization) so that only the valid polarizations contribute
+    !          to the overall lmax_ind. It also makes sure that if all valid lmax_ind parameters per poltype index and 
+    !          parameter is 0, then all non-active are set to zero as well, i.e. we save some time on SHT.
+    !          
+    ! Note: This subroutine must be called for all diffuse components with npar > 0, before initializing diffuse comp,
+    !       i.e. initDiffuse(), but after the number of spec. ind. parameters (npar) and poltype has been set.
+
+  end subroutine initLmaxSpecind
 
   subroutine initPixregSampling(self, cpar, id, id_abs)
     implicit none
@@ -1541,7 +1612,7 @@ contains
                 end if
              end if
 
-!          if (self%lmax_ind == 0) then
+!          if (all(self%lmax_ind_pol(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
 
@@ -1733,7 +1804,7 @@ contains
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-       if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
+       if (all(self%lmax_ind_pol(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
@@ -1806,7 +1877,7 @@ contains
     end if
     call data(band)%B(d)%p%conv(trans=.true., map=m)
     
-    if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
+    if (all(self%lmax_ind_pol(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
        do i = 1, nmaps
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
@@ -1840,7 +1911,6 @@ contains
     end select
 
   end subroutine applyDiffPrecond
-
 
 
   subroutine applyDiffPrecond_diagonal(x)

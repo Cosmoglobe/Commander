@@ -567,7 +567,8 @@ contains
                 Tm%alm = 0.d0
              else
                 call map%alm_equal(Tm)
-                if (c%lmax_ind == 0) then
+                !need to check all relevant polarizations for lmax_ind == 0
+                if (all(c%lmax_ind_pol(1:min(c%nmaps,data(i)%info%nmaps),:) == 0)) then 
                    do j = 1, c%nmaps
                       Tm%alm(:,j) = Tm%alm(:,j) * c%F_mean(i,0,j)
                    end do
