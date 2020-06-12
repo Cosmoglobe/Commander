@@ -14,11 +14,13 @@ contains
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot)
+   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle)
     implicit none
     class(comm_tod),                      intent(inout) :: tod
     real(sp),             dimension(:,:), intent(in)    :: s_invN, mask, s_ref, s_tot
     integer(i4b),                         intent(in)    :: scan_id
+    type(planck_rng),                     intent(inout)  :: handle
+
 
     real(sp), allocatable, dimension(:,:) :: residual
     real(sp), allocatable, dimension(:)   :: r_fill
@@ -44,7 +46,7 @@ contains
        end if
        r_fill = tod%scans(scan_id)%d(j)%tod - (tod%gain0(0) + &
             & tod%gain0(j)) * s_tot(:,j)
-       call fill_all_masked(r_fill, mask(:,j), ntod, .false.)
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%sigma0, sp), handle)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
     call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
@@ -426,13 +428,14 @@ contains
   ! Haavard: Remove current monopole fit, and replace inv_sigmasq with a proper invN(alpha,fknee) multiplication
 !  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
 !       & s_orb, A_abs, b_abs)
-   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs)
+   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
     real(sp),          dimension(:,:), intent(in)     :: s_invN
     real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
+    type(planck_rng),                  intent(inout)  :: handle
 
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
@@ -452,7 +455,7 @@ contains
           cycle
        end if
        r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j)
-       call fill_all_masked(r_fill, mask(:,j), ntod, .false.)
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan)%d(j)%sigma0, sp), handle)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
 
