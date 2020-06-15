@@ -17,7 +17,7 @@ contains
     logical(lgt)                 :: exist
     character(len=4)             :: ctext
     character(len=6)             :: itext
-    character(len=512)           :: postfix, chainfile, hdfpath
+    character(len=512)           :: postfix, chainfile, hdfpath, fg_file
     type(hdf_file)   :: file
     TYPE(h5o_info_t) :: object_info
 
@@ -52,6 +52,13 @@ contains
           call mpi_finalize(ierr)
           stop
        end if
+
+       !delete fg_ind_mean_cXXXX.dat if it exists
+       fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
+       inquire(file=fg_file, exist=exist)
+       if (exist) call rm(trim(fg_file))
+
+
     end if
     call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
 
@@ -64,12 +71,13 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i, j, hdferr, ierr
-    real(dp)                     :: chisq, t1, t2, t3, t4
-    logical(lgt)                 :: exist, init
+    integer(i4b)                 :: i, j, hdferr, ierr, unit, p_min, p_max
+    real(dp)                     :: chisq, t1, t2, t3, t4, theta_sum
+    logical(lgt)                 :: exist, init, new_header
     character(len=4)             :: ctext
     character(len=6)             :: itext
-    character(len=512)           :: postfix, chainfile, hdfpath
+    character(len=512)           :: postfix, chainfile, hdfpath, fg_file, temptxt, fg_txt
+    character(len=2048)          :: outline, fg_header
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map),     pointer :: map => null(), chisq_map => null(), chisq_sub => null()
     class(comm_comp),    pointer :: c => null()
@@ -117,6 +125,24 @@ contains
     end if
     call update_status(status, "output_chain")
 
+    !Prepare mean foregrounds values print to file
+    if (cpar%myid_chain == 0) then
+       fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
+       inquire(file=fg_file, exist=exist)
+       unit = getlun()       
+       if (.not. exist) then
+          new_header=.true.
+          open(unit, file=trim(fg_file), status='new',action='write', recl=1024)
+       else
+          new_header=.false.
+          open(unit, file=trim(fg_file), status='old', position='append',action='write', recl=1024)
+       end if
+
+       if (new_header) write(fg_header,fmt='(a10)') '# Sample'
+       write(outline,fmt='(a10)') itext
+    end if
+
+
     ! Output component results
     c => compList
     call wall_time(t1)
@@ -134,10 +160,99 @@ contains
           else
              call c%Cl%writeFITS(cpar%mychain, iter)
           end if
+
+          !get mean values (and component labels) for fg mean print
+          do i = 1,c%npar
+             if (cpar%myid_chain == 0) then 
+                if (new_header) then
+                   fg_txt=''
+                   if (c%poltype(i) == 1) then
+                      if (cpar%only_pol) then
+                         if (c%nmaps > 1) write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(QU)'
+                      else
+                         write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(IQU)'
+                      end if
+                   else if (c%poltype(i) == 2) then
+                      if (cpar%only_pol) then
+                         if (c%nmaps > 1) then
+                            write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(QU)'
+                         end if
+                      else
+                         if (c%nmaps > 1) then
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(QU)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                         else
+                            write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
+                         end if
+                      end if
+                   else if (c%poltype(i) == 3) then
+                      if (cpar%only_pol) then
+                         if (c%nmaps > 2) then
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(Q)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(U)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                         else if (c%nmaps > 1) then
+                            write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(Q)'
+                         end if
+                      else
+                         if (c%nmaps > 2) then
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(Q)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(U)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                         else if (c%nmaps > 1) then
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(Q)'
+                            fg_txt=trim(fg_txt)//trim(temptxt)
+                         else
+                            write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
+                         end if
+                      end if
+                   end if
+                end if
+                if (.not. trim(fg_txt)=='') fg_header = trim(fg_header)//trim(fg_txt)
+             end if
+
+             do j = 1,c%poltype(i)
+                if (c%poltype(i) == 1) then
+                   p_min = 1; p_max = c%nmaps
+                   if (cpar%only_pol) p_min = 2
+                else if (c%poltype(i) == 2) then
+                   if (j == 1) then
+                      if (cpar%only_pol) cycle
+                      p_min = 1; p_max = 1
+                   else
+                      p_min = 2; p_max = c%nmaps
+                   end if
+                else if (c%poltype(i) == 3) then
+                   if (j == 1 .and. cpar%only_pol) cycle
+                   p_min = j
+                   p_max = j
+                end if
+
+                !all maps in the same poltype has the same theta, only evaluate p_min
+                if (p_min > c%nmaps) cycle
+                call mpi_reduce(sum(c%theta(i)%p%map(:,p_min)), theta_sum, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
+                write(temptxt,fmt='(e20.7)') theta_sum/c%theta(i)%p%info%npix
+                if (cpar%myid_chain == 0) then 
+                   outline = trim(outline)//trim(temptxt)
+                end if
+             end do
+          end do
+
        end select
        call update_status(status, "output_"//trim(c%label))
        c => c%next()
     end do
+
+    
+
     if (cpar%resamp_CMB) then
        if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
        return
@@ -190,6 +305,19 @@ contains
           call chisq_map%dealloc()
        end if
        call update_status(status, "output_chisq")
+    end if
+
+    ! get chisq for fg_mean file 
+    if (cpar%myid_chain == 0) then
+       if (new_header) fg_header=trim(fg_header)//'          full_chisq           avg_chisq       chisq_highlat      avg_reduced_chisq'
+       write(temptxt,fmt='(e20.8,e20.8,a25,a25)') chisq, chisq/(12*cpar%nside_chisq**2), '(too be implemented)', '(too be implemented)'
+       outline = trim(outline)//trim(temptxt)
+       !need to find a nice way of only gathering high latitude chisq
+
+       !write fg_mean info to file and close file
+       if (new_header) write(unit,fmt='(a)') trim(fg_header)
+       write(unit,fmt='(a)') trim(outline)
+       close(unit)
     end if
 
     ! Output signal components per band

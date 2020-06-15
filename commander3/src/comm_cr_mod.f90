@@ -42,7 +42,7 @@ contains
     class(comm_comp),   pointer :: c => null()
 
     root    = 0
-    maxiter = cpar%cg_maxiter
+    maxiter = cpar%cg_samp_group_maxiter(samp_group)
     eps     = cpar%cg_tol
     n       = size(x)
 
@@ -163,6 +163,15 @@ contains
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(cpar%comm_chain, b, samp_group))
     !call update_status(status, "cr8")
 
+    if (delta0 > 1d30) then
+       if(cpar%myid == root) then
+          write(*,*) 'CR error: Too large initial residual = ', delta0
+          write(*,*) '          Probably something wrong with signal model'
+       end if
+       call mpi_finalize(ierr)
+       stop
+    end if
+
     ! Set up convergence criterion
     if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
        lim_convergence = eps*delta0
@@ -177,7 +186,7 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
 
-       call update_status(status, "cg1")
+       !call update_status(status, "cg1")
        
        ! Check convergence
        if (mod(i,cpar%cg_check_conv_freq) == 0) then
@@ -193,7 +202,7 @@ contains
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
        end if
        
-       call update_status(status, "cg2")
+       !call update_status(status, "cg2")
    
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
@@ -208,7 +217,7 @@ contains
           r = r - alpha*q
        end if
 
-       call update_status(status, "cg3")
+       !call update_status(status, "cg3")
        call wall_time(t3)
        s         = cr_invM(cpar%comm_chain, r, samp_group)
        call wall_time(t4)
@@ -217,7 +226,7 @@ contains
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
-       call update_status(status, "cg4")
+       !call update_status(status, "cg4")
 
        if (cpar%output_cg_freq > 0) then
           if (mod(i,cpar%output_cg_freq) == 0) then
@@ -266,16 +275,16 @@ contains
              call cr_x2amp(samp_group, x)
           end if
        end if
-       call update_status(status, "cg5")
+       !call update_status(status, "cg5")
 
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
        call wall_time(t2)
        if (cpar%myid_chain == root .and. cpar%verbosity > 2) then
           if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
-!             write(*,*) '  CG iter. ', i, ' -- res = ', &
-!                  & val_convergence, ', tol = ', lim_convergence, &
-!                  & ', time = ', real(t2-t1,sp)
+!!$             write(*,*) '  CG iter. ', i, ' -- res = ', &
+!!$                  & val_convergence, ', tol = ', lim_convergence, &
+!!$                  & ', time = ', real(t2-t1,sp)
              buff = min(val_convergence,1d30)
              write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
                   & buff, ', tol = ', real(lim_convergence,sp), &
@@ -290,7 +299,7 @@ contains
           end if
        end if
 
-       call update_status(status, "cg6")
+       !call update_status(status, "cg6")
 
     end do
 
@@ -348,7 +357,7 @@ contains
     end if
 
     deallocate(Ax, r, d, q, s)
-    call update_status(status, "cr9")
+    !call update_status(status, "cr9")
     
   end subroutine solve_cr_eqn_by_CG
 
@@ -558,7 +567,8 @@ contains
                 Tm%alm = 0.d0
              else
                 call map%alm_equal(Tm)
-                if (c%lmax_ind == 0) then
+                !need to check all relevant polarizations for lmax_ind == 0
+                if (all(c%lmax_ind_mix(1:min(c%nmaps,data(i)%info%nmaps),:) == 0)) then 
                    do j = 1, c%nmaps
                       Tm%alm(:,j) = Tm%alm(:,j) * c%F_mean(i,0,j)
                    end do
@@ -637,7 +647,15 @@ contains
              if (associated(c%mu)) then
                 mu => comm_map(c%mu)
                 call c%Cl%sqrtInvS(map=mu)
-                eta = eta + mu%alm
+                do j = 1, c%x%info%nmaps
+                   do i = 0, c%x%info%nalm-1
+                      if (mu%info%lm(1,i) <= c%lmax_prior) then
+                         !write(*,*) j, i, mu%info%lm(i,1), c%lmax_prior
+                         eta(i,j) = eta(i,j) + mu%alm(i,j)
+                      end if
+                   end do
+                end do
+                !eta = eta + mu%alm
                 call mu%dealloc()
              end if
              call cr_insert_comp(c%id, .true., eta, rhs)

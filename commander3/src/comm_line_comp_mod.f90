@@ -48,8 +48,10 @@ contains
     
     ! General parameters
     allocate(constructor)
-    constructor%npar = 0 !temporary value so that lmax_ind can be checked in initDiffuse
+    constructor%npar = 0 !temporary value so that lmax_ind is correcty set (to 0) in initDiffuse
     call constructor%initDiffuse(cpar, id, id_abs)
+    self%cg_samp_group_maxiter = cpar%cs_cg_samp_group_maxiter(id_abs)
+    if (self%cg_unique_sampgroup > 0) cpar%cg_samp_group_maxiter(self%cg_unique_sampgroup) = self%cg_samp_group_maxiter
 
     ! Read line template file
     call read_line_template(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), &
@@ -68,6 +70,10 @@ contains
 
     allocate(constructor%ind2band(n))
     constructor%npar = n
+
+    allocate(constructor%lmax_ind_pol(3,constructor%npar))
+    constructor%lmax_ind_pol = 0 !always fullsky (lmax=0) for line component
+
     allocate(constructor%theta_def(n), constructor%p_gauss(2,n), constructor%p_uni(2,n))
     allocate(constructor%poltype(n), constructor%indlabel(n), constructor%line2RJ(n))
     n         = 0

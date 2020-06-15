@@ -25,8 +25,9 @@ module comm_diffuse_comp_mod
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg
-     integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
+     integer(i4b)       :: lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
+     integer(i4b)       :: cg_samp_group_maxiter
 
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen, chisq_min
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
@@ -38,6 +39,7 @@ module comm_diffuse_comp_mod
      real(dp),           allocatable, dimension(:,:,:) :: F_mean
      character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'ridge', 'marginal'}
      integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_pol    ! lmax per poltype per spec. ind  
+     integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_mix    ! equal to lmax_ind_pol, but 0 where lmax=-1 and fullsky pixreg
      integer(i4b),       allocatable, dimension(:,:)   :: pol_pixreg_type ! {1=fullsky, 2=single_pix, 3=pixel_regions}
      integer(i4b),       allocatable, dimension(:,:)   :: nprop_uni       ! limits on nprop
      integer(i4b),       allocatable, dimension(:,:)   :: npixreg         ! number of pixel regions
@@ -49,7 +51,6 @@ module comm_diffuse_comp_mod
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
-     logical(lgt),       allocatable, dimension(:)     :: init_pixreg_after_hdf
      class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
@@ -81,6 +82,7 @@ module comm_diffuse_comp_mod
      procedure :: initDiffuse
      procedure :: initPixregSampling
      procedure :: initSpecindProp
+     procedure :: initLmaxSpecind
      procedure :: updateMixmat  => updateDiffuseMixmat
      procedure :: update_F_int  => updateDiffuseFInt
 !!$     procedure :: dumpHDF    => dumpDiffuseToHDF
@@ -148,15 +150,17 @@ contains
     self%pol           = cpar%cs_polarization(id_abs)
     self%nside         = cpar%cs_nside(id_abs)
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
+    self%lmax_prior    = cpar%cs_lmax_amp_prior(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
 
-    self%lmax_ind      = cpar%cs_lmax_ind(id_abs) 
-    !should add check to set this to max of lmax_ind and any lmax_ind_pol 
-    do i = 1,self%npar
-       do j = 1,self%poltype(i)
-          if (self%lmax_ind_pol(j,i) > self%lmax_ind) self%lmax_ind = self%lmax_ind_pol(j,i)
-       end do
-    end do
+    if(self%npar == 0) then
+       self%lmax_ind = 0 !default
+       allocate(self%lmax_ind_mix(3,1))
+       self%lmax_ind_mix = 0
+    else
+       self%cg_samp_group_maxiter = cpar%cs_cg_samp_group_maxiter(id_abs)
+       if (self%cg_unique_sampgroup > 0) cpar%cg_samp_group_maxiter(self%cg_unique_sampgroup) = self%cg_samp_group_maxiter
+    end if
 
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
@@ -324,6 +328,89 @@ contains
     
   end subroutine initDiffuse
 
+  subroutine initLmaxSpecind(self, cpar, id, id_abs)
+    implicit none
+    class(comm_diffuse_comp)            :: self
+    type(comm_params),       intent(in) :: cpar
+    integer(i4b),            intent(in) :: id, id_abs
+
+    integer(i4b) :: i, j, k, l, m, nmaps, p, ierr
+
+    !check nmaps of the component
+    nmaps = 1
+    if (cpar%cs_polarization(id_abs)) nmaps=3
+
+    if (self%npar==0) return !do not go further, lmax_ind is set in initDiffuse 
+
+    allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
+
+    !self%lmax_ind      = cpar%cs_lmax_ind(id_abs) !not to be used anymore
+
+    self%lmax_ind = -1 !default
+    do i = 1,self%npar
+       do p = 1, self%poltype(i)
+          l = cpar%cs_lmax_ind_pol(p,i,id_abs)
+
+          !assign lmax per spec ind per polarization (poltype)
+          if (self%poltype(i)==1) then !all polarizations have the same lmax
+             self%lmax_ind_pol(:,i) = l 
+          else if (self%poltype(i)==2) then 
+             if (p == 1) then 
+                if (cpar%only_pol) cycle
+                self%lmax_ind_pol(1,i) = l
+             else
+                !if only_pol, we don't want a possible Stokes I to slow down a potential lmax_ind == 0 speed up in SHT
+                if (cpar%only_pol) self%lmax_ind_pol(1,i) = l 
+                if (p > nmaps) then
+                   self%lmax_ind_pol(2:3,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(2:3,i) = l
+                end if
+             end if
+          else if (self%poltype(i)==3) then 
+             if (p == 1) then 
+                if (cpar%only_pol) cycle
+                self%lmax_ind_pol(1,i) = l
+             else if (p == 2) then 
+                !if only_pol, we don't want a possible Stokes I to slow down a potential lmax_ind == 0 speed up in SHT
+                if (cpar%only_pol) self%lmax_ind_pol(1,i) = l 
+                if (p > nmaps) then
+                   self%lmax_ind_pol(2,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(2,i) = l
+                end if
+             else
+                if (p > nmaps) then
+                   self%lmax_ind_pol(3,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(3,i) = l
+                end if
+             end if
+          else
+             write(*,fmt='(a,i1,a)') 'Incompatiple poltype ',p,' for '//trim(self%label)//' '//trim(self%indlabel(i))
+             stop
+          end if
+          if (l > self%lmax_ind) self%lmax_ind = l
+       end do
+    end do
+
+
+    allocate(self%lmax_ind_mix(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
+                                              ! Set to zero if lmax = -1 and fullsky pixregions are used
+
+    self%lmax_ind_mix = self%lmax_ind_pol
+    ! Comment: We are defining lmax per poltype index (or polarization) so that only the valid polarizations contribute
+    !          to the overall lmax_ind. It also makes sure that if all valid lmax_ind parameters per poltype index and 
+    !          parameter is 0, then all non-active are set to zero as well, i.e. we save some time on SHT.
+    !          
+    ! Note: This subroutine must be called for all diffuse components with npar > 0, before initializing diffuse comp,
+    !       i.e. initDiffuse(), but after the number of spec. ind. parameters (npar) and poltype has been set.
+
+  end subroutine initLmaxSpecind
+
   subroutine initPixregSampling(self, cpar, id, id_abs)
     implicit none
     class(comm_diffuse_comp)            :: self
@@ -423,7 +510,6 @@ contains
     allocate(self%pol_nprop(self%npar))    ! nprop map per spectral index (all poltypes
     allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
-    allocate(self%init_pixreg_after_hdf(self%npar))
     if (any(self%pol_pixreg_type(:,:) > 0)) then
        k=0
        do i = 1,self%npar
@@ -614,11 +700,9 @@ contains
           if (cpar%cs_pixreg_init_theta(i,id_abs) == 'none') then
              tp => comm_map(self%theta(i)%p%info)
              tp%map = self%theta(i)%p%map !take avrage from existing theta map
-             self%init_pixreg_after_hdf(i) = .true. !in case one reads from HDF
           else
              !read map from init map (non-smoothed theta map)
              tp => comm_map(self%theta(i)%p%info, trim(cpar%datadir) // '/' // trim(cpar%cs_pixreg_init_theta(i,id_abs)))
-             self%init_pixreg_after_hdf(i) = .false. !We do NOT read from HDF
           end if
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
@@ -724,6 +808,50 @@ contains
           call tp%dealloc()
 
        end if !any pixreg_type > 0
+
+       !final check to see if lmax < 0 and pixel region is fullsky
+       do j = 1,self%poltype(i)
+          if (self%lmax_ind_pol(j,i) >= 0) cycle
+          if (j > self%nmaps) then
+             self%lmax_ind_mix(j:,i) = self%lmax_ind_mix(self%nmaps,i)
+             cycle
+          end if
+
+          if (self%poltype(i) == 1) then
+             p_min = 1; p_max = 3
+          else if (self%poltype(i) == 2) then
+             if (j == 1) then
+                if (cpar%only_pol) cycle
+                p_min = 1; p_max = 1
+             else
+                p_min = 2; p_max = 3
+                if (cpar%only_pol) p_min = 1 !add the first index to this case
+             end if
+          else if (self%poltype(i) == 3) then
+             p_min = j
+             p_max = j
+             if (cpar%only_pol .and. j == 2) p_min = 1 !add the first index to this case
+          else
+             write(*,*) 'Unsupported polarization type'
+             stop
+          end if
+             
+          if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
+             self%lmax_ind_mix(p_min:p_max,i) = 0
+          else if (self%pol_pixreg_type(j,i) == 3) then
+             !not to sure about these checks, omitting them for now
+             if (.false.) then
+                if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then !pixel region map is a fullsky map
+                   self%lmax_ind_mix(p_min:p_max,i) = 0
+                else
+                   !check if any pixel region has as many pixels as the full theta map (i.e. only one pixel region is defined)
+                   if (any(self%npix_pixreg(:,j,i)==self%theta(i)%p%info%npix)) then 
+                      self%lmax_ind_mix(p_min:p_max,i) = 0
+                   end if
+                end if
+             end if
+          end if
+       end do
 
     end do !npar
 
@@ -1544,7 +1672,7 @@ contains
                 end if
              end if
 
-!          if (self%lmax_ind == 0) then
+!          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
 
@@ -1736,7 +1864,8 @@ contains
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-       if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
+
+       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
@@ -1809,7 +1938,7 @@ contains
     end if
     call data(band)%B(d)%p%conv(trans=.true., map=m)
     
-    if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
+    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
        do i = 1, nmaps
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
@@ -1843,7 +1972,6 @@ contains
     end select
 
   end subroutine applyDiffPrecond
-
 
 
   subroutine applyDiffPrecond_diagonal(x)
@@ -2055,7 +2183,7 @@ contains
     character(len=*),                        intent(in)           :: dir
 
     integer(i4b)       :: i, l, j, k, m, ierr, unit
-    integer(i4b)       :: p, p_min, p_max
+    integer(i4b)       :: p, p_min, p_max, npr, npol
     real(dp)           :: vals(10)
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
@@ -2063,6 +2191,8 @@ contains
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map), pointer :: map => null(), tp => null()
     real(dp), allocatable, dimension(:,:) :: sigma_l
+    real(dp),     allocatable, dimension(:,:) :: dp_pixreg
+    integer(i4b), allocatable, dimension(:,:) :: int_pixreg
 
     if (trim(self%type) == 'md') then
        filename = trim(dir)//'/md_' // trim(postfix) // '.dat'
@@ -2292,6 +2422,38 @@ contains
 
           end if
 
+          !output theta, proposal length and number of proposals per pixel region to HDF
+          if (output_hdf) then
+             npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
+             if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+                npr=0
+                do j = 1,npol
+                   if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
+                end do
+                if (npr == 0) then !no pixelregions, theta = prior
+                   if (self%theta(i)%p%info%myid == 0) write(*,*) 'No defined pixel regions for ',trim(self%label)//'_'//&
+                        & trim(self%indlabel(i))//' in writing to HDF'
+                else
+                   allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
+                   !pixel region values for theta
+                   dp_pixreg=self%theta_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_val', real(dp_pixreg,sp))
+                   !pixel region values for proposal length
+                   dp_pixreg=self%proplen_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', real(dp_pixreg,sp))
+                   !pixel region values for number of proposals
+                   int_pixreg=self%nprop_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_nprop', int_pixreg)
+
+                   deallocate(dp_pixreg,int_pixreg)
+                end if
+             end if
+
+          end if
+
        end do
        !call update_status(status, "writeFITS_8")
        
@@ -2317,12 +2479,14 @@ contains
     type(hdf_file),            intent(in)    :: hdffile
     character(len=*),          intent(in)    :: hdfpath
 
-    integer(i4b)       :: i, j, l, m
-    integer(i4b)       :: p, p_min, p_max
+    integer(i4b)       :: i, j, l, m, ierr
+    integer(i4b)       :: p, p_min, p_max, npr, npol
     real(dp)           :: md(4)
     character(len=512) :: path
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map), pointer     :: tp => null()
+    real(dp),     allocatable, dimension(:,:) :: dp_pixreg
+    integer(i4b), allocatable, dimension(:,:) :: int_pixreg
     
     if (trim(self%type) == 'md') then
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'md/'//trim(adjustl(self%label)), md)
@@ -2454,9 +2618,45 @@ contains
                 call tp%dealloc()
              end if
           end if !lmax_ind > 0
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,:) = 1.60d0 
-          !if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.1d0 * sqrt(4*pi)
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,1) = 1.65d0 
+          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%map(:,1) = 18.d0 
+          !if (trim(self%label) == 'dust' .and. i > 1) self%theta(i)%p%map(:,1) = 1.6d0 
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%alm(:,:) = 1.65d0 * sqrt(4*pi)
+!!$          if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
+!!$          if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.0d0 * sqrt(4*pi)
           !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
+
+          !Need to initialize pixelregions and local sampler from chain as well (where relevant)
+          npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
+          if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+             npr=0
+             do j = 1,npol
+                if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
+             end do
+             if (npr == 0) then !no pixelregions, theta = prior
+                if (self%theta(i)%p%info%myid == 0) write(*,*) 'No defined pixel regions for ',trim(self%label)//'_'//&
+                     & trim(self%indlabel(i))
+             else
+                allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
+                !pixel region values for theta
+                if (self%theta(i)%p%info%myid == 0) call read_hdf(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
+                call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
+                self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
+                !pixel region values for proposal length
+                if (self%theta(i)%p%info%myid == 0) call read_hdf(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', dp_pixreg)
+                call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
+                self%proplen_pixreg(1:npr,1:npol,i)=dp_pixreg
+                !pixel region values for number of proposals
+                if (self%theta(i)%p%info%myid == 0) call read_hdf(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_nprop', int_pixreg)
+                call mpi_bcast(int_pixreg, size(int_pixreg),  MPI_INTEGER, 0, self%theta(i)%p%info%comm, ierr)
+                self%nprop_pixreg(1:npr,1:npol,i)=int_pixreg
+
+                deallocate(dp_pixreg,int_pixreg)
+             end if
+          end if
        end do !i = 1,npar
     end if
 

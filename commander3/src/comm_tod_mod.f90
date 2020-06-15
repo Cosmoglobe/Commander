@@ -1081,7 +1081,7 @@ contains
     ntod = size(tod_in)
     npad = 5
     step = int(self%samprate/self%samprate_lowres)
-    w    = 2*step    ! Boxcar window width
+    w    = int(step/2)    ! Boxcar window width
     n    = int(ntod / step) + 1
     if (.not. present(tod_out)) then
        ext = [-npad, n+npad]
@@ -1097,9 +1097,9 @@ contains
        else
           !write(*,*) i, shape(tod_in), j, k
           if (present(mask)) then
-             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / (2*w+1)
+             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
           else
-             tod_out(i) = sum(tod_in(j:k)) / (2*w+1)
+             tod_out(i) = sum(tod_in(j:k)) / (k - j + 1)
           end if
        end if
        !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))
