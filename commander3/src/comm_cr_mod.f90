@@ -42,7 +42,7 @@ contains
     class(comm_comp),   pointer :: c => null()
 
     root    = 0
-    maxiter = cpar%cg_samp_group_maxiter(maxiter)
+    maxiter = cpar%cg_samp_group_maxiter(samp_group)
     eps     = cpar%cg_tol
     n       = size(x)
 
