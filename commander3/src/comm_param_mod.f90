@@ -136,7 +136,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_cg_scale
      integer(i4b),       allocatable, dimension(:)     :: cs_nside
      integer(i4b),       allocatable, dimension(:,:)   :: cs_poltype
-     integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_maxiter
+     integer(i4b),       allocatable, dimension(:)     :: cs_cg_samp_group_maxiter
      character(len=512), allocatable, dimension(:,:,:) :: cs_spec_lnLtype
      character(len=512), allocatable, dimension(:,:,:) :: cs_spec_pixreg
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_pixreg_map
@@ -622,7 +622,7 @@ contains
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_mono_prior(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
-    allocate(cpar%cs_latmask(n), cpar%cs_defmask(n), cpar%cs_cg_samp_maxiter(n))
+    allocate(cpar%cs_latmask(n), cpar%cs_defmask(n), cpar%cs_cg_samp_group_maxiter(n))
     allocate(cpar%cs_indmask(n), cpar%cs_amp_rms_scale(n))
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
@@ -663,6 +663,8 @@ contains
           if (cpar%cs_polarization(i)) &
                & call get_parameter_hashtable(htbl, 'COMP_OUTPUT_EB_MAP'//itext, len_itext=len_itext, par_lgt=cpar%cs_output_EB(i))
           call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext, len_itext=len_itext,        par_dp=cpar%cs_cg_scale(i))
+          if (.not. trim(cpar%cs_type(i)) == 'cmb') call get_parameter_hashtable(htbl, & 
+               &'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, par_int=cpar%cs_cg_samp_group_maxiter(i))
           !call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext,        par_int=cpar%cs_cg_samp_group_maxiter(i)) !put it in the components with npar > 0
           call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,           par_int=cpar%cs_nside(i))
           call get_parameter_hashtable(htbl, 'COMP_LMAX_AMP'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_amp(i))
@@ -742,8 +744,6 @@ contains
              end if
 
           case ('power_law')
-             call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, &
-                  & par_int=cpar%cs_cg_samp_group_maxiter(i))
              call get_parameter_hashtable(htbl, 'COMP_BETA_POLTYPE'//itext, len_itext=len_itext,  &
                   & par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
@@ -811,8 +811,6 @@ contains
              end do
 
           case ('physdust')
-             call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, &
-                  & par_int=cpar%cs_cg_samp_group_maxiter(i))
              call get_parameter_hashtable(htbl, 'COMP_UMIN_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_UMIN_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
                   & par_int=cpar%cs_spec_uni_nprop(1,1,i))
@@ -884,8 +882,6 @@ contains
              stop
 
           case ('spindust')
-             call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, &
-                  & par_int=cpar%cs_cg_samp_group_maxiter(i))
              call get_parameter_hashtable(htbl, 'COMP_NU_P_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_NU_P_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
                   & par_int=cpar%cs_spec_uni_nprop(1,1,i))
@@ -951,8 +947,6 @@ contains
              end do
 
           case ('spindust2')
-             call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, &
-                  & par_int=cpar%cs_cg_samp_group_maxiter(i))
              call get_parameter_hashtable(htbl, 'COMP_NU_P_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_NU_P_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
                   & par_int=cpar%cs_spec_uni_nprop(1,1,i))
@@ -1069,8 +1063,6 @@ contains
              end do
 
           case ('MBB')
-             call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, &
-                  & par_int=cpar%cs_cg_samp_group_maxiter(i))
              call get_parameter_hashtable(htbl, 'COMP_BETA_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
                   & par_int=cpar%cs_spec_uni_nprop(1,1,i))
@@ -1198,8 +1190,6 @@ contains
 !!$                  & par_dp=cpar%cs_p_gauss(i,1,1))
 !!$             call get_parameter_hashtable(htbl, 'COMP_PRIOR_GAUSS_EM_RMS'//itext, len_itext=len_itext,  &
 !!$                  & par_dp=cpar%cs_p_gauss(i,2,1))
-             call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, &
-                  & par_int=cpar%cs_cg_samp_group_maxiter(i))
              call get_parameter_hashtable(htbl, 'COMP_T_E_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(1,i))
              call get_parameter_hashtable(htbl, 'COMP_T_E_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
                   & par_int=cpar%cs_spec_uni_nprop(1,1,i))
@@ -1267,8 +1257,6 @@ contains
              end do
 
           case ('line')
-             call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, &
-                  & par_int=cpar%cs_cg_samp_group_maxiter(i))
              call get_parameter_hashtable(htbl, 'COMP_LINE_TEMPLATE'//itext, len_itext=len_itext,  &
                   & par_string=cpar%cs_SED_template(1,i))
              call get_parameter_hashtable(htbl, 'COMP_BAND_REF'//itext, len_itext=len_itext, &
@@ -2101,7 +2089,15 @@ contains
           cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
           cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
           cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
-          cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+          if (trim(cpar%cs_class(i)) == 'diffuse') then
+             if (trim(cpar%cs_type(i)) == 'cmb') then
+                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+             else
+                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
+             end if
+          else
+             cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+          end if
        end if
     end do
 
