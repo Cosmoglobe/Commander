@@ -69,6 +69,7 @@ module comm_param_mod
      integer(i4b)       :: num_bp_prop
      character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group
      character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group_mask
+     integer(i4b),       dimension(MAXSAMPGROUP) :: cg_samp_group_maxiter
 
      ! Data parameters
      integer(i4b)       :: numband
@@ -151,6 +152,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: cs_samp_samp_params_niter
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_lmax_ind_pol
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
+     integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp_prior
      integer(i4b),       allocatable, dimension(:)     :: cs_l_apod
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
      character(len=512), allocatable, dimension(:)     :: cs_unit
@@ -598,6 +600,7 @@ contains
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'SAMPLING_GROUP'//itext, par_string=cpar%cg_samp_group(i))
        call get_parameter_hashtable(htbl, 'SAMPLING_GROUP_MASK'//itext, par_string=cpar%cg_samp_group_mask(i))
+       call get_parameter_hashtable(htbl, 'SAMPLING_GROUP_MAXITER'//itext, par_int=cpar%cg_samp_group_maxiter(i))
     end do
     call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN', par_int=cpar%cs_local_burn_in)
 
@@ -613,7 +616,7 @@ contains
     allocate(cpar%cs_spec_samp_nprop(3,MAXPAR,n),cpar%cs_spec_samp_proplen(3,MAXPAR,n))
     allocate(cpar%cs_spec_npixreg(3,MAXPAR,n),cpar%cs_spec_pixreg_map(MAXPAR,n))
     allocate(cpar%cs_lmax_ind(n), cpar%cs_lmax_ind_pol(3,MAXPAR,n))
-    allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n))
+    allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_amp_prior(n))
     allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
@@ -670,6 +673,11 @@ contains
           call get_parameter_hashtable(htbl, 'COMP_CL_TYPE'//itext, len_itext=len_itext,         par_string=cpar%cs_cltype(i))
           call get_parameter_hashtable(htbl, 'COMP_INPUT_AMP_MAP'//itext, len_itext=len_itext,   par_string=cpar%cs_input_amp(i))
           call get_parameter_hashtable(htbl, 'COMP_PRIOR_AMP_MAP'//itext, len_itext=len_itext,   par_string=cpar%cs_prior_amp(i))
+          if (trim(cpar%cs_prior_amp(i)) /= 'none') then
+             call get_parameter_hashtable(htbl, 'COMP_PRIOR_AMP_LMAX'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_amp_prior(i))
+          else
+             cpar%cs_lmax_amp_prior(i) = -1
+          end if
           call get_parameter_hashtable(htbl, 'COMP_OUTPUT_FWHM'//itext, len_itext=len_itext,     par_dp=cpar%cs_fwhm(i))
 
           if (trim(cpar%cs_cltype(i)) == 'binned') then
@@ -2073,8 +2081,10 @@ contains
     ! Add one sample group per component
     do i = 1, cpar%cs_ncomp_tot
        if (cpar%cs_include(i)) then
-          cpar%cg_num_samp_groups                     = cpar%cg_num_samp_groups + 1
-          cpar%cg_samp_group(cpar%cg_num_samp_groups) = trim(cpar%cs_label(i))
+          cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
+          cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
+          cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
+          cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
        end if
     end do
 
