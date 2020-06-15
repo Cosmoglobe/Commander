@@ -50,8 +50,6 @@ contains
     allocate(constructor)
     constructor%npar = 0 !temporary value so that lmax_ind is correcty set (to 0) in initDiffuse
     call constructor%initDiffuse(cpar, id, id_abs)
-    self%cg_samp_group_maxiter = cpar%cs_cg_samp_group_maxiter(id_abs)
-    if (self%cg_unique_sampgroup > 0) cpar%cg_samp_group_maxiter(self%cg_unique_sampgroup) = self%cg_samp_group_maxiter
 
     ! Read line template file
     call read_line_template(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), &
