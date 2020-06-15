@@ -169,7 +169,7 @@ contains
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
-    character(len=2) :: itext, jtext
+    character(len=2) :: itext
     character(len=3) :: tag
     character(len=9) :: ar_tag
     character(len=120) :: outmessage
@@ -189,7 +189,7 @@ contains
     integer(c_int),    allocatable, dimension(:)      :: maxit
 
 
-  ! Sample spectral parameter (parid) for the given signal component
+    ! Sample spectral parameter (parid) for the given signal component
     allocate(status_fit(numband))
     c => compList
     do while (c%id /= comp_id)
@@ -202,8 +202,8 @@ contains
        j = par_id !quick fix to only sample spec. ind. parameter par_id
              
        ! Set up smoothed data
-       if (cpar%myid_chain == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(j))
-       call update_status(status, "spec_alm start " // trim(c%label)// ' ' // trim(c%indlabel(j)))
+       if (cpar%myid_chain == 0) write(*,*) '   Sampling '//trim(c%label)//' '//trim(c%indlabel(j))
+       call update_status(status, "spec_alm start "//trim(c%label)//' '//trim(c%indlabel(j)))
 
        if (c%apply_jeffreys) then
           allocate(df(numband))
@@ -222,7 +222,6 @@ contains
        theta => comm_map(info_theta)
 
        ! Params
-       write(jtext, fmt = '(I1)') j ! Create j string
        out_every = 10
        check_every = 25 !100
        nsamp = cpar%almsamp_nsamp !2000
@@ -251,8 +250,8 @@ contains
        maxit = 0
 
        ! Open log files
-       if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', status = 'unknown', access = 'append', recl=10000)
-       if (info%myid == 0) open(66, file=trim(cpar%outdir)//'/region-samples_'//trim(c%label)//'_par'//trim(jtext)//'.dat', status = 'unknown', access = 'append', recl=10000)
+       if (info%myid == 0) open(69, file=trim(cpar%outdir)//'/nonlin-samples_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat', status = 'unknown', access = 'append', recl=10000)
+       if (info%myid == 0) open(66, file=trim(cpar%outdir)//'/region-samples_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat', status = 'unknown', access = 'append', recl=10000)
 
        ! Save initial alm        
        alms = 0.d0
@@ -637,7 +636,7 @@ contains
              delta = 100
              allocate(C_(delta))
              allocate(N(delta))
-             open(58, file=trim(cpar%outdir)//'/correlation_function_'//trim(c%label)//'_par'//trim(jtext)//'.dat', recl=10000)
+             open(58, file=trim(cpar%outdir)//'/correlation_function_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat', recl=10000)
              do pl = 1, c%theta(j)%p%info%nmaps
 
                 ! Skip signals with poltype tag
@@ -677,7 +676,7 @@ contains
              deallocate(C_, N)
 
              ! If both corrlen and L have been calulated then output
-             filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_par'//trim(jtext)//'.dat'
+             filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
              open(58, file=filename, recl=10000)
              write(58,*) c%corrlen(j,:)
              write(58,*) c%L(:,:,:,j)
@@ -728,7 +727,7 @@ contains
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
-    character(len=2) :: itext, jtext
+    character(len=2) :: itext
     logical :: accepted, exist, doexit, skip
     class(comm_mapinfo), pointer :: info => null()
     class(comm_N),       pointer :: tmp  => null()

@@ -136,8 +136,6 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=2) :: jtext
-
     integer(i4b) :: i, j, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
@@ -738,8 +736,6 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=2) :: jtext
-
     integer(i4b) :: i, j, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
@@ -784,27 +780,30 @@ contains
     end do
 
     ! Initialize cholesky matrix
-    allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))           
+    if (cpar%almsamp_pixreg)  then
+       allocate(self%L(maxval(self%npixreg), maxval(self%npixreg), self%nmaps, self%npar))           
+    else
+       allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))
+    end if
+
     allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
     self%L = 0.d0
     self%steplen = 1 !0.3d0
 
     ! Filename formatting
     do j = 1, self%npar
-
-       write(jtext, fmt = '(I1)') j
-       filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_par'//trim(jtext)//'.dat'
+       filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_'//self%indlabel(j)//'.dat'
 
        inquire(file=filename, exist=exist)
        if (exist) then ! If present cholesky file
           self%L_read(j) = .true.
-          if (self%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
+          if (self%myid == 0) write(*,*) "Reading cholesky matrix for parameter"//self%indlabel(j)
           open(unit=11, file=filename, recl=10000)
           read(11,*) self%corrlen(j,:)
           read(11,*) self%L(:,:,:,j)
           close(11)
        else
-          if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter ", j       
+          if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter "//self%indlabel(j)
           do p = 0, self%nalm_tot-1
              self%L(p,p,:,j) = self%sigma_priors(p,j)
           end do
