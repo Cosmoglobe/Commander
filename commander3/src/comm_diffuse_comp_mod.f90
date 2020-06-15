@@ -27,6 +27,7 @@ module comm_diffuse_comp_mod
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg
      integer(i4b)       :: lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
+     integer(i4b)       :: cg_samp_group_maxiter
 
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen, chisq_min
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
@@ -158,6 +159,9 @@ contains
        self%lmax_ind = 0 !default
        allocate(self%lmax_ind_mix(3,1))
        self%lmax_ind_mix = 0
+    else
+       self%cg_samp_group_maxiter = cpar%cs_cg_samp_group_maxiter(id_abs)
+       if (self%cg_unique_sampgroup > 0) cpar%cg_samp_group_maxiter(self%cg_unique_sampgroup) = self%cg_samp_group_maxiter
     end if
 
     self%cltype        = cpar%cs_cltype(id_abs)
