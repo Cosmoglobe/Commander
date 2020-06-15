@@ -42,7 +42,7 @@ contains
     class(comm_comp),   pointer :: c => null()
 
     root    = 0
-    maxiter = cpar%cg_maxiter
+    maxiter = cpar%cg_samp_group_maxiter(maxiter)
     eps     = cpar%cg_tol
     n       = size(x)
 
@@ -647,7 +647,15 @@ contains
              if (associated(c%mu)) then
                 mu => comm_map(c%mu)
                 call c%Cl%sqrtInvS(map=mu)
-                eta = eta + mu%alm
+                do j = 1, c%x%info%nmaps
+                   do i = 0, c%x%info%nalm-1
+                      if (mu%info%lm(1,i) <= c%lmax_prior) then
+                         !write(*,*) j, i, mu%info%lm(i,1), c%lmax_prior
+                         eta(i,j) = eta(i,j) + mu%alm(i,j)
+                      end if
+                   end do
+                end do
+                !eta = eta + mu%alm
                 call mu%dealloc()
              end if
              call cr_insert_comp(c%id, .true., eta, rhs)
