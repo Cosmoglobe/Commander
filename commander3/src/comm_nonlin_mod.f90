@@ -389,7 +389,7 @@ contains
                    end do
 
                    ! Propose new pixel regions
-                   theta_pixreg_prop = c%theta_pixreg(:,pl,j) + 0.05d0*rgs !matmul(c%L(:,:,pl,j), rgs)
+                   theta_pixreg_prop = c%theta_pixreg(:,pl,j) + matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
                 end if
 
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
@@ -688,7 +688,7 @@ contains
              deallocate(C_, N)
 
              ! If both corrlen and L have been calulated then output
-             filename = trim(cpar%outdir)//'/init_alm_cholesky_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
+             filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
              open(58, file=filename, recl=10000)
              write(58,*) c%corrlen(j,:)
              write(58,*) c%L(:,:,:,j)
@@ -2884,6 +2884,7 @@ contains
 
 
   end function comp_lnL_marginal_diagonal
+
 
 
 end module comm_nonlin_mod

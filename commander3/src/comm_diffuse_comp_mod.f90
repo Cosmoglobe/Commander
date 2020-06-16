@@ -729,7 +729,6 @@ contains
                 end do
              end do
 
-             
              !allreduce
              call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
@@ -905,7 +904,7 @@ contains
 
     ! Initialize cholesky matrix
     if (cpar%almsamp_pixreg)  then
-       allocate(self%L(maxval(self%npixreg), maxval(self%npixreg), self%nmaps, self%npar))           
+       allocate(self%L(0:50, 0:50, self%nmaps, self%npar)) ! Set arbitrary number of max regions
     else
        allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))
     end if
@@ -916,21 +915,25 @@ contains
 
     ! Filename formatting
     do j = 1, self%npar
-       filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_'//self%indlabel(j)//'.dat'
+       filename = trim(cpar%datadir)//'/init_alm_'//trim(self%label)//'_'//trim(self%indlabel(j))//'.dat'
 
        inquire(file=filename, exist=exist)
        if (exist) then ! If present cholesky file
           self%L_read(j) = .true.
-          if (self%myid == 0) write(*,*) "Reading cholesky matrix for parameter"//self%indlabel(j)
+          if (self%myid == 0) write(*,*) " - ALM init file found for "//trim(self%label)//" "//trim(self%indlabel(j))
           open(unit=11, file=filename, recl=10000)
           read(11,*) self%corrlen(j,:)
           read(11,*) self%L(:,:,:,j)
           close(11)
        else
-          if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter "//self%indlabel(j)
-          do p = 0, self%nalm_tot-1
-             self%L(p,p,:,j) = self%sigma_priors(p,j)
-          end do
+          if (self%myid == 0) write(*,*) " - ALM init file NOT found for "//trim(self%label)//" "//trim(self%indlabel(j))
+          if (cpar%almsamp_pixreg) then
+             self%L(:,:,:,j) = self%sigma_priors(0,j)
+          else
+             do p = 0, self%nalm_tot-1
+                self%L(p,p,:,j) = self%sigma_priors(p,j)
+             end do
+          end if
        end if
     end do
     
