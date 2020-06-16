@@ -145,6 +145,8 @@ contains
     
     call self%initComp(cpar, id, id_abs)
 
+    call update_status(status, "init_diffuse_start")
+
     ! Initialize variables specific to diffuse source type
     self%pol           = cpar%cs_polarization(id_abs)
     self%nside         = cpar%cs_nside(id_abs)
@@ -321,6 +323,8 @@ contains
        filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
        self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
     end if
+
+    call update_status(status, "init_diffuse_end")
     
   end subroutine initDiffuse
 
@@ -331,6 +335,8 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     integer(i4b) :: i, j, k, l, m, nmaps, p, ierr
+
+    call update_status(status, "lmax_specind_start")
 
     !check nmaps of the component
     nmaps = 1
@@ -404,6 +410,7 @@ contains
     !          
     ! Note: This subroutine must be called for all diffuse components with npar > 0, before initializing diffuse comp,
     !       i.e. initDiffuse(), but after the number of spec. ind. parameters (npar) and poltype has been set.
+    call update_status(status, "lmax_specind_end")
 
   end subroutine initLmaxSpecind
 
@@ -425,6 +432,8 @@ contains
     class(comm_map),     pointer :: tp => null() 
     class(comm_map),     pointer :: tp_smooth => null() 
 
+
+    call update_status(status, "initPixreg_specind_start")
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
@@ -446,6 +455,8 @@ contains
     allocate(self%npixreg(3,self%npar))            ! {integer}: number of pixel regions per poltye per spec ind
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
+
+    call update_status(status, "initPixreg_specind_pixreg_type")
 
     self%npixreg = 0
     do i = 1,self%npar
@@ -485,6 +496,8 @@ contains
           end if
        end do
     end do
+
+    call update_status(status, "initPixreg_specind_allocate")
 
     if (any(self%pol_pixreg_type(:,:) > 0)) then
        !find highest number of pixel regions
@@ -530,7 +543,9 @@ contains
        self%ind_pixreg_arr = 0 !all pixels assigned to pixelregion 0 (not to be sampled), will read in pixreg later
     end if
 
+
     do i = 1,self%npar
+       call update_status(status, "initPixreg_specind_mask")
        ! spec. ind. mask
        if (trim(cpar%cs_spec_mask(i,id_abs)) == 'fullsky') then
           self%pol_ind_mask(i)%p => comm_map(info)
@@ -552,6 +567,8 @@ contains
              stop
           end if
        end if
+
+       call update_status(status, "initPixreg_specind_proplen")
 
        ! prop. len. map
        if (trim(cpar%cs_spec_proplen(i,id_abs)) == 'fullsky') then
@@ -581,6 +598,8 @@ contains
              self%pol_proplen(i)%p%map(:,j)=cpar%cs_spec_proplen_init(j,i,id_abs)
           end if
        end do
+
+       call update_status(status, "initPixreg_specind_nprop")
     
        ! nprop map
        if (trim(cpar%cs_spec_nprop(i,id_abs)) == 'fullsky') then
@@ -613,6 +632,8 @@ contains
        ! limit nprop
        self%pol_nprop(i)%p%map = min(max(self%pol_nprop(i)%p%map,self%nprop_uni(1,i)*1.d0), &
             & self%nprop_uni(2,i)*1.d0)
+
+       call update_status(status, "initPixreg_specind_pixel_regions")
 
        ! initialize pixel regions if relevant 
        if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
@@ -804,9 +825,10 @@ contains
 
        end if !any pixreg_type > 0
 
+       call update_status(status, "initPixreg_specind_lmax_ind_mix")
+
        !final check to see if lmax < 0 and pixel region is fullsky
        do j = 1,self%poltype(i)
-          if (self%lmax_ind_pol(j,i) >= 0) cycle
           if (j > self%nmaps) then
              self%lmax_ind_mix(j:,i) = self%lmax_ind_mix(self%nmaps,i)
              cycle
@@ -823,6 +845,7 @@ contains
                 if (cpar%only_pol) p_min = 1 !add the first index to this case
              end if
           else if (self%poltype(i) == 3) then
+             if (cpar%only_pol .and. j == 1) cycle
              p_min = j
              p_max = j
              if (cpar%only_pol .and. j == 2) p_min = 1 !add the first index to this case
@@ -831,10 +854,12 @@ contains
              stop
           end if
              
-          if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
+          if (self%lmax_ind_pol(j,i) >= 0) then
+             self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
+          else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
              self%lmax_ind_mix(p_min:p_max,i) = 0
           else if (self%pol_pixreg_type(j,i) == 3) then
-             !not to sure about these checks, omitting them for now
+             !not to sure about these checks, omitting them for now, these could mess up debug
              if (.false.) then
                 if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then !pixel region map is a fullsky map
                    self%lmax_ind_mix(p_min:p_max,i) = 0
@@ -849,6 +874,25 @@ contains
        end do
 
     end do !npar
+
+    if (self%theta(1)%p%info%myid == 0 .and. .false.) then !debug
+
+       write(*,*) ''
+       write(*,*) 'lmax_ind_pol'
+       do i = 1,self%npar
+          write(*,*) i, self%lmax_ind_pol(:,i)
+       end do
+       write(*,*) ''
+       write(*,*) 'lmax_ind_mix'
+       do i = 1,self%npar
+          write(*,*) i, self%lmax_ind_mix(:,i)
+       end do
+       write(*,*) ''
+       if (all(self%lmax_ind_mix(:,:) == 0)) write(*,*) '  all lmax_ind_mix zero'
+
+    end if
+
+    call update_status(status, "initPixreg_specind_end")
 
   end subroutine initPixregSampling
 
