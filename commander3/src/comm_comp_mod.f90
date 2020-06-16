@@ -242,7 +242,7 @@ contains
     allocate(self%active_samp_group(cpar%cg_num_samp_groups))
     self%active_samp_group = .false.
     !loop the additional sampling groups added to guarantee all components having their own sampling group
-    do i = cpar%cg_num_user_samp_groups+1, cpar%cg_num_samp_groups 
+    do i = 1, cpar%cg_num_samp_groups 
        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
        do j = 1, n
           if (trim(self%label) == trim(comp_label(j))) then

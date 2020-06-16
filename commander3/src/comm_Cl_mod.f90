@@ -597,7 +597,10 @@ contains
           get_Cl_apod = exp(-alpha * (abs(l_apod)-l)**2 / real(abs(l_apod)-1,dp)**2)
        end if
     end if
-    if (l <= lmax_prior) get_Cl_apod = get_Cl_apod * 1.d-6
+    if (lmax_prior >= 0 .and. l < lmax_prior) then
+       ! Apply cosine apodization between 0 and lmax_prior
+       get_Cl_apod = get_Cl_apod * 0.5d0*(cos(pi*real(max(l,1)-lmax_prior,dp)/real(lmax_prior,dp))+1.d0)
+    end if
     if (.not. positive .and. get_Cl_apod /= 0.d0) get_Cl_apod = 1.d0 / get_Cl_apod
   end function get_Cl_apod
 
