@@ -41,7 +41,7 @@ module comm_param_mod
      logical(lgt)       :: enable_TOD_analysis
      integer(i4b)       :: tod_freq
      integer(i4b)       :: resamp_hard_gain_prior_nth_iter
-     integer(i4b)       :: output_4D_map_nth_iter
+     integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
      logical(lgt)       :: include_tod_zodi
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
      real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
@@ -397,6 +397,7 @@ contains
        call get_parameter_hashtable(htbl, 'TOD_NUM_BP_PROPOSALS_PER_ITER', par_int=cpar%num_bp_prop)
        call get_parameter_hashtable(htbl, 'NUM_GIBBS_STEPS_PER_TOD_SAMPLE', par_int=cpar%tod_freq)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER', par_int=cpar%output_4D_map_nth_iter)
+       call get_parameter_hashtable(htbl, 'TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER', par_int=cpar%output_aux_maps)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
     end if
 

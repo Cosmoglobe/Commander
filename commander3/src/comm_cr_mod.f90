@@ -165,11 +165,10 @@ contains
 
     if (delta0 > 1d30) then
        if(cpar%myid == root) then
-          write(*,*) 'CR error: Too large initial residual = ', delta0
-          write(*,*) '          Probably something wrong with signal model'
+          write(*,*) 'CR warning: Large initial residual = ', delta0
        end if
-       call mpi_finalize(ierr)
-       stop
+!!$       call mpi_finalize(ierr)
+!!$       stop
     end if
 
     ! Set up convergence criterion
