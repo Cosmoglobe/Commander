@@ -162,7 +162,7 @@ contains
     integer(i4b),       intent(in)    :: comp_id     !component id, only doing one (!) component 
     integer(i4b),       intent(in)    :: par_id      !parameter index, 1 -> npar (per component)
 
-    integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, corrlen_init, burnin, cholesky_calc
+    integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, burnin, cholesky_calc
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind, nalm_tot_reg
     integer(i4b) :: p_min, p_max, nalm_tot, pix, region
     real(dp)     :: t1, t2, ts, dalm, thresh, steplen
@@ -183,9 +183,9 @@ contains
     class(comm_comp),    pointer :: c    => null()
     type(map_ptr),     allocatable, dimension(:) :: df
 
-    real(dp),          allocatable, dimension(:,:,:)  :: alms, buffer3
+    real(dp),          allocatable, dimension(:,:,:)  :: alms, regs, buffer3
     real(dp),          allocatable, dimension(:,:)    :: m
-    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, N, C_, theta_pixreg_prop
+    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop
     integer(c_int),    allocatable, dimension(:)      :: maxit
 
 
@@ -231,7 +231,6 @@ contains
        apply_prior = cpar%almsamp_apply_prior
        thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
 
-       corrlen_init = 1
        if (info%myid == 0 .and. c%L_read(j)) then
           write(*,*) "Sampling with cholesky matrix"
        end if
@@ -244,8 +243,8 @@ contains
 
        allocate(chisq(0:nsamp))
        chisq = 0.d0
-       allocate(alms(0:nsamp, 0:c%nalm_tot-1,info%nmaps))                         
-      
+       allocate(alms(0:nsamp, 0:c%nalm_tot-1,info%nmaps))             
+       if (cpar%almsamp_pixreg) allocate(regs(0:nsamp, 0:MAXVAL(c%npixreg(:,j)),info%nmaps)) ! Region values            
        allocate(maxit(info%nmaps)) ! maximum iteration 
        maxit = 0
 
@@ -255,12 +254,14 @@ contains
 
        ! Save initial alm        
        alms = 0.d0
+       regs = 0.d0
        ! Gather alms from threads to alms array with correct indices
        do pl = 1, c%theta(j)%p%info%nmaps
           call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, 0, pl, pl)
           allocate(buffer(c%nalm_tot))
           call mpi_allreduce(alms(0,:,pl), buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
           alms(0,:,pl) = buffer
+          if (cpar%almsamp_pixreg) regs(0,:,pl) = c%theta_pixreg(:,pl,j)
           deallocate(buffer)
        end do
 
@@ -416,7 +417,7 @@ contains
                    theta_smooth%map=theta%map
                 end if
 
-
+                
                 call theta_smooth%YtW_scalar
                 call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
                 allocate(buffer3(0:1, 0:nalm_tot_reg-1, 2)) ! Denne er nalm for 1! trenger alle
@@ -429,7 +430,6 @@ contains
                 call theta_smooth%dealloc()
                 ! ------- region sampling end
              end if
-
 
              ! Broadcast proposed alms from root
              allocate(buffer(c%nalm_tot))
@@ -522,7 +522,7 @@ contains
                    chisq(i) = chisq(i-1)
                    ar_tag = achar(27)//'[91m'
                 end if
-
+                if (cpar%almsamp_pixreg) regs(i,:,pl) = c%theta_pixreg(:,pl,j)
                 write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 if (cpar%almsamp_pixreg) then
@@ -641,66 +641,47 @@ contains
 
        ! Calculate correlation length and cholesky matrix 
        ! (Only if first iteration and not initialized from previous)
-       if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0 .and. .false.) then
+       if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0) then
           if (c%L_read(j)  .and. iter >= burnin) then
-             write(*,*) 'Calculating correlation function'
-             ! Calculate Correlation length
-             delta = 100
-             allocate(C_(delta))
-             allocate(N(delta))
-             open(58, file=trim(cpar%outdir)//'/correlation_function_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat', recl=10000)
-             do pl = 1, c%theta(j)%p%info%nmaps
 
+             !open(58, file=trim(cpar%outdir)//'/correlation_function_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat', recl=10000)
+             write(*,*) "Computing correlation function"
+
+             do pl = 1, c%theta(j)%p%info%nmaps
                 ! Skip signals with poltype tag
                 if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
                 if (pl > c%poltype(j)) cycle
                 if (c%lmax_ind_pol(pl,j) < 0) cycle
 
-                ! Calculate correlation function per alm
-                do p = 0, nalm_tot-1
-                   N(:) = 0
-                   C_(:) = 0.d0
-                   alms_mean = mean(alms(:,p,pl))
-                   alms_var = variance(alms(:,p,pl))
-                   do q = 1, maxit(pl)
-                      do k = 1, delta
-                         if (q+k > maxit(pl)) cycle
-                         C_(k) = C_(k) + (alms(q,p,pl)-alms_mean)*(alms(q+k,p,pl)-alms_mean)
-                         N(k) = N(k) + 1 ! Less samples every q
-                      end do
-                   end do
+                if (cpar%almsamp_pixreg) then
+                   call compute_corrlen(regs(:,1:,pl), c%npixreg(pl,j), maxit(pl), c%corrlen(j,pl))
+                else
+                   call compute_corrlen(alms(:,:,pl), nalm_tot, maxit(pl), c%corrlen(j,pl))
+                end if
 
-                   where (N>0) C_ = C_/N
-                   if ( alms_var > 0 ) C_ = C_/alms_var
-
-                   write(58,*) p, C_ ! Write to file
-
-                   ! Find correlation length
-                   c%corrlen(j,pl) = corrlen_init
-                   do k = corrlen_init, delta
-                      if (C_(k) > 0.1) c%corrlen(j,pl) = k
-                   end do
-
-                end do
                 write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
              end do
-             close(58)
-             deallocate(C_, N)
 
              ! If both corrlen and L have been calulated then output
              filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
+             write(*,*) "Writing tuning parameters to file: ", trim(filename)
              open(58, file=filename, recl=10000)
              write(58,*) c%corrlen(j,:)
              write(58,*) c%L(:,:,:,j)
              close(58)
-          else if (iter == cholesky_calc .and. .false.) then !if (.false.) then 
+
+          else if (iter == cholesky_calc) then
              ! If L does not exist yet, calculate
              write(*,*) 'Calculating cholesky matrix'
+
              do pl = 1, c%theta(j)%p%info%nmaps
                 if (maxit(pl) == 0) cycle ! Cycle if not sampled
-                call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
+                if (cpar%almsamp_pixreg) then
+                   call compute_covariance_matrix(regs(INT(maxit(pl)/2):maxit(pl),:,pl), c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), .true.)
+                else
+                   call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
+                end if
              end do
-
              c%steplen(:,j) = 0.3d0
              c%L_read(j) = .true. ! L now exists!
           end if
@@ -709,7 +690,7 @@ contains
        if (info%myid == 0) close(69)   
        if (info%myid == 0) close(66)   
 
-       deallocate(alms, chisq, maxit)
+       deallocate(alms, regs, chisq, maxit)
        call theta%dealloc()
 
        ! Clean up
@@ -1035,6 +1016,52 @@ contains
     end do
 
   end subroutine distribute_alms
+
+  subroutine compute_corrlen(x, n, maxit, corrlen)
+    implicit none
+
+    real(dp), dimension(0:,1:),    intent(in)    :: x
+    integer(i4b),                  intent(in)    :: n
+    integer(i4b),                  intent(in)    :: maxit
+    integer(i4b),                  intent(out)   :: corrlen
+
+    real(dp),          allocatable, dimension(:) :: N_, C_    
+    real(dp)     :: x_mean, x_var
+    integer(i4b) :: pl, p, q, k, corrlen_init, delta
+
+    ! Calculate Correlation length
+    delta = 100
+    corrlen_init = 1
+    allocate(C_(delta))
+    allocate(N_(delta))
+
+    ! Calculate correlation function per parameter
+    do p = 0, n-1
+       N_ = 0
+       C_ = 0.d0
+       x_mean = mean(x(1:maxit,p))
+       x_var = variance(x(1:maxit,p))
+       do q = 1, maxit
+          do k = 1, delta
+             if (q+k > maxit) cycle
+             C_(k) = C_(k) + (x(q,p)-x_mean)*(x(q+k,p)-x_mean)
+             N_(k) = N_(k) + 1 ! Less samples every q
+          end do
+       end do
+
+       where (N_>0) C_ = C_/N_
+       if ( x_var > 0 ) C_ = C_/x_var
+
+       !write(58,*) p, C_ ! Write to file
+
+       ! Find correlation length
+       corrlen = corrlen_init
+       do k = corrlen_init, delta
+          if (C_(k) > 0.1) corrlen = k
+       end do
+    end do
+    deallocate(C_, N_)
+  end subroutine compute_corrlen
 
 
   !Here comes all subroutines for sampling diffuse components locally

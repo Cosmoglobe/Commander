@@ -972,7 +972,9 @@ contains
        else
           if (self%myid == 0) write(*,*) " - ALM init file NOT found for "//trim(self%label)//" "//trim(self%indlabel(j))
           if (cpar%almsamp_pixreg) then
-             self%L(:,:,:,j) = self%sigma_priors(0,j)
+             do p = 0, 50
+                self%L(p,p,:,j) = self%sigma_priors(0,j)
+             end do
           else
              do p = 0, self%nalm_tot-1
                 self%L(p,p,:,j) = self%sigma_priors(p,j)
