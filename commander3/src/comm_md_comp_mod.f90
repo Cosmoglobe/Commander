@@ -94,7 +94,7 @@ contains
     constructor%lmax_ind = 0
     constructor%cltype   = 'binned'
     constructor%nmaps    = 1
-    allocate(constructor%lmax_ind_mix(3:1))
+    allocate(constructor%lmax_ind_mix(3,1))
     constructor%lmax_ind_mix = 0
 
     !info          => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_amp, &
