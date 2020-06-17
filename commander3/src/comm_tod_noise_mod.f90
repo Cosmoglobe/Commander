@@ -261,7 +261,7 @@ contains
        ! Sampling fknee
        if (trim(self%freq) == '030') then
           prior(1) = 0.01
-          prior(2) = 0.35
+          prior(2) = 0.45
        else if (trim(self%freq) == '044') then
           prior(1) = 0.002
           prior(2) = 0.20
