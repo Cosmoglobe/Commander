@@ -91,7 +91,6 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_n_maps = 3
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -321,6 +320,16 @@ contains
 
     ! Set up full-sky map structures
     call wall_time(t1)
+    if (self%output_aux_maps <= 0) then
+       self%output_n_maps = 3
+    else
+       if (mod(iter-1,self%output_aux_maps) == 0) then
+          self%output_n_maps = 7
+       else
+          self%output_n_maps = 3
+       end if
+    end if
+
     correct_sl      = .true.
     chisq_threshold = 7.d0
     n_main_iter     = 4
