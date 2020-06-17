@@ -793,7 +793,7 @@ contains
        samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
        alpha    = real(tod%scans(scan)%d(i)%alpha,sp)
        nu_knee  = real(tod%scans(scan)%d(i)%fknee,sp)
-       noise    = sigma_0 ** 2
+       noise    = sigma_0 ** 2 * tod%samprate/samprate
        
        dv(0,j) = 0.d0
        do l = 1, n-1                                                      
