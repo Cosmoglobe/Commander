@@ -162,7 +162,7 @@ contains
     integer(i4b),       intent(in)    :: comp_id     !component id, only doing one (!) component 
     integer(i4b),       intent(in)    :: par_id      !parameter index, 1 -> npar (per component)
 
-    integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, burnin, cholesky_calc
+    integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, burnin
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind, nalm_tot_reg
     integer(i4b) :: p_min, p_max, nalm_tot, pix, region
     real(dp)     :: t1, t2, ts, dalm, thresh, steplen
@@ -226,7 +226,6 @@ contains
        check_every = 25 !100
        nsamp = cpar%almsamp_nsamp !2000
        burnin = cpar%almsamp_burnin ! Gibbs iter burnin. Tunes steplen.
-       cholesky_calc = 1 ! Which gibbs iter to calculate cholesky, then corrlen.
        optimize = cpar%almsamp_optimize
        apply_prior = cpar%almsamp_apply_prior
        thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
@@ -592,9 +591,9 @@ contains
                       if (accept_rate < 0.2) then                 
                          c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
                          write(*,fmt='(a,f10.5)') "Reducing steplen -> ", c%steplen(pl,j)
-                      else if (accept_rate > 0.45 .and. accept_rate < 0.55) then
-                         c%steplen(pl,j) = c%steplen(pl,j)*2.0d0
-                         write(*,fmt='(a,f10.5)') "Equilibrium - Increasing steplen -> ", c%steplen(pl,j)
+                      !else if (accept_rate > 0.45 .and. accept_rate < 0.55) then
+                      !   c%steplen(pl,j) = c%steplen(pl,j)*2.0d0
+                      !   write(*,fmt='(a,f10.5)') "Equilibrium - Increasing steplen -> ", c%steplen(pl,j)
                       else if (accept_rate > 0.8) then
                          c%steplen(pl,j) = c%steplen(pl,j)*2.d0
                          write(*,fmt='(a,f10.5)') "Increasing steplen -> ", c%steplen(pl,j)
@@ -636,15 +635,11 @@ contains
        end do ! End pl
 
 
-
-       if (info%myid == 0) close(58)
-
        ! Calculate correlation length and cholesky matrix 
        ! (Only if first iteration and not initialized from previous)
        if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0) then
-          if (c%L_read(j)  .and. iter >= burnin) then
+          if (c%L_read(j)  .and. iter > burnin) then
              write(*,*) "Computing correlation function"
-
              do pl = 1, c%theta(j)%p%info%nmaps
                 ! Skip signals with poltype tag
                 if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
@@ -659,16 +654,7 @@ contains
 
                 write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
              end do
-
-             ! If both corrlen and L have been calulated then output
-             filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
-             write(*,*) "Writing tuning parameters to file: ", trim(filename)
-             open(58, file=filename, recl=10000)
-             write(58,*) c%corrlen(j,:)
-             write(58,*) c%L(:,:,:,j)
-             close(58)
-
-          else if (iter == cholesky_calc) then
+          else
              ! If L does not exist yet, calculate
              write(*,*) 'Calculating cholesky matrix'
 
@@ -680,9 +666,23 @@ contains
                    call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
                 end if
              end do
-             c%steplen(:,j) = 1.d0
-             c%L_read(j) = .true. ! L now exists!
+             c%steplen(:,j) = 1.d0 ! Revert steplength, because of new proposal matrix
+             c%L_read(j) = .true.  ! L now exist
           end if
+
+          ! Write to file
+          filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
+          write(*,*) "Writing tuning parameters to file: ", trim(filename)
+          open(58, file=filename, recl=10000)
+          if (maxval(c%corrlen(j,:)) > 0) then
+             write(58,*) c%corrlen(j,:)
+             write(58,*) c%L(:,:,:,j)
+          else
+             write(58,*) nsamp, nsamp, nsamp
+             write(58,*) c%L(:,:,:,j)
+          end if
+          close(58)
+
        end if
 
        if (info%myid == 0) close(69)   
@@ -1031,18 +1031,16 @@ contains
     ! Calculate Correlation length
     delta = 100
     corrlen_init = 1
+    corrlen = corrlen_init
     allocate(C_(delta))
     allocate(N_(delta))
     
     !open(58, file='correlation_function.dat', recl=10000)
-
-    corrlen = corrlen_init
-           
+          
     ! Calculate correlation function per parameter
     do p = 1, n
        x_mean = mean(x(1:maxit,p))
        x_var = variance(x(1:maxit,p))
-     
        
        N_ = 0
        C_ = 0.d0
@@ -1069,7 +1067,7 @@ contains
        end do
     end do
     deallocate(C_, N_)
-    close(58)
+    !close(58)
   end subroutine compute_corrlen
 
 
