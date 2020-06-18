@@ -796,7 +796,13 @@ contains
                 if (do_oper(bin_map) .and. nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_bp(:,j) ! Residual
                 if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
                 if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
-                if (do_oper(bin_map) .and. do_oper(samp_mono) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
+                if (do_oper(bin_map) .and. nout > 4) then
+                   if (do_oper(samp_mono)) then
+                      d_calib(5,:,j) = s_mono(:,j)
+                   else
+                      d_calib(5,:,j) = 0.d0
+                   end if
+                end if
                 if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
                 if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
                 if (do_oper(bin_map) .and. nout > 7 .and. do_oper(sub_zodi)) d_calib(8,:,j) = s_zodi(:,j)
