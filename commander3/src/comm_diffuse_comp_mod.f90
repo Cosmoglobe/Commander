@@ -948,7 +948,7 @@ contains
 
     ! Initialize cholesky matrix
     if (cpar%almsamp_pixreg)  then
-       allocate(self%L(0:50, 0:50, self%nmaps, self%npar)) ! Set arbitrary number of max regions
+       allocate(self%L(0:maxval(self%npixreg), 0:maxval(self%npixreg), self%nmaps, self%npar)) ! Set arbitrary number of max regions
     else
        allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))
     end if
@@ -972,7 +972,7 @@ contains
        else
           if (self%myid == 0) write(*,*) " - ALM init file NOT found for "//trim(self%label)//" "//trim(self%indlabel(j))
           if (cpar%almsamp_pixreg) then
-             do p = 0, 50
+             do p = 0, maxval(self%npixreg)
                 self%L(p,p,:,j) = self%sigma_priors(0,j)
              end do
           else
