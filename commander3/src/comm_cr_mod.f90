@@ -42,7 +42,7 @@ contains
     class(comm_comp),   pointer :: c => null()
 
     root    = 0
-    maxiter = cpar%cg_maxiter
+    maxiter = cpar%cg_samp_group_maxiter(samp_group)
     eps     = cpar%cg_tol
     n       = size(x)
 
@@ -163,6 +163,14 @@ contains
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(cpar%comm_chain, b, samp_group))
     !call update_status(status, "cr8")
 
+    if (delta0 > 1d30) then
+       if(cpar%myid == root) then
+          write(*,*) 'CR warning: Large initial residual = ', delta0
+       end if
+!!$       call mpi_finalize(ierr)
+!!$       stop
+    end if
+
     ! Set up convergence criterion
     if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
        lim_convergence = eps*delta0
@@ -273,9 +281,9 @@ contains
        call wall_time(t2)
        if (cpar%myid_chain == root .and. cpar%verbosity > 2) then
           if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
-!             write(*,*) '  CG iter. ', i, ' -- res = ', &
-!                  & val_convergence, ', tol = ', lim_convergence, &
-!                  & ', time = ', real(t2-t1,sp)
+!!$             write(*,*) '  CG iter. ', i, ' -- res = ', &
+!!$                  & val_convergence, ', tol = ', lim_convergence, &
+!!$                  & ', time = ', real(t2-t1,sp)
              buff = min(val_convergence,1d30)
              write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
                   & buff, ', tol = ', real(lim_convergence,sp), &
@@ -638,7 +646,15 @@ contains
              if (associated(c%mu)) then
                 mu => comm_map(c%mu)
                 call c%Cl%sqrtInvS(map=mu)
-                eta = eta + mu%alm
+                do j = 1, c%x%info%nmaps
+                   do i = 0, c%x%info%nalm-1
+                      if (mu%info%lm(1,i) <= c%lmax_prior) then
+                         !write(*,*) j, i, mu%info%lm(i,1), c%lmax_prior
+                         eta(i,j) = eta(i,j) + mu%alm(i,j)
+                      end if
+                   end do
+                end do
+                !eta = eta + mu%alm
                 call mu%dealloc()
              end if
              call cr_insert_comp(c%id, .true., eta, rhs)
