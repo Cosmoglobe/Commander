@@ -261,7 +261,7 @@ contains
        ! Sampling fknee
        if (trim(self%freq) == '030') then
           prior(1) = 0.01
-          prior(2) = 0.35
+          prior(2) = 0.45
        else if (trim(self%freq) == '044') then
           prior(1) = 0.002
           prior(2) = 0.20
@@ -793,7 +793,7 @@ contains
        samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
        alpha    = real(tod%scans(scan)%d(i)%alpha,sp)
        nu_knee  = real(tod%scans(scan)%d(i)%fknee,sp)
-       noise    = sigma_0 ** 2 
+       noise = sigma_0 ** 2 * samprate / tod%samprate
        
        dv(0,j) = 0.d0
        do l = 1, n-1                                                      

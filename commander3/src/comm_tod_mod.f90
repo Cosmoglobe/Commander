@@ -81,6 +81,7 @@ module comm_tod_mod
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
      integer(i4b) :: output_4D_map                                ! Output 4D maps
+     integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
@@ -195,6 +196,7 @@ contains
     self%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
+    self%output_aux_maps = cpar%output_aux_maps
     self%subtract_zodi = cpar%include_TOD_zodi
     self%central_freq  = cpar%ds_nu_c(id_abs)
 
@@ -1076,12 +1078,13 @@ contains
     real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
     real(sp), dimension(:),             intent(in),  optional :: mask
 
-    integer(i4b) :: i, j, k, n, step, ntod, w, npad
+    integer(i4b) :: i, j, k, n, ntod, w, npad
+    real(dp) :: step
 
     ntod = size(tod_in)
     npad = 5
-    step = int(self%samprate/self%samprate_lowres)
-    w    = int(step/2)    ! Boxcar window width
+    step = self%samprate / self%samprate_lowres
+    w    = step/2    ! Boxcar window width
     n    = int(ntod / step) + 1
     if (.not. present(tod_out)) then
        ext = [-npad, n+npad]
@@ -1089,8 +1092,8 @@ contains
     end if
 
     do i = -npad, n+npad
-       j = max(i*step - w, 1)
-       k = min(i*step + w, ntod)
+      j = floor(max(i*step - w + 1, 1.d0))
+      k = floor(min(i*step + w, real(ntod, dp)))
 
        if (j > k) then
           tod_out(i) = 0.

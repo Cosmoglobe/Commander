@@ -25,7 +25,7 @@ module comm_diffuse_comp_mod
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg
-     integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
+     integer(i4b)       :: lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen, chisq_min
@@ -137,8 +137,6 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=2) :: jtext
-
     integer(i4b) :: i, j, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
@@ -147,10 +145,13 @@ contains
     
     call self%initComp(cpar, id, id_abs)
 
+    call update_status(status, "init_diffuse_start")
+
     ! Initialize variables specific to diffuse source type
     self%pol           = cpar%cs_polarization(id_abs)
     self%nside         = cpar%cs_nside(id_abs)
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
+    self%lmax_prior    = cpar%cs_lmax_amp_prior(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
 
     if(self%npar == 0) then
@@ -322,6 +323,8 @@ contains
        filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
        self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
     end if
+
+    call update_status(status, "init_diffuse_end")
     
   end subroutine initDiffuse
 
@@ -332,6 +335,8 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     integer(i4b) :: i, j, k, l, m, nmaps, p, ierr
+
+    call update_status(status, "lmax_specind_start")
 
     !check nmaps of the component
     nmaps = 1
@@ -405,6 +410,7 @@ contains
     !          
     ! Note: This subroutine must be called for all diffuse components with npar > 0, before initializing diffuse comp,
     !       i.e. initDiffuse(), but after the number of spec. ind. parameters (npar) and poltype has been set.
+    call update_status(status, "lmax_specind_end")
 
   end subroutine initLmaxSpecind
 
@@ -426,6 +432,8 @@ contains
     class(comm_map),     pointer :: tp => null() 
     class(comm_map),     pointer :: tp_smooth => null() 
 
+
+    call update_status(status, "initPixreg_specind_start")
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
@@ -447,6 +455,8 @@ contains
     allocate(self%npixreg(3,self%npar))            ! {integer}: number of pixel regions per poltye per spec ind
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
+
+    call update_status(status, "initPixreg_specind_pixreg_type")
 
     self%npixreg = 0
     do i = 1,self%npar
@@ -486,6 +496,8 @@ contains
           end if
        end do
     end do
+
+    call update_status(status, "initPixreg_specind_allocate")
 
     if (any(self%pol_pixreg_type(:,:) > 0)) then
        !find highest number of pixel regions
@@ -531,7 +543,9 @@ contains
        self%ind_pixreg_arr = 0 !all pixels assigned to pixelregion 0 (not to be sampled), will read in pixreg later
     end if
 
+
     do i = 1,self%npar
+       call update_status(status, "initPixreg_specind_mask")
        ! spec. ind. mask
        if (trim(cpar%cs_spec_mask(i,id_abs)) == 'fullsky') then
           self%pol_ind_mask(i)%p => comm_map(info)
@@ -553,6 +567,8 @@ contains
              stop
           end if
        end if
+
+       call update_status(status, "initPixreg_specind_proplen")
 
        ! prop. len. map
        if (trim(cpar%cs_spec_proplen(i,id_abs)) == 'fullsky') then
@@ -582,6 +598,8 @@ contains
              self%pol_proplen(i)%p%map(:,j)=cpar%cs_spec_proplen_init(j,i,id_abs)
           end if
        end do
+
+       call update_status(status, "initPixreg_specind_nprop")
     
        ! nprop map
        if (trim(cpar%cs_spec_nprop(i,id_abs)) == 'fullsky') then
@@ -614,6 +632,8 @@ contains
        ! limit nprop
        self%pol_nprop(i)%p%map = min(max(self%pol_nprop(i)%p%map,self%nprop_uni(1,i)*1.d0), &
             & self%nprop_uni(2,i)*1.d0)
+
+       call update_status(status, "initPixreg_specind_pixel_regions")
 
        ! initialize pixel regions if relevant 
        if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
@@ -730,7 +750,6 @@ contains
                 end do
              end do
 
-             
              !allreduce
              call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
@@ -806,9 +825,10 @@ contains
 
        end if !any pixreg_type > 0
 
+       call update_status(status, "initPixreg_specind_lmax_ind_mix")
+
        !final check to see if lmax < 0 and pixel region is fullsky
        do j = 1,self%poltype(i)
-          if (self%lmax_ind_pol(j,i) >= 0) cycle
           if (j > self%nmaps) then
              self%lmax_ind_mix(j:,i) = self%lmax_ind_mix(self%nmaps,i)
              cycle
@@ -825,6 +845,7 @@ contains
                 if (cpar%only_pol) p_min = 1 !add the first index to this case
              end if
           else if (self%poltype(i) == 3) then
+             if (cpar%only_pol .and. j == 1) cycle
              p_min = j
              p_max = j
              if (cpar%only_pol .and. j == 2) p_min = 1 !add the first index to this case
@@ -833,10 +854,12 @@ contains
              stop
           end if
              
-          if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
+          if (self%lmax_ind_pol(j,i) >= 0) then
+             self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
+          else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
              self%lmax_ind_mix(p_min:p_max,i) = 0
           else if (self%pol_pixreg_type(j,i) == 3) then
-             !not to sure about these checks, omitting them for now
+             !not to sure about these checks, omitting them for now, these could mess up debug
              if (.false.) then
                 if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then !pixel region map is a fullsky map
                    self%lmax_ind_mix(p_min:p_max,i) = 0
@@ -852,6 +875,25 @@ contains
 
     end do !npar
 
+    if (self%theta(1)%p%info%myid == 0 .and. .false.) then !debug
+
+       write(*,*) ''
+       write(*,*) 'lmax_ind_pol'
+       do i = 1,self%npar
+          write(*,*) i, self%lmax_ind_pol(:,i)
+       end do
+       write(*,*) ''
+       write(*,*) 'lmax_ind_mix'
+       do i = 1,self%npar
+          write(*,*) i, self%lmax_ind_mix(:,i)
+       end do
+       write(*,*) ''
+       if (all(self%lmax_ind_mix(:,:) == 0)) write(*,*) '  all lmax_ind_mix zero'
+
+    end if
+
+    call update_status(status, "initPixreg_specind_end")
+
   end subroutine initPixregSampling
 
   subroutine initSpecindProp(self,cpar, id, id_abs)
@@ -861,8 +903,6 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=2) :: jtext
-
     integer(i4b) :: i, j, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
@@ -907,30 +947,39 @@ contains
     end do
 
     ! Initialize cholesky matrix
-    allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))           
+    if (cpar%almsamp_pixreg)  then
+       allocate(self%L(0:50, 0:50, self%nmaps, self%npar)) ! Set arbitrary number of max regions
+    else
+       allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))
+    end if
+
     allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
     self%L = 0.d0
     self%steplen = 1 !0.3d0
 
     ! Filename formatting
     do j = 1, self%npar
-
-       write(jtext, fmt = '(I1)') j
-       filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_par'//trim(jtext)//'.dat'
+       filename = trim(cpar%datadir)//'/init_alm_'//trim(self%label)//'_'//trim(self%indlabel(j))//'.dat'
 
        inquire(file=filename, exist=exist)
        if (exist) then ! If present cholesky file
           self%L_read(j) = .true.
-          if (self%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
+          if (self%myid == 0) write(*,*) " - ALM init file found for "//trim(self%label)//" "//trim(self%indlabel(j))
           open(unit=11, file=filename, recl=10000)
           read(11,*) self%corrlen(j,:)
           read(11,*) self%L(:,:,:,j)
           close(11)
        else
-          if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter ", j       
-          do p = 0, self%nalm_tot-1
-             self%L(p,p,:,j) = self%sigma_priors(p,j)
-          end do
+          if (self%myid == 0) write(*,*) " - ALM init file NOT found for "//trim(self%label)//" "//trim(self%indlabel(j))
+          if (cpar%almsamp_pixreg) then
+             do p = 0, 50
+                self%L(p,p,:,j) = self%sigma_priors(0,j)
+             end do
+          else
+             do p = 0, self%nalm_tot-1
+                self%L(p,p,:,j) = self%sigma_priors(p,j)
+             end do
+          end if
        end if
     end do
     
@@ -1860,6 +1909,7 @@ contains
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
+
        if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
@@ -2613,8 +2663,12 @@ contains
                 call tp%dealloc()
              end if
           end if !lmax_ind > 0
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,:) = 1.60d0 
-          !if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.1d0 * sqrt(4*pi)
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,1) = 1.65d0 
+          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%map(:,1) = 18.d0 
+          !if (trim(self%label) == 'dust' .and. i > 1) self%theta(i)%p%map(:,1) = 1.6d0 
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%alm(:,:) = 1.65d0 * sqrt(4*pi)
+!!$          if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
+!!$          if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.0d0 * sqrt(4*pi)
           !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
 
           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
