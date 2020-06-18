@@ -75,10 +75,6 @@ contains
     constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
     constructor%indlabel(1)  = 'Umin'
 
-    ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
-
-
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
          & constructor%nmaps, constructor%pol)
@@ -158,6 +154,8 @@ contains
     end do
 
     call constructor%initPixregSampling(cpar, id, id_abs)
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
     call constructor%updateMixmat

@@ -643,8 +643,6 @@ contains
        ! (Only if first iteration and not initialized from previous)
        if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0) then
           if (c%L_read(j)  .and. iter >= burnin) then
-
-             !open(58, file=trim(cpar%outdir)//'/correlation_function_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat', recl=10000)
              write(*,*) "Computing correlation function"
 
              do pl = 1, c%theta(j)%p%info%nmaps
@@ -682,7 +680,7 @@ contains
                    call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
                 end if
              end do
-             c%steplen(:,j) = 0.3d0
+             c%steplen(:,j) = 1.d0
              c%L_read(j) = .true. ! L now exists!
           end if
        end if
@@ -1020,12 +1018,13 @@ contains
   subroutine compute_corrlen(x, n, maxit, corrlen)
     implicit none
 
-    real(dp), dimension(0:,1:),    intent(in)    :: x
+    real(dp), dimension(:,:),    intent(in)    :: x
     integer(i4b),                  intent(in)    :: n
     integer(i4b),                  intent(in)    :: maxit
     integer(i4b),                  intent(out)   :: corrlen
 
-    real(dp),          allocatable, dimension(:) :: N_, C_    
+    real(dp),          allocatable, dimension(:) :: C_
+    integer(c_int),    allocatable, dimension(:) :: N_      
     real(dp)     :: x_mean, x_var
     integer(i4b) :: pl, p, q, k, corrlen_init, delta
 
@@ -1034,13 +1033,19 @@ contains
     corrlen_init = 1
     allocate(C_(delta))
     allocate(N_(delta))
+    
+    !open(58, file='correlation_function.dat', recl=10000)
 
+    corrlen = corrlen_init
+           
     ! Calculate correlation function per parameter
-    do p = 0, n-1
-       N_ = 0
-       C_ = 0.d0
+    do p = 1, n
        x_mean = mean(x(1:maxit,p))
        x_var = variance(x(1:maxit,p))
+     
+       
+       N_ = 0
+       C_ = 0.d0
        do q = 1, maxit
           do k = 1, delta
              if (q+k > maxit) cycle
@@ -1048,19 +1053,23 @@ contains
              N_(k) = N_(k) + 1 ! Less samples every q
           end do
        end do
-
+       
        where (N_>0) C_ = C_/N_
        if ( x_var > 0 ) C_ = C_/x_var
 
-       !write(58,*) p, C_ ! Write to file
+      ! write(58,*) p, C_ ! Write to file
 
        ! Find correlation length
-       corrlen = corrlen_init
        do k = corrlen_init, delta
-          if (C_(k) > 0.1) corrlen = k
+          if (C_(k) > 0.1) then
+             if (k > corrlen) corrlen = k
+          else
+             exit
+          end if
        end do
     end do
     deallocate(C_, N_)
+    close(58)
   end subroutine compute_corrlen
 
 
