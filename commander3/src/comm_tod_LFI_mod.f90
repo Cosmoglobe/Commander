@@ -102,6 +102,7 @@ contains
     constructor%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     constructor%output_4D_map = cpar%output_4D_map_nth_iter
+    constructor%output_aux_maps = cpar%output_aux_maps
     constructor%subtract_zodi = cpar%include_TOD_zodi
     constructor%central_freq  = cpar%ds_nu_c(id_abs)
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
@@ -807,7 +808,7 @@ contains
                 end if
              end do
 
-             if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
+             if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter-1,self%output_4D_map) == 0) then
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
                 call int2string(self%myid, myid_text)
