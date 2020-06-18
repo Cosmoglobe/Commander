@@ -115,12 +115,13 @@ contains
        
        do l = 1, n-1                                                      
           nu = l*(samprate/2)/(n-1)
-          if (abs(nu-1.d0/60.d0)*60.d0 < 0.05d0) then
-             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
-          end if
           
           N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
-
+          
+          if (abs(nu-1.d0/60.d0)*60.d0 < 0.05d0) then
+             dv(l) = fft_norm * sqrt(N_c) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) ! Dont include scan frequency; replace with better solution
+          end if
+          
           if (trim(self%operation) == "sample") then
              dv(l) = (dv(l) + fft_norm * ( &
                   sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
@@ -338,6 +339,10 @@ contains
          
       do l = 1, n_f  ! n-1
          f = l*(samprate/2)/(n-1)
+         if (abs(f-1.d0/60.d0)*60.d0 < 0.05d0) then
+             continue
+         end if
+
          s = sconst * f ** (alpha)
          lnL_fknee = lnL_fknee - (ps(l) / s + log(s))
       end do
@@ -364,6 +369,10 @@ contains
       
       do l = 1, n_f  ! n-1
          f = l*(samprate/2)/(n-1)
+         if (abs(f-1.d0/60.d0)*60.d0 < 0.05d0) then
+             continue
+         end if
+
          s = sconst * f ** (x)
          lnL_alpha = lnL_alpha - (ps(l) / s + log(s))
       end do

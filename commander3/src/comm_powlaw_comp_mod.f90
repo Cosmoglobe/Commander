@@ -68,9 +68,6 @@ contains
     constructor%apply_jeffreys = cpar%cs_apply_jeffreys(id_abs)
     constructor%indlabel(1)  = 'beta'
 
-    ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
-
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
          & constructor%nmaps, constructor%pol)
@@ -110,6 +107,8 @@ contains
     end do
 
     call constructor%initPixregSampling(cpar, id, id_abs)
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
     call constructor%updateMixmat

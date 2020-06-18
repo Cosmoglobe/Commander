@@ -70,9 +70,6 @@ contains
     end do
     constructor%indlabel  = ['beta', 'T   ']
 
-    ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
-
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(3,numband,0:constructor%ndet))
     do k = 1, 3
@@ -111,6 +108,8 @@ contains
     end do
 
     call constructor%initPixregSampling(cpar, id, id_abs)
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
     call constructor%updateMixmat
