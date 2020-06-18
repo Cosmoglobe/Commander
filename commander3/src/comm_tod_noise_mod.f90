@@ -115,9 +115,9 @@ contains
        
        do l = 1, n-1                                                      
           nu = l*(samprate/2)/(n-1)
-!!$          if (abs(nu-1.d0/60.d0)*60.d0 < 0.001d0) then
-!!$             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
-!!$          end if
+          if (abs(nu-1.d0/60.d0)*60.d0 < 0.05d0) then
+             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
+          end if
           
           N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
 
@@ -133,11 +133,11 @@ contains
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        dt          = dt / nfft
        n_corr(:,i) = dt(1:ntod) 
-       ! if (i < 10) then
-       !    write(filename, "(A, I0.3, A, I0.3, A)") 'ncorr_times', scan, '_', i, '.dat' 
+       ! if (.true.) then
+       !    write(filename, "(A, I0.3, A, I0.3, A)") 'ncorr_times', self%scanid(scan), '_', i, '.dat' 
        !    open(65,file=trim(filename),status='REPLACE')
        !    do j = i, ntod
-       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
+       !       write(65, '(12(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def
        !    end do
        !    close(65)
        !    !stop
