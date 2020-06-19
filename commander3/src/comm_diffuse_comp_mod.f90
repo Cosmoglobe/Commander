@@ -31,7 +31,7 @@ module comm_diffuse_comp_mod
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen, chisq_min
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
-     logical(lgt),    dimension(:), allocatable :: L_read
+     logical(lgt),    dimension(:), allocatable :: L_read, L_calculated
 
      real(dp)           :: cg_scale, latmask, fwhm_def, test
      real(dp),           allocatable, dimension(:,:)   :: cls
@@ -903,19 +903,18 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    integer(i4b) :: i, j, l, m, ntot, nloc, p
+    integer(i4b) :: i, j, l, m, ntot, nloc, p, q
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
-
-
 
     ! Init alm sampling params (Trygve)
     allocate(self%corrlen(self%npar, self%nmaps))
     self%corrlen    = 0     ! Init correlation length
     
-    ! Init bool for L_read
-    allocate(self%L_read(self%npar))
-    self%L_read    = .false.
+    ! Init bool for L-flags
+    allocate(self%L_read(self%npar), self%L_calculated(self%npar))
+    self%L_read = .false.
+    self%L_calculated = .false.
 
     ! save minimum chisq per iteration
     allocate(self%chisq_min(self%npar, self%nmaps))
@@ -959,20 +958,9 @@ contains
 
     ! Filename formatting
     do j = 1, self%npar
-       filename = trim(cpar%datadir)//'/init_alm_'//trim(self%label)//'_'//trim(self%indlabel(j))//'.dat'
-
-       inquire(file=filename, exist=exist)
-       if (exist) then ! If present cholesky file
-          self%L_read(j) = .true.
-          if (self%myid == 0) write(*,*) " - ALM init file found for "//trim(self%label)//" "//trim(self%indlabel(j))
-          open(unit=11, file=filename, recl=10000)
-          read(11,*) self%corrlen(j,:)
-          read(11,*) self%L(:,:,:,j)
-          close(11)
-       else
-          if (self%myid == 0) write(*,*) " - ALM init file NOT found for "//trim(self%label)//" "//trim(self%indlabel(j))
+       if (cpar%cs_almsamp_init(j,id_abs) == 'none') then ! If present cholesky file
           if (cpar%almsamp_pixreg) then
-             do p = 0, maxval(self%npixreg)
+             do p = 1, maxval(self%npixreg)
                 self%L(p,p,:,j) = self%sigma_priors(0,j)
              end do
           else
@@ -980,6 +968,18 @@ contains
                 self%L(p,p,:,j) = self%sigma_priors(p,j)
              end do
           end if
+       else
+          self%L_read(j) = .true.
+          if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
+          open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
+          read(11,*) self%corrlen(j,:)
+          do p = 1, self%nmaps
+             read(11,*)
+             do q = 0, size(self%L(:,1,p,j))-1
+                read(11,*) self%L(q,:,p,j)
+             end do
+          end do
+          close(11)
        end if
     end do
     
