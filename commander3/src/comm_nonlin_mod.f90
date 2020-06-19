@@ -586,8 +586,7 @@ contains
                    call wall_time(t1)
 
                    ! Adjust steplen in tuning iteration
-                   if (iter <= burnin) then !( .not. c%L_read(j) .and. iter == 1) then ! Only adjust if tuning
-
+                   if (iter <= burnin) then
                       if (accept_rate < 0.2) then                 
                          c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
                          write(*,fmt='(a,f10.5)') "Reducing steplen -> ", c%steplen(pl,j)
@@ -636,9 +635,9 @@ contains
 
 
        ! Calculate correlation length and cholesky matrix 
-       ! (Only if first iteration and not initialized from previous)
-       if (info%myid == 0 .and. maxval(c%corrlen(j,:)) == 0) then
-          if (c%L_read(j)  .and. iter > burnin) then
+       ! (Only if no longer tuning and not initialized from file)
+       if (info%myid == 0 .and. .not. c%L_read(j)) then
+          if (c%L_calculated(j)  .and. iter > burnin) then
              write(*,*) "Computing correlation function"
              do pl = 1, c%theta(j)%p%info%nmaps
                 ! Skip signals with poltype tag
@@ -652,6 +651,7 @@ contains
                    call compute_corrlen(alms(:,:,pl), nalm_tot, maxit(pl), c%corrlen(j,pl))
                 end if
 
+                c%L_read(j) = .true.  ! L now exist
                 write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
              end do
           else
@@ -661,37 +661,43 @@ contains
              do pl = 1, c%theta(j)%p%info%nmaps
                 if (maxit(pl) == 0) cycle ! Cycle if not sampled
                 if (cpar%almsamp_pixreg) then
-                   call compute_covariance_matrix(regs(INT(maxit(pl)/2):maxit(pl),:,pl), c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), .true.)
+                   call compute_covariance_matrix(regs(INT(maxit(pl)/2):maxit(pl),:,pl), c%L(:, :, pl, j), .true.)
                 else
                    call compute_covariance_matrix(alms(INT(maxit(pl)/2):maxit(pl),0:c%nalm_tot-1,pl), c%L(0:c%nalm_tot-1,0:c%nalm_tot-1,pl,j), .true.)
                 end if
              end do
              c%steplen(:,j) = 1.d0 ! Revert steplength, because of new proposal matrix
-             c%L_read(j) = .true.  ! L now exist
+             c%L_calculated(j) = .true.  ! L now exist
           end if
 
-          ! Write to file
+          ! Write almsamp tuning parameters to file
           filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
           write(*,*) "Writing tuning parameters to file: ", trim(filename)
           open(58, file=filename, recl=10000)
+
           if (maxval(c%corrlen(j,:)) > 0) then
              write(58,*) c%corrlen(j,:)
-             write(58,*) c%L(:,:,:,j)
           else
              write(58,*) nsamp, nsamp, nsamp
-             write(58,*) c%L(:,:,:,j)
           end if
+          ! Formatting proposal array
+          do p = 1, info%nmaps
+             write(58,*) "Proposal matrix L for signal", p
+             do q = 0, size(c%L(:,1,p,j))-1
+                write(58,fmt='(*(f10.5))') c%L(q,:,p,j)
+             end do
+          end do
+
           close(58)
 
        end if
 
+       ! Clean up
        if (info%myid == 0) close(69)   
        if (info%myid == 0) close(66)   
-
        deallocate(alms, regs, chisq, maxit)
        call theta%dealloc()
 
-       ! Clean up
        if (c%apply_jeffreys) then
           do k = 1, numband
              call df(k)%p%dealloc()
