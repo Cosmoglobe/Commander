@@ -784,7 +784,6 @@ contains
              call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_INITVALUE_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(1,i))
              if (ANY(cpar%cs_lmax_ind_pol(:,1,i) >= 0)) then
-                write(*,*) cpar%cs_lmax_ind_pol(:,1,i)
                 call get_parameter_hashtable(htbl, 'COMP_BETA_ALMSAMP_INIT'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_almsamp_init(1,i))
              end if
