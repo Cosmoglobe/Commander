@@ -362,13 +362,14 @@ contains
 
   end subroutine output_signals_per_band
 
-  subroutine get_sky_signal(band, det, map_out, mono)
+  subroutine get_sky_signal(band, det, map_out, mono, cmb_pol)
     implicit none
     integer(i4b),    intent(in)     :: band, det
     class(comm_map), pointer        :: map_out
     logical(lgt), optional          :: mono 
+    logical(lgt), optional          :: cmb_pol
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j
     logical(lgt) :: skip, mono_
     class(comm_map),  pointer :: map_diff
     class(comm_comp), pointer :: c
@@ -401,7 +402,18 @@ contains
 !!$          end if
           !write(*,*) c%x%info%nalm, map_diff%info%nalm, c%x%info%nmaps, map_diff%info%nmaps
 !          call map_diff%add_alm(alm, c%x%info)
-          map_diff%alm = map_diff%alm + alm
+          if (present(cmb_pol) .and. trim(c%label) == 'cmb') then
+             !map_diff%alm(:,1) = map_diff%alm(:,1) + alm(:,1)
+             do j = 1, data(band)%info%nmaps
+                do i = 0, data(band)%info%nalm-1
+                   if (j == 1 .or. data(band)%info%lm(1,i) > 2) then
+                      map_diff%alm(i,j) = map_diff%alm(i,j) + alm(i+1,j)
+                   end if
+                end do
+             end do
+          else
+             map_diff%alm = map_diff%alm + alm
+          end if
           deallocate(alm)
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))

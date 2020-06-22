@@ -2668,7 +2668,7 @@ contains
           !if (trim(self%label) == 'dust' .and. i > 1) self%theta(i)%p%map(:,1) = 1.6d0 
           !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%alm(:,:) = 1.65d0 * sqrt(4*pi)
 !!$          if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
-!!$          if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.0d0 * sqrt(4*pi)
+          !if (trim(self%label) == 'synch' .and. i > 1) self%theta(i)%p%alm(:,:) = -3.11d0 * sqrt(4*pi)
           !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
 
           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
@@ -2688,6 +2688,7 @@ contains
                      & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
                 self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
+                if (trim(self%label) == 'synch' .and. i > 1) self%theta_pixreg(1:4,1:npol,i) = -3.11d0
                 !pixel region values for proposal length
                 if (self%theta(i)%p%info%myid == 0) call read_hdf(hdffile, trim(path)//'/'//&
                      & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', dp_pixreg)
