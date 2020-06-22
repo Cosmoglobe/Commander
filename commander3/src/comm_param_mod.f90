@@ -140,6 +140,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:,:,:) :: cs_spec_lnLtype
      character(len=512), allocatable, dimension(:,:,:) :: cs_spec_pixreg
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_pixreg_map
+     character(len=512), allocatable, dimension(:,:,:) :: cs_spec_fix_pixreg
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_mask
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_nprop
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_proplen
@@ -151,7 +152,6 @@ module comm_param_mod
      logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_nprop
      logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_proplen
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_npixreg
-     integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_pixreg_max_samp
      integer(i4b),       allocatable, dimension(:)     :: cs_samp_samp_params_niter
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_lmax_ind_pol
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
@@ -620,7 +620,7 @@ contains
     allocate(cpar%cs_spec_nprop_init(3,MAXPAR,n),cpar%cs_spec_proplen_init(3,MAXPAR,n))
     allocate(cpar%cs_spec_samp_nprop(3,MAXPAR,n),cpar%cs_spec_samp_proplen(3,MAXPAR,n))
     allocate(cpar%cs_spec_npixreg(3,MAXPAR,n),cpar%cs_spec_pixreg_map(MAXPAR,n))
-    allocate(cpar%cs_spec_pixreg_max_samp(3,MAXPAR,n))
+    allocate(cpar%cs_spec_fix_pixreg(3,MAXPAR,n))
     allocate(cpar%cs_lmax_ind(n), cpar%cs_lmax_ind_pol(3,MAXPAR,n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_amp_prior(n))
     allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n))
@@ -780,8 +780,8 @@ contains
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
-                call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PIXREG_MAXSAMP'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_pixreg_max_samp(j,1,i))
+                call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,1,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
@@ -852,8 +852,8 @@ contains
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_UMIN_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
-                call get_parameter_hashtable(htbl, 'COMP_UMIN_'//trim(pol_labels(j))//'_PIXREG_MAXSAMP'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_pixreg_max_samp(j,1,i))
+                call get_parameter_hashtable(htbl, 'COMP_UMIN_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,1,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_UMIN_PIXREG_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
@@ -927,8 +927,8 @@ contains
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
-                call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_PIXREG_MAXSAMP'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_pixreg_max_samp(j,1,i))
+                call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,1,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_NU_P_PIXREG_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
@@ -996,8 +996,8 @@ contains
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
-                call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_PIXREG_MAXSAMP'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_pixreg_max_samp(j,1,i))
+                call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,1,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_NU_P_PIXREG_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
@@ -1047,8 +1047,8 @@ contains
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,2,i))
-                call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_PIXREG_MAXSAMP'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_pixreg_max_samp(j,2,i))
+                call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,2,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_ALPHA_PIXREG_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(2,i))
@@ -1120,8 +1120,8 @@ contains
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
-                call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PIXREG_MAXSAMP'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_pixreg_max_samp(j,1,i))
+                call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,1,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
@@ -1171,8 +1171,8 @@ contains
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,2,i))
-                call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PIXREG_MAXSAMP'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_pixreg_max_samp(j,2,i))
+                call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,2,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_T_PIXREG_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(2,i))
@@ -1255,8 +1255,8 @@ contains
                      & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
                      & len_itext=len_itext, par_int=cpar%cs_spec_npixreg(j,1,i))
-                call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_PIXREG_MAXSAMP'//itext, &
-                     & len_itext=len_itext, par_int=cpar%cs_spec_pixreg_max_samp(j,1,i))
+                call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_FIX_PIXREG'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_fix_pixreg(j,1,i))
              end do
              call get_parameter_hashtable(htbl, 'COMP_T_E_PIXREG_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
@@ -1527,6 +1527,15 @@ contains
     close(ounit)
   end subroutine dump_expanded_paramfile
 
+  subroutine str2int(str,int,stat)
+    implicit none
+    ! Arguments
+    character(len=*),intent(in) :: str
+    integer,intent(out)         :: int
+    integer,intent(out)         :: stat
+
+    read(str,*,iostat=stat)  int
+  end subroutine str2int
 
   function get_token(string, sep, num, group, allow_empty) result(res)
     implicit none
