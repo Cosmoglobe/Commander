@@ -384,9 +384,9 @@ contains
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
                    rgs = 0.d0
-                   !do p = 1, c%npixreg(pl,j)
-                   do p = 1,c%pixreg_max_samp(pl,j) 
+                   do p = 1, c%npixreg(pl,j)
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
+                      if (c%fix_pixreg(p,pl,j)) rgs(p) = 0.d0
                    end do
 
                    ! Propose new pixel regions
@@ -647,8 +647,8 @@ contains
                 if (c%lmax_ind_pol(pl,j) < 0) cycle
 
                 if (cpar%almsamp_pixreg) then
-                   !call compute_corrlen(regs(:,1:,pl), c%npixreg(pl,j), maxit(pl), c%corrlen(j,pl))
-                   call compute_corrlen(regs(:,1:c%pixreg_max_samp,pl), c%pixreg_max_samp(pl,j), maxit(pl), c%corrlen(j,pl))
+                   call compute_corrlen(regs(:,1:,pl), c%npixreg(pl,j), maxit(pl), c%corrlen(j,pl))
+                   !call compute_corrlen(regs(:,1:c%pixreg_max_samp(pl,j),pl), c%pixreg_max_samp(pl,j), maxit(pl), c%corrlen(j,pl))
                 else
                    call compute_corrlen(alms(:,:,pl), nalm_tot, maxit(pl), c%corrlen(j,pl))
                 end if
@@ -2200,9 +2200,11 @@ contains
        theta_MC_arr = 0.d0
     end if
 
-    !do pr = 1,npixreg !sample all pixel regions
-    !sample up to the defined maximum pixel region to sample (anything from 0 to npixreg)
-    do pr = 1,c_lnL%pixreg_max_samp(p,id) 
+    do pr = 1,npixreg
+       if (c_lnL%pol_pixreg_type(p,id) == 3) then
+          if (c_lnL%fix_pixreg(pr,p,id)) cycle
+       end if
+
        call wall_time(t0)
        !debug
        !if (myid_pix==0) then
