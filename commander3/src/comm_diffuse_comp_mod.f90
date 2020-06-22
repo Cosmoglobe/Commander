@@ -31,7 +31,7 @@ module comm_diffuse_comp_mod
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen, chisq_min
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
-     logical(lgt),    dimension(:), allocatable :: L_read
+     logical(lgt),    dimension(:), allocatable :: L_read, L_calculated
 
      real(dp)           :: cg_scale, latmask, fwhm_def, test
      real(dp),           allocatable, dimension(:,:)   :: cls
@@ -138,8 +138,6 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=2) :: jtext
-
     integer(i4b) :: i, j, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
@@ -761,7 +759,6 @@ contains
                 end do
              end do
 
-             
              !allreduce
              call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
@@ -915,21 +912,18 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=2) :: jtext
-
-    integer(i4b) :: i, j, l, m, ntot, nloc, p
+    integer(i4b) :: i, j, l, m, ntot, nloc, p, q
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
-
-
 
     ! Init alm sampling params (Trygve)
     allocate(self%corrlen(self%npar, self%nmaps))
     self%corrlen    = 0     ! Init correlation length
     
-    ! Init bool for L_read
-    allocate(self%L_read(self%npar))
-    self%L_read    = .false.
+    ! Init bool for L-flags
+    allocate(self%L_read(self%npar), self%L_calculated(self%npar))
+    self%L_read = .false.
+    self%L_calculated = .false.
 
     ! save minimum chisq per iteration
     allocate(self%chisq_min(self%npar, self%nmaps))
@@ -961,30 +955,40 @@ contains
     end do
 
     ! Initialize cholesky matrix
-    allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))           
+    if (cpar%almsamp_pixreg)  then
+       allocate(self%L(0:maxval(self%npixreg), 0:maxval(self%npixreg), self%nmaps, self%npar)) ! Set arbitrary number of max regions
+    else
+       allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))
+    end if
+
     allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
     self%L = 0.d0
     self%steplen = 1 !0.3d0
 
     ! Filename formatting
     do j = 1, self%npar
-
-       write(jtext, fmt = '(I1)') j
-       filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_par'//trim(jtext)//'.dat'
-
-       inquire(file=filename, exist=exist)
-       if (exist) then ! If present cholesky file
-          self%L_read(j) = .true.
-          if (self%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
-          open(unit=11, file=filename, recl=10000)
-          read(11,*) self%corrlen(j,:)
-          read(11,*) self%L(:,:,:,j)
-          close(11)
+       if (cpar%cs_almsamp_init(j,id_abs) == 'none') then ! If present cholesky file
+          if (cpar%almsamp_pixreg) then
+             do p = 1, maxval(self%npixreg)
+                self%L(p,p,:,j) = self%sigma_priors(0,j)
+             end do
+          else
+             do p = 0, self%nalm_tot-1
+                self%L(p,p,:,j) = self%sigma_priors(p,j)
+             end do
+          end if
        else
-          if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter ", j       
-          do p = 0, self%nalm_tot-1
-             self%L(p,p,:,j) = self%sigma_priors(p,j)
+          self%L_read(j) = .true.
+          if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
+          open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
+          read(11,*) self%corrlen(j,:)
+          do p = 1, self%nmaps
+             read(11,*)
+             do q = 0, size(self%L(:,1,p,j))-1
+                read(11,*) self%L(q,:,p,j)
+             end do
           end do
+          close(11)
        end if
     end do
     
