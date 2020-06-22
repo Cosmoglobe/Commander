@@ -1078,12 +1078,13 @@ contains
     real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
     real(sp), dimension(:),             intent(in),  optional :: mask
 
-    integer(i4b) :: i, j, k, n, step, ntod, w, npad
+    integer(i4b) :: i, j, k, n, ntod, w, npad
+    real(dp) :: step
 
     ntod = size(tod_in)
     npad = 5
-    step = int(self%samprate/self%samprate_lowres)
-    w    = int(step/2)    ! Boxcar window width
+    step = self%samprate / self%samprate_lowres
+    w    = step/2    ! Boxcar window width
     n    = int(ntod / step) + 1
     if (.not. present(tod_out)) then
        ext = [-npad, n+npad]
@@ -1091,8 +1092,8 @@ contains
     end if
 
     do i = -npad, n+npad
-       j = max(i*step - w, 1)
-       k = min(i*step + w, ntod)
+      j = floor(max(i*step - w + 1, 1.d0))
+      k = floor(min(i*step + w, real(ntod, dp)))
 
        if (j > k) then
           tod_out(i) = 0.

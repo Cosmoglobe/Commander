@@ -73,10 +73,6 @@ contains
        constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
     end do
     constructor%indlabel  = ['nu_p ','alpha']
-    
-    ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
-
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
@@ -126,6 +122,8 @@ contains
     end do
 
     call constructor%initPixregSampling(cpar, id, id_abs)
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
     call constructor%updateMixmat

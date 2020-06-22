@@ -67,7 +67,6 @@ export CFLAGS := -O3
 export LDFLAGS := -qopt-matmul -lm -qopenmp -cxxlib -parallel -mkl #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
  
 
-
 # ============== Language Mixing =================
 
 export MPFCLIBS := -qopenmp
