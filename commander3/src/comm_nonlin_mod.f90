@@ -310,9 +310,9 @@ contains
 
           !   if (c%theta(j)%p%info%nalm > 0) c%theta(j)%p%alm = (-4.d0 + 0.02d0*p)*sqrt(4.d0*pi)
           if (allocated(c%indmask)) then
-             call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true.)
+             call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
           else
-             call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true.)
+             call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true., evalpol=.true.)
           end if
 
           ! Use chisq from last iteration
@@ -466,9 +466,9 @@ contains
 
              ! Calculate proposed chisq
              if (allocated(c%indmask)) then
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask, lowres_eval=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
              else
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true., evalpol=.true.)
              end if
 
              ! Accept/reject test
