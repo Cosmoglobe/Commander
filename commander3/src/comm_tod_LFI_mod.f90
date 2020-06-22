@@ -367,8 +367,8 @@ contains
           filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
           call map_in(i,1)%p%writeFITS(filename)
        end do
-       deallocate(A_abscal, chisq_S, slist)
-       return
+!!$       deallocate(A_abscal, chisq_S, slist)
+!!$       return
     end if
 
     ! Distribute fullsky maps
