@@ -647,7 +647,8 @@ contains
                 if (c%lmax_ind_pol(pl,j) < 0) cycle
 
                 if (cpar%almsamp_pixreg) then
-                   call compute_corrlen(regs(:,1:,pl), c%npixreg(pl,j), maxit(pl), c%corrlen(j,pl))
+                   !call compute_corrlen(regs(:,1:,pl), c%npixreg(pl,j), maxit(pl), c%corrlen(j,pl))
+                   call compute_corrlen(regs(:,1:c%pixreg_max_samp,pl), c%pixreg_max_samp(pl,j), maxit(pl), c%corrlen(j,pl))
                 else
                    call compute_corrlen(alms(:,:,pl), nalm_tot, maxit(pl), c%corrlen(j,pl))
                 end if
