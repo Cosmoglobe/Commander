@@ -310,9 +310,9 @@ contains
 
           !   if (c%theta(j)%p%info%nalm > 0) c%theta(j)%p%alm = (-4.d0 + 0.02d0*p)*sqrt(4.d0*pi)
           if (allocated(c%indmask)) then
-             call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true.)
+             call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
           else
-             call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true.)
+             call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true., evalpol=.true.)
           end if
 
           ! Use chisq from last iteration
@@ -386,6 +386,8 @@ contains
                    rgs = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
+                      ! Fix specified pixel regions
+                      if (c%fix_pixreg(p,pl,j)) rgs(p) = 0.d0
                    end do
 
                    ! Propose new pixel regions
@@ -466,9 +468,9 @@ contains
 
              ! Calculate proposed chisq
              if (allocated(c%indmask)) then
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask, lowres_eval=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
              else
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true., evalpol=.true.)
              end if
 
              ! Accept/reject test
@@ -646,9 +648,10 @@ contains
                 if (c%lmax_ind_pol(pl,j) < 0) cycle
 
                 if (cpar%almsamp_pixreg) then
-                   call compute_corrlen(regs(:,1:,pl), c%npixreg(pl,j), maxit(pl), c%corrlen(j,pl))
+                   call compute_corrlen(regs(:,1:,pl), c%fix_pixreg(:,pl,j), c%npixreg(pl,j), maxit(pl), c%corrlen(j,pl))
+                   !call compute_corrlen(regs(:,1:c%pixreg_max_samp(pl,j),pl), c%pixreg_max_samp(pl,j), maxit(pl), c%corrlen(j,pl))
                 else
-                   call compute_corrlen(alms(:,:,pl), nalm_tot, maxit(pl), c%corrlen(j,pl))
+                   call compute_corrlen(alms(:,:,pl), c%fix_pixreg(:,pl,j), nalm_tot, maxit(pl), c%corrlen(j,pl))
                 end if
 
                 c%L_read(j) = .true.  ! L now exist
@@ -1021,10 +1024,11 @@ contains
 
   end subroutine distribute_alms
 
-  subroutine compute_corrlen(x, n, maxit, corrlen)
+  subroutine compute_corrlen(x, fix, n, maxit, corrlen)
     implicit none
 
     real(dp), dimension(:,:),    intent(in)    :: x
+    logical(lgt), dimension(:),  intent(in)      :: fix        
     integer(i4b),                  intent(in)    :: n
     integer(i4b),                  intent(in)    :: maxit
     integer(i4b),                  intent(out)   :: corrlen
@@ -1045,6 +1049,8 @@ contains
           
     ! Calculate correlation function per parameter
     do p = 1, n
+       if (fix(p)) cycle ! Skip fixed regions
+
        x_mean = mean(x(1:maxit,p))
        x_var = variance(x(1:maxit,p))
        
@@ -2199,6 +2205,9 @@ contains
     end if
 
     do pr = 1,npixreg
+       if (c_lnL%pol_pixreg_type(p,id) == 3) then
+          if (c_lnL%fix_pixreg(pr,p,id)) cycle
+       end if
 
        call wall_time(t0)
        !debug
@@ -2814,7 +2823,7 @@ contains
        !write(*,*) fmt_pix
        do i = 1,10000
           !write(unit,'(i8,'//trim(fmt_pix)//')') i,theta_MC_arr(i,:)
-          write(unit,'(i8,f12.6)') i,theta_MC_arr(i,1)
+          write(unit,'(i8,*(f14.8))') i,theta_MC_arr(i,:)
        end do
        close(unit)
        deallocate(theta_MC_arr)
