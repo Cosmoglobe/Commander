@@ -500,8 +500,8 @@ contains
           self%pixreg_max_samp(j,i) = cpar%cs_spec_pixreg_max_samp(j,i,id_abs) 
           if (self%pixreg_max_samp(j,i) > self%npixreg(j,i)) then
              self%pixreg_max_samp(j,i) = self%npixreg(j,i) ! if > npixreg, set to npixreg
-          else if (self%pixreg_max_samp(j,i) < 0) then    
-             self%pixreg_max_samp(j,i) = self%npixreg(j,i) !if < 0, set to npixreg
+          else if (self%pixreg_max_samp(j,i) < 1) then    
+             self%pixreg_max_samp(j,i) = self%npixreg(j,i) !if < 1, set to npixreg. We do not allow this parameter to block sampling, that is for RMS to do!!
           end if
        end do
     end do
