@@ -386,6 +386,7 @@ contains
                    rgs = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
+                      if (c%fix_pixreg(p,pl,j)) rgs(p) = 0.d0
                    end do
 
                    ! Propose new pixel regions
@@ -647,6 +648,7 @@ contains
 
                 if (cpar%almsamp_pixreg) then
                    call compute_corrlen(regs(:,1:,pl), c%npixreg(pl,j), maxit(pl), c%corrlen(j,pl))
+                   !call compute_corrlen(regs(:,1:c%pixreg_max_samp(pl,j),pl), c%pixreg_max_samp(pl,j), maxit(pl), c%corrlen(j,pl))
                 else
                    call compute_corrlen(alms(:,:,pl), nalm_tot, maxit(pl), c%corrlen(j,pl))
                 end if
@@ -2199,6 +2201,9 @@ contains
     end if
 
     do pr = 1,npixreg
+       if (c_lnL%pol_pixreg_type(p,id) == 3) then
+          if (c_lnL%fix_pixreg(pr,p,id)) cycle
+       end if
 
        call wall_time(t0)
        !debug
@@ -2814,7 +2819,7 @@ contains
        !write(*,*) fmt_pix
        do i = 1,10000
           !write(unit,'(i8,'//trim(fmt_pix)//')') i,theta_MC_arr(i,:)
-          write(unit,'(i8,f12.6)') i,theta_MC_arr(i,1)
+          write(unit,'(i8,*(f14.8))') i,theta_MC_arr(i,:)
        end do
        close(unit)
        deallocate(theta_MC_arr)
