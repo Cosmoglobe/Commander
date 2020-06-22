@@ -41,7 +41,7 @@ module comm_diffuse_comp_mod
      integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_mix    ! equal to lmax_ind_pol, but 0 where lmax=-1 and fullsky pixreg
      integer(i4b),       allocatable, dimension(:,:)   :: pol_pixreg_type ! {1=fullsky, 2=single_pix, 3=pixel_regions}
      integer(i4b),       allocatable, dimension(:,:)   :: nprop_uni       ! limits on nprop
-     integer(i4b),       allocatable, dimension(:,:)   :: npixreg         ! number of pixel regions
+     integer(i4b),       allocatable, dimension(:,:)   :: npixreg          ! number of pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
@@ -50,6 +50,7 @@ module comm_diffuse_comp_mod
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
+     logical(lgt),       allocatable, dimension(:,:,:) :: fix_pixreg
      class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
@@ -420,12 +421,13 @@ contains
     type(comm_params),       intent(in) :: cpar
     integer(i4b),            intent(in) :: id, id_abs
 
-    integer(i4b) :: i, j, k, l, m, n, p, ierr
+    integer(i4b) :: i, j, k, l, m, n, p, pr, ierr
     type(comm_mapinfo), pointer :: info => null()
     real(dp)           :: par_dp
-    integer(i4b), allocatable, dimension(:) :: sum_pix
-    real(dp),     allocatable, dimension(:) :: sum_theta, sum_proplen, sum_nprop
-    real(dp),     allocatable, dimension(:,:) :: m_in, m_out, buffer
+    character(len=16),         dimension(1000) :: pixreg_label
+    integer(i4b), allocatable, dimension(:)    :: sum_pix
+    real(dp),     allocatable, dimension(:)    :: sum_theta, sum_proplen, sum_nprop
+    real(dp),     allocatable, dimension(:,:)  :: m_in, m_out, buffer
     character(len=512) :: temptxt, partxt
     integer(i4b) :: smooth_scale, p_min, p_max
     class(comm_mapinfo), pointer :: info2 => null(), info_ud => null()
@@ -502,16 +504,56 @@ contains
     if (any(self%pol_pixreg_type(:,:) > 0)) then
        !find highest number of pixel regions
        k = 0
+       m = 0
        do i = 1,self%npar
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
-             if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
+             if (self%pol_pixreg_type(j,i) > 0) then
+                if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
+             end if
+             if (self%pol_pixreg_type(j,i) == 3) then
+                if (self%npixreg(j,i) > m) m = self%npixreg(j,i)
+             end if
           end do
        end do
        allocate(self%nprop_pixreg(k,3,self%npar))
        allocate(self%npix_pixreg(k,3,self%npar))
        allocate(self%proplen_pixreg(k,3,self%npar))
        allocate(self%B_pp_fr(self%npar))
+       allocate(self%theta_pixreg(0:k,3,self%npar))
+
+       if (any(self%pol_pixreg_type(:,:) == 3)) then
+          allocate(self%fix_pixreg(m,3,self%npar))
+          do i = 1,self%npar
+             do j = 1,self%poltype(i)
+                if (j > self%nmaps) cycle
+                if (self%pol_pixreg_type(j,i) == 3) then
+                   self%fix_pixreg(:,j,i) = .false.
+                   if (trim(cpar%cs_spec_fix_pixreg(j,i,id_abs)) == 'none') cycle
+                   do pr = 1,self%npixreg(j,i)
+                      call get_tokens(cpar%cs_spec_fix_pixreg(j,i,id_abs), ",", pixreg_label, n)
+                      do m = 1, n
+                         call str2int(trim(pixreg_label(m)),k,ierr)
+                         if (ierr == 0) then
+                            if (pr == k) then
+                               self%fix_pixreg(pr,j,i) = .true.
+                               exit
+                            end if
+                         end if
+                      end do
+                   end do
+
+                   if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) == .true.)) then    
+                      write(*,fmt='(a,i,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                           & //trim(self%indlabel(i))//'", poltype index ',j,', all pixelregions are defined fixed .'//&
+                           & 'This only the prior RMS should do. Exiting'
+                      stop
+                   end if
+                end if
+             end do
+          end do
+       end if
+
     end if
 
     ! Set up spectral index sampling masks, proposal length maps and nprop maps
@@ -519,17 +561,7 @@ contains
     allocate(self%pol_nprop(self%npar))    ! nprop map per spectral index (all poltypes
     allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
-    if (any(self%pol_pixreg_type(:,:) > 0)) then
-       k=0
-       do i = 1,self%npar
-          do j = 1,self%poltype(i)
-             if (self%pol_pixreg_type(j,i) > 0) then
-                if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
-             end if
-          end do
-       end do
-       allocate(self%theta_pixreg(0:k,3,self%npar))
-    end if
+
 
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)

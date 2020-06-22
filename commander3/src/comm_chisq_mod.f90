@@ -9,10 +9,12 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, lowres_eval)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, lowres_eval, evalpol)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
+    logical(lgt),                   intent(in),    optional :: evalpol
+    !character(len=512),             intent(in),    optional :: evalsig
     !logical(lgt),                   intent(in),    optional :: udgrade_chisq
     class(comm_map),                intent(inout), optional :: chisq_map
     real(dp),                       intent(out),   optional :: chisq_fullsky
@@ -28,16 +30,26 @@ contains
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
        do i = 1, numband
+          
+          ! Skip non-essential chisq evaluation
+          if (present(evalpol)) then
+             if (evalpol) then
+                if (.not. data(i)%info%pol) cycle
+             else
+                if (data(i)%info%pol) cycle
+             end if
+          end if
+
           res => compute_residual(i)
 
           apply_mask = present(mask)
           if (apply_mask) apply_mask = associated(mask(i)%p)
           if (apply_mask) then
              res%map = res%map * mask(i)%p%map
-!!$             call res%writeFITS("chisq.fits")
-!!$             call mask(i)%p%writeFITS("mask.fits")
-!!$             call mpi_finalize(j)
-!!$             stop
+             !call res%writeFITS("chisq.fits")
+             !call mask(i)%p%writeFITS("mask.fits")
+             !call mpi_finalize(j)
+             !stop
           end if
           
           if (data(i)%N%type == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. lowres_eval) then
