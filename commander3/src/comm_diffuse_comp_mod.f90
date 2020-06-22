@@ -41,7 +41,8 @@ module comm_diffuse_comp_mod
      integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_mix    ! equal to lmax_ind_pol, but 0 where lmax=-1 and fullsky pixreg
      integer(i4b),       allocatable, dimension(:,:)   :: pol_pixreg_type ! {1=fullsky, 2=single_pix, 3=pixel_regions}
      integer(i4b),       allocatable, dimension(:,:)   :: nprop_uni       ! limits on nprop
-     integer(i4b),       allocatable, dimension(:,:)   :: npixreg         ! number of pixel regions
+     integer(i4b),       allocatable, dimension(:,:)   :: npixreg          ! number of pixel regions
+     integer(i4b),       allocatable, dimension(:,:)   :: pixreg_max_samp ! number of pixel regions to sample (1-max_samp)
      integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
@@ -455,6 +456,7 @@ contains
     allocate(self%pol_pixreg_type(3,self%npar))    ! {1=fullsky, 2=single_pix, 3=pixel_regions}
     allocate(self%nprop_uni(2,self%npar))          ! {integer}: upper and lower limits on nprop
     allocate(self%npixreg(3,self%npar))            ! {integer}: number of pixel regions per poltye per spec ind
+    allocate(self%pixreg_max_samp(3,self%npar))    ! {integer}: last/maximum number of pixel regions to sample
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
 
@@ -495,6 +497,13 @@ contains
              else
                 self%pol_pixreg_type(j,i) = 0
              end if
+          end if
+
+          self%pixreg_max_samp(j,i) = cpar%cs_spec_pixreg_max_samp(j,i,id_abs) 
+          if (self%pixreg_max_samp(j,i) > self%npixreg(j,i)) then
+             self%pixreg_max_samp(j,i) = self%npixreg(j,i) ! if > npixreg, set to npixreg
+          else if (self%pixreg_max_samp(j,i) < 0) then    
+             self%pixreg_max_samp(j,i) = self%npixreg(j,i) !if < 0, set to npixreg
           end if
        end do
     end do
