@@ -385,7 +385,8 @@ contains
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
                    rgs = 0.d0
-                   do p = 1, c%npixreg(pl,j)
+                   !do p = 1, c%npixreg(pl,j)
+                   do p = 1,c%pixreg_max_samp(pl,j) 
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                    end do
 
@@ -2159,8 +2160,9 @@ contains
        theta_MC_arr = 0.d0
     end if
 
-    do pr = 1,npixreg
-
+    !do pr = 1,npixreg !sample all pixel regions
+    !sample up to the defined maximum pixel region to sample (anything from 0 to npixreg)
+    do pr = 1,c_lnL%pixreg_max_samp(p,id) 
        call wall_time(t0)
        !debug
        !if (myid_pix==0) then
@@ -2775,7 +2777,7 @@ contains
        !write(*,*) fmt_pix
        do i = 1,10000
           !write(unit,'(i8,'//trim(fmt_pix)//')') i,theta_MC_arr(i,:)
-          write(unit,'(i8,f12.6)') i,theta_MC_arr(i,1)
+          write(unit,'(i8,*(f14.8))') i,theta_MC_arr(i,:)
        end do
        close(unit)
        deallocate(theta_MC_arr)
