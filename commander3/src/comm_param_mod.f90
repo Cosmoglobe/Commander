@@ -1,7 +1,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Commander parameter module !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 module comm_param_mod
   use comm_utils
   use comm_status_mod
