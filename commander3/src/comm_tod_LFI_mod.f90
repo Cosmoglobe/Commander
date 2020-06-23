@@ -367,8 +367,8 @@ contains
           filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
           call map_in(i,1)%p%writeFITS(filename)
        end do
-       deallocate(A_abscal, chisq_S, slist)
-       return
+!!$       deallocate(A_abscal, chisq_S, slist)
+!!$       return
     end if
 
     ! Distribute fullsky maps
@@ -1014,8 +1014,10 @@ contains
        self%bp_delta = delta(:,:,1)
 
        ! Output maps to disk
-!       if (self%myid == 0) write(*,*) 'Boosting rms 5x'
-!       rms_out%map = 5*rms_out%map 
+       if (.false. .and. trim(self%freq) == '030') then
+          if (self%myid == 0) write(*,*) 'Boosting rms 5x'
+          rms_out%map = 5*rms_out%map 
+       end if
        call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
        call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 

@@ -322,7 +322,8 @@ contains
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
+             !call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
+             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false., cmb_pol=.false.) 
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
              !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
