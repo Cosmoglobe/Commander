@@ -172,7 +172,7 @@ contains
     character(len=2) :: itext
     character(len=3) :: tag
     character(len=9) :: ar_tag
-    character(len=120) :: outmessage
+    character(len=1000) :: outmessage
     character(len=512) :: filename
 
     logical :: accepted, exist, doexit, optimize, apply_prior
@@ -346,7 +346,8 @@ contains
 
                 ! Output init sample
                 write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
-                if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
+                !if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
+                if (cpar%almsamp_pixreg) write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
                 chisq(0) = chisq(0) + chisq_prior
              else 
                 write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
@@ -527,7 +528,8 @@ contains
                 write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 if (cpar%almsamp_pixreg) then
-                   write(outmessage, fmt='(a, *(f7.3))') "regs:", theta_pixreg_prop(1:) ! Max space
+                   !write(outmessage, fmt='(a, *(f7.3))') "regs:", theta_pixreg_prop(1:) ! Max space
+                   write(outmessage, *) "regs:", real(theta_pixreg_prop(1:),sp) ! Max space
                    write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 end if
              end if
@@ -571,7 +573,8 @@ contains
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
                    write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                   if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
+                   !if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
+                   if (cpar%almsamp_pixreg) write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
@@ -2823,7 +2826,8 @@ contains
        !write(*,*) fmt_pix
        do i = 1,10000
           !write(unit,'(i8,'//trim(fmt_pix)//')') i,theta_MC_arr(i,:)
-          write(unit,'(i8,*(f14.8))') i,theta_MC_arr(i,:)
+          !write(unit,'(i8,*(f14.8))') i,theta_MC_arr(i,:)
+          write(unit,*) i,theta_MC_arr(i,:)
        end do
        close(unit)
        deallocate(theta_MC_arr)
