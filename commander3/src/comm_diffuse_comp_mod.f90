@@ -2720,7 +2720,10 @@ contains
                      & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
                 self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
-                if (trim(self%label) == 'synch' .and. i > 1) self%theta_pixreg(1:4,1:npol,i) = -3.11d0
+                if (trim(self%label) == 'synch') then
+                   write(*,*) 'init synch'
+                   self%theta_pixreg(1:4,1:npol,1) = -3.11d0
+                end if
                 !pixel region values for proposal length
                 if (self%theta(i)%p%info%myid == 0) call read_hdf(hdffile, trim(path)//'/'//&
                      & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', dp_pixreg)
