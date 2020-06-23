@@ -76,20 +76,20 @@ contains
   end subroutine tod2file_int
 
 
-  real(dp) function welford_std(x_new, x_old, std_old, mean_new, mean_old, N)
+  real(dp) function welford_var(x_new, x_old, std_old, mean_new, mean_old, N)
     implicit none
 
-    real(dp), intent(in)               :: x_new, x_old, std_old, mean_old
+    real(dp),     intent(in)           :: x_new, x_old, std_old, mean_old
     integer(i4b), intent(in)           :: N
-    real(dp), intent(inout)            :: mean_new
+    real(dp),     intent(inout)        :: mean_new
 
 
     mean_new = mean_old + (x_new-x_old)/N
-    welford_std = sqrt(std_old**2 + (x_new**2-x_old**2-N*(mean_new**2-mean_old**2))/(N-1))
+    welford_var = std_old**2 + (x_new**2-x_old**2-N*(mean_new**2-mean_old**2))/(N-1)
 
-  end function welford_std
+  end function welford_var
 
-
+  
   real(dp) function std(x)
     implicit none
 
@@ -426,22 +426,22 @@ contains
 
   subroutine jump_scan(tod,flag,jumps,offset_range,offset_level,handle,jumpflag_range)
     implicit none
-    real(sp),     dimension(:),   intent(in)    :: tod
-    integer(i4b), dimension(:),   intent(inout) :: flag
-    integer(i4b), dimension(:),   intent(inout) :: jumps
-    integer(i4b), allocatable,    dimension(:,:), intent(inout) :: offset_range
-    real(sp),    allocatable,     dimension(:),   intent(inout) :: offset_level
-    type(planck_rng),             intent(inout) :: handle
-    integer(i4b), allocatable,    dimension(:,:), intent(inout) :: jumpflag_range
+    real(sp),     dimension(:),                   intent(in)    :: tod
+    integer(i4b), dimension(:),                   intent(inout) :: flag
+    integer(i4b), dimension(:),                   intent(inout) :: jumps
+    integer(i4b), allocatable,  dimension(:,:),   intent(inout) :: offset_range
+    real(sp),     allocatable,  dimension(:),     intent(inout) :: offset_level
+    type(planck_rng),                             intent(inout) :: handle
+    integer(i4b), allocatable,  dimension(:,:),   intent(inout) :: jumpflag_range
 
     real(sp), allocatable, dimension(:)        :: tod_gapfill
     real(dp), allocatable, dimension(:)        :: rolling_std
     integer(i4b)                               :: tod_len, N, i, threshold, num_offsets, counter, low, high, N_delta, marker, len_min
-    real(dp)                                   :: std_old, mean_old, mean_new, x_new, x_old, st_dev, std_test, med, delta, delta_l, delta_r
+    real(dp)                                   :: std_old, mean_old, mean_new, x_new, x_old, var, st_dev, std_test, med, delta, delta_l, delta_r
     character(len=100)                         :: filename
     logical                                    :: switch, first_call, counting
 
-    !write(*,*) 'Routine: Jump scan'
+    !  write(*,*) 'Routine: Jump scan'
 
     N = 100
     threshold = 2
@@ -451,20 +451,25 @@ contains
 
     ! Interpolate cosmic ray gaps
     allocate(tod_gapfill(tod_len))
-    call gap_fill_linear(tod,flag,tod_gapfill,handle,.false.)
+    call gap_fill_linear(tod,flag,tod_gapfill,handle,.true.)  
 
     ! Compute rolling standard deviation
     allocate(rolling_std(tod_len))
     rolling_std = 0
 
     do i=N+1, tod_len-N
-       if ((i==N+1) .or. (modulo(i,1)==0)) then
+       if ((i==N+1) .or. (modulo(i,1000)==0)) then
           std_old = std(tod_gapfill(i-N:i+N))
           mean_old = sum(tod_gapfill(i-N:i+N))/(2*N+1)
        else
           x_new = tod_gapfill(i+N)
           x_old = tod_gapfill(i-N-1)
-          st_dev = welford_std(x_new, x_old, std_old, mean_new, mean_old, 2*N+1)
+          var = welford_var(x_new, x_old, std_old, mean_new, mean_old, 2*N+1)
+          if (var<0) then
+            st_dev = std(tod_gapfill(i-N:i+N))
+          else
+            st_dev = sqrt(var)
+          end if
 
           mean_old = mean_new
           std_old = st_dev
@@ -474,6 +479,7 @@ contains
 
     ! Compute median
     med = median_flagged(rolling_std,flag)
+
 
     ! Do the flagging
     where (rolling_std > (threshold*med)) jumps = 1
@@ -555,13 +561,12 @@ contains
 
     ! Add jump regions to full flags
     where (jumps==1) flag=1
-
     if (num_offsets>1) then
       do i=1, num_offsets-1
          jumpflag_range(i,1) = offset_range(i,2)   + 1
          jumpflag_range(i,2) = offset_range(i+1,1) - 1
       end do
-   end if
+    end if
 
 
   end subroutine jump_scan
