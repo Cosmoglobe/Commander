@@ -461,12 +461,12 @@ contains
     call update_status(status, "initPixreg_specind_pixreg_type")
 
     self%npixreg = 0
+    self%pol_pixreg_type = 0
+
     do i = 1,self%npar
-       self%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
+       
        do j = 1,self%poltype(i)
-          self%pol_lnLtype(j,i)  = cpar%cs_spec_lnLtype(j,i,id_abs)
-          self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
-          self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
+          if (j > self%nmaps) cycle
 
           if (self%lmax_ind_pol(j,i) < 0) then
              if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='fullsky') then
@@ -492,8 +492,6 @@ contains
              if (cpar%almsamp_pixreg) then
                 self%pol_pixreg_type(j,i) = 3
                 self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
-             else
-                self%pol_pixreg_type(j,i) = 0
              end if
           end if
        end do
@@ -502,12 +500,17 @@ contains
     call update_status(status, "initPixreg_specind_allocate")
 
     if (any(self%pol_pixreg_type(:,:) > 0)) then
-       !find highest number of pixel regions
+       !find highest number of pixel regions and init some key parameters
        k = 0
        m = 0
        do i = 1,self%npar
+          self%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
+             self%pol_lnLtype(j,i)  = cpar%cs_spec_lnLtype(j,i,id_abs)
+             self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
+             self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
+
              if (self%pol_pixreg_type(j,i) > 0) then
                 if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
              end if
@@ -549,9 +552,9 @@ contains
                            & 'This only the prior RMS should do. Exiting'
                       stop
                    end if
-                end if
-             end do
-          end do
+                end if !pixreg_type == 3
+             end do !poltype
+          end do !npar
        end if
 
     end if
