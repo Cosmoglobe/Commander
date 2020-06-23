@@ -1011,7 +1011,7 @@ contains
 
     ! Filename formatting
     do j = 1, self%npar
-       if (cpar%cs_almsamp_init(j,id_abs) == 'none') then ! If present cholesky file
+       if (trim(cpar%cs_almsamp_init(j,id_abs)) == 'none') then ! If present cholesky file
           if (cpar%almsamp_pixreg) then
              do p = 1, maxval(self%npixreg)
                 self%L(p,p,:,j) = self%sigma_priors(0,j)
