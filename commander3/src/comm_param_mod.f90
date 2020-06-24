@@ -1036,7 +1036,7 @@ contains
              if (any(cpar%cs_lmax_ind_pol(:k,1,i) < 0) .or. cpar%almsamp_pixreg) &
                   & call get_parameter_hashtable(htbl, 'COMP_NU_P_PIXREG_INITVALUE_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(1,i))
-             if (any(cpar%cs_lmax_ind_pol(:k,1,i) >= 0)) &
+             if (any(cpar%cs_lmax_ind_pol(:k,1:2,i) >= 0)) &
                   & call get_parameter_hashtable(htbl, 'COMP_NU_P_ALMSAMP_INIT'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_almsamp_init(1,i))
              if (any(cpar%cs_lmax_ind_pol(:k,1,i) < 0)) then
@@ -1099,7 +1099,7 @@ contains
              if (any(cpar%cs_lmax_ind_pol(:k,2,i) < 0) .or. cpar%almsamp_pixreg) &
                   & call get_parameter_hashtable(htbl, 'COMP_ALPHA_PIXREG_INITVALUE_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(2,i))
-             if (any(cpar%cs_lmax_ind_pol(:k,2,i) >= 0)) &
+             if (any(cpar%cs_lmax_ind_pol(:k,1:2,i) >= 0)) &
                   & call get_parameter_hashtable(htbl, 'COMP_ALPHA_ALMSAMP_INIT'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_almsamp_init(2,i))
              if (any(cpar%cs_lmax_ind_pol(:k,2,i) < 0)) then
@@ -1184,7 +1184,7 @@ contains
              if (any(cpar%cs_lmax_ind_pol(:k,1,i) < 0) .or. cpar%almsamp_pixreg) &
                   & call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_INITVALUE_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(1,i))
-             if (any(cpar%cs_lmax_ind_pol(:k,1,i) >= 0)) &
+             if (any(cpar%cs_lmax_ind_pol(:k,1:2,i) >= 0)) &
                   & call get_parameter_hashtable(htbl, 'COMP_BETA_ALMSAMP_INIT'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_almsamp_init(1,i))
              if (any(cpar%cs_lmax_ind_pol(:k,1,i) < 0)) then
@@ -1247,7 +1247,7 @@ contains
              if (any(cpar%cs_lmax_ind_pol(:k,2,i) < 0) .or. cpar%almsamp_pixreg) &
                   & call get_parameter_hashtable(htbl, 'COMP_T_PIXREG_INITVALUE_MAP'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(2,i))
-             if (any(cpar%cs_lmax_ind_pol(:k,2,i) >= 0)) &
+             if (any(cpar%cs_lmax_ind_pol(:k,1:2,i) >= 0)) &
                   & call get_parameter_hashtable(htbl, 'COMP_T_ALMSAMP_INIT'//itext, &
                   & len_itext=len_itext, par_string=cpar%cs_almsamp_init(2,i))
              if (any(cpar%cs_lmax_ind_pol(:k,2,i) < 0)) then
