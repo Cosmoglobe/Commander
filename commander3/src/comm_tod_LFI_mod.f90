@@ -1014,7 +1014,7 @@ contains
        self%bp_delta = delta(:,:,1)
 
        ! Output maps to disk
-       if (trim(self%freq) == '030') then
+       if (.false. .and. trim(self%freq) == '030') then
           if (self%myid == 0) write(*,*) 'Boosting rms 5x'
           rms_out%map = 5*rms_out%map 
        end if
