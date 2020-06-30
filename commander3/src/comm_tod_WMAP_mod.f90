@@ -77,7 +77,7 @@ contains
     allocate(constructor)
     constructor%output_n_maps = 3
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
-    constructor%nhorn    = 1
+    constructor%nhorn    = 2
 
     ! Initialize beams
     nside_beam = 512
@@ -133,7 +133,7 @@ contains
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
 
     integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
-    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot
+    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
     real(dp)     :: t_tot(22)
@@ -147,7 +147,8 @@ contains
     real(dp),     allocatable, dimension(:,:)     :: chisq_S, m_buf
     real(dp),     allocatable, dimension(:,:)     :: A_map, dipole_mod
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
-    integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
+    integer(i4b), allocatable, dimension(:,:,:)     :: pix, psi
+    integer(i4b), allocatable, dimension(:,:)     :: flag
     character(len=512) :: prefix, postfix, prefix4D, filename
     character(len=2048) :: Sfilename
     character(len=4)   :: ctext, myid_text
@@ -168,22 +169,27 @@ contains
     call wall_time(t5)
 
 
-    write(*,*) "Into Process WMAP tod"
-
     ! Set up full-sky map structures
     call wall_time(t1)
     chisq_threshold = 7.d0
     ndet            = self%ndet
+    nhorn           = self%nhorn
     ndelta          = size(delta,3)
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
+    nout            = self%output_n_maps
     nscan_tot       = self%nscan_tot
     chunk_size      = npix/self%numprocs_shared
     if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size+1
     allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta))
     allocate(chisq_S(ndet,ndelta))
-
+    allocate(slist(self%nscan))
+    slist = ''
+    allocate(outmaps(nout))
+    do i = 1, nout 
+      outmaps(i)%p => comm_map(map_out%info)
+    end do
     call int2string(chain, ctext)
     call int2string(iter, samptext)
     prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
@@ -223,8 +229,9 @@ contains
     ! Perform main analysis loop
     do i = 1, self%nscan
 
+      write(*,*) "Processing scan: ", i, self%scans(i)%d%accept
       !call update_status(status, "tod_loop1")
-      if (.not. any(self%scans(i)%d%accept)) cycle
+      !if (.not. any(self%scans(i)%d%accept)) cycle
 
       ! Short-cuts to local variables
       call wall_time(t1)
@@ -240,8 +247,8 @@ contains
       allocate(s_tot(ntod, ndet))                  ! Sum of all sky compnents
       allocate(mask(ntod, ndet))                   ! Processing mask in time
       allocate(mask2(ntod, ndet))                  ! Processing mask in time
-      allocate(pix(ntod, ndet))                    ! Decompressed pointing
-      allocate(psi(ntod, ndet))                    ! Decompressed pol angle
+      allocate(pix(ntod, ndet, nhorn))             ! Decompressed pointing
+      allocate(psi(ntod, ndet, nhorn))             ! Decompressed pol angle
       allocate(flag(ntod, ndet))                   ! Decompressed flags
 
       ! --------------------
@@ -252,26 +259,17 @@ contains
       call wall_time(t1)
       do j = 1, ndet
          if (.not. self%scans(i)%d(j)%accept) cycle
-         call self%decompress_pointing_and_flags(i, j, pix(:,j), &
-              & psi(:,j), flag(:,j))
+         call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
+              & psi(:,j,:), flag(:,j))
       end do
       call self%symmetrize_flags(flag)
       call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
       !call update_status(status, "tod_decomp")
 
+      write(*,*) "Making sky signal template"
       ! Construct sky signal template
-      !TODO: we will want this but I don't know if it will be the same code or
-      !not
-      !call wall_time(t1)
-      !if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
-      !   call project_sky(self, map_sky(:,:,:,1), pix, psi, flag, &
-      !        & sprocmask%a, i, s_sky, mask, s_bp=s_bp)
-      !else
-      !   call project_sky(self, map_sky(:,:,:,1), pix, psi, flag, &
-      !        & sprocmask%a, i, s_sky, mask)
-      !end if
-      !if (do_oper(prep_relbp)) then
-      !   do j = 2, ndelta
+      call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+               & sprocmask%a, i, s_sky, mask)
       !      call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
       !           & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))
       !   end do
@@ -287,50 +285,54 @@ contains
             if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
          end do
       end if
-      
+    
+      write(*,*) "sampling correlated noise"
+      !estimate the correlated noise
+      s_buf = 0.d0
+      do j = 1, ndet
+        s_buf(:,j) = s_tot(:,j)  
+      end do
+        call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
+
       ! Compute chisquare
       !TODO: this but probably different code?
       !if (do_oper(calc_chisq)) then
       !   call wall_time(t1)
-      !   do j = 1, ndet
-      !      if (.not. self%scans(i)%d(j)%accept) cycle
-      !      s_buf(:,j) =  s_sl(:,j) + s_orb(:,j)
+         do j = 1, ndet
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            !s_buf(:,j) =  s_sl(:,j) + s_orb(:,j)
       !      if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
-      !      call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
-      !           & s_buf(:,j), n_corr(:,j))
-      !   end do
+            call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
+                 & s_buf(:,j), n_corr(:,j))
+         end do
       !   call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
       !end if
 
       ! Select data
      call wall_time(t1)
      !TODO: cut scans here
-     !if (self%first_scan) then 
-         !do j = 1, ndet
-         !   ntot= ntot + 1
-         !   if (.not. self%scans(i)%d(j)%accept) cycle
-         !   if (count(iand(flag(:,j),self%flag0) .ne. 0) > 0.1*ntod) then
-         !      self%scans(i)%d(j)%accept = .false.
-         !   else if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
-         !   & isNaN(self%scans(i)%d(j)%chisq)) then
-         !      write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
-         !           & self%scanid(i), j, ', chisq = ', &
-         !           & self%scans(i)%d(j)%chisq
-         !      self%scans(i)%d(j)%accept = .false.
-         !      cycle
-         !   else
-         !      naccept = naccept + 1
-         !   end if
-         !end do
-     !end if
-     
-     if (any(.not. self%scans(i)%d%accept)) self%scans(i)%d%accept = .false.
-     do j = 1, ndet
-        if (.not. self%scans(i)%d(j)%accept) then
-           self%scans(i)%d(self%partner(j))%accept = .false.
-        end if
-     end do
-     call wall_time(t2); t_tot(15) = t_tot(15) + t2-t1
+     if (self%first_call) then 
+        do j = 1, ndet
+          write(*,*) "selecting: ", i, j
+            ntot= ntot + 1
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            if (count(iand(flag(:,j),self%flag0) .ne. 0) > 0.1*ntod) then
+               self%scans(i)%d(j)%accept = .false.
+            else if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
+            & isNaN(self%scans(i)%d(j)%chisq)) then
+               write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
+                    & self%scanid(i), j, ', chisq = ', &
+                    & self%scans(i)%d(j)%chisq
+               self%scans(i)%d(j)%accept = .false.
+               cycle
+            else
+               write(*,fmt='(a,i8,i5,a,f12.1)') 'Accept scan, det = ', &
+                    & self%scanid(i), j, ', chisq = ', &
+                    & self%scans(i)%d(j)%chisq
+               naccept = naccept + 1
+            end if
+         end do
+     end if
 
       ! Compute binned map
      allocate(d_calib(nout,ntod, ndet))
@@ -350,21 +352,16 @@ contains
 
      !   end if
      end do
-    
-     !TODO: this routine almost certainly needs a wmap equivalent 
-     call bin_TOD(self, d_calib, pix, psi, flag, A_map, b_map, i, .false.)
- 
-
-      ! Clean up
-      call wall_time(t1)
-      deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_buf)
-      deallocate(s_bp, s_sky_prop, s_bp_prop)
+      deallocate(n_corr, s_sky, s_orb, s_tot, s_buf, s_sky_prop, d_calib)
       deallocate(mask, mask2, pix, psi, flag)
       if (allocated(s_lowres)) deallocate(s_lowres)
       if (allocated(s_invN)) deallocate(s_invN)
-      call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
-
       call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
+
+      !update scanlist with new timing info
+      self%scans(i)%proctime = t8 - t1
+      self%scans(i)%n_proctime = self%scans(i)%n_proctime + 1
+      write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp),real(self%spinaxis(i,:),sp)
 
    end do
 
@@ -412,13 +409,14 @@ contains
      call mpi_win_fence(0, sA_map%win, ierr)
      call mpi_win_fence(0, sb_map%win, ierr)
      Sfilename = trim(prefix) // 'Smap'// trim(postfix)
-     call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
+     !call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
     end if
 
    ! Output maps to disk
    call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
+   
    if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
    !if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
    !if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
@@ -439,7 +437,7 @@ contains
   call wall_time(t2); t_tot(10) = t_tot(10) + t2-t1
 
     ! Clean up temporary arrays
-    deallocate(A_abscal, b_abscal, chisq_S)
+    !deallocate(A_abscal, b_abscal, chisq_S)
     if (allocated(A_map)) deallocate(A_map, b_map)
     if (sA_map%init)  call dealloc_shared_2d_dp(sA_map)
     if (sb_map%init)  call dealloc_shared_3d_dp(sb_map)
