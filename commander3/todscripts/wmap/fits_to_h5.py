@@ -21,6 +21,8 @@ import os
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
+version = 5
+
 from time import sleep
 from time import time as timer
 
@@ -29,17 +31,17 @@ from time import time as timer
 
 
 def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
+        baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, compress=False):
-    file_out = prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v6.h5'
+    file_out = prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     if os.path.exists(file_out):
         return
     dt0 = np.diff(time).mean()
     det_list = []
     # make huffman code tables
     # Pixel, Psi, Flag
-    pixArray_A = [[], [], []]
-    pixArray_B = [[], [], []]
+    pixArray = [[], [], []]
     todArray = []
     for j in range(len(band_labels)):
         label = band_labels[j]
@@ -63,12 +65,12 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             pix = np.array_split(pix_A[j//4], n_per_day)[i]
             delta = np.diff(pix)
             delta = np.insert(delta, 0, pix[0])
-            pixArray_A[0].append(delta)
+            pixArray[0].append(delta)
 
             pix = np.array_split(pix_B[j//4], n_per_day)[i]
             delta = np.diff(pix)
             delta = np.insert(delta, 0, pix[0])
-            pixArray_B[0].append(delta)
+            pixArray[0].append(delta)
 
 
             psi = np.array_split(psi_A[j//4], n_per_day)[i]
@@ -77,7 +79,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             psiIndexes = np.digitize(psi, psiBins)
             delta = np.diff(psiIndexes)
             delta = np.insert(delta, 0, psiIndexes[0])
-            pixArray_A[1].append(delta)
+            pixArray[1].append(delta)
 
             psi = np.array_split(psi_B[j//4], n_per_day)[i]
             psi = np.where(psi < 0,         2*np.pi+psi,    psi)
@@ -85,7 +87,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             psiIndexes = np.digitize(psi, psiBins)
             delta = np.diff(psiIndexes)
             delta = np.insert(delta, 0, psiIndexes[0])
-            pixArray_B[1].append(delta)
+            pixArray[1].append(delta)
 
             flags = np.array_split(daflags[:,j//4], n_per_day)[i]
             t0 = np.arange(len(flags))
@@ -94,21 +96,20 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             flags = func(t)
             delta = np.diff(flags)
             delta = np.insert(delta, 0, flags[0])
-            pixArray_A[2].append(delta)
-            pixArray_B[2].append(delta)
+            # just necessary to make the array have the correct shape. Redundant
+            # info.
+            pixArray[2].append(delta)
+            pixArray[2].append(delta)
 
 
-    h_A = huffman.Huffman("", nside)
-    h_A.GenerateCode(pixArray_A)
+    h = huffman.Huffman("", nside)
+    h.GenerateCode(pixArray)
 
-    h_B = huffman.Huffman("", nside)
-    h_B.GenerateCode(pixArray_B)
 
     h_Tod = huffman.Huffman("", nside)
     h_Tod.GenerateCode(todArray)
 
-    huffarray_A = np.append(np.append(np.array(h_A.node_max), h_A.left_nodes), h_A.right_nodes)
-    huffarray_B = np.append(np.append(np.array(h_B.node_max), h_B.left_nodes), h_B.right_nodes)
+    huffarray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
     huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
 
 
@@ -120,6 +121,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         if label[:-2] == band.upper():
             TOD = TODs[j]
             gain = gain_guesses[j]
+            baseline = baseline_guesses[j]
             sigma_0 = TOD.std()
             scalars = np.array([gain, sigma_0, fknee, alpha])
 
@@ -167,25 +169,22 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             deltaflag = np.insert(deltaflag, 0, flags[0])
 
 
+            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                    data=np.int32(todi))
             if compress:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
-
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
-                        data=np.void(bytes(h_A.byteCode(deltaflag))))
+                        data=np.void(bytes(h.byteCode(deltaflag))))
                 
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
-                        data=np.void(bytes(h_A.byteCode(deltapixA))))
+                        data=np.void(bytes(h.byteCode(deltapixA))))
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
-                        data=np.void(bytes(h_B.byteCode(deltapixB))))
+                        data=np.void(bytes(h.byteCode(deltapixB))))
 
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
-                        data=np.void(bytes(h_A.byteCode(deltapsiA))))
+                        data=np.void(bytes(h.byteCode(deltapsiA))))
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
-                        data=np.void(bytes(h_B.byteCode(deltapsiB))))
+                        data=np.void(bytes(h.byteCode(deltapsiB))))
             else:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                        data=todInd)
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
                         data=flags)
                 
@@ -215,11 +214,8 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         f.create_dataset(obsid + '/common/todtree', data=huffarray_Tod)
         f.create_dataset(obsid + '/common/todsymb', data=h_Tod.symbols)
 
-        f.create_dataset(obsid + '/common/hufftree_A', data=huffarray_A)
-        f.create_dataset(obsid + '/common/huffsymb_A', data=h_A.symbols)
-
-        f.create_dataset(obsid + '/common/hufftree_B', data=huffarray_B)
-        f.create_dataset(obsid + '/common/huffsymb_B', data=h_B.symbols)
+        f.create_dataset(obsid + '/common/hufftree', data=huffarray)
+        f.create_dataset(obsid + '/common/huffsymb', data=h.symbols)
     
     f.create_dataset(obsid + '/common/satpos',
             data=np.array_split(pos,n_per_day)[i][0])
@@ -250,7 +246,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         #f.create_dataset('/common/mbang', data=0)
         f.create_dataset('/common/ntodsigma', data=100)
         #f.create_dataset('/common/polang', data=0)
-    with open(prefix + f'data/filelist_{band}_v6.txt', 'a') as file_list: 
+    with open(prefix + f'data/filelist_{band}_v{version}.txt', 'a') as file_list: 
         file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
     return
 
@@ -329,11 +325,6 @@ def Q2M(Q):
     return M
 
 def gamma_from_pol(gal, pol, fixed_basis=False):
-    '''
-    It should be possible to distribute the inner product among all time
-    observations, but the matrix algebra is escaping me right now. In any case,
-    for a one time operation this doesn't seem too slow yet.
-    '''
     # gal and pol are galactic lonlat vectors
     dir_A_gal = hp.ang2vec(gal[:,0]%np.pi,gal[:,1]%(2*np.pi), lonlat=False)
     dir_A_pol = hp.ang2vec(pol[:,0]%np.pi,pol[:,1]%(2*np.pi), lonlat=False)
@@ -348,15 +339,8 @@ def gamma_from_pol(gal, pol, fixed_basis=False):
     dir_A_west_z = dir_A_gal[:,1]*0
     dir_A_west = np.array([dir_A_west_x, dir_A_west_y, dir_A_west_z]).T
     dir_A_north = (dir_Z - dir_A_gal[2]*dir_A_gal)/sin_theta_A[:,np.newaxis]
-    '''
-    if sin_theta_A == 0:
-        dir_A_west = np.array([1,0,0])
-        dir_A_north = np.array([0,1,0])
 
-    assert dir_A_north.dot(dir_A_west) == approx(0), 'Vectors not orthogonal'
-    assert dir_A_north.dot(dir_A_north) == approx(1), 'North-vector not normalized'
-    assert dir_A_west.dot(dir_A_west) == approx(1), 'North-vector not normalized'
-    '''
+
     sin_gamma_A = dir_A_pol[:,0]*dir_A_west[:,0] + dir_A_pol[:,1]*dir_A_west[:,1] + dir_A_pol[:,2]*dir_A_west[:,2]
     cos_gamma_A = dir_A_pol[:,0]*dir_A_north[:,0] + dir_A_pol[:,1]*dir_A_north[:,1] + dir_A_pol[:,2]*dir_A_north[:,2]
 
@@ -435,31 +419,29 @@ def quat_to_sky_coords(quat, center=True):
     Q[3] = q3
     t0 = np.arange(30*nt + 3)
 
-
-    da_str = ''
-
     dir_A_los = np.array([
-                [ 0.03997405,  0.92447851, -0.37913264],
-                [-0.03834152,  0.92543237, -0.37696797],
-                [-0.03156996,  0.95219303, -0.30386144],
-                [ 0.03194693,  0.95220414, -0.3037872 ],
-                [-0.03317037,  0.94156392, -0.33519711],
-                [ 0.03336979,  0.94149584, -0.33536851],
-                [-0.0091852 ,  0.93943624, -0.34260061],
-                [-0.00950387,  0.94586233, -0.32442894],
-                [ 0.00980826,  0.9457662 , -0.32470001],
-                [ 0.00980739,  0.93934639, -0.34282965]])
+                [  0.03993743194318,  0.92448267167832, -0.37912635267982],
+                [ -0.03836350153280,  0.92543717887494, -0.37695393578810],
+                [ -0.03157188095163,  0.95219265474988, -0.30386241059657],
+                [  0.03193385161530,  0.95220162163922, -0.30379647935526],
+                [ -0.03317333754910,  0.94156429439011, -0.33519577742792],
+                [  0.03337676771235,  0.94149468374332, -0.33537106592570],
+                [ -0.00918939185649,  0.93943847522010, -0.34259437583453],
+                [ -0.00950701394255,  0.94586439605663, -0.32442281201900],
+                [  0.00980040822398,  0.94576779947882, -0.32469558276581],
+                [  0.00980808738477,  0.93934799994236, -0.34282522723123]])
     dir_B_los = np.array([
-                [ 0.03795967, -0.92391895, -0.38070045],
-                [-0.0400215 , -0.92463091, -0.37875581],
-                [-0.03340367, -0.95176817, -0.30499432],
-                [ 0.03014983, -0.95193039, -0.30482702],
-                [-0.03504541, -0.94094355, -0.33674479],
-                [ 0.03143652, -0.94113826, -0.33655687],
-                [-0.01148033, -0.93883144, -0.3441856 ],
-                [-0.01158651, -0.94535168, -0.32584651],
-                [ 0.00767888, -0.9454096 , -0.32579398],
-                [ 0.00751565, -0.93889159, -0.34413092]])
+                [  0.03794083653062, -0.92391755783762, -0.38070571212253],
+                [ -0.04002167684949, -0.92463440201100, -0.37874726137612],
+                [ -0.03340297596219, -0.95176877819247, -0.30499251475222],
+                [  0.03014337784306, -0.95192770480751, -0.30483605690947],
+                [ -0.03503633693827, -0.94094544143324, -0.33674045100040],
+                [  0.03144454385558, -0.94113854675448, -0.33655530968115],
+                [ -0.01147317267740, -0.93883247845653, -0.34418300902847],
+                [ -0.01159000320270, -0.94535005109668, -0.32585112047876],
+                [  0.00768184749607, -0.94540702221088, -0.32580139897397],
+                [  0.00751408106677, -0.93889226303920, -0.34412912836731  ]])
+
 
     dir_A_pol = np.array([  
                 [ 0.69487757242271, -0.29835139515692, -0.65431766318192, ],
@@ -572,36 +554,42 @@ def get_psi_multiprocessing_2(i):
 def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
-def fits_to_h5(file_input, file_ind, plot):
+def fits_to_h5(file_input, file_ind, compress, plot):
     f_name = file_input.split('/')[-1][:-8]
     # It takes about 30 seconds for the extraction from the fits files, which is
     # very CPU intensive. After that, it maxes out at 1 cpu/process.
-    file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v6.h5'
+    file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v{version}.h5'
     if os.path.exists(file_out):
         return
     t0 = timer()
 
-    # from table 3 of astro-ph/0302222
-    gain_guesses = np.array([   -0.974, +0.997,
-                                +1.177, -1.122,
-                                +0.849, -0.858,
-                                -1.071, +0.985,
-                                +1.015, -0.948,
-                                +0.475, -0.518,
-                                -0.958, +0.986,
-                                -0.783, +0.760,
-                                +0.449, -0.494,
-                                -0.532, +0.532,
-                                -0.450, +0.443,
-                                +0.373, -0.346,
-                                +0.311, -0.332,
-                                +0.262, -0.239,
-                                -0.288, +0.297,
-                                +0.293, -0.293,
-                                -0.260, +0.281,
-                                -0.263, +0.258,
-                                +0.226, -0.232,
-                                +0.302, -0.286])
+    # from programs.pars
+    #       Gains and baselines given signs and values from the first
+    #       attempt at cal_map for Pass 1.  These are median values
+    #       from the hourly calibration files.
+    #
+    gain_guesses =np.array([ -0.9700,  0.9938,  1.1745, -1.1200, 
+                              0.8668, -0.8753, -1.0914,  1.0033, 
+                              1.0530, -0.9834,  0.4914, -0.5365, 
+                             -0.9882,  1.0173, -0.8135,  0.7896, 
+                              0.4896, -0.5380, -0.5840,  0.5840, 
+                             -0.4948,  0.4872,  0.4096, -0.3802, 
+                              0.3888, -0.4139,  0.3290, -0.3003, 
+                             -0.3587,  0.3701,  0.3655, -0.3666, 
+                             -0.3255,  0.3517, -0.3291,  0.3225, 
+                              0.2841, -0.2918,  0.3796, -0.3591 ])
+    baseline = [ 32136.98,  31764.96,  31718.19,  32239.29, 
+                 31489.19,  32356.00,  32168.49,  31634.28, 
+                 25621.62,  25502.45,  25500.11,  25667.74, 
+                 26636.99,  24355.67,  26751.75,  24240.62, 
+                 19050.87,  19129.09,  19380.14,  19081.39, 
+                 19291.37,  18966.04,  18730.91,  19505.05, 
+                 12428.31,  13567.44,  13049.69,  12930.21, 
+                 13516.42,  12477.95,  12229.22,  13363.53, 
+                 12678.23,  12934.65,  12730.91,  12692.85, 
+                 11759.38,  13704.71,  11537.42,  13956.94  ]
+
+
 
     alpha = -1
     fknee = 0.1
@@ -658,32 +646,6 @@ def fits_to_h5(file_input, file_ind, plot):
     data.close()
 
 
-    if plot:
-        # Are gal and pol behaving as expected?
-        for i in range(len(gal_A)):
-            plt.figure('galtheta')
-            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), gal_A[i][:,0],
-                    color=plt.cm.viridis(i/len(gal_A)))
-            plt.figure('poltheta')
-            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), pol_A[i][:,0],
-                    color=plt.cm.viridis(i/len(gal_A)))
-            plt.figure('galphi')
-            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), gal_A[i][:,1],
-                    color=plt.cm.viridis(i/len(gal_A)))
-            plt.figure('polphi')
-            plt.plot(np.linspace(0,1,len(gal_A[i][:,0])), pol_A[i][:,1],
-                    color=plt.cm.viridis(i/len(gal_A)))
-        plt.figure('galtheta')
-        fi = str(file_ind).zfill(5)
-        plt.savefig(f'plots/pointing/galtheta_{fi}.png', bbox_inches='tight')
-        plt.figure('galphi')
-        plt.savefig(f'plots/pointing/galphi_{fi}.png', bbox_inches='tight')
-        plt.figure('poltheta')
-        plt.savefig(f'plots/pointing/poltheta_{fi}.png', bbox_inches='tight')
-        plt.figure('polphi')
-        plt.savefig(f'plots/pointing/polphi_{fi}.png', bbox_inches='tight')
-        plt.close('all')
-
     psi_A = get_psi(gal_A, pol_A, band_labels[::4])
     psi_B = get_psi(gal_B, pol_B, band_labels[1::4])
 
@@ -702,9 +664,10 @@ def fits_to_h5(file_input, file_ind, plot):
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
     for band in bands:
         args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses,
+            baseline,
                     band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
                     alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
-                    fsamp, pos, vel, time) for i in range(len(obs_inds))]
+                    fsamp, pos, vel, time, compress) for i in range(len(obs_inds))]
         for i in range(n_per_day):
             write_file_parallel(*args[i])
 
@@ -713,7 +676,7 @@ def fits_to_h5(file_input, file_ind, plot):
 
     return
 
-def main(par=True, plot=False):
+def main(par=True, plot=False, compress=False, nfiles=-1):
     '''
     Make 1 hdf5 file for every 10 fits files
     # Actually, just doing 1 hdf5 file for every fits file. Too much clashing is
@@ -722,7 +685,7 @@ def main(par=True, plot=False):
 
     files = glob(prefix + 'tod/new/*.fits')
     files.sort()
-    files = np.array(files)
+    files = np.array(files)[:nfiles]
 
     inds = np.arange(len(files))
 
@@ -731,7 +694,7 @@ def main(par=True, plot=False):
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
-        x = [pool.apply_async(fits_to_h5, args=[f, i, plot]) for i, f in zip(inds, files)]
+        x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot]) for i, f in zip(inds, files)]
         for i, res in enumerate(x):
             res.get()
             #res.wait()
@@ -740,13 +703,13 @@ def main(par=True, plot=False):
     else:
         for i, f in zip(inds, files):
             print(i, f)
-            fits_to_h5(f,i,plot)
+            fits_to_h5(f,i,compress, plot)
 
     # I don't know what this line of code was doing, so I will skip it...
     '''
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for band in bands:
-        file_name = prefix + f'data/filelist_{band}_v6.txt'
+        file_name = prefix + f'data/filelist_{band}_v{version}.txt'
         data = np.loadtxt(file_name, dtype=str)
         with open(file_name, 'r+') as f:
             content = f.read()
@@ -757,4 +720,4 @@ if __name__ == '__main__':
     '''
     If the file exists, skip it!
     '''
-    main(par=True, plot=False)
+    main(par=True, plot=False, compress=True)
