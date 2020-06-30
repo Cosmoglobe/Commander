@@ -1020,28 +1020,37 @@ contains
 
   ! Compute chisquare
   subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
-       & n_corr, absbp)
+       & n_corr, s_jump, absbp)
     implicit none
     class(comm_tod),                 intent(inout)  :: self
     integer(i4b),                    intent(in)     :: scan, det
     real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
     real(sp),          dimension(:), intent(in)     :: n_corr
+    real(sp),          dimension(:), intent(in), optional :: s_jump
     logical(lgt),                    intent(in), optional :: absbp
-
+    
     real(dp)     :: chisq, d0, g
     integer(i4b) :: i, n
 
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain 
+    !call tod2file('/mn/stornext/d14/comap/lauramm/spider_share/spider_run/chisq_1.txt',self%scans(scan)%d(det)%tod - (g * s_spur + n_corr + s_jump))
+
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle 
        n     = n+1
        d0    = self%scans(scan)%d(det)%tod(i) - &
-            & (g * s_spur(i) + n_corr(i))
-       chisq = chisq + (d0 - g * s_sky(i))**2 
+               & (g * s_spur(i) + n_corr(i))
+       if (present(s_jump)) then
+        d0 = d0 - s_jump(i)
+       end if  
+       !write(*,*) 'diff ',(d0 - g * s_sky(i))
+       chisq = chisq + (d0 - g * s_sky(i))**2
+       !write(*,*) 'chisq in routine:',chisq
     end do
 
+    !write(*,*) 'sigma0', self%scans(scan)%d(det)%sigma0
     if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = 0.d0
@@ -1053,7 +1062,9 @@ contains
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = chisq
        else
+          !write(*,*) 'nc',n
           self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
+          !write(*,*) 'chisq in routine:',scan, det, n, self%scans(scan)%d(det)%sigma0, self%scans(scan)%d(det)%chisq
        end if
     end if
     ! write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
