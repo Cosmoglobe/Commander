@@ -8,14 +8,14 @@ module comm_tod_pointing_mod
 contains
 
   ! Sky signal template
-  subroutine project_sky(tod, map, pix, psi, flag, pmask, scan_id, &
+  subroutine project_sky(tod, map, pix_in, psi_in, flag, pmask, scan_id, &
        & s_sky, tmask, s_bp)
     implicit none
     class(comm_tod),                          intent(in)  :: tod
     integer(i4b),        dimension(0:),       intent(in)  :: pmask
     real(sp),            dimension(1:,1:,0:), intent(in)  :: map
     !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
-    integer(i4b),        dimension(:,:),      intent(in)  :: pix, psi
+    integer(i4b),        dimension(:,:,:),      intent(in)  :: pix_in, psi_in
     integer(i4b),        dimension(:,:),      intent(in)  :: flag
     integer(i4b),                             intent(in)  :: scan_id
     real(sp),            dimension(:,:),      intent(out) :: s_sky, tmask
@@ -23,7 +23,15 @@ contains
 
     integer(i4b) :: i, p, det
     real(sp)     :: s
+    integer(i4b), allocatable, dimension(:,:)   :: pix, psi
 
+    if(size(pix, 2) /= 1 .or. size(psi,2) /= 1) then
+      write(*,*) "Call to project sky with nhorn /= 1. You probably want project_sky_differential."
+      return
+    end if
+
+    pix = pix_in(:,:,1)
+    psi = psi_in(:,:,1)
     ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
     ! T - temperature; Q, U - Stoke's parameters
     do det = 1, tod%ndet
@@ -71,5 +79,50 @@ contains
 
   end subroutine project_sky
 
+
+    ! Sky signal template
+  subroutine project_sky_differential(tod, map, pix, psi, flag, pmask, scan_id,&
+       & s_sky, tmask, s_bp)
+    implicit none
+    class(comm_tod),                          intent(in)  :: tod
+    integer(i4b),        dimension(0:),       intent(in)  :: pmask
+    real(sp),            dimension(1:,1:,0:), intent(in)  :: map
+    !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
+    integer(i4b),        dimension(:,:,:),      intent(in)  :: pix, psi
+    integer(i4b),        dimension(:,:),      intent(in)  :: flag
+    integer(i4b),                             intent(in)  :: scan_id
+    real(sp),            dimension(:,:),      intent(out) :: s_sky, tmask
+    real(sp),            dimension(:,:),      intent(out), optional :: s_bp
+
+    integer(i4b) :: i, j, lpoint, rpoint
+
+
+    do i = 1, tod%ndet
+      if (.not. tod%scans(scan_id)%d(i)%accept) then
+        s_sky(:,i) = 0.d0
+        tmask(:,i) = 0.d0
+        cycle
+      end if
+
+      do j = 1, tod%scans(scan_id)%ntod
+        lpoint = tod%pix2ind(pix(j,i,1))
+        rpoint = tod%pix2ind(pix(j,i,2))
+        !todo: add correct coeficients here when they are loaded in
+
+        s_sky(j,i) = map(1,lpoint,i) + &
+                    & map(2,lpoint,i) * tod%cos2psi(psi(j,i,1)) + &
+                    & map(3,lpoint,i) * tod%sin2psi(psi(j,i,1)) - &
+                    & map(1,rpoint,i) - &
+                    & map(2,rpoint,i) * tod%cos2psi(psi(j,i,2)) - &
+                    & map(3,rpoint,i) * tod%sin2psi(psi(j,i,2))
+
+        if (iand(flag(j,i),tod%flag0) .ne. 0) tmask(j,i) = 0.
+        if(pmask(lpoint) .or. pmask(rpoint)) then
+          tmask(j,i) = 1
+        end if
+      end do
+    end do
+
+  end subroutine project_sky_differential
 
 end module comm_tod_pointing_mod

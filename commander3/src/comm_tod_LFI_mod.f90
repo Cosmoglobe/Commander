@@ -234,7 +234,7 @@ contains
        allocate(pix(constructor%scans(i)%ntod))
        do j = 1, constructor%ndet
           call huffman_decode(constructor%scans(i)%hkey, &
-               constructor%scans(i)%d(j)%pix, pix)
+               constructor%scans(i)%d(j)%pix(1)%p, pix)
           constructor%pix2ind(pix(1)) = 1
           do k = 2, constructor%scans(i)%ntod
              pix(k)  = pix(k-1)  + pix(k)
@@ -283,7 +283,7 @@ contains
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
 
     integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
-    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot
+    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
     real(dp)     :: t_tot(22)
@@ -297,7 +297,8 @@ contains
     real(dp),     allocatable, dimension(:,:)     :: chisq_S, m_buf
     real(dp),     allocatable, dimension(:,:)     :: A_map, dipole_mod
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
-    integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
+    integer(i4b), allocatable, dimension(:,:,:)   :: pix, psi 
+    integer(i4b), allocatable, dimension(:,:)     :: flag
     logical(lgt)       :: correct_sl
     character(len=512) :: prefix, postfix, prefix4D, filename
     character(len=2048) :: Sfilename
@@ -327,6 +328,7 @@ contains
     chisq_threshold = 9.d0  !3000.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
+    nhorn           = self%nhorn
     ndelta          = size(delta,3)
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
@@ -522,8 +524,8 @@ contains
           if (do_oper(sub_zodi)) allocate(s_zodi(ntod, ndet))                 ! Zodical light
           allocate(mask(ntod, ndet))                   ! Processing mask in time
           allocate(mask2(ntod, ndet))                  ! Processing mask in time
-          allocate(pix(ntod, ndet))                    ! Decompressed pointing
-          allocate(psi(ntod, ndet))                    ! Decompressed pol angle
+          allocate(pix(ntod, ndet, nhorn))                    ! Decompressed pointing
+          allocate(psi(ntod, ndet, nhorn))                    ! Decompressed pol angle
           allocate(flag(ntod, ndet))                   ! Decompressed flags
 
           ! Initializing arrays to zero
@@ -537,8 +539,8 @@ contains
           call wall_time(t1)
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call self%decompress_pointing_and_flags(i, j, pix(:,j), &
-                  & psi(:,j), flag(:,j))
+             call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
+                  & psi(:,j,:), flag(:,j))
           end do
           call self%symmetrize_flags(flag)
           !call validate_psi(self%scanid(i), psi)
@@ -580,14 +582,14 @@ contains
 
           ! Construct orbital dipole template
           call wall_time(t1)
-          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
+          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
 
          !  call wall_time(t9)
           ! Construct zodical light template
           if (do_oper(sub_zodi)) then
-             call compute_zodi_template(self%nside, pix, self%scans(i)%satpos, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
+             call compute_zodi_template(self%nside, pix(:,:,1), self%scans(i)%satpos, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
           end if
          !  call wall_time(t10)
          !  print *, "Zodi template took :", t10-t9, "sec"
@@ -598,7 +600,7 @@ contains
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 call self%construct_sl_template(self%slconv(j)%p, &
-                     & pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
+                     & pix(:,j,1), psi(:,j,1), s_sl(:,j), self%polang(j))
                 s_sl(:,j) = 2 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
              end do
           else
@@ -806,7 +808,7 @@ contains
                      & samptext, self%scanid(i), self%nside, self%npsi, &
                      & self%label, self%horn_id, real(self%polang*180/pi,sp), &
                      & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-                     & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0), &
+                     & pix(:,:,1), psi(:,:,1)-1, d_calib(1,:,:), iand(flag,self%flag0), &
                      & self%scans(i)%d(:)%accept)
 !                prefix4D = "!"// trim(chaindir) // '/.tod_' // trim(self%freq) // '_' // '4D_pid' // scantext
 !                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
@@ -836,11 +838,11 @@ contains
              call wall_time(t1)
 
              if (do_oper(samp_mono)) then
-                call bin_TOD(self, d_calib, pix, &
-                     & psi, flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
+                call bin_TOD(self, d_calib, pix(:,:,1), &
+                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
              else
-                call bin_TOD(self, d_calib, pix, &
-                     & psi, flag, A_map, b_map, i, do_oper(prep_relbp))
+                call bin_TOD(self, d_calib, pix(:,:,1), &
+                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp))
              end if
              deallocate(d_calib)
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1

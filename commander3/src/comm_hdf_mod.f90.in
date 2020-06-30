@@ -231,7 +231,6 @@ contains
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
        end if
-       return
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
@@ -279,7 +278,7 @@ contains
     call open_hdf_set(file, setname)
     s = int(shape(val))
     call h5dread_f(file%sethandle, {{t[4]}}, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set")
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   {{endfor}}

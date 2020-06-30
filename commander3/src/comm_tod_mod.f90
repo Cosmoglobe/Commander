@@ -11,7 +11,11 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
+  public comm_tod, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, byte_pointer
+
+  type :: byte_pointer
+   byte, dimension(:), allocatable :: p 
+  end type byte_pointer
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
@@ -23,8 +27,8 @@ module comm_tod_mod
      logical(lgt)      :: accept
      real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)
      byte,         allocatable, dimension(:)  :: flag       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
-     byte,         allocatable, dimension(:)  :: pix        ! Compressed pixelized pointing, (ntod,nhorn)
-     byte,         allocatable, dimension(:)  :: psi        ! Compressed polarization angle, (ntod,nhorn)
+     type(byte_pointer), allocatable, dimension(:)  :: pix   ! pointer array of pixels length nhorn
+     type(byte_pointer), allocatable, dimension(:)  :: psi   ! pointer array of psi, length nhorn
      real(dp),     allocatable, dimension(:)  :: log_n_psd  ! Noise power spectrum density; in uncalibrated units
      real(dp),     allocatable, dimension(:)  :: log_n_psd2 ! Second derivative (for spline)
      real(dp),     allocatable, dimension(:)  :: log_nu     ! Noise power spectrum bins; in Hz
@@ -37,7 +41,7 @@ module comm_tod_mod
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
      real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for first sample
-     real(dp)       :: satpos(2)                                   ! Observatory position (lon, lat)
+     real(dp)       :: satpos(3)                                   ! Observatory position (x,y,z)
      type(huffcode) :: hkey                                        ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
@@ -186,7 +190,7 @@ contains
     self%freq          = cpar%ds_label(id_abs)
     self%operation     = cpar%operation
     self%outdir        = cpar%outdir
-    self%first_call    = .false. !.true.
+    self%first_call    = .true.
     self%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     self%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     self%flag0         = cpar%ds_tod_flag(id_abs)
@@ -257,7 +261,7 @@ contains
     class(comm_tod),                intent(inout)  :: self
 
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi
-    integer(i4b) :: i, j, k,np_vec, ierr
+    integer(i4b) :: i, j, k, l, np_vec, ierr
     integer(i4b), allocatable, dimension(:) :: pix
 
 
@@ -274,12 +278,14 @@ contains
     do i = 1, self%nscan
        allocate(pix(self%scans(i)%ntod))
        do j = 1, self%ndet
-          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix, pix)
+         do l = 1, self%nhorn
+          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              pix(k)  = pix(k-1)  + pix(k)
              self%pix2ind(pix(k)) = 1
           end do
+        end do
        end do
        deallocate(pix)
     end do
@@ -435,7 +441,7 @@ contains
     allocate(self%scans(self%nscan))
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
-            & detlabels)
+            & detlabels, self%nhorn)
        do det = 1, self%ndet
           self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
           if (.not. self%scans(i)%d(det)%accept) then
@@ -493,15 +499,15 @@ contains
 
   end subroutine read_tod
 
-  subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels)
+  subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels, nhorn)
     implicit none
     class(comm_scan),               intent(inout) :: self
     class(comm_tod),                intent(in)    :: tod
     character(len=*),               intent(in)    :: filename
-    integer(i4b),                   intent(in)    :: scan, ndet
+    integer(i4b),                   intent(in)    :: scan, ndet, nhorn
     character(len=*), dimension(:), intent(in)     :: detlabels
 
-    integer(i4b)       :: i, n, m, ext(1)
+    integer(i4b)       :: i,j, n, m, ext(1)
     real(dp)           :: t1, t2, t3, t4, t_tot(6), scalars(4)
     character(len=6)   :: slabel
     character(len=128) :: field
@@ -522,7 +528,6 @@ contains
 
     ! Find array sizes
     call get_size_hdf(file, slabel // "/" // trim(detlabels(1)) // "/tod", ext)
-    !nhorn     = ext(1)
     n         = ext(1)
     !m = n
     m         = get_closest_fft_magic_number(n)
@@ -545,6 +550,8 @@ contains
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
     do i = 1, ndet
+       allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+
        call wall_time(t1)
        field = detlabels(i)
        call wall_time(t2)
@@ -567,8 +574,10 @@ contains
 
        ! Read Huffman coded data arrays
        call wall_time(t1)
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix)
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi)
+       do j = 1, nhorn
+         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
+         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
+       end do
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
        call wall_time(t2)
        t_tot(5) = t_tot(5) + t2-t1
@@ -661,8 +670,11 @@ contains
           if (v(3) < 0.d0) v  = -v
           if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
        end do
-       v0 = v0 / sqrt(v0*v0)
-!       v0(1) = 1
+       if (any(v0 == 0)) then
+         v0 = 1
+       else
+         v0 = v0 / sqrt(v0*v0)
+       end if
 
 
 !!$
@@ -1297,10 +1309,14 @@ contains
     implicit none
     class(comm_tod),                    intent(in)  :: self
     integer(i4b),                       intent(in)  :: scan, det
-    integer(i4b),        dimension(:),  intent(out) :: pix, psi, flag
+    integer(i4b),        dimension(:),  intent(out) :: flag
+    integer(i4b),        dimension(:,:),intent(out) :: psi, pix
+    integer(i4b) :: i
 
-    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix,  pix)
-    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, imod=self%npsi-1)
+    do i=1, self%nhorn
+      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
+      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
+    end do
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)

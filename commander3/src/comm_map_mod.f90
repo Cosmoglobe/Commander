@@ -903,7 +903,7 @@ contains
     
     ! Only the root actually reads from disk; data are distributed via MPI
     allocate(alms(0:nalm-1))
-    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms, opt=.true.)
     call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
     if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
     do i = 0, self%info%nalm-1
