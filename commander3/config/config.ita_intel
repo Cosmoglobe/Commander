@@ -52,6 +52,7 @@ export MPCC := mpiicc
 export F90FLAGS := -fpe0 -march=native -O2 -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl 
 
 #debug
+#
 #export F90FLAGS := -fpe0 -march=native -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl 
 
 #export F90FLAGS := -check bounds -CB -check format -check pointers -check uninit -check output_conversion -assume byterecl -traceback -heap-arrays 16384 -fpe0 -O0 -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp
@@ -66,7 +67,6 @@ export CFLAGS := -O3
 # Extra flags used for linking
 export LDFLAGS := -qopt-matmul -lm -qopenmp -cxxlib -parallel -mkl #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
  
-
 
 # ============== Language Mixing =================
 
