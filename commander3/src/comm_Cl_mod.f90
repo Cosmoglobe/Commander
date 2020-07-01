@@ -599,7 +599,7 @@ contains
     end if
     if (lmax_prior >= 0 .and. l < lmax_prior) then
        ! Apply cosine apodization between 0 and lmax_prior
-       get_Cl_apod = get_Cl_apod * 0.5d0*(cos(pi*real(max(l,1)-lmax_prior,dp)/real(lmax_prior,dp))+1.d0)
+       get_Cl_apod = get_Cl_apod * (0.5d0*(cos(pi*real(max(l,1)-lmax_prior,dp)/real(lmax_prior,dp))+1.d0))**2
     end if
     if (.not. positive .and. get_Cl_apod /= 0.d0) get_Cl_apod = 1.d0 / get_Cl_apod
   end function get_Cl_apod

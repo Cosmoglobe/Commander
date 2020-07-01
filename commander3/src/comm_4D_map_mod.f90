@@ -161,9 +161,9 @@ contains
 
        do i = 1, ndet
           call int2string(i, itext)
-          call write_hdf(file, trim(adjustl(fullpath))//"/detnam"//itext, trim(detlabel(i)))
-          call write_hdf(file, trim(adjustl(fullpath))//"/psipol"//itext, psi0(i))
-          call write_hdf(file, trim(adjustl(fullpath))//"/sig"//itext,    sigma0(i))
+          call write_hdf(file, trim(adjustl(fullpath))//"/detnam"//itext, trim(detlabel(d(i))))
+          call write_hdf(file, trim(adjustl(fullpath))//"/psipol"//itext, psi0(d(i)))
+          call write_hdf(file, trim(adjustl(fullpath))//"/sig"//itext,    sigma0(d(i)))
        end do
 
        call write_hdf(file, trim(adjustl(fullpath))//"/pixel",    map4D%pixel)
