@@ -47,7 +47,6 @@ set(sources
 	comm_signal_mod.f90
 	hashtbl_4Dmap.f90
 	comm_cmb_comp_mod.f90
-	#comm_hdf_mod.f90.in
 	comm_spindust2_comp_mod.f90
 	hashtbl.f90
 	comm_cmb_relquad_comp_mod.f90
@@ -84,39 +83,67 @@ set(sources
 	comm_diffuse_comp_mod.f90
 	comm_nonlin_mod.f90
 	comm_tod_WMAP_mod.f90
+	#progressbar_mod.f90
 	)
 
 # manually setting Fortran compiler flags for different compilers
-if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
+#if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
 	# To prevent error with length and turn type mismatch into a warnings
 	# -fallow-argument-mismatch <= is for 10x compilers
 	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -W -ffree-line-length-none -fallow-argument-mismatch -std=legacy")
 	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wl -ffree-line-length-none -fallow-argument-mismatch")
-	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -fallow-argument-mismatch")
+	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -fallow-argument-mismatch")
 	# -Wno-argument-mismatch <= is th flag for 9x and older compilers
-	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -Wno-argument-mismatch")
-	message(STATUS "CMAKE_Fortran_FLAGS are: ${CMAKE_Fortran_FLAGS}")
-endif()
-#
-set(executable commander3)
-add_executable(${executable} "")
+	#	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -Wno-argument-mismatch")
+	#	message(STATUS "CMAKE_Fortran_FLAGS are: ${CMAKE_Fortran_FLAGS}")
+	#elseif("${CMAKE_Fortran_COMPILER}" MATCHES "Intel")
+	#	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -qopt-matmul")
+	#endif()
+#i setting executable name
+set(commander3 commander3)
+add_executable(${commander3} "")
 # make sure that commander executable will be built last
-add_dependencies(${executable} ${projects})
-target_sources(${executable}
+add_dependencies(${commander3} ${projects}) #fftw_ fftw_f)
+target_sources(${commander3}
 	PUBLIC	
 	${sources}
 	)
-set_property(TARGET ${executable} PROPERTY ENABLE_EXPORTS TRUE)
-set_property(TARGET ${executable} PROPERTY LINKER_LANGUAGE Fortran)
+set_property(TARGET ${commander3} PROPERTY ENABLE_EXPORTS TRUE)
+set_property(TARGET ${commander3} PROPERTY LINKER_LANGUAGE Fortran)
+# adding compiler flags to commander3 target
+target_compile_options(${commander3}
+	PUBLIC
+	# setting flags depending on configuration
+	"$<$<CONFIG:Release>:${COMMANDER3_COMPILER_FLAGS_RELEASE}>"
+	"$<$<CONFIG:Debug>:${COMMANDER3_COMPILER_FLAGS_DEBUG}>"
+	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO}>"
+	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_COMPILER_FLAGS_MINSIZEREL}>"
+	# setting other compiler dependent flags
+	${COMMANDER3_COMPILER_FLAGS}
+	)
+# adding linker flags to commander3 target
+target_link_options(${commander3}
+	PUBLIC
+	"$<$<CONFIG:Release>:${COMMANDER3_LINKER_FLAGS_RELEASE}>"
+	"$<$<CONFIG:Debug>:${COMMANDER3_LINKER_FLAGS_DEBUG}>"
+	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO}>"
+	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_LINKER_FLAGS_MINSIZEREL}>"
+	# setting other compiler dependent flags
+	${COMMANDER3_LINKER_FLAGS}
+	)
 
-message("cmake dl libs are ${CMAKE_DL_LIBS}")
-# the linking order in libraries is important
-target_link_libraries(${executable} 
+#message("cmake dl libs are ${CMAKE_DL_LIBS}")
+# LINKING ORDER IN LIBRARIES IS IMPORTANT!
+target_link_libraries(${commander3} 
 	PUBLIC	
 	# linking MPI
 	MPI::MPI_Fortran
 	# linking OpenMP
 	OpenMP::OpenMP_Fortran
+	# including MKL
+	#-qopt-matmul
+	${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES}
+	${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES}
 	#-ffree-line-length-none
 	#-fno-strict-overflow
 	#hdf5_lib
@@ -135,9 +162,6 @@ target_link_libraries(${executable}
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libcfitsio.a"
 	#"${out_lib_dir}/libcfitsio.a"
 	${CFITSIO_LIBRARIES}
-	# including MKL
-	${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES}
-	${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES}
 	# including hdf5 - first fortran and then general
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhdf5_fortran.a" #<= getting other errors when linking this one as well
 	#"${out_lib_dir}/libhdf5_fortran.a"
@@ -170,4 +194,4 @@ target_link_libraries(${executable}
 	)
 
 # installing commander into appropriate folder
-install(TARGETS ${executable} RUNTIME DESTINATION ${CMAKE_INSTALL_OUTPUT_DIRECTORY}/bin)
+install(TARGETS ${commander3} RUNTIME DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})

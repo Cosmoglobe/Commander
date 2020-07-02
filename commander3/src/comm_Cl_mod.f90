@@ -33,8 +33,8 @@ module comm_Cl_mod
      character(len=512)           :: label ! {none, binned, power_law, exp}
      character(len=512)           :: unit
      character(len=512)           :: outdir
-     integer(i4b)                 :: lmax, nmaps, nspec, l_apod
-     integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+     integer(i4b)                 :: lmax, nmaps, nspec, l_apod, lmax_prior
+     integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,mE,B}}
      logical(lgt)                 :: only_pol
      real(dp)                     :: nu_ref(3), RJ2unit(3)
      real(dp),         allocatable, dimension(:,:)   :: Dl
@@ -107,7 +107,7 @@ contains
     constructor%info   => info
     constructor%label  = cpar%cs_label(id_abs)
     constructor%lmax   = cpar%cs_lmax_amp(id_abs)
-    constructor%l_apod = cpar%cs_l_apod(id_abs)
+    constructor%lmax_prior = cpar%cs_lmax_amp_prior(id_abs)
     constructor%unit   = cpar%cs_unit(id_abs)
     constructor%nu_ref = cpar%cs_nu_ref(id_abs,:)
     constructor%nmaps  = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
@@ -470,13 +470,13 @@ contains
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
-          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, self%lmax_prior, .true.)
           map%alm(i,:) = f_apod**2 * matmul(self%S_mat(:,:,l), map%alm(i,:))
        end do
     else if (present(alm)) then
        do i = 0, info%nalm-1
           l = info%lm(1,i)
-          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, self%lmax_prior, .true.)
           if (l <= self%lmax) then
              alm(i,:) = f_apod**2 * matmul(self%S_mat(:,:,l), alm(i,:))
           else
@@ -508,7 +508,7 @@ contains
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
-          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, self%lmax_prior, .true.)
           if (present(diag)) then
              do j = 1, self%info%nmaps
                 map%alm(i,j) = f_apod * sqrt(self%S_mat(j,j,l)) * map%alm(i,j)
@@ -520,7 +520,7 @@ contains
     else if (present(alm)) then
        do i = 0, info%nalm-1
           l = info%lm(1,i)
-          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .true.)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, self%lmax_prior, .true.)
           if (l <= self%lmax) then
              if (present(diag)) then
                 do j = 1, self%info%nmaps
@@ -558,13 +558,13 @@ contains
     if (present(map)) then
        do i = 0, self%info%nalm-1
           l = self%info%lm(1,i)
-          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .false.)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, self%lmax_prior, .false.)
           map%alm(i,:) = f_apod * matmul(self%sqrtInvS_mat(:,:,l), map%alm(i,:))
        end do
     else if (present(alm)) then
        do i = 0, info%nalm-1
           l = info%lm(1,i)
-          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, .false.)
+          f_apod = get_Cl_apod(l, self%l_apod, self%lmax, self%lmax_prior, .false.)
           if (l <= self%lmax) then
              alm(i,:) = f_apod * matmul(self%sqrtInvS_mat(:,:,l), alm(i,:))
           else
@@ -574,9 +574,9 @@ contains
     end if
   end subroutine matmulSqrtInvS
 
-  function get_Cl_apod(l, l_apod, lmax, positive)
+  function get_Cl_apod(l, l_apod, lmax, lmax_prior, positive)
     implicit none
-    integer(i4b), intent(in) :: l, l_apod, lmax
+    integer(i4b), intent(in) :: l, l_apod, lmax, lmax_prior 
     logical(lgt), intent(in) :: positive
     real(dp)                 :: get_Cl_apod
     real(dp), parameter :: alpha = log(1d3)
@@ -596,6 +596,10 @@ contains
        else
           get_Cl_apod = exp(-alpha * (abs(l_apod)-l)**2 / real(abs(l_apod)-1,dp)**2)
        end if
+    end if
+    if (lmax_prior >= 0 .and. l < lmax_prior) then
+       ! Apply cosine apodization between 0 and lmax_prior
+       get_Cl_apod = get_Cl_apod * (0.5d0*(cos(pi*real(max(l,1)-lmax_prior,dp)/real(lmax_prior,dp))+1.d0))**2
     end if
     if (.not. positive .and. get_Cl_apod /= 0.d0) get_Cl_apod = 1.d0 / get_Cl_apod
   end function get_Cl_apod
@@ -1228,7 +1232,7 @@ contains
     else
        getCl = self%Dl(l,j) / (l*(l+1)/2.d0/pi)
     end if
-    getCl = getCl * get_Cl_apod(l, self%l_apod, self%lmax, .true.)**2
+    getCl = getCl * get_Cl_apod(l, self%l_apod, self%lmax, self%lmax_prior, .true.)**2
 
   end function getCl
 

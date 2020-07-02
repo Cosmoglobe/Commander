@@ -6,7 +6,10 @@
 # define this variable here for easier reference in the future
 
 #message("MY CMAKE FLAGS ARE "${CMAKE_C_FLAGS})#"${${project}_configure_command}")
-set(SHARP2_C_FLAGS "-DUSE_MPI -std=c99 -O3 -ffast-math")
+# According to installation guidelines, we need to 
+# specify slightly different flags for different compilers
+#set(SHARP2_C_FLAGS "-DUSE_MPI -std=c99 -O3 -ffast-math")
+#set(SHARP2_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 
 ExternalProject_Add(${project}
 	URL "${${project}_url}"
@@ -17,7 +20,9 @@ ExternalProject_Add(${project}
 	# commands how to build the project
 	CONFIGURE_COMMAND "${${project}_configure_command}"
 	#COMMAND CFLAGS="-DUSE_MPI" ${download_dir}/${project}/src/${project}/configure --prefix=<INSTALL_DIR>
-	COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
+	#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${MPI_C_COMPILER} MPFC=${MPI_Fortran_COMPILER} MPCXX=${MPI_CXX_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
+	#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
+	#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${SHARP2_CPP_COMPILER} CC=${MPI_C_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
 	#BUILD_IN_SOURCE 1	
 	INSTALL_COMMAND ""
 	#DEPENDS mpi

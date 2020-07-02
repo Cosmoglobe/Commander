@@ -14,9 +14,10 @@ module comm_tod_mod
   public comm_tod, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
   type :: comm_detscan
-     character(len=10) :: label                           ! Detector label
-     real(dp)          :: gain, dgain, gain_sigma         ! Gain; assumed constant over scan
-     real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
+     character(len=10) :: label                             ! Detector label
+     real(dp)          :: gain, dgain, gain_sigma           ! Gain; assumed constant over scan
+     real(dp)          :: sigma0, alpha, fknee              ! Noise parameters
+     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def  ! Default parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
@@ -80,6 +81,7 @@ module comm_tod_mod
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
      integer(i4b) :: output_4D_map                                ! Output 4D maps
+     integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
@@ -194,6 +196,7 @@ contains
     self%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
+    self%output_aux_maps = cpar%output_aux_maps
     self%subtract_zodi = cpar%include_TOD_zodi
     self%central_freq  = cpar%ds_nu_c(id_abs)
 
@@ -544,10 +547,14 @@ contains
        allocate(self%d(i)%tod(m))
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-       self%d(i)%gain = scalars(1)
-       self%d(i)%sigma0 = scalars(2)
-       self%d(i)%fknee = scalars(3)
-       self%d(i)%alpha = scalars(4)
+       self%d(i)%gain_def   = scalars(1)
+       self%d(i)%sigma0_def = scalars(2)
+       self%d(i)%fknee_def  = scalars(3)
+       self%d(i)%alpha_def  = scalars(4)
+       self%d(i)%gain       = self%d(i)%gain_def
+       self%d(i)%sigma0     = self%d(i)%sigma0_def
+       self%d(i)%fknee      = self%d(i)%fknee_def
+       self%d(i)%alpha      = self%d(i)%alpha_def
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
@@ -1071,12 +1078,13 @@ contains
     real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
     real(sp), dimension(:),             intent(in),  optional :: mask
 
-    integer(i4b) :: i, j, k, n, step, ntod, w, npad
+    integer(i4b) :: i, j, k, n, ntod, w, npad
+    real(dp) :: step
 
     ntod = size(tod_in)
     npad = 5
-    step = int(self%samprate/self%samprate_lowres)
-    w    = 2*step    ! Boxcar window width
+    step = self%samprate / self%samprate_lowres
+    w    = step/2    ! Boxcar window width
     n    = int(ntod / step) + 1
     if (.not. present(tod_out)) then
        ext = [-npad, n+npad]
@@ -1084,17 +1092,17 @@ contains
     end if
 
     do i = -npad, n+npad
-       j = max(i*step - w, 1)
-       k = min(i*step + w, ntod)
+      j = floor(max(i*step - w + 1, 1.d0))
+      k = floor(min(i*step + w, real(ntod, dp)))
 
        if (j > k) then
           tod_out(i) = 0.
        else
           !write(*,*) i, shape(tod_in), j, k
           if (present(mask)) then
-             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / (2*w+1)
+             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
           else
-             tod_out(i) = sum(tod_in(j:k)) / (2*w+1)
+             tod_out(i) = sum(tod_in(j:k)) / (k - j + 1)
           end if
        end if
        !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))

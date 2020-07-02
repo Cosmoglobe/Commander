@@ -91,7 +91,6 @@ contains
     constructor%myid_inter    = cpar%myid_inter
     constructor%comm_inter    = cpar%comm_inter
     constructor%info          => info
-    constructor%output_n_maps = 3
     constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
@@ -103,6 +102,7 @@ contains
     constructor%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
     constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     constructor%output_4D_map = cpar%output_4D_map_nth_iter
+    constructor%output_aux_maps = cpar%output_aux_maps
     constructor%subtract_zodi = cpar%include_TOD_zodi
     constructor%central_freq  = cpar%ds_nu_c(id_abs)
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
@@ -321,6 +321,16 @@ contains
 
     ! Set up full-sky map structures
     call wall_time(t1)
+    if (self%output_aux_maps <= 0) then
+       self%output_n_maps = 3
+    else
+       if (mod(iter-1,self%output_aux_maps) == 0) then
+          self%output_n_maps = 7
+       else
+          self%output_n_maps = 3
+       end if
+    end if
+
     correct_sl      = .true.
     chisq_threshold = 7.d0
     n_main_iter     = 4
@@ -357,8 +367,8 @@ contains
           filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
           call map_in(i,1)%p%writeFITS(filename)
        end do
-       deallocate(A_abscal, chisq_S, slist)
-       return
+!!$       deallocate(A_abscal, chisq_S, slist)
+!!$       return
     end if
 
     ! Distribute fullsky maps
@@ -634,7 +644,7 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
-                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, .false.)
+                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle)
                    call self%downsample_tod(s_buf(:,j), ext, &
                         & s_lowres(:,j))!, mask(:,j))
                 else
@@ -665,7 +675,7 @@ contains
                    s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
              end do
-             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal)
+             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
 
              if (.false.) then
                 call int2string(self%scanid(i), scantext)
@@ -683,7 +693,7 @@ contains
           ! Fit gain
           if (do_oper(samp_G)) then
              call wall_time(t1)
-             call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot)
+             call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
@@ -786,7 +796,13 @@ contains
                 if (do_oper(bin_map) .and. nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_bp(:,j) ! Residual
                 if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
                 if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
-                if (do_oper(bin_map) .and. do_oper(samp_mono) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
+                if (do_oper(bin_map) .and. nout > 4) then
+                   if (do_oper(samp_mono)) then
+                      d_calib(5,:,j) = s_mono(:,j)
+                   else
+                      d_calib(5,:,j) = 0.d0
+                   end if
+                end if
                 if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
                 if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
                 if (do_oper(bin_map) .and. nout > 7 .and. do_oper(sub_zodi)) d_calib(8,:,j) = s_zodi(:,j)
@@ -798,7 +814,7 @@ contains
                 end if
              end do
 
-             if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
+             if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter-1,self%output_4D_map) == 0) then
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
                 call int2string(self%myid, myid_text)
@@ -998,8 +1014,10 @@ contains
        self%bp_delta = delta(:,:,1)
 
        ! Output maps to disk
-!       if (self%myid == 0) write(*,*) 'Boosting rms 5x'
-!       rms_out%map = 5*rms_out%map 
+       if (.false. .and. trim(self%freq) == '030') then
+          if (self%myid == 0) write(*,*) 'Boosting rms 5x'
+          rms_out%map = 5*rms_out%map 
+       end if
        call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
        call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 

@@ -50,14 +50,10 @@ contains
 
     constructor%npar         = 2
     allocate(constructor%poltype(constructor%npar))
-    allocate(constructor%lmax_ind_pol(3,constructor%npar))       ! {integer}: lmax per. poltype sample per spec. index
     do i = 1, constructor%npar
        constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
-       do j = 1, constructor%poltype(i)
-          !assign lmax per spec ind per polarization sample type (poltype)
-          constructor%lmax_ind_pol(j,i) = cpar%cs_lmax_ind_pol(j,i,id_abs)
-       end do
     end do
+    call constructor%initLmaxSpecind(cpar, id, id_abs)
 
     call constructor%initDiffuse(cpar, id, id_abs)
 
@@ -73,9 +69,6 @@ contains
        constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
     end do
     constructor%indlabel  = ['beta', 'T   ']
-
-    ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(3,numband,0:constructor%ndet))
@@ -101,52 +94,22 @@ contains
     do i = 1, constructor%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default') then
           constructor%theta(i)%p => comm_map(info)
-          constructor%theta(i)%p%map = constructor%theta_def(1)
+          constructor%theta(i)%p%map = constructor%theta_def(i)
        else
           ! Read map from FITS file, and convert to alms
           constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
+       !convert spec. ind. pixel map to alms if lmax_ind >= 0
        if (constructor%lmax_ind >= 0) then
-          ! if any polarization is local sampled, only use alms to set polarizations with alm sampling
-          if (any(constructor%lmax_ind_pol(1:constructor%poltype(i),i) < 0)) then
-             tp => comm_map(info)
-             tp%alm=constructor%theta(i)%p%alm
-             call tp%Y_scalar
-             do p = 1,constructor%poltype(i)
-                if (constructor%lmax_ind_pol(p,i) < 0) cycle
-                if (constructor%poltype(i) == 1) then
-                   p_min=1
-                   p_max=constructor%nmaps
-                   if (cpar%only_pol) p_min = 2
-                else if (constructor%poltype(i)==2) then
-                   if (p == 1) then
-                      p_min = 1
-                      p_max = 1
-                   else
-                      p_min = 2
-                      p_max = constructor%nmaps
-                   end if
-                else if (constructor%poltype(i)==3) then
-                   p_min = p
-                   p_max = p
-                else
-                   write(*,*) '  Unknown poltype in component ',id_abs,', parameter ',i 
-                   stop
-                end if
-
-                do j = p_min,p_max
-                   constructor%theta(i)%p%map(:,j) = tp%map(:,p)
-                end do
-             end do
-             call tp%dealloc()
-          else
-             call constructor%theta(i)%p%YtW_scalar
-          end if
+          ! if lmax >= 0 we can get alm values for the theta map
+          call constructor%theta(i)%p%YtW_scalar
        end if
     end do
 
     call constructor%initPixregSampling(cpar, id, id_abs)
+    ! Init alm 
+    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
     call constructor%updateMixmat

@@ -11,18 +11,22 @@
 
 ExternalProject_Add(${project}
 	URL "${${project}_url}"
+	URL_MD5 "${${project}_md5}"
 	PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 	DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 	#SOURCE_DIR "${download_dir}/${project}/src/${project}"
 	BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" 
 	INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}"
 	# commands how to build the project
-	CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure #COMMAND cd <SOURCE_DIR> 
+	# setting mpi wrappers as compilers
+	#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure #COMMAND cd <SOURCE_DIR> 
+	#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${MPI_C_COMPILER} ./configure 
+	CONFIGURE_COMMAND "${${project}_configure_command}"
 	#COMMAND ${CMAKE_COMMAND} cd "${download_dir}/${project}/src/${project}" #"${${project}_configure_command}"
 	#COMMAND ${download_dir}/${project}/src/${project}/configure --auto=f90 --prefix=<INSTALL_DIR>
 	#COMMAND ./configure #--prefix=<INSTALL_DIR>
 	# making healpix to be installed the last before commander3
-	DEPENDS cfitsio hdf5 sharp2 fftw doxygen tempita blas openmp curl mpi zlib
+	DEPENDS cfitsio hdf5 sharp2 fftw fftw_ fftw_f doxygen tempita blas openmp curl mpi zlib
 	#CMAKE_ARGS
 	#-DCURL_INCLUDE_DIR:PATH=${CURL_INCLUDE_DIR}
 	#-DCURL_LIBRARIES:PATH=${CURL_LIBRARIES}
@@ -56,6 +60,7 @@ ExternalProject_Add(${project}
 
 set(HEALPIX_LIBRARIES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
 include_directories("${CMAKE_INSTALL_OUTPUT_DIRECTORY}/healpix_build/mod")
+
 #set(CMAKE_Fortran_MODULE_DIRECTORY ${out_install_dir}/mod)
 #add_library(${project}_lib STATIC IMPORTED)
 #set(${${project}_lib}_name ${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})

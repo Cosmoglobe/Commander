@@ -4,19 +4,21 @@
 
 # asking for an exact hdf5 version
 #find_package(HDF5 1.10.5 EXACT COMPONENTS Fortran) #Fortran_HL)
-find_package(HDF5 1.10.1 COMPONENTS Fortran) #Fortran_HL)
+find_package(HDF5 1.10.0 COMPONENTS Fortran) #Fortran_HL)
 if(NOT HDF5_FOUND)
 	message(STATUS "Will download HDF5v1.10.5 from source.")
 	ExternalProject_Add(${project}
 		DEPENDS zlib
 		URL "${${project}_url}"
+		URL_MD5 "${${project}_md5}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}"
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
-		COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR> --enable-fortran #--enable-cxx #--enable-parallel
+		#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR> --enable-fortran #--enable-cxx #--enable-parallel
+		#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${MPI_C_COMPILER} ./configure --prefix=<INSTALL_DIR> --enable-fortran #--enable-parallel #--enable-cxx #--enable-parallel
 		#BUILD_IN_SOURCE 1	
 		)
 	# adding hdf5_fortran and hdf5 into a variable (to be consistent with cmake docs)

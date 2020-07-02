@@ -115,12 +115,13 @@ contains
        
        do l = 1, n-1                                                      
           nu = l*(samprate/2)/(n-1)
-!!$          if (abs(nu-1.d0/60.d0)*60.d0 < 0.001d0) then
-!!$             dv(l) = 0.d0 ! Dont include scan frequency; replace with better solution
-!!$          end if
           
           N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
-
+          
+          if (abs(nu-1.d0/60.d0)*60.d0 < 0.05d0) then
+             dv(l) = fft_norm * sqrt(N_c) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) ! Dont include scan frequency; replace with better solution
+          end if
+          
           if (trim(self%operation) == "sample") then
              dv(l) = (dv(l) + fft_norm * ( &
                   sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) &
@@ -133,11 +134,11 @@ contains
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        dt          = dt / nfft
        n_corr(:,i) = dt(1:ntod) 
-       ! if (i < 10) then
-       !    write(filename, "(A, I0.3, A, I0.3, A)") 'ncorr_times', scan, '_', i, '.dat' 
+       ! if (.true.) then
+       !    write(filename, "(A, I0.3, A, I0.3, A)") 'ncorr_times', self%scanid(scan), '_', i, '.dat' 
        !    open(65,file=trim(filename),status='REPLACE')
        !    do j = i, ntod
-       !       write(65, '(6(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain
+       !       write(65, '(12(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def
        !    end do
        !    close(65)
        !    !stop
@@ -176,7 +177,7 @@ contains
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
     integer(i4b) :: ndet
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, f
-    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior(2)
+    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior(2), alpha_dpc
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
@@ -250,7 +251,7 @@ contains
 
        ! n_f should be the index representing fknee
        ! we want to only use smaller frequencies than this in the likelihood
-       n_f = ceiling(0.01d0 * (n-1) / (samprate/2)) ! n-1 !ceiling(fknee * (n-1) / (samprate/2))  
+       n_f = ceiling(fknee * (n-1) / (samprate/2)) !ceiling(0.01d0 * (n-1) / (samprate/2)) ! n-1 
        !n_f = 1000
        do l = 1, n_f !n-1
           ps(l) = abs(dv(l)) ** 2 / ntod          
@@ -260,14 +261,14 @@ contains
        ! TODO: get prior parameters from parameter file
        ! Sampling fknee
        if (trim(self%freq) == '030') then
-          prior(1) = 0.04
-          prior(2) = 0.35
+          prior(1) = 0.01
+          prior(2) = 0.45
        else if (trim(self%freq) == '044') then
-          prior(1) = 0.005
-          prior(2) = 0.15
-       else if (trim(self%freq) == '070') then
           prior(1) = 0.002
           prior(2) = 0.20
+       else if (trim(self%freq) == '070') then
+          prior(1) = 0.001
+          prior(2) = 0.25
        else 
           write(*,*) "invalid band label in sample_noise_psd"
           stop
@@ -286,14 +287,15 @@ contains
        
        ! Sampling alpha
        if (trim(self%freq) == '030') then
-          prior(1) = -1.5
+          prior(1) = -1.6
           prior(2) = -0.4
        else if (trim(self%freq) == '044') then
-          prior(1) = -1.6
+          prior(1) = -1.8
           prior(2) = -0.4
        else if (trim(self%freq) == '070') then
           prior(1) = -2.5
           prior(2) = -0.4
+          alpha_dpc = self%scans(scan)%d(i)%alpha_def
        else 
           write(*,*) "invalid band label in sample_noise_psd"
           stop
@@ -337,6 +339,10 @@ contains
          
       do l = 1, n_f  ! n-1
          f = l*(samprate/2)/(n-1)
+         if (abs(f-1.d0/60.d0)*60.d0 < 0.05d0) then
+             continue
+         end if
+
          s = sconst * f ** (alpha)
          lnL_fknee = lnL_fknee - (ps(l) / s + log(s))
       end do
@@ -354,10 +360,19 @@ contains
          return
       end if
       lnL_alpha = 0.d0
+
+      if (trim(self%freq) == '070') then
+         lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
+      end if
+      
       sconst = sigma0 ** 2 * fknee ** (-x) 
       
       do l = 1, n_f  ! n-1
          f = l*(samprate/2)/(n-1)
+         if (abs(f-1.d0/60.d0)*60.d0 < 0.05d0) then
+             continue
+         end if
+
          s = sconst * f ** (x)
          lnL_alpha = lnL_alpha - (ps(l) / s + log(s))
       end do
@@ -787,7 +802,7 @@ contains
        samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
        alpha    = real(tod%scans(scan)%d(i)%alpha,sp)
        nu_knee  = real(tod%scans(scan)%d(i)%fknee,sp)
-       noise    = sigma_0 ** 2
+       noise = sigma_0 ** 2 * samprate / tod%samprate
        
        dv(0,j) = 0.d0
        do l = 1, n-1                                                      
