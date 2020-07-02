@@ -75,7 +75,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 # setting different flags for different version
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	#message(STATUS "${CMAKE_Fortran_COMPILER_VERSION}")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-O3" "-march=native" "-flto" "-fopenmp")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-O3" "-march=native" "-flto" "-fopenmp" "-fno-strict-aliasing")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g3" "-Wall" "-Wextra" "-Wconversion" "-pedantic" "-fbacktrace" "-fcheck=bounds" "-ffpe-trap=zero,overflow,underflow" "-ffunction-sections" "-pipe")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-O2" "-g" "-DNDEBUG" "-fopenmp")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-Os" "-DNDEBUG" "-fopenmp")
