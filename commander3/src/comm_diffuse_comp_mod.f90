@@ -549,8 +549,10 @@ contains
                       end do
                    end do
 
-                   if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) == .true.)) then    
-                      write(*,fmt='(a,i,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                   !if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) == .true.)) then    
+                   if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) .eqv. .true.)) then    
+                      !write(*,fmt='(a,i,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                      write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
                            & //trim(self%indlabel(i))//'", poltype index ',j,', all pixelregions are defined fixed .'//&
                            & 'This only the prior RMS should do. Exiting'
                       stop
@@ -583,7 +585,7 @@ contains
 
 
     do i = 1,self%npar
-       if (any(self%lmax_ind_pol(:min(self%nmaps,self.poltype(i)),i) < 0)) then
+       if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0)) then
           call update_status(status, "initPixreg_specind_mask")
           ! spec. ind. mask
           if (trim(cpar%cs_spec_mask(i,id_abs)) == 'fullsky') then
@@ -674,6 +676,7 @@ contains
 
           call update_status(status, "initPixreg_specind_pixel_regions")
        end if !any lmax_ind_pol < 0
+     
 
        ! initialize pixel regions if relevant 
        if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
