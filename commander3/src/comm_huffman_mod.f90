@@ -14,16 +14,28 @@ module comm_huffman_mod
 contains
 
   ! Public routines
-  subroutine huffman_decode2(hcode, x_in, x_out, imod)
+  subroutine huffman_decode2(hcode, x_in, x_out, imod, offset)
     implicit none
     type(huffcode),               intent(in)  :: hcode
     byte,           dimension(:), intent(in)  :: x_in
     integer(i4b),   dimension(:), intent(out) :: x_out
     integer(i4b),                 intent(in), optional :: imod
+    integer(i4b),                 intent(in), optional :: offset 
+    !an offset from the start of the chunk, data from offset:offset+len is
+    !returned
 
-    integer(i4b) :: i, j, k, n, nb, ich, l,nc,node
+    integer(i4b) :: i, j, k, n, nb, ich, l,nc,node, offset_
+    integer(i4b), allocatable, dimension(:) :: buf
+
+    if (.not. present(offset)) then
+      offset_ = 0
+    else
+      offset_ = offset
+    end if
 
     n  = size(x_out)
+    allocate(buf(offset_ + n))
+
 !!$    nb = 8       ! First byte does not contain real data
 !!$    do i = 1, n
 !!$       node=hcode%nodemax
@@ -55,11 +67,14 @@ contains
              node=hcode%left(node)
           end if
           if (node <= hcode%nch) then
-             x_out(k) = hcode%symbols(node)
-             if (k > 1)         x_out(k) = x_out(k-1) + x_out(k)
-             if (present(imod)) x_out(k) = iand(x_out(k),imod)
+             buf(k) = hcode%symbols(node)
+             if (k > 1)         buf(k) = buf(k-1) + buf(k)
+             if (present(imod)) buf(k) = iand(buf(k),imod)
              k    = k + 1
-             if (k > n) return
+             if (k > n+offset_) then
+               x_out(1:n) = buf(1+offset_:n+offset_)
+               return
+             end if
              node = hcode%nodemax
           end if
        end do
