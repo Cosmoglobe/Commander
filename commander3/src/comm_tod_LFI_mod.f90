@@ -70,7 +70,7 @@ contains
     character(len=128),      intent(in) :: tod_type
     class(comm_LFI_tod),     pointer    :: constructor
 
-    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr, offset
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi, pixVal
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
@@ -106,6 +106,7 @@ contains
     constructor%subtract_zodi = cpar%include_TOD_zodi
     constructor%central_freq  = cpar%ds_nu_c(id_abs)
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+    constructor%halfring_split = cpar%ds_tod_halfring(id_abs)
 
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
@@ -232,12 +233,14 @@ contains
     constructor%pix2ind = -1
     do i = 1, constructor%nscan
        allocate(pix(constructor%scans(i)%ntod))
+       offset = 0
+       if(constructor%halfring_split == 2) then
+         offset = constructor%scans(i)%ntod
+       end if
        do j = 1, constructor%ndet
-          call huffman_decode(constructor%scans(i)%hkey, &
-               constructor%scans(i)%d(j)%pix, pix)
-          constructor%pix2ind(pix(1)) = 1
-          do k = 2, constructor%scans(i)%ntod
-             pix(k)  = pix(k-1)  + pix(k)
+          call huffman_decode2(constructor%scans(i)%hkey, &
+               constructor%scans(i)%d(j)%pix, pix, offset=offset)
+          do k = 1, constructor%scans(i)%ntod
              constructor%pix2ind(pix(k)) = 1
           end do
        end do
@@ -518,6 +521,10 @@ contains
           ntod = self%scans(i)%ntod
           ndet = self%ndet
 
+          if(self%myid == 0) then
+            write(*,*) 'Scan ', self%scans(i)%chunk_num, ' has ', ntod, ' samples'
+          end if
+
           ! Set up local data structure for current scan
           allocate(n_corr(ntod, ndet))                 ! Correlated noise in V
           allocate(s_sl(ntod, ndet))                   ! Sidelobe in uKcm
@@ -553,7 +560,7 @@ contains
           call self%symmetrize_flags(flag)
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
-          !call update_status(status, "tod_decomp")
+          call update_status(status, "tod_decomp")
 
           ! Construct sky signal template
           call wall_time(t1)
@@ -586,13 +593,13 @@ contains
              if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
-          !call update_status(status, "tod_project")
+          call update_status(status, "tod_project")
 
           ! Construct orbital dipole template
           call wall_time(t1)
           call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
-          !call update_status(status, "tod_orb")
+          call update_status(status, "tod_orb")
 
          !  call wall_time(t9)
           ! Construct zodical light template

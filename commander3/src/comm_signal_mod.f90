@@ -270,7 +270,7 @@ contains
              call get_size_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//&
                   & trim(adjustl(data(i)%label)), ext)
              if (data(i)%ndet > ext(1)-1) then
-                write(*,*) 'Error -- init HDF file does not contain enough bandpass information'
+                write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                 stop
              end if
              allocate(bp_delta(0:ext(1)-1,ext(2)))

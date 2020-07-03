@@ -119,6 +119,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_tot_numscan
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
+     integer(i4b),       allocatable, dimension(:)   :: ds_tod_halfring
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
 
      ! Component parameters
@@ -470,7 +471,7 @@ contains
     allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_initHDF(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
-    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n))
+    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n), cpar%ds_tod_halfring(n))
 
     do i = 1, n
        call int2string(i, itext)
@@ -548,6 +549,7 @@ contains
                   & par_string=cpar%ds_tod_instfile(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_bp_init(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_HALFRING'//itext, len_itext=len_itext, par_int=cpar%ds_tod_halfring(i))
           end if
        end if
 

@@ -2743,7 +2743,6 @@ contains
                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
                 self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
                 if (trim(self%label) == 'synch') then
-                   write(*,*) 'init synch'
                    self%theta_pixreg(1:4,1:npol,1) = -3.11d0
                 end if
                 !pixel region values for proposal length
