@@ -521,10 +521,6 @@ contains
           ntod = self%scans(i)%ntod
           ndet = self%ndet
 
-          if(self%myid == 0) then
-            write(*,*) 'Scan ', self%scans(i)%chunk_num, ' has ', ntod, ' samples'
-          end if
-
           ! Set up local data structure for current scan
           allocate(n_corr(ntod, ndet))                 ! Correlated noise in V
           allocate(s_sl(ntod, ndet))                   ! Sidelobe in uKcm
