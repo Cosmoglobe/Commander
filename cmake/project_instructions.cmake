@@ -61,7 +61,7 @@ set(COMMANDER3_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	# Compiler flags
 	list(APPEND COMMANDER3_COMPILER_FLAGS "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-Ofast" "-ipo" "-xHost" "-parallel" "-openmp" "-qopt-matmul")#"-fast" "-parallel")#"-qopt-matmul" "-heap-arrays 16384 -fpe0 -CB")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-Ofast" "-ipo" "-xHost" "-parallel" "-qopenmp" "-qopt-matmul")#"-fast" "-parallel")#"-qopt-matmul" "-heap-arrays 16384 -fpe0 -CB")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g" "-traceback")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-O2" "-g" "-DNDEBUG")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-Os" "-DNDEBUG")
