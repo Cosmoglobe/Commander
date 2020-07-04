@@ -270,7 +270,7 @@ contains
              call get_size_hdf(file2, trim(adjustl(itext2))//'/bandpass/'//&
                   & trim(adjustl(data(i)%label)), ext)
              if (data(i)%ndet > ext(1)-1) then
-                write(*,*) 'Error -- init HDF file does not contain enough bandpass information'
+                write(*,*) 'Error -- init HDF file ', trim(chainfile), ' does not contain enough bandpass information'
                 stop
              end if
              allocate(bp_delta(0:ext(1)-1,ext(2)))
@@ -332,22 +332,23 @@ contains
              end if
              !write(*,*) 'init2', initsamp2
              call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
+             !call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, map=rms)
              if (trim(data(i)%tod%init_from_HDF) /= 'default') then
                 call close_hdf_file(file2)
              end if
           end select
 
-          ! Update rms and data maps
-          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          ! Update rms and data maps; no regularization noise, because it is already included in the sample on disk
+!!$          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
-          data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
+!!$          data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
-          deallocate(regnoise)
+!!$          deallocate(regnoise)
           call rms%dealloc
        end do
     else if (cpar%resamp_CMB) then
@@ -367,15 +368,15 @@ contains
           end select
 
 
-          ! Update rms and data maps
-          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          ! Update rms and data maps; regularization noise already included in stored maps
+          !allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
-          data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
+          !data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
 
           !call data(i)%map%writeFITS('data_'//trim(data(i)%label)//'.fits')
@@ -383,7 +384,7 @@ contains
 !!$          call mpi_finalize(j)
 !!$          stop
 
-          deallocate(regnoise)
+          !deallocate(regnoise)
           call rms%dealloc
 
        end do
