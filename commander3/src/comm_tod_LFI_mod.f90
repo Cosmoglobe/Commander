@@ -48,7 +48,6 @@ module comm_tod_LFI_mod
 
   type, extends(comm_tod) :: comm_LFI_tod
     class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
-
    contains
      procedure     :: process_tod        => process_LFI_tod
   end type comm_LFI_tod
@@ -314,7 +313,7 @@ contains
     class(comm_map), pointer :: condmap
     class(map_ptr), allocatable, dimension(:) :: outmaps
 
-    if (iter > 1) self%first_call = .false.
+    !if (iter > 1) self%first_call = .false.
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
 
@@ -369,7 +368,11 @@ contains
        do i = 1, self%ndet
           filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
           call map_in(i,1)%p%writeFITS(filename)
+          filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v2.fits'
+          call map_in(i,2)%p%writeFITS(filename)
        end do
+       call mpi_finalize(ierr)
+       stop
 !!$       deallocate(A_abscal, chisq_S, slist)
 !!$       return
     end if
