@@ -278,7 +278,7 @@ contains
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
                    if (.true. .or. mod(iter,2) == 0) then
-                      write(*,*) 'relative',  iter
+                      !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
                       do j = 1, ndet
@@ -291,7 +291,7 @@ contains
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
                            & data(i)%bp(0)%p%delta(l)
                    else
-                      write(*,*) 'absolute',  iter
+                      !write(*,*) 'absolute',  iter
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant
                       dnu_prop = data(i)%tod%prop_bp_mean(l) * rand_gauss(handle)
                       do j = 0, ndet
@@ -311,13 +311,13 @@ contains
           end if
 
           ! Update mixing matrices
-          if (k > 1 .or. iter == 1) then
+          !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
                 call data(i)%bp(j)%p%update_tau(delta(j,:,k))
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
-          end if
+          !end if
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
