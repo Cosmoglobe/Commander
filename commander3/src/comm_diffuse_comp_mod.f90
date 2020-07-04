@@ -1027,7 +1027,6 @@ contains
        else
           self%L_read(j) = .true.
           if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
-          write(*,*) 'file', trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs))
           open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
           read(11,*) self%corrlen(j,:)
           do p = 1, self%nmaps
@@ -2746,7 +2745,6 @@ contains
                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
                 self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
                 if (trim(self%label) == 'synch') then
-                   write(*,*) 'init synch'
                    self%theta_pixreg(1:4,1:npol,1) = -3.11d0
                 end if
                 !pixel region values for proposal length
