@@ -166,7 +166,8 @@ contains
     S     = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * nu    /1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
     S_ref = log(exp(5.960d0 - sqrt(3.d0)/pi * log(1.d0 * self%nu_ref(pol)/1.d9 * (T_e/1.d4)**(-1.5d0))) + 2.71828d0)
     !evalSED = S/S_ref * exp(-h*(nu-self%nu_ref(pol))/k_b/T_e) * (nu/self%nu_ref(pol))**(-2)
-    evalSED = S/S_ref * (nu/self%nu_ref(pol))**-2
+    !evalSED = S/S_ref * (nu/self%nu_ref(pol))**-2
+    evalSED = S/S_ref * (nu/self%nu_ref(pol))**(-2)
     !write(*,*) "2",evalSED
     
   end function evalSED

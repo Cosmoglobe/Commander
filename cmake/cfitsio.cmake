@@ -3,7 +3,7 @@
 # Author: Maksym Brilenkov
 
 
-#find_package(CFITSIO)
+#find_package(FITSIO)
 #set($ENV{PATH} ${out_install_dir}/bin/)
 #execute_process(COMMAND export PATH=$PATH:/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild2/build/install/bin) #"${${project}_configure_command}"
 #add_custom_command(
@@ -23,12 +23,13 @@ ExternalProject_Add(${project}
 	BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 	INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}" #"${out_install_dir}"
 	# commands how to build the project
-	CONFIGURE_COMMAND ""
+	CONFIGURE_COMMAND "${${project}_configure_command}"
 	#COMMAND ${CMAKE_COMMAND} -E env --unset=PATH PATH=$ENV{PATH} ./configure --prefix=<INSTALL_DIR> 
 	#COMMAND ./configure --prefix=<INSTALL_DIR> #"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild2/build/install/bin"
 	#COMMAND export PATH=${out_install_dir}/include/:${out_lib_dir}/:${out_bin_dir}/curl-config #"${${project}_configure_command}"
 	#COMMAND export PATH=$PATH:/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild2/build/install/bin #"${${project}_configure_command}"
-	COMMAND ./configure --prefix=<INSTALL_DIR> --disable-curl # <= if specified manually, the cmake args will not work
+	#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR> --disable-curl # <= if specified manually, the cmake args will not work
+	#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${MPI_C_COMPILER} ./configure --prefix=<INSTALL_DIR> --disable-curl # <= if specified manually, the cmake args will not work
 	#CMAKE_ARGS
 	# specifying where to find curl library
 	#-DCURL_INCLUDE_DIR:PATH=${CURL_INCLUDE_DIR}
