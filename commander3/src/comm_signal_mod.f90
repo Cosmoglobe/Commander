@@ -307,7 +307,7 @@ contains
        end if
        call update_status(status, "init_chain_"//trim(c%label))
        if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
-       if (trim(c%init_from_HDF) == 'default') then
+       if (trim(c%init_from_HDF) == 'default' .or. trim(c%init_from_HDF) == 'none') then
           call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
        else
           call get_chainfile_and_samp(c%init_from_HDF, &

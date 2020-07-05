@@ -33,7 +33,7 @@ program commander
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
-  logical(lgt)        :: ok
+  logical(lgt)        :: ok, first
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
 
@@ -152,8 +152,11 @@ program commander
   !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
   ! Run Gibbs loop
-  iter = first_sample
+  iter  = first_sample
+  first = .true.
   do while (iter <= cpar%num_gibbs_iter)
+     ok = .true.
+
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') '---------------------------------------------------------------------'
@@ -207,14 +210,9 @@ program commander
      if (cpar%sample_specind) then
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
      end if
-
-     !call output_FITS_sample(cpar, 2000+iter, .true.)
-
-     ! Sample instrumental parameters
-
-     
-
+    
      call wall_time(t2)
+     if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
@@ -227,6 +225,7 @@ program commander
         end if        
      end if
      
+     first = .false.
   end do
 
   
