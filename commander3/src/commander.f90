@@ -94,7 +94,7 @@ program commander
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
-  call initialize_from_chain(cpar, handle); call update_status(status, "init_from_chain")
+  call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
@@ -144,7 +144,7 @@ program commander
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
      !first_sample = 10
-     call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true.)
+     call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
 
