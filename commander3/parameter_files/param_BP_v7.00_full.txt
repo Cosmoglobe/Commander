@@ -14,7 +14,7 @@ NUMCHAIN                      = 1       # Number of independent chains
 NUM_GIBBS_ITER                = 1000       # Length of each Markov chain
 BASE_SEED                     = 163425  # Seed for random number generator
 CHAIN_STATUS                  = append
-INIT_CHAIN                    = "chains_BP7_c8/chain_c0001.h5:9" 
+INIT_CHAIN                    = "chains_BP7_c10/chain_c0001.h5:11" "data/chain_init_BP7.3.h5:12" 
 
 NUM_GIBBS_STEPS_PER_TOD_SAMPLE = 1
 
@@ -188,6 +188,7 @@ BAND_TOD_SMALL_PROCMASK001     = mask_smap6.fits
 BAND_TOD_BP_INIT_PROP001       = bp_init_030_v1.dat
 BAND_TOD_RIMO001               = LFI_instrument_v4.h5
 BAND_TOD_FILELIST001           = filelist_30_v15.txt
+BAND_TOD_HALFRING001           = 0
 BAND_TOD_START_SCANID001       = 3
 BAND_TOD_END_SCANID001         = 44072   45860
 BAND_TOD_TOT_NUMSCAN001        = 45860
@@ -243,6 +244,7 @@ BAND_TOD_FILELIST002           = filelist_44_v16.txt
 BAND_TOD_START_SCANID002       = 3 
 BAND_TOD_END_SCANID002         = 44072   45860
 BAND_TOD_TOT_NUMSCAN002        = 45860
+BAND_TOD_HALFRING002           = 0
 BAND_TOD_FLAG002               = 6111232
 BAND_TOD_ORBITAL_ONLY_ABSCAL002 = .false.
 BAND_TOD_DETECTOR_LIST002      = "24M,24S,25M,25S,26M,26S"
@@ -297,6 +299,7 @@ BAND_TOD_FILELIST003           = filelist_70_v15.txt
 BAND_TOD_START_SCANID003       = 3
 BAND_TOD_END_SCANID003         = 44072   45860
 BAND_TOD_TOT_NUMSCAN003        = 45860
+BAND_TOD_HALFRING003           = 0
 BAND_TOD_FLAG003               = 6111232
 BAND_TOD_ORBITAL_ONLY_ABSCAL003 = .false.
 BAND_TOD_DETECTOR_LIST003      = "18M,18S,19M,19S,20M,20S,21M,21S,22M,22S,23M,23S"
@@ -414,7 +417,7 @@ BAND_BANDPASS_MODEL006         = additive_shift   # {powlaw_tilt, additive_shift
 BAND_NOMINAL_FREQ006           = 33.0
 BAND_SAMP_BANDPASS006          = .false.
 BAND_BANDPASSFILE006           = bp_wmap9_Ka_v3.dat
-BAND_SAMP_GAIN006              = .true.
+BAND_SAMP_GAIN006              = .false.
 BAND_GAIN_PRIOR_MEAN006         =  0.9983
 BAND_GAIN_PRIOR_RMS006          =  0.0002
 BAND_GAIN_CALIB_COMP006        = cmb
@@ -454,7 +457,7 @@ BAND_BANDPASS_MODEL007         = additive_shift   # {powlaw_tilt, ##additive_shi
 BAND_NOMINAL_FREQ007           = 40.6
 BAND_SAMP_BANDPASS007          = .true.
 BAND_BANDPASSFILE007           = bp_wmap9_Q1_v3.dat
-BAND_SAMP_GAIN007              = .true.
+BAND_SAMP_GAIN007              = .false.
 BAND_GAIN_PRIOR_MEAN007        =  0.9980
 BAND_GAIN_PRIOR_RMS007         =  0.0002
 BAND_GAIN_CALIB_COMP007        = cmb
@@ -494,7 +497,7 @@ BAND_BANDPASS_MODEL008         = additive_shift   # {powlaw_tilt, additive_shift
 BAND_NOMINAL_FREQ008           = 40.6
 BAND_SAMP_BANDPASS008          = .false.
 BAND_BANDPASSFILE008           = bp_wmap9_Q2_v3.dat
-BAND_SAMP_GAIN008              = .true.
+BAND_SAMP_GAIN008              = .false.
 BAND_GAIN_PRIOR_MEAN008        = 1
 BAND_GAIN_PRIOR_RMS008         = 0.1
 BAND_GAIN_CALIB_COMP008        = cmb
@@ -534,7 +537,7 @@ BAND_BANDPASS_MODEL009         = additive_shift   # {powlaw_tilt, ##additive_shi
 BAND_NOMINAL_FREQ009           = 60.8
 BAND_SAMP_BANDPASS009          = .false.
 BAND_BANDPASSFILE009           = bp_wmap9_V1_v3.dat
-BAND_SAMP_GAIN009              = .true.
+BAND_SAMP_GAIN009              = .false.
 BAND_GAIN_PRIOR_MEAN009        = 1
 BAND_GAIN_PRIOR_RMS009         = 0.1
 BAND_GAIN_CALIB_COMP009        = cmb
@@ -574,7 +577,7 @@ BAND_BANDPASS_MODEL010         = additive_shift   # {powlaw_tilt,additive_shift}
 BAND_NOMINAL_FREQ010           = 60.8
 BAND_SAMP_BANDPASS010          = .false.
 BAND_BANDPASSFILE010           = bp_wmap9_V2_v3.dat
-BAND_SAMP_GAIN010              = .true.
+BAND_SAMP_GAIN010              = .false.
 BAND_GAIN_PRIOR_MEAN010        = 1
 BAND_GAIN_PRIOR_RMS010         = 0.1
 BAND_GAIN_CALIB_COMP010        = cmb
@@ -754,7 +757,7 @@ BAND_COMPONENT_SENSITIVITY014 = "broadband"
 #                     Model parameters                       #
 ##############################################################	
 
-INSTRUMENT_PARAM_FILE         = instrument_params_init_kja.dat instrument_params_BP6.18.dat
+INSTRUMENT_PARAM_FILE         = instrument_params_BP7.3.dat instrument_params_BP6.18.dat
 INIT_INSTRUMENT_FROM_HDF      = default
 
 CMB_DIPOLE_PRIOR              = none       # 'mask_common_dx12_n1024_TQU.fits; 3364.4; 263.998; 48.265' # LFI 2018
@@ -864,7 +867,7 @@ COMP_CL_DEFAULT_BETA_B02      =  30d0
 COMP_PRIOR_UNI_BETA_LOW02     =  -4.5
 COMP_PRIOR_UNI_BETA_HIGH02    =  -1.5
 COMP_PRIOR_GAUSS_BETA_MEAN02  =  -3.1
-COMP_PRIOR_GAUSS_BETA_RMS02   =   0.02
+COMP_PRIOR_GAUSS_BETA_RMS02   =   0.05
 COMP_APPLY_JEFFREYS_PRIOR02   =  .false.
 COMP_BETA_SMOOTHING_SCALE02   = 2
 COMP_BETA_POLTYPE02           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
@@ -1205,10 +1208,10 @@ COMP_NU_P_ALMSAMP_INIT07 = none
 
 COMP_APPLY_JEFFREYS_PRIOR07   = .true.
 COMP_INPUT_AMP_MAP07          = init_ame_c43.fits none 
-COMP_PRIOR_AMP_MAP07          = none  ame_prior_mean_v2.fits
-COMP_PRIOR_AMP_LMAX07         = 100   2
+COMP_PRIOR_AMP_MAP07          = ame_prior_mean_v4.fits
+COMP_PRIOR_AMP_LMAX07         = 30
 COMP_OUTPUT_EB_MAP07          = .false.
-COMP_INIT_FROM_HDF07          = none   default
+COMP_INIT_FROM_HDF07          = default
 
 # New Local sampling parameters, 'ame'
 COMP_NU_P_INT_LMAX07          = -1    # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
