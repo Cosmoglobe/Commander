@@ -381,13 +381,18 @@ contains
     logical(lgt), optional          :: mono 
     logical(lgt), optional          :: cmb_pol
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, k
     logical(lgt) :: skip, mono_
     class(comm_map),  pointer :: map_diff
     class(comm_comp), pointer :: c
     real(dp),     allocatable, dimension(:,:) :: map, alm
+    real(dp),                  dimension(5)   :: P_quad
     
     mono_ = .true.; if (present(mono)) mono_=mono 
+
+    P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]
+    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! NPOPE
+    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! SROLL2
 
     ! Allocate map
     map_out  => comm_map(data(band)%info)  
@@ -420,6 +425,10 @@ contains
                 do i = 0, data(band)%info%nalm-1
                    if (j == 1 .or. data(band)%info%lm(1,i) > 2) then
                       map_diff%alm(i,j) = map_diff%alm(i,j) + alm(i+1,j)
+                   else if (j == 2 .and. data(band)%info%lm(1,i) == 2) then
+                      ! Apply external E quadrupole prior
+                      k = 3+data(band)%info%lm(2,i)
+                      map_diff%alm(i,j) = map_diff%alm(i,j) + P_quad(k)
                    end if
                 end do
              end do

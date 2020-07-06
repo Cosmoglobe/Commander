@@ -655,7 +655,7 @@ contains
           fg_components(i)%ind_unit(1) = 'GHz'
           fg_components(i)%ind_unit(2) = ''
           fg_components(i)%ttype(1)    = 'Frequency'
-          fg_components(i)%ttype(2)    = 'Index'
+          fg_components(i)%ttype(2)    = 'Tilt'
           fg_components(i)%npar        = 2
           allocate(fg_components(i)%priors(fg_components(i)%npar,3))
           allocate(fg_components(i)%gauss_prior(2,2))
@@ -710,6 +710,68 @@ contains
                & 1.d30, 1.d30, fg_components(i)%S_nu_ref(:,3))
           ind = maxloc(fg_components(i)%S_nu_ref(:,2))
           fg_components(i)%nu_peak = fg_components(i)%S_nu_ref(ind(1),1)
+
+       else if (trim(fg_components(i)%type) == 'AME_lognormal_width') then
+
+          ! This log-normal approximation is a simplification of the Stevenson 2014 spectrum.
+          ! We fit just two spectral parameters, nu_peak, and the width of the spectrum w_ame.
+          ! The spectrum width is essentially a combination of the three free parameters in the
+          ! Stevenson 2014 approximatin. http://arxiv.org/abs/2001.07159
+
+          paramname = 'APPLY_JEFFREYS_PRIOR' // i_text
+          call get_parameter(paramfile, paramname, par_lgt=fg_components(i)%apply_jeffreys_prior)       
+
+          num_fg_par                    = num_fg_par + 2
+          fg_components(i)%indlabel(1)  = 'nup'
+          fg_components(i)%indlabel(2)  = 'width'
+          fg_components(i)%ind_unit(1)  = 'GHz'
+          fg_components(i)%ind_unit(2)  = ''
+          fg_components(i)%ttype(1)     = 'Frequency'
+          fg_components(i)%ttype(2)     = 'Width'
+          fg_components(i)%npar         = 2
+          allocate(fg_components(i)%priors(fg_components(i)%npar,3))
+          allocate(fg_components(i)%gauss_prior(2,2))
+          allocate(fg_components(i)%par(numgrid,2))
+          allocate(fg_components(i)%S_2D(4,4,numgrid,numgrid,numband))
+
+          call get_parameter(paramfile, 'INITIALIZATION_MODE' // i_text, par_string=fg_components(i)%init_mode)
+          call get_parameter(paramfile, 'DEFAULT_FREQUENCY' // i_text, par_dp=fg_components(i)%priors(1,3))
+          call get_parameter(paramfile, 'DEFAULT_WIDTH' // i_text, par_dp=fg_components(i)%priors(2,3))
+
+          call get_parameter(paramfile, 'FREQUENCY_PRIOR_UNIFORM_LOW'  // &
+               & i_text, par_dp=fg_components(i)%priors(1,1))
+          call get_parameter(paramfile, 'FREQUENCY_PRIOR_UNIFORM_HIGH' // &
+               & i_text, par_dp=fg_components(i)%priors(1,2))
+          if (fg_components(i)%priors(1,1) >= fg_components(i)%priors(1,2)) then
+             write(*,*) 'Error: Lower prior is larger than or equal to upper prior for parameter no. ', i
+             call mpi_finalize(ierr)
+             stop
+          end if
+          call get_parameter(paramfile, 'FREQUENCY_PRIOR_GAUSSIAN_MEAN'  // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(1,1))
+          call get_parameter(paramfile, 'FREQUENCY_PRIOR_GAUSSIAN_STDDEV' // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(1,2))
+
+          call get_parameter(paramfile, 'WIDTH_PRIOR_UNIFORM_LOW'  // &
+               & i_text, par_dp=fg_components(i)%priors(2,1))
+          call get_parameter(paramfile, 'WIDTH_PRIOR_UNIFORM_HIGH' // &
+               & i_text, par_dp=fg_components(i)%priors(2,2))
+
+          if (fg_components(i)%priors(2,3) .lt. 0.1 .or. fg_components(i)%priors(2,3) .gt. 1.0) then
+             write(*,*) 'Error: Prior outside of allowed width values.', i
+             call mpi_finalize(ierr)
+             stop
+          end if
+
+          if (fg_components(i)%priors(2,1) >= fg_components(i)%priors(2,2)) then
+             write(*,*) 'Error: Lower prior is larger than or equal to upper prior for parameter no. ', i
+             call mpi_finalize(ierr)
+             stop
+          end if
+          call get_parameter(paramfile, 'WIDTH_PRIOR_GAUSSIAN_MEAN'  // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(2,1))
+          call get_parameter(paramfile, 'WIDTH_PRIOR_GAUSSIAN_STDDEV' // &
+               & i_text, par_dp=fg_components(i)%gauss_prior(2,2))
 
        else if (trim(fg_components(i)%type) == 'magnetic_dust') then
 
@@ -1271,6 +1333,8 @@ contains
     else if (trim(fg_comp%type) == 'AME_freq_shift_2par') then                         
        get_ideal_fg_spectrum = compute_AME_freq_shift_2par_spectrum(nu, fg_comp%nu_ref, p(1), p(2), &
             & fg_comp%nu_peak, fg_comp%S_nu_ref, fg_comp%p_rms)
+    else if (trim(fg_comp%type) == 'AME_lognormal_width') then
+       get_ideal_fg_spectrum = compute_AME_lognormal_width_spectrum(nu, fg_comp%nu_ref, p(1), p(2), fg_comp%p_rms)
     else if (trim(fg_comp%type) == 'magnetic_dust') then                         
        get_ideal_fg_spectrum = compute_magnetic_dust_spectrum(nu, fg_comp%nu_ref, &
             & p(1),fg_comp%S_nu_ref, fg_comp%p_rms)
@@ -1522,6 +1586,19 @@ contains
     end if
 
   end function compute_AME_freq_shift_2par_spectrum
+
+  function compute_AME_lognormal_width_spectrum(nu, nu_ref, nu_p, width, rms)
+    implicit none
+    real(dp),               intent(in) :: nu, nu_ref, nu_p, width
+    real(dp), dimension(:), intent(in) :: rms
+    real(dp)                           :: peak, compute_AME_lognormal_width_spectrum
+
+    ! Moving from flux density to T_RJ means an multiplicative (1/nu^2) to the spectrum
+    peak = nu_p*1d9
+    ! write(*,*) peak, width
+    compute_AME_lognormal_width_spectrum = exp(-0.5*(log(nu/peak)/width)**2)*(nu_ref/nu)**2
+
+  end function compute_AME_lognormal_width_spectrum
 
   function compute_magnetic_dust_spectrum(nu, nu_ref, T_m, S, rms)
     implicit none
@@ -1864,6 +1941,10 @@ contains
                          s(j) = compute_one_comp_dust_spectrum(nu, fg_components(i)%nu_ref, &
                               & fg_components(i)%par(k,1), fg_components(i)%par(l,2), &
                               & fg_components(i)%nu_flat, fg_components(i)%frac_flat, &
+                              & fg_components(i)%p_rms)
+                      else if (trim(fg_components(i)%type) == 'AME_lognormal_width') then
+                         s(j) = compute_AME_lognormal_width_spectrum(nu, fg_components(i)%nu_ref, &
+                              & fg_components(i)%par(k,1), fg_components(i)%par(l,2),&
                               & fg_components(i)%p_rms)
                       else if (trim(fg_components(i)%type) == 'power_law') then
                          s(j) = compute_power_law_spectrum(nu, fg_components(i)%nu_ref, &

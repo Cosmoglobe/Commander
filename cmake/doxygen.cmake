@@ -17,7 +17,9 @@ if(DOXYGEN_BUILD_DOCS)
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/flex/src/flex"
 			INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}"
-			CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR>
+			#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR>
+			#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${MPI_C_COMPILER} ./configure --prefix=<INSTALL_DIR>
+			CONFIGURE_COMMAND "${flex_configure_command}"
 			)
 		set(FLEX_EXECUTABLE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/flex)
 		message(STATUS "${FLEX_EXECUTABLE}")
@@ -35,7 +37,9 @@ if(DOXYGEN_BUILD_DOCS)
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/bison/src/bison"
 			INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}"
-			CONFIGURE_COMMAND ./configure --prefix=<INSTALL_DIR>
+			#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR>
+			#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${MPI_C_COMPILER} ./configure --prefix=<INSTALL_DIR>
+			CONFIGURE_COMMAND "${bison_configure_command}"
 			)
 		set(BISON_EXECUTABLE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/bison)	
 	else()
@@ -59,20 +63,6 @@ if(DOXYGEN_BUILD_DOCS)
 			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 			-DCMAKE_BUILD_TYPE=Release
 			)
-		# refer to cmake docs about doxygen variables and options
-		#message(STATUS "Building Commander3 documentation from source code with Doxygen.")
-		#set(DOXYGEN_PROJECT_NAME "Commander3")
-		#set(DOXYGEN_PROJECT_NUMBER "${CMAKE_PROJECT_VERSION}")
-		#set(DOXYGEN_PROJECT_BRIEF "${CMAKE_PROJECT_DESCRIPTION}")
-		#set(DOXYGEN_GENERATE_HTML YES)
-		#set(DOXYGEN_GENERATE_LATEX YES)
-		#set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/docs)
-		
-		#doxygen_add_docs(${project}_docs
-		#	ALL
-		#	${COMMANDER3_SOURCE_DIR}
-		#	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/docs
-		#	)
 	else()
 		add_custom_target(${project} ALL "")
 		# refer to cmake docs about doxygen variables and options
@@ -83,6 +73,20 @@ if(DOXYGEN_BUILD_DOCS)
 		set(DOXYGEN_GENERATE_HTML YES)
 		set(DOXYGEN_GENERATE_LATEX YES)
 		set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build/docs)
+		#
+		set(DOXYGEN_FULL_PATH_NAMES NO)
+		# Set the OPTIMIZE_FOR_FORTRAN tag to YES if your project consists of Fortran
+		# sources. Doxygen will then generate output that is tailored for Fortran.
+		# The default value is: NO.
+		set(DOXYGEN_OPTIMIZE_FOR_FORTRAN YES)
+		# If the EXTRACT_ALL tag is set to YES, doxygen will assume all entities in
+		# documentation are documented, even if no documentation was available. Private
+		# class members and static file members will be hidden unless the
+		# EXTRACT_PRIVATE respectively EXTRACT_STATIC tags are set to YES.
+		# Note: This will also disable the warnings about undocumented members that are
+		# normally produced when WARNINGS is set to YES.
+		# The default value is: NO.
+		set(DOXYGEN_EXTRACT_ALL YES)
 		
 		doxygen_add_docs(${project}_docs
 			ALL

@@ -185,6 +185,7 @@ contains
        m = ext(1)
 
        allocate(x(m), y(m))
+       !write(*,*) "About to read bandpass"
        call read_hdf(file, trim(label) // "/bandpassx",x)
        call read_hdf(file, trim(label) // "/bandpass", y)
        call close_hdf_file(file)
