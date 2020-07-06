@@ -895,6 +895,15 @@ contains
                       call tp_smooth%dealloc()
                    end if
                    call tp%dealloc()
+                else
+                   if (cpar%num_smooth_scales <= 0) then
+                      write(*,*) 'need to define smoothing scales'
+                      stop
+                   else if (smooth_scale <= 0) then
+                      write(*,*) 'need to define smoothing scale for component '//&
+                           & trim(self%label)//', parameter '//(trim(self%indlabel(i))
+                      stop
+                   end if
                 end if !num smooth scales > 0
              end if
           end do !poltype
