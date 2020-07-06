@@ -823,7 +823,7 @@ contains
              cpar%cs_apply_jeffreys(i) = .false. ! Disabled until properly debugged and validated
 
              do j=1,1
-                if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
+                if (cpar%cs_smooth_scale(i,j) > cpar%num_smooth_scales) then
                    write(*,fmt='(a,i2,a,i2,a,i2,a,i2)') 'Smoothing scale ',cpar%cs_smooth_scale(i,j), &
                         & ' for index nr. ',j,' in component nr. ', i,' is larger than the number of smoothing scales: ', &
                         & cpar%num_smooth_scales
