@@ -48,7 +48,6 @@ module comm_tod_LFI_mod
 
   type, extends(comm_tod) :: comm_LFI_tod
     class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
-
    contains
      procedure     :: process_tod        => process_LFI_tod
   end type comm_LFI_tod
@@ -70,7 +69,7 @@ contains
     character(len=128),      intent(in) :: tod_type
     class(comm_LFI_tod),     pointer    :: constructor
 
-    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr, offset
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi, pixVal
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
@@ -106,6 +105,7 @@ contains
     constructor%subtract_zodi = cpar%include_TOD_zodi
     constructor%central_freq  = cpar%ds_nu_c(id_abs)
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+    constructor%halfring_split = cpar%ds_tod_halfring(id_abs)
 
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
@@ -232,12 +232,14 @@ contains
     constructor%pix2ind = -1
     do i = 1, constructor%nscan
        allocate(pix(constructor%scans(i)%ntod))
+       offset = 0
+       if(constructor%halfring_split == 2) then
+         offset = constructor%scans(i)%ntod
+       end if
        do j = 1, constructor%ndet
-          call huffman_decode(constructor%scans(i)%hkey, &
-               constructor%scans(i)%d(j)%pix, pix)
-          constructor%pix2ind(pix(1)) = 1
-          do k = 2, constructor%scans(i)%ntod
-             pix(k)  = pix(k-1)  + pix(k)
+          call huffman_decode2(constructor%scans(i)%hkey, &
+               constructor%scans(i)%d(j)%pix, pix, offset=offset)
+          do k = 1, constructor%scans(i)%ntod
              constructor%pix2ind(pix(k)) = 1
           end do
        end do
@@ -311,7 +313,7 @@ contains
     class(comm_map), pointer :: condmap
     class(map_ptr), allocatable, dimension(:) :: outmaps
 
-    if (iter > 1) self%first_call = .false.
+    !if (iter > 1) self%first_call = .false.
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
 
@@ -366,7 +368,11 @@ contains
        do i = 1, self%ndet
           filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v1.fits'
           call map_in(i,1)%p%writeFITS(filename)
+          filename = trim(chaindir) // '/BP_fg_' // trim(self%label(i)) // '_v2.fits'
+          call map_in(i,2)%p%writeFITS(filename)
        end do
+       call mpi_finalize(ierr)
+       stop
 !!$       deallocate(A_abscal, chisq_S, slist)
 !!$       return
     end if
@@ -553,7 +559,7 @@ contains
           call self%symmetrize_flags(flag)
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
-          !call update_status(status, "tod_decomp")
+          call update_status(status, "tod_decomp")
 
           ! Construct sky signal template
           call wall_time(t1)
@@ -586,13 +592,13 @@ contains
              if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
-          !call update_status(status, "tod_project")
+          call update_status(status, "tod_project")
 
           ! Construct orbital dipole template
           call wall_time(t1)
           call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
-          !call update_status(status, "tod_orb")
+          call update_status(status, "tod_orb")
 
          !  call wall_time(t9)
           ! Construct zodical light template
@@ -1014,7 +1020,7 @@ contains
        self%bp_delta = delta(:,:,1)
 
        ! Output maps to disk
-       if (trim(self%freq) == '030') then
+       if (.false. .and. trim(self%freq) == '030') then
           if (self%myid == 0) write(*,*) 'Boosting rms 5x'
           rms_out%map = 5*rms_out%map 
        end if

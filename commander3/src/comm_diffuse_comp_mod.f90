@@ -527,6 +527,10 @@ contains
        allocate(self%proplen_pixreg(k,3,self%npar))
        allocate(self%B_pp_fr(self%npar))
        allocate(self%theta_pixreg(0:k,3,self%npar))
+       self%theta_pixreg = 1.d0 !just some default values, is set later in the code
+       self%nprop_pixreg = 0    ! default values, is set later in the code
+       self%proplen_pixreg = 1.d0 ! default values, is set later in the code
+
 
        if (any(self%pol_pixreg_type(:,:) == 3)) then
           allocate(self%fix_pixreg(m,3,self%npar))
@@ -549,8 +553,10 @@ contains
                       end do
                    end do
 
-                   if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) == .true.)) then    
-                      write(*,fmt='(a,i,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                   !if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) == .true.)) then    
+                   if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) .eqv. .true.)) then    
+                      !write(*,fmt='(a,i,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                      write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
                            & //trim(self%indlabel(i))//'", poltype index ',j,', all pixelregions are defined fixed .'//&
                            & 'This only the prior RMS should do. Exiting'
                       stop
@@ -583,7 +589,7 @@ contains
 
 
     do i = 1,self%npar
-       if (any(self%lmax_ind_pol(:min(self%nmaps,self.poltype(i)),i) < 0)) then
+       if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0)) then
           call update_status(status, "initPixreg_specind_mask")
           ! spec. ind. mask
           if (trim(cpar%cs_spec_mask(i,id_abs)) == 'fullsky') then
@@ -673,6 +679,7 @@ contains
                & self%nprop_uni(2,i)*1.d0)
 
        end if !any lmax_ind_pol < 0
+
        call update_status(status, "initPixreg_specind_pixel_regions")
 
        ! initialize pixel regions if relevant 
@@ -901,7 +908,7 @@ contains
                       stop
                    else if (smooth_scale <= 0) then
                       write(*,*) 'need to define smoothing scale for component '//&
-                           & trim(self%label)//', parameter '//(trim(self%indlabel(i))
+                           & trim(self%label)//', parameter '//trim(self%indlabel(i))
                       stop
                    end if
                 end if !num smooth scales > 0
@@ -1044,7 +1051,6 @@ contains
        else
           self%L_read(j) = .true.
           if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
-          write(*,*) 'file', trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs))
           open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
           read(11,*) self%corrlen(j,:)
           do p = 1, self%nmaps
@@ -2762,8 +2768,7 @@ contains
                      & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
                 self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
-                if (trim(self%label) == 'synch') then
-                   write(*,*) 'init synch'
+                if (trim(self%label) == 'synch') then !very ugly hack, should not do it like this!!!
                    self%theta_pixreg(1:4,1:npol,1) = -3.11d0
                 end if
                 !pixel region values for proposal length
@@ -3087,7 +3092,7 @@ contains
           cycle
        end if
        
-       if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id)) then
+       if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id) ) then
           pixreg_nprop = 10000 !should be enough to find correlation length (and proposal length if prompted) 
           allocate(theta_corr_arr(pixreg_nprop))
           n_spec_prop = 0

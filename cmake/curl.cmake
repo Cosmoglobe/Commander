@@ -4,7 +4,7 @@
 # Required by: CFitsio
 # Author: Maksym Brilenkov
 
-
+message("${${project}_configure_command}")
 # looking for curl in the system and download it if it is not present
 find_package(CURL)
 if(NOT CURL_FOUND)
@@ -17,8 +17,10 @@ if(NOT CURL_FOUND)
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}" #"${out_install_dir}"
 		#PATCH_COMMAND ./buildconf
-		CONFIGURE_COMMAND "${${${project}_configure}_command}"
-		COMMAND ./configure --prefix=<INSTALL_DIR>
+		CONFIGURE_COMMAND "${${project}_configure_command}"
+		BUILD_ALWAYS FALSE
+		#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR>
+		#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CC=${MPI_C_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} ./configure --prefix=<INSTALL_DIR>
 		#LOG_DOWNLOAD ON
 		#LOG_UPDATE ON
 		#LOG_CONFIGURE ON
@@ -28,12 +30,12 @@ if(NOT CURL_FOUND)
 		)
 	# getting curl directories
 	ExternalProject_Get_Property(${project} source_dir)
-    ExternalProject_Get_Property(${project} install_dir)
+  ExternalProject_Get_Property(${project} install_dir)
 	# specifying curl libraries and binaries
 	set(CURL_SOURCE_DIR ${source_dir})
-    set(CURL_BINARY_DIR ${install_dir}/bin)
+  set(CURL_BINARY_DIR ${install_dir}/bin)
 	set(CURL_INCLUDE_DIR ${install_dir}/include)#/${project})
-    set(CURL_LIBRARIES ${install_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
+  set(CURL_LIBRARIES ${install_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
 	# including curl into a project
 	#include_directories(${CURL_SOURCE_DIR})
 	include_directories(${CURL_BINARY_DIR})
@@ -59,7 +61,7 @@ if(NOT CURL_FOUND)
 		#$ENV{PATH}:${out_install_dir}/include/:${out_lib_dir}/:${out_bin_dir}/curl
 		$ENV{PATH}:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 		)
-	message(STATUS "ENV PATH: " $ENV{PATH})
+	#message(STATUS "ENV PATH: " $ENV{PATH})
 else()
 	add_custom_target(${project} ALL "")
 	include_directories(${CURL_INCLUDE_DIR})
@@ -73,7 +75,7 @@ else()
 		#$ENV{PATH}:${out_install_dir}/include/:${out_lib_dir}/:${out_bin_dir}/curl
 		$ENV{PATH}
 		)
-	message(STATUS "ENV PATH: " $ENV{PATH})
+	#message(STATUS "ENV PATH: " $ENV{PATH})
 	# Healpix complains about curl library - it needs to be in the same location as cfitsio
 	add_custom_command(
 		TARGET ${project} PRE_BUILD
