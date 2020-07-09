@@ -527,6 +527,10 @@ contains
        allocate(self%proplen_pixreg(k,3,self%npar))
        allocate(self%B_pp_fr(self%npar))
        allocate(self%theta_pixreg(0:k,3,self%npar))
+       self%theta_pixreg = 1.d0 !just some default values, is set later in the code
+       self%nprop_pixreg = 0    ! default values, is set later in the code
+       self%proplen_pixreg = 1.d0 ! default values, is set later in the code
+
 
        if (any(self%pol_pixreg_type(:,:) == 3)) then
           allocate(self%fix_pixreg(m,3,self%npar))
@@ -674,9 +678,9 @@ contains
           self%pol_nprop(i)%p%map = min(max(self%pol_nprop(i)%p%map,self%nprop_uni(1,i)*1.d0), &
                & self%nprop_uni(2,i)*1.d0)
 
-          call update_status(status, "initPixreg_specind_pixel_regions")
        end if !any lmax_ind_pol < 0
-     
+
+       call update_status(status, "initPixreg_specind_pixel_regions")
 
        ! initialize pixel regions if relevant 
        if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
@@ -693,27 +697,34 @@ contains
              end if
           end if
 
-          if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
+          call update_status(status, "initPixreg_specind_pixreg_map")
+
+          if (self%pol_pixreg_type(j,i) == 3) then !pixreg map defined from file
+             if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
+                self%ind_pixreg_map(i)%p => comm_map(info)
+                self%ind_pixreg_map(i)%p%map = 1.d0
+             else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'none') then
+                self%ind_pixreg_map(i)%p => comm_map(info)
+                self%ind_pixreg_map(i)%p%map = 0.d0
+             else
+                ! Read map from FITS file
+                self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
+                if (min(self%poltype(i),self%nmaps) > &
+                     & self%ind_pixreg_map(i)%p%info%nmaps) then
+                   write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' pixreg map has fewer maps (', & 
+                        & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                        & ') for component nr. ',id_abs
+                   stop
+                else if (self%theta(i)%p%info%nside /= self%ind_pixreg_map(i)%p%info%nside) then
+                   write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' pixreg map has different nside (', & 
+                        & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                        & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+                   stop
+                end if
+             end if
+          else !pixreg map assigned later.
              self%ind_pixreg_map(i)%p => comm_map(info)
              self%ind_pixreg_map(i)%p%map = 1.d0
-          else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'none') then
-             self%ind_pixreg_map(i)%p => comm_map(info)
-             self%ind_pixreg_map(i)%p%map = 0.d0
-          else
-             ! Read map from FITS file
-             self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
-             if (min(self%poltype(i),self%nmaps) > &
-                  & self%ind_pixreg_map(i)%p%info%nmaps) then
-                write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' pixreg map has fewer maps (', & 
-                     & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
-                     & ') for component nr. ',id_abs
-                stop
-             else if (self%theta(i)%p%info%nside /= self%ind_pixreg_map(i)%p%info%nside) then
-                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' pixreg map has different nside (', & 
-                     & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
-                     & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
-                stop
-             end if
           end if
 
           ! Check if pixel region type = 'fullsky' og 'single_pix' for given poltype index  
@@ -755,6 +766,8 @@ contains
                 end if
              end if
           end do
+
+          call update_status(status, "initPixreg_specind_pixreg_values")
 
           ! check if there is a non-smoothed init map for theta of pixelregions
           if (cpar%cs_pixreg_init_theta(i,id_abs) == 'none') then
@@ -828,6 +841,8 @@ contains
           end do
           call tp%dealloc()
 
+          call update_status(status, "initPixreg_specind_precalc_sampled_theta")
+
           do j = 1,self%poltype(i)
              !Should also assign (and smooth) theta map if RMS /= 0 and we're not initializing from HDF
              if (self%p_gauss(2,i) /= 0.d0 .and. (trim(cpar%init_chain_prefix) == 'none' .or. &
@@ -887,6 +902,15 @@ contains
                       call tp_smooth%dealloc()
                    end if
                    call tp%dealloc()
+                else
+                   if (cpar%num_smooth_scales <= 0) then
+                      write(*,*) 'need to define smoothing scales'
+                      stop
+                   else if (smooth_scale <= 0) then
+                      write(*,*) 'need to define smoothing scale for component '//&
+                           & trim(self%label)//', parameter '//trim(self%indlabel(i))
+                      stop
+                   end if
                 end if !num smooth scales > 0
              end if
           end do !poltype
@@ -2744,7 +2768,7 @@ contains
                      & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
                 self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
-                if (trim(self%label) == 'synch') then
+                if (trim(self%label) == 'synch') then !very ugly hack, should not do it like this!!!
                    self%theta_pixreg(1:4,1:npol,1) = -3.11d0
                 end if
                 !pixel region values for proposal length
@@ -3068,7 +3092,7 @@ contains
           cycle
        end if
        
-       if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id)) then
+       if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id) ) then
           pixreg_nprop = 10000 !should be enough to find correlation length (and proposal length if prompted) 
           allocate(theta_corr_arr(pixreg_nprop))
           n_spec_prop = 0
