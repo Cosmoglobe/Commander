@@ -70,14 +70,18 @@ class lfi(object):
 
     @staticmethod
     def verify_instrument_file(outDir, version):
-        f = inst.commander_instrument(outDir, lfi.instrument_filename(version), 'r')
+        f = inst.commander_instrument(outDir, lfi.instrument_filename(version), version, 'r')
 
         if version <= 3:
             raise ValueError("Versions of LFI instrument files <= 3 are lost to time")
         if version == 4:
             print("Should check the version here")
 
-        if version > 4:
+        if version > 4:#new beam information 
+            assert(f.h5file['/28M/beammmax'][()] == 14)
+            assert(f.h5file['/28M/beamlmax'][()] == 3000)
+
+        if version > 5:
             raise ValueError("Version " + str(version) + " of LFI instrument file has not yet been defined.")
 
     @staticmethod
