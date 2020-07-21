@@ -3,6 +3,7 @@
 # File which contains setup for the project 
 # Author: Maksym Brilenkov
 
+message(STATUS "---------------------------------------------------------------")
 # define this variable here for easier reference in the future
 
 #message("MY CMAKE FLAGS ARE "${CMAKE_C_FLAGS})#"${${project}_configure_command}")
@@ -11,28 +12,39 @@
 #set(SHARP2_C_FLAGS "-DUSE_MPI -std=c99 -O3 -ffast-math")
 #set(SHARP2_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 
-ExternalProject_Add(${project}
-	URL "${${project}_url}"
-	PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-	DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-	BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-	INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}"
-	# commands how to build the project
-	CONFIGURE_COMMAND "${${project}_configure_command}"
-	#COMMAND CFLAGS="-DUSE_MPI" ${download_dir}/${project}/src/${project}/configure --prefix=<INSTALL_DIR>
-	#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${MPI_C_COMPILER} MPFC=${MPI_Fortran_COMPILER} MPCXX=${MPI_CXX_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
-	#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
-	#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${SHARP2_CPP_COMPILER} CC=${MPI_C_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
-	#BUILD_IN_SOURCE 1	
-	INSTALL_COMMAND ""
-	#DEPENDS mpi
-	# LibSharp doesn't have an install command, so we need to manually move files
-	# into installation folder and hope they will work :)
-	COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/.libs" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" #"${out_install_dir}/lib" 
-	)
+find_package(SHARP2)
+if(NOT SHARP2_FOUND)
+	ExternalProject_Add(${project}
+		URL "${${project}_url}"
+		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
+		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
+		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
+		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+		# commands how to build the project
+		CONFIGURE_COMMAND "${${project}_configure_command}"
+		#COMMAND CFLAGS="-DUSE_MPI" ${download_dir}/${project}/src/${project}/configure --prefix=<INSTALL_DIR>
+		#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${MPI_C_COMPILER} MPFC=${MPI_Fortran_COMPILER} MPCXX=${MPI_CXX_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
+		#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
+		#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${SHARP2_CPP_COMPILER} CC=${MPI_C_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
+		#BUILD_IN_SOURCE 1	
+		INSTALL_COMMAND ""
+		#DEPENDS mpi
+		# LibSharp doesn't have an install command, so we need to manually move files
+		# into installation folder and hope they will work :)
+		#COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/.libs" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" #"${out_install_dir}/lib" 
+		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${CMAKE_INSTALL_PREFIX}/${project}" #"${out_install_dir}/lib" 
+		)
 
-# defining the variable which will show the path to the compiled libraries
-set(SHARP2_LIBRARIES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
+	# defining the variable which will show the path to the compiled libraries
+	#set(SHARP2_LIBRARIES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
+	set(SHARP2_LIBRARIES ${CMAKE_INSTALL_PREFIX}/${project}/.libs/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
+	message(STATUS "SHARP2 LIBRARIES will be: ${SHARP2_LIBRARIES}")
+else()
+	add_custom_target(${project} ALL "")
+	message(STATUS "SHARP2 LIBRARIES are: ${SHARP2_LIBRARIES}")
+	message(STATUS "SHARP2 INCLUDE DIRS are: ${SHARP2_INCLUDE_DIR}")
+endif()
+
 # creating a library statis library:
 # addign standard cmake suffixes 
 # (cmake will figure stuff out depending on the platform)
