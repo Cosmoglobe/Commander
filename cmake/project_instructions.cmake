@@ -30,7 +30,25 @@ endif()
 # - PGI: PGI version 12.10+.
 # - XL: IBM XL version 10.1+.
 # setting custom compile/link flags for each release type 
-list(APPEND COMMANDER3_COMPILER_FLAGS "${CMAKE_Fortran_FLAGS}")
+#list(APPEND COMMANDER3_COMPILER_FLAGS "${CMAKE_Fortran_FLAGS}")
+set(COMMANDER3_COMPILER_FLAGS "" #"${CMAKE_Fortran_FLAGS}"
+	CACHE STRING
+	"List of all additional flags user wants to add to configuration."
+	)
+set(COMMANDER3_LINKER_FLAGS ""
+	CACHE STRING
+	"List of additional linker flags user wants to add to configuration."
+	)
+
+
+#set(COMMANDER3_COMPILER_FLAGS_ADDITIONAL "" #"${CMAKE_Fortran_FLAGS}"
+#	CACHE STRING
+#	"List of all additional flags user wants to add to configuration."
+#	)
+#set(COMMANDER3_LINKER_FLAGS_ADDITIONAL ""
+#	CACHE STRING
+#	"List of additional linker flags user wants to add to configuration."
+#	)
 # for some reason it doesn't want to work with variables, 
 # so need to specify flags manually 
 #list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "")#"-O3" "-DNDEBUG")#"${CMAKE_Fortran_FLAGS_RELEASE}")
@@ -48,7 +66,12 @@ set(COMMANDER3_CXX_COMPILER "${MPI_CXX_COMPILER}")
 set(COMMANDER3_Fortran_COMPILER "${MPI_Fortran_COMPILER}")
 # To get rid of "C preprocessor fails sanity check" error
 # we need to link the CPP as follows for each subproject
-set(COMMANDER3_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
+# Different OS requires different linking
+if(${CMAKE_SYSTEM_NAME} MATCHES Linux)
+	set(COMMANDER3_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
+elseif(${CMAKE_SYSTEM_NAME} MATCHES Darwin)
+	set(COMMANDER3_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
+endif()
 
 #message(${COMMANDER3_Fortran_COMPILER})
 
@@ -60,13 +83,13 @@ set(COMMANDER3_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 # The PGI compilers by default use the highest available instruction set, so no additional flags are necessary.
 if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	# Compiler flags
-	list(APPEND COMMANDER3_COMPILER_FLAGS "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-Ofast" "-ipo" "-xHost" "-parallel" "-qopenmp" "-qopt-matmul")#"-fast" "-parallel")#"-qopt-matmul" "-heap-arrays 16384 -fpe0 -CB")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g" "-traceback")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-O2" "-g" "-DNDEBUG")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-Os" "-DNDEBUG")
+	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-Ofast" "-ipo" "-xHost" "-parallel" "-qopenmp" "-qopt-matmul" "-C" )#"-assume" "byterecl" "-heap-arrays" "16384")#"-fast" "-parallel")#"-qopt-matmul" "-heap-arrays 16384 -fpe0 -CB")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g" "-traceback" "-parallel" "-qopenmp" "-C")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-O2" "-g" "-DNDEBUG" "-parallel" "-qopenmp" "-C")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-Os" "-DNDEBUG" "-parallel" "-qopenmp" "-C")
 	# Linker flags
-	list(APPEND COMMANDER3_LINKER_FLAGS "")
+	#list(APPEND COMMANDER3_LINKER_FLAGS "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_RELEASE "-qopt-matmul")
 	list(APPEND COMMANDER3_LINKER_FLAGS_DEBUG "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO "")
@@ -75,10 +98,10 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 # setting different flags for different version
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	#message(STATUS "${CMAKE_Fortran_COMPILER_VERSION}")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-O3" "-march=native" "-flto" "-fopenmp")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g3" "-Wall" "-Wextra" "-Wconversion" "-pedantic" "-fbacktrace" "-fcheck=bounds" "-ffpe-trap=zero,overflow,underflow" "-ffunction-sections" "-pipe")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-O2" "-g" "-DNDEBUG" "-fopenmp")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-Os" "-DNDEBUG" "-fopenmp")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-O3" "-march=native" "-flto" "-fopenmp" "-C")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g3" "-Wall" "-Wextra" "-Wconversion" "-C" "-pedantic" "-fbacktrace" "-fcheck=bounds" "-ffpe-trap=zero,overflow,underflow" "-ffunction-sections" "-pipe")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-O2" "-g" "-DNDEBUG" "-fopenmp" "-C")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-Os" "-DNDEBUG" "-fopenmp" "-C")
 	# adding different flags depending on the compiler version
 	if (${CMAKE_Fortran_COMPILER_VERSION} VERSION_GREATER_EQUAL "10")
 		list(APPEND COMMANDER3_COMPILER_FLAGS "-ffree-line-length-none" "-fallow-argument-mismatch")
@@ -86,7 +109,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 		list(APPEND COMMANDER3_COMPILER_FLAGS "-ffree-line-length-none" "-Wno-argument-mismatch")
 	endif()
 	# Linker flags
-	list(APPEND COMMANDER3_LINKER_FLAGS "")
+	#list(APPEND COMMANDER3_LINKER_FLAGS "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_RELEASE "-flto")
 	list(APPEND COMMANDER3_LINKER_FLAGS_DEBUG "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO "")
@@ -94,13 +117,13 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 # PGI	
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 	# Compiler flags
-	list(APPEND COMMANDER3_COMPILER_FLAGS "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-O4" "-fast" "-mp=all")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g" "-traceback" "-Minfo")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-fast")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-fast")
+	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-O4" "-fast" "-mp=all" "-C")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g" "-traceback" "-Minfo" "-C")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-fast" "-C")
+	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-fast" "-C")
 	# Linker flags
-	list(APPEND COMMANDER3_LINKER_FLAGS "")
+	#list(APPEND COMMANDER3_LINKER_FLAGS "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_RELEASE "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_DEBUG "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO "")
@@ -110,13 +133,13 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 # and then add support for flang
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
 	# Compiler flags
-	list(APPEND COMMANDER3_COMPILER_FLAGS "")
+	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "")
 	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "")
 	# Linker flags
-	list(APPEND COMMANDER3_LINKER_FLAGS "")
+	#list(APPEND COMMANDER3_LINKER_FLAGS "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_RELEASE "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_DEBUG "")
 	list(APPEND COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO "")
@@ -126,28 +149,29 @@ endif()
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "SUMMARY ON COMPILERS:")
 message(STATUS "---------------------------------------------------------------")
+message(STATUS "Your system is: ${CMAKE_SYSTEM_NAME}, ${CMAKE_SYSTEM}")
 message(STATUS "Fortran Compiler is: ${CMAKE_Fortran_COMPILER}")
 message(STATUS "C Compiler is: ${CMAKE_C_COMPILER}")
 message(STATUS "C++ Compiler is: ${CMAKE_CXX_COMPILER}")
 message(STATUS "Commander3 configuration is: ${CMAKE_BUILD_TYPE}. Compiler flags to be applied:")
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-	message(STATUS "${COMMANDER3_COMPILER_FLAGS_DEBUG};${COMMANDER3_COMPILER_FLAGS}")
+	message(STATUS "${COMMANDER3_COMPILER_FLAGS_DEBUG};${COMMANDER3_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-	message(STATUS "${COMMANDER3_COMPILER_FLAGS_RELEASE};${COMMANDER3_COMPILER_FLAGS}")
+	message(STATUS "${COMMANDER3_COMPILER_FLAGS_RELEASE};${COMMANDER3_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
-	message(STATUS "${COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO};${COMMANDER3_COMPILER_FLAGS}")
+	message(STATUS "${COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO};${COMMANDER3_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel")
-	message(STATUS "${COMMANDER3_COMPILER_FLAGS_MINSIZEREL};${COMMANDER3_COMPILER_FLAGS}")
+	message(STATUS "${COMMANDER3_COMPILER_FLAGS_MINSIZEREL};${COMMANDER3_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 endif()
 
 # defining the compillation procedure depending on the system
 # TODO: do I really need this?
 # link to the wiki: https://gitlab.kitware.com/cmake/community/-/wikis/doc/tutorials/How-To-Write-Platform-Checks
-if(${CMAKE_SYSTEM_NAME} MATCHES Linux)
-	message(STATUS "You seem to be running Linux!!")
-endif()
-message(STATUS "${CMAKE_SYSTEM}")
-message(STATUS "${CMAKE_SYSTEM_NAME}")
+#if(${CMAKE_SYSTEM_NAME} MATCHES Linux)
+#	message(STATUS "You seem to be running Linux!!")
+#endif()
+#message(STATUS "${CMAKE_SYSTEM}")
+#message(STATUS "${CMAKE_SYSTEM_NAME}")
 
 #if(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 #  list(APPEND CXX_FLAGS "-fno-rtti" "-fno-exceptions")
@@ -163,18 +187,29 @@ message(STATUS "${CMAKE_SYSTEM_NAME}")
 # PROJECT'S DOWNLOAD/INSTALL/OUTPUT DIRECTORIES 
 #==============================================================================
 # Download dir
+# setting default values if this variable wasn't defined
 set(CMAKE_DOWNLOAD_DIRECTORY "${CMAKE_SOURCE_DIR}/build/downloads"
 	CACHE STRING
-	"Directory where to download commander dependencies' source files")
+	"Directory where to download commander dependencies' source files"
+	)
 # Output dir - originally it is CMAKE_INSTALL_PREFIX, but we need to set a
 # different default value and it isn't advisable to temper w/ this variable
-set(CMAKE_INSTALL_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/install"
-	CACHE STRING
-	"Directory where to install commander dependencies")
+#set(CMAKE_INSTALL_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/install"
+#	CACHE STRING
+#	"Directory where to install commander dependencies"
+#	)
 # where to output libraries
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/lib")
+#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/lib")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
+	CACHE STRING
+	"Directory where to install all the libraries."
+	)
 # where to output executable(s)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/bin")
+#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/bin"
+	CACHE STRING
+	"Directory where to install all the executables."
+	)
 set(DOXYGEN_BUILD_DOCS OFF 
 	CACHE BOOL
 	"Determine whether to use doxygen or not")
@@ -189,7 +224,8 @@ message(STATUS "---------------------------------------------------------------"
 message(STATUS "SUMMARY ON INSTALLATION:")
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "Projects will be downloaded into: ${CMAKE_DOWNLOAD_DIRECTORY}")
-message(STATUS "Projects will be installed into: ${CMAKE_INSTALL_OUTPUT_DIRECTORY}")
+#message(STATUS "Projects will be installed into: ${CMAKE_INSTALL_OUTPUT_DIRECTORY}")
+message(STATUS "Projects will be installed into: ${CMAKE_INSTALL_PREFIX}")
 #==============================================================================
 # MAIN PROJECT DEPENDENCIES
 #==============================================================================
@@ -234,9 +270,9 @@ set(fftw_url "http://fftw.org/fftw-3.3.8.tar.gz")
 set(fftw_md5 "8aac833c943d8e90d51b697b27d4384d")
 # we need to compile fftw twice
 # float
-set(fftw_f_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--enable-float" "--enable-threads" "--enable-openmp")
-# default
-set(fftw_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--enable-threads" "--enable-openmp")
+set(fftw_f_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "MPICC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--enable-float" "--enable-threads" "--enable-openmp" "--enable-mpi")
+# double
+set(fftw_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "MPICC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--enable-threads" "--enable-openmp" "--enable-mpi")
 #------------------------------------------------------------------------------
 # HDF5
 set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.5/src/hdf5-1.10.5.tar.gz")#"https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.4/src/hdf5-1.10.4.tar.gz")#"https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.1/src/hdf5-1.10.1.tar.gz")
@@ -253,9 +289,30 @@ set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.47
 set(cfitsio_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--disable-curl")
 #------------------------------------------------------------------------------
 # HEALPix
-set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.tar.gz/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.zip/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")#"https://sourceforge.net/projects/healpix/files/latest/download")
-set(healpix_md5 "ed7c9a3d7593577628ed1286fa7a9250")
-set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
+if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
+	set(HEALPIX_SHARP2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -qopenmp")
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
+	set(HEALPIX_SHARP2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -fopenmp")
+endif()
+#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.tar.gz/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.zip/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")#"https://sourceforge.net/projects/healpix/files/latest/download")
+#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")
+set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.tar.gz/download")
+#set(healpix_md5 "ed7c9a3d7593577628ed1286fa7a9250")
+#set(healpix_md5 "540b243406596205a7a82434d99af41e")
+set(healpix_md5 "9b51b2fc919f4e70076d296826eebee0")
+#set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
+set(healpix_configure_command 
+	"${CMAKE_COMMAND}" "-E" "env" 
+	"FC=${COMMANDER3_Fortran_COMPILER}" 
+	"CXX=${COMMANDER3_CXX_COMPILER}" 
+	"CPP=${COMMANDER3_CPP_COMPILER}" 
+	"CC=${COMMANDER3_C_COMPILER}" 
+	"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+	"FITSINC=${CMAKE_INSTALL_PREFIX}/include"
+	"SHARP_COPT=${HEALPIX_SHARP2_C_FLAGS}"
+	"./configure" 
+	"--auto=all" 
+	)
 #------------------------------------------------------------------------------
 # Doxygen
 # there is some weird errors appearing for doxygen v1.8.17 and above, so will stick with this one
@@ -282,7 +339,8 @@ foreach(project ${projects})
 	#target_link_libraries(${${project}_lib} ${MPI_Fortran_LIBRARIES})
 endforeach()
 # 
-include_directories(${CMAKE_INSTALL_OUTPUT_DIRECTORY}/include)
+#include_directories(${CMAKE_INSTALL_OUTPUT_DIRECTORY}/include)
+include_directories(${CMAKE_INSTALL_PREFIX}/include)
 message(STATUS "---------------------------------------------------------------")
 #include_directories(${out_install_dir}/lib)
 #include_directories(${out_install_dir}/mod)

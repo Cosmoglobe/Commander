@@ -4,7 +4,8 @@
 # Required by: CFitsio
 # Author: Maksym Brilenkov
 
-message("${${project}_configure_command}")
+message(STATUS "---------------------------------------------------------------")
+#message("${${project}_configure_command}")
 # looking for curl in the system and download it if it is not present
 find_package(CURL)
 if(NOT CURL_FOUND)
@@ -15,12 +16,11 @@ if(NOT CURL_FOUND)
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}" #"${out_install_dir}"
+		#INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}" #"${out_install_dir}"
+		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
 		#PATCH_COMMAND ./buildconf
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		BUILD_ALWAYS FALSE
-		#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR>
-		#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CC=${MPI_C_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} ./configure --prefix=<INSTALL_DIR>
 		#LOG_DOWNLOAD ON
 		#LOG_UPDATE ON
 		#LOG_CONFIGURE ON
@@ -45,17 +45,6 @@ if(NOT CURL_FOUND)
 	message(STATUS "Curl SOURCE DIR will be ${CURL_SOURCE_DIR}")
 	message(STATUS "Curl LIBRARIES will be ${CURL_LIBRARIES}")
 
-	#LIST(APPEND CMAKE_PROGRAM_PATH  "${CURL_BINARY_DIR}")
-	#set(${project}_bin ${install_dir}/bin)
-	# adding curl as an external library
-	#add_library(${project}_lib STATIC IMPORTED GLOBAL)
-	# asking cmake to identify its name for us
-	#set(${${project}_lib}_name ${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
-	# Specifying the directory
-	#set_target_properties(${${project}_lib} PROPERTIES IMPORTED_LOCATION "${out_install_dir}/lib/${${${project}_lib}_name}")
-	#add_custom_target(${project}_bin WORKING_DIRECTORY ${out_install_dir}/bin)
-	# exporting curl so, cfitsio will be able to find it
-	#execute_process(COMMAND export PATH=$PATH:/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib)
 	# setting an environment variable for cfitsio to find curl library
 	set(ENV{PATH} 
 		#$ENV{PATH}:${out_install_dir}/include/:${out_lib_dir}/:${out_bin_dir}/curl

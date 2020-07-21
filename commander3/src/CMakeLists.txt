@@ -1,5 +1,5 @@
 # setting the directory where to output all .mod and .o files
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_INSTALL_OUTPUT_DIRECTORY}/mod)
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/mod)
 # TODO: add all sources manually instead of this command, as 
 # there seems to be a problem with tempita language
 #file(GLOB_RECURSE sources *.f90 *.cpp *.f)
@@ -153,7 +153,7 @@ target_link_libraries(${commander3}
 	# including sharp2
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
 	#"${out_lib_dir}/libsharp2.a"
-	${SHARP2_LIBRARIES}
+	#${SHARP2_LIBRARIES}
 	# including healpix
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhealpix.a"
 	#"${out_lib_dir}/libhealpix.a"
