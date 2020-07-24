@@ -29,16 +29,58 @@ endif()
 # - Cray: Cray Compiler Environment version 8.1+.
 # - PGI: PGI version 12.10+.
 # - XL: IBM XL version 10.1+.
-# setting custom compile/link flags for each release type 
-#list(APPEND COMMANDER3_COMPILER_FLAGS "${CMAKE_Fortran_FLAGS}")
-set(COMMANDER3_COMPILER_FLAGS "" #"${CMAKE_Fortran_FLAGS}"
+# setting custom compile/link flags for each release type. These are
+# additional flags, which user can define if he/she is not satisfied
+# with the existing ones.
+set(COMMANDER3_Fortran_COMPILER_FLAGS "" #"${CMAKE_Fortran_FLAGS}"
 	CACHE STRING
 	"List of all additional flags user wants to add to configuration."
 	)
-set(COMMANDER3_LINKER_FLAGS ""
+set(COMMANDER3_Fortran_LINKER_FLAGS ""
 	CACHE STRING
 	"List of additional linker flags user wants to add to configuration."
 	)
+# setting default compiler flags, but user will be able to overwrite them
+# (although it is not really recommended to do so).
+set(COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE ""
+	CACHE STRING
+	"List of compiler flags for Release version."
+	)
+set(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG ""
+	CACHE STRING
+	"List of compiler flags for Debug version."
+	)
+set(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO ""
+	CACHE STRING
+	"List of compiler flags for RelWithDebInfo version."
+	)
+set(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL ""
+	CACHE STRING
+	"List of compiler flags for MinSizeRel version."
+	)
+
+# the same as the above but linker flags
+set(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE ""
+	CACHE STRING
+	"List of linker flags for Release version."
+	)
+set(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG ""
+	CACHE STRING
+	"List of linker flags for Debug version."
+	)
+set(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO ""
+	CACHE STRING
+	"List of linker flags for RelWithDebInfo version."
+	)
+set(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL ""
+	CACHE STRING
+	"List of linker flags for MinSizeRel version."
+	)
+# Commander also has one cpp file, so I add one flag
+# similarly to the ones specified in the config files
+set(COMMANDER3_CXX_COMPILER_FLAGS "-O3")
+
+
 
 
 #set(COMMANDER3_COMPILER_FLAGS_ADDITIONAL "" #"${CMAKE_Fortran_FLAGS}"
@@ -73,7 +115,6 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES Darwin)
 	set(COMMANDER3_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 endif()
 
-#message(${COMMANDER3_Fortran_COMPILER})
 
 # Specifying flags per Fortran compiler
 # Intel
@@ -83,67 +124,200 @@ endif()
 # The PGI compilers by default use the highest available instruction set, so no additional flags are necessary.
 if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	# Compiler flags
-	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-Ofast" "-ipo" "-xHost" "-parallel" "-qopenmp" "-qopt-matmul" "-C" )#"-assume" "byterecl" "-heap-arrays" "16384")#"-fast" "-parallel")#"-qopt-matmul" "-heap-arrays 16384 -fpe0 -CB")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g" "-traceback" "-parallel" "-qopenmp" "-C")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-O2" "-g" "-DNDEBUG" "-parallel" "-qopenmp" "-C")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-Os" "-DNDEBUG" "-parallel" "-qopenmp" "-C")
+	# If user has not specified compillation flag, we use default configuration
+	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
+			"-Ofast" 
+			"-ipo" 
+			"-xHost" 
+			"-parallel" 
+			"-qopenmp" 
+			"-qopt-matmul" 
+			"-assume" "byterecl" 
+			"-heap-arrays" "16384"
+			"-fpe0"
+			)#"-fast" "-parallel")#"-qopt-matmul" "-heap-arrays 16384 -fpe0 -CB")
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
+			"-O0" 
+			"-g" 
+			"-traceback" 
+			"-parallel" 
+			"-qopenmp" 
+			"-C" 
+			"-assume" "byterecl" 
+			"-heap-arrays" "16384"
+			"-fpe0"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
+			"-O2" 
+			"-g" 
+			"-DNDEBUG" 
+			"-parallel" 
+			"-qopenmp" 
+			"-C"
+			"-assume" "byterecl" 
+			"-heap-arrays" "16384"
+			"-fpe0"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
+			"-Os" 
+			"-DNDEBUG" 
+			"-parallel" 
+			"-qopenmp" 
+			"-C"
+			"-assume" "byterecl" 
+			"-heap-arrays" "16384"
+			"-fpe0"
+			)
+	endif()
+
 	# Linker flags
-	#list(APPEND COMMANDER3_LINKER_FLAGS "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_RELEASE "-qopt-matmul")
-	list(APPEND COMMANDER3_LINKER_FLAGS_DEBUG "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_MINSIZEREL "")
+	# the same logic as with compiler flags
+	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-qopt-matmul")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
+	endif()
 # GNU - 9.3 - 10.x needs different flags
 # setting different flags for different version
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
-	#message(STATUS "${CMAKE_Fortran_COMPILER_VERSION}")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-O3" "-march=native" "-flto" "-fopenmp" "-C")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g3" "-Wall" "-Wextra" "-Wconversion" "-C" "-pedantic" "-fbacktrace" "-fcheck=bounds" "-ffpe-trap=zero,overflow,underflow" "-ffunction-sections" "-pipe")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-O2" "-g" "-DNDEBUG" "-fopenmp" "-C")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-Os" "-DNDEBUG" "-fopenmp" "-C")
+	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
+			"-O3" 
+			"-march=native" 
+			"-flto" 
+			"-fopenmp"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
+			"-O0" 
+			"-g3" 
+			"-Wall" 
+			"-Wextra" 
+			"-Wconversion" 
+			"-C" 
+			"-pedantic" 
+			"-fbacktrace" 
+			"-fcheck=bounds" 
+			"-ffpe-trap=zero,overflow,underflow" 
+			"-ffunction-sections" 
+			"-pipe"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
+			"-O2" 
+			"-g" 
+			"-DNDEBUG" 
+			"-fopenmp" 
+			"-C"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
+			"-Os" 
+			"-DNDEBUG" 
+			"-fopenmp" 
+			"-C"
+			)
+	endif()
 	# adding different flags depending on the compiler version
 	if (${CMAKE_Fortran_COMPILER_VERSION} VERSION_GREATER_EQUAL "10")
-		list(APPEND COMMANDER3_COMPILER_FLAGS "-ffree-line-length-none" "-fallow-argument-mismatch")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS "-ffree-line-length-none" "-fallow-argument-mismatch")
 	else()
-		list(APPEND COMMANDER3_COMPILER_FLAGS "-ffree-line-length-none" "-Wno-argument-mismatch")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS "-ffree-line-length-none" "-Wno-argument-mismatch")
 	endif()
+
 	# Linker flags
-	#list(APPEND COMMANDER3_LINKER_FLAGS "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_RELEASE "-flto")
-	list(APPEND COMMANDER3_LINKER_FLAGS_DEBUG "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_MINSIZEREL "")
+	# the same logic as with compiler flags
+	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-flto")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
+	endif()
 # PGI	
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 	# Compiler flags
-	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "-O4" "-fast" "-mp=all" "-C")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "-O0" "-g" "-traceback" "-Minfo" "-C")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "-fast" "-C")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "-fast" "-C")
+	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
+			"-O4" 
+			"-fast" 
+			"-mp=all"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
+			"-O0" 
+			"-g" 
+			"-traceback" 
+			"-Minfo" 
+			"-C"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
+			"-fast" 
+			"-C"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
+			"-fast" 
+			"-C"
+			)
+	endif()
+
 	# Linker flags
-	#list(APPEND COMMANDER3_LINKER_FLAGS "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_RELEASE "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_DEBUG "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_MINSIZEREL "")
+	# the same logic as with compiler flags
+	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
+	endif()
 # Flang
 # TODO: need to figure out why healpix doesn't compile with flang
 # and then add support for flang
-elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
-	# Compiler flags
-	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELEASE "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_DEBUG "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO "")
-	list(APPEND COMMANDER3_COMPILER_FLAGS_MINSIZEREL "")
-	# Linker flags
-	#list(APPEND COMMANDER3_LINKER_FLAGS "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_RELEASE "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_DEBUG "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO "")
-	list(APPEND COMMANDER3_LINKER_FLAGS_MINSIZEREL "")
+#elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
+#	# Compiler flags
+#	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
+#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE "")
+#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG "")
+#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO "")
+#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL "")
+#	# Linker flags
+#	#list(APPEND COMMANDER3_LINKER_FLAGS "")
+#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "")
+#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
+#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 endif()
 # Making a summary of compiler location and compile flags
 message(STATUS "---------------------------------------------------------------")
@@ -155,13 +329,13 @@ message(STATUS "C Compiler is: ${CMAKE_C_COMPILER}")
 message(STATUS "C++ Compiler is: ${CMAKE_CXX_COMPILER}")
 message(STATUS "Commander3 configuration is: ${CMAKE_BUILD_TYPE}. Compiler flags to be applied:")
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-	message(STATUS "${COMMANDER3_COMPILER_FLAGS_DEBUG};${COMMANDER3_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
+	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG};${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_Fortran_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-	message(STATUS "${COMMANDER3_COMPILER_FLAGS_RELEASE};${COMMANDER3_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
+	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE};${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
-	message(STATUS "${COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO};${COMMANDER3_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
+	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO};${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel")
-	message(STATUS "${COMMANDER3_COMPILER_FLAGS_MINSIZEREL};${COMMANDER3_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
+	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL};${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 endif()
 
 # defining the compillation procedure depending on the system
@@ -296,23 +470,31 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 endif()
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.tar.gz/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.zip/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")#"https://sourceforge.net/projects/healpix/files/latest/download")
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")
-set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.tar.gz/download")
+#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.tar.gz/download")
+set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.70/Healpix_3.70_2020Jul23.tar.gz/download")
 #set(healpix_md5 "ed7c9a3d7593577628ed1286fa7a9250")
 #set(healpix_md5 "540b243406596205a7a82434d99af41e")
-set(healpix_md5 "9b51b2fc919f4e70076d296826eebee0")
+#set(healpix_md5 "9b51b2fc919f4e70076d296826eebee0")
+set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
+# this command is for healpix 3.50 and below
+#set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 set(healpix_configure_command 
 	"${CMAKE_COMMAND}" "-E" "env" 
-	"FC=${COMMANDER3_Fortran_COMPILER}" 
-	"CXX=${COMMANDER3_CXX_COMPILER}" 
-	"CPP=${COMMANDER3_CPP_COMPILER}" 
-	"CC=${COMMANDER3_C_COMPILER}" 
 	"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
 	"FITSINC=${CMAKE_INSTALL_PREFIX}/include"
+	"FC=${COMMANDER3_Fortran_COMPILER}" 
+	"CXX=${COMMANDER3_CXX_COMPILER}" 
+	#"CPP=${COMMANDER3_CPP_COMPILER}" 
+	"CC=${COMMANDER3_C_COMPILER}" 
 	"SHARP_COPT=${HEALPIX_SHARP2_C_FLAGS}"
 	"./configure" 
-	"--auto=all" 
+	"--auto=f90" 
 	)
+#set(healpix_configure_command 
+#	"${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER} CXX=${COMMANDER3_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${COMMANDER3_C_COMPILER} FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY} FITSINC=${CMAKE_INSTALL_PREFIX}/include SHARP_COPT=${HEALPIX_SHARP2_C_FLAGS} ./configure --auto=all" 
+#	)
+#message(STATUS "HEalpix configure command is: ${healpix_configure_command}")
 #------------------------------------------------------------------------------
 # Doxygen
 # there is some weird errors appearing for doxygen v1.8.17 and above, so will stick with this one
