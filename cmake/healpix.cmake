@@ -43,6 +43,7 @@ ExternalProject_Add(${project}
 					curl 
 					mpi 
 					zlib
+	#
 	INSTALL_COMMAND ""
 	# copying Healpix and all its files (src and compiled) into CMAKE_INSTALL_PREFIX directory
 	#COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/build" "${CMAKE_INSTALL_PREFIX}/healpix_build"
