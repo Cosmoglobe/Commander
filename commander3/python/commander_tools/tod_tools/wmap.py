@@ -8,30 +8,49 @@ import math
 
 class wmap(object):   
  
-    freqs = []
-    horns = {}
-    hornTypes = []
+    freqs = ['K', 'Ka', 'Q', 'V', 'W']
+    nhorns = [1, 1, 2, 2, 4]
+    # These are really DAs...
+    horns = {f:np.arange(nhorn)+1 for nhorn, f in zip(nhorns, freqs)}
+    hornTypes = [1, 2] # each DA has two pairs
+    pairType = [3,4] # Horns A/B, or 3/4.
     npsi = 4096
     ntodsigma = 100
-    nsides = {}
+    nsides = {f:512 for f in freqs}
     #compression arrays 
     huffman = ['huffman', {'dictNum':1}]
     huffTod = ['huffman', {'dictNum':2}]
     psiDigitize = ['digitize', {'min':0, 'max':2*np.pi,'nbins':npsi}]
     todDytpe = ['dtype', {'dtype':'f4'}]
     todSigma = ['sigma', {'sigma0':None, 'nsigma':ntodsigma}] 
-    #fwhm, elipticity and psi_ell from https://www.aanda.org/articles/aa/full_html/2016/10/aa25809-15/T6.html
-    fwhms = {}
+    # fwhm for WMAP is surprisingly difficult to find, I am just using the
+    # values in table 1 of Planck Collaboration X 2015
+    fwhms = {'K1': 51.5, 'Ka1': 44.4, 'Q1': 33.9, 'Q2':34.4, 
+            'V1':23.3, 'V2':23.3, 
+            'W1': 15.0, 'W2': 13.8, 'W3': 14.4, 'W4': 15.0}
 
+    # Again, hard to find a specific number for this.
     elips = {}
 
+    # I think this doesn't matter for WMAP
     psis = {}
 
+    # Not sure what this is
     b_effs = {}
 
-    cent_freqs = {}
+    cent_freqs = {'K113':22.0, 'K114': 22.6, 'K123':23.2, 'K124': 23.1,
+                  'Ka113': 32.7, 'Ka114': 32.9, 'Ka123':33.1, 'Ka124':33.1,
+                  'Q113': 40.7, 'Q114': 40.8, 'Q123': 40.9, 'Q124': 40.8,
+                  'Q213': 40.2, 'Q214': 40.2, 'Q223': 40.9, 'Q224': 41.0, 
+                  'V113': 59.3, 'V114': 59.1, 'V123': 61.1, 'V124': 61.1,
+                  'V213': 61.6, 'V214': 61.6, 'V223': 60.7, 'V224': 60.6,
+                  'W113': 93.9, 'W114': 93.3, 'W123': 93.1, 'W124': 93.3,
+                  'W213': 93.6, 'W214': 93.4, 'W223': 94.0, 'W224': 94.6,
+                  'W313': 92.4, 'W314': 92.3, 'W323': 92.9, 'W324': 93.7,
+                  'W413': 94.2, 'W414': 94.4, 'W423': 93.2, 'W424': 93.0,
+                  }
 
-    #psi_uv from https://www.aanda.org/articles/aa/full_html/2016/10/aa25818-15/T5.html
+    # I also think this doesn't matter for WMAP
     mbangs = {}
 
     
@@ -70,7 +89,7 @@ class wmap(object):
 
     @staticmethod
     def verify_instrument_file(outDir, version):
-        f = inst.commander_instrument(outDir, lfi.instrument_filename(version), 'r')
+        f = inst.commander_instrument(outDir, wmap.instrument_filename(version), 'r')
 
         if version <= 3:
             raise ValueError("Versions of LFI instrument files <= 3 are lost to time")
