@@ -21,7 +21,7 @@ import os
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
-version = 5
+version = 8
 
 from time import sleep
 from time import time as timer
@@ -121,7 +121,8 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         if label[:-2] == band.upper():
             TOD = TODs[j]
             gain = gain_guesses[j]
-            baseline = baseline_guesses[j]
+            #baseline = baseline_guesses[j]
+            baseline = TOD.mean()
             sigma_0 = TOD.std()
             scalars = np.array([gain, sigma_0, fknee, alpha])
 
@@ -130,6 +131,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             for n in range(len(TOD[0])):
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
+            todi = todi - baseline
 
             todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
             deltatod = np.diff(todInd)
@@ -204,6 +206,10 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/scalars',
                     data=scalars)
             f[obsid + '/' + label.replace('KA','Ka') + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
+            # Subtracting baseline
+            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/baseline',
+                    data=np.array([baseline]))
+            f[obsid + '/' + label.replace('KA','Ka') + '/baseline'].attrs['legend'] = 'baseline'
             # filler 
             f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/outP',
                     data=np.array([0,0]))
@@ -690,7 +696,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 90
+        nprocs = 60
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
