@@ -15,8 +15,19 @@ from scipy import sparse
 import sys
 from glob import glob
 
-version = 7
+version = 8
 
+
+def pointing(pixA, pixB, x):
+    times = np.arange(len(pixA))
+    P_A = sparse.csr_matrix((np.ones_like(times), (times, pixA)))
+    P_B = sparse.csr_matrix((np.ones_like(times), (times, pixB)))
+    P = P_A - P_B
+
+    # y = A.dot(x)
+    # where A is P.T.dot(P)
+
+    return y
 
 def cg_solve(A, b, Minv, imax=1000, eps=1e-6):
     x = np.zeros_like(b)
@@ -87,6 +98,11 @@ def get_data(fname, band, nside=256):
     labels = [f'{band}13', f'{band}14',f'{band}23',f'{band}24']
     f= h5py.File(fname, 'r')
     obsid = str(list(f.keys())[0])
+    huffTree = f[obsid+'/common/hufftree']
+    huffSymb = f[obsid+'/common/huffsymb']
+    h = huffman.Huffman(tree=huffTree, symb=huffSymb)
+
+
     TOD0 = np.array(f[obsid + '/' + labels[0] + '/tod'])
     if band == 'K1':
         if len(TOD0) != 675000:
@@ -108,8 +124,10 @@ def get_data(fname, band, nside=256):
         DAs[num] = DAs[num] + TODs.tolist()
         sigmas.append(TODs.std())
         if label == f'{band}13':
-            pixA = np.array(f[obsid + '/' + label + '/pixA']).tolist()
-            pixB = np.array(f[obsid + '/' + label + '/pixB']).tolist()
+            pixA = h.Decoder(np.array(f[obsid + '/' + label + \
+                '/pixA'])).astype('int')
+            pixB = h.Decoder(np.array(f[obsid + '/' + label + \
+                '/pixB'])).astype('int')
 
     DAs = np.array(DAs)
     sigma0 = sum(np.array(sigmas)**2)**0.5
@@ -123,7 +141,6 @@ def get_data(fname, band, nside=256):
     p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
 
 
-
     for t in range(len(d)):
         b[pixA[t]] += d[t]/sigma0
         b[pixB[t]] -= d[t]/sigma0
@@ -133,6 +150,22 @@ def get_data(fname, band, nside=256):
 
     return M, b, pixA, pixB, sigma0
 
+def inner_productdq(pixA, pixB):
+    global d, q, sigma0
+    q[pixA] += (d[pixA] - d[pixB])/sigma0**2
+    q[pixB] += (d[pixB] - d[pixA])/sigma0**2
+    return
+
+def inner_productxr(pixA, pixB):
+    global x, r, sigma0
+    r[pixA] -= (x[pixA] - x[pixB])/sigma0**2
+    r[pixB] -= (x[pixB] - x[pixA])/sigma0**2
+    return
+
+def inner_product(pixA, pixB, d, q, sigma0, sign=1):
+    q[pixA] += (d[pixA] - d[pixB])/sigma0**2*sign
+    q[pixB] += (d[pixB] - d[pixA])/sigma0**2*sign
+    return
 
 def get_cg(band='K1', nside=256, nfiles=200):
     npix = hp.nside2npix(nside)
@@ -141,6 +174,7 @@ def get_cg(band='K1', nside=256, nfiles=200):
 
     fnames = glob(f'/mn/stornext/d16/cmbco/bp/wmap/data/wmap_{band}_*v{version}.h5')
     fnames.sort()
+    print(len(fnames))
     if nfiles == 1:
         fnames = [fnames[0]]
     elif nfiles < len(fnames):
@@ -149,37 +183,22 @@ def get_cg(band='K1', nside=256, nfiles=200):
         fnames = fnames
 
     pool = Pool(processes=120)
-    x = [pool.apply_async(get_data, args=[fname, band]) for fname in fnames]
+    funcs = [pool.apply_async(get_data, args=[fname, band]) for fname in fnames]
     pixA = []
     pixB = []
     sigma0s = []
-    for res in x:
-        r = res.get()
-        if r is not None:
-            M_i, b_i, pixA_i, pixB_i, sigma_i = r
+    for res in funcs:
+        result = res.get()
+        if result is not None:
+            M_i, b_i, pixA_i, pixB_i, sigma_i = result
             M_diag += M_i
             b += b_i
-            pixA += pixA_i
-            pixB += pixB_i
+            pixA += pixA_i.tolist()
+            pixB += pixB_i.tolist()
             sigma0s += [sigma_i]
-    print('Loaded data')
-    '''
-    pixA = []
-    pixB = []
-    sigma0s = []
-    for fname in fnames:
-        print(fname)
-        r = get_data(fname, band)
-        if r is not None:
-            M_i, b_i, pixA_i, pixB_i, sigma_i = r
-            M_diag += M_i
-            b += b_i
-            pixA += pixA_i
-            pixB += pixB_i
-            sigma0s += [sigma_i]
-    print('Loaded data')
-    '''
     sigma0 = np.mean(sigma0s)
+    print('Loaded data')
+
 
 
     times = np.arange(len(pixA))
@@ -203,7 +222,6 @@ def get_cg(band='K1', nside=256, nfiles=200):
 
 
 
-
     dts = []
     i = 0
     x = np.zeros_like(b)
@@ -218,15 +236,28 @@ def get_cg(band='K1', nside=256, nfiles=200):
     i_max = npix
     i_max = 1000
     eps = 1e-7
-    while ((i < i_max) & (delta_new > eps**2*delta_0)):
-        #print(delta_new)
+
+    time_A = []
+    #time_arr = np.arange(len(pixA))
+    #for pix in range(len(b)):
+    #    inds = np.where(pixA == pix)[0]
+    #    time_A.append(ind)
+    #print(time_A)
+    print('starting while loop')
+    while (i < i_max) & (delta_new > eps**2*delta_0):
         t0 = time()
         q = A.dot(d)
+        #q *= 0
+        #for t in tqdm(range(len(pixA))):
+        #    inner_product(pixA[t], pixB[t], d, q, sigma0)
         alpha = delta_new/d.dot(q)
         x = x + alpha*d
         if i % 50 == 0:
-            #print('Divisible by 50')
+            print('Divisible by 50')
             r = b - A.dot(x)
+            #r = 0 + b
+            #for t in tqdm(range(len(pixA))):
+            #    inner_product(pixA[t], pixB[t], x, r, sigma0, sign=-1)
         else:
             r = r - alpha*q
         if i % 10 == 0:
@@ -245,14 +276,20 @@ def get_cg(band='K1', nside=256, nfiles=200):
     print(f'Done with {i} iterations, delta is {delta_new}')
     print(f"Each iteration is {np.mean(dts)}\pm{np.std(dts)}")
 
-    hp.mollview(b, min=-25, max=25, cmap='coolwarm', title='Noise-weighted average')
-    hp.mollview(b, min=-250, max=250, cmap='coolwarm', title='Noise-weighted average')
+
+    amp = 0.25
+    hp.mollview(b, min=-amp, max=amp, cmap='coolwarm', title='Noise-weighted average')
+    hp.mollview(b, min=-10*amp, max=10*amp, cmap='coolwarm', title='Noise-weighted average')
     hp.mollview(M_diag, norm='hist', title='Preconditioner')
-    hp.mollview(x, min=-25, max=25, title='Solution', cmap='coolwarm')
-    hp.mollview(x, min=-250, max=250, title='Solution', cmap='coolwarm')
+    hp.mollview(x, min=-amp, max=amp, title='Solution', cmap='coolwarm')
+    plt.savefig('solution.png', bbox_inches='tight')
+    hp.mollview(x, min=-10*amp, max=10*amp, title='Solution', cmap='coolwarm')
+    plt.savefig('solution2.png', bbox_inches='tight')
+    hp.mollview(x, min=-100*amp, max=100*amp, title='Solution', cmap='coolwarm')
+    plt.savefig('solution3.png', bbox_inches='tight')
 
 
-    plt.show()
+    #plt.show()
 
     
 
@@ -328,7 +365,7 @@ def check_hdf5(nside=256):
 
 if __name__ == '__main__':
     #cg_test()
-    get_cg(band='K1', nfiles=1000)
+    get_cg(band='K1', nfiles=400)
     #get_cg(band='V1')
     #check_hdf5()
 
