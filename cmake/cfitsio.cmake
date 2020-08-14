@@ -3,6 +3,7 @@
 # Author: Maksym Brilenkov
 
 
+message(STATUS "---------------------------------------------------------------")
 #find_package(FITSIO)
 #set($ENV{PATH} ${out_install_dir}/bin/)
 #execute_process(COMMAND export PATH=$PATH:/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild2/build/install/bin) #"${${project}_configure_command}"
@@ -21,7 +22,7 @@ ExternalProject_Add(${project}
 	PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 	DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
 	BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-	INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}" #"${out_install_dir}"
+	INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
 	# commands how to build the project
 	CONFIGURE_COMMAND "${${project}_configure_command}"
 	#COMMAND ${CMAKE_COMMAND} -E env --unset=PATH PATH=$ENV{PATH} ./configure --prefix=<INSTALL_DIR> 
@@ -47,9 +48,4 @@ ExternalProject_Add(${project}
 
 
 set(CFITSIO_LIBRARIES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
-#target_link_libraries(cfitsio ${${project}_lib})
-#
-#add_library(${project}_lib STATIC IMPORTED GLOBAL)
-#set(${${project}_lib}_name ${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
-#set_target_properties(${${project}_lib} PROPERTIES IMPORTED_LOCATION "${out_install_dir}/lib/${${${project}_lib}_name}")
-#include_directories(${out_install_dir}/include)
+message(STATUS "CFITSIO LIBRARIES will be: ${CFITSIO_LIBRARIES}")
