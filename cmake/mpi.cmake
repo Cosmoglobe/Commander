@@ -2,6 +2,7 @@
 # File determines location of MPI on the system  
 # Author: Maksym Brilenkov
 
+message(STATUS "---------------------------------------------------------------")
 find_package(MPI REQUIRED COMPONENTS Fortran C CXX)
 find_package(Threads)
 # printing out status of the search
