@@ -150,26 +150,26 @@ def get_data(fname, band, nside=256):
 
 
     for t in range(len(d)):
-        b[pixA[t]] += d[t]/sigma0**2
-        b[pixB[t]] -= d[t]/sigma0**2
+        b[pixA[t]] += d[t]
+        b[pixB[t]] -= d[t]
 
-        M[pixA[t]] += sigma0**-2
-        M[pixB[t]] += sigma0**-2
+        M[pixA[t]] += 1
+        M[pixB[t]] += 1
 
     return M, b, pixA, pixB, sigma0
 
 def inner_productdq(t):
     global d, sigma0, pixA, pixB
-    dq = (d[pixA[t]] - d[pixB[t]])/sigma0**2
+    dq = (d[pixA[t]] - d[pixB[t]])
     return pixA[t], pixB[t], dq
 
 def inner_productxr(t):
     global x, sigma0, pixA, pixB
-    dr = (x[pixA[t]] - x[pixB[t]])/sigma0**2
+    dr = (x[pixA[t]] - x[pixB[t]])
     return pixA[t], pixB[t], dr
 
 def inner_product(pixA, pixB, dA, dB, sigma0, sign=1):
-    dq = (dA - dB)/sigma0**2*sign
+    dq = (dA - dB)*sign
     return pixA, pixB, dq
 
 
@@ -223,7 +223,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
         print('Constructing the CG matrix A')
         t0 = time()
-        A = P.T.dot(P)/sigma0**2
+        A = P.T.dot(P)
         #print(A.data.nbytes + A.indptr.nbytes + A.indices.nbytes)
         print(f'Inner product takes {time()-t0} seconds')
 
@@ -299,9 +299,11 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     print(f"Each iteration is {np.mean(dts)}\pm{np.std(dts)}")
 
 
-    amp = 0.25
+    amp = 0.35
     hp.mollview(b, min=-amp, max=amp, cmap='coolwarm', title='Noise-weighted average')
+    plt.savefig('noise_avg1.png')
     hp.mollview(b, min=-10*amp, max=10*amp, cmap='coolwarm', title='Noise-weighted average')
+    plt.savefig('noise_avg2.png')
     hp.mollview(M_diag, norm='hist', title='Preconditioner')
     hp.mollview(x, min=-amp, max=amp, title='Solution', cmap='coolwarm')
     plt.savefig('solution.png', bbox_inches='tight')
@@ -445,8 +447,8 @@ def check_hdf5(nside=256, version=8, band='K1'):
 
 if __name__ == '__main__':
     #cg_test()
-    #get_cg(band='K1', nfiles=200, sparse_test=False, sparse_only=True)
+    get_cg(band='K1', nfiles=100, sparse_test=False, sparse_only=True)
     #get_cg(band='V1')
-    check_hdf5()
+    #check_hdf5()
 
 
