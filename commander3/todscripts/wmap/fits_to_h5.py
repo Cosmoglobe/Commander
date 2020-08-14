@@ -21,7 +21,7 @@ import os
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
-version = 8
+version = 9
 
 from time import sleep
 from time import time as timer
@@ -484,15 +484,28 @@ def quat_to_sky_coords(quat, center=True):
         # which is equivalent to cutting out the first 1.5 time units from the
         # beginning of the total array and the final set of quaternions does not
         # need the last half of the time interval.
-        t = np.arange(t0.min() + 1.5, t0.max() - 0.5, 1/Nobs)
+        t = np.arange(t0.min() + 1, t0.max(), 1/Nobs)
 
         M2 = np.zeros((len(t), 3, 3))
         for i in range(3):
             for j in range(3):
                 f = interp1d(t0, M[:,i,j], kind='cubic')
                 M2[:,i,j] = f(t)
+'''
+  NObs = long(NObsDA[Ind[0]])
+  q    = dblarr(4, NObs, 30, nt)
+  For i = 0L, (nt-1) Do Begin
+    For j = 0L, 29L Do Begin
+      qt = tod[i].quaternions[*,j:(j+3)]
+      For k = 0L, (NObs-1L) Do Begin
+        If (keyword_set(cent)) Then offset = 1.0D0 + ((double(k) + 0.5d0) / double(NObs))  $
+                           Else offset = 1.0D0 + (double(k) / double(NObs))
+    Interpolate_Quaternions, qt, offset, qout, status
+'''
+# I don't think it should be 0.5! God, if it's just that, I would be SO happy!
 
-
+# Let's try run this as version 9, then be extra extra extra careful about how
+# the interpolation works.
 
 
         Npts = 30*nt*Nobs
@@ -565,7 +578,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     # It takes about 30 seconds for the extraction from the fits files, which is
     # very CPU intensive. After that, it maxes out at 1 cpu/process.
     file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v{version}.h5'
-    if os.path.exists(file_out):
+    if (os.path.exists(file_out) and file_ind != 1):
         return
     t0 = timer()
 
@@ -618,7 +631,6 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     #bands = ['K1']
 
     t2jd = 2.45e6
-    jd2mjd = 2400000.5
 
     data = fits.open(file_input, memmap=False)
 
@@ -637,10 +649,11 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     # position (and velocity) in km(/s) in Sun-centered coordinates
     pos = data[1].data['POSITION']
     vel = data[1].data['VELOCITY']
-    time_aihk = data[1].data['TIME'] + t2jd - jd2mjd
-    time = data[2].data['TIME'] + t2jd - jd2mjd
+    # time2jd = 2.45e6, comverts table time (modified reduced Julian day) to Julian day, for both...
+    time_aihk = data[1].data['TIME'] + t2jd
+    time = data[2].data['TIME'] + t2jd
 
-    dt0 = np.diff(time).mean()
+    dt0 = np.median(np.diff(time))
     
     if np.any(~np.isfinite(data[1].data['QUATERN'])):
         print(f'{file_input} has NaNs in the quaternion...')
