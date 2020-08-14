@@ -484,28 +484,28 @@ def quat_to_sky_coords(quat, center=True):
         # which is equivalent to cutting out the first 1.5 time units from the
         # beginning of the total array and the final set of quaternions does not
         # need the last half of the time interval.
-        t = np.arange(t0.min() + 1, t0.max(), 1/Nobs)
+        t = np.arange(t0.min() + 1, t0.max()-1, 1/Nobs)
 
         M2 = np.zeros((len(t), 3, 3))
         for i in range(3):
             for j in range(3):
                 f = interp1d(t0, M[:,i,j], kind='cubic')
                 M2[:,i,j] = f(t)
-'''
-  NObs = long(NObsDA[Ind[0]])
-  q    = dblarr(4, NObs, 30, nt)
-  For i = 0L, (nt-1) Do Begin
-    For j = 0L, 29L Do Begin
-      qt = tod[i].quaternions[*,j:(j+3)]
-      For k = 0L, (NObs-1L) Do Begin
-        If (keyword_set(cent)) Then offset = 1.0D0 + ((double(k) + 0.5d0) / double(NObs))  $
-                           Else offset = 1.0D0 + (double(k) / double(NObs))
-    Interpolate_Quaternions, qt, offset, qout, status
-'''
-# I don't think it should be 0.5! God, if it's just that, I would be SO happy!
-
-# Let's try run this as version 9, then be extra extra extra careful about how
-# the interpolation works.
+        '''
+          NObs = long(NObsDA[Ind[0]])
+          q    = dblarr(4, NObs, 30, nt)
+          For i = 0L, (nt-1) Do Begin
+            For j = 0L, 29L Do Begin
+              qt = tod[i].quaternions[*,j:(j+3)]
+              For k = 0L, (NObs-1L) Do Begin
+                If (keyword_set(cent)) Then offset = 1.0D0 + ((double(k) + 0.5d0) / double(NObs))  $
+                                   Else offset = 1.0D0 + (double(k) / double(NObs))
+            Interpolate_Quaternions, qt, offset, qout, status
+        # I don't think it should be 0.5! God, if it's just that, I would be SO happy!
+        
+        # Let's try run this as version 9, then be extra extra extra careful about how
+        # the interpolation works.
+        '''
 
 
         Npts = 30*nt*Nobs
@@ -709,7 +709,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 60
+        nprocs = 32
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
