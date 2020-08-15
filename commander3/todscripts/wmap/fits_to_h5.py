@@ -21,7 +21,7 @@ import os
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
-version = 9
+version = 10
 
 from time import sleep
 from time import time as timer
@@ -359,7 +359,10 @@ def q_interp(q_arr, t):
     '''
     Copied from interpolate_quaternions.pro
 
-    This is an implementation of Lagrange polynomials.
+    This is an implementation of Lagrange polynomials, equation 3.2.1 of
+    numerical recipes 3rd edition.
+
+
     ;   input_q  - Set of 4 evenly-spaced quaternions (in a 4x4 array).
     ;          See the COMMENTS section for how this array should
     ;          be arranged.
@@ -484,7 +487,10 @@ def quat_to_sky_coords(quat, center=True):
         # which is equivalent to cutting out the first 1.5 time units from the
         # beginning of the total array and the final set of quaternions does not
         # need the last half of the time interval.
-        t = np.arange(t0.min() + 1, t0.max()-1, 1/Nobs)
+        # offset = 1 + (k+0.5)/Nobs
+        # or
+        # offset = 1 + k/Nobs
+        t = np.arange(t0.min() + 1, t0.max()-1, 1/Nobs) + 0.5/Nobs
 
         M2 = np.zeros((len(t), 3, 3))
         for i in range(3):

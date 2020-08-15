@@ -42,7 +42,7 @@ files = glob(prefix + 'tod/new/*.fits')
 files.sort()
 data = fits.open(files[0])
 
-version=8
+version=9
 
 labels = ['K113', 'K114', 'K123', 'K124']
 Ks = []
@@ -116,7 +116,7 @@ axes[1].set_ylabel('p noise')
 
 #plt.close('all')
 cg = hp.read_map(f'cg_v{version}.fits')
-cg = hp.remove_dipole(cg, gal_cut=20)
+#cg = hp.remove_dipole(cg, gal_cut=20)
 #hp.mollview(cg, min=-2.5, max=2.5)
 
 
@@ -171,35 +171,36 @@ sol = hp.ud_grade(sol, nside)
 sol += dipole
 
 d_sol = np.zeros(len(pixA))
+d_cg = np.zeros(len(pixA))
 for t in range(len(pixA)):
     d_sol[t] = sol[pixA[t]] - sol[pixB[t]]
+    d_cg[t] = cg[pixA[t]] - cg[pixB[t]]
 axes_test[0].plot(d_sol)
 
 
 plt.close('all')
 
+offset = 0.5
 t_max = 500
+t = np.arange(t_max)
 fig,axes= plt.subplots(nrows=2, sharex=True)
-axes[0].plot(d[5:t_max], label='TOD', color='k')
-axes[0].plot(d_sol[:t_max-5], label=r'WMAP $\Delta 5$')
-axes[0].plot(d_sol[:t_max-4], label=r'WMAP $\Delta 4$')
-axes[0].plot(d_sol[:t_max-6], label=r'WMAP $\Delta 6$')
-axes[1].plot(d[5:t_max]-d_sol[:t_max-5])
-axes[1].plot(d[4:t_max]-d_sol[:t_max-4])
-axes[1].plot(d[6:t_max]-d_sol[:t_max-6])
+axes[0].plot(t, d[:t_max], label='TOD', color='k')
+axes[0].plot(t, d_sol[:t_max], label=r'WMAP')
+axes[0].plot(t, 0.5*d_cg[:t_max], label=r'CG')
+axes[0].plot(t - offset, d_sol[:t_max], label=r'WMAP offset')
 axes[1].set_ylabel('difference')
+axes[1].plot(t, d[:t_max] - d_sol[:t_max])
 axes[0].legend(bbox_to_anchor=(1,1,0,0))
 plt.savefig(f'tod_{t_max}.png', bbox_inches='tight')
 #plt.savefig(f'tod_{t_max}.pdf', bbox_inches='tight')
 t_max = 5000
+t = np.arange(t_max)
 fig,axes= plt.subplots(nrows=2, sharex=True)
 axes[1].set_ylabel('difference')
-axes[0].plot(d_sol[5:t_max], label=r'WMAP $\Delta 5$')
-axes[0].plot(d_sol[4:t_max], label=r'WMAP $\Delta 4$')
-axes[0].plot(d_sol[6:t_max], label=r'WMAP $\Delta 6$')
-axes[1].plot(d[:t_max-5]-d_sol[5:t_max])
-axes[1].plot(d[:t_max-4]-d_sol[4:t_max])
-axes[1].plot(d[:t_max-6]-d_sol[6:t_max])
+axes[0].plot(t, d[:t_max], label='TOD', color='k')
+axes[0].plot(t, d_sol[:t_max], label=r'WMAP')
+axes[1].set_ylabel('difference')
+axes[1].plot(d[:t_max] - d_sol[:t_max])
 axes[0].legend(bbox_to_anchor=(1,1,0,0))
 plt.savefig(f'tod_{t_max}.png', bbox_inches='tight')
 #plt.savefig(f'tod_{t_max}.pdf', bbox_inches='tight')
