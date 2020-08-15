@@ -15,7 +15,7 @@ from scipy import sparse
 import sys
 from glob import glob
 
-version = 8
+version = 9
 
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
@@ -150,8 +150,10 @@ def get_data(fname, band, nside=256):
 
 
     for t in range(len(d)):
-        b[pixA[t]] += d[t]
-        b[pixB[t]] -= d[t]
+        # needs to be divided by 4 because pointing matrix
+        # is defined to be P=(P13+P14+P23+P24)/4
+        b[pixA[t]] += d[t]/4
+        b[pixB[t]] -= d[t]/4
 
         M[pixA[t]] += 1
         M[pixB[t]] += 1
@@ -216,7 +218,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         P_A = sparse.csr_matrix((np.ones_like(times), (times, pixA)))
         P_B = sparse.csr_matrix((np.ones_like(times), (times, pixB)))
         print(f'sparse matrix construction takes {time()-t0} seconds')
-        P = P_A - P_B
+        P = (P_A - P_B)/2
         #print(P.data.nbytes + P.indptr.nbytes + P.indices.nbytes)
         plt.close()
 
@@ -447,7 +449,7 @@ def check_hdf5(nside=256, version=8, band='K1'):
 
 if __name__ == '__main__':
     #cg_test()
-    get_cg(band='K1', nfiles=100, sparse_test=False, sparse_only=True)
+    get_cg(band='K1', nfiles=200, sparse_test=False, sparse_only=True)
     #get_cg(band='V1')
     #check_hdf5()
 
