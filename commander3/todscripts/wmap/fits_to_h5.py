@@ -30,7 +30,7 @@ from time import time as timer
 
 
 
-def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
+def write_file_parallel(file_ind, i, obsid, obs_ind, genflags, daflags, TODs, gain_guesses,
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, compress=False):
@@ -43,10 +43,11 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
     # Pixel, Psi, Flag
     pixArray = [[], [], []]
     todArray = []
+    inds = (genflags == 0)
     for j in range(len(band_labels)):
         label = band_labels[j]
         if label[:-2] == band.upper():
-            TOD = TODs[j]
+            TOD = TODs[j][inds]
             gain = gain_guesses[j]
             sigma_0 = TOD.std()
             scalars = np.array([gain, sigma_0, fknee, alpha])
@@ -121,8 +122,6 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         if label[:-2] == band.upper():
             TOD = TODs[j]
             gain = gain_guesses[j]
-            #baseline = baseline_guesses[j]
-            baseline = TOD.mean()
             sigma_0 = TOD.std()
             scalars = np.array([gain, sigma_0, fknee, alpha])
 
@@ -131,6 +130,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             for n in range(len(TOD[0])):
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
+            baseline = np.median(todi)
             todi = todi - baseline
 
             todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
@@ -643,6 +643,9 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     band_labels = data[2].columns.names[1:-6]
 
 
+    # If genflags == 1, there is an issue with the spacecraft attitude. Is this
+    # the quaternion problem?
+    genflags = data[2].data['genflags']
     daflags = data[2].data['daflags']
 
     TODs = []
@@ -660,11 +663,15 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     time = data[2].data['TIME'] + t2jd
 
     dt0 = np.median(np.diff(time))
-    
-    if np.any(~np.isfinite(data[1].data['QUATERN'])):
-        print(f'{file_input} has NaNs in the quaternion...')
+
+    quat = data[1].data['QUATERN']
+    if np.any(genflags != 0):
         return
-    gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(data[1].data['QUATERN'])
+    if np.any(~np.isfinite(quat)):
+        print(f'{file_input} has non-finite quaternions...')
+        print(quat[~np.isfinite(quat)])
+        return
+    gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
     # This file has NaNs in the quaternion???
     #/mn/stornext/d16/cmbco/bp/wmap/tod/wmap_tod_20013082358_20013091720_uncalibrated_v5.fits
 
@@ -688,7 +695,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
     for band in bands:
-        args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses,
+        args = [(file_ind, i, obsids[i], obs_inds[i], genflags, daflags, TODs, gain_guesses,
             baseline,
                     band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
                     alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
