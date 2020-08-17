@@ -15,7 +15,7 @@ from scipy import sparse
 import sys
 from glob import glob
 
-version = 9
+version = 10
 
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
@@ -23,22 +23,14 @@ def make_dipole(amp, lon, lat, nside):
     dip_map = x*vec[0] + y*vec[1] + z*vec[2]
     return dip_map*amp
 
-def pointing(pixA, pixB, x):
-    times = np.arange(len(pixA))
-    P_A = sparse.csr_matrix((np.ones_like(times), (times, pixA)))
-    P_B = sparse.csr_matrix((np.ones_like(times), (times, pixB)))
-    P = P_A - P_B
-
-    # y = A.dot(x)
-    # where A is P.T.dot(P)
-
-    return y
-
-def cg_solve(A, b, Minv, imax=1000, eps=1e-6):
+def cg_solve(A, b, M_diag, imax=1000, eps=1e-6):
+    p = (M_diag != 0)
     x = np.zeros_like(b)
+    s = np.zeros_like(b)
     i = 0
     r = b - A.dot(x)
-    d = Minv.dot(r)
+    d = np.zeros_like(b)
+    d[p] = (r/M_diag)[p]
     delta_new = r.dot(d)
     delta_0 = r.dot(d)
     while ((i < imax) & (delta_new > eps**2*delta_0)):
@@ -49,41 +41,13 @@ def cg_solve(A, b, Minv, imax=1000, eps=1e-6):
             r = b - A.dot(x)
         else:
             r = r - alpha*q
-        s = Minv.dot(r)
+        s[p] = (r/M_diag)[p]
         delta_old = np.copy(delta_new)
         delta_new = r.dot(s)
         beta = delta_new/delta_old
         d = s + beta*d
         i += 1
     return x
-
-def cg_solve_map(A, b, Minv, imax=1000, eps=1e-6):
-    '''
-    Try to rewrite this so that A is an operator, not a matrix that needs to be
-    held in memory.
-    '''
-    x = np.zeros_like(b)
-    i = 0
-    r = b - A.dot(x)
-    d = Minv.dot(r)
-    delta_new = r.dot(d)
-    delta_0 = r.dot(d)
-    while ((i < imax) & (delta_new > eps**2*delta_0)):
-        q = A.dot(d)
-        alpha = delta_new/d.dot(q)
-        x = x + alpha*d
-        if (i % 50 == 0):
-            r = b - A.dot(x)
-        else:
-            r = r - alpha*q
-        s = Minv.dot(r)
-        delta_old = np.copy(delta_new)
-        delta_new = r.dot(s)
-        beta = delta_new/delta_old
-        d = s + beta*d
-        i += 1
-    return x
-
 
 def cg_test():
     A = np.array([[3,2],
@@ -120,6 +84,7 @@ def get_data(fname, band, nside=256):
     
     
     DAs = [[], [], [], []]
+    flags = [[], [], [], []]
     pixAs = []
     pixBs = []
     sigmas = []
@@ -128,7 +93,9 @@ def get_data(fname, band, nside=256):
         TODs = np.array(f[obsid + '/' + label + '/tod'])
         scalars = f[obsid + '/' + label + '/scalars']
         gains[num] = scalars[0]
-        #TODs -= TODs.mean()
+        #TODs = TODs - np.median(TODs)
+        flag = h.Decoder(np.array(f[obsid + '/' + label + '/flag']))
+        flags[num] = flags[num] + flag.tolist()
         DAs[num] = DAs[num] + TODs.tolist()
         sigmas.append(TODs.std())
         if label == f'{band}13':
@@ -136,24 +103,29 @@ def get_data(fname, band, nside=256):
                 '/pixA'])).astype('int')
             pixB = h.Decoder(np.array(f[obsid + '/' + label + \
                 '/pixB'])).astype('int')
+    flags = np.array(flags).sum(axis=0)
+    inds = (flags == 0)
 
     DAs = np.array(DAs)/gains.reshape(4,1)
     sigma0 = np.mean(np.array(sigmas)**2)**0.5
 
-    
+
     
     d1 = 0.5*(DAs[0] + DAs[1])
     d2 = 0.5*(DAs[2] + DAs[3])
     
     d = 0.5*(d1 + d2) # = i_A - i_B
     p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
+    
+    #d = d[inds]
+    #p = p[inds]
+    #pixA = pixA[inds]
+    #pixB = pixB[inds]
 
 
     for t in range(len(d)):
-        # needs to be divided by 4 because pointing matrix
-        # is defined to be P=(P13+P14+P23+P24)/4
-        b[pixA[t]] += d[t]/4
-        b[pixB[t]] -= d[t]/4
+        b[pixA[t]] += d[t]
+        b[pixB[t]] -= d[t]
 
         M[pixA[t]] += 1
         M[pixB[t]] += 1
@@ -213,12 +185,12 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
     if sparse_test or sparse_only:
         times = np.arange(len(pixA))
-        print('Creating the sparse matrices')
+        print('Creating the pointing matrices')
         t0 = time()
         P_A = sparse.csr_matrix((np.ones_like(times), (times, pixA)))
         P_B = sparse.csr_matrix((np.ones_like(times), (times, pixB)))
-        print(f'sparse matrix construction takes {time()-t0} seconds')
-        P = (P_A - P_B)/2
+        print(f'Pointing matrix construction takes {time()-t0} seconds')
+        P = P_A - P_B
         #print(P.data.nbytes + P.indptr.nbytes + P.indices.nbytes)
         plt.close()
 
@@ -230,8 +202,10 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         print(f'Inner product takes {time()-t0} seconds')
 
 
+    '''
+    x = cg_solve(A, b, M_diag)
 
-
+    '''
     dts = []
     i = 0
     x = np.zeros_like(b)
@@ -272,7 +246,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         if i % 50 == 0:
             print('Divisible by 50')
             if sparse_only:
-                r_test = b - A.dot(x)
+                r = b - A.dot(x)
             else:
                 r = 0 + b
                 for t in tqdm(range(len(pixA))):
@@ -285,9 +259,9 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         else:
             r = r - alpha*q
         if i % 10 == 0:
-            print(np.round(i/i_max,3),\
-                    np.round(1/np.log10(delta_new/(delta_0*eps**2)),3),\
-                    int(delta_new))
+            print(np.round(i/i_max,2),\
+                    np.round(1/np.log10(delta_new/(delta_0*eps**2)),1),\
+                    np.round(delta_new,4))
         s[p] = r[p]/M_diag[p]
         delta_old = np.copy(delta_new)
         delta_new = r.dot(s)
@@ -295,38 +269,38 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         d = s + beta*d
         i += 1
         dts.append(time()-t0)
-    hp.write_map(f'cg_v{version}.fits', x, overwrite=True)
+    hp.write_map(f'cg_v{version}_{band}.fits', x, overwrite=True)
 
-    print(f'Done with {i} iterations, delta is {delta_new}')
-    print(f"Each iteration is {np.mean(dts)}\pm{np.std(dts)}")
 
+    x = hp.remove_dipole(x, gal_cut=20)
 
     amp = 0.35
     hp.mollview(b, min=-amp, max=amp, cmap='coolwarm', title='Noise-weighted average')
-    plt.savefig('noise_avg1.png')
+    plt.savefig(f'noise_avg1_{band}.png')
     hp.mollview(b, min=-10*amp, max=10*amp, cmap='coolwarm', title='Noise-weighted average')
-    plt.savefig('noise_avg2.png')
+    plt.savefig(f'noise_avg2_{band}.png')
     hp.mollview(M_diag, norm='hist', title='Preconditioner')
+    plt.savefig(f'preconditioner_{band}.png')
     hp.mollview(x, min=-amp, max=amp, title='Solution', cmap='coolwarm')
-    plt.savefig('solution.png', bbox_inches='tight')
+    plt.savefig(f'solution1_{band}.png', bbox_inches='tight')
     hp.mollview(x, min=-10*amp, max=10*amp, title='Solution', cmap='coolwarm')
-    plt.savefig('solution2.png', bbox_inches='tight')
+    plt.savefig(f'solution2_{band}.png', bbox_inches='tight')
     hp.mollview(x, min=-100*amp, max=100*amp, title='Solution', cmap='coolwarm')
-    plt.savefig('solution3.png', bbox_inches='tight')
+    plt.savefig(f'solution3_{band}.png', bbox_inches='tight')
 
 
 
-    data = hp.ud_grade(hp.read_map('data/wmap_imap_r9_9yr_K1_v5.fits'), nside)
+    data = hp.ud_grade(hp.read_map(f'data/wmap_imap_r9_9yr_{band}_v5.fits'), nside)
     A = 3.346 # mK
     lon = 263.85
     lat = 48.25
-    dipole = make_dipole(A, lon, lat, nside)
-    hp.mollview(data+dipole, min=-10*amp, max=10*amp, title='WMAP K1', cmap='coolwarm')
-    plt.savefig('wmap_sol.png', bbox_inches='tight')
+    dipole = make_dipole(A, lon, lat, nside)*0
+    hp.mollview(data+dipole, min=-10*amp, max=10*amp, title=f'WMAP {band}', cmap='coolwarm')
+    plt.savefig(f'wmap_sol_{band}.png', bbox_inches='tight')
 
 
-    hp.mollview(x - data - dipole, norm='hist', title='CG - WMAP')
-    plt.savefig('wmap_diff.png', bbox_inches='tight')
+    hp.mollview(x - data - dipole, min=-amp, max=amp, cmap='coolwarm', title='CG - WMAP')
+    plt.savefig(f'wmap_diff_{band}.png', bbox_inches='tight')
 
 
     #plt.show()
@@ -376,6 +350,7 @@ def check_hdf5(nside=256, version=8, band='K1'):
     for num, label in enumerate(labels):
         TODs = np.array(f[obsid + '/' + label + '/tod'])
         scalars = f[obsid + '/' + label + '/scalars']
+        #flag = h.Decoder(np.array(f[obsid + '/' + label + '/flag']))
         gains[num] = scalars[0]
         TODs = TODs - np.median(TODs)
         DAs[num] = DAs[num] + TODs.tolist()
@@ -409,11 +384,11 @@ def check_hdf5(nside=256, version=8, band='K1'):
     dip_sub = hp.remove_dipole(cg, gal_cut=10)
 
     hp.mollview(sol, min=-2.5, max=2.5, title='WMAP', cmap='RdBu_r')
-    plt.savefig('wmap.png', bbox_inches='tight')
+    plt.savefig(f'wmap_{band}.png', bbox_inches='tight')
     hp.mollview(dip_sub, min=-2.5, max=2.5, title='CG Dipole Subtracted', cmap='RdBu_r')
-    plt.savefig('cg_dipsub.png', bbox_inches='tight')
+    plt.savefig(f'cg_dipsub_{band}.png', bbox_inches='tight')
     hp.mollview(sol - dip_sub, min=-2.5, max=0.25, title='Difference', cmap='RdBu_r')
-    plt.savefig('diff.png', bbox_inches='tight')
+    plt.savefig(f'diff_{band}.png', bbox_inches='tight')
 
     sol += dipole
 
@@ -438,10 +413,10 @@ def check_hdf5(nside=256, version=8, band='K1'):
     #plt.hist(d, label='CG Solution', alpha=0.5, bins=bins)
     #plt.hist(d_sol, label='WMAP solution', alpha=0.5, bins=bins)
     #plt.legend(loc='best')
-    plt.show()
+    #plt.show()
 
 
-    plt.show()
+    #plt.show()
 
 
     return
@@ -449,7 +424,11 @@ def check_hdf5(nside=256, version=8, band='K1'):
 
 if __name__ == '__main__':
     #cg_test()
-    get_cg(band='K1', nfiles=200, sparse_test=False, sparse_only=True)
+    bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+    get_cg(band='K1', nfiles=400, sparse_test=False, sparse_only=True)
+    #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
+    #for band in bands:
+    #    get_cg(band=band, nfiles=200, sparse_test=False, sparse_only=True)
     #get_cg(band='V1')
     #check_hdf5()
 

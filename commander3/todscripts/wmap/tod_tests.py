@@ -42,7 +42,7 @@ files = glob(prefix + 'tod/new/*.fits')
 files.sort()
 data = fits.open(files[0])
 
-version=9
+version=10
 
 labels = ['K113', 'K114', 'K123', 'K124']
 Ks = []
@@ -113,14 +113,14 @@ axes[1].plot(n_p)
 axes[1].set_ylabel('p noise')
 
 
+band = 'K1'
 
 #plt.close('all')
-cg = hp.read_map(f'cg_v{version}.fits')
+cg = hp.read_map(f'cg_v{version}_{band}.fits')
 #cg = hp.remove_dipole(cg, gal_cut=20)
 #hp.mollview(cg, min=-2.5, max=2.5)
 
 
-band = 'K1'
 
 import h5py
 from glob import glob
@@ -180,13 +180,13 @@ axes_test[0].plot(d_sol)
 
 plt.close('all')
 
-offset = 0.5
+offset = 0
 t_max = 500
 t = np.arange(t_max)
 fig,axes= plt.subplots(nrows=2, sharex=True)
 axes[0].plot(t, d[:t_max], label='TOD', color='k')
 axes[0].plot(t, d_sol[:t_max], label=r'WMAP')
-axes[0].plot(t, 0.5*d_cg[:t_max], label=r'CG')
+axes[0].plot(t - offset, d_cg[:t_max], label=r'CG')
 axes[0].plot(t - offset, d_sol[:t_max], label=r'WMAP offset')
 axes[1].set_ylabel('difference')
 axes[1].plot(t, d[:t_max] - d_sol[:t_max])
