@@ -103,6 +103,10 @@ def get_data(fname, band, nside=256):
                 '/pixA'])).astype('int')
             pixB = h.Decoder(np.array(f[obsid + '/' + label + \
                 '/pixB'])).astype('int')
+    # bit array; bit 0 means data is suspect, bit 12 means Mars in AB, etc. til
+    # 10. I think I'll just try to get rid of all data where there are any
+    # planets in the beam, although i think the official release tried to use as
+    # much data as possible, i.e., only cutting out the center.
     flags = np.array(flags).sum(axis=0)
     inds = (flags == 0)
 
@@ -117,10 +121,10 @@ def get_data(fname, band, nside=256):
     d = 0.5*(d1 + d2) # = i_A - i_B
     p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
     
-    #d = d[inds]
-    #p = p[inds]
-    #pixA = pixA[inds]
-    #pixB = pixB[inds]
+    d = d[inds]
+    p = p[inds]
+    pixA = pixA[inds]
+    pixB = pixB[inds]
 
 
     for t in range(len(d)):

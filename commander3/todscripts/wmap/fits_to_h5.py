@@ -21,16 +21,17 @@ import os
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
-version = 10
+version = 11
 
 from time import sleep
 from time import time as timer
 
 
+from get_gain_model import get_gain
 
 
 
-def write_file_parallel(file_ind, i, obsid, obs_ind, genflags, daflags, TODs, gain_guesses,
+def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, compress=False):
@@ -43,11 +44,10 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, genflags, daflags, TODs, ga
     # Pixel, Psi, Flag
     pixArray = [[], [], []]
     todArray = []
-    inds = (genflags == 0)
     for j in range(len(band_labels)):
         label = band_labels[j]
         if label[:-2] == band.upper():
-            TOD = TODs[j][inds]
+            TOD = TODs[j]
             gain = gain_guesses[j]
             sigma_0 = TOD.std()
             scalars = np.array([gain, sigma_0, fknee, alpha])
@@ -642,6 +642,9 @@ def fits_to_h5(file_input, file_ind, compress, plot):
 
     band_labels = data[2].columns.names[1:-6]
 
+    # Returns the gain model estimate at the start of each frame.
+    gain_guesses = np.array([get_gain(data, b)[1][0] for b in band_labels])
+
 
     # If genflags == 1, there is an issue with the spacecraft attitude. Is this
     # the quaternion problem?
@@ -660,6 +663,12 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     vel = data[1].data['VELOCITY']
     # time2jd = 2.45e6, comverts table time (modified reduced Julian day) to Julian day, for both...
     time_aihk = data[1].data['TIME'] + t2jd
+
+
+
+
+
+
     time = data[2].data['TIME'] + t2jd
 
     dt0 = np.median(np.diff(time))
@@ -672,8 +681,6 @@ def fits_to_h5(file_input, file_ind, compress, plot):
         print(quat[~np.isfinite(quat)])
         return
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
-    # This file has NaNs in the quaternion???
-    #/mn/stornext/d16/cmbco/bp/wmap/tod/wmap_tod_20013082358_20013091720_uncalibrated_v5.fits
 
     data.close()
 
