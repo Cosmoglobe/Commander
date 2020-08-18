@@ -702,8 +702,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
     for band in bands:
-        args = [(file_ind, i, obsids[i], obs_inds[i], genflags, daflags, TODs, gain_guesses,
-            baseline,
+        args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses, baseline,
                     band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
                     alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
                     fsamp, pos, vel, time, compress) for i in range(len(obs_inds))]
@@ -729,7 +728,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 32
+        nprocs = 128
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
