@@ -109,12 +109,12 @@ contains
         rpoint = tod%pix2ind(pix(j,i,2))
         !todo: add correct coeficients here when they are loaded in
 
-        s_sky(j,i) = map(1,lpoint,i) + &
+        s_sky(j,i) = -1*(map(1,lpoint,i) + &
                     & map(2,lpoint,i) * tod%cos2psi(psi(j,i,1)) + &
                     & map(3,lpoint,i) * tod%sin2psi(psi(j,i,1)) - &
                     & map(1,rpoint,i) - &
                     & map(2,rpoint,i) * tod%cos2psi(psi(j,i,2)) - &
-                    & map(3,rpoint,i) * tod%sin2psi(psi(j,i,2))
+                    & map(3,rpoint,i) * tod%sin2psi(psi(j,i,2)))
 
         if (iand(flag(j,i),tod%flag0) .ne. 0) tmask(j,i) = 0.
         if(pmask(lpoint) .or. pmask(rpoint)) then

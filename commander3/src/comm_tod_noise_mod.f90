@@ -57,6 +57,7 @@ contains
        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
 
        sigma_0 = self%scans(scan)%d(i)%sigma0
+       write(*,*) "rms:", scan, sigma_0, sqrt(sum(d_prime**2)/size(d_prime))
        ! Fill gaps in data 
        init_masked_region = .true.
        end_masked_region = .false.
