@@ -147,7 +147,7 @@ contains
     c => compList
     call wall_time(t1)
     do while (associated(c))
-       if (cpar%resamp_CMB .and. trim(c%type) /= 'cmb') then
+       if (.not. c%output .or. (cpar%resamp_CMB .and. trim(c%type) /= 'cmb')) then
           c => c%next()
           cycle
        end if
@@ -291,9 +291,9 @@ contains
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
              end do
-             call chisq_sub%dealloc()
+             call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
-          call map%dealloc()
+          call map%dealloc(); deallocate(map)
           call update_status(status, "output_res3_"//trim(data(i)%label))
        end do
        
@@ -302,7 +302,7 @@ contains
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
           if (cpar%myid_chain == 0) write(*,fmt='(a,i4,a,e16.8)') &
                & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
-          call chisq_map%dealloc()
+          call chisq_map%dealloc(); deallocate(chisq_map)
        end if
        call update_status(status, "output_chisq")
     end if

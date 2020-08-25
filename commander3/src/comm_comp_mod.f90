@@ -23,6 +23,7 @@ module comm_comp_mod
      logical(lgt)       :: active
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_unique_sampgroup
      character(len=512) :: label, class, type, unit, operation, init_from_HDF
+     logical(lgt)       :: output
      real(dp)           :: nu_ref(3), RJ2unit_(3)
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
@@ -214,6 +215,15 @@ contains
     self%numprocs        = cpar%numprocs_chain
     self%init_from_HDF   = cpar%cs_initHDF(id_abs)
     self%operation       = cpar%operation
+
+    call get_tokens(cpar%output_comps, ",", comp_label, n)
+    self%output = .false.
+    do i = 1, n
+       if (trim(comp_label(i)) == trim(self%label) .or. trim(comp_label(i)) == 'all') then
+          self%output = .true.
+          exit
+       end if
+    end do
 
     ! Set up conversion factor between RJ and native component unit
     do i = 1, 3

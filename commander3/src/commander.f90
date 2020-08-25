@@ -81,6 +81,7 @@ program commander
 
   end if
 
+
   ! ************************************************
   ! *               Initialize modules             *
   ! ************************************************
@@ -144,6 +145,7 @@ program commander
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
      !first_sample = 10
+     first_sample=first_sample-1 ! Reject last sample, which may be corrupt
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
@@ -191,15 +193,15 @@ program commander
         end do
         ! Perform joint alm-Cl Metropolis move
         do i = 1, 3
-           if (cpar%resamp_CMB) call sample_joint_alm_Cl(handle)
+           if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
         end do
      end if
 
      ! Sample power spectra
-     call sample_powspec(handle, ok)
+     if (cpar%sample_powspec) call sample_powspec(handle, ok)
 
      ! Output sample to disk
-     call output_FITS_sample(cpar, iter, .true.)
+     if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
 
      ! Sample partial-sky templates
      !call sample_partialsky_tempamps(cpar, handle)

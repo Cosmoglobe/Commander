@@ -414,6 +414,8 @@ contains
     class(comm_map), pointer :: map => null()
     real(dp), allocatable, dimension(:,:,:) :: theta
 
+    if (.not. self%output) return
+
     ! Output point source maps for each frequency
     do i = 1, numband
        map => comm_map(data(i)%info)

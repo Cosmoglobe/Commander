@@ -47,6 +47,7 @@ program comm_like_tools
      write(*,*) '     print_lnL_old_BR     -- '
      write(*,*) '     timing               -- '
      write(*,*) '     fast_par_estimation  -- '
+     write(*,*) '     output_covmat_slice  -- '
      write(*,*) '  For further usage information, type "comm_like_tools [operation]"'
      stop
   end if
@@ -91,6 +92,8 @@ program comm_like_tools
      call print_lnL_old_BR
   else if (trim(operation) == 'sigma2gauss') then
      call sigma2gauss
+  else if (trim(operation) == 'output_covmat_slice') then
+     call output_covmat_slice
   end if
 
 contains
@@ -264,6 +267,8 @@ contains
     call read_ringweights(nside, weights)
     call read_beam(beamfile, beam)
     beam(:,1)   = beam(:,1) * pixwin(0:lmax,1) ! Only pixwin in T
+    beam(:,2)   = beam(:,2) * pixwin(0:lmax,2) ! Only pixwin in T
+    beam(:,3)   = beam(:,3) * pixwin(0:lmax,2) ! Only pixwin in T
     do l = 0, lmax
        do i = 1, nmaps
           do j = 1, nmaps
@@ -289,6 +294,10 @@ contains
     map_1d = map_1d * scale ! Assume map is in same units as covariance matrix
 
     ! Add regularization noise to covariance matrix; DOES NOT YET SUPPORT COMPRESSED COVMATS
+    allocate(W(nval))
+    call get_eigenvalues(cov,W)
+    write(*,*) maxval(W)/minval(W)
+    write(*,*) reg
     if (any(reg > 0.d0)) then
        ind = 1
        do j = 1, nmaps
@@ -301,6 +310,10 @@ contains
           end do
        end do
    end if
+    call get_eigenvalues(cov,W)
+    write(*,*) maxval(W)/minval(W)
+   deallocate(W)
+   !stop
 
     ! Compute spherical harmonics
     write(*,*) 'Computing spherical harmonics'
@@ -653,6 +666,20 @@ contains
     write(68,*) n
     close(68)
 
+    write(*,*) n
+    deallocate(W)
+    allocate(W(n))
+    call get_eigenvalues(C,W)
+
+    open(68,file='W.dat')
+    do i = 1, n
+       write(68,*) W(i)/maxval(W)
+    end do
+    close(68)
+    
+    write(*,*) maxval(W)/minval(W)
+    deallocate(W)
+
     ! Output datafile
     call write_lowl_datafile(trim(prefix)//'.fits', d, C, beam, P_harm, mapfile, maskfile, &
          & covfile, beamfile, clfile, basis, lhigh_T, lhigh_P, Tthreshold, Pthreshold)
@@ -755,7 +782,7 @@ contains
 
     character(len=256) :: infile, maxlnLfile, temp, clfile,filename, filelist, outfile
     real(dp)           :: lnL_max, lnL_fid, lnL0, val, vals(1000), lnLs(1000), lnL2(1000), delta_lnL
-    real(dp)           :: peak, upper, lower, limit
+    real(dp)           :: peak, upper, lower, limit, red_chisq, chisq
     integer(i4b)       :: nspec, lmin_eval, lmax_eval, l, i, n
     integer(i4b)       :: ierr, ndof
     integer(i4b)       :: unit, unit_out, nspline
@@ -810,6 +837,7 @@ contains
     ! Read fiducial spectrum
     call read_fiducial_spectrum(maxlnlfile, cls0)             
     call read_fiducial_spectrum(maxlnlfile, cls_fid)             
+    !cls0 = 0.d0
 
     open(unit,file=trim(filelist))
     n = 0
@@ -821,16 +849,17 @@ contains
        cls_fid = cls0
        do i = 1, 6
           if (.not. flag(i)) cycle
+          write(*,*) n, i
           do l = lmin_eval, lmax_eval
              cls_fid(l,i) = cls_maxlnL(l,i)
           end do
        end do
-       lnLs(n) = comm_lowl_compute_lnL(cls=cls_fid, ierr=ierr, enforce_pos_def=.false.)
-       write(*,*) n, trim(filename), lnLs(n)
+       lnLs(n) = comm_lowl_compute_lnL(cls=cls_fid, ierr=ierr, enforce_pos_def=.false., red_chisq=red_chisq, chisq=chisq)
+       write(*,*) n, trim(filename), lnLs(n), chisq, red_chisq
     end do
 91  close(unit)
     
-    nspline = 1000000
+    nspline = 10000
     allocate(x_spline(nspline), P_spline(nspline))
     call spline(vals(1:n), lnLs(1:n), 1.d30, 1.d30, lnL2(1:n))
     do i = 1, nspline
@@ -872,10 +901,10 @@ contains
              cls_fid(l,i) = 0.d0
           end do
        end do
-       delta_lnL = comm_lowl_compute_lnL(cls=cls_fid, ierr=ierr, enforce_pos_def=.false.) - maxval(lnLs(1:n))
-       write(*,fmt='(a,f8.2,a)') 'Detection level = ', sqrt(-0.5d0*delta_lnL), ' sigma (Gaussianized)'
+       delta_lnL = comm_lowl_compute_lnL(cls=cls_fid, ierr=ierr, enforce_pos_def=.false., red_chisq=red_chisq) - maxval(lnLs(1:n))
+       write(*,fmt='(a,f8.2,a)') 'Detection level = ', sqrt(-2d0*delta_lnL), ' sigma (Gaussianized)'
        write(*,fmt='(a,f8.2)') 'lnL(max) = ', maxval(lnLs(1:n))
-       write(*,fmt='(a,f8.2)') 'lnL(0)   = ', maxval(lnLs(1:n)) - delta_lnL
+       write(*,fmt='(a,2f8.2)') 'lnL(0)   = ', maxval(lnLs(1:n)) + delta_lnL, red_chisq
     end if
 
   end subroutine fast_par_estimation
@@ -1534,16 +1563,17 @@ contains
     character(len=4)   :: lmin_text, lmax_text
     real(dp)           :: cl_min, cl_max, sigma, top, left, right, int, tot_int, cl_in(4), lnL_max
     real(dp)           :: chisq, t1, t2, cl_maxlike
-    integer(i4b)       :: nspec, lmin, lmax, numchain, numiter, g, i, j, k, l, m, n, p, b_min, b_max, id, numbin, ind
+    integer(i4b)       :: nspec, lmin, lmax, numchain, numiter, g, i, j, k, l, m, n, p, b_min, b_max, id, numbin, ind, nspline, imin, imax
     integer(i4b)       :: firstchain, lastchain, firstsample, lastsample, thinstep, nmaps, ierr
     integer(i4b)       :: unit_summary
     logical(lgt)       :: exist
     real(dp),     allocatable, dimension(:,:) :: cls0, cls
-    real(dp),     allocatable, dimension(:)   :: cl, lnL
+    real(dp),     allocatable, dimension(:)   :: cl, lnL, lnL2
+    real(dp),     allocatable, dimension(:)      :: cl_spline, lnL_spline
     character(len=1), dimension(6) :: status
     character(len=2), dimension(6) :: stext = ['TT','TE','TB','EE','EB','BB']
-    real(dp), dimension(6) :: clmin = [0.d0,   -10.d0, -1.d0, -0.1d0,  -1.d0,-0.02d0]
-    real(dp), dimension(6) :: clmax = [5000.d0, 10.d0,  1.d0, 1.d0,   1.d0, 0.02d0]
+    real(dp), dimension(6) :: clmin = [0.d0,   -10.d0, -10.d0 , -1d0,  -1.d0,-1d0]
+    real(dp), dimension(6) :: clmax = [10000.d0, 10.d0,  10.d0, 1.5d0,   1.d0, 1.5d0]
 
     if (iargc() /= 5) then
        write(*,*) '    Compute Gaussian likelihood slices'
@@ -1556,7 +1586,8 @@ contains
     call getarg(4, binfile)
     call getarg(5, outprefix)
     nspec        = 6
-    numbin       = 41
+    numbin       = 10001
+    nspline      = 100*numbin
     unit_summary = comm_getlun()
 
     inquire(file=trim(infile), exist=exist)
@@ -1574,7 +1605,8 @@ contains
     call comm_lowl_initialize_object(infile)
 
     ! Loop over all bins, and output slices
-    allocate(cl(numbin), lnL(numbin))
+    allocate(cl(numbin), lnL(numbin), lnL2(numbin))
+    allocate(cl_spline(nspline), lnL_spline(nspline))
     open(58,file=trim(binfile))
     open(unit_summary,file=trim(outprefix)//'_summary.dat', recl=1024)
     do while (.true.)
@@ -1618,8 +1650,26 @@ contains
              end do
              close(unit)
 
-             call compute_conf_limits(cl, lnL, top, left, right)
-             write(unit_summary,fmt='(f6.1,2i6,3f8.3,a,a)') 0.5d0*(lmin+lmax), lmin, lmax, top, left, right, '   ', spectext
+             imin = 1
+             do while (lnL(imin) < 1d-6*maxval(lnL))
+                write(*,*) imin, cl(imin), lnL(imin)
+                imin = imin+1
+             end do
+
+             imax = numbin
+             do while (lnL(imax) < 1d-6*maxval(lnL))
+                imax = imax-1
+             end do
+     
+             call spline(cl(imin:imax), lnL(imin:imax), 1.d30, 1.d30, lnL2(imin:imax))             
+             do l = 1, nspline
+                cl_spline(l) = cl(imin) + (cl(imax)-cl(imin))*(l-1.d0)/(nspline-1.d0)
+                lnL_spline(l) = splint(cl(imin:imax), lnL(imin:imax), lnL2(imin:imax), cl_spline(l))
+             end do
+             
+
+             call compute_conf_limits(cl_spline, lnL_spline, top, left, right)
+             write(unit_summary,fmt='(f6.1,2i6,3f10.3,a,a)') 0.5d0*(lmin+lmax), lmin, lmax, top, left, right, '   ', spectext
 
           end if
           
@@ -1639,8 +1689,8 @@ contains
     character(len=4)   :: lmin_text, lmax_text
     real(dp)           :: cl_min, cl_max, top, left, right, int, tot_int, cl_in(4), lnL_max, delta
     real(dp)           :: chisq, t1, t2, cl_maxlike, dC(1), alpha, alpha_prop, lnL_prop, lnL_old, xmin
-    real(dp)           :: cl_prev, lnL_new(2), cl_new, eps, eps0, accept, reject
-    integer(i4b)       :: nspec, lmin, lmax, numchain, numiter, g, i, j, k, l, m, n, p, p_max(1), n_lnL
+    real(dp)           :: cl_prev, lnL_new(2), cl_new, eps, eps0, accept, reject, rms_prop(10000), clinit(10000)
+    integer(i4b)       :: nspec, lmin, lmax, numchain, numiter, g, i, j, k, l, m, n, p, p_max(1), n_lnL, main_iter
     integer(i4b)       :: b_min, b_max, id, numbin, ind, ind1, ind2, n_spline, nsamp
     integer(i4b)       :: firstchain, lastchain, firstsample, lastsample, thinstep, nmaps, ierr
     integer(i4b)       :: unit, unit_out, iter, n_QML, maxiter
@@ -1649,7 +1699,7 @@ contains
     real(dp),     allocatable, dimension(:,:,:)  :: sigmas
     real(dp),     allocatable, dimension(:)      :: cl, dCl, dCl0, lnL, alphas, binmask, W, cl0, lnL0, cl1, lnL1, lnL2
     real(dp),     allocatable, dimension(:,:)    :: invF0, invF, invF2, sigma, lnL_cond, samples
-    real(dp),     allocatable, dimension(:)      :: cl_cond, p_cond, eta
+    real(dp),     allocatable, dimension(:)      :: cl_cond, p_cond, eta, mu
     real(dp),     allocatable, dimension(:)      :: condnum
     real(dp),     allocatable, dimension(:)      :: cl_spline, lnL_spline
     integer(i4b), allocatable, dimension(:)      :: indmap
@@ -1711,6 +1761,22 @@ contains
           bins_powspec(npar_powspec,1) = lmin
           bins_powspec(npar_powspec,2) = lmax
           bins_powspec(npar_powspec,3) = i
+          clinit(npar_powspec) = 0.
+          select case (i)
+          case (1)
+             rms_prop(npar_powspec) = 50
+             clinit(npar_powspec) = 0!1000
+          case (2)
+             rms_prop(npar_powspec) = 0.5
+          case (3)
+             rms_prop(npar_powspec) = 0.5
+          case (4)
+             rms_prop(npar_powspec) = 0.005
+          case (5)
+             rms_prop(npar_powspec) = 0.005
+          case (6)
+             rms_prop(npar_powspec) = 0.005
+          end select
        end do
     end do
 511 close(unit)
@@ -1720,7 +1786,9 @@ contains
     do i = 1, npar_powspec
        cl(i) = mean(cls_fid(bins_powspec(i,1):bins_powspec(i,2),bins_powspec(i,3)))
     end do
+    write(*,*) cl
     lnL_new(1) = lnL_powspec(cl)          
+    write(*,*) 'lnL in =', lnL_new(1)
     if (lnL_new(1) == -1.d30) then
        write(*,*) '   Error: Initialization spectrum not acceptable'
        stop
@@ -1728,6 +1796,16 @@ contains
 
     if (trim(optimizer) == 'quasinewton') then
 !       call dfpmin(cl, 1.d-6, iter, chisq, chisq_powspec, dchisq_powspec, ierr)
+    else if (trim(optimizer) == 'powell') then
+
+       ! Cl_QML = Cl_old + invF * dC/dCl
+       allocate(invF0(npar_powspec,npar_powspec))
+       allocate(invF(npar_powspec,npar_powspec))
+       invF0  = get_invfisher_powspec(cl)
+
+       call powell(cl, neg_lnL_powspec, ierr, tolerance=1.d-3)
+       !invF  = get_invfisher_powspec(cl)
+
     else if (trim(optimizer) == 'powell_WMAP') then
 #ifdef WMAP
        allocate(invF(npar_powspec,npar_powspec))
@@ -1869,6 +1947,8 @@ contains
           if (all(converged)) exit
        end do
 
+    else if (trim(optimizer) == 'conditional') then
+    else if (trim(error_type) == 'marginal') then
     else
        write(*,*) 'Error -- Unsupported optimizer = ', trim(optimizer)
        write(*,*) '         Supported options     = {QML_single_iteration, QML_line_search}'
@@ -1893,12 +1973,56 @@ contains
 
     ! Compute error bars
     if (trim(error_type) == 'marginal') then
-       nsamp = 10000
-       allocate(eta(npar_powspec), samples(npar_powspec,0:nsamp), L_prop(npar_powspec,npar_powspec))
+       !nsamp = 1000000
+       !allocate(eta(npar_powspec), mu(npar_powspec), samples(npar_powspec,0:nsamp), L_prop(npar_powspec,npar_powspec))
        ! Marginal errors by MCMC
-       invF     = get_invfisher_powspec(cl)
-       call cholesky_decompose(invF, L_prop)
-       samples(:,0) = cl
+!       invF     = get_invfisher_powspec(cl)
+       !call cholesky_decompose(invF, L_prop)
+          allocate(eta(npar_powspec), mu(npar_powspec), L_prop(npar_powspec,npar_powspec), cl1(npar_powspec))
+       do main_iter = 1, 3
+
+
+          if (main_iter == 1) then
+             nsamp = 10000
+             allocate(samples(npar_powspec,0:nsamp))
+
+             L_prop = 0.d0
+             do i = 1, npar_powspec
+                L_prop(i,i)  = rms_prop(i)
+             end do
+
+          else
+             do i = 1, npar_powspec
+                mu(i)  = mean(samples(i,nsamp/2+1:nsamp))
+             end do
+             L_prop = 0.d0
+             do i = nsamp/2+1, nsamp
+                eta = samples(:,i) -mu
+                do j = 1, npar_powspec
+                   do k = 1, npar_powspec
+                      L_prop(j,k)  = L_prop(j,k) + eta(j)*eta(k)
+                   end do
+                end do
+             end do
+             L_prop = L_prop/(nsamp/2)
+             call compute_hermitian_root(L_prop, 0.5d0)
+             L_prop = L_prop * 0.2d0
+             do j = 1, npar_powspec
+                write(*,*) j, L_prop(j,j)
+             end do
+             
+             if (main_iter == 2) then
+                nsamp = 10000
+             else
+                nsamp = 10000
+             end if
+             deallocate(samples)
+             allocate(samples(npar_powspec,0:nsamp))
+
+             !stop
+          end if
+          samples(:,0) = clinit(1:npar_powspec) !0 !cl
+
        accept       = 0.d0
        lnL_old = lnL_powspec(samples(:,0))
        open(58,file='samples.dat', recl=10000)
@@ -1907,21 +2031,23 @@ contains
           do j = 1, npar_powspec
              eta(j) = rand_gauss(handle)
           end do
-          cl = samples(:,i-1) + 0.2d0*matmul(L_prop,eta)
-          lnL_prop = lnL_powspec(cl)
+          cl1 = samples(:,i-1) + 1d0*matmul(L_prop,eta)
+          lnL_prop = lnL_powspec(cl1)
           call wall_time(t2)
           if (exp(lnL_prop-lnL_old) > rand_uni(handle)) then
              accept       = accept+1.d0
-             write(*,fmt='(a,2f16.3,2f8.3)') 'accept', lnL_prop, lnL_old, t2-t1, accept/i
-             samples(:,i) = cl
+             if (mod(i,100)== 0) write(*,fmt='(i7,a,2f16.3,2f8.3)') i, ' accept', lnL_prop, lnL_old, t2-t1, accept/i
+             samples(:,i) = cl1
              lnL_old      = lnL_prop
           else
-             write(*,fmt='(a,2f16.8,2f8.3)') 'reject', lnL_prop, lnL_old, t2-t1, accept/i
+             if (mod(i,100) == 0) write(*,fmt='(i7,a,2f16.8,2f8.3)') i, ' reject', lnL_prop, lnL_old, t2-t1, accept/i
              samples(:,i) = samples(:,i-1)
           end if
-          write(58,*) i, real(lnL_old,sp), real(samples(:,i),sp)
+          if (mod(i,10) == 0) write(58,*) i, real(lnL_old,sp), real(samples(:,i),sp)
        end do
        close(58)
+       clinit(1:npar_powspec) = samples(:,nsamp)
+       end do
 
        do j = 1, npar_powspec
           call int2string(bins_powspec(j,1), lmin_text)
@@ -1934,9 +2060,8 @@ contains
           end do
           close(58)
 
-          cl(j)      = mean(samples(j,1:nsamp))
-          sigma(j,:) = sqrt(variance(samples(j,1:nsamp)))
-          sigma(j,:) = sqrt(variance(samples(j,1:nsamp)))
+          if (trim(optimizer) == 'marginal') cl(j)      = mean(samples(j,nsamp/2+1:nsamp))
+          sigma(j,:) = sqrt(variance(samples(j,nsamp/2+1:nsamp)))
           write(*,fmt='(a,i5,a,3f10.3)') 'bin = ', j, ' -- ', cl(j), sigma(j,:)
        end do
 
@@ -2095,6 +2220,7 @@ contains
           close(58)
           
           if (trim(optimizer) == 'QML_line_search') cl(j) = cl_max
+          if (trim(optimizer) == 'conditional')     cl(j) = cl_max
           write(87,fmt='(i6,4f10.3)') j, cl(j), cl_max, sigma(j,:)
           write(*,fmt='(a,i5,a,3f10.3)') 'bin = ', j, ' -- ', cl(j), sigma(j,:)
        end do
@@ -2135,12 +2261,12 @@ contains
     call comm_output_powspec(trim(outprefix)//'_cls.dat', bins_powspec(1:npar_powspec,:), cl, sigma)
 
     ! Output error correlation matrix
-    do i = 1, npar_powspec
-       do j = i+1, npar_powspec
-          invF(i,j) = invF(i,j) / sqrt(invF(i,i)*invF(j,j))
-          invF(j,i) = invF(i,j)
-       end do
-    end do
+!!$    do i = 1, npar_powspec
+!!$       do j = i+1, npar_powspec
+!!$          invF(i,j) = invF(i,j) / sqrt(invF(i,i)*invF(j,j))
+!!$          invF(j,i) = invF(i,j)
+!!$       end do
+!!$    end do
 
 !!$    open(unit_out,file=trim(outprefix) // '_corrmat.dat', recl=1024)
 !!$    do i = 1, npar_powspec
@@ -2325,12 +2451,13 @@ contains
     do i = 1, npar_powspec
        cls(bins_powspec(i,1):bins_powspec(i,2),bins_powspec(i,3)) = p(i)
     end do
+    !cls(:,[2,3,5]) = 0.d0
 
     neg_lnL_powspec = -comm_lowl_compute_lnL(cls=cls, ierr=ierr, enforce_pos_def=.false., &
          & red_chisq=chisq_powspec)
     if (ierr /= 0) neg_lnL_powspec = 1.d30
 
-!    write(*,fmt='(e16.8,4e10.3)') neg_lnL_powspec, cls(2,[1,2,4,6])
+    !write(*,fmt='(e16.8,4e10.3)') neg_lnL_powspec, cls(2,[1,2,4,6])
 
     deallocate(cls)
 
@@ -2829,6 +2956,8 @@ contains
        call comm_br_initialize_object(BRfile, handle=id)
     else if (trim(BRtype) == 'gauss') then
        call comm_gauss_br_initialize_object(BRfile, lmin_gauss, lmax_gauss, delta_l, handle=id)
+    else if (trim(BRtype) == 'lowl') then
+       call comm_lowl_initialize_object(BRfile)
     end if
 
     ! Loop over all free parameters, and output slices
@@ -2845,6 +2974,9 @@ contains
              lnL(i,j) = comm_br_compute_lnL(cls, ierr, handle=id)
           else if (trim(BRtype) == 'gauss') then
              lnL(i,j) = comm_gauss_br_compute_lnL(cls(2:lmax,1), handle=id)
+          else if (trim(BRtype) == 'lowl') then
+             lnL(i,j) = comm_lowl_compute_lnL(cls=cls)
+             write(*,*) i, j, lnL(i,j)
           end if
        end do
     end do
@@ -3222,5 +3354,168 @@ contains
     deallocate(K_llp)
     
   end subroutine print_coupling_kernel
+
+  subroutine output_covmat_slice
+    implicit none
+
+    integer(i4b)       :: i, j, k, l, m, q, nside, nmaps, npix, lmax, lhigh_T, lhigh_P, ordering, numcomp, col
+    integer(i4b)       :: l1, l2, m1, m2, i1, i2, n_d, n_p, n_h, n
+    integer(i4b)       :: ind, ind1, ind2, cov_order, seed, numtemp, nmask, n_t, n_pol
+    integer(i4b)       :: lmax_basis, pol, nval, nhigh, num_fg_temp, nside_temp, npix_temp
+    real(dp)           :: t1, t2, Tthreshold, Pthreshold, reg(3), scale, W_max_T, W_max_P
+    real(dp)           :: BBamp, cvec(3), weight_T, weight_P
+    logical(lgt)       :: comp_cov
+    character(len=5)   :: itext
+    character(len=512) :: mapfile, maskfile, covfile, beamfile, outfile, filename, temp
+    character(len=512) :: basis, prefix, clfile, partext, tempcovmat(10)
+    real(dp),     allocatable, dimension(:,:)     :: cov, P_harm, C, cl, B, invC, tempcov
+    real(dp),     allocatable, dimension(:)       :: W, mask_1d, test3, A_T, map_1d
+    real(dp),     allocatable, dimension(:,:)     :: d, mask, map, alms, V, P_l, V_red, S_mat, P
+    real(dp),     allocatable, dimension(:,:)     :: Y, Yp, beam, cls, T, buffer, buffer2, P_highl, weights
+    real(dp),     allocatable, dimension(:,:)     :: PT, PT_invN_TP
+    complex(dpc), allocatable, dimension(:,:,:)   :: alms_cmplx
+    real(dp),     pointer,     dimension(:,:)     :: pixwin
+    real(dp),     allocatable, dimension(:,:,:)   :: window
+    integer(i4b), allocatable, dimension(:)       :: indmap, map2mask, lmax2lhigh
+    logical(lgt), allocatable, dimension(:)       :: tempmode, rescale_CMB
+    type(planck_rng) :: handle
+
+
+    if (iargc() < 5) then
+       write(*,*) '    Pre-process low-l likelihood inputs from map and covariance matrix'
+       write(*,*) '    Options:  [mapfile] [maskfile] [covfile] [col]'
+       stop
+    end if
+
+    unit = 58
+    call getarg(2,mapfile)
+    call getarg(3,maskfile)
+    call getarg(4,covfile)
+    call getarg(5,temp)	
+    read(temp,*) col
+
+    write(*,*) 'Reading data:'
+    write(*,*) '     Map file   = ', trim(mapfile)
+    write(*,*) '     Mask       = ', trim(maskfile)
+    write(*,*) '     Covariance = ', trim(covfile)
+
+    i    = getsize_fits(trim(mapfile), ordering=ordering, nside=nside, nmaps=nmaps)
+    npix = 12*nside**2
+    lmax = 2*nside
+    n_d  = 1
+    n_p  = npix    * nmaps
+    allocate(map(0:npix-1,nmaps), d(0:npix-1,nmaps))
+    call read_map(mapfile,  map)
+
+    allocate(mask(0:npix-1,nmaps), mask_1d(n_p))
+    call read_map(maskfile, mask)
+    where (mask < 0.5d0)
+       mask = 0.d0
+    elsewhere
+       mask = 1.d0
+    end where
+
+    do i = 1, nmaps
+       mask_1d((i-1)*npix+1:i*npix) = mask(:,i)
+    end do
+
+    ! Set up map2mask conversion array
+    nval = count(mask > 0.5d0)
+    allocate(map2mask(nval), map_1d(nval))
+    k = 1
+    do j = 1, nmaps
+       do i = 0, npix-1
+          if (mask(i,j) > 0.5d0) then
+             map2mask(k) = (j-1)*npix+i+1
+             map_1d(k)   = map(i,j)
+             k           = k+1
+          end if
+       end do
+    end do
+
+    ! Read covariance matrix
+    allocate(cov(nval,nval))
+    call comm_read_covmat(covfile, nmaps, cov, scale)
+    !cov = cov/2
+
+    map_1d = map_1d * scale ! Assume map is in same units as covariance matrix
+
+    allocate(W(nval))
+    call get_eigenvalues(cov,W)
+    write(*,*) maxval(W)/minval(W)
+    deallocate(W)
+
+    d = 0.d0
+    k = 1
+    do j = 1, nmaps
+       do i = 0, npix-1
+          if (mask(i,j) > 0.5d0) then
+             d(i,j) = cov(k,col)
+             if (k == col) d(i,j) = -1.6375d30 
+             k           = k+1
+          end if
+       end do
+    end do
+    
+    call write_map3('slice.fits', d)
+
+    d = 0.d0
+    k = 1
+    do j = 1, nmaps
+       do i = 0, npix-1
+          if (mask(i,j) > 0.5d0) then
+             d(i,j) = sqrt(cov(k,k))
+             k           = k+1
+          end if
+       end do
+    end do
+    
+    call write_map3('rms.fits', d)
+
+    k = count(mask(:,1) > 0.5d0)
+   do i = 1, k
+      cov(i,k+1:) = 0.d0
+      cov(k+1:,i) = 0.d0
+   end do
+    
+
+
+    write(*,*) minval(cov), maxval(cov)
+    call compute_hermitian_root(cov, -0.5d0)
+    write(*,*) minval(cov), maxval(cov)
+    map_1d = matmul(cov, map_1d)
+    write(*,*) 'chisq =', (sum(map_1d**2)- nval)/sqrt(2.d0*nval)
+
+    d = 0.d0
+    k = 1
+    do j = 1, nmaps
+       do i = 0, npix-1
+          if (mask(i,j) > 0.5d0) then
+             d(i,j) = map_1d(k)
+             k           = k+1
+          end if
+       end do
+    end do
+    
+    call write_map3('whitened.fits', d)
+
+
+    if (nmaps == 1) then
+       write(*,fmt='(a,f8.3)') '      I sky fractions = ', sum(mask(:,1))/npix
+    else
+       write(*,fmt='(a,3f8.3)') '      I/Q/U sky fractions = ', sum(mask(:,1))/npix, &
+            & sum(mask(:,2))/npix, sum(mask(:,3))/npix
+    end if
+
+
+    allocate(alms_cmplx(3,0:lmax,0:lmax))
+
+    call compute_hermitian_root(cov, -1d0)
+    
+
+
+
+  end subroutine output_covmat_slice
+
 
 end program comm_like_tools

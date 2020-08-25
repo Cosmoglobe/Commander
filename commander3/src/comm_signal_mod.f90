@@ -227,22 +227,22 @@ contains
     call int2string(initsamp, itext)
     call open_hdf_file(chainfile, file, 'r')
     
-!!$    if (cpar%resamp_CMB .and. present(init_from_output)) then
-!!$       ! Initialize CMB component parameters; only once before starting Gibbs
-!!$       c   => compList
-!!$       do while (associated(c))
-!!$          if (trim(c%type) /= 'cmb') then
-!!$             c => c%next()
-!!$             cycle
-!!$          end if
-!!$          call update_status(status, "init_chain_"//trim(c%label))
-!!$          if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
-!!$          call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
-!!$          c => c%next()
-!!$       end do
-!!$       call close_hdf_file(file)
-!!$       return
-!!$    end if
+    if (cpar%resamp_CMB .and. present(init_from_output)) then
+       ! Initialize CMB component parameters; only once before starting Gibbs
+       c   => compList
+       do while (associated(c))
+          if (trim(c%type) /= 'cmb') then
+             c => c%next()
+             cycle
+          end if
+          call update_status(status, "init_chain_"//trim(c%label))
+          if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
+          call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
+          c => c%next()
+       end do
+       call close_hdf_file(file)
+       return
+    end if
 
     ! Initialize instrumental parameters
     call update_status(status, "init_chain_inst")
@@ -530,7 +530,7 @@ contains
 !!$       write(*,*) chisq_old
 !!$       call mpi_finalize(ierr)
 !!$       stop
-       call res%dealloc()
+       call res%dealloc(); deallocate(res)
        nullify(res)
     end do
 
@@ -623,8 +623,8 @@ if (c%x%info%myid ==0) write(*,*) bin, n
           deallocate(alm_prop, alm_old)
 
           do i = 1, numband
-             call data(i)%c_old%dealloc()
-             call data(i)%c_prop%dealloc() 
+             call data(i)%c_old%dealloc(); deallocate(data(i)%c_old)
+             call data(i)%c_prop%dealloc(); deallocate(data(i)%c_prop)
           end do
 
        end select
