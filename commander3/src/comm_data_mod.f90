@@ -276,7 +276,7 @@ contains
     call self%N%invN(invN_res)
     chisq = sum(self%res%map*invN_res%map)
     call mpi_allreduce(chisq, get_chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-    call invN_res%dealloc()
+    call invN_res%dealloc(); deallocate(invN_res)
 
   end function get_chisq
 

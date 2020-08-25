@@ -132,7 +132,7 @@ contains
        ! Distribute new gains
        call mpi_bcast(data(band)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(band)%info%comm, ierr)
 
-       call invN_sig%dealloc()
+       call invN_sig%dealloc(); deallocate(invN_sig)
     end if
 
     ! Subtract scaled reference signal to residual
@@ -144,8 +144,8 @@ contains
        call res%writeFITS('gain_res_'//trim(data(band)%label)//'.fits')
     end if
 
-    call sig%dealloc()
-    call res%dealloc()
+    call sig%dealloc(); deallocate(sig)
+    call res%dealloc(); deallocate(res)
 
   end subroutine sample_gain
 

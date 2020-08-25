@@ -66,6 +66,15 @@ contains
     constructor%fwhm_def        = 0.d0
     constructor%mono_prior_type = 'none'
 
+    call get_tokens(cpar%output_comps, ",", comp_label, n)
+    constructor%output = .false.
+    do i = 1, n
+       if (trim(comp_label(i)) == trim(constructor%label) .or. trim(comp_label(i)) == 'all') then
+          constructor%output = .true.
+          exit
+       end if
+    end do
+
     !constructor%ref_band = band
 
     ! Set up conversion factor between RJ and native component unit

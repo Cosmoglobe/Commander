@@ -1103,7 +1103,7 @@ contains
 
     if (correct_sl) then
        do i = 1, self%ndet
-          call self%slconv(i)%p%dealloc()
+          call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
        end do
     end if
 

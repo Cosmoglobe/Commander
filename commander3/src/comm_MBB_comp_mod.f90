@@ -41,8 +41,6 @@ contains
     character(len=512) :: temptxt, partxt
     integer(i4b) :: smooth_scale, p_min, p_max
     class(comm_mapinfo), pointer :: info2 => null()
-    class(comm_map),     pointer :: tp => null() 
-    class(comm_map),     pointer :: tp_smooth => null() 
 
     ! General parameters
     allocate(constructor)

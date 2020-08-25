@@ -84,6 +84,8 @@ program comm_process_resfiles
      call ASCII2fits
   else if (trim(operation) == 'sigma2gelman_rubin') then
      call gelman_rubin
+  else if (trim(operation) == 'coadd_mapcov') then
+     call coadd_mapcov
   end if
 
 contains
@@ -1576,6 +1578,94 @@ contains
     deallocate(cls_pointer)
 
   end subroutine cl2ascii_binned
+
+  subroutine coadd_mapcov
+    implicit none
+
+    character(len=256) :: outfile, temp, infile, prefix, beamfile, maskfile, operation, mapfile1, mapfile2, Ncovfile1, Ncovfile2
+    character(len=4)   :: chain_text
+    character(len=5)   :: pix_text
+    character(len=1)   :: s_text(3) = ['T', 'Q', 'U']
+    integer(i4b)       :: i, j, k, l, m, n, p, unit, nreal, ordering, chain, lmax, counter, nval
+    integer(i4b)       :: nside, npix, nmaps, comp, ncomp, burnin, numiter, numchain, seed, numcomp, nmax
+    real(dp)           :: sigma_reg(3)
+    logical(lgt)       :: compute_covar
+    type(planck_rng)   :: handle
+    integer(i4b), allocatable, dimension(:)        :: ind, n_per_chain
+    integer(i4b), allocatable, dimension(:,:)      :: mask2map
+    real(dp),     allocatable, dimension(:)        :: map_1D, mean_1D, W
+    real(dp),     allocatable, dimension(:,:)      :: mean, cov, map, beam, alms_mean, map_1d_, mask, map1, map2, cov1, cov2
+    real(dp),     pointer,     dimension(:,:)      :: pixwin
+    real(sp),     allocatable, dimension(:,:)      :: alms
+    complex(dpc), allocatable, dimension(:,:,:)    :: alms_cmplx
+    real(sp),     allocatable, dimension(:,:,:)    :: fg_amp
+
+    if (iargc() < 7) then
+       write(*,*) '    Coadd two maps+covmat'
+       write(*,*) '    Options:  [halfsum/halfdiff] [map1] [Ncov1] [map2] [Ncov2] [out prefix]'
+       stop
+    end if
+
+    call getarg(2,operation)
+    call getarg(3,mapfile1)
+    call getarg(4,Ncovfile1)
+    call getarg(5,mapfile2)
+    call getarg(6,Ncovfile2)
+    call getarg(7,prefix)
+
+    i = getsize_fits(trim(mapfile1), nside=nside, nmaps=nmaps, ordering=ordering)
+    npix = 12*nside**2
+
+    ! Read maskfile
+    allocate(map1(0:12*nside**2-1,nmaps), map2(0:12*nside**2-1,nmaps))
+    call read_map(mapfile1, map1)
+    call read_map(mapfile2, map2)
+
+    open(unit,file=trim(Ncovfile1),form='unformatted')
+    read(unit) n
+    allocate(cov1(n,n), cov2(n,n))
+    read(unit) ordering ! Ordering
+    read(unit) nmaps ! Polarization status
+    do i = 1, n
+       read(unit) cov1(:,i)
+    end do
+    close(unit)
+
+    open(unit,file=trim(Ncovfile2),form='unformatted')
+    read(unit) n
+    read(unit) ordering ! Ordering
+    read(unit) nmaps ! Polarization status
+    do i = 1, n
+       read(unit) cov2(:,i)
+    end do
+    close(unit)
+
+    if (trim(operation) == 'halfsum') then
+       map1 = 0.5*(map1+map2)
+       outfile = trim(prefix) // '_halfsum.fits'
+    else 
+       map1 = 0.5*(map1-map2)
+       outfile = trim(prefix) // '_halfdiff.fits'
+    end if
+    cov1 = 0.25d0*(cov1+cov2)
+
+    ! Output to standard formats
+    call write_map3(outfile, map1, ordering=ordering)    
+
+    outfile = trim(prefix) // '_Nsum.unf'
+    open(unit,file=trim(outfile),form='unformatted')
+    write(unit) n
+    write(unit) ordering ! Ordering
+    write(unit) nmaps ! Polarization status
+    do i = 1, n
+       write(unit) cov1(:,i)
+    end do
+    write(unit) .false. ! Not inverse
+    close(unit)
+       
+
+  end subroutine coadd_mapcov
+
 
 
 end program comm_process_resfiles
