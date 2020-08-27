@@ -386,7 +386,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/bin"
 	)
 set(DOXYGEN_BUILD_DOCS OFF 
 	CACHE BOOL
-	"Determine whether to use doxygen or not")
+	"Determine whether to use doxygen or not."
+	)
+# forces fresh installation of HDF5 to avoid some errors with old versions
+set(USE_EXISTING_HDF5 FALSE
+  CACHE BOOL
+  "Forces fresh installation of HDF5 to avoid some errors with old versions."
+  )
 # Commander source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
 # tempita source dir
