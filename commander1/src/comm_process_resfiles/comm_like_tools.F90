@@ -68,8 +68,8 @@ program comm_like_tools
      call slice_gauss
   else if (trim(operation) == 'sigma2par_BR') then
      call sigma2par_BR('par')
-!!$  else if (trim(operation) == 'sigma2tau_BR') then
-!!$     call sigma2par_BR('tau')
+  else if (trim(operation) == 'sigma2tau_BR') then
+     call sigma2par_BR('tau')
   else if (trim(operation) == 'sigma2qn_BR') then
      call sigma2qn_BR
   else if (trim(operation) == 'powspec_gauss') then
