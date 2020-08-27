@@ -66,8 +66,8 @@ program comm_like_tools
      call sigma2slice_BR
   else if (trim(operation) == 'slice_gauss') then
      call slice_gauss
-!!$  else if (trim(operation) == 'sigma2par_BR') then
-!!$     call sigma2par_BR('par')
+  else if (trim(operation) == 'sigma2par_BR') then
+     call sigma2par_BR('par')
 !!$  else if (trim(operation) == 'sigma2tau_BR') then
 !!$     call sigma2par_BR('tau')
   else if (trim(operation) == 'sigma2qn_BR') then
@@ -2741,155 +2741,138 @@ contains
   end function get_invfisher_powspec
 
 
-!!$  subroutine sigma2par_BR(partype)
-!!$    implicit none
-!!$
-!!$    character(len=*), intent(in)   :: partype
-!!$
-!!$    character(len=256) :: infile, binfile, outfile, temp, line, clfile, outprefix, templatefile
-!!$    character(len=2)   :: spectext
-!!$    character(len=4)   :: lmin_text, lmax_text
-!!$    real(dp)           :: cl_min, cl_max, sigma, top, left, right, int, tot_int, cl_in(4)
-!!$    real(dp)           :: A_min, A_max, A0, dA, mu, norm
-!!$    integer(i4b)       :: nspec, lmin, lmax, numchain, numiter, i, j, k, l, m, n, p, bins(4), id, numbin, ind
-!!$    integer(i4b)       :: firstchain, lastchain, firstsample, lastsample, thinstep, nmaps, ierr, spec_fit
-!!$    logical(lgt)       :: exist, include_BB
-!!$    real(dp), allocatable, dimension(:,:) :: cls0, cls
-!!$    real(dp), allocatable, dimension(:)   :: amp, lnL, F
-!!$
-!!$    if (iargc() /= 14) then
-!!$       write(*,*) '    Compute spectrum with Blackwell-Rao'
-!!$       write(*,*) '    Options: [sigmafile] [clfile] [binfile] [firstchain] [lastchain] '
-!!$       write(*,*) '                 [firstsample] [lastsample] [thinstep] [templatefile] '
-!!$       write(*,*) '                 [default_amplitude] [spec_fit] [include_BB] [outprefix]'
-!!$       stop
-!!$    end if
-!!$
-!!$    call getarg(2, infile)
-!!$    call getarg(3, clfile)
-!!$    call getarg(4, binfile)
-!!$    call getarg(5, temp)
-!!$    read(temp,*) firstchain
-!!$    call getarg(6, temp)
-!!$    read(temp,*) lastchain
-!!$    call getarg(7, temp)
-!!$    read(temp,*) firstsample
-!!$    call getarg(8, temp)
-!!$    read(temp,*) lastsample
-!!$    call getarg(9, temp)
-!!$    read(temp,*) thinstep
-!!$    call getarg(10, templatefile)
-!!$    call getarg(11, temp)
-!!$    read(temp,*) A0
-!!$    call getarg(12, temp)
-!!$    read(temp,*) spec_fit
-!!$    call getarg(13, temp)
-!!$    read(temp,*) include_BB
-!!$    call getarg(14, outprefix)
-!!$
-!!$    inquire(file=trim(binfile), exist=exist)
-!!$    if (.not. exist) write(*,*) 'Error: file does not exist = ', trim(binfile)
-!!$    inquire(file=trim(infile), exist=exist)
-!!$    if (.not. exist) write(*,*) 'Error: file does not exist = ', trim(infile)
-!!$    inquire(file=trim(clfile), exist=exist)
-!!$    if (.not. exist) write(*,*) 'Error: file does not exist = ', trim(clfile)
-!!$    inquire(file=trim(clfile), exist=exist)
-!!$    if (.not. exist) write(*,*) 'Error: file does not exist = ', trim(clfile)
-!!$
-!!$    ! Read fiducial spectrum file
-!!$    unit = comm_br_getlun()
-!!$    open(unit,file=trim(templatefile))
-!!$    lmax = -1
-!!$    do while (.true.)
-!!$       read(unit,'(a)',end=79) line
-!!$       line = trim(line)
-!!$       if (line(1:1) == '#') cycle
-!!$       read(line,*) l
-!!$       lmax = max(lmax, l)
-!!$    end do
-!!$79  close(unit)
-!!$    if (lmax > -1) then
-!!$       allocate(cls0(0:lmax,6), cls(0:lmax,6))
-!!$       cls0 = 0.d0
-!!$       open(unit,file=trim(templatefile))
-!!$       do while (.true.)
-!!$          read(unit,'(a)',end=80) line
-!!$          line = trim(line)
-!!$          if (line(1:1) == '#') cycle
-!!$          read(line,*) l, cl_in
-!!$          cls0(l,1) = cl_in(1) ! Assume (TT, EE, BB, TE) ordering for now
-!!$          cls0(l,2) = cl_in(4)          
-!!$          cls0(l,4) = cl_in(2)
-!!$          cls0(l,6) = cl_in(3)
-!!$       end do
-!!$80     close(unit)
-!!$    else
-!!$       write(*,*) 'Error -- comm_br_mod: No valid entries in clfile = ', trim(clfile)
-!!$       stop
-!!$    end if
-!!$    if (.not. include_BB) cls0(:,6) = 0.d0
-!!$
-!!$    ! Initialize BR module
-!!$    nmaps = 3
-!!$    call comm_br_initialize_object(infile, clfile, firstchain, lastchain, &
-!!$       & firstsample, lastsample, thinstep, binfile=binfile, handle=id, prefix=outprefix)
-!!$
-!!$    ! Loop over all free parameters, and output slices
-!!$    A_min =  0.d0
-!!$    A_max =  10.d0
-!!$    numbin = 10000
-!!$    allocate(amp(numbin), lnL(numbin), F(numbin))
-!!$    cls = cls0
-!!$    do l = 1, numbin
-!!$       amp(l) = A_min + (A_max-A_min)/(numbin-1.d0) * (l-1)
-!!$       cls(:,spec_fit) = amp(l) * cls0(:,spec_fit)
-!!$       lnL(l) = comm_br_compute_lnL(cls, ierr, id)
-!!$       if (trim(partype) == 'tau') then
-!!$          amp(l) = sqrt(amp(l)) * A0
-!!$       else
-!!$          amp(l) = amp(l) * A0
-!!$       end if
-!!$    end do
-!!$    lnL = exp(lnL-maxval(lnL))
-!!$    norm = 0.d0
-!!$    do i = 1, numbin-1
-!!$       norm = norm + 0.5d0*(lnL(i)+lnL(i+1)) * (amp(i+1)-amp(i))
-!!$    end do
-!!$    lnL = lnL / norm
-!!$
-!!$    outfile = trim(outprefix) // '.dat'
-!!$    write(*,*) 'Writing ', trim(outfile)
-!!$    open(unit,file=trim(outfile))
-!!$    do l = 1, numbin
-!!$       if (lnL(l) > 1.d-6 * maxval(lnL)) write(unit,*) amp(l), lnL(l)
-!!$    end do
-!!$    close(unit)
-!!$
-!!$    mu    = 0.d0
-!!$    do i = 1, numbin-1
-!!$       mu = mu + 0.5d0 * (amp(i)*lnL(i)+amp(i+1)*lnL(i+1)) * (amp(i+1)-amp(i))
-!!$    end do
-!!$    sigma = 0.d0
-!!$    do i = 1, numbin-1
-!!$       sigma = sigma + 0.5d0*((amp(i)-mu)**2*lnL(i) + (amp(i+1)-mu)**2*lnL(i+1)) * (amp(i+1)-amp(i))
-!!$    end do
-!!$    sigma = sqrt(sigma)
-!!$    write(*,fmt='(a,f8.4,a,f8.4)') ' Estimated Gaussian parameter = ', real(mu,sp), ' +/-', real(sigma,sp)
-!!$
-!!$    ! Compute cumulative distribution
-!!$    F(1) = 0.d0
-!!$    do i = 2, numbin
-!!$       F(i) = F(i-1) + 0.5d0 * (lnL(i)+lnL(i-1)) * (amp(i)-amp(i-1))
-!!$    end do
-!!$    F = F / F(numbin)
-!!$    
-!!$    do i = 1, numbin
-!!$       if (F(i) > 0.95d0) exit
-!!$    end do
-!!$
-!!$    write(*,fmt='(a,f8.4)') ' Upper 95% confidence limit   = ', real(amp(i),sp)
-!!$    
-!!$  end subroutine sigma2par_BR
+  subroutine sigma2par_BR(partype)
+    implicit none
+
+    character(len=*), intent(in)   :: partype
+
+    character(len=256) :: infile, binfile, outfile, temp, line, clfile, outprefix, templatefile
+    character(len=2)   :: spectext
+    character(len=4)   :: lmin_text, lmax_text
+    real(dp)           :: cl_min, cl_max, sigma, top, left, right, int, tot_int, cl_in(4)
+    real(dp)           :: A_min, A_max, A0, dA, mu, norm
+    integer(i4b)       :: nspec, lmin, lmax, numchain, numiter, i, j, k, l, m, n, p, bins(4), id, numbin, ind
+    integer(i4b)       :: firstchain, lastchain, firstsample, lastsample, thinstep, nmaps, ierr, spec_fit
+    logical(lgt)       :: exist, include_BB
+    real(dp), allocatable, dimension(:,:) :: cls0, cls
+    real(dp), allocatable, dimension(:)   :: amp, lnL, F
+
+    if (iargc() /= 7) then
+       write(*,*) '    Compute spectrum with Blackwell-Rao'
+       write(*,*) '    Options: [BR infofile] [templatefile] '
+       write(*,*) '                 [default_amplitude] [spec_fit] [include_BB] [outprefix]'
+       stop
+    end if
+
+    call getarg(2, infile)
+    call getarg(3, templatefile)
+    call getarg(4, temp)
+    read(temp,*) A0
+    call getarg(5, temp)
+    read(temp,*) spec_fit
+    call getarg(6, temp)
+    read(temp,*) include_BB
+    call getarg(7, outprefix)
+
+    inquire(file=trim(infile), exist=exist)
+    if (.not. exist) write(*,*) 'Error: file does not exist = ', trim(infile)
+    inquire(file=trim(templatefile), exist=exist)
+    if (.not. exist) write(*,*) 'Error: file does not exist = ', trim(templatefile)
+
+    ! Read fiducial spectrum file
+    unit = 58
+    open(unit,file=trim(templatefile))
+    lmax = -1
+    do while (.true.)
+       read(unit,'(a)',end=79) line
+       line = trim(line)
+       if (line(1:1) == '#') cycle
+       read(line,*) l
+       lmax = max(lmax, l)
+    end do
+79  close(unit)
+    if (lmax > -1) then
+       allocate(cls0(0:lmax,6), cls(0:lmax,6))
+       cls0 = 0.d0
+       open(unit,file=trim(templatefile))
+       do while (.true.)
+          read(unit,'(a)',end=80) line
+          line = trim(line)
+          if (line(1:1) == '#') cycle
+          read(line,*) l, cl_in
+          cls0(l,1) = cl_in(1) ! Assume (TT, EE, BB, TE) ordering for now
+          cls0(l,2) = cl_in(4)          
+          cls0(l,4) = cl_in(2)
+          cls0(l,6) = cl_in(3)
+       end do
+80     close(unit)
+    else
+       write(*,*) 'Error -- comm_br_mod: No valid entries in clfile = ', trim(templatefile)
+       stop
+    end if
+    if (.not. include_BB) cls0(:,6) = 0.d0
+
+    ! Initialize BR module
+    nmaps = 3
+    call comm_br_initialize_object(infile)
+
+    ! Loop over all free parameters, and output slices
+    id    =  1
+    A_min =  0.d0
+    A_max =  10.d0
+    numbin = 10000
+    allocate(amp(numbin), lnL(numbin), F(numbin))
+    cls = cls0
+    do l = 1, numbin
+       amp(l) = A_min + (A_max-A_min)/(numbin-1.d0) * (l-1)
+       cls(:,spec_fit) = amp(l) * cls0(:,spec_fit)
+       lnL(l) = comm_br_compute_lnL(cls, ierr, id)
+       if (trim(partype) == 'tau') then
+          amp(l) = sqrt(amp(l)) * A0
+       else
+          amp(l) = amp(l) * A0
+       end if
+    end do
+    lnL = exp(lnL-maxval(lnL))
+    norm = 0.d0
+    do i = 1, numbin-1
+       norm = norm + 0.5d0*(lnL(i)+lnL(i+1)) * (amp(i+1)-amp(i))
+    end do
+    lnL = lnL / norm
+
+    outfile = trim(outprefix) // '.dat'
+    write(*,*) 'Writing ', trim(outfile)
+    open(unit,file=trim(outfile))
+    do l = 1, numbin
+       if (lnL(l) > 1.d-6 * maxval(lnL)) write(unit,*) amp(l), lnL(l)
+    end do
+    close(unit)
+
+    mu    = 0.d0
+    do i = 1, numbin-1
+       mu = mu + 0.5d0 * (amp(i)*lnL(i)+amp(i+1)*lnL(i+1)) * (amp(i+1)-amp(i))
+    end do
+    sigma = 0.d0
+    do i = 1, numbin-1
+       sigma = sigma + 0.5d0*((amp(i)-mu)**2*lnL(i) + (amp(i+1)-mu)**2*lnL(i+1)) * (amp(i+1)-amp(i))
+    end do
+    sigma = sqrt(sigma)
+    write(*,fmt='(a,f8.4,a,f8.4)') ' Estimated Gaussian parameter = ', real(mu,sp), ' +/-', real(sigma,sp)
+
+    ! Compute cumulative distribution
+    F(1) = 0.d0
+    do i = 2, numbin
+       F(i) = F(i-1) + 0.5d0 * (lnL(i)+lnL(i-1)) * (amp(i)-amp(i-1))
+    end do
+    F = F / F(numbin)
+    
+    do i = 1, numbin
+       if (F(i) > 0.95d0) exit
+    end do
+
+    write(*,fmt='(a,f8.4)') ' Upper 95% confidence limit   = ', real(amp(i),sp)
+    
+  end subroutine sigma2par_BR
 
   subroutine sigma2qn_BR
     implicit none
