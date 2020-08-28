@@ -674,8 +674,8 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     dt0 = np.median(np.diff(time))
 
     quat = data[1].data['QUATERN']
-    if np.any(genflags != 0):
-        return
+    #if np.any(genflags != 0):
+        #return
     if np.any(~np.isfinite(quat)):
         print(f'{file_input} has non-finite quaternions...')
         print(quat[~np.isfinite(quat)])
@@ -728,7 +728,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 128
+        nprocs = 96
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
