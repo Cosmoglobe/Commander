@@ -561,14 +561,14 @@ contains
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain = scalars(1)
-       self%d(i)%sigma0 = scalars(2)
+       self%d(i)%sigma0 = scalars(2)/1.0e6
        self%d(i)%fknee = scalars(3)
        self%d(i)%alpha = scalars(4)
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
        call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-       self%d(i)%tod = buffer_sp(1:m)
+       self%d(i)%tod = buffer_sp(1:m)/1.0e6
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1
 
@@ -1259,8 +1259,8 @@ contains
           self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
        end if
     end if
-    ! write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
-    !      & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0
+     write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
+          & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
     !if(self%scans(scan)%d(det)%chisq > 2000.d0 .or. isNaN(self%scans(scan)%d(det)%chisq)) then
       !write(*,*) "chisq", scan, det, sum(mask), sum(s_sky), sum(s_sl), sum(s_orb), sum(n_corr)
     !end if

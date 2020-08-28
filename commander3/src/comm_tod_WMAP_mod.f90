@@ -171,7 +171,7 @@ contains
 
     ! Set up full-sky map structures
     call wall_time(t1)
-    chisq_threshold = 7.d0
+    chisq_threshold = 100.d0
     ndet            = self%ndet
     nhorn           = self%nhorn
     ndelta          = size(delta,3)
@@ -290,6 +290,7 @@ contains
       !estimate the correlated noise
       s_buf = 0.d0
       do j = 1, ndet
+        s_tot(:,j) = s_sky(:,j)
         s_buf(:,j) = s_tot(:,j)  
       end do
         call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
@@ -313,13 +314,13 @@ contains
      !TODO: cut scans here
      if (self%first_call) then 
         do j = 1, ndet
-          write(*,*) "selecting: ", i, j
+          write(*,*) "selecting: ", i, j, self%scans(i)%d(j)%chisq
             ntot= ntot + 1
             if (.not. self%scans(i)%d(j)%accept) cycle
             if (count(iand(flag(:,j),self%flag0) .ne. 0) > 0.1*ntod) then
                self%scans(i)%d(j)%accept = .false.
-            else if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
-            & isNaN(self%scans(i)%d(j)%chisq)) then
+            else if (isNaN(self%scans(i)%d(j)%chisq) .or. &
+                & abs(self%scans(i)%d(j)%chisq) > chisq_threshold) then
                write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
                     & self%scanid(i), j, ', chisq = ', &
                     & self%scans(i)%d(j)%chisq
@@ -337,13 +338,12 @@ contains
       ! Compute binned map
      allocate(d_calib(nout,ntod, ndet))
      do j = 1, ndet
-       d_calib(1,:,j) = self%scans(i)%d(j)%tod
-     !   if (.not. self%scans(i)%d(j)%accept) cycle
-     !   inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
-     !   d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
-     !        & inv_gain - s_tot(:,j) + s_sky(:,j) - s_bp(:,j)
-     !   if (do_oper(bin_map) .and. nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_bp(:,j) ! Residual
-     !   if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
+       if (.not. self%scans(i)%d(j)%accept) cycle
+         inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
+         d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
+             & inv_gain - s_tot(:,j) + s_sky(:,j)
+        if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) ! Residual
+        if (nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
      !   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
      !   if (do_oper(bin_map) .and. do_oper(samp_mono) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
      !   if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
@@ -409,16 +409,17 @@ contains
      call mpi_win_fence(0, sA_map%win, ierr)
      call mpi_win_fence(0, sb_map%win, ierr)
      Sfilename = trim(prefix) // 'Smap'// trim(postfix)
-     !call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
+     call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
     end if
 
+   map_out%map = outmaps(1)%p%map
+
    ! Output maps to disk
-   call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
    call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
-   
+   call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix)) 
    if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-   !if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+   if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
    !if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
    !if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
    !if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
