@@ -332,28 +332,28 @@ def Q2M(Q):
 
 def gamma_from_pol(gal, pol, fixed_basis=False):
     # gal and pol are galactic lonlat vectors
-    dir_A_gal = hp.ang2vec(gal[:,0]%np.pi,gal[:,1]%(2*np.pi), lonlat=False)
-    dir_A_pol = hp.ang2vec(pol[:,0]%np.pi,pol[:,1]%(2*np.pi), lonlat=False)
+    dir_gal = hp.ang2vec(gal[:,0]%np.pi,gal[:,1]%(2*np.pi), lonlat=False)
+    dir_pol = hp.ang2vec(pol[:,0]%np.pi,pol[:,1]%(2*np.pi), lonlat=False)
 
     dir_Z = np.array([0,0,1])
 
 
-    sin_theta_A = np.sqrt(dir_A_gal[:,0]**2 + dir_A_gal[:,1]**2)
+    sin_theta = np.sqrt(dir_gal[:,0]**2 + dir_gal[:,1]**2)
 
-    dir_A_west_x = dir_A_gal[:,1]/sin_theta_A
-    dir_A_west_y = -dir_A_gal[:,0]/sin_theta_A
-    dir_A_west_z = dir_A_gal[:,1]*0
-    dir_A_west = np.array([dir_A_west_x, dir_A_west_y, dir_A_west_z]).T
-    dir_A_north = (dir_Z - dir_A_gal[2]*dir_A_gal)/sin_theta_A[:,np.newaxis]
+    dir_west_x = dir_gal[:,1]/sin_theta
+    dir_west_y = -dir_gal[:,0]/sin_theta
+    dir_west_z = dir_gal[:,1]*0
+    dir_west = np.array([dir_west_x, dir_west_y, dir_west_z]).T
+    dir_north = (dir_Z - dir_gal[2]*dir_gal)/sin_theta[:,np.newaxis]
 
 
-    sin_gamma_A = dir_A_pol[:,0]*dir_A_west[:,0] + dir_A_pol[:,1]*dir_A_west[:,1] + dir_A_pol[:,2]*dir_A_west[:,2]
-    cos_gamma_A = dir_A_pol[:,0]*dir_A_north[:,0] + dir_A_pol[:,1]*dir_A_north[:,1] + dir_A_pol[:,2]*dir_A_north[:,2]
+    sin_gamma = dir_pol[:,0]*dir_west[:,0] + dir_pol[:,1]*dir_west[:,1] + dir_pol[:,2]*dir_west[:,2]
+    cos_gamma = dir_pol[:,0]*dir_north[:,0] + dir_pol[:,1]*dir_north[:,1] + dir_pol[:,2]*dir_north[:,2]
 
-    cos_2_gamma_A = 2*cos_gamma_A**2 - 1
-    sin_2_gamma_A = 2*sin_gamma_A*cos_gamma_A
+    cos_2_gamma = 2*cos_gamma**2 - 1
+    sin_2_gamma = 2*sin_gamma*cos_gamma
 
-    return sin_2_gamma_A, cos_2_gamma_A
+    return sin_2_gamma, cos_2_gamma
 
 def q_interp(q_arr, t):
     '''
@@ -497,21 +497,6 @@ def quat_to_sky_coords(quat, center=True):
             for j in range(3):
                 f = interp1d(t0, M[:,i,j], kind='cubic')
                 M2[:,i,j] = f(t)
-        '''
-          NObs = long(NObsDA[Ind[0]])
-          q    = dblarr(4, NObs, 30, nt)
-          For i = 0L, (nt-1) Do Begin
-            For j = 0L, 29L Do Begin
-              qt = tod[i].quaternions[*,j:(j+3)]
-              For k = 0L, (NObs-1L) Do Begin
-                If (keyword_set(cent)) Then offset = 1.0D0 + ((double(k) + 0.5d0) / double(NObs))  $
-                                   Else offset = 1.0D0 + (double(k) / double(NObs))
-            Interpolate_Quaternions, qt, offset, qout, status
-        # I don't think it should be 0.5! God, if it's just that, I would be SO happy!
-        
-        # Let's try run this as version 9, then be extra extra extra careful about how
-        # the interpolation works.
-        '''
 
 
         Npts = 30*nt*Nobs
