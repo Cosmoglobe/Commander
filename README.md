@@ -1,6 +1,6 @@
 <a name="top"></a>
 <p align="center">
-    <img src="https://github.com/maksymbr/CommanderSuperbuild/blob/master/logo/Commander-logo-large-1024x335.png" height="150">
+    <img src="https://github.com/hke/Commander/blob/master/logo/Commander-logo-large-1024x335.png" height="150">
 </p>
 
 **Commander** is an **O**ptimal **M**onte-carlo **M**arkov ch**A**i**N** **D**riven **E**stimato**R** which implements fast and efficient end-to-end CMB posterior exploration through Gibbs sampling.
