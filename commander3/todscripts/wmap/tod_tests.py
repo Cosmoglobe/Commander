@@ -37,42 +37,48 @@ import matplotlib.pyplot as plt
 import healpy as hp
 from astropy.io import fits
 from glob import glob
+
+from get_gain_model import get_gain
+
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 files = glob(prefix + 'tod/new/*.fits')
 files.sort()
 data = fits.open(files[0])
 
-version=10
+version=11
+
+allbands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+
+x_im = np.array([-0.00067, 0.00536, 0.00353, 0.00154,
+                 -0.00013, 0.00414, 0.00756, 0.00986,
+                  0.00053, 0.00250, 0.00352, 0.00245,
+                  0.01134, 0.00173, 0.01017, 0.01142,
+                 -0.00122, 0.00463, 0.02311, 0.02054])
+x_bar = (x_im[::2] + x_im[1::2])/2
+dx_bar = (x_im[::2] - x_im[1::2])/2
+
+xbar = {b:x for b, x in zip(allbands, x_bar)}
+dx_bar = {b:dx for b, dx in zip(allbands, dx_bar)}
+
+band = 'K1'
+
+xbar = xbar[band]
+dx_bar = dx_bar[band]
+
 
 labels = ['K113', 'K114', 'K123', 'K124']
 Ks = []
 for l in labels:
     Ks.append(data[2].data[l].flatten())
 Ks = np.array(Ks)
-gains = np.array([-0.9700, 0.9938, 1.1745, -1.1200])
+#gains = np.array([-0.9700, 0.9938, 1.1745, -1.1200])
+gains = np.array([get_gain(data, b)[1][0] for b in labels])
 baselines = np.array([32136.98, 31764.96, 31718.19, 32239.29])
 #cal = [(Ks[i] - baselines[i])/gains[i] for i in range(4)]
 cal = [(Ks[i] - np.median(Ks[i]))/gains[i] for i in range(4)]
 
 
 
-fig, axes_repeat = plt.subplots(nrows=4, sharex=True, sharey=True)
-for i in range(4):
-    axes_repeat[i].plot(cal[i])
-    axes_repeat[i].set_ylabel(labels[i])
-plt.suptitle('Calibrated')
-
-fig, axes = plt.subplots(nrows=4, sharex=True)
-for i in range(4):
-    axes[i].plot(Ks[i])
-    axes[i].set_ylabel(labels[i])
-plt.suptitle('Raw')
-
-fig, axes = plt.subplots(nrows=4, sharex=True, sharey=True)
-for i in range(4):
-    axes[i].plot(Ks[i]-baselines[i])
-    axes[i].set_ylabel(labels[i])
-plt.suptitle('Baseline subtracted')
 
 
 d1 = 0.5*(cal[0] + cal[1])
@@ -88,11 +94,6 @@ n2 = 0.5*(cal[2] - cal[3])
 n_d = 0.5*(n1 + n2)
 n_p = 0.5*(n1 - n2)
 
-fig, axes = plt.subplots(nrows=2, sharex=True, sharey=True)
-axes[0].plot(d1)
-axes[0].set_ylabel('d1=0.5(K113+K114)')
-axes[1].plot(d2)
-axes[1].set_ylabel('d2=0.5(K123+K124)')
 
 fig, axes_test = plt.subplots(nrows=2, sharex=True, sharey=True)
 axes_test[0].plot(d)
@@ -100,17 +101,6 @@ axes_test[0].set_ylabel('d')
 axes_test[1].plot(p)
 axes_test[1].set_ylabel('p')
 
-fig, axes = plt.subplots(nrows=2, sharex=True, sharey=True)
-axes[0].plot(n1)
-axes[0].set_ylabel('n1=0.5(K113-K114)')
-axes[1].plot(n2)
-axes[1].set_ylabel('n2=0.5(K123-K124)')
-
-fig, axes = plt.subplots(nrows=2, sharex=True, sharey=True)
-axes[0].plot(n_d)
-axes[0].set_ylabel('d noise')
-axes[1].plot(n_p)
-axes[1].set_ylabel('p noise')
 
 
 band = 'K1'
@@ -160,9 +150,9 @@ for num, label in enumerate(labels):
 
 
 
-amp = 3.346 # mK
-lon = 263.85
-lat = 48.25
+amp = 3.355 # mK
+lon = 263.9
+lat = 48.26
 nside = 256
 dipole = make_dipole(amp, lon, lat, nside)
 # all in mK
@@ -173,23 +163,24 @@ sol += dipole
 d_sol = np.zeros(len(pixA))
 d_cg = np.zeros(len(pixA))
 for t in range(len(pixA)):
-    d_sol[t] = sol[pixA[t]] - sol[pixB[t]]
-    d_cg[t] = cg[pixA[t]] - cg[pixB[t]]
+    d_sol[t] = (1+xbar)*sol[pixA[t]] - (1-xbar)*sol[pixB[t]]
+    d_cg[t] = (1+xbar)*cg[pixA[t]] - (1-xbar)*cg[pixB[t]]
 axes_test[0].plot(d_sol)
+axes_test[0].plot(d_cg)
 
 
-plt.close('all')
+#plt.close('all')
 
 offset = 0
 t_max = 500
 t = np.arange(t_max)
 fig,axes= plt.subplots(nrows=2, sharex=True)
-axes[0].plot(t, d[:t_max], label='TOD', color='k')
-axes[0].plot(t, d_sol[:t_max], label=r'WMAP')
-axes[0].plot(t - offset, d_cg[:t_max], label=r'CG')
-axes[0].plot(t - offset, d_sol[:t_max], label=r'WMAP offset')
+axes[0].plot(t, d[:t_max], '.', label='TOD', color='k')
+axes[0].plot(t, d_sol[:t_max], label=r'WMAP', color='C0')
+axes[0].plot(t, d_cg[:t_max], label=r'CG', color='C1')
 axes[1].set_ylabel('difference')
-axes[1].plot(t, d[:t_max] - d_sol[:t_max])
+axes[1].plot(t, d[:t_max] - d_sol[:t_max], 'C0.')
+axes[1].plot(t, d[:t_max] - d_cg[:t_max], 'C1.')
 axes[0].legend(bbox_to_anchor=(1,1,0,0))
 plt.savefig(f'tod_{t_max}.png', bbox_inches='tight')
 #plt.savefig(f'tod_{t_max}.pdf', bbox_inches='tight')
@@ -197,10 +188,12 @@ t_max = 5000
 t = np.arange(t_max)
 fig,axes= plt.subplots(nrows=2, sharex=True)
 axes[1].set_ylabel('difference')
-axes[0].plot(t, d[:t_max], label='TOD', color='k')
-axes[0].plot(t, d_sol[:t_max], label=r'WMAP')
+axes[0].plot(t, d[:t_max], '.', label='TOD', color='k')
+axes[0].plot(t, d_sol[:t_max], label=r'WMAP', color='C0')
+axes[0].plot(t, d_cg[:t_max], label=r'CG', color='C1')
 axes[1].set_ylabel('difference')
-axes[1].plot(d[:t_max] - d_sol[:t_max])
+axes[1].plot(t, d[:t_max] - d_sol[:t_max], 'C0.')
+axes[1].plot(t, d[:t_max] - d_cg[:t_max], 'C1.')
 axes[0].legend(bbox_to_anchor=(1,1,0,0))
 plt.savefig(f'tod_{t_max}.png', bbox_inches='tight')
 #plt.savefig(f'tod_{t_max}.pdf', bbox_inches='tight')
