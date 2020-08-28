@@ -792,7 +792,7 @@ contains
              call cr_insert_comp(c%id, .false., alm, sqrtS_x)
              deallocate(alm)
           end if
-          lmax = max(lmax, c%lmax_amp)
+          lmax = max(max(lmax, c%lmax_amp),2)
        class is (comm_ptsrc_comp)
           if (c%myid == 0) then
              call cr_extract_comp(c%id, sqrtS_x, pamp)

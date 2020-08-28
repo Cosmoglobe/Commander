@@ -125,7 +125,7 @@ contains
 
        n = 100000000
        do k = 1, numchain
-          n = min(n, count(cls(2,j,k,burnin+2:1+numiter) /= 0.d0))
+          n = min(n, count(cls(2,j,k,burnin+1:0+numiter) /= 0.d0))
        end do
        write(*,*) 'Spectrum = ', j, ', n = ', n
        if (n == 0) cycle
@@ -137,14 +137,14 @@ contains
           mu_chain = 0.d0
           W  = 0.d0
           do k = 1, numchain
-             mu_chain(k) = sum(cls(l,j,k,burnin+2:burnin+1+n)) / n
-             W = W + sum((cls(l,j,k,burnin+2:burnin+1+n)-mu_chain(k))**2)
+             mu_chain(k) = sum(cls(l,j,k,burnin+1:burnin+0+n)) / n
+             W = W + sum((cls(l,j,k,burnin+1:burnin+0+n)-mu_chain(k))**2)
           end do
           mu = sum(mu_chain)/numchain
           B  = n / (numchain-1.d0) * sum((mu_chain-mu)**2)
           W  = W / numchain / (n-1.d0)
           V  = (n-1.d0)/n * W + 1.d0/n * B
-          R  = sqrt(V/W)
+          R  = sqrt(V/W * n/(n-1.d0))
           write(unit,*) l, R
        end do
        write(unit,*) 
