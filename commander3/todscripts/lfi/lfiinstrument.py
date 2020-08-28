@@ -19,12 +19,12 @@ def main():
 
     parser.add_argument('--sl-dir', type=str, action='store', help='path to the directory containing the sidelobe alms', default='/mn/stornext/d16/cmbco/bp/data/beamalms/sl')
 
-    parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the beam alms', default='/mn/stornext/d16/cmbco/bp/data/beamalms/totalAlm')
+    parser.add_argument('--beam-dir', type=str, action='store', help='path to the directory containing the beam alms', default='/mn/stornext/d16/cmbco/bp/data/beamalms/mainbeams')
 
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 4
+    version = 5
 
     rimo = fits.open(args.rimo)
 
@@ -42,14 +42,15 @@ def main():
                 prefix = str(horn) + hornType
                 bandNo = rimo.index_of('BANDPASS_0' + str(freq) + '-' + str(horn) + hornType)
                 inst_file.add_bandpass(prefix, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
+                beamData, mmax_b = hp.read_alm(os.path.join(beamDir, 'mbib_DX12_LFI' + str(horn) + hornType + '.fits'), return_mmax=True)
+
+                beamData_E = hp.read_alm(os.path.join(beamDir, 'mbib_DX12_LFI' + str(horn) + hornType + '.fits'), hdu=2)
+
+                beamData_B = hp.read_alm(os.path.join(beamDir, 'mbib_DX12_LFI' + str(horn) + hornType + '.fits'), hdu=3)
+
                 beamType = 'y'
                 if hornType is 'S':
                     beamType = 'x'
-                beamData, mmax_b = hp.read_alm(os.path.join(beamDir, 'totalAlm_0' + str(freq) + '_' + str(horn) + '_' + beamType + '_qucs-raa.alm'), return_mmax=True)
-
-                beamData_E = hp.read_alm(os.path.join(beamDir, 'totalAlm_0' + str(freq) + '_' + str(horn) + '_' + beamType + '_qucs-raa.alm'), hdu=2)
-
-                beamData_B = hp.read_alm(os.path.join(beamDir, 'totalAlm_0' + str(freq) + '_' + str(horn) + '_' + beamType + '_qucs-raa.alm'), hdu=3)
 
                 slData, mmax_s = hp.read_alm(os.path.join(slDir, 'sl_0' + str(freq) + '_' + str(horn) + '_' + beamType + '_qucs-raa.alm'), return_mmax=True)
            
@@ -60,7 +61,7 @@ def main():
                 inst_file.add_alms(prefix, 'beam', lfi.getLmax(len(beamData), mmax_b), mmax_b, lfi.complex2realAlms(beamData, mmax_b), lfi.complex2realAlms(beamData_E, mmax_b), lfi.complex2realAlms(beamData_B, mmax_b))
 
                 inst_file.add_alms(prefix, 'sl', lfi.getLmax(len(slData), mmax_s), mmax_s, lfi.complex2realAlms(slData, mmax_s), lfi.complex2realAlms(slData_E, mmax_s), lfi.complex2realAlms(slData_B, mmax_s))
-    
+
                 #beam parameters
                 inst_file.add_field(prefix + '/fwhm', data=[lfi.fwhms[str(horn) + hornType]])
                 inst_file.add_field(prefix + '/elip', data=[lfi.elips[str(horn) + hornType]])
