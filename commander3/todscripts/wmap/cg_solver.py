@@ -117,6 +117,8 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     flags = [[], [], [], []]
     sigmas = []
     gains = np.zeros(len(labels))
+    npsi = 2048
+    psiBins = np.linspace(0, 2*np.pi, npsi)
     for num, label in enumerate(labels):
         TODs = np.array(f[obsid + '/' + label + '/tod'])
         scalars = f[obsid + '/' + label + '/scalars']
@@ -132,10 +134,10 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
             pixB = h.Decoder(np.array(f[obsid + '/' + label + \
                 '/pixB'])).astype('int')
             if pol:
-                psiA = h.Decoder(np.array(f[obsid + '/' + label + \
-                    '/psiA']))
-                psiB = h.Decoder(np.array(f[obsid + '/' + label + \
-                    '/psiB']))
+                psiA = psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
+                    '/psiA'])).astype('int')]
+                psiB = psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
+                    '/psiB'])).astype('int')]
     # bit array; bit 0 means data is suspect, bit 12 means Mars in AB, etc. til
     # 10. I think I'll just try to get rid of all data where there are any
     # planets in the beam, although i think the official release tried to use as
