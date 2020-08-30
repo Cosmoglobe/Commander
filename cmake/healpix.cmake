@@ -32,7 +32,7 @@ ExternalProject_Add(${project}
 	# making healpix to be installed the last before commander3
 	DEPENDS cfitsio 
 					hdf5 
-					sharp2 
+					#sharp2 
 					fftw 
 					fftw_double 
 					fftw_float 

@@ -41,4 +41,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 # including cmake modules
 include(project_instructions)
 # adding commander3 source files
-add_subdirectory(commander3)
+# Note: I have added commander.cmake as an "independent" project 
+# so there is no need for other cmake lists. Advantage of this 
+# approach is that everything located in the same folder (cmake)
+#add_subdirectory(commander3)

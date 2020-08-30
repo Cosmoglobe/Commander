@@ -6,8 +6,8 @@ message(STATUS "---------------------------------------------------------------"
 # asking for an exact hdf5 version
 #find_package(HDF5 1.10.5 EXACT COMPONENTS Fortran) #Fortran_HL)
 
-if(USE_EXISTING_HDF5)
-find_package(HDF5 1.10.0 COMPONENTS Fortran) #Fortran_HL)
+if(NOT HDF5_FORCE_COMPILE)
+	find_package(HDF5 1.10.0 COMPONENTS Fortran) #Fortran_HL)
 endif()
 
 if(NOT HDF5_FOUND)
@@ -27,8 +27,8 @@ if(NOT HDF5_FOUND)
 		)
 	# adding hdf5_fortran and hdf5 into a variable (to be consistent with cmake docs)
 	set(HDF5_Fortran_LIBRARIES 
-		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libhdf5_fortran.a" 
-		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libhdf5.a" 
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}hdf5_fortran${CMAKE_STATIC_LIBRARY_SUFFIX}" 
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}hdf5${CMAKE_STATIC_LIBRARY_SUFFIX}" 
 		"${ZLIB_LIBRARIES}")
 	set(HDF5_Fortran_INCLUDE_DIRS "${CMAKE_INSTALL_PREFIX}/include/")
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
@@ -40,9 +40,7 @@ else()
 		ALL
 		DEPENDS zlib
 		)
-	message(STATUS "FOUND HDF5 Fortran!")
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
 	message(STATUS "HDF5 Fortran INCLUDE DIRS are: ${HDF5_Fortran_INCLUDE_DIRS}")
-	message(STATUS "HDF5 Fortran DEFINITIONS are: ${HDF5_Fortran_DEFINITIONS}")
 	message(STATUS "HDF5 Fortran LIBRARIES are: ${HDF5_Fortran_LIBRARIES}")
 endif()

@@ -388,17 +388,45 @@ set(DOXYGEN_BUILD_DOCS OFF
 	CACHE BOOL
 	"Determine whether to use doxygen or not."
 	)
+#------------------------------------------------------------------------------
+# If any problems with installation will occur, which cannot be fixed quickly,
+# these variables will force a fresh installation for every specified library.
 # forces fresh installation of HDF5 to avoid some errors with old versions
-set(USE_EXISTING_HDF5 FALSE
+set(HDF5_FORCE_COMPILE FALSE
   CACHE BOOL
-  "Forces fresh installation of HDF5 to avoid some errors with old versions."
+  "Forces fresh installation of HDF5."
   )
+set(FFTW_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of FFTW."
+  )
+set(CFITSIO_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of CFITSIO."
+  )
+set(HEALPIX_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of HEALPIX."
+  )
+set(CURL_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of CURL."
+  )
+set(DOXYGEN_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of DOXYGEN."
+  )
+
+#------------------------------------------------------------------------------
 # Commander source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
 # tempita source dir
 set(TEMPITA_DIR ${CMAKE_SOURCE_DIR}/commander3/python)
 # adding custom cmake modules directory, e.g. for FindSomething.cmake
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+# Note: It should be already inside root CmakeLists.txt, so 
+# don't need to include in here
+#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+#------------------------------------------------------------------------------
 # output of the summary into the screen
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "SUMMARY ON INSTALLATION:")
@@ -429,12 +457,13 @@ list(APPEND projects
 	openmp
 	curl
 	zlib
-	sharp2
+	#sharp2
 	fftw
-	cfitsio
-	hdf5
-	doxygen
-	healpix
+	#cfitsio
+	#hdf5
+	#doxygen
+	#healpix
+	#commander3
 	)
 #==============================================================================
 # PROJECTS' URL SOURCES, MD5 HASHES AND CONFIGURE COMMANDS

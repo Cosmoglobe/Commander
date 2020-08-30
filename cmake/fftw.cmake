@@ -8,14 +8,16 @@
 message(STATUS "---------------------------------------------------------------")
 # TODO: make it so components will matter because now it install everything because 
 # I gave the command to add appropriate configure suboptions to configure command
-find_package(FFTW 
-	COMPONENTS 
-	DOUBLE 
-	FLOAT 
-	#FLOAT_MPI 
-	FLOAT_OPENMP
-	FLOAT_THREADS
-	)
+if(NOT FFTW_FORCE_COMPILE)
+	find_package(FFTW 
+		COMPONENTS 
+		DOUBLE 
+		FLOAT 
+		#FLOAT_MPI 
+		FLOAT_OPENMP
+		FLOAT_THREADS
+		)
+endif()
 # Is TRUE if one of the components were missing
 if(NOT FFTW_FOUND)
 	# Configure command to compile FFTW from source

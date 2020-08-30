@@ -84,7 +84,12 @@ if (NOT CFITSIO_FOUND)
   ##____________________________________________________________________________
   ## Actions taken when all components have been found
 
-  find_package_handle_standard_args (CFITSIO DEFAULT_MSG CFITSIO_LIBRARIES CFITSIO_INCLUDES)
+	# [Maksym] I have modified This part
+  find_package_handle_standard_args(CFITSIO 
+		FOUND_VAR CFITSIO_FOUND
+		VERSION_VAR CFITSIO_VERSION
+		REQUIRED_VARS CFITSIO_LIBRARIES CFITSIO_INCLUDES
+		)
 
   if (CFITSIO_FOUND)
     if (NOT CFITSIO_FIND_QUIETLY)

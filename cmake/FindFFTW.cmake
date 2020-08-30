@@ -30,11 +30,11 @@ include(FindPackageHandleStandardArgs)
 include(SelectLibraryConfigurations)
 # setting the list of valid components
 #==============================================================================
-# First check whether the FFTW_ROOT variable was set by the user,
+# First check whether the FFTW environment variable was set by the user,
 # as this variable can be used to guide detection of the FFTW lib
 # to a non-standard installation directory
 if(NOT FFTW_ROOT)
-	set(FFTW_ROOT "$ENV{FFTW_ROOT}")
+	set(FFTW_ROOT "$ENV{FFTW}")
 endif()
 # TODO: Wrap it around if(Linux) statement as PkgConfig is Linux thing
 # Next, we can also check for a PkgConfig
@@ -53,9 +53,9 @@ list(APPEND FFTW_INCLUDE_DIRS_HINTS
 	"~/local/include"
 	"${FFTW_ROOT}/include"
 	"${CMAKE_INSTALL_PREFIX}/include"
-	"${CMAKE_INSTALL_OUTPUT_DIRECTORY}/include"
+	#"${CMAKE_INSTALL_OUTPUT_DIRECTORY}/include"
 	)
-# FFTW MPI has a separate header, so we need to look for that one is well
+# FFTW MPI has a separate header, so we need to look for that one as well
 # Usually, it should be located in the same folder as "fftw3.h", but who knows
 list(APPEND FFTW_MPI_INCLUDE_DIRS_HINTS
 	"/usr/include" 
@@ -63,53 +63,56 @@ list(APPEND FFTW_MPI_INCLUDE_DIRS_HINTS
 	"~/local/include"
 	"${FFTW_ROOT}/include"
 	"${CMAKE_INSTALL_PREFIX}/include"
-	"${CMAKE_INSTALL_OUTPUT_DIRECTORY}/include"
+	#"${CMAKE_INSTALL_OUTPUT_DIRECTORY}/include"
 	)
 # Specifying the location for FFTW libraries
 # Usually libraries compiled as double with other custom specifications
 # like --enable-threads etc. But user can recompile it like long or float
-# with the same specification, so we need 3 separate paths
+# with the same specification. In addition, these can be placed in 3 
+# separate locations (although this is highly unlikely, but ...). Thus,
+# we need 3 separate paths.
+# TODO: Figure out whether we really need 3 separate paths, as right now
+# you simply use the same paths 3 times.
 # DOUBLE
 list(APPEND FFTW_DOUBLE_LIBS_PATHS
 	"/usr/lib"
-	"/usr/lib64"
-	"/usr/local/lib"
-	"/usr/local/lib64"
-	"~/local/lib"
-	"~/local/lib64"	
-	"${FFTW_ROOT}/lib"
-	"${FFTW_ROOT}/.libs"
-	"${CMAKE_INSTALL_PREFIX}/lib"
-	"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+	#"/usr/lib64"
+	"/usr/local"
+	#"/usr/local/lib64"
+	"~/local"
+	#"~/local/lib64"	
+	"${FFTW_ROOT}"
+	#"${FFTW_ROOT}/.libs"
+	"${CMAKE_INSTALL_PREFIX}"
+	#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
 	"${PKG_FFTW_LIBRARY_DIRS}"
 	)
 # FLOAT
 list(APPEND FFTW_FLOAT_LIBS_PATHS
-	"/usr/lib"
-	"/usr/lib64"
-	"/usr/local/lib"
-	"/usr/local/lib64"
-	"~/local/lib"
-	"~/local/lib64"	
-	"${FFTW_ROOT}/lib"
-	"${FFTW_ROOT}/.libs"
-	"${CMAKE_INSTALL_PREFIX}/lib"
-	"${CMAKE_INSTALL_OUTPUT_DIRECTORY}/lib"
-	"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+	"/usr"
+	#"/usr/lib64"
+	"/usr/local"
+	#"/usr/local/lib64"
+	"~/local"
+	#"~/local/lib64"	
+	"${FFTW_ROOT}"
+	#"${FFTW_ROOT}/.libs"
+	"${CMAKE_INSTALL_PREFIX}"
+	#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
 	"${PKG_FFTW_LIBRARY_DIRS}"
 	)
 # LONG
 list(APPEND FFTW_LONG_LIBS_PATHS
-	"/usr/lib"
-	"/usr/lib64"
-	"/usr/local/lib"
-	"/usr/local/lib64"
-	"~/local/lib"
-	"~/local/lib64"	
-	"${FFTW_ROOT}/lib"
-	"${FFTW_ROOT}/.libs"
-	"${CMAKE_INSTALL_PREFIX}/lib"
-	"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+	"/usr"
+	#"/usr/lib64"
+	"/usr/local"
+	#"/usr/local/lib64"
+	"~/local"
+	#"~/local/lib64"	
+	"${FFTW_ROOT}"
+	#"${FFTW_ROOT}/.libs"
+	"${CMAKE_INSTALL_PREFIX}"
+	#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
 	"${PKG_FFTW_LIBRARY_DIRS}"
 	)
 #==============================================================================
@@ -136,164 +139,85 @@ endif()
 # TODO: try to figure out why it doesn't work, i.e. how to find version 3.3.8 
 # Version information should be provided inside Header files, but it is not for FFTW
 # nothing we can do about it :( 
-# Now, we define FFTW version via string manipulations and regular expressions
-#set(_FFTW_H ${FFTW_INCLUDE_DIRS}/fftw3.h)
-
-#function(_fftwver_EXTRACT _FFTW_VER_COMPONENT _FFTW_VER_OUTPUT)
-#  set(CMAKE_MATCH_1 "1")
-#	set(_FFTW_expr "^[ \\t]*#define[ \\t]+${_FFTW_VER_COMPONENT}[ \\t]+([0-9]+)$")
-#	message(${_FFTW_expr})
-#	file(STRINGS "${_FFTW_H}" _FFTW_ver REGEX "${_FFTW_expr}")
-#	string(REGEX MATCH "${_FFTW_expr}" FFTW_ver "${_FFTW_ver}")
-#	set(${_FFTW_VER_OUTPUT} "${CMAKE_MATCH_1}" PARENT_SCOPE)
-#	message(${_FFTW_H})
-#	message(${_FFTW_VER_OUTPUT})
-#endfunction()
-
-#_fftwver_EXTRACT("FFTW_VERSION_MAJOR" FFTW_VERSION_MAJOR)
-#_fftwver_EXTRACT("FFTW_VERSION_MINOR" FFTW_VERSION_MINOR)
-#_fftwver_EXTRACT("FFTW_VERSION_PATCH" FFTW_VERSION_PATCH)
-
-#message(STATUS "FFTW version: ${FFTW_VERSION_MAJOR}.${FFTW_VERSION_MINOR}.${FFTW_VERSION_PATCH}")
-
-#if(FFTW_FIND_VERSION_COUNT GREATER 2)
-#	set(FFTW_VERSION "${FFTW_VERSION_MAJOR}.${FFTW_VERSION_MINOR}.${FFTW_VERSION_PATCH}")
-#else()
-#	set(FFTW_VERSION "${FFTW_VERSION_MAJOR}.${FFTW_VERSION_MINOR}")
-#endif()
-
-#find_library(ZeroMQ_LIBRARIES
-#      NAMES
-#        libzmq
-#        "libzmq-mt-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
-#        "libzmq-${CMAKE_VS_PLATFORM_TOOLSET}-mt-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
-#        libzmq_d
-#        "libzmq-mt-gd-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}
-#“find_library(ZeroMQ_LIBRARIES"
-#      NAMES
-#        libzmq
-#        "libzmq-mt-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
-#        "libzmq-${CMAKE_VS_PLATFORM_TOOLSET}-mt-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
-#        libzmq_d
-#        "libzmq-mt-gd-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
-#"libzmq-${CMAKE_VS_PLATFORM_TOOLSET}-mt-gd-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
-#      HINTS
-#       ${_ZeroMQ_ROOT}/lib
-#      )
-#endif()
-
 
 #==============================================================================
-# Searching for libraries
-# DOUBLE
-find_library(FFTW_DOUBLE_LIB
-	NAMES "fftw3"
-	PATHS ${FFTW_DOUBLE_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS ${FFTW_DOUBLE_LIBS_HINTS} 
-	)
-
-find_library(FFTW_DOUBLE_THREADS_LIB
-	NAMES "fftw3_threads"
-	PATHS ${FFTW_DOUBLE_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	HINTS "${FFTW_DOUBLE_LIBS_HINTS}"
-	)
-
-find_library(FFTW_DOUBLE_OPENMP_LIB
-	NAMES "fftw3_omp"
-	PATHS ${FFTW_DOUBLE_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS "${FFTW_DOUBLE_LIBS_HINTS}"
-	)
-
-find_library(FFTW_DOUBLE_MPI_LIB
-	NAMES "fftw3_mpi"
-	PATHS ${FFTW_DOUBLE_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS "${FFTW_DOUBLE_LIBS_HINTS}"
-	)
-
-# FLOAT
-find_library(FFTW_FLOAT_LIB
-	NAMES "fftw3f" libfftw3f-3
-	PATHS ${FFTW_FLOAT_LIBS_PATHS} #${FFTW_ROOT} ${FFTW_FLOAT_LIBS_HINTS}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS "${FFTW_FLOAT_LIBS_HINTS}"
-	)
-find_library(FFTW_FLOAT_THREADS_LIB
-	NAMES "fftw3f_threads"
-	PATHS ${FFTW_FLOAT_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS "${FFTW_FLOAT_LIBS_HINTS}"
-	)
-find_library(FFTW_FLOAT_OPENMP_LIB
-	NAMES "fftw3f_omp"
-	PATHS ${FFTW_FLOAT_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS "${FFTW_FLOAT_LIBS_HINTS}"
-	)
-find_library(FFTW_FLOAT_MPI_LIB
-	NAMES "fftw3f_mpi"
-	PATHS ${FFTW_FLOAT_LIBS_PATHS} #${FFTW_ROOT} ${FFTW_FLOAT_LIBS_HINTS}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS ${FFTW_FLOAT_LIBS_PATHS} #"${FFTW_FLOAT_LIBS_HINTS}"
-	)
-
-# LONG DOUBLE
-find_library(FFTW_LONG_LIB
-	NAMES "fftw3l"
-	PATHS ${FFTW_LONG_LIBS_PATHS} # ${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS "${FFTW_LONG_LIBS_HINTS}"
-	)
-
-find_library(FFTW_LONG_THREADS_LIB
-	NAMES "fftw3l_threads"
-	PATHS ${FFTW_LONG_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS ${FFTW_LONG_LIBS_PATHS} #"${FFTW_LONG_LIBS_HINTS}"
-	)
-
-find_library(FFTW_LONG_OPENMP_LIB
-	NAMES "fftw3l_omp"
-	PATHS ${FFTW_LONG_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS "${FFTW_LONG_LIBS_HINTS}"
-	)
-
-find_library(FFTW_LONG_MPI_LIB
-	NAMES "fftw3l_mpi"
-	PATHS ${FFTW_LONG_LIBS_PATHS} #${FFTW_ROOT}
-	#PATH_SUFFIXES lib lib64 
-	#HINTS "${FFTW_LONG_LIBS_HINTS}"
-	)
-#==============================================================================
-# We have a bunch of components which we need to loop through
-# Defining boolean variables based on components found
-# i.e. FFTW_[COMPONENT]_FOUND
-#==============================================================================
+# Creating two lists - variables and corresponding libraries
 # Setting up the list of valid components
-set(FFTW_VALID_COMPONENTS 
+list(APPEND _FFTW_VALID_COMPONENTS_
+	# Double
 	DOUBLE
 	DOUBLE_THREADS
 	DOUBLE_OPENMP
 	DOUBLE_MPI
+	# Float
 	FLOAT
 	FLOAT_THREADS
 	FLOAT_OPENMP
 	FLOAT_MPI
+	# Long Double
 	LONG
 	LONG_THREADS
 	LONG_OPENMP
 	LONG_MPI
 	)
+list(APPEND _FFTW_LIB_NAMES_
+	# Double
+	""
+	"_threads"	
+	"_omp"
+	"_mpi"
+	# Float
+	"f"
+	"f_threads"	
+	"f_omp"
+	"f_mpi"
+	# Long Double
+	"l"
+	"l_threads"	
+	"l_omp"
+	"l_mpi"
+	)
+list(APPEND _FFTW_LIB_PATHS_
+	# Double
+	_DOUBLE_LIBS_
+	_DOUBLE_LIBS_
+	_DOUBLE_LIBS_
+	_DOUBLE_LIBS_
+	# Float
+	_FLOAT_LIBS_
+	_FLOAT_LIBS_
+	_FLOAT_LIBS_
+	_FLOAT_LIBS_
+	# long Double
+	_LONG_LIBS_
+	_LONG_LIBS_
+	_LONG_LIBS_
+	_LONG_LIBS_
+	)
+# Searching for libraries - looping through the lists above in parallel 
+foreach(_component_ _name_ _path_ IN ZIP_LISTS _FFTW_VALID_COMPONENTS_ _FFTW_LIB_NAMES_ _FFTW_LIB_PATHS_)
+	#message(STATUS "component=FFTW_${_component_}_LIB, name=fftw3${_name_}, path=FFTW${_path_}PATHS")
+	#message(STATUS "${FFTW${_path_}PATHS}")
+	#message(STATUS "${PKG_FFTW_LIBRARY_DIRS}")
+	find_library(FFTW_${_component_}_LIB
+		NAMES "fftw3${_name_}"
+		PATHS "${FFTW${_path_}PATHS}" 
+		#HINTS ${FFTW${_path_}PATHS} 
+		PATH_SUFFIXES lib lib64 libs .lib .libs .lib64 
+		#HINTS ${FFTW_DOUBLE_LIBS_HINTS} 
+		)
+endforeach()
+#==============================================================================
+# We have a bunch of components which we need to loop through
+# Defining boolean variables based on components found
+# i.e. FFTW_[COMPONENT]_FOUND
+#==============================================================================
 # Setting FFTW_[COMPONENT]_FOUND to FALSE by default
 # only after user specifies the component he/she wants to use
 # these variables will be set to TRUE.
-foreach(component IN LISTS FFTW_VALID_COMPONENTS)
+foreach(component IN LISTS _FFTW_VALID_COMPONENTS_)
 	set(FFTW_${component}_FOUND FALSE)
-	#message("FFTW_${component}_FOUND is ${FFTW_${component}_FOUND}")
+	#message(STATUS "FFTW_${component}_FOUND is ${FFTW_${component}_FOUND}")
 endforeach()
 
 # We need to loop thrpugh each component user specified inside find_package().
@@ -307,7 +231,7 @@ if(NOT FFTW_FIND_COMPONENTS)
 else()
 	foreach(component IN LISTS FFTW_FIND_COMPONENTS)
 		# Returns the index of the element specified in the list or -1 if it wasn’t found.
-		list(FIND FFTW_VALID_COMPONENTS ${component} component_index)
+		list(FIND _FFTW_VALID_COMPONENTS_ ${component} component_index)
 		if(NOT component_index EQUAL -1)
 			# checking whether the library was found
 			if(FFTW_${component}_LIB)
@@ -322,7 +246,7 @@ endif()
 
 find_package_handle_standard_args(FFTW
 	FOUND_VAR			FFTW_FOUND 
-	REQUIRED_VARS FFTW_INCLUDE_DIRS
+	REQUIRED_VARS FFTW_LIBRARIES FFTW_INCLUDE_DIRS
 	VERSION_VAR		FFTW_VERSION 
 	HANDLE_COMPONENTS
 	)

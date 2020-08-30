@@ -5,12 +5,14 @@
 # Author: Maksym Brilenkov
 
 message(STATUS "---------------------------------------------------------------")
-#message("${${project}_configure_command}")
 # looking for curl in the system and download it if it is not present
-find_package(CURL)
+if(NOT HDF5_FORCE_COMPILE)
+	find_package(CURL)
+endif()
+
 if(NOT CURL_FOUND)
-	message(STATUS "Haven't found curl on the system. Will download and compile it from source:
-	https://github.com/curl/curl")
+	#message(STATUS "Haven't found curl on the system. Will download and compile it from source:
+	#https://github.com/curl/curl")
 	ExternalProject_Add(${project}
 		URL "${${project}_url}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
@@ -41,8 +43,8 @@ if(NOT CURL_FOUND)
 	include_directories(${CURL_BINARY_DIR})
 	include_directories(${CURL_INCLUDE_DIR})
 	message(STATUS "Curl INCLUDE DIR will be ${CURL_INCLUDE_DIR}")
-	message(STATUS "Curl BINARY DIR will be ${CURL_BINARY_DIR}")
-	message(STATUS "Curl SOURCE DIR will be ${CURL_SOURCE_DIR}")
+	#message(STATUS "Curl BINARY DIR will be ${CURL_BINARY_DIR}")
+	#message(STATUS "Curl SOURCE DIR will be ${CURL_SOURCE_DIR}")
 	message(STATUS "Curl LIBRARIES will be ${CURL_LIBRARIES}")
 
 	# setting an environment variable for cfitsio to find curl library
@@ -56,8 +58,8 @@ else()
 	include_directories(${CURL_INCLUDE_DIR})
 	include_directories(${CURL_BINARY_DIR})
 	message(STATUS "Curl INCLUDE DIR is ${CURL_INCLUDE_DIR}")
-	message(STATUS "Curl BINARY DIR is ${CURL_BINARY_DIR}")
-	message(STATUS "Curl SOURCE DIR is ${CURL_SOURCE_DIR}")
+	#message(STATUS "Curl BINARY DIR is ${CURL_BINARY_DIR}")
+	#message(STATUS "Curl SOURCE DIR is ${CURL_SOURCE_DIR}")
 	message(STATUS "Curl LIBRARIES are ${CURL_LIBRARIES}")
 	# setting an environment variable for cfitsio to find curl library
 	set(ENV{PATH} 
