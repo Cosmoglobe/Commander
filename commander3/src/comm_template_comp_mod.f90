@@ -257,6 +257,8 @@ contains
     character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
+    if (.not. self%output) return
+
     if (self%myid == 0) write(*,*) '     Template amplitude = ', self%x
 
     return

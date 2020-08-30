@@ -4,6 +4,7 @@
 # Required by: HDF5 
 # Author: Maksym Brilenkov
 
+message(STATUS "---------------------------------------------------------------")
 find_package(ZLIB REQUIRED)
 
 message(STATUS "ZLIB LIBRARIES ARE: ${ZLIB_LIBRARIES}")

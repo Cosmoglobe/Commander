@@ -23,7 +23,7 @@ contains
     integer(i4b) :: i, j, k, p, ierr, nmaps
     real(dp)     :: t1, t2
     logical(lgt) :: apply_mask, lowres
-    class(comm_map), pointer :: res, res_lowres, res_lowres_temp, chisq_sub
+    class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub
     class(comm_mapinfo), pointer :: info, info_lowres
 
     if (present(chisq_fullsky) .or. present(chisq_map)) then
@@ -52,7 +52,7 @@ contains
              !stop
           end if
           
-          if (data(i)%N%type == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. lowres_eval) then
+          if (trim(data(i)%N%type) == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
              lowres = .true.
              info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
 
@@ -65,7 +65,7 @@ contains
              call data(i)%N%invN_lowres(res_lowres) ! invN*res
              res_lowres%map = res_lowres_temp%map*res_lowres%map ! res*(invN*res)
 
-             call res_lowres_temp%dealloc()
+             call res_lowres_temp%dealloc(); deallocate(res_lowres_temp)
 
           else
              lowres=.false.
@@ -81,7 +81,7 @@ contains
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (res%info%npix/chisq_sub%info%npix)
              end do
-             call chisq_sub%dealloc()
+             call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
           if (present(chisq_fullsky)) then
              if (lowres) then
@@ -91,8 +91,11 @@ contains
              end if
           end if
 
-          call res_lowres%dealloc()
-          call res%dealloc()
+          if (associated(res_lowres)) then
+             call res_lowres%dealloc(); deallocate(res_lowres)
+             nullify(res_lowres)
+          end if
+          call res%dealloc(); deallocate(res)
        end do
     end if
 
@@ -155,7 +158,7 @@ contains
        call data(i)%N%sqrtInvN(map)
        chisq_jeffreys = chisq_jeffreys + sum(map%map**2)
 
-       call map%dealloc()
+       call map%dealloc(); deallocate(map)
     end do
 
     call mpi_allreduce(MPI_IN_PLACE, chisq_jeffreys, 1, MPI_DOUBLE_PRECISION, MPI_SUM, c%comm, ierr)    
@@ -238,7 +241,7 @@ contains
 
     ! Clean up
     nullify(c)
-    call ptsrc%dealloc()
+    call ptsrc%dealloc(); deallocate(ptsrc)
 
   end function compute_residual
 
@@ -281,7 +284,7 @@ contains
           call dipole%Y()
           map%map = map%map - dipole%map
           deallocate(alm)
-          call dipole%dealloc()
+          call dipole%dealloc(); deallocate(dipole)
        end select
        c => c%next()
     end do

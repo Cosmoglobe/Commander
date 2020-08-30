@@ -152,6 +152,31 @@ contains
           c => c%next()
        end do
     end if
+
+!!$    eps = 0
+!!$    do i = 1, 100000
+!!$       call update_status(status, "cr4")
+!!$       r  = cr_matmulA(x, samp_group) 
+!!$       c   => compList
+!!$       do while (associated(c))
+!!$          if (.not. c%active_samp_group(samp_group)) then
+!!$             c => c%next()
+!!$             cycle
+!!$          end if
+!!$          select type (c)
+!!$          class is (comm_diffuse_comp)
+!!$             allocate(mp(0:data(1)%info%nalm-1,data(1)%info%nmaps))
+!!$             mp = c%getBand(1, amp_in=data(1)%map%alm, alm_out=.true.)
+!!$             eps = eps + sum(abs(mp))
+!!$             deallocate(mp)
+!!$          end select
+!!$          c => c%next()
+!!$       end do
+!!$    end do
+!!$    write(*,*) eps
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
     !call update_status(status, "cr4")
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
     !call update_status(status, "cr5")
@@ -356,7 +381,7 @@ contains
     end if
 
     deallocate(Ax, r, d, q, s)
-    !call update_status(status, "cr9")
+    call update_status(status, "cr9")
     
   end subroutine solve_cr_eqn_by_CG
 
@@ -522,6 +547,27 @@ contains
        ! Set up Wiener filter term
        map => compute_residual(i, cg_samp_group=samp_group) 
 
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       call map%dealloc()
+!!$
+!!$       map => compute_residual(i, cg_samp_group=samp_group) 
+!!$
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       call data(i)%N%invN(map, samp_group=samp_group)
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$
+!!$       call data(i)%N%N(map, samp_group=samp_group)
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$
+!!$
+!!$
+!!$       call mpi_finalize(ierr)
+!!$       stop
+
        ! Subtract CMB dipole if resamp mode, to avoid large condition numbers; add back later
        if (resamp_cmb .and. .not. only_pol) call subtract_fiducial_CMB_dipole(i, map)
 
@@ -591,7 +637,7 @@ contains
              end do
 
              call cr_insert_comp(c%id, .true., Tm%alm, rhs)
-             call Tm%dealloc()
+             call Tm%dealloc(); deallocate(Tm)
              nullify(info)
           class is (comm_ptsrc_comp)
              allocate(Tp(c%nsrc,c%nmaps))
@@ -617,7 +663,7 @@ contains
           c => c%next()
        end do
 
-       call map%dealloc()
+       call map%dealloc(); deallocate(map)
     end do
 
     ! Add prior terms
@@ -655,7 +701,7 @@ contains
                    end do
                 end do
                 !eta = eta + mu%alm
-                call mu%dealloc()
+                call mu%dealloc(); deallocate(mu)
              end if
              call cr_insert_comp(c%id, .true., eta, rhs)
              deallocate(eta)
@@ -710,11 +756,12 @@ contains
     real(dp),     dimension(size(x))             :: cr_matmulA
 
     real(dp)                  :: t1, t2
-    integer(i4b)              :: i, j, l, myid
-    class(comm_map),  pointer :: map => null(), pmap => null()
+    integer(i4b)              :: i, j, l, myid, lmax
+    class(comm_map),  pointer :: map => null(), pmap => null(), map_buff => null()
     class(comm_comp), pointer :: c => null()
     real(dp),        allocatable, dimension(:)   :: y, sqrtS_x
     real(dp),        allocatable, dimension(:,:) :: alm, m, pamp
+    class(comm_mapinfo), pointer :: info => null()
 
     ! Initialize output array
     !call update_status(status, "A1")
@@ -728,6 +775,7 @@ contains
     sqrtS_x = x
     !call update_status(status, "A3")
     c       => compList
+    lmax    = -1
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
           c => c%next()
@@ -744,6 +792,7 @@ contains
              call cr_insert_comp(c%id, .false., alm, sqrtS_x)
              deallocate(alm)
           end if
+          lmax = max(max(lmax, c%lmax_amp),2)
        class is (comm_ptsrc_comp)
           if (c%myid == 0) then
              call cr_extract_comp(c%id, sqrtS_x, pamp)
@@ -767,6 +816,7 @@ contains
     end do
     call wall_time(t2)
     !if (myid == 0) write(*,fmt='(a,f8.2)') 'sqrtS time = ', real(t2-t1,sp)
+ 
 
     
     ! Add frequency dependent terms
@@ -814,7 +864,15 @@ contains
           c => c%next()
        end do
        !call update_status(status, "A9")
-       call map%Y()                    ! Diffuse components
+       if (lmax > -1) then
+          info     => comm_mapinfo(map%info%comm, map%info%nside, lmax, map%info%nmaps, map%info%nmaps==3)
+          map_buff => comm_map(info)
+          call map%alm_equal(map_buff)
+          call map_buff%Y()                    ! Diffuse components
+          map%map = map_buff%map
+       else
+          map%map = 0.d0
+       end if
        !call update_status(status, "A10")
        map%map = map%map + pmap%map    ! Add compact objects
        !call update_status(status, "A11")
@@ -832,7 +890,12 @@ contains
        ! Project summed map into components, ie., row-wise matrix elements
        call wall_time(t1)
        c   => compList
-       call map%Yt()             ! Prepare for diffuse components
+       if (lmax > -1) then
+          map_buff%map = map%map
+          call map_buff%Yt()             ! Prepare for diffuse components
+          call map_buff%alm_equal(map)
+          call map_buff%dealloc(); deallocate(map_buff)
+       end if
        !call update_status(status, "A13")
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
@@ -866,8 +929,8 @@ contains
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'projBand time = ', real(t2-t1,sp)
 
-       call map%dealloc()
-       call pmap%dealloc()
+       call map%dealloc(); deallocate(map)
+       call pmap%dealloc(); deallocate(pmap)
     end do
     !call update_status(status, "A16")
 
@@ -957,8 +1020,8 @@ contains
     cr_invM = x
 
     call applyDeflatePrecond(cr_invM, Qx)
-    Q_is_active = any(Qx /= 0.d0)
-    call mpi_allreduce(MPI_IN_PLACE, Q_is_active, 1, MPI_LOGICAL, MPI_LOR, comm, ierr)
+    Q_is_active = .false.  !any(Qx /= 0.d0)
+    !call mpi_allreduce(MPI_IN_PLACE, Q_is_active, 1, MPI_LOGICAL, MPI_LOR, comm, ierr)
     if (Q_is_active) cr_invM = x - cr_matmulA(Qx, samp_group)   
 
 !!$    if (size(x) > 0) write(*,*) sum(abs(x)), sum(abs(cr_invM)), sum(abs(Qx))

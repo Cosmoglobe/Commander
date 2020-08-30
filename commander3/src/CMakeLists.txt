@@ -1,5 +1,34 @@
+# To resolve conflict with the flags, we need to compile *.cpp
+# into a stand alone library and then just link it to rest of 
+# the files. However, with CMake it is possible to compile the
+# file into object, which will not create *.a files. We go with
+# this approach.
+add_library(comm_system_backend 
+	STATIC 
+	comm_system_backend.cpp
+	)
+target_compile_options(comm_system_backend
+	PUBLIC
+	# setting flags depending on configuration
+	#"$<$<CONFIG:Release>:${COMMANDER3_CXX_COMPILER_FLAGS_RELEASE}>"
+	#"$<$<CONFIG:Debug>:${COMMANDER3_CXX_COMPILER_FLAGS_DEBUG}>"
+	#"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_CXX_COMPILER_FLAGS_RELWITHDEBINFO}>"
+	#"$<$<CONFIG:MinSizeRel>:${COMMANDER3_CXX_COMPILER_FLAGS_MINSIZEREL}>"
+	# setting other compiler dependent flags
+	${COMMANDER3_CXX_COMPILER_FLAGS}
+	)
+#target_link_options(${comm_system_backend}
+#	PUBLIC
+#	"$<$<CONFIG:Release>:${COMMANDER3_CXX_LINKER_FLAGS_RELEASE}>"
+#	"$<$<CONFIG:Debug>:${COMMANDER3_CXX_LINKER_FLAGS_DEBUG}>"
+#	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_CXX_LINKER_FLAGS_RELWITHDEBINFO}>"
+#	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_CXX_LINKER_FLAGS_MINSIZEREL}>"
+#	# setting other compiler dependent flags
+#	${COMMANDER3_CXX_LINKER_FLAGS}
+#	)
+
 # setting the directory where to output all .mod and .o files
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_INSTALL_OUTPUT_DIRECTORY}/mod)
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/mod)
 # TODO: add all sources manually instead of this command, as 
 # there seems to be a problem with tempita language
 #file(GLOB_RECURSE sources *.f90 *.cpp *.f)
@@ -59,7 +88,7 @@ set(sources
 	locate_mod.f90
 	comm_conviqt_mod.f90
 	comm_map_mod.f90
-	comm_system_backend.cpp
+	#comm_system_backend.cpp
 	math_tools.f90
 	comm_cr_mod.f90
 	comm_MBB_comp_mod.f90
@@ -99,7 +128,7 @@ set(sources
 	#elseif("${CMAKE_Fortran_COMPILER}" MATCHES "Intel")
 	#	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -qopt-matmul")
 	#endif()
-#i setting executable name
+# setting executable name
 set(commander3 commander3)
 add_executable(${commander3} "")
 # make sure that commander executable will be built last
@@ -114,22 +143,22 @@ set_property(TARGET ${commander3} PROPERTY LINKER_LANGUAGE Fortran)
 target_compile_options(${commander3}
 	PUBLIC
 	# setting flags depending on configuration
-	"$<$<CONFIG:Release>:${COMMANDER3_COMPILER_FLAGS_RELEASE}>"
-	"$<$<CONFIG:Debug>:${COMMANDER3_COMPILER_FLAGS_DEBUG}>"
-	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_COMPILER_FLAGS_RELWITHDEBINFO}>"
-	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_COMPILER_FLAGS_MINSIZEREL}>"
+	"$<$<CONFIG:Release>:${COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE}>"
+	"$<$<CONFIG:Debug>:${COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG}>"
+	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO}>"
+	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL}>"
 	# setting other compiler dependent flags
-	${COMMANDER3_COMPILER_FLAGS}
+	${COMMANDER3_Fortran_COMPILER_FLAGS}
 	)
 # adding linker flags to commander3 target
 target_link_options(${commander3}
 	PUBLIC
-	"$<$<CONFIG:Release>:${COMMANDER3_LINKER_FLAGS_RELEASE}>"
-	"$<$<CONFIG:Debug>:${COMMANDER3_LINKER_FLAGS_DEBUG}>"
-	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_LINKER_FLAGS_RELWITHDEBINFO}>"
-	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_LINKER_FLAGS_MINSIZEREL}>"
+	"$<$<CONFIG:Release>:${COMMANDER3_Fortran_LINKER_FLAGS_RELEASE}>"
+	"$<$<CONFIG:Debug>:${COMMANDER3_Fortran_LINKER_FLAGS_DEBUG}>"
+	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO}>"
+	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL}>"
 	# setting other compiler dependent flags
-	${COMMANDER3_LINKER_FLAGS}
+	${COMMANDER3_Fortran_LINKER_FLAGS}
 	)
 
 #message("cmake dl libs are ${CMAKE_DL_LIBS}")
@@ -153,7 +182,7 @@ target_link_libraries(${commander3}
 	# including sharp2
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
 	#"${out_lib_dir}/libsharp2.a"
-	${SHARP2_LIBRARIES}
+	#${SHARP2_LIBRARIES}
 	# including healpix
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhealpix.a"
 	#"${out_lib_dir}/libhealpix.a"
@@ -191,6 +220,8 @@ target_link_libraries(${commander3}
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libfftw3.a"
 	#"${out_lib_dir}/libfftw3.a"
 	${FFTW3_LIBRARIES}
+	# Linking commander *.cpp file(s)
+	comm_system_backend
 	)
 
 # installing commander into appropriate folder

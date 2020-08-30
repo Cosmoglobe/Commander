@@ -32,11 +32,12 @@ module comm_param_mod
      logical(lgt)       :: resamp_CMB
      integer(i4b)       :: first_samp_resamp, last_samp_resamp, numsamp_per_resamp
      integer(i4b)       :: verbosity, base_seed, base_seed_noise, numchain, num_smooth_scales
-     integer(i4b)       :: num_gibbs_iter
+     integer(i4b)       :: num_gibbs_iter, thinning, num_init_chains
      character(len=512) :: chain_status, init_chain_prefix
      real(dp)           :: T_CMB
      character(len=512) :: MJysr_convention
      character(len=512) :: fft_magic_number_file
+     character(len=512) :: output_comps
      logical(lgt)       :: only_pol
      logical(lgt)       :: enable_TOD_analysis
      integer(i4b)       :: tod_freq
@@ -48,6 +49,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
      integer(i4b),       allocatable, dimension(:)     :: nside_smooth
      character(len=512), allocatable, dimension(:)     :: pixwin_smooth
+     character(len=512), allocatable, dimension(:)     :: init_chain_prefixes
 
      ! alm-sampler
      integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
@@ -59,7 +61,7 @@ module comm_param_mod
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
      logical(lgt)       :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
-     logical(lgt)       :: sample_signal_amplitudes, sample_specind
+     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec
      
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
@@ -119,6 +121,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:,:) :: ds_tod_scanrange
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_tot_numscan
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
+     integer(i4b),       allocatable, dimension(:)   :: ds_tod_halfring
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
 
      ! Component parameters
@@ -154,6 +157,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_npixreg
      integer(i4b),       allocatable, dimension(:)     :: cs_samp_samp_params_niter
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_lmax_ind_pol
+     integer(i4b),       allocatable, dimension(:)     :: cs_lmin_amp
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_amp_prior
      integer(i4b),       allocatable, dimension(:)     :: cs_l_apod
@@ -241,10 +245,10 @@ contains
 
     ! Override parameter choices if user if RESAMPLE_CMB = .true.
     if (cpar%resamp_CMB) then
-       cpar%operation           = 'sample'     ! Force sampling
-       cpar%cg_precond          = 'diagonal'   ! Use diagonal precond to fill in the mask
-       cpar%enable_TOD_analysis = .false.      ! Disable TOD analysis
-       cpar%sample_specind      = .false.      ! Disable non-linear parameter fitting
+       !cpar%operation           = 'sample'     ! Force sampling
+       !cpar%cg_precond          = 'diagonal'   ! Use diagonal precond to fill in the mask
+       !cpar%enable_TOD_analysis = .false.      ! Disable TOD analysis
+       !cpar%sample_specind      = .false.      ! Disable non-linear parameter fitting
        !cpar%num_gibbs_iter      = (cpar%last_samp_resamp-cpar%first_samp_resamp+1)*cpar%numsamp_per_resamp
 !!$       do i = 1, cpar%cs_ncomp_tot
 !!$          if (trim(cpar%cs_type(i)) /= 'cmb') then
@@ -289,6 +293,7 @@ contains
 
        cpar%mychain    = ind(cpar%myid,1)
        cpar%myid_chain = ind(cpar%myid,2)
+       cpar%init_chain_prefix = cpar%init_chain_prefixes(mod(cpar%mychain-1,cpar%num_init_chains)+1)
 
        call mpi_comm_split(MPI_COMM_WORLD, cpar%mychain, cpar%myid_chain, cpar%comm_chain,  ierr) 
        call mpi_comm_size(cpar%comm_chain, cpar%numprocs_chain, ierr)
@@ -352,8 +357,15 @@ contains
     cpar%base_seed_noise = 0  ! Not currently in use
     call get_parameter_hashtable(htbl, 'NUMCHAIN',                 par_int=cpar%numchain)
     call get_parameter_hashtable(htbl, 'NUM_GIBBS_ITER',           par_int=cpar%num_gibbs_iter)
+    call get_parameter_hashtable(htbl, 'THINNING_FACTOR',           par_int=cpar%thinning)
     call get_parameter_hashtable(htbl, 'CHAIN_STATUS',             par_string=cpar%chain_status)
-    call get_parameter_hashtable(htbl, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
+    !call get_parameter_hashtable(htbl, 'INIT_CHAIN',               par_string=cpar%init_chain_prefix)
+    call get_parameter_hashtable(htbl, 'NUM_INIT_CHAINS',          par_int=cpar%num_init_chains)
+    allocate(cpar%init_chain_prefixes(cpar%num_init_chains))
+    do i = 1, cpar%num_init_chains
+       call int2string(i,itext)
+       call get_parameter_hashtable(htbl, 'INIT_CHAIN'//itext,     par_string=cpar%init_chain_prefixes(i))
+    end do
     call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
 
     call get_parameter_hashtable(htbl, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
@@ -370,6 +382,7 @@ contains
     call get_parameter_hashtable(htbl, 'MJYSR_CONVENTION',         par_string=cpar%MJysr_convention)
 
     call get_parameter_hashtable(htbl, 'OUTPUT_DIRECTORY',         par_string=cpar%outdir)
+    call get_parameter_hashtable(htbl, 'OUTPUT_COMPS_TO_CHAINDIR', par_string=cpar%output_comps)
 
     call get_parameter_hashtable(htbl, 'NSIDE_CHISQ',              par_int=cpar%nside_chisq)
     call get_parameter_hashtable(htbl, 'POLARIZATION_CHISQ',       par_lgt=cpar%pol_chisq)
@@ -387,6 +400,7 @@ contains
 
     call get_parameter_hashtable(htbl, 'SAMPLE_SIGNAL_AMPLITUDES', par_lgt=cpar%sample_signal_amplitudes)
     call get_parameter_hashtable(htbl, 'SAMPLE_SPECTRAL_INDICES',  par_lgt=cpar%sample_specind)
+    call get_parameter_hashtable(htbl, 'SAMPLE_POWSPEC',           par_lgt=cpar%sample_powspec)
 
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 
@@ -470,7 +484,7 @@ contains
     allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_initHDF(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
-    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n))
+    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n), cpar%ds_tod_halfring(n))
 
     do i = 1, n
        call int2string(i, itext)
@@ -548,6 +562,7 @@ contains
                   & par_string=cpar%ds_tod_instfile(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_bp_init(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_HALFRING'//itext, len_itext=len_itext, par_int=cpar%ds_tod_halfring(i))
           end if
        end if
 
@@ -623,7 +638,7 @@ contains
     allocate(cpar%cs_spec_fix_pixreg(3,MAXPAR,n))
     allocate(cpar%cs_lmax_ind(n), cpar%cs_lmax_ind_pol(3,MAXPAR,n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_amp_prior(n))
-    allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n))
+    allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n), cpar%cs_lmin_amp(n))
     allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_mono_prior(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
@@ -672,6 +687,7 @@ contains
                &'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext, par_int=cpar%cs_cg_samp_group_maxiter(i))
           !call get_parameter_hashtable(htbl, 'COMP_CG_SAMP_GROUP_MAXITER'//itext, len_itext=len_itext,        par_int=cpar%cs_cg_samp_group_maxiter(i)) !put it in the components with npar > 0
           call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,           par_int=cpar%cs_nside(i))
+          call get_parameter_hashtable(htbl, 'COMP_LMIN_AMP'//itext, len_itext=len_itext,        par_int=cpar%cs_lmin_amp(i))
           call get_parameter_hashtable(htbl, 'COMP_LMAX_AMP'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_amp(i))
           call get_parameter_hashtable(htbl, 'COMP_L_APOD'//itext, len_itext=len_itext,          par_int=cpar%cs_l_apod(i))
           !call get_parameter_hashtable(htbl, 'COMP_LMAX_IND'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_ind(i)) ! to be fased out
@@ -823,7 +839,7 @@ contains
              cpar%cs_apply_jeffreys(i) = .false. ! Disabled until properly debugged and validated
 
              do j=1,1
-                if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
+                if (cpar%cs_smooth_scale(i,j) > cpar%num_smooth_scales) then
                    write(*,fmt='(a,i2,a,i2,a,i2,a,i2)') 'Smoothing scale ',cpar%cs_smooth_scale(i,j), &
                         & ' for index nr. ',j,' in component nr. ', i,' is larger than the number of smoothing scales: ', &
                         & cpar%num_smooth_scales

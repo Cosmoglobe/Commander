@@ -87,7 +87,7 @@ contains
     integer(i4b),          dimension(:,:), intent(in) :: mask
     logical(lgt),          dimension(:),   intent(in) :: accept
 
-    integer(i4b) :: i, j, h, horn, nhorn, ndet, pid(1), nsamp(1)
+    integer(i4b) :: i, j, h, horn, nhorn, ndet, pid(1), nsamp(1), hdferr
     integer(i4b), allocatable, dimension(:) :: d
     logical(lgt) :: exist
     character(len=1)   :: itext
@@ -97,6 +97,7 @@ contains
     class(comm_4D_map), pointer       :: map4D => null()
     
     type(hdf_file)     :: file
+    TYPE(h5o_info_t) :: object_info
 
     inquire(file=trim(filename), exist=exist)
     if (exist) then
@@ -107,6 +108,12 @@ contains
 
     call int2string(scanid, scantext)
     path_scanid = trim(adjustl(path))//'/'//scantext
+
+    ! Delete group if it already exists
+    call h5eset_auto_f(0, hdferr)
+    call h5oget_info_by_name_f(file%filehandle, trim(adjustl(path)), object_info, hdferr)
+    if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(path)), hdferr)
+
     call create_hdf_group(file, trim(adjustl(path)))
     call create_hdf_group(file, trim(adjustl(path_scanid)))
     

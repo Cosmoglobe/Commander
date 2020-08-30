@@ -259,8 +259,8 @@ contains
     call mpi_allreduce(MPI_IN_PLACE, A, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
     
-    call amp%dealloc()
-    call invN_amp%dealloc()
+    call amp%dealloc(); deallocate(amp)
+    call invN_amp%dealloc(); deallocate(invN_amp)
     
     ! Compute new line ratio; just root processor
     if (self%x%info%myid == 0) then
