@@ -6,7 +6,7 @@
 
 message(STATUS "---------------------------------------------------------------")
 # looking for curl in the system and download it if it is not present
-if(NOT HDF5_FORCE_COMPILE)
+if(NOT CURL_FORCE_COMPILE)
 	find_package(CURL)
 endif()
 

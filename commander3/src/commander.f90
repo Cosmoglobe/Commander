@@ -7,6 +7,7 @@ program commander
   use comm_output_mod
   use comm_comp_mod
   use comm_nonlin_mod
+  use comm_tod_simulations_mod
   implicit none
 
   ! *********************************************************************
@@ -72,6 +73,11 @@ program commander
      write(*,*) ''
      write(*,*) '       **********   Commander   *************'
      write(*,*) ''
+     if (cpar%enable_tod_simulations) then
+       write(*,*) '   Regime:                            TOD Simulations'
+     else
+       write(*,*) '   Regime:                            Data Processing'
+     endif
      write(*,*) '   Number of chains                       = ', cpar%numchain
      write(*,*) '   Number of processors in first chain    = ', cpar%numprocs_chain
      write(*,*) ''
@@ -173,6 +179,12 @@ program commander
            call update_mixing_matrices(update_F_int=.true.)       
         end if
      end if
+     !----------------------------------------------------------------------------------
+     ! Part of Simulation routine
+     !----------------------------------------------------------------------------------
+     ! If we are on 1st iteration and simulation was enabled,
+     ! we copy real LFI data into specified folder.
+     if ((iter == 1) .and. cpar%enable_tod_simulations) call copy_LFI_tod(cpar, ierr)
      ! Process TOD structures
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)

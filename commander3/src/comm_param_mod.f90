@@ -40,6 +40,7 @@ module comm_param_mod
      character(len=512) :: output_comps
      logical(lgt)       :: only_pol
      logical(lgt)       :: enable_TOD_analysis
+     logical(lgt)       :: enable_TOD_simulations !< start commander in simulation regime
      integer(i4b)       :: tod_freq
      integer(i4b)       :: resamp_hard_gain_prior_nth_iter
      integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
@@ -50,6 +51,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: nside_smooth
      character(len=512), allocatable, dimension(:)     :: pixwin_smooth
      character(len=512), allocatable, dimension(:)     :: init_chain_prefixes
+     character(len=512)                                :: sims_output_dir !< simulations directory
 
      ! alm-sampler
      integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
@@ -405,6 +407,11 @@ contains
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 
     call get_parameter_hashtable(htbl, 'ENABLE_TOD_ANALYSIS',      par_lgt=cpar%enable_TOD_analysis)
+    !----------------------------------------------------------------------------------
+    ! Commander3 simulations parameters
+    call get_parameter_hashtable(htbl, 'ENABLE_TOD_SIMULATIONS',   par_lgt=cpar%enable_TOD_simulations)
+    call get_parameter_hashtable(htbl, 'SIMS_OUTPUT_DIRECTORY',    par_string=cpar%sims_output_dir)
+    !----------------------------------------------------------------------------------
 
     call get_parameter_hashtable(htbl, 'NUMITER_RESAMPLE_HARD_GAIN_PRIORS', par_int=cpar%resamp_hard_gain_prior_nth_iter)
 

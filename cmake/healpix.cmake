@@ -3,12 +3,7 @@
 # Author: Maksym Brilenkov
 
 message(STATUS "---------------------------------------------------------------")
-#add_dependencies(${project} cfitsio sharp)
-#target_link_libraries(${project} cfitsio)
-
-#set(CMAKE_INSTALL_RPATH "${out_install_dir}")
-#message(${CMAKE_INSTALL_RPATH})
-#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+find_package(HEALPIX)
 
 ExternalProject_Add(${project}
 	URL "${${project}_url}"

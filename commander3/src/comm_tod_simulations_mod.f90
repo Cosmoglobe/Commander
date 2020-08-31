@@ -31,43 +31,43 @@ module comm_tod_simulations_mod
   !use comm_tod_orbdipole_mod
   implicit none
 
-  private
-  public comm_LFI_tod
+  !private
+  !public comm_LFI_tod
 
-  integer(i4b), parameter :: N_test      = 19
-  integer(i4b), parameter :: samp_N      = 1
-  integer(i4b), parameter :: prep_G      = 15
-  integer(i4b), parameter :: samp_G      = 2
-  integer(i4b), parameter :: prep_acal   = 3
-  integer(i4b), parameter :: samp_acal   = 4
-  integer(i4b), parameter :: prep_rcal   = 18
-  integer(i4b), parameter :: samp_rcal   = 19
-  integer(i4b), parameter :: prep_relbp  = 5
-  integer(i4b), parameter :: prep_absbp  = 16
-  integer(i4b), parameter :: samp_bp     = 11
-  integer(i4b), parameter :: samp_sl     = 6
-  integer(i4b), parameter :: samp_N_par  = 7
-  integer(i4b), parameter :: sel_data    = 8
-  integer(i4b), parameter :: bin_map     = 9
-  integer(i4b), parameter :: calc_chisq  = 10
-  integer(i4b), parameter :: output_slist = 12
-  integer(i4b), parameter :: samp_mono   = 13
-  integer(i4b), parameter :: sub_sl      = 14
-  integer(i4b), parameter :: sub_zodi    = 17
-  logical(lgt), dimension(N_test) :: do_oper
+  !integer(i4b), parameter :: N_test      = 19
+  !integer(i4b), parameter :: samp_N      = 1
+  !integer(i4b), parameter :: prep_G      = 15
+  !integer(i4b), parameter :: samp_G      = 2
+  !integer(i4b), parameter :: prep_acal   = 3
+  !integer(i4b), parameter :: samp_acal   = 4
+  !integer(i4b), parameter :: prep_rcal   = 18
+  !integer(i4b), parameter :: samp_rcal   = 19
+  !integer(i4b), parameter :: prep_relbp  = 5
+  !integer(i4b), parameter :: prep_absbp  = 16
+  !integer(i4b), parameter :: samp_bp     = 11
+  !integer(i4b), parameter :: samp_sl     = 6
+  !integer(i4b), parameter :: samp_N_par  = 7
+  !integer(i4b), parameter :: sel_data    = 8
+  !integer(i4b), parameter :: bin_map     = 9
+  !integer(i4b), parameter :: calc_chisq  = 10
+  !integer(i4b), parameter :: output_slist = 12
+  !integer(i4b), parameter :: samp_mono   = 13
+  !integer(i4b), parameter :: sub_sl      = 14
+  !integer(i4b), parameter :: sub_zodi    = 17
+  !logical(lgt), dimension(N_test) :: do_oper
 
 
-  type, extends(comm_tod) :: comm_LFI_tod
-    class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
-   contains
-     !procedure     :: process_tod        => process_LFI_tod
-     !----------------------------------------------------------------------------------
-     ! Simulation Routine
-     procedure     :: simulate_LFI_tod
-     procedure     :: copy_LFI_tod
-     procedure     :: para_range
-     !----------------------------------------------------------------------------------
-  end type comm_LFI_tod
+  !type, extends(comm_tod) :: comm_LFI_tod
+  !  class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
+  ! contains
+  !   !procedure     :: process_tod        => process_LFI_tod
+  !   !----------------------------------------------------------------------------------
+  !   ! Simulation Routine
+  !   procedure     :: simulate_LFI_tod
+  !   procedure     :: copy_LFI_tod
+  !   procedure     :: split_workload 
+  !   !----------------------------------------------------------------------------------
+  !end type comm_LFI_tod
 
   !interface comm_LFI_tod
   !   procedure constructor
@@ -139,9 +139,16 @@ contains
    !> @param[out]
    !
    ! ************************************************
-   subroutine copy_LFI_tod(self)
+   subroutine copy_LFI_tod(cpar, ierr)
      implicit none
-     class(comm_LFI_tod), intent(inout) :: self
+     ! Parameter file variables
+     type(comm_params), intent(in) :: cpar
+     integer(i4b)                  :: id_abs   !< absolute ID of the channel which includes inactive bands
+     character(len=512)            :: filelist !< file, which contains correspondance between PIDs and ODs
+     character(len=512)            :: datadir  !< data directory, which contains all h5 files 
+     character(len=512)            :: simsdir  !< directory where to output simulations 
+
+     !class(comm_LFI_tod), intent(inout) :: self
      ! Simulation routine variables
      !type(progressbar) :: pbar !< class instantiation variable
      integer(i4b) :: unit    !< the current file list value
@@ -149,30 +156,48 @@ contains
      integer(i4b) :: n_elem  !< number of unique elements
      integer(i4b) :: val     !< dummy value
      integer(i4b) :: iostatus !< to indicate error status when opening a file
+     !character(len=50) :: message  !< message to pass to progress bar
+     !real(sp)          :: progress !< percentage counter
+     integer(i4b) :: i, band     !< loop variables
+     ! MPI variables
+     integer(i4b), intent(in) :: ierr        !< MPI error status
+     integer(i4b) :: nprocs !< number of cores
+     integer(i4b) :: start_chunk !< Starting iteration value for processor of rank n
+     integer(i4b) :: end_chunk   !< End iteration value for processor of rank n
      character(len=256), allocatable, dimension(:) :: input_array  !< array of input h5 file names
      character(len=256), allocatable, dimension(:) :: dummy_array
      character(len=256), allocatable, dimension(:) :: output_array !< array of output h5 file names
-     character(len=50) :: message  !< message to pass to progress bar
-     real(sp)          :: progress !< percentage counter
-     integer(i4b) :: i           !< loop variable
-     integer(i4b) :: start_chunk !< Starting iteration value for processor of rank n
-     integer(i4b) :: end_chunk   !< End iteration value for processor of rank n
-     integer(i4b) :: ierr        !< MPI error status
 
-     ! dump one simulation to disc and that is it
-     n_lines = 0
-     n_elem  = 0
-     val     = 0
+     nprocs = cpar%numprocs
+     id_abs = cpar%numband
+     ! looping through all the bands
+     do band = 1, id_abs
+       ! if the band is not included then skip it
+       if (.not. cpar%ds_active(band)) cycle
+       simsdir = trim(cpar%sims_output_dir)//'/'
+       datadir = trim(cpar%datadir)//'/'
+       filelist = trim(datadir)//trim(cpar%ds_tod_filelist(band))
+       write(*,*) trim(filelist)
+       write(*,*) cpar%comm_shared
+       write(*,*) trim(simsdir)
+       ! dump one simulation to disc and that is it
+       n_lines = 0
+       n_elem  = 0
+       val     = 0
+       ! processing files only with Master process
+     end do
+     call MPI_Finalize(ierr)
+     stop
      ! both myid and myid_shared give the same results <= the same id of processors
      !write(*,*) "self%myid", self%myid
      !write(*,*) "self%myid_shared", self%myid_shared
-     ! irocessing files only with Master process
+     ! processing files only with Master process
      !if (self%myid_shared == 0) then
-     if (self%myid == 0) then
+     if (cpar%myid == 0) then
        write(*,*) "   Starting copying files..."
        unit = getlun()
        ! open corresponding filelist, e.g. filelist_30_v15.txt
-       open(unit, file=trim(self%filelist), action="read")
+       open(unit, file=trim(filelist), action="read")
        !write(*,*) trim(self%filelist)
        ! we loop through the file until it reaches its end
        ! (iostatus will give positive number) to get the
@@ -191,7 +216,7 @@ contains
        !write(*,*) "Starting something else"
        ! once again open the same file to start reading
        ! it from the top to bottom
-       open(unit, file=trim(self%filelist), action="read")
+       open(unit, file=trim(filelist), action="read")
        ! we need to ignore the first line, otherwise it will appear inside an input array
        do i = 0, n_lines-2
          !progress = (i+1) * 100.0/(n_lines-1)
@@ -227,19 +252,21 @@ contains
        deallocate(dummy_array)
      end if
      ! passing in the array length to all processors
-     call MPI_BCAST(n_elem, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+     call MPI_BCAST(n_elem, 1, MPI_INTEGER, 0, cpar%comm_shared, ierr)
      ! allocating an array which contains a list of OD names
-     if (self%myid /= 0) allocate(output_array(n_elem))
+     if (cpar%myid /= 0) allocate(output_array(n_elem))
      ! mpi passes not a string but each character value,
      ! which means we ned to multiply the legth of each
      ! path to a file on the value of string length
-     call MPI_BCAST(output_array, n_elem * 256, MPI_CHARACTER, 0, self%comm, ierr)
+     !call MPI_BCAST(output_array, n_elem * 256, MPI_CHARACTER, 0, self%comm, ierr)
+     call MPI_BCAST(output_array, n_elem * 256, MPI_CHARACTER, 0, cpar%comm_shared, ierr)
      !write(*,*) "n_elem", n_elem
      !write(*,*) "output_array", output_array(1490)
      ! dividing the task to equal (more or less) chunks to loop on
-     call self%para_range(1, size(output_array), self%numprocs, self%myid, start_chunk, end_chunk)
+     call split_workload(1, size(output_array), nprocs, cpar%myid, start_chunk, end_chunk)
      ! synchronising processors
-     call MPI_BARRIER(self%comm, ierr)
+     !call MPI_BARRIER(self%comm, ierr)
+     call MPI_BARRIER(MPI_COMM_WORLD, ierr)
      ! copying all the files with multiprocessing support
      ! each processor has its own chunk of data to work on
      do i = start_chunk, end_chunk
@@ -248,13 +275,14 @@ contains
          !progress = i * 100.0 / (end_chunk - start_chunk + 1)
          !call pbar%run_progressbar(progress, message, 2)
        !end if
-       call system("cp "//trim(output_array(i))//" "//trim(self%sims_output_dir)//"/")
+       call system("cp "//trim(output_array(i))//" "//trim(cpar%sims_output_dir)//"/")
      end do
      deallocate(output_array)
      ! waiting for all processors to finish their job
-     call MPI_BARRIER(self%comm, ierr)
+     !call MPI_BARRIER(self%comm, ierr)
+     call MPI_BARRIER(MPI_COMM_WORLD, ierr)
      !if (self%myid == 0) write(*,*) "Finished copying files!"
-     if (self%myid == 0) write(*,*) "--------------------------------------------------------------"
+     if (cpar%myid == 0) write(*,*) "--------------------------------------------------------------"
      !if (self%myid == 0) write(*,*) "self%filelist", self%filelist
      !write(*,*) "the nscans are: ", self%nscan
      !do i = 1, self%nscan
@@ -279,44 +307,44 @@ contains
    !> @param[out]
    !
    ! ************************************************
-   subroutine simulate_LFI_tod(self, scan_id, handle, s_tot, sims_output_dir)
-     implicit none
-     class(comm_LFI_tod),                   intent(inout) :: self !< class instantiation variable
-     type(planck_rng),                      intent(inout) :: handle
-     real(sp), allocatable, dimension(:,:), intent(in)    :: s_tot   !< total sky signal
-     integer(i4b),                          intent(in)    :: scan_id !< current PID
-     character(len=*),                      intent(in)    :: sims_output_dir !< output dir for simulated tods
-
-     ! FFTW variables
-     integer*8    :: plan_forward  !< FFT plan for forward transformation
-     integer*8    :: plan_backward !< FFT plan for backward transformation
-     integer(i4b) :: nfft 
-     real(sp),     allocatable, dimension(:) :: dt
-     complex(spc), allocatable, dimension(:) :: dv
-
-     real(sp), allocatable, dimension(:,:) :: tod_per_detector !< simulated tods per detector
-     real(sp)           :: gain     !< detector's gain value
-     real(sp)           :: sigma0
-     real(sp)           :: progress !< percentage counter
-     character(len=50)  :: message  !< message to pass to progress bar
-     integer(i4b)       :: ntod !< total amount of ODs
-     integer(i4b)       :: ndet !< total amount of detectors
-     integer(i4b)       :: j, k, myindex !< loop variables
-     integer(i4b)       :: start_chunk !< Starting iteration value for processor of rank n
-     integer(i4b)       :: end_chunk   !< End iteration value for processor of rank n
-     integer(i4b)       :: mpi_err !< MPI error status
-     integer(i4b)       :: omp_err !< OMP error status
-
-     ! Doing small string manipulation - retreaving the name of thecurrent file
-     character(len=512) :: mystring, mysubstring, cwd, currentHDFFile
-     character(len=6)   :: pidLabel
-     character(len=3)   :: detectorLabel
-     type(hdf_file)     :: file !< hdf5 file to work with
-     integer(i4b)       :: hdf5_error
-     integer(HID_T)     :: file_id       ! File identifier
-     integer(HID_T)     :: dset_id       ! Dataset identifier
-     integer(HSIZE_T), dimension(1) :: dims
-
+!   subroutine simulate_LFI_tod(self, scan_id, handle, s_tot, sims_output_dir)
+!     implicit none
+!     class(comm_LFI_tod),                   intent(inout) :: self !< class instantiation variable
+!     type(planck_rng),                      intent(inout) :: handle
+!     real(sp), allocatable, dimension(:,:), intent(in)    :: s_tot   !< total sky signal
+!     integer(i4b),                          intent(in)    :: scan_id !< current PID
+!     character(len=*),                      intent(in)    :: sims_output_dir !< output dir for simulated tods
+!
+!     ! FFTW variables
+!     integer*8    :: plan_forward  !< FFT plan for forward transformation
+!     integer*8    :: plan_backward !< FFT plan for backward transformation
+!     integer(i4b) :: nfft 
+!     real(sp),     allocatable, dimension(:) :: dt
+!     complex(spc), allocatable, dimension(:) :: dv
+!
+!     real(sp), allocatable, dimension(:,:) :: tod_per_detector !< simulated tods per detector
+!     real(sp)           :: gain     !< detector's gain value
+!     real(sp)           :: sigma0
+!     real(sp)           :: progress !< percentage counter
+!     character(len=50)  :: message  !< message to pass to progress bar
+!     integer(i4b)       :: ntod !< total amount of ODs
+!     integer(i4b)       :: ndet !< total amount of detectors
+!     integer(i4b)       :: j, k, myindex !< loop variables
+!     integer(i4b)       :: start_chunk !< Starting iteration value for processor of rank n
+!     integer(i4b)       :: end_chunk   !< End iteration value for processor of rank n
+!     integer(i4b)       :: mpi_err !< MPI error status
+!     integer(i4b)       :: omp_err !< OMP error status
+!
+!     ! Doing small string manipulation - retreaving the name of thecurrent file
+!     character(len=512) :: mystring, mysubstring, cwd, currentHDFFile
+!     character(len=6)   :: pidLabel
+!     character(len=3)   :: detectorLabel
+!     type(hdf_file)     :: file !< hdf5 file to work with
+!     integer(i4b)       :: hdf5_error
+!     integer(HID_T)     :: file_id       ! File identifier
+!     integer(HID_T)     :: dset_id       ! Dataset identifier
+!     integer(HSIZE_T), dimension(1) :: dims
+!
 !     ntod = self%scans(scan_id)%ntod
 !     ndet = self%ndet
      ! Planning FFTW
@@ -367,27 +395,27 @@ contains
      ! - Make this work with MPI => figure out how commander handles 2d arrays
      ! - Add correlated noise component with MPI support as well
      ! - Change (if needed) the output routine
-     !call self%para_range(1, size(output_array), self%numprocs, self%myid, start_chunk, end_chunk)
+     !call self%split_workload(1, size(output_array), self%numprocs, self%myid, start_chunk, end_chunk)
      !do i = start_chunk, end_chunk
      !  if (self%myid == 0) then
      !    message  = "Copying files: "
      !    progress = i * 100.0 / (end_chunk - start_chunk + 1)
      !    call pbar%run_progressbar(progress, message, 2)
      ! Dividing workload among processors and simulating tods
-     call self%para_range(1, ntod, self%numprocs, self%myid, start_chunk, end_chunk)
+!     call self%split_workload(1, ntod, self%numprocs, self%myid, start_chunk, end_chunk)
      !do j = 1, ntod
-     do j = start_chunk, end_chunk
+!     do j = start_chunk, end_chunk
        !if (self%myid == 0) then
        !  message = " Simulating TODs per detector: "
        !  progress = j * 100.0 / (end_chunk - start_chunk + 1)
        !end if
-       do k = 1, ndet
+!       do k = 1, ndet
           ! skipping iteration if scan was not accepted
-          if (.not. self%scans(scan_id)%d(k)%accept) cycle
+!          if (.not. self%scans(scan_id)%d(k)%accept) cycle
           ! getting gain for each detector (units, V / K)
           ! (gain is assumed to be CONSTANT for EACH SCAN)
-          gain     = self%scans(scan_id)%d(k)%gain
-          sigma0   = self%scans(scan_id)%d(k)%sigma0
+!          gain     = self%scans(scan_id)%d(k)%gain
+!          sigma0   = self%scans(scan_id)%d(k)%sigma0
           ! Getting sample rate, \nu frequency, and alpha
           ! for each detector for each scan
 !          samprate = self%samprate
@@ -395,10 +423,10 @@ contains
 !          nu_knee  = self%scans(scan_id)%d(k)%fknee
 !          N_wn     = sigma_0 ** 2  ! white noise power spectrum
           
-          tod_per_detector(j,k) = gain * s_tot(j,k) + sigma0 * rand_gauss(handle)
+!          tod_per_detector(j,k) = gain * s_tot(j,k) + sigma0 * rand_gauss(handle)
           !tod_per_detector(j,k) = gain * s_tot(k,j) + n_corr(k,j) + sigma0 * rand_gauss(handle)
-       end do
-     end do
+!       end do
+!     end do
      ! waiting for all processors to finish
      !call MPI_BARRIER(self%comm, ierr)
      !call MPI_BCAST(tod_per_detector, size(tod_per_detector), MPI_REAL, 0, self%comm, ierr)
@@ -412,45 +440,45 @@ contains
      !----------------------------------------------------------------------------------
      ! Saving stuff to hdf file
      ! Getting the full path and name of the current hdf file to overwrite
-     mystring = trim(self%hdfname(scan_id))
-     mysubstring = 'LFI_0'
-     myindex = index(trim(mystring), trim(mysubstring))
-     call getcwd(cwd)
-     currentHDFFile = trim(cwd)//'/'//trim(sims_output_dir)//'/'//trim(mystring(myindex:))
-     write(*,*) "Write PID into "//trim(currentHDFFile)
-     ! Converting PID number into string value
-     call int2string(self%scanid(scan_id), pidLabel)
-
-     dims(1) = ntod
-     ! Initialize FORTRAN interface.
-     call h5open_f(hdf5_error)
-     ! Open an existing file - returns file_id
-     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, file_id, hdf5_error)
-     do j = 1, ndet
-         detectorLabel = self%label(j)
-         ! Create new dataset inside "PID/Detector" Group
-
-         ! Delete group if it already exists
-         !call h5eset_auto_f(0, hdferr)
-         !call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
-         !if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
-         !write(*,*) 'group ', trim(adjustl(itext))
-         !call create_hdf_group(file, trim(adjustl(itext)))
-         !if (.not. cpar%resamp_CMB) call create_hdf_group(file, trim(adjustl(itext))//'/md')
-
-         ! Open an existing dataset.
-         call h5dopen_f(file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
-         ! Write tod data to a dataset
-         call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
-         ! Close the dataset.
-         call h5dclose_f(dset_id, hdf5_error)
-    end do
-    ! Close the file.
-    call h5fclose_f(file_id, hdf5_error)
-    ! Close FORTRAN interface.
-    call h5close_f(hdf5_error)
-
-  end subroutine simulate_LFI_tod
+!     mystring = trim(self%hdfname(scan_id))
+!     mysubstring = 'LFI_0'
+!     myindex = index(trim(mystring), trim(mysubstring))
+!     call getcwd(cwd)
+!     currentHDFFile = trim(cwd)//'/'//trim(sims_output_dir)//'/'//trim(mystring(myindex:))
+!     write(*,*) "Write PID into "//trim(currentHDFFile)
+!     ! Converting PID number into string value
+!     call int2string(self%scanid(scan_id), pidLabel)
+!
+!     dims(1) = ntod
+!     ! Initialize FORTRAN interface.
+!     call h5open_f(hdf5_error)
+!     ! Open an existing file - returns file_id
+!     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, file_id, hdf5_error)
+!     do j = 1, ndet
+!         detectorLabel = self%label(j)
+!         ! Create new dataset inside "PID/Detector" Group
+!
+!         ! Delete group if it already exists
+!         !call h5eset_auto_f(0, hdferr)
+!         !call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
+!         !if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
+!         !write(*,*) 'group ', trim(adjustl(itext))
+!         !call create_hdf_group(file, trim(adjustl(itext)))
+!         !if (.not. cpar%resamp_CMB) call create_hdf_group(file, trim(adjustl(itext))//'/md')
+!
+!         ! Open an existing dataset.
+!         call h5dopen_f(file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
+!         ! Write tod data to a dataset
+!         call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
+!         ! Close the dataset.
+!         call h5dclose_f(dset_id, hdf5_error)
+!    end do
+!    ! Close the file.
+!    call h5fclose_f(file_id, hdf5_error)
+!    ! Close FORTRAN interface.
+!    call h5close_f(hdf5_error)
+!
+!  end subroutine simulate_LFI_tod
 
 
   ! ************************************************
@@ -465,13 +493,13 @@ contains
   !> @param[inout]
   !
   ! ************************************************
-  subroutine para_range(self, n1, n2, nprocs, rank, start_chunk, end_chunk)
+  subroutine split_workload(n1, n2, nprocs, rank, start_chunk, end_chunk)
     implicit none
-    class(comm_LFI_tod), intent(inout) :: self
-    integer, intent(in)    :: n1 !< Lowest val of iteration variable
-    integer, intent(in)    :: n2 !< Highest values of iteration variable
-    integer, intent(inout) :: nprocs !< # cores
-    integer, intent(in)    :: rank   !< processor ID
+!    class(comm_LFI_tod), intent(inout) :: self
+    integer, intent(in)    :: n1          !< Lowest val of iteration variable
+    integer, intent(in)    :: n2          !< Highest values of iteration variable
+    integer, intent(inout) :: nprocs      !< # cores
+    integer, intent(in)    :: rank        !< processor ID
     integer, intent(out)   :: start_chunk !< Starting iteration value for processor of rank n
     integer, intent(out)   :: end_chunk   !< End iteration value for processor of rank n
 
@@ -484,6 +512,6 @@ contains
     end_chunk   = start_chunk + quotient - 1
     if(reminder > rank) end_chunk = end_chunk + 1
 
-  end subroutine para_range
+  end subroutine split_workload 
 
 end module comm_tod_simulations_mod
