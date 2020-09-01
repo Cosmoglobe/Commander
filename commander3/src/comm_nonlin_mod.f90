@@ -1136,56 +1136,49 @@ contains
        theta_min = c_lnL%p_uni(1,id)
        theta_max = c_lnL%p_uni(2,id)
 
-       !needs rewriting to only sample polarizations covered by polt_id
-       if (trim(cpar%operation) == 'optimize') then
-          call c_lnL%sampleSpecInd(cpar, handle, par_id, iter) !use code in diffuse_comp_mod
 
-       else if (trim(cpar%operation) == 'sample') then
-
-          allocate(buffer_lnL(0:c_lnL%theta(id)%p%info%np-1,c_lnL%theta(id)%p%info%nmaps))
-          buffer_lnL=max(min(c_lnL%theta(id)%p%map,theta_max),theta_min) 
-          
-
-          do p = 1,c_lnL%poltype(id)
-             if (c_lnL%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
-             if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
-             if (p > c_lnL%nmaps) cycle ! poltype > number of maps
+       allocate(buffer_lnL(0:c_lnL%theta(id)%p%info%np-1,c_lnL%theta(id)%p%info%nmaps))
+       buffer_lnL=max(min(c_lnL%theta(id)%p%map,theta_max),theta_min) 
+       
+       
+       do p = 1,c_lnL%poltype(id)
+          if (c_lnL%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
+          if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
+          if (p > c_lnL%nmaps) cycle ! poltype > number of maps
 
 
 
-             call wall_time(t1)
-             if (c_lnL%pol_pixreg_type(p,id) > 0) then
-                if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
-                     & 'of ', c_lnL%poltype(id) !Needed?
-                call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
-                call wall_time(t2)
-                if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
-                     & p,'CPU time specind = ', real(t2-t1,sp)
-             else
-                write(*,*) 'Undefined spectral index sample region'
-                write(*,*) 'Component:',trim(c_lnL%label),'ind:',trim(c_lnL%indlabel(id))
-                stop
-             end if
+          call wall_time(t1)
+          if (c_lnL%pol_pixreg_type(p,id) > 0) then
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
+                  & 'of ', c_lnL%poltype(id) !Needed?
+             call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
+             call wall_time(t2)
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
+                  & p,'CPU time specind = ', real(t2-t1,sp)
+          else
+             write(*,*) 'Undefined spectral index sample region'
+             write(*,*) 'Component:',trim(c_lnL%label),'ind:',trim(c_lnL%indlabel(id))
+             stop
+          end if
 
 
 
-          end do
+       end do
 
-          !after sampling is done we assign the spectral index its new value(s)
-          c_lnL%theta(id)%p%map = buffer_lnL
-          
-          if (info%myid == 0 .and. cpar%verbosity > 2) write(*,*) 'Updating Mixing matrix'
-          ! Update mixing matrix
-          call c_lnL%updateMixmat
+       !after sampling is done we assign the spectral index its new value(s)
+       c_lnL%theta(id)%p%map = buffer_lnL
 
-          ! Ask for CG preconditioner update
-          if (c_lnL%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
+       if (info%myid == 0 .and. cpar%verbosity > 2) write(*,*) 'Updating Mixing matrix'
+       ! Update mixing matrix
+       call c_lnL%updateMixmat
 
-          ! deallocate
+       ! Ask for CG preconditioner update
+       if (c_lnL%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
 
-          deallocate(buffer_lnL)
+       ! deallocate
 
-       end if !operation
+       deallocate(buffer_lnL)
 
     end select
 
@@ -2590,16 +2583,21 @@ contains
                 !if delta_lnL is more negative than -25.d0, limit to -25.d0
                 if (abs(delta_lnL) > delta_lnL_threshold) delta_lnL = -delta_lnL_threshold 
 
-                !draw random uniform number
-                a = rand_uni(handle) !draw uniform number from 0 to 1
-                if (exp(delta_lnL) > a) then
-                   !accept
-                   old_theta = new_theta
-                   lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
-                   n_accept = n_accept + 1
-                   accept_arr(arr_ind) = 1 !accept
+
+                if (trim(cpar%operation) == 'sample') then
+                   !draw random uniform number
+                   a = rand_uni(handle) !draw uniform number from 0 to 1
+                   if (exp(delta_lnL) > a) then
+                      !accept
+                      old_theta = new_theta
+                      lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+                      n_accept = n_accept + 1
+                      accept_arr(arr_ind) = 1 !accept
+                   else
+                      accept_arr(arr_ind) = 0 !reject
+                   end if
                 else
-                   accept_arr(arr_ind) = 0 !reject
+                   accept_arr(arr_ind) = 0 !reject if running optimize
                 end if
              else
                 !accept new sample, higher likelihood
