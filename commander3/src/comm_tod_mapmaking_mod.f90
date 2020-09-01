@@ -428,8 +428,8 @@ contains
     real(dp), dimension(:), intent(in)      :: pixB
     real(dp), dimension(:), intent(in)      :: psiA
     real(dp), dimension(:), intent(in)      :: psiB
-    integer(i4b), dimension(:), intent(in)  :: flagA
-    integer(i4b), dimension(:), intent(in)  :: flagB
+    integer(i4b), dimension(:), intent(in)  :: flagsA
+    integer(i4b), dimension(:), intent(in)  :: flagsB
     real(dp), intent(in)                    :: x_im, dx_im, sigma0
     real(dp), dimension(:), intent(in)      :: b
     real(dp), dimension(:), intent(out)     :: x
@@ -441,7 +441,9 @@ contains
     integer(i4b)                            :: i_max, i
 
 
-    allocate(r(n),q(n),d(n))
+    r(:) = 0d0
+    q(:) = 0d0
+    d(:) = 0d0
 
 
     ! Sets all elements of x to zero, the initial guess for Ax = b.
@@ -456,21 +458,18 @@ contains
 
     ! Uses Fortran matrix multiplication method. Will need to manually populate
     ! by looping the time indices in P^T Ninv P.
-    inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0, Ax)
-    r = b - Ax
+    r = b - inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0)
 
 
     d = r
     delta_new = sum(r*r)
     delta_0 = delta_new
     do while(( i .lt. i_max) .and. (delta_new .gt. (epsil**2)*delta_0))
-        q = matmul(A, d)
-        inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, d, x_im, dx_im, sigma0, q)
+        q = inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, d, x_im, dx_im, sigma0)
         alpha = delta_new/sum(d*q)
         x = x + alpha*d
         if (mod(i,50) == 0) then
-            inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0, Ax)
-            r = b - Ax
+            r = b - inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0)
         else
             r = r - alpha*q
         end if
@@ -487,20 +486,20 @@ contains
 
   end subroutine compute_cg_wmap
 
-  subroutine inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0, y)
+  function inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0) result(y)
     ! Implements an inner product when you have a pointing matrix that observes
-    ! pixels pixA and pixB. Returns y = P^T P x
+    ! pixels pixA and pixB. Returns y = P^T Ninv P x
     implicit none
 
     real(dp), dimension(:), intent(in)      :: pixA
     real(dp), dimension(:), intent(in)      :: pixB
     real(dp), dimension(:), intent(in)      :: psiA
     real(dp), dimension(:), intent(in)      :: psiB
-    integer(i4b), dimension(:), intent(in)  :: flagA
-    integer(i4b), dimension(:), intent(in)  :: flagB
+    integer(i4b), dimension(:), intent(in)  :: flagsA
+    integer(i4b), dimension(:), intent(in)  :: flagsB
     real(dp), intent(in)                    :: x_im, dx_im, sigma0
     real(dp), dimension(:), intent(in)      :: x
-    real(dp), dimension(:), intent(out)     :: y
+    real(dp), allocatable, dimension(:)     :: y
 
     ! internal
     integer(i4b)                            :: tmax, npix, t
@@ -529,8 +528,9 @@ contains
         y(pixB(t)+2*npix) = y(pixA(t) +2*npix) + flagsB(t)*(sin(2*psiB(t))*(dx_im*Px_d - (1-x_im)*Px_p))/sigma0**2
         y(pixA(t)+3*npix) = y(pixA(t) +3*npix) + flagsA(t)*(                dx_im*Px_d + (1+x_im)*Px_p )/sigma0**2
         y(pixB(t)+3*npix) = y(pixA(t) +3*npix) + flagsB(t)*(                dx_im*Px_d - (1-x_im)*Px_p )/sigma0**2
+  end do
 
-  end subroutine inner_prod
+  end function inner_prod
 
 
 
