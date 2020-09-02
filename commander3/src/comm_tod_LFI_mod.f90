@@ -50,6 +50,7 @@ module comm_tod_LFI_mod
     class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
    contains
      procedure     :: process_tod        => process_LFI_tod
+     procedure     :: simulate_LFI_tod
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -106,6 +107,12 @@ contains
     constructor%central_freq  = cpar%ds_nu_c(id_abs)
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%halfring_split = cpar%ds_tod_halfring(id_abs)
+
+    !----------------------------------------------------------------------------------
+    ! Simulation Routine
+    constructor%sims_output_dir = cpar%sims_output_dir
+    constructor%enable_tod_simulations = cpar%enable_tod_simulations
+    !----------------------------------------------------------------------------------
 
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 
@@ -641,6 +648,12 @@ contains
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
+          !----------------------------------------------------------------------------------
+          ! Calling Simulation Routine
+          !if (self%enable_tod_simulations) call self%simulate_LFI_tod(i, s_tot, handle)
+          if (.true.) call self%simulate_LFI_tod(i, s_tot, handle)
+          !----------------------------------------------------------------------------------
+
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
              call self%downsample_tod(s_orb(:,1), ext)
@@ -1114,5 +1127,126 @@ contains
     self%first_call = .false.
 
   end subroutine process_LFI_tod
+
+  ! ************************************************
+  !
+  !> @brief Commander3 native simulation module. It
+  !! simulates correlated noise and then rewrites
+  !! the original timestreams inside the files.
+  !
+  !> @author Maksym Brilenkov
+  !
+  !> @param[in]
+  !> @param[out]
+  !
+  ! ************************************************
+  subroutine simulate_LFI_tod(self, scan_id, s_tot, handle)
+    use omp_lib
+    implicit none
+    class(comm_LFI_tod), intent(inout) :: self
+    ! Parameter file variables
+    !type(comm_params),                     intent(in)    :: cpar
+    ! Other input/output variables
+    real(sp), allocatable, dimension(:,:), intent(in)    :: s_tot   !< total sky signal
+    integer(i4b),                          intent(in)    :: scan_id !< current PID
+    type(planck_rng),                      intent(inout) :: handle
+    ! Simulation variables
+    real(sp), allocatable, dimension(:,:) :: tod_per_detector !< simulated tods per detector
+    real(sp)                              :: gain   !< detector's gain value
+    real(sp)                              :: sigma0
+    real(sp) :: nu_knee
+    real(sp) :: alpha
+    real(sp) :: samprate
+    integer(i4b)                          :: ntod !< total amount of ODs
+    integer(i4b)                          :: ndet !< total amount of detectors
+    ! Other vaiables
+    integer(i4b)                          :: i, j, k !< loop variables
+    integer(i4b)       :: mpi_err !< MPI error status
+    integer(i4b)       :: nomp !< Number of threads available
+    integer(i4b)       :: omp_err !< OpenMP error status 
+    integer(i4b) :: omp_get_max_threads
+    integer(i4b) :: n, nfft
+    integer*8    :: plan_back
+    real(sp) :: nu
+    real(sp), allocatable, dimension(:,:) :: n_corr 
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
+
+    ! shortcuts
+    ntod = self%scans(scan_id)%ntod
+    ndet = self%ndet
+
+    ! Simulating 1/f noise
+    nfft = 2 * ntod
+    n = nfft / 2 + 1
+    nomp = omp_get_max_threads()
+    call sfftw_init_threads(omp_err)
+    call sfftw_plan_with_nthreads(nomp)
+    ! planning FFTW - in principle we should do both forward and backward FFTW,
+    ! but in this case we can omit forward one and go directly with backward to
+    ! save some time on a whole operation.
+    allocate(dt(nfft), dv(0:n-1))
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    deallocate(dt, dv)
+
+    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu, nu_knee, alpha)
+    allocate(dt(nfft), dv(0:n-1))!, n_corr(ntod, ndet))
+    !$OMP DO SCHEDULE(guided)
+    do j = 1, ndet
+      ! skipping iteration if scan was not accepted
+      if (.not. self%scans(scan_id)%d(j)%accept) cycle
+      ! getting gain for each detector (units, V / K)
+      ! (gain is assumed to be CONSTANT for EACH SCAN)
+      gain   = self%scans(scan_id)%d(j)%gain
+      sigma0 = self%scans(scan_id)%d(j)%sigma0
+      samprate = self%samprate
+      alpha    = self%scans(scan_id)%d(j)%alpha
+      ! knee frequency
+      nu_knee  = self%scans(scan_id)%d(j)%fknee
+      do k = 0, (n - 1)
+        nu = k * (samprate / 2) / (n - 1)
+        dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * (1 + (nu / nu_knee)**alpha) /sqrt(2.0)
+      end do
+      ! Executing Backward FFT
+      call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      dt = dt / nfft
+      n_corr(:, j) = dt(1:ntod)
+      write(*,*) "n_corr ", n_corr(:, j)
+    end do
+    !$OMP END DO
+    deallocate(dt, dv)
+    !$OMP END PARALLEL
+
+    call sfftw_destroy_plan(plan_back)
+
+    ! Allocating main simulations' array
+    allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
+
+    ! Main simulation loop
+    do i = 1, ntod
+      do j = 1, ndet
+        ! skipping iteration if scan was not accepted
+        if (.not. self%scans(scan_id)%d(j)%accept) cycle
+        ! getting gain for each detector (units, V / K)
+        ! (gain is assumed to be CONSTANT for EACH SCAN)
+        gain   = self%scans(scan_id)%d(j)%gain
+        write(*,*) "gain ", gain
+        sigma0 = self%scans(scan_id)%d(j)%sigma0
+        write(*,*) "sigma0 ", sigma0
+        ! Simulating tods
+        tod_per_detector(i,j) = gain * s_tot(i,j) + sigma0 * rand_gauss(handle)
+      end do
+    end do
+
+    !----------------------------------------------------------------------------------
+    ! Saving stuff to hdf file
+    ! Getting the full path and name of the current hdf file to overwrite
+
+    ! freeing memory up
+    deallocate(tod_per_detector)
+    call MPI_Finalize(mpi_err)
+    stop
+  end subroutine simulate_LFI_tod
+
 
 end module comm_tod_LFI_mod
