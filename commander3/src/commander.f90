@@ -162,6 +162,12 @@ program commander
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.
+  !----------------------------------------------------------------------------------
+  ! Part of Simulation routine
+  !----------------------------------------------------------------------------------
+  ! Will make only one full gibbs loop to produce simulations
+  if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
+  !----------------------------------------------------------------------------------
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
@@ -189,6 +195,15 @@ program commander
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
+     !----------------------------------------------------------------------------------
+     ! Part of Simulation routine
+     !----------------------------------------------------------------------------------
+     ! Will make only one full gibbs loop to produce simulations
+     !if ((iter == 1) .and. cpar%enable_tod_simulations) then
+     !  MPI_Finalize(ierr)
+     !  stop
+     !end if 
+     !----------------------------------------------------------------------------------
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)

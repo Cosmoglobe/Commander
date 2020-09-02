@@ -648,11 +648,6 @@ contains
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
-          !----------------------------------------------------------------------------------
-          ! Calling Simulation Routine
-          !if (self%enable_tod_simulations) call self%simulate_LFI_tod(i, s_tot, handle)
-          if (.true.) call self%simulate_LFI_tod(i, s_tot, handle)
-          !----------------------------------------------------------------------------------
 
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
@@ -885,6 +880,16 @@ contains
              if (.not. self%scans(i)%d(j)%accept) cycle
              dipole_mod(self%scanid(i), j) = masked_variance(s_sky(:, j), mask(:, j))
           end do
+
+          !----------------------------------------------------------------------------------
+          ! Calling Simulation Routine
+          write(*,*) "Debug Message before simulation routine."
+          if (self%enable_tod_simulations) then !.and. (main_iter == 1)) then 
+            call self%simulate_LFI_tod(i, s_tot, handle)
+            !call MPI_Finalize(ierr)
+            !stop
+          end if
+          !----------------------------------------------------------------------------------
 
           ! Clean up
           call wall_time(t1)
@@ -1157,9 +1162,21 @@ contains
     real(sp) :: nu_knee
     real(sp) :: alpha
     real(sp) :: samprate
+    real(sp) :: fft_norm
     integer(i4b)                          :: ntod !< total amount of ODs
     integer(i4b)                          :: ndet !< total amount of detectors
-    ! Other vaiables
+    ! HDF5 variables
+    character(len=512) :: mystring, mysubstring !< dummy values for string manipulation
+    integer(i4b)       :: myindex     !< dummy value for string manipulation
+    character(len=512) :: currentHDFFile !< hdf5 file which stores simulation output 
+    character(len=6)   :: pidLabel
+    character(len=3)   :: detectorLabel
+    type(hdf_file)     :: hdf5_file   !< hdf5 file to work with
+    integer(i4b)       :: hdf5_error  !< hdf5 error status
+    integer(HID_T)     :: hdf5_file_id !< File identifier
+    integer(HID_T)     :: dset_id     !< Dataset identifier
+    integer(HSIZE_T), dimension(1) :: dims
+    ! Other variables
     integer(i4b)                          :: i, j, k !< loop variables
     integer(i4b)       :: mpi_err !< MPI error status
     integer(i4b)       :: nomp !< Number of threads available
@@ -1177,6 +1194,7 @@ contains
     ndet = self%ndet
 
     ! Simulating 1/f noise
+    write(*,*) "Simulating correlated noise"
     nfft = 2 * ntod
     n = nfft / 2 + 1
     nomp = omp_get_max_threads()
@@ -1190,7 +1208,7 @@ contains
     deallocate(dt, dv)
 
     !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu, nu_knee, alpha)
-    allocate(dt(nfft), dv(0:n-1))!, n_corr(ntod, ndet))
+    allocate(dt(nfft), dv(0:n-1), n_corr(ntod, ndet))
     !$OMP DO SCHEDULE(guided)
     do j = 1, ndet
       ! skipping iteration if scan was not accepted
@@ -1203,7 +1221,11 @@ contains
       alpha    = self%scans(scan_id)%d(j)%alpha
       ! knee frequency
       nu_knee  = self%scans(scan_id)%d(j)%fknee
-      do k = 0, (n - 1)
+      ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
+      fft_norm = sqrt(1.d0 * nfft)
+      !
+      dv(0) = dv(0) + fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+      do k = 1, (n - 1)
         nu = k * (samprate / 2) / (n - 1)
         dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * (1 + (nu / nu_knee)**alpha) /sqrt(2.0)
       end do
@@ -1211,7 +1233,7 @@ contains
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
       dt = dt / nfft
       n_corr(:, j) = dt(1:ntod)
-      write(*,*) "n_corr ", n_corr(:, j)
+      !write(*,*) "n_corr ", n_corr(:, j)
     end do
     !$OMP END DO
     deallocate(dt, dv)
@@ -1230,22 +1252,54 @@ contains
         ! getting gain for each detector (units, V / K)
         ! (gain is assumed to be CONSTANT for EACH SCAN)
         gain   = self%scans(scan_id)%d(j)%gain
-        write(*,*) "gain ", gain
+        !write(*,*) "gain ", gain
         sigma0 = self%scans(scan_id)%d(j)%sigma0
-        write(*,*) "sigma0 ", sigma0
+        !write(*,*) "sigma0 ", sigma0
         ! Simulating tods
-        tod_per_detector(i,j) = gain * s_tot(i,j) + sigma0 * rand_gauss(handle)
+        tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) !+ sigma0 * rand_gauss(handle)
       end do
     end do
 
     !----------------------------------------------------------------------------------
     ! Saving stuff to hdf file
     ! Getting the full path and name of the current hdf file to overwrite
+    mystring = trim(self%hdfname(scan_id))
+    mysubstring = 'LFI_0'
+    myindex = index(trim(mystring), trim(mysubstring))
+    currentHDFFile = trim(self%sims_output_dir)//'/'//trim(mystring(myindex:))
+    !write(*,*) "hdf5name "//trim(self%hdfname(scan_id))
+    !write(*,*) "currentHDFFile "//trim(currentHDFFile)
+    ! Converting PID number into string value
+    call int2string(self%scanid(scan_id), pidLabel)
+    write(*,*) "Writing PID, "//trim(pidLabel)//", into "//trim(currentHDFFile)
+    ! For debugging
+    !call MPI_Finalize(mpi_err)
+    !stop
+
+    dims(1) = ntod
+    ! Initialize FORTRAN interface.
+    call h5open_f(hdf5_error)
+    ! Open an existing file - returns hdf5_file_id
+    call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, hdf5_file_id, hdf5_error)
+    do j = 1, ndet
+      detectorLabel = self%label(j)
+      ! Open an existing dataset.
+      call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
+      ! Write tod data to a dataset
+      call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
+      ! Close the dataset.
+      call h5dclose_f(dset_id, hdf5_error)
+    end do
+    ! Close the file.
+    call h5fclose_f(hdf5_file_id, hdf5_error)
+    ! Close FORTRAN interface.
+    call h5close_f(hdf5_error)
 
     ! freeing memory up
-    deallocate(tod_per_detector)
-    call MPI_Finalize(mpi_err)
-    stop
+    deallocate(n_corr, tod_per_detector)
+    ! For debugging
+    !call MPI_Finalize(mpi_err)
+    !stop
   end subroutine simulate_LFI_tod
 
 
