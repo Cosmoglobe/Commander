@@ -1,7 +1,7 @@
 #==============================================================================
 # Module to find HEALPix on the system
-# It looks for DOUBLE, FLOAT and LONG components, such as:
-# serial, openmp, threads and mpi
+# It looks for HEALPix components, such as:
+# sharp, f90, cxx, c 
 # Author: Maksym Brilenkov
 #
 # This file is part of Commander. For  details, see <LINK>.  The
@@ -12,26 +12,22 @@
 #   find_package(HEALPIX [version number] [REQUIRED] [QUIET] [COMPONENTS] [list of all components])
 #
 # Supported components are:
-# - Float:       FLOAT, FLOAT_THREADS, FLOAT_OPENMP, FLOAT_MPI
-# - Double:      DOUBLE, DOUBLE_THREADS, DOUBLE_OPENMP, DOUBLE_MPI
-# - Long Double: LONG, LONG_THREADS, LONG_OPENMP, LONG_MPI
+# SHARP, Fortran, CXX, C
 #
 # The following variables are defined:
-#   FFTW_FOUND                  set to TRUE if FFTW is found on the system;
-#   FFTW_[COMPONENT]_FOUND      set to TRUE if component is found on the system;
-#   FFTW_LIBRARIES              complete list (with all found components) of FFTW libs' directory paths;
-#   FFTW_[COMPONENT]_LIB        full path to one of the components;
-#   FFTW_INCLUDE_DIRS           FFTW include directory paths; 
-#   FFTW_MPI_INCLUDE_DIRS       FFTW MPI include directory paths; 
+#   HEALPIX_FOUND               set to TRUE if HEALPix is found on the system;
+#   HEALPIX_[COMPONENT]_FOUND   set to TRUE if component is found on the system;
+#   HEALPIX_LIBRARIES           complete list (with all found components) of HEALPIX libs' directory paths;
+#   HEALPIX_[COMPONENT]_LIB     full path to one of the components;
+#   HEALPIX_INCLUDE_DIRS        HEALPIX include directory paths; 
 #==============================================================================
 # Reference to CMake docs:
 # https://cmake.org/cmake/help/v3.17/module/FindPackageHandleStandardArgs.html
 include(FindPackageHandleStandardArgs)
 include(SelectLibraryConfigurations)
-# setting the list of valid components
 #==============================================================================
 # First check whether the HEALPIX environment variable was set by the user:
-# To run commander (and probably other healpix dependent codes), you need to
+# To run Commander3 (and probably other healpix dependent codes), you need to
 # export HEALPIX environment variable, which will point to the root folder of
 # HEALPIX with all source and compiled codes. Thus, we first looking if such
 # variable is defined.
@@ -39,10 +35,9 @@ if(NOT HEALPIX_ROOT)
 	set(HEALPIX_ROOT "$ENV{HEALPIX}")
 endif()
 # TODO: 
-# - Figure out how make it work;
 # - Wrap it around if(Linux) statement as PkgConfig is Linux thing
 # HEALPIX comes with PkgConfig file, so, in principle, we can also check
-# for existing  package on the system installed with PkgConfig. 
+# for existing package on the system installed with PkgConfig. 
 find_package(PkgConfig QUIET)
 # pkg_search_module, which checks for the package and uses the first available.
 # pkg_check_modules, which check for all the corresponding packages.
@@ -50,259 +45,238 @@ find_package(PkgConfig QUIET)
 if(PKG_CONFIG_FOUND)
 	pkg_check_modules(PKG_HEALPIX QUIET 
 		# Fortran
+		healpix
 		libhealpix0
 		libhealpix-dev
+		# C
+		chealpix
 		# C++
+		healpix_cxx
 		libhealpix_cxx2 
 		libhealpix_cxx-devel
 		libhealpix-cxx-dev
 		libhealpix-cxx2
 		# Java
-		libhealpix-java 
+		#libhealpix-java 
 		)
 endif()
 # Most probably Healpix won't be found with the way above (or it may be, 
 # but you will need more libraries etc), so we switch to manual search.
 #==============================================================================
-# HEALPix comes with the "Version" file, where it places its version. We just
-# need to retrieve it via regular expressions:
-
-# Checking if version was specified correctly:
-if(HEALPIX_VERSION MATCHES "^([0-9]+)\\.([0-9]+)$")
-	message(STATUS "HEALPix version is: ${HEALPIX_VERSION}")
-endif()
-#==============================================================================
-# TODO: Add support for different systems, as they have different paths
-# Define variables for paths where to find "include" and "lib" folders
-list(APPEND HEALPIX_INCLUDE_DIRS_HINTS 
-	"/usr" 
-	"/usr/healpix" 
-	"/usr/local" 
-	"~/local/include"
-	"${FFTW_ROOT}/include"
-	"${CMAKE_INSTALL_PREFIX}/include"
-	#"${CMAKE_INSTALL_OUTPUT_DIRECTORY}/include"
+# Setting up the list of valid components
+list(APPEND _HEALPIX_VALID_COMPONENTS_
+	SHARP
+	Fortran	
+	C
+	CXX
 	)
-# FFTW MPI has a separate header, so we need to look for that one as well
-# Usually, it should be located in the same folder as "fftw3.h", but who knows
-#list(APPEND FFTW_MPI_INCLUDE_DIRS_HINTS
-#	"/usr/include" 
-#	"/usr/local/include" 
-#	"~/local/include"
-#	"${FFTW_ROOT}/include"
-#	"${CMAKE_INSTALL_PREFIX}/include"
-#	#"${CMAKE_INSTALL_OUTPUT_DIRECTORY}/include"
-#	)
-# Specifying the location for FFTW libraries
-# Usually libraries compiled as double with other custom specifications
-# like --enable-threads etc. But user can recompile it like long or float
-# with the same specification. In addition, these can be placed in 3 
-# separate locations (although this is highly unlikely, but ...). Thus,
-# we need 3 separate paths.
-# TODO: Figure out whether we really need 3 separate paths, as right now
-# you simply use the same paths 3 times.
-# DOUBLE
-#list(APPEND FFTW_DOUBLE_LIBS_PATHS
-#	"/usr/lib"
-#	#"/usr/lib64"
-#	"/usr/local"
-#	#"/usr/local/lib64"
-#	"~/local"
-#	#"~/local/lib64"	
-#	"${FFTW_ROOT}"
-#	#"${FFTW_ROOT}/.libs"
-#	"${CMAKE_INSTALL_PREFIX}"
-#	#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-#	"${PKG_FFTW_LIBRARY_DIRS}"
-#	)
-# FLOAT
-#list(APPEND FFTW_FLOAT_LIBS_PATHS
-#	"/usr"
-#	#"/usr/lib64"
-#	"/usr/local"
-#	#"/usr/local/lib64"
-#	"~/local"
-#	#"~/local/lib64"	
-#	"${FFTW_ROOT}"
-#	#"${FFTW_ROOT}/.libs"
-#	"${CMAKE_INSTALL_PREFIX}"
-#	#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-#	"${PKG_FFTW_LIBRARY_DIRS}"
-#	)
-# LONG
-list(APPEND FFTW_LONG_LIBS_PATHS
+# Setting the list of library names to look for
+list(APPEND _HEALPIX_LIB_NAMES_
+	sharp
+	healpix
+	chealpix
+	healpix_cxx
+	)
+# Healpix is a collection of different codes
+# and not simply one mixture of c, c++, fortran etc. Not all of them (e.g.
+# Fortran) have header files => look for other files as well..
+list(APPEND _HEALPIX_SHARP_HEADERS_
+	sharp.h	
+	)
+list(APPEND _HEALPIX_Fortran_HEADERS_
+	healpix_modules.mod 
+	healpix_types.mod 
+	healpix_fft.mod
+	healpix_sharp_f90.mod	
+	)
+list(APPEND _HEALPIX_C_HEADERS_
+	chealpix.h	
+	)	
+list(APPEND _HEALPIX_CXX_HEADERS_
+	healpix_tables.h
+	healpix_base.h
+	healpix_data_io.h
+	healpix_map.h
+	healpix_map_fitsio.h
+	)
+# HEALPix source contains the data folder as well, which is used
+# by various projects and contains pixel window functions etc.
+# So, we look for it as well.
+list(APPEND _HEALPIX_DATA_FILES_
+	pixel_window_n0002.fits
+	pixel_window_n0004.fits
+	pixel_window_n0008.fits
+	pixel_window_n0016.fits
+	pixel_window_n0032.fits
+	pixel_window_n0064.fits
+	pixel_window_n0128.fits
+	pixel_window_n0256.fits
+	pixel_window_n0512.fits
+	pixel_window_n1024.fits
+	pixel_window_n2048.fits
+	pixel_window_n4096.fits
+	pixel_window_n8192.fits
+	weight_pixel_n00016.fits
+	weight_pixel_n00032.fits
+	weight_pixel_n00064.fits
+	weight_pixel_n00128.fits
+	weight_pixel_n00256.fits
+	weight_pixel_n00512.fits
+	weight_pixel_n01024.fits
+	weight_pixel_n02048.fits
+	weight_ring_n00002.fits
+	weight_ring_n00004.fits
+	weight_ring_n00008.fits
+	weight_ring_n00016.fits
+	weight_ring_n00032.fits
+	weight_ring_n00064.fits
+	weight_ring_n00128.fits
+	weight_ring_n00256.fits
+	weight_ring_n00512.fits
+	weight_ring_n01024.fits
+	weight_ring_n02048.fits
+	weight_ring_n04096.fits
+	weight_ring_n08192.fits
+	)
+# To get HEALPix version
+list(APPEND _HEALPIX_VERSION_FILE_
+	Version
+	)
+# Paths were to search for HEALPix components
+# TODO: Figure out why this doesn't work, whereas simple listys works
+# It finds it only with root and install prefix variables....
+list(APPEND _HEALPIX_LIB_PATHS_
 	"/usr"
-	#"/usr/lib64"
 	"/usr/local"
-	#"/usr/local/lib64"
 	"~/local"
-	#"~/local/lib64"	
-	"${FFTW_ROOT}"
-	#"${FFTW_ROOT}/.libs"
-	"${CMAKE_INSTALL_PREFIX}"
-	#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
-	"${PKG_FFTW_LIBRARY_DIRS}"
+	"~/.local"
+	"${HEALPIX_ROOT}"
+	${HEALPIX_INSTALL_PREFIX}
 	)
-#==============================================================================
-# Search for fftw3.h, fftw3-mpi.h files on the system. If header files were 
-# successfully found, FFTW_INCLUDE_DIRS and FFTW_MPI_INCLUDE_DIRS are set to
-# appropriate locations. 
-if(NOT FFTW_ROOT)
-	find_path(FFTW_INCLUDE_DIRS 
-		NAMES fftw3.h fftw3-mpi.h
-		PATHS ${FFTW_ROOT}
-		#PATH_SUFFIXES include
-		HINTS ${FFTW_INCLUDE_DIRS_HINTS} 
-		)
-	find_path(FFTW_MPI_INCLUDE_DIRS
-		NAMES fftw3-mpi.h
-		PATHS ${FFTW_ROOT}
-		HINTS ${FFTW_MPI_INCLUDE_DIRS_HINTS}
-		)
-else()
-	set(FFTW_INCLUDE_DIRS			"${FFTW_ROOT}")
-	set(FFTW_MPI_INCLUDE_DIRS "${FFTW_ROOT}")
-endif()
-
-# TODO: try to figure out why it doesn't work, i.e. how to find version 3.3.8 
-# Version information should be provided inside Header files, but it is not for FFTW
-# nothing we can do about it :( 
-
+#message(${HEALPIX_ROOT})
 #==============================================================================
 # Creating two lists - variables and corresponding libraries
-# Setting up the list of valid components
-list(APPEND _FFTW_VALID_COMPONENTS_
-	# Double
-	DOUBLE
-	DOUBLE_THREADS
-	DOUBLE_OPENMP
-	DOUBLE_MPI
-	# Float
-	FLOAT
-	FLOAT_THREADS
-	FLOAT_OPENMP
-	FLOAT_MPI
-	# Long Double
-	LONG
-	LONG_THREADS
-	LONG_OPENMP
-	LONG_MPI
-	)
-list(APPEND _FFTW_LIB_NAMES_
-	# Double
-	""
-	"_threads"	
-	"_omp"
-	"_mpi"
-	# Float
-	"f"
-	"f_threads"	
-	"f_omp"
-	"f_mpi"
-	# Long Double
-	"l"
-	"l_threads"	
-	"l_omp"
-	"l_mpi"
-	)
-list(APPEND _FFTW_LIB_PATHS_
-	# Double
-	_DOUBLE_LIBS_
-	_DOUBLE_LIBS_
-	_DOUBLE_LIBS_
-	_DOUBLE_LIBS_
-	# Float
-	_FLOAT_LIBS_
-	_FLOAT_LIBS_
-	_FLOAT_LIBS_
-	_FLOAT_LIBS_
-	# long Double
-	_LONG_LIBS_
-	_LONG_LIBS_
-	_LONG_LIBS_
-	_LONG_LIBS_
-	)
 # Searching for libraries - looping through the lists above in parallel 
-foreach(_component_ _name_ _path_ IN ZIP_LISTS _FFTW_VALID_COMPONENTS_ _FFTW_LIB_NAMES_ _FFTW_LIB_PATHS_)
-	#message(STATUS "component=FFTW_${_component_}_LIB, name=fftw3${_name_}, path=FFTW${_path_}PATHS")
-	#message(STATUS "${FFTW${_path_}PATHS}")
-	#message(STATUS "${PKG_FFTW_LIBRARY_DIRS}")
-	find_library(FFTW_${_component_}_LIB
-		NAMES "fftw3${_name_}"
-		PATHS "${FFTW${_path_}PATHS}" 
-		#HINTS ${FFTW${_path_}PATHS} 
-		PATH_SUFFIXES lib lib64 libs .lib .libs .lib64 
-		#HINTS ${FFTW_DOUBLE_LIBS_HINTS} 
+foreach(component lib_name IN ZIP_LISTS _HEALPIX_VALID_COMPONENTS_ _HEALPIX_LIB_NAMES_)
+	#message(STATUS "component=HEALPIX_${component}_LIB, name=${lib_name}, path=${_HEALPIX_LIBS_PATHS_}")
+	# Include Dirs
+	find_path(HEALPIX_${component}_INCLUDE_DIR
+		NAMES "${_HEALPIX_${component}_HEADERS_}" 
+		PATHS ${HEALPIX_ROOT} ${HEALPIX_INSTALL_PREFIX} #"${_HEALPIX_LIB_PATHS_}"
+		PATH_SUFFIXES include include/healpix_cxx include/libsharp
 		)
+	# Libraries
+	# In version 3.70 (and probably earlier), libs for sharp, f90, c, cxx
+	# are stored in "lib" folder
+	find_library(HEALPIX_${component}_LIB
+		NAMES ${lib_name}
+		PATHS ${HEALPIX_ROOT} ${HEALPIX_INSTALL_PREFIX} #"${_HEALPIX_LIB_PATHS_}" 
+		PATH_SUFFIXES lib lib64 libs .lib .libs .lib64 
+		)
+	#message("${HEALPIX_ROOT}")
+	#message("${_HEALPIX_PATHS_}")
+	#message("${_HEALPIX_${component}_HEADERS_}")
 endforeach()
+# Looking for data files as well
+find_path(HEALPIX_DATA_DIR
+	NAMES "${_HEALPIX_DATA_FILES_}"
+	PATHS ${HEALPIX_ROOT} ${HEALPIX_INSTALL_PREFIX} #"${_HEALPIX_LIB_PATHS_}" 
+	PATH_SUFFIXES data
+	)
 #==============================================================================
 # We have a bunch of components which we need to loop through
 # Defining boolean variables based on components found
-# i.e. FFTW_[COMPONENT]_FOUND
-#==============================================================================
-# Setting FFTW_[COMPONENT]_FOUND to FALSE by default
+# i.e. HEALPIX_[COMPONENT]_FOUND
+#
+# Setting HEALPIX_[COMPONENT]_FOUND to FALSE by default
 # only after user specifies the component he/she wants to use
 # these variables will be set to TRUE.
-foreach(component IN LISTS _FFTW_VALID_COMPONENTS_)
-	set(FFTW_${component}_FOUND FALSE)
-	#message(STATUS "FFTW_${component}_FOUND is ${FFTW_${component}_FOUND}")
+foreach(component IN LISTS _HEALPIX_VALID_COMPONENTS_)
+	set(HEALPIX_${component}_FOUND FALSE)
+	#message(STATUS "HEALPIX_${component}_FOUND is ${HEALPIX_${component}_FOUND}")
 endforeach()
 
-# We need to loop thrpugh each component user specified inside find_package().
-# If no component was specified, we set default value to DOUBLE.
+# We need to loop through each component user specified inside find_package().
+# If no component was specified, we set default value to Sharp+Fortran.
 # If wrong component was specified (e.g. typo) then will give an error.
-if(NOT FFTW_FIND_COMPONENTS)
-	if(FFTW_DOUBLE_LIB)
-		set(FFTW_DOUBLE_FOUND TRUE)
-		set(FFTW_LIBRARIES ${FFTW_LIBRARIES} ${FFTW_DOUBLE_LIB})
+if(NOT HEALPIX_FIND_COMPONENTS)
+	#message("Debug message")
+	if(HEALPIX_Fortran_LIB AND HEALPIX_SHARP_FOUND)
+		set(HEALPIX_Fortran_FOUND TRUE)
+		set(HEALPIX_LIBRARIES ${HEALPIX_LIBRARIES} ${HEALPIX_SHARP_LIB} ${HEALPIX_Fortran_LIB})
 	endif()
 else()
-	foreach(component IN LISTS FFTW_FIND_COMPONENTS)
+	#message(${HEALPIX_FIND_COMPONENTS})
+	foreach(component IN LISTS HEALPIX_FIND_COMPONENTS)
 		# Returns the index of the element specified in the list or -1 if it wasn’t found.
-		list(FIND _FFTW_VALID_COMPONENTS_ ${component} component_index)
+		list(FIND _HEALPIX_VALID_COMPONENTS_ ${component} component_index)
 		if(NOT component_index EQUAL -1)
+			#message("Debug message, for component ${component}")
+			#message("${HEALPIX_${component}_LIB}")
 			# checking whether the library was found
-			if(FFTW_${component}_LIB)
-				set(FFTW_${component}_FOUND TRUE)
-				list(APPEND FFTW_LIBRARIES "${FFTW_${component}_LIB}")
+			if(HEALPIX_${component}_LIB)
+				#message("My component found")
+				set(HEALPIX_${component}_FOUND TRUE)
+				list(APPEND HEALPIX_LIBRARIES "${HEALPIX_${component}_LIB}")
+			endif()
+			# checking whether the headers were found
+			if(HEALPIX_${component}_INCLUDE_DIR)
+				list(APPEND HEALPIX_INCLUDE_DIRS "${HEALPIX_${component}_INCLUDE_DIR}")
 			endif()
 		else()
-			message(FATAL_ERROR "${component} is not a valid FFTW component! Valid are: ${FFTW_VALID_COMPONENTS}")
+			message(FATAL_ERROR "${component} is not a valid HEALPIX component! Valid are: ${_HEALPIX_VALID_COMPONENTS_}")
 		endif()
 	endforeach()
 endif()
+#==============================================================================
+# HEALPix comes with the "Version" file, where it places its version. This file 
+# is located inside root folder. So, we just need to retrieve it via regular 
+# expressions:
+if(HEALPIX_FOUND)
+	if(NOT HEALPIX_ROOT)
+		find_path(_HEALPIX_ROOT_
+			NAMES Version
+			PATHS ${_HEALPIX_PATHS_}
+			)
+	else()
+		set(_HEALPIX_ROOT_ ${HEALPIX_ROOT})
+	endif()
 
+	file(STRINGS "${_HEALPIX_ROOT_}/Version" _VERSION_CONTENT_) 
+	foreach(version IN LISTS _VERSION_CONTENT_)
+		set(HEALPIX_VERSION ${version})
+	endforeach()
+	message("${HEALPIX_VERSION}")
+
+	# Checking if version was specified correctly:
+	if(HEALPIX_VERSION MATCHES "^([0-9]+)\\.([0-9]+)$")
+		message(STATUS "HEALPix version is: ${HEALPIX_VERSION}")
+	endif()
+endif()
+
+	#message(${HEALPIX_Fortran_FOUND})
+#==============================================================================
 find_package_handle_standard_args(HEALPIX
 	FOUND_VAR			HEALPIX_FOUND 
-	REQUIRED_VARS HEALPIX_LIBRARIES #FFTW_INCLUDE_DIRS
+	REQUIRED_VARS HEALPIX_LIBRARIES 
+								HEALPIX_INCLUDE_DIRS
+								HEALPIX_DATA_DIR
 	VERSION_VAR		HEALPIX_VERSION 
 	HANDLE_COMPONENTS
 	)
 
 
-# Note: component names comes from variables HEALPIX_DOUBLE_THREADS_FOUND, e.g.:
+# Note: component names comes from variables HEALPIX_Fortran_FOUND, e.g.:
 # HEALPIX_[COMPONENT]_FOUND
 # This option will just hide those variables 
-#mark_as_advanced(
-#	# general things
-#	FFTW_LIBRARIES
-#	FFTW_INCLUDE_DIRS
-#	FFTW_MPI_INCLUDE_DIRS
-#	# Components
-#	# DOUBLE
-#	FFTW_DOUBLE_LIB
-#	FFTW_DOUBLE_THREADS_LIB
-#	FFTW_DOUBLE_OPENMP_LIB
-#	FFTW_DOUBLE_MPI_LIB
-#	# FLOAT
-#	FFTW_FLOAT_LIB
-#	FFTW_FLOAT_THREADS_LIB
-#	FFTW_FLOAT_OPENMP_LIB
-#	FFTW_FLOAT_MPI_LIB
-#	# LONG
-#	FFTW_LONG_LIB
-#	FFTW_LONG_THREADS_LIB
-#	FFTW_LONG_OPENMP_LIB
-#	FFTW_LONG_MPI_LIB
-#	)
+mark_as_advanced(
+	# general things
+	HEALPIX_LIBRARIES
+	HEALPIX_INCLUDE_DIRS
+	# Components
+	HEALPIX_SHARP_LIB
+	HEALPIX_Fortran_LIB
+	HEALPIX_C_LIB
+	HEALPIX_CXX_LIB
+	)
 

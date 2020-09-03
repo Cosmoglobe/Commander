@@ -883,7 +883,7 @@ contains
 
           !----------------------------------------------------------------------------------
           ! Calling Simulation Routine
-          write(*,*) "Debug Message before simulation routine."
+          !write(*,*) "Debug Message before simulation routine."
           if (self%enable_tod_simulations) then !.and. (main_iter == 1)) then 
             call self%simulate_LFI_tod(i, s_tot, handle)
             !call MPI_Finalize(ierr)
@@ -1194,7 +1194,7 @@ contains
     ndet = self%ndet
 
     ! Simulating 1/f noise
-    write(*,*) "Simulating correlated noise"
+    !write(*,*) "Simulating correlated noise"
     nfft = 2 * ntod
     n = nfft / 2 + 1
     nomp = omp_get_max_threads()

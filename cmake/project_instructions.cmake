@@ -373,16 +373,19 @@ set(CMAKE_DOWNLOAD_DIRECTORY "${CMAKE_SOURCE_DIR}/build/downloads"
 #	"Directory where to install commander dependencies"
 #	)
 # where to output libraries
-#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/lib")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
 	CACHE STRING
 	"Directory where to install all the libraries."
 	)
 # where to output executable(s)
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/bin")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/bin"
 	CACHE STRING
 	"Directory where to install all the executables."
+	)
+# HEALPix install (root) dir - by default we will install it in "healpix" dir
+set(HEALPIX_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/healpix"
+	CACHE STRING
+	"Directory where to install (copy compiled and data files of) HEALPix."
 	)
 set(DOXYGEN_BUILD_DOCS OFF 
 	CACHE BOOL
@@ -555,13 +558,18 @@ set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
 # this command is for healpix 3.50 and below
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
-set(healpix_components
+#set(healpix_components
 	#profile
 	#sharp
-	f90
+	#profile
+	#healpy
+	#profile
+	#f90
+	#profile
 	#c
+	#profile
 	#cxx
-	)
+	#	)
 set(healpix_configure_command 
 	"${CMAKE_COMMAND}" "-E" "env" 
 	"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
@@ -572,12 +580,12 @@ set(healpix_configure_command
 	"CC=${COMMANDER3_C_COMPILER}" 
 	"SHARP_COPT=${HEALPIX_SHARP2_C_FLAGS}"
 	"./configure" 
-	"--auto=${healpix_components}" #profile,f90,c,cxx;" 
+	"--auto=f90" #${healpix_components}" #profile,f90,c,cxx;" 
 	)
 #set(healpix_configure_command 
 #	"${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER} CXX=${COMMANDER3_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${COMMANDER3_C_COMPILER} FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY} FITSINC=${CMAKE_INSTALL_PREFIX}/include SHARP_COPT=${HEALPIX_SHARP2_C_FLAGS} ./configure --auto=all" 
 #	)
-#message(STATUS "HEalpix configure command is: ${healpix_configure_command}")
+#message(STATUS "Healpix configure command is: ${healpix_configure_command}")
 #------------------------------------------------------------------------------
 # Doxygen
 # there is some weird errors appearing for doxygen v1.8.17 and above, so will stick with this one
