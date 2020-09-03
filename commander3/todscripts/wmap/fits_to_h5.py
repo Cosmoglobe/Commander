@@ -18,10 +18,12 @@ from scipy.interpolate import interp1d
 from joblib import Parallel, delayed
 import os
 
+from tqdm import tqdm
+
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
-version = 11
+version = 13
 
 from time import sleep
 from time import time as timer
@@ -264,7 +266,7 @@ def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
         if pos_out.shape[1] == 2:
             return pos_out
         elif pos_out.shape[1] == 3:
-            return hp.vec2dir(pos_out.T, lonlat=True).T
+            return hp.vec2dir(pos_out.T, lonlat=lonlat).T
     else:
         return pos_out
 
@@ -664,6 +666,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     if np.any(~np.isfinite(quat)):
         print(f'{file_input} has non-finite quaternions...')
         print(quat[~np.isfinite(quat)])
+        print(genflags)
         return
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
 
@@ -713,13 +716,13 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 96
+        nprocs = 100
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
         x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot]) for i, f in zip(inds, files)]
-        for i, res in enumerate(x):
-            res.get()
+        for i in tqdm(range(len(x))):
+            x[i].get()
             #res.wait()
         pool.close()
         pool.join()

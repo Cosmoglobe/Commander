@@ -123,7 +123,7 @@ contains
   !**************************************************
   subroutine process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
     implicit none
-    class(comm_WMAP_tod),                      intent(inout) :: self
+    class(comm_WMAP_tod),                     intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -335,13 +335,20 @@ contains
          end do
      end if
 
-      ! Compute binned map
+     ! Compute binned map
+     ! By the end of this loop, you won't have access to the raw TOD loop
+     ! have a pixA array, pixB, psiA, psiB, flags_A, flags_B
+     ! Also, compute P^T Ninv d (over raw tod)
+     ! Potentially decompress these arrays during the CG solving?
      allocate(d_calib(nout,ntod, ndet))
      do j = 1, ndet
        if (.not. self%scans(i)%d(j)%accept) cycle
          inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
          d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
              & inv_gain - s_tot(:,j) + s_sky(:,j)
+        ! why is s_tot subtracted and s_sky added? aren't they the same thing?
+        ! Also, is this the stage where it would make sense to create a d stream
+        ! and a p stream?
         if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) ! Residual
         if (nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
      !   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
@@ -379,6 +386,7 @@ contains
    ! Solve combined map, summed over all pixels
    !TODO: this probably also needs changing, also why is this so long and not a
    !functions
+   ! This is where we would think CG solver would go
    call wall_time(t1)
    call update_status(status, "shared1")
    if (sA_map%init) then
