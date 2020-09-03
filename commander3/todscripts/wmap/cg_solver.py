@@ -1,3 +1,13 @@
+import os
+
+import os
+os.environ["OMP_NUM_THREADS"] = "64" # export OMP_NUM_THREADS=4
+os.environ["OPENBLAS_NUM_THREADS"] = "64" # export OPENBLAS_NUM_THREADS=4 
+os.environ["MKL_NUM_THREADS"] = "64" # export MKL_NUM_THREADS=6
+os.environ["VECLIB_MAXIMUM_THREADS"] = "64" # export VECLIB_MAXIMUM_THREADS=4
+os.environ["NUMEXPR_NUM_THREADS"] = "64" # export NUMEXPR_NUM_THREADS=6
+os.environ["MKL_INTERFACE_LAYER"]="ILP64"
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -23,9 +33,11 @@ cmap ='RdBu_r'
 import warnings
 warnings.filterwarnings("ignore")
 
+from sparse_dot_mkl import dot_product_mkl, gram_matrix_mkl
 
 
-version = 11
+# Fixed the coordinate transformation
+version = 13
 
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
@@ -42,8 +54,9 @@ def cg_solve(A, b, M_diag, imax=1000, eps=1e-6):
     d = np.zeros_like(b)
     d[p] = (r/M_diag)[p]
     delta_new = r.dot(d)
+    delta_old = np.copy(delta_new)
     delta_0 = r.dot(d)
-    while ((i < imax) & (delta_new > eps**2*delta_0)):
+    while ((i < imax) & (delta_new > eps**2*delta_0) & (delta_new <= delta_old)):
         q = A.dot(d)
         alpha = delta_new/d.dot(q)
         x = x + alpha*d
@@ -73,14 +86,14 @@ def cg_test():
 def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
     # From Planck 2019 I
-    dipoles = {'cobe':[3.358,  264.31,  48.05],
-               'wmap':[3.355,  263.99,  48.26],
-               'pl15':[3.3645, 264.00,  48.24],
-               'lf18':[3.3644, 263.998, 48.265],
-               'hf18':[3.3621, 264.021, 48.253],
-               'pl18':[3.3621, 264.021, 48.253]}
-    amp, lon, lat = dipoles['cobe']
-    dipole = make_dipole(amp, lon, lat, nside)
+    #dipoles = {'cobe':[3.358,  264.31,  48.05],
+    #           'wmap':[3.355,  263.99,  48.26],
+    #           'pl15':[3.3645, 264.00,  48.24],
+    #           'lf18':[3.3644, 263.998, 48.265],
+    #           'hf18':[3.3621, 264.021, 48.253],
+    #           'pl18':[3.3621, 264.021, 48.253]}
+    #amp, lon, lat = dipoles['cobe']
+    #dipole = make_dipole(amp, lon, lat, nside)
 
 
     ntodsigma = 100
@@ -92,6 +105,8 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
         b_q = np.zeros(npix)
         M_u = np.zeros(npix)
         b_u = np.zeros(npix)
+        M_s = np.zeros(npix)
+        b_s = np.zeros(npix)
     labels = [f'{band}13', f'{band}14',f'{band}23',f'{band}24']
     f= h5py.File(fname, 'r')
     obsid = str(list(f.keys())[0])
@@ -164,10 +179,8 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
 
     # subtract dipole solution from d
-    d = d - ((1*xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
+    #d = d - ((1*xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
     
-    d = d*inds
-    p = p*inds
 
     # most aggressive mask
     if mask:
@@ -177,8 +190,12 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     else:
         pm = np.ones(npix)
 
-    p_hi = (pm[pixA]==0) | (pm[pixB]==0)
-    p_lo = (pm[pixA]==1) & (pm[pixB]==1)
+    pA = pm[pixA]
+    pB = pm[pixB]
+    f_A = (1 - pA*(1-pB))*inds
+    f_B = (1 - pB*(1-pA))*inds
+    p_hi = (pA==0) | (pB==0)
+    p_lo = (pA==1) & (pB==1)
     sigma_hi = n[p_hi].std()
     sigma_lo = n[p_lo].std()
 
@@ -192,87 +209,139 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
         in the high emission region is iteratively updated.
         # pm == 0 means it is in a high emission region
         '''
-        if ((pm[pixA[t]] == 0) and (pm[pixB[t]] == 0)):
-            b[pixA[t]] = b[pixA[t]] + (1+xbar)*d[t]/sigma_hi**2
-            b[pixB[t]] = b[pixB[t]] - (1-xbar)*d[t]/sigma_hi**2
+        if ((pm[pixA[t]] == 0) or (pm[pixB[t]] == 0)):
+            b[pixA[t]] = b[pixA[t]] + f_A[t]*(1+xbar)*d[t]/sigma_hi**2
+            b[pixB[t]] = b[pixB[t]] - f_B[t]*(1-xbar)*d[t]/sigma_hi**2
 
-            M[pixA[t]] += (1+xbar)**2/sigma_hi**2
-            M[pixB[t]] += (1-xbar)**2/sigma_hi**2
+            M[pixA[t]] += f_A[t]*(1+xbar)**2/sigma_hi**2
+            M[pixB[t]] += f_B[t]*(1-xbar)**2/sigma_hi**2
             sigmas.append(sigma_hi)
+            if pol:
+                b[pixA[t]] += f_A[t]*dxbar*p[t]/sigma_hi**2
+                b[pixB[t]] += f_B[t]*dxbar*p[t]/sigma_hi**2
+                b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma_hi**2
+                b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma_hi**2
+                b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma_hi**2
+                b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma_hi**2
+                b_s[pixA[t]] += f_A[t]*(dxbar*d[t] + (1+xbar)*p[t])/sigma_hi**2
+                b_s[pixB[t]] += f_B[t]*(dxbar*d[t] - (1-xbar)*p[t])/sigma_hi**2
+
+
+                M_q[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.cos(2*psiA[t]))**2/sigma_hi**2
+                M_q[pixB[t]] += f_B[t]*(((1-xbar) - dxbar)*np.cos(2*psiB[t]))**2/sigma_hi**2
+                M_u[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.sin(2*psiA[t]))**2/sigma_hi**2
+                M_u[pixB[t]] += f_B[t]*(((1-xbar) +-dxbar)*np.sin(2*psiB[t]))**2/sigma_hi**2
+                M_s[pixA[t]] += f_A[t]*(dxbar + (1+xbar))**2/sigma_hi**2
+                M_s[pixB[t]] += f_B[t]*(dxbar - (1-xbar))**2/sigma_hi**2
         if ((pm[pixA[t]] == 1) and (pm[pixB[t]] == 1)):
-            b[pixA[t]] = b[pixA[t]] + (1+xbar)*d[t]/sigma_lo**2
-            b[pixB[t]] = b[pixB[t]] - (1-xbar)*d[t]/sigma_lo**2
+            b[pixA[t]] = b[pixA[t]] + f_A[t]*(1+xbar)*d[t]/sigma_lo**2
+            b[pixB[t]] = b[pixB[t]] - f_B[t]*(1-xbar)*d[t]/sigma_lo**2
 
-            M[pixA[t]] += (1+xbar)**2/sigma_lo**2
-            M[pixB[t]] += (1-xbar)**2/sigma_lo**2
+            M[pixA[t]] += f_A[t]*(1+xbar)**2/sigma_lo**2
+            M[pixB[t]] += f_B[t]*(1-xbar)**2/sigma_lo**2
             sigmas.append(sigma_lo)
-        if ((pm[pixA[t]] == 0) and (pm[pixB[t]] == 1)):
-            b[pixA[t]] = b[pixA[t]] + (1+xbar)*d[t]/sigma_hi**2
-
-            M[pixA[t]] += (1+xbar)**2/sigma_hi**2
-            sigmas.append(sigma_hi)
-        if ((pm[pixA[t]] == 1) and (pm[pixB[t]] == 0)):
-            b[pixB[t]] = b[pixB[t]] - (1-xbar)*d[t]/sigma_hi**2
-
-            M[pixB[t]] += (1-xbar)**2/sigma_hi**2
-            sigmas.append(sigma_hi)
-        if pol:
-            b[pixA[t]] += dxbar*p[t]/sigma_lo**2
-            b[pixB[t]] += dxbar*p[t]/sigma_lo**2
-
-            b_q[pixA[t]] += ((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma_lo**2
-            b_q[pixB[t]] -= ((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma_lo**2
-
-            b_u[pixA[t]] += ((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma_lo**2
-            b_u[pixB[t]] -= ((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma_lo**2
+            if pol:
+                b[pixA[t]] += f_A[t]*dxbar*p[t]/sigma_lo**2
+                b[pixB[t]] += f_B[t]*dxbar*p[t]/sigma_lo**2
+                b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma_lo**2
+                b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma_lo**2
+                b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma_lo**2
+                b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma_lo**2
+                b_s[pixA[t]] += f_A[t]*(dxbar*d[t] + (1+xbar)*p[t])/sigma_lo**2
+                b_s[pixB[t]] += f_B[t]*(dxbar*d[t] - (1-xbar)*p[t])/sigma_lo**2
 
 
-            M_q[pixA[t]] += (((1+xbar) + dxbar)*np.cos(2*psiA[t]))**2/sigma_lo**2
-            M_q[pixB[t]] += (((1-xbar) - dxbar)*np.cos(2*psiB[t]))**2/sigma_lo**2
-            M_u[pixA[t]] += (((1+xbar) + dxbar)*np.sin(2*psiA[t]))**2/sigma_lo**2
-            M_u[pixB[t]] += (((1-xbar) +-dxbar)*np.sin(2*psiB[t]))**2/sigma_lo**2
-
-    if pol:
-        b_p = np.concatenate((b_q, b_u))
-        M_p = np.concatenate((M_q, M_u))
+                M_q[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.cos(2*psiA[t]))**2/sigma_lo**2
+                M_q[pixB[t]] += f_B[t]*(((1-xbar) - dxbar)*np.cos(2*psiB[t]))**2/sigma_lo**2
+                M_u[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.sin(2*psiA[t]))**2/sigma_lo**2
+                M_u[pixB[t]] += f_B[t]*(((1-xbar) +-dxbar)*np.sin(2*psiB[t]))**2/sigma_lo**2
+                M_s[pixA[t]] += f_A[t]*(dxbar + (1+xbar))**2/sigma_lo**2
+                M_s[pixB[t]] += f_B[t]*(dxbar - (1-xbar))**2/sigma_lo**2
 
 
     if pol:
-        return M, b, M_p, b_p, pixA, pixB, psiA, psiB, sigmas, inds
+        b_p = np.concatenate((b_q, b_u, b_s))
+        M_p = np.concatenate((M_q, M_u, M_s))
+
+
+    if pol:
+        return M, b, M_p, b_p, pixA, pixB, psiA, psiB, sigmas, f_A, f_B
     else:
-        return M, b, pixA, pixB, sigmas, inds
+        return M, b, pixA, pixB, sigmas, f_A, f_B
 
 def inner_productdq(t):
-    global d, sigma0, pixA, pixB
-    dq = (d[pixA[t]] - d[pixB[t]])
+    global d, sigma0s, pixA, pixB
+    dq = (d[pixA[t]] - d[pixB[t]])/sigma0s[t]*2
     return pixA[t], pixB[t], dq
 
 def inner_productxr(t):
-    global x, sigma0, pixA, pixB
-    dr = (x[pixA[t]] - x[pixB[t]])
+    global x, sigma0s, pixA, pixB
+    dr = (x[pixA[t]] - x[pixB[t]])/sigma0s[t]**2
     return pixA[t], pixB[t], dr
 
 def inner_product(pixA, pixB, dA, dB, sigma0, sign=1):
     dq = (dA - dB)*sign
     return pixA, pixB, dq
 
+def innerproduct_pol(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, x, nside=256):
+    # Evalaluate y = (P^t Ninv P) x
+    T,Q,U,S = np.split(x, 4)
+    T_,Q_,U_,S_ = np.split(x*0, 4)
+    for t in tqdm(range(len(pixA))):
+        Px_d = (1+xbar)*T[pixA[t]] - (1-xbar)*T[pixB[t]] +\
+                dxbar*(Q[pixA[t]]*np.cos(2*psiA[t]) + Q[pixB[t]]*np.cos(2*psiB[t])) +\
+                dxbar*(U[pixA[t]]*np.sin(2*psiA[t]) + U[pixB[t]]*np.sin(2*psiB[t])) +\
+                dxbar*(S[pixA[t]] + S[pixB[t]])
+        Px_p = dxbar*(T[pixA[t]] + T[pixB[t]]) +\
+                (1+xbar)*Q[pixA[t]]*np.cos(2*psiA[t]) - (1-xbar)*Q[pixB[t]]*np.cos(psiB[t]) +\
+                (1+xbar)*U[pixA[t]]*np.sin(2*psiA[t]) - (1-xbar)*U[pixB[t]]*np.sin(psiB[t]) +\
+                (1+xbar)*S[pixA[t]] - (1-xbar)*S[pixB[t]]
+        T_[pixA[t]] += f_A[t]*( (1+xbar)*Px_d + dxbar*Px_p)
+        T_[pixB[t]] += f_B[t]*(-(1-xbar)*Px_d + dxbar*Px_p)
+        Q_[pixA[t]] += f_A[t]*(np.cos(2*psiA[t])*(dxbar*Px_d + (1+xbar)*Px_p))
+        Q_[pixB[t]] += f_B[t]*(np.cos(2*psiB[t])*(dxbar*Px_d - (1-xbar)*Px_p))
+        U_[pixA[t]] += f_A[t]*(np.sin(2*psiA[t])*(dxbar*Px_d + (1+xbar)*Px_p))
+        U_[pixB[t]] += f_B[t]*(np.sin(2*psiB[t])*(dxbar*Px_d - (1-xbar)*Px_p))
+        S_[pixA[t]] += f_A[t]*(dxbar*Px_d + (1+xbar)*Px_p )
+        S_[pixB[t]] += f_B[t]*(dxbar*Px_d - (1-xbar)*Px_p )
+
+    return np.concatenate((T_,Q_,U_,S_))
+
+def innerproduct_pol_t(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, x, nside=256):
+    # Evalaluate y = (P^t Ninv P) x
+    T,Q,U,S = np.split(x, 4)
+    T_,Q_,U_,S_ = np.split(x*0, 4)
+    Px_d = (1+xbar)*T[pixA] - (1-xbar)*T[pixB] +\
+            dxbar*(Q[pixB]*np.cos(2*psiA) + Q[pixB]*np.cos(2*psiB)) +\
+            dxbar*(U[pixB]*np.sin(2*psiA) + U[pixB]*np.sin(2*psiB)) +\
+            dxbar*(S[pixB] + S[pixB])
+    Px_p = dxbar*(T[pixB] + T[pixB]) +\
+            (1+xbar)*Q[pixB]*np.cos(2*psiA) - (1-xbar)*Q[pixB]*np.cos(psiB) +\
+            (1+xbar)*U[pixB]*np.sin(2*psiA) - (1-xbar)*U[pixB]*np.sin(psiB) +\
+            (1+xbar)*S[pixB] - (1-xbar)*S[pixB]
+    T_[pixB] += f_A*( (1+xbar)*Px_d + dxbar*Px_p)
+    T_[pixB] += f_B*(-(1-xbar)*Px_d + dxbar*Px_p)
+    Q_[pixB] += f_A*(np.cos(2*psiA)*(dxbar*Px_d + (1+xbar)*Px_p))
+    Q_[pixB] += f_B*(np.cos(2*psiB)*(dxbar*Px_d - (1-xbar)*Px_p))
+    U_[pixB] += f_A*(np.sin(2*psiA)*(dxbar*Px_d + (1+xbar)*Px_p))
+    U_[pixB] += f_B*(np.sin(2*psiB)*(dxbar*Px_d - (1-xbar)*Px_p))
+    S_[pixB] += f_A*(dxbar*Px_d + (1+xbar)*Px_p )
+    S_[pixB] += f_B*(dxbar*Px_d - (1-xbar)*Px_p )
+
+    return np.concatenate((T_,Q_,U_,S_))
+
 
 def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
-        sparse_only=False, pol=False, imbalance=True, mask=True):
-    '''
-    Perhaps a processing mask is necessary here. They have a "symmetric
-    processing mask" that is discussed in 3.4.8 of Jarosik et al. 2007.
+        sparse_only=False, pol=False, imbalance=True, mask=True,
+        imax = 3000,
+        eps = 1e-16,
+        ):
 
-    There is also a spurious signal that essentially adds a scalar map that's
-    independent of the polarization angle to intensity. This shouldn't be an
-    issue for the intensity solution.
-    '''
+    imax = min(imax, nfiles)
 
     # There are gain imbalance parameters that need to be included in the
     # mapmaking. I don't think this fits in with the hdf5 files, so I'll include
     # them here. This is from Bennett et al. (2013) Table 1.
-    # Actually, they say that these parameters are time dependent, so maybe this
-    # can't be done using the available data.
 
     allbands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
@@ -296,20 +365,18 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
 
 
-    global x, d, sigma0, pixA, pixB
+    global x, d, sigma0s, pixA, pixB
     npix = hp.nside2npix(nside)
     b = np.zeros(npix)
     b_full = np.zeros(npix)
     M_diag = np.zeros(npix)
     M_diag_full = np.zeros(npix)
     if pol:
-        b_p = np.zeros(2*npix)
-        M_diag_p = np.zeros(2*npix)
-        M_diag_p_full = np.zeros(2*npix)
+        b_p = np.zeros(3*npix)
+        M_diag_p = np.zeros(3*npix)
 
     fnames = glob(f'/mn/stornext/d16/cmbco/bp/wmap/data/wmap_{band}_*v{version}.h5')
     fnames.sort()
-    print(len(fnames))
     if ~np.isfinite(nfiles):
         fnames = fnames
     elif nfiles == 1:
@@ -318,14 +385,13 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         np.random.seed(137)
         fnames = np.random.choice(fnames, nfiles, replace=False)
     elif nfiles < len(fnames):
-        fnames = fnames[:nfiles]
-        #np.random.seed(137)
-        #fnames = np.random.choice(fnames, nfiles, replace=False)
+        np.random.seed(137)
+        fnames = np.random.choice(fnames, nfiles, replace=False)
     else:
         fnames = fnames
 
-    pool = Pool(processes=120)
-    pool = Pool(processes=32)
+    pool = Pool(processes=min(nfiles, 120))
+    print('Preparing pool')
     funcs = [pool.apply_async(get_data, (fname, band, xbar, dxbar),
         dict(pol=pol, mask=mask)) for fname in fnames]
     pixA = []
@@ -333,127 +399,80 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     psiA = []
     psiB = []
     sigma0s = []
-    flags = []
-    for res in funcs:
-        result = res.get()
+    f_A = []
+    f_B = []
+    print('Getting data')
+    for i in tqdm(range(len(funcs))):
+        result = funcs[i].get()
         if result is not None:
             if pol:
                 M_i, b_i, Mp_i, bp_i, pixA_i, pixB_i, psiA_i, psiB_i, sigma_i,\
-                        flags_i = result
+                        flagsA_i, flagsB_i = result
             else:
-                M_i, b_i, pixA_i, pixB_i, sigma_i, flags_i = result
+                M_i, b_i, pixA_i, pixB_i, sigma_i, flagsA_i, flagsB_i = result
             M_diag += M_i
             b += b_i
             pixA += pixA_i.tolist()
             pixB += pixB_i.tolist()
-            flags += flags_i.tolist()
+            f_A += flagsA_i.tolist()
+            f_B += flagsB_i.tolist()
             if pol:
                 M_diag_p += Mp_i
                 b_p += bp_i
                 psiA += psiA_i.tolist()
                 psiB += psiB_i.tolist()
             sigma0s += sigma_i
-    #sigma0 = np.mean(sigma0s)
+    print('Finished pool')
     sigma0s = np.array(sigma0s)
     # For some reason when loading the entire dataset, the integers became
     # floats somewhere around here. Try and figure out where this might be
     # happening.
-    pixA = np.array(pixA)
-    pixB = np.array(pixB)
-    pixA = pixA.astype('int')
-    pixB = pixB.astype('int')
-    print('Loaded data')
-    flag = np.array(flags)
-    print(pixA)
+    pixA = np.array(pixA).astype('int')
+    pixB = np.array(pixB).astype('int')
     if pol:
         psiA = np.array(psiA)
         psiB = np.array(psiB)
+    f_A = np.array(f_A)
+    f_B = np.array(f_B)
 
-    '''
-    type_check_A = [type(p) != int for p in pixA]
-    type_check_B = [type(p) != int for p in pixB]
-    print(pixA[type_check_A])
-    print(pixB[type_check_B])
-    '''
-
-
-    '''
-        if ((pm[pixA[t]] == 0) and (pm[pixB[t]] == 0)):
-            b[pixA[t]] = b[pixA[t]] + (1+xbar)*d[t]/sigma0**2
-            b[pixB[t]] = b[pixB[t]] - (1-xbar)*d[t]/sigma0**2
-
-            M[pixA[t]] += (1+xbar)**2/sigma0**2
-            M[pixB[t]] += (1-xbar)**2/sigma0**2
-        if ((pm[pixA[t]] == 0) and (pm[pixB[t]] == 1)):
-            b[pixA[t]] = b[pixA[t]] + (1+xbar)*d[t]/sigma0**2
-
-            M[pixA[t]] += (1+xbar)**2/sigma0**2
-        if ((pm[pixA[t]] == 1) and (pm[pixB[t]] == 0)):
-            b[pixB[t]] = b[pixB[t]] - (1-xbar)*d[t]/sigma0**2
-
-            M[pixB[t]] += (1-xbar)**2/sigma0**2
-        if ((pm[pixA[t]] == 1) and (pm[pixB[t]] == 1)):
-            b[pixA[t]] = b[pixA[t]] + (1+xbar)*d[t]/sigma0**2
-            b[pixB[t]] = b[pixB[t]] - (1-xbar)*d[t]/sigma0**2
-
-            M[pixA[t]] += (1+xbar)**2/sigma0**2
-            M[pixB[t]] += (1-xbar)**2/sigma0**2
-    '''
-    if mask:
-        pm = hp.read_map('analysis_masks/wmap_processing_mask_K_yr2_r9_9yr_v5.fits',
-                verbose=False, dtype=None)
-        pm = hp.ud_grade(pm, nside)
-    else:
-        pm = np.ones(npix)
-    pA = pm[pixA]
-    pB = pm[pixB]
-
-    # pm == 1 means it's a low emission region.
-    # (pA,pB) = (1,1) or (0,0), update both
-    # (pA,pB) = (0,1), update only pA
-    # (pA,pB) = (1,0), update only pB
-    f_A = 1 - pA*(1-pB)
-    f_B = 1 - pB*(1-pA)
-
+    print('Loaded data')
 
     if sparse_test or sparse_only:
         if pol:
-            #times = np.arange(6*len(pixA))
-            times = np.arange(3*len(pixA))
-            ivars = sigma0s**-2
+            print('Constructing pointing matrix')
+            A_p = sparse.csr_matrix((
+             np.concatenate((
+                f_A*(1+xbar)/sigma0s**2,
+                f_A*dxbar*np.cos(2*psiA)/sigma0s**2,
+                f_A*dxbar*np.sin(2*psiA)/sigma0s**2,
+                f_A*dxbar/sigma0s**2,
+                f_A*dxbar/sigma0s**2,
+                f_A*(1+xbar)*np.cos(2*psiA)/sigma0s**2,
+                f_A*(1+xbar)*np.sin(2*psiA)/sigma0s**2,
+                f_A*(1+xbar)/sigma0s**2)),
+                (np.arange(8*len(pixA)), 
+                 np.concatenate((pixA, pixA+npix, pixA+2*npix, pixA+3*npix,
+                                 pixA, pixA+npix, pixA+2*npix, pixA+3*npix)))))\
+             + sparse.csr_matrix((
+                np.concatenate((
+                f_B*(-1+xbar)/sigma0s**2,
+                f_B*dxbar*np.cos(2*psiB)/sigma0s**2,
+                f_B*dxbar*np.sin(2*psiB)/sigma0s**2,
+                f_B*dxbar/sigma0s**2,
+                f_B*dxbar/sigma0s**2,
+                f_B*(-1+xbar)*np.cos(2*psiB)/sigma0s**2,
+                f_B*(-1+xbar)*np.sin(2*psiB)/sigma0s**2,
+                f_B*(-1+xbar)/sigma0s**2)),
+                (np.arange(8*len(pixB)), 
+                 np.concatenate((pixB, pixB+npix, pixB+2*npix, pixB+3*npix,
+                                 pixB, pixB+npix, pixB+2*npix, pixB+3*npix)))))
 
-            #Ninv = sparse.csr_matrix((np.concatenate((ivars, ivars, ivars,
-            #    ivars, ivars, ivars)),  (times, times)))
-            Ninv = sparse.csr_matrix((np.concatenate((ivars, ivars, ivars)),  (times, times)))
-
-            #P_Ad = np.concatenate(((1+xbar)*np.ones_like(psiA),  dxbar*np.cos(2*psiA),  dxbar*np.sin(2*psiA)))
-            #P_Ap = np.concatenate(( dxbar*np.ones_like(psiA), (1+xbar)*np.cos(2*psiA),  (1+xbar)*np.sin(2*psiA)))
-            #P_Bd = np.concatenate(((1-xbar)*np.ones_like(psiA), -dxbar*np.cos(2*psiB), -dxbar*np.sin(2*psiB)))
-            #P_Bp = np.concatenate((-dxbar*np.ones_like(psiA), (1-xbar)*np.cos(2*psiB), -(1-xbar)*np.sin(2*psiB)))
-            #P_A = np.concatenate((P_Ad, P_Ap))
-            #P_B = np.concatenate((P_Bd, P_Bp))
-            #P_A = np.concatenate(((1+xbar)*np.ones_like(psiA),  dxbar*np.cos(2*psiA),  dxbar*np.sin(2*psiA))) +\
-            #    + np.concatenate(( dxbar*np.ones_like(psiA), (1+xbar)*np.cos(2*psiA),  (1+xbar)*np.sin(2*psiA)))
-            #P_B = np.concatenate(((1-xbar)*np.ones_like(psiA), -dxbar*np.cos(2*psiB), -dxbar*np.sin(2*psiB))) +\
-            #    + np.concatenate((-dxbar*np.ones_like(psiA), (1-xbar)*np.cos(2*psiB), -(1-xbar)*np.sin(2*psiB)))
-            P_A = (1+xbar+dxbar)*np.concatenate((np.ones_like(psiA), np.cos(2*psiA), np.sin(2*psiA)))
-            P_B = (1-xbar-dxbar)*np.concatenate((np.ones_like(psiA), np.cos(2*psiB), np.sin(2*psiB)))
-
-            #pixs_A = np.concatenate((pixA, pixA+npix, pixA+2*npix, pixA, pixA+npix, pixA+2*npix))
-            #pixs_B = np.concatenate((pixB, pixB+npix, pixB+2*npix, pixB, pixB+npix, pixB+2*npix))
-            pixs_A = np.concatenate((pixA, pixA+npix, pixA+2*npix))
-            pixs_B = np.concatenate((pixB, pixB+npix, pixB+2*npix))
-
-
-            
-            print('Creating the pointing matrices')
-            P_A = sparse.csr_matrix((P_A, (times, pixs_A)))
-            P_B = sparse.csr_matrix((P_B, (times, pixs_B)))
-            
+            del pixA, pixB, psiA, psiB, f_A, f_B, sigma0s
+           
 
 
-            P = P_A - P_B
-            A_p = P.T.dot(Ninv.dot(P))
+            print('Constructing A')
+            A_p = dot_product_mkl(A_p.T, A_p)
         else:
             times = np.arange(len(pixA))
             print('Creating the pointing matrices')
@@ -480,7 +499,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
     if pol:
         data = hp.ud_grade(hp.read_map(f'data/wmap_iqusmap_r9_9yr_K1_v5.fits',
-            verbose=False, field=(0,1,2)), nside)
+            verbose=False, field=(0,1,2,3)), nside)
         x_arr = []
         delta_arr = []
 
@@ -497,26 +516,30 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         d[p] = r[p]/M_diag_p[p]
         delta_new = r.dot(d)
         delta_0 = np.copy(delta_new)
-        i_max = npix
-        i_max = 1000
-        eps = 1e-7
+        delta_old = np.copy(delta_new)
 
         
         print('starting while loop')
-        while (i < i_max) & (delta_new > eps**2*delta_0):
+        while ((i < imax) & (delta_new > eps**2*delta_0) & (delta_new <= delta_old)):
             t0 = time()
-            q = A_p.dot(d)
+            if sparse_only:
+                q = dot_product_mkl(A_p, d)
+            else:
+                q = innerproduct_pol(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, d)
             alpha = delta_new/d.dot(q)
             x_p = x_p + alpha*d
             if i % 50 == 0:
                 print('Divisible by 50')
-                r = b_p - A_p.dot(x_p)
+                if sparse_only:
+                    r = b_p - dot_product_mkl(A_p, x_p)
+                else:
+                    r = b_p - innerproduct_pol(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, x_p)
             else:
                 r = r - alpha*q
             if i % 10 == 0:
-                print(np.round(i/i_max,2),\
-                        np.round(1/np.log10(delta_new/(delta_0*eps**2)),1),\
-                        np.round(delta_new,4))
+                print(np.round(i/imax,2),\
+                        int(np.log10(delta_new)),\
+                        delta_new)
             s[p] = r[p]/M_diag_p[p]
             delta_old = np.copy(delta_new)
             delta_new = r.dot(s)
@@ -527,8 +550,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             delta_arr.append(delta_new)
             x_arr.append(x_p)
 
-        x_i, x_q, x_u = np.split(x_p, 3)
-        x_tot = np.array([x_i, x_q, x_u])
+        x_i, x_q, x_u, x_s = np.split(x_p, 4)
+        x_tot = np.array([x_i, x_q, x_u, x_s])
         hp.write_map(f'cg_v{version}_{band}_pol.fits', x_tot, overwrite=True)
 
 
@@ -538,62 +561,63 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         d = np.array(delta_arr)
         np.save('all_samples_delta_pol', d)
 
-        amps = [0.35, 0.035, 0.035]
-        mpl.rcParams['figure.figsize'][0] *= 3
-        for i in range(3):
+        amps = [0.35, 0.035, 0.035, 0.035]
+        mpl.rcParams['figure.figsize'][0] *= 2
+        mpl.rcParams['figure.figsize'][1] *= 2
+        for i in range(4):
             plt.figure('sol1')
             hp.mollview(x_tot[i], min=-amps[i], max=amps[i], title='Solution',
-                    cmap=cmap, sub=(1,3,i+1))
+                    cmap=cmap, sub=(2,2,i+1))
             plt.savefig(f'solution1_{band}_pol.png', bbox_inches='tight')
             plt.figure('sol2')
             hp.mollview(x_tot[i], min=-10*amps[i], max=10*amps[i], title='Solution',
-                    cmap=cmap, sub=(1,3,i+1))
+                    cmap=cmap, sub=(2,2,i+1))
             plt.savefig(f'solution2_{band}_pol.png', bbox_inches='tight')
             plt.figure('sol3')
             hp.mollview(x_tot[i], min=-100*amps[i], max=100*amps[i], title='Solution',
-                    cmap=cmap, sub=(1,3,i+1))
+                    cmap=cmap, sub=(2,2,i+1))
             plt.savefig(f'solution3_{band}_pol.png', bbox_inches='tight')
                 
                
             plt.figure('wmap1')
             hp.mollview(data[i], min=-amps[i], max=amps[i], title=f'WMAP {band}',
-                    cmap=cmap, sub=(1,3,i+1))
+                    cmap=cmap, sub=(2,2,i+1))
             plt.savefig(f'wmap_sol1_{band}_pol.png', bbox_inches='tight')
             plt.figure('wmap2')
             hp.mollview(data[i], min=-10*amps[i], max=10*amps[i], title=f'WMAP {band}',
-                    cmap=cmap, sub=(1,3,i+1))
+                    cmap=cmap, sub=(2,2,i+1))
             plt.savefig(f'wmap_sol2_{band}_pol.png', bbox_inches='tight')
 
 
             plt.figure('wmapdiff')
             hp.mollview(x_tot[i] - data[i], min=-amps[i], max=amps[i], cmap=cmap,
-                    title='CG - WMAP', sub=(1,3,i+1))
+                    title='CG - WMAP', sub=(2,2,i+1))
             plt.savefig(f'wmap_diff_{band}_pol.png', bbox_inches='tight')
 
             plt.figure('wmapdiff_artifacts')
             hp.mollview(abs(x_tot[i] - data[i]), norm='hist', title='CG - WMAP',
-                    sub=(1,3,i+1))
+                    sub=(2,2,i+1))
             plt.savefig(f'wmap_diff_{band}_artifacts_pol.png', bbox_inches='tight')
 
             
             plt.figure('wmapdiff_artifacts1')
             hp.mollview(abs(x_tot[i] - data[i]), min=0, max=0.1, title='Difference',
-                    sub=(1,3,i+1))
+                    sub=(2,2,i+1))
             plt.savefig(f'wmap_diff_{band}_artifacts_1_pol.png', bbox_inches='tight')
 
             plt.figure('wmapdiff_artifacts2')
             hp.mollview(abs(x_tot[i] - data[i]), min=0, max=0.5, title='Difference',
-                    sub=(1,3,i+1))
+                    sub=(2,2,i+1))
             plt.savefig(f'wmap_diff_{band}_artifacts_2_pol.png', bbox_inches='tight')
 
             plt.figure('wmapdiff_artifacts3')
             hp.mollview(abs(x_tot[i] - data[i]), min=0, max=1, title='Difference',
-                    sub=(1,3,i+1))
+                    sub=(2,2,i+1))
             plt.savefig(f'wmap_diff_{band}_artifacts_3_pol.png', bbox_inches='tight')
 
             plt.figure('wmapdiff_artifacts4')
             hp.mollview(abs(x_tot[i] - data[i]), min=0, max=10, title='Difference',
-                    sub=(1,3,i+1))
+                    sub=(2,2,i+1))
             plt.savefig(f'wmap_diff_{band}_artifacts_4_pol.png', bbox_inches='tight')
     else:
         data = hp.ud_grade(hp.read_map(f'data/wmap_imap_r9_9yr_{band}_v5.fits',
@@ -610,16 +634,13 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         d[p] = r[p]/M_diag[p]
         delta_new = r.dot(d)
         delta_0 = np.copy(delta_new)
-        i_max = npix
-        i_max = 1000
-        eps = 1e-8
     
         x_arr = []
         delta_arr = []
     
         
         print('starting while loop')
-        while (i < i_max) & (delta_new > eps**2*delta_0):
+        while (i < imax) & (delta_new > eps**2*delta_0):
             #x, mono = hp.remove_monopole(x, gal_cut=20, verbose=False, fitval=True)
             #x = hp.remove_dipole(x, gal_cut=20, verbose=False)
             #x = hp.remove_monopole(x, gal_cut=20, verbose=False)
@@ -632,7 +653,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
                 for res in funcs:
                     result = res.get()
                     pA, pB, dq = result
-                    q[pA] += dq
+                    q[pA] += dq*(1+x_bar)
                     q[pB] -= dq
                 #for t in tqdm(range(len(pixA))):
                 #    pA, pB, dq = inner_productdq(t)
@@ -661,7 +682,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             if i % 10 == 0:
                 exp = 10.**np.round(int(np.log10(delta_new)))
                 dn_r = np.round(delta_new/exp,2)*exp
-                print(np.round(i/i_max,2),\
+                print(np.round(i/imax,2),\
                         np.round(1/np.log10(delta_new/(delta_0*eps**2)),1),\
                         dn_r)
             s[p] = r[p]/M_diag[p]
@@ -867,8 +888,8 @@ def check_hdf5(nside=256, version=8, band='K1'):
 if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-    get_cg(band='K1', nfiles=100, sparse_test=False, sparse_only=True,
-            imbalance=False, mask=False, pol=True)
+    get_cg(band='K1', nfiles=800, sparse_test=False, sparse_only=True,
+            imbalance=True, mask=False, pol=True, imax=100)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)

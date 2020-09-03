@@ -73,6 +73,72 @@ contains
 
   end subroutine bin_TOD
 
+  ! differential TOD computation, written with WMAP in mind.
+  subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_im, dx_im, b, scan, comp_S, b_mono)
+    implicit none
+    class(comm_tod),                                intent(in)    :: tod
+    integer(i4b),                                   intent(in)    :: scan
+    real(sp),            dimension(1:,1:,1:),       intent(in)    :: data
+    integer(i4b),        dimension(1:,1:),          intent(in)    :: flag
+    integer(i4b),        dimension(1:,1:,1:),       intent(in)    :: pix, psi
+    real(sp),                                       intent(in)    :: x_im, dx_im
+    real(dp),            dimension(1:,1:,1:),       intent(inout) :: b
+    real(dp),            dimension(1:,1:,1:),       intent(inout), optional :: b_mono
+    logical(lgt),                                   intent(in)    :: comp_S
+
+    integer(i4b) :: det, i, t, off, nout
+    real(dp)     :: inv_sigmasq
+
+    integer(i4b) :: lpoint, rpoint, lpsi, rpsi
+
+
+    real(dp) :: d, p
+
+    nout        = size(b,dim=1)
+
+    do det = 1, tod%ndet
+       if (.not. tod%scans(scan)%d(det)%accept) cycle
+       !write(*,*) tod%scanid(scan), det, tod%scans(scan)%d(det)%sigma0
+       off         = 6 + 4*(det-1)
+       inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+       do t = 1, tod%scans(scan)%ntod
+          
+          if (iand(flag(t,det),tod%flag0) .ne. 0) cycle
+          
+          lpoint = tod%pix2ind(pix(t,det,1))
+          rpoint = tod%pix2ind(pix(t,det,2))
+          lpsi   = psi(t, det, 1)
+          rpsi   = psi(t, det, 2)
+          ! psi(j,i,1), psi(j,i,2)
+
+          ! Does data include full array, d13, d14, d23, d24?
+
+          ! I think the correct thing to do is to construct 
+          ! d = 0.5*(d13 + d14 + d23 + d24) and
+          ! p = 0.5*(d13 + d14 - d23 - d24)
+
+          
+          do i = 1, nout
+             b(i,1,lpoint) = b(i,1,lpoint) + ( (1+x_im)*d + dx_im*p )                     * inv_sigmasq
+             b(i,1,rpoint) = b(i,1,rpoint) - ( (1-x_im)*d - dx_im*p )                     * inv_sigmasq
+             b(i,2,lpoint) = b(i,2,lpoint) + ( (1+x_im)*p + dx_im*d ) * tod%cos2psi(lpsi) * inv_sigmasq
+             b(i,2,rpoint) = b(i,2,rpoint) - ( (1-x_im)*p - dx_im*d ) * tod%cos2psi(rpsi) * inv_sigmasq
+             b(i,3,lpoint) = b(i,3,lpoint) + ( (1+x_im)*p + dx_im*d ) * tod%sin2psi(lpsi) * inv_sigmasq
+             b(i,3,rpoint) = b(i,3,rpoint) - ( (1-x_im)*p - dx_im*d ) * tod%sin2psi(rpsi) * inv_sigmasq
+          end do
+          
+          if (comp_S .and. det < tod%ndet) then
+             do i = 1, nout
+                b(i,4,lpoint) = b(i,4,lpoint) + ( (1+x_im)*p + dx_im*d ) * inv_sigmasq
+                b(i,4,rpoint) = b(i,4,rpoint) - ( (1-x_im)*p - dx_im*d ) * inv_sigmasq
+             end do
+          end if
+          
+       end do
+    end do
+
+  end subroutine bin_differential_TOD
+
   subroutine finalize_binned_map(tod, handle, sA_map, sb_map, rms, outmaps, chisq_S, Sfile, mask, sb_mono, sys_mono, condmap)
     implicit none
     class(comm_tod),                      intent(in)    :: tod
