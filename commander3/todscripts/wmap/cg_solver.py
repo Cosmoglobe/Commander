@@ -209,55 +209,29 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
         in the high emission region is iteratively updated.
         # pm == 0 means it is in a high emission region
         '''
-        if ((pm[pixA[t]] == 0) or (pm[pixB[t]] == 0)):
-            b[pixA[t]] = b[pixA[t]] + f_A[t]*(1+xbar)*d[t]/sigma_hi**2
-            b[pixB[t]] = b[pixB[t]] - f_B[t]*(1-xbar)*d[t]/sigma_hi**2
+        b[pixA[t]] = b[pixA[t]] + f_A[t]*(1+xbar)*d[t]/sigma0**2
+        b[pixB[t]] = b[pixB[t]] - f_B[t]*(1-xbar)*d[t]/sigma0**2
 
-            M[pixA[t]] += f_A[t]*(1+xbar)**2/sigma_hi**2
-            M[pixB[t]] += f_B[t]*(1-xbar)**2/sigma_hi**2
-            sigmas.append(sigma_hi)
-            if pol:
-                b[pixA[t]] += f_A[t]*dxbar*p[t]/sigma_hi**2
-                b[pixB[t]] += f_B[t]*dxbar*p[t]/sigma_hi**2
-                b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma_hi**2
-                b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma_hi**2
-                b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma_hi**2
-                b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma_hi**2
-                b_s[pixA[t]] += f_A[t]*(dxbar*d[t] + (1+xbar)*p[t])/sigma_hi**2
-                b_s[pixB[t]] += f_B[t]*(dxbar*d[t] - (1-xbar)*p[t])/sigma_hi**2
-
-
-                M_q[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.cos(2*psiA[t]))**2/sigma_hi**2
-                M_q[pixB[t]] += f_B[t]*(((1-xbar) - dxbar)*np.cos(2*psiB[t]))**2/sigma_hi**2
-                M_u[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.sin(2*psiA[t]))**2/sigma_hi**2
-                M_u[pixB[t]] += f_B[t]*(((1-xbar) +-dxbar)*np.sin(2*psiB[t]))**2/sigma_hi**2
-                M_s[pixA[t]] += f_A[t]*(dxbar + (1+xbar))**2/sigma_hi**2
-                M_s[pixB[t]] += f_B[t]*(dxbar - (1-xbar))**2/sigma_hi**2
-        if ((pm[pixA[t]] == 1) and (pm[pixB[t]] == 1)):
-            b[pixA[t]] = b[pixA[t]] + f_A[t]*(1+xbar)*d[t]/sigma_lo**2
-            b[pixB[t]] = b[pixB[t]] - f_B[t]*(1-xbar)*d[t]/sigma_lo**2
-
-            M[pixA[t]] += f_A[t]*(1+xbar)**2/sigma_lo**2
-            M[pixB[t]] += f_B[t]*(1-xbar)**2/sigma_lo**2
-            sigmas.append(sigma_lo)
-            if pol:
-                b[pixA[t]] += f_A[t]*dxbar*p[t]/sigma_lo**2
-                b[pixB[t]] += f_B[t]*dxbar*p[t]/sigma_lo**2
-                b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma_lo**2
-                b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma_lo**2
-                b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma_lo**2
-                b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma_lo**2
-                b_s[pixA[t]] += f_A[t]*(dxbar*d[t] + (1+xbar)*p[t])/sigma_lo**2
-                b_s[pixB[t]] += f_B[t]*(dxbar*d[t] - (1-xbar)*p[t])/sigma_lo**2
+        M[pixA[t]] += f_A[t]*(1+xbar)**2/sigma0**2
+        M[pixB[t]] += f_B[t]*(1-xbar)**2/sigma0**2
+        sigmas.append(sigma0)
+        if pol:
+            b[pixA[t]] += f_A[t]*dxbar*p[t]/sigma0**2
+            b[pixB[t]] += f_B[t]*dxbar*p[t]/sigma0**2
+            b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma0**2
+            b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma0**2
+            b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma0**2
+            b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma0**2
+            b_s[pixA[t]] += f_A[t]*(dxbar*d[t] + (1+xbar)*p[t])/sigma0**2
+            b_s[pixB[t]] += f_B[t]*(dxbar*d[t] - (1-xbar)*p[t])/sigma0**2
 
 
-                M_q[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.cos(2*psiA[t]))**2/sigma_lo**2
-                M_q[pixB[t]] += f_B[t]*(((1-xbar) - dxbar)*np.cos(2*psiB[t]))**2/sigma_lo**2
-                M_u[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.sin(2*psiA[t]))**2/sigma_lo**2
-                M_u[pixB[t]] += f_B[t]*(((1-xbar) +-dxbar)*np.sin(2*psiB[t]))**2/sigma_lo**2
-                M_s[pixA[t]] += f_A[t]*(dxbar + (1+xbar))**2/sigma_lo**2
-                M_s[pixB[t]] += f_B[t]*(dxbar - (1-xbar))**2/sigma_lo**2
-
+            M_q[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.cos(2*psiA[t]))**2/sigma0**2
+            M_q[pixB[t]] += f_B[t]*(((1-xbar) - dxbar)*np.cos(2*psiB[t]))**2/sigma0**2
+            M_u[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.sin(2*psiA[t]))**2/sigma0**2
+            M_u[pixB[t]] += f_B[t]*(((1-xbar) +-dxbar)*np.sin(2*psiB[t]))**2/sigma0**2
+            M_s[pixA[t]] += f_A[t]*(dxbar + (1+xbar))**2/sigma0**2
+            M_s[pixB[t]] += f_B[t]*(dxbar - (1-xbar))**2/sigma0**2
 
     if pol:
         b_p = np.concatenate((b_q, b_u, b_s))
@@ -319,13 +293,13 @@ def innerproduct_pol_t(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, x, nside=2
             (1+xbar)*Q[pixB]*np.cos(2*psiA) - (1-xbar)*Q[pixB]*np.cos(psiB) +\
             (1+xbar)*U[pixB]*np.sin(2*psiA) - (1-xbar)*U[pixB]*np.sin(psiB) +\
             (1+xbar)*S[pixB] - (1-xbar)*S[pixB]
-    T_[pixB] += f_A*( (1+xbar)*Px_d + dxbar*Px_p)
+    T_[pixA] += f_A*( (1+xbar)*Px_d + dxbar*Px_p)
     T_[pixB] += f_B*(-(1-xbar)*Px_d + dxbar*Px_p)
-    Q_[pixB] += f_A*(np.cos(2*psiA)*(dxbar*Px_d + (1+xbar)*Px_p))
+    Q_[pixA] += f_A*(np.cos(2*psiA)*(dxbar*Px_d + (1+xbar)*Px_p))
     Q_[pixB] += f_B*(np.cos(2*psiB)*(dxbar*Px_d - (1-xbar)*Px_p))
-    U_[pixB] += f_A*(np.sin(2*psiA)*(dxbar*Px_d + (1+xbar)*Px_p))
+    U_[pixA] += f_A*(np.sin(2*psiA)*(dxbar*Px_d + (1+xbar)*Px_p))
     U_[pixB] += f_B*(np.sin(2*psiB)*(dxbar*Px_d - (1-xbar)*Px_p))
-    S_[pixB] += f_A*(dxbar*Px_d + (1+xbar)*Px_p )
+    S_[pixA] += f_A*(dxbar*Px_d + (1+xbar)*Px_p )
     S_[pixB] += f_B*(dxbar*Px_d - (1-xbar)*Px_p )
 
     return np.concatenate((T_,Q_,U_,S_))
@@ -390,7 +364,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     else:
         fnames = fnames
 
-    pool = Pool(processes=min(nfiles, 120))
+    pool = Pool(processes=min(nfiles, 24))
     print('Preparing pool')
     funcs = [pool.apply_async(get_data, (fname, band, xbar, dxbar),
         dict(pol=pol, mask=mask)) for fname in fnames]
@@ -432,8 +406,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     if pol:
         psiA = np.array(psiA)
         psiB = np.array(psiB)
-    f_A = np.array(f_A)
-    f_B = np.array(f_B)
+    f_A = np.array(f_A)/sigma0s
+    f_B = np.array(f_B)/sigma0s
 
     print('Loaded data')
 
@@ -442,27 +416,27 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             print('Constructing pointing matrix')
             A_p = sparse.csr_matrix((
              np.concatenate((
-                f_A*(1+xbar)/sigma0s**2,
-                f_A*dxbar*np.cos(2*psiA)/sigma0s**2,
-                f_A*dxbar*np.sin(2*psiA)/sigma0s**2,
-                f_A*dxbar/sigma0s**2,
-                f_A*dxbar/sigma0s**2,
-                f_A*(1+xbar)*np.cos(2*psiA)/sigma0s**2,
-                f_A*(1+xbar)*np.sin(2*psiA)/sigma0s**2,
-                f_A*(1+xbar)/sigma0s**2)),
+                f_A*(1+xbar),
+                f_A*dxbar*np.cos(2*psiA),
+                f_A*dxbar*np.sin(2*psiA),
+                f_A*dxbar,
+                f_A*dxbar,
+                f_A*(1+xbar)*np.cos(2*psiA),
+                f_A*(1+xbar)*np.sin(2*psiA),
+                f_A*(1+xbar))),
                 (np.arange(8*len(pixA)), 
                  np.concatenate((pixA, pixA+npix, pixA+2*npix, pixA+3*npix,
                                  pixA, pixA+npix, pixA+2*npix, pixA+3*npix)))))\
              + sparse.csr_matrix((
                 np.concatenate((
-                f_B*(-1+xbar)/sigma0s**2,
-                f_B*dxbar*np.cos(2*psiB)/sigma0s**2,
-                f_B*dxbar*np.sin(2*psiB)/sigma0s**2,
-                f_B*dxbar/sigma0s**2,
-                f_B*dxbar/sigma0s**2,
-                f_B*(-1+xbar)*np.cos(2*psiB)/sigma0s**2,
-                f_B*(-1+xbar)*np.sin(2*psiB)/sigma0s**2,
-                f_B*(-1+xbar)/sigma0s**2)),
+                f_B*(-1+xbar),
+                f_B*dxbar*np.cos(2*psiB),
+                f_B*dxbar*np.sin(2*psiB),
+                f_B*dxbar,
+                f_B*dxbar,
+                f_B*(-1+xbar)*np.cos(2*psiB),
+                f_B*(-1+xbar)*np.sin(2*psiB),
+                f_B*(-1+xbar))),
                 (np.arange(8*len(pixB)), 
                  np.concatenate((pixB, pixB+npix, pixB+2*npix, pixB+3*npix,
                                  pixB, pixB+npix, pixB+2*npix, pixB+3*npix)))))
@@ -473,6 +447,13 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
             print('Constructing A')
             A_p = dot_product_mkl(A_p.T, A_p)
+            # Gram Matrix returns A^T A, but only the upper triangular elements.
+            #A_p = gram_matrix_mkl(A_p)
+            #A_p = A_p + sparse.triu(A_p,k=1).T
+
+            # Dot product transpose takes inner product with transpose of the
+            # matrix?
+            #A_p = dot_product_transpose_mkl(A_p.T)
         else:
             times = np.arange(len(pixA))
             print('Creating the pointing matrices')
@@ -561,64 +542,6 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         d = np.array(delta_arr)
         np.save('all_samples_delta_pol', d)
 
-        amps = [0.35, 0.035, 0.035, 0.035]
-        mpl.rcParams['figure.figsize'][0] *= 2
-        mpl.rcParams['figure.figsize'][1] *= 2
-        for i in range(4):
-            plt.figure('sol1')
-            hp.mollview(x_tot[i], min=-amps[i], max=amps[i], title='Solution',
-                    cmap=cmap, sub=(2,2,i+1))
-            plt.savefig(f'solution1_{band}_pol.png', bbox_inches='tight')
-            plt.figure('sol2')
-            hp.mollview(x_tot[i], min=-10*amps[i], max=10*amps[i], title='Solution',
-                    cmap=cmap, sub=(2,2,i+1))
-            plt.savefig(f'solution2_{band}_pol.png', bbox_inches='tight')
-            plt.figure('sol3')
-            hp.mollview(x_tot[i], min=-100*amps[i], max=100*amps[i], title='Solution',
-                    cmap=cmap, sub=(2,2,i+1))
-            plt.savefig(f'solution3_{band}_pol.png', bbox_inches='tight')
-                
-               
-            plt.figure('wmap1')
-            hp.mollview(data[i], min=-amps[i], max=amps[i], title=f'WMAP {band}',
-                    cmap=cmap, sub=(2,2,i+1))
-            plt.savefig(f'wmap_sol1_{band}_pol.png', bbox_inches='tight')
-            plt.figure('wmap2')
-            hp.mollview(data[i], min=-10*amps[i], max=10*amps[i], title=f'WMAP {band}',
-                    cmap=cmap, sub=(2,2,i+1))
-            plt.savefig(f'wmap_sol2_{band}_pol.png', bbox_inches='tight')
-
-
-            plt.figure('wmapdiff')
-            hp.mollview(x_tot[i] - data[i], min=-amps[i], max=amps[i], cmap=cmap,
-                    title='CG - WMAP', sub=(2,2,i+1))
-            plt.savefig(f'wmap_diff_{band}_pol.png', bbox_inches='tight')
-
-            plt.figure('wmapdiff_artifacts')
-            hp.mollview(abs(x_tot[i] - data[i]), norm='hist', title='CG - WMAP',
-                    sub=(2,2,i+1))
-            plt.savefig(f'wmap_diff_{band}_artifacts_pol.png', bbox_inches='tight')
-
-            
-            plt.figure('wmapdiff_artifacts1')
-            hp.mollview(abs(x_tot[i] - data[i]), min=0, max=0.1, title='Difference',
-                    sub=(2,2,i+1))
-            plt.savefig(f'wmap_diff_{band}_artifacts_1_pol.png', bbox_inches='tight')
-
-            plt.figure('wmapdiff_artifacts2')
-            hp.mollview(abs(x_tot[i] - data[i]), min=0, max=0.5, title='Difference',
-                    sub=(2,2,i+1))
-            plt.savefig(f'wmap_diff_{band}_artifacts_2_pol.png', bbox_inches='tight')
-
-            plt.figure('wmapdiff_artifacts3')
-            hp.mollview(abs(x_tot[i] - data[i]), min=0, max=1, title='Difference',
-                    sub=(2,2,i+1))
-            plt.savefig(f'wmap_diff_{band}_artifacts_3_pol.png', bbox_inches='tight')
-
-            plt.figure('wmapdiff_artifacts4')
-            hp.mollview(abs(x_tot[i] - data[i]), min=0, max=10, title='Difference',
-                    sub=(2,2,i+1))
-            plt.savefig(f'wmap_diff_{band}_artifacts_4_pol.png', bbox_inches='tight')
     else:
         data = hp.ud_grade(hp.read_map(f'data/wmap_imap_r9_9yr_{band}_v5.fits',
             verbose=False), nside)
@@ -707,59 +630,95 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
         d = np.array(delta_arr)
         np.save('all_samples_delta', d)
+        return
 
-        amp = 0.35
-        hp.mollview(x, min=-amp, max=amp, title='Solution', cmap=cmap)
-        plt.savefig(f'solution1_{band}.png', bbox_inches='tight')
-        hp.mollview(x, min=-10*amp, max=10*amp, title='Solution', cmap=cmap)
-        plt.savefig(f'solution2_{band}.png', bbox_inches='tight')
-        hp.mollview(x, min=-100*amp, max=100*amp, title='Solution', cmap=cmap)
-        plt.savefig(f'solution3_{band}.png', bbox_inches='tight')
+def plot_maps_pol(band='K1', version='13', nside=256):
+    amps = [0.35, 0.035, 0.035, 0.035]
+    mpl.rcParams['figure.figsize'][0] *= 2
+    mpl.rcParams['figure.figsize'][1] *= 2
+    data = hp.ud_grade(hp.read_map(f'data/wmap_iqusmap_r9_9yr_{band}_v5.fits',
+        verbose=False, field=(0,1,2,3)), nside)
+    x_arr = np.load('all_samples.npy')
+    d = np.load('all_samples_delta.npy')
+    x_tot = hp.read_map(f'cg_v{version}_{band}_pol.fits', field=(0,1,2,3))
+    for i in range(4):
+        if i == 0:
+            x_tot[i] = hp.remove_dipole(x_tot[i], gal_cut=20)
+        plt.figure('sol1')
+        hp.mollview(x_tot[i], min=-amps[i], max=amps[i], title='Solution',
+                cmap=cmap, sub=(2,2,i+1))
+        plt.savefig(f'solution1_{band}_pol.png', bbox_inches='tight')
+        plt.figure('sol2')
+        hp.mollview(x_tot[i], min=-10*amps[i], max=10*amps[i], title='Solution',
+                cmap=cmap, sub=(2,2,i+1))
+        plt.savefig(f'solution2_{band}_pol.png', bbox_inches='tight')
+        plt.figure('sol3')
+        hp.mollview(x_tot[i], min=-100*amps[i], max=100*amps[i], title='Solution',
+                cmap=cmap, sub=(2,2,i+1))
+        plt.savefig(f'solution3_{band}_pol.png', bbox_inches='tight')
             
-            
-        x = hp.remove_dipole(x, gal_cut=20, verbose=False)
+           
+        plt.figure('wmap1')
+        hp.mollview(data[i], min=-amps[i], max=amps[i], title=f'WMAP {band}',
+                cmap=cmap, sub=(2,2,i+1))
+        plt.savefig(f'wmap_sol1_{band}_pol.png', bbox_inches='tight')
+        plt.figure('wmap2')
+        hp.mollview(data[i], min=-10*amps[i], max=10*amps[i], title=f'WMAP {band}',
+                cmap=cmap, sub=(2,2,i+1))
+        plt.savefig(f'wmap_sol2_{band}_pol.png', bbox_inches='tight')
 
 
-        hp.mollview(b, min=-amp, max=amp, cmap=cmap, title='Noise-weighted average')
-        plt.savefig(f'noise_avg1_{band}.png')
-        hp.mollview(b, min=-10*amp, max=10*amp, cmap=cmap, title='Noise-weighted average')
-        plt.savefig(f'noise_avg2_{band}.png')
-        hp.mollview(b, norm='hist', cmap=cmap, title='Noise-weighted average')
-        plt.savefig(f'noise_avg3_{band}.png')
-        hp.mollview(M_diag, norm='hist', title='Preconditioner')
-        plt.savefig(f'preconditioner_{band}.png')
-        hp.mollview(x, min=-amp, max=amp, title='Solution', cmap=cmap)
+        plt.figure('wmapdiff')
+        hp.mollview(x_tot[i] - data[i], min=-amps[i], max=amps[i], cmap=cmap,
+                title='CG - WMAP', sub=(2,2,i+1))
+        plt.savefig(f'wmap_diff_{band}_pol.png', bbox_inches='tight')
 
+        plt.figure('wmapdiff2')
+        hp.mollview(x_tot[i] - data[i], min=-5*amps[i], max=5*amps[i], cmap=cmap,
+                title='CG - WMAP', sub=(2,2,i+1))
+        plt.savefig(f'wmap_diff2_{band}_pol.png', bbox_inches='tight')
 
+        plt.figure('wmapdiff_artifacts')
+        hp.mollview(abs(x_tot[i] - data[i]), norm='hist', title='CG - WMAP',
+                sub=(2,2,i+1))
+        plt.savefig(f'wmap_diff_{band}_artifacts_pol.png', bbox_inches='tight')
 
-        hp.mollview(data, min=-amp, max=amp, title=f'WMAP {band}', cmap=cmap)
-        plt.savefig(f'wmap_sol1_{band}.png', bbox_inches='tight')
-        hp.mollview(data, min=-10*amp, max=10*amp, title=f'WMAP {band}',
-                cmap=cmap)
-        plt.savefig(f'wmap_sol2_{band}.png', bbox_inches='tight')
+        
+        plt.figure('wmapdiff_artifacts1')
+        hp.mollview(abs(x_tot[i] - data[i]), min=0, max=0.1, title='Difference',
+                sub=(2,2,i+1))
+        plt.savefig(f'wmap_diff_{band}_artifacts_1_pol.png', bbox_inches='tight')
 
+        plt.figure('wmapdiff_artifacts2')
+        hp.mollview(abs(x_tot[i] - data[i]), min=0, max=0.5, title='Difference',
+                sub=(2,2,i+1))
+        plt.savefig(f'wmap_diff_{band}_artifacts_2_pol.png', bbox_inches='tight')
 
-        hp.mollview(x - data, min=-amp, max=amp, cmap=cmap, title='CG - WMAP')
-        plt.savefig(f'wmap_diff_{band}.png', bbox_inches='tight')
+        plt.figure('wmapdiff_artifacts3')
+        hp.mollview(abs(x_tot[i] - data[i]), min=0, max=1, title='Difference',
+                sub=(2,2,i+1))
+        plt.savefig(f'wmap_diff_{band}_artifacts_3_pol.png', bbox_inches='tight')
 
-        hp.mollview(abs(x - data), norm='hist', title='CG - WMAP')
-        plt.savefig(f'wmap_diff_{band}_artifacts.png', bbox_inches='tight')
+        plt.figure('wmapdiff_artifacts4')
+        hp.mollview(abs(x_tot[i] - data[i]), min=0, max=10, title='Difference',
+                sub=(2,2,i+1))
+        plt.savefig(f'wmap_diff_{band}_artifacts_4_pol.png', bbox_inches='tight')
 
-        #plt.show()
-        hp.mollview(abs(x - data), min=0, max=0.1, title='Difference')
-        plt.savefig(f'wmap_diff_{band}_artifacts_1.png', bbox_inches='tight')
+    x_smooth = hp.smoothing(x_tot[:3], fwhm=3*np.pi/180)
+    d_smooth = hp.smoothing(data[:3], fwhm=3*np.pi/180)
 
-        hp.mollview(abs(x - data), min=0, max=0.5, title='Difference')
-        plt.savefig(f'wmap_diff_{band}_artifacts_2.png', bbox_inches='tight')
-
-        hp.mollview(abs(x - data), min=0, max=1, title='Difference')
-        plt.savefig(f'wmap_diff_{band}_artifacts_3.png', bbox_inches='tight')
-
-        hp.mollview(abs(x - data), min=0, max=10, title='Difference')
-        plt.savefig(f'wmap_diff_{band}_artifacts_4.png', bbox_inches='tight')
-
-
-    
+    plt.figure()
+    hp.mollview(x_smooth[1], sub=321, min=-0.1, max=0.1, title='CG Q',
+            cmap='RdBu_r')
+    hp.mollview(x_smooth[2], sub=322, min=-0.1, max=0.1, title='CG U',
+            cmap='RdBu_r')
+    hp.mollview(d_smooth[1], sub=323, min=-0.1, max=0.1, title='WM Q',
+            cmap='RdBu_r')
+    hp.mollview(d_smooth[2], sub=324, min=-0.1, max=0.1, title='WM U',
+            cmap='RdBu_r')
+    hp.mollview(x_smooth[1]-d_smooth[1], sub=325, min=-0.1, max=0.1, title='Diff Q', cmap='RdBu_r')
+    hp.mollview(x_smooth[2]-d_smooth[1], sub=326, min=-0.1, max=0.1, title='Diff U', cmap='RdBu_r')
+    plt.savefig('smooth_pol.png', bbox_inches='tight')
 
     return
 
@@ -888,8 +847,9 @@ def check_hdf5(nside=256, version=8, band='K1'):
 if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-    get_cg(band='K1', nfiles=800, sparse_test=False, sparse_only=True,
-            imbalance=True, mask=False, pol=True, imax=100)
+    get_cg(band='K1', nfiles=2**9, sparse_test=False, sparse_only=True,
+            imbalance=True, mask=True, pol=True, imax=100)
+    plot_maps_pol()
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
