@@ -255,7 +255,7 @@ contains
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = max(self%lmin,0), self%lmax
           if (i > 1 .and. l < 2) cycle
-          self%Dl(l,j) = self%amp(i) * exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+          self%Dl(l,j) = self%amp(i) * max(exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2),1d-10)
 !          if (self%info%myid == 0) then
 !             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
 !          end if
