@@ -1691,17 +1691,17 @@ contains
 
 !!$                call tp%udgrade(t)
 !!$
-                bad = any(t%map == 0.d0)
-                call mpi_allreduce(mpi_in_place, bad, 1, &
-                     & MPI_LOGICAL, MPI_LOR, self%x%info%comm, ierr)
-                if (bad) then
-                   write(*,*) trim(self%label), i, j
-                   call int2string(j, ctext)
-                   call t%writeFITS("beta1.fits")
-                   call tp%writeFITS("beta2.fits")
-                   call mpi_finalize(k)
-                   stop
-                end if
+!!$                bad = any(t%map == 0.d0)
+!!$                call mpi_allreduce(mpi_in_place, bad, 1, &
+!!$                     & MPI_LOGICAL, MPI_LOR, self%x%info%comm, ierr)
+!!$                if (bad) then
+!!$                   write(*,*) trim(self%label), i, j
+!!$                   call int2string(j, ctext)
+!!$                   call t%writeFITS("beta1.fits")
+!!$                   call tp%writeFITS("beta2.fits")
+!!$                   call mpi_finalize(k)
+!!$                   stop
+!!$                end if
 
                 call tp%dealloc(); deallocate(tp)
 
