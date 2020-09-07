@@ -147,8 +147,9 @@ contains
     real(dp),     allocatable, dimension(:,:)     :: chisq_S, m_buf
     real(dp),     allocatable, dimension(:,:)     :: A_map, dipole_mod
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
-    integer(i4b), allocatable, dimension(:,:,:)     :: pix, psi
+    integer(i4b), allocatable, dimension(:,:,:)   :: pix, psi
     integer(i4b), allocatable, dimension(:,:)     :: flag
+    real(dp),     allocatable, dimension(:)       :: loss
     character(len=512) :: prefix, postfix, prefix4D, filename
     character(len=2048) :: Sfilename
     character(len=4)   :: ctext, myid_text
@@ -250,6 +251,7 @@ contains
       allocate(pix(ntod, ndet, nhorn))             ! Decompressed pointing
       allocate(psi(ntod, ndet, nhorn))             ! Decompressed pol angle
       allocate(flag(ntod, ndet))                   ! Decompressed flags
+      allocate(loss(ndet))                         ! Loss coefficients
 
       ! --------------------
       ! Analyze current scan
@@ -268,7 +270,7 @@ contains
 
       write(*,*) "Making sky signal template"
       ! Construct sky signal template
-      call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+      call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, loss, flag, &
                & sprocmask%a, i, s_sky, mask)
       !      call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
       !           & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))
