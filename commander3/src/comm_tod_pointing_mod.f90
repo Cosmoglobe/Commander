@@ -87,15 +87,15 @@ contains
     class(comm_tod),                          intent(in)  :: tod
     integer(i4b),        dimension(0:),       intent(in)  :: pmask
     real(sp),            dimension(1:,1:,0:), intent(in)  :: map
-    real(sp),                                 intent(in)  :: loss
+    real(dp),            dimension(:),        intent(in)  :: loss
     !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
-    integer(i4b),        dimension(:,:),      intent(in)  :: pix, psi
+    integer(i4b),        dimension(:,:,:),      intent(in)  :: pix, psi
     integer(i4b),        dimension(:,:),      intent(in)  :: flag
     integer(i4b),                             intent(in)  :: scan_id
     real(sp),            dimension(:,:),      intent(out) :: s_sky, tmask
     real(sp),            dimension(:,:),      intent(out), optional :: s_bp
 
-    integer(i4b) :: i, j, point
+    integer(i4b) :: i, j, point, ang
 
 
     ! This should be almost identical to project_sky, but use the horn imbalance
@@ -110,7 +110,8 @@ contains
       end if
 
       do j = 1, tod%scans(scan_id)%ntod
-        point = tod%pix2ind(pix(j,i))
+        point = tod%pix2ind(pix(j,i,mod(i,2)))
+        ang   = psi(j,i,mod(i,2))
         !todo: add correct coefficients here when they are loaded in
 
         ! The gain imbalance parameters x are different for each radiometer.
@@ -126,9 +127,9 @@ contains
         ! We need to have some way to link loss_13 and loss_14 such that
         ! loss_13 = 1 + x_im and loss_14 = 1 - x_im
 
-        s_sky(j,i) =  2*loss * (map(1,point,i) + &
-                   &             map(2,point,i) * tod%cos2psi(psi(j,i)) + &
-                   &             map(3,point,i) * tod%sin2psi(psi(j,i)) + &
+        s_sky(j,i) =  2*loss(i)*(map(1,point,i) + &
+                   &             map(2,point,i) * tod%cos2psi(ang) + &
+                   &             map(3,point,i) * tod%sin2psi(ang) + &
                    &             map(4,point,i))
 
         if (iand(flag(j,i),tod%flag0) .ne. 0) tmask(j,i) = 0.
