@@ -80,22 +80,26 @@ contains
   end subroutine project_sky
 
 
-    ! Sky signal template
-  subroutine project_sky_differential(tod, map, pix, psi, x_im, dx_im, flag, pmask, scan_id,&
+  ! Sky signal template
+  subroutine project_sky_differential(tod, map, pix, psi, loss, flag, pmask, scan_id,&
        & s_sky, tmask, s_bp)
     implicit none
     class(comm_tod),                          intent(in)  :: tod
     integer(i4b),        dimension(0:),       intent(in)  :: pmask
     real(sp),            dimension(1:,1:,0:), intent(in)  :: map
-    real(sp),                                 intent(in)  :: x_im, dx_im
+    real(sp),                                 intent(in)  :: loss
     !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
-    integer(i4b),        dimension(:,:,:),      intent(in)  :: pix, psi
+    integer(i4b),        dimension(:,:),      intent(in)  :: pix, psi
     integer(i4b),        dimension(:,:),      intent(in)  :: flag
     integer(i4b),                             intent(in)  :: scan_id
     real(sp),            dimension(:,:),      intent(out) :: s_sky, tmask
     real(sp),            dimension(:,:),      intent(out), optional :: s_bp
 
-    integer(i4b) :: i, j, lpoint, rpoint
+    integer(i4b) :: i, j, point
+
+
+    ! This should be almost identical to project_sky, but use the horn imbalance
+    ! coefficients.
 
 
     do i = 1, tod%ndet
@@ -106,16 +110,9 @@ contains
       end if
 
       do j = 1, tod%scans(scan_id)%ntod
-        lpoint = tod%pix2ind(pix(j,i,1))
-        rpoint = tod%pix2ind(pix(j,i,2))
+        point = tod%pix2ind(pix(j,i))
         !todo: add correct coefficients here when they are loaded in
 
-        s_sky(j,i) = (map(1,lpoint,i) + &
-                    & map(2,lpoint,i) * tod%cos2psi(psi(j,i,1)) + &
-                    & map(3,lpoint,i) * tod%sin2psi(psi(j,i,1)) - &
-                    & map(1,rpoint,i) - &
-                    & map(2,rpoint,i) * tod%cos2psi(psi(j,i,2)) - &
-                    & map(3,rpoint,i) * tod%sin2psi(psi(j,i,2)))
         ! The gain imbalance parameters x are different for each radiometer.
         ! Could be another parameter that would be fit. How would that be
         ! included? Conversely, could just use the fixed values from Bennett et
@@ -123,21 +120,19 @@ contains
         ! experiment.
         ! d1 = (1+x1)*[T(pA) + P(pA,gA) + S(pA)] 
         !     -(1-x1)*[T(pB) + P(pB,gB) + S(pB)]
+        ! For a single timestream, i.e., 13, we have
+        ! d13 = 2*loss_13 * [T(pA) + P(pA,gA) * S(pA)]
+        ! since d = 0.5*(d13 + d14)
+        ! We need to have some way to link loss_13 and loss_14 such that
+        ! loss_13 = 1 + x_im and loss_14 = 1 - x_im
 
-        ! Actually, is it possible and / or necessary to do this for WMAP? You
-        ! can create sky templates for each data stream in the differencing
-        ! assembly, would this make sense?
-        s_sky(j,i) = ((1+x_im) * (map(1,lpoint,i) + &
-                   &              map(2,lpoint,i) * tod%cos2psi(psi(j,i,1)) + &
-                   &              map(3,lpoint,i) * tod%sin2psi(psi(j,i,1)) + &
-                   &              map(4,lpoint,i))                          - &
-                   &  (1-x_im) * (map(1,rpoint,i) + &
-                   &              map(2,rpoint,i) * tod%cos2psi(psi(j,i,2)) + &
-                   &              map(3,rpoint,i) * tod%sin2psi(psi(j,i,2)) + &
-                   &              map(4,rpoint,i)))                          
+        s_sky(j,i) =  2*loss * (map(1,point,i) + &
+                   &             map(2,point,i) * tod%cos2psi(psi(j,i)) + &
+                   &             map(3,point,i) * tod%sin2psi(psi(j,i)) + &
+                   &             map(4,point,i))
 
         if (iand(flag(j,i),tod%flag0) .ne. 0) tmask(j,i) = 0.
-        if(pmask(lpoint) .or. pmask(rpoint)) then
+        if(pmask(point)) then
           tmask(j,i) = 1
         end if
       end do
