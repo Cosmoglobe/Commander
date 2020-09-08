@@ -33,11 +33,14 @@ module comm_Cl_mod
      character(len=512)           :: label ! {none, binned, power_law, exp}
      character(len=512)           :: unit
      character(len=512)           :: outdir
-     integer(i4b)                 :: lmax, nmaps, nspec, l_apod, lmax_prior
+     integer(i4b)                 :: lmin, lmax, nmaps, nspec, l_apod, lmax_prior
+     integer(i4b)                 :: lmin_lookup, lmax_lookup
      integer(i4b)                 :: poltype  ! {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,mE,B}}
-     logical(lgt)                 :: only_pol
+     logical(lgt)                 :: only_pol, active_lookup(6)
      real(dp)                     :: nu_ref(3), RJ2unit(3)
      real(dp),         allocatable, dimension(:,:)   :: Dl
+     real(dp),         allocatable, dimension(:)     :: par_lookup
+     real(dp),         allocatable, dimension(:,:,:) :: Dl_lookup
      real(dp),         allocatable, dimension(:,:,:) :: sqrtS_mat, S_mat, sqrtInvS_mat
 
      ! Bin parameters
@@ -62,7 +65,6 @@ module comm_Cl_mod
      procedure :: sampleCls
      procedure :: read_binfile
      procedure :: read_binfile2
-     procedure :: read_Cl_file
      procedure :: binCls
      procedure :: binCls2
      procedure :: binCl2
@@ -106,6 +108,7 @@ contains
     
     constructor%info   => info
     constructor%label  = cpar%cs_label(id_abs)
+    constructor%lmin   = cpar%cs_lmin_amp(id_abs)
     constructor%lmax   = cpar%cs_lmax_amp(id_abs)
     constructor%lmax_prior = cpar%cs_lmax_amp_prior(id_abs)
     constructor%unit   = cpar%cs_unit(id_abs)
@@ -116,6 +119,8 @@ contains
     datadir            = cpar%datadir
     nmaps              = constructor%nmaps
     constructor%only_pol = cpar%only_pol
+    constructor%lmin_lookup = -1
+    constructor%lmax_lookup = -1
 
     ! Set up conversion factor between RJ and native component unit
     ! D_l is defined in component units, while S, invS etc are defined in RJ
@@ -148,8 +153,9 @@ contains
 
     if (trim(constructor%type) == 'binned') then
        !call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
-       call constructor%read_binfile2(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
-       call constructor%read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id_abs)))
+       call constructor%read_binfile2(datadir, cpar%cs_binfile(id_abs))
+       call read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id_abs)), &
+            & constructor%Dl, 0, constructor%lmax, 'TT_TE_EE_BB')
        call constructor%binCls2
        if (cpar%only_pol) then
           constructor%stat(:,1:3) = '0'
@@ -182,6 +188,7 @@ contains
        if (constructor%nspec == 6) constructor%Dl(:,[TE,TB]) = 0.d0
     end if
     constructor%Dl(0:1,2:constructor%nspec) = 0.d0
+    constructor%Dl(0:constructor%lmin-1,:)  = 0.d0
 
     !constructor%Dl = constructor%Dl / c%RJ2unit_    ! Define prior in output units
     call constructor%updateS
@@ -202,7 +209,7 @@ contains
     i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
-       do l = 1, self%lmax
+       do l = max(self%lmin,1), self%lmax
           if (i > 1 .and. l < 2) cycle
           self%Dl(l,j) = self%amp(i) * (real(l,dp)/real(self%lpiv,dp))**self%beta(i) 
        end do
@@ -224,11 +231,11 @@ contains
     i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
-       do l = 1, self%lmax
+       do l = max(self%lmin,1), self%lmax
           if (i > 1 .and. l < 2) cycle
           self%Dl(l,j) = self%amp(i) * exp(-self%beta(i)*(real(l,dp)/real(self%lpiv,dp))) 
        end do
-       self%Dl(0,j) = self%Dl(1,j)
+       if (self%lmin <= 0) self%Dl(0,j) = self%Dl(1,j)
     end do
 
   end subroutine updateExponential
@@ -246,9 +253,9 @@ contains
     i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
-       do l = 0, self%lmax
+       do l = max(self%lmin,0), self%lmax
           if (i > 1 .and. l < 2) cycle
-          self%Dl(l,j) = self%amp(i) * exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+          self%Dl(l,j) = self%amp(i) * max(exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2),1d-10)
 !          if (self%info%myid == 0) then
 !             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
 !          end if
@@ -272,7 +279,9 @@ contains
        do i = 1, self%nmaps
           do j = i, self%nmaps
              !k = i*(1-i)/2 + (i-1)*self%nmaps + j
-             if (l == 0) then
+             if (l < self%lmin) then
+                self%sqrtS_mat(i,j,l) = 0
+             else if (l == 0) then
                 self%sqrtS_mat(i,j,l) = self%Dl(l,k)
              else
                 self%sqrtS_mat(i,j,l) = self%Dl(l,k) / (l*(l+1)/(2.d0*pi))
@@ -416,21 +425,62 @@ contains
 
   end subroutine read_bin
 
-  subroutine read_binfile2(self, binfile)
+  subroutine read_binfile2(self, datadir, binfile)
     implicit none
     class(comm_Cl),   intent(inout) :: self
-    character(len=*), intent(in)  :: binfile
+    character(len=*), intent(in)    :: datadir, binfile
 
-    integer(i4b)       :: unit, l1, l2, n, i, j, pos
+    integer(i4b)       :: unit, unit2, l1, l2, l, k, n, i, j, pos, nspline
+    logical(lgt)       :: flag(6)
     real(dp), dimension(1000)           :: sigma
+    real(dp), allocatable, dimension(:)     :: p_in
+    real(dp), allocatable, dimension(:,:,:) :: Dl_in
     character(len=2)   :: spec
-    character(len=512) :: line
+    character(len=512) :: line, filename
     character(len=1), dimension(6) :: stat
+    type(spline_type) :: Dl_spline
 
-    unit = getlun()
+    unit    = getlun()
+    nspline = 100
+    open(unit,file=trim(datadir)//'/'//trim(binfile))
+
+    ! Check for parameter lookup table
+    read(unit,'(a)') line
+    if (trim(line) /= 'none') then
+       read(line,*) filename, self%lmin_lookup, self%lmax_lookup, self%active_lookup, n
+       allocate(p_in(n), Dl_in(self%lmin_lookup:self%lmax_lookup,6,n))
+       allocate(self%par_lookup(nspline*(n-1)+1), self%Dl_lookup(self%lmin_lookup:self%lmax_lookup,6,nspline*(n-1)+1))
+       unit2 = getlun()
+       open(unit2,file=trim(datadir)//'/'//trim(filename))
+       do i = 1, n
+          read(unit2,*) p_in(i), filename
+          call read_Cl_file(trim(datadir) // '/' // trim(filename), &
+            & Dl_in(:,:,i), self%lmin_lookup, self%lmax_lookup, 'TT_EE_BB_TE')
+          if (i == n/2) then
+             do l1 = self%lmin_lookup, self%lmax_lookup
+                where (self%active_lookup) 
+                   self%Dl(l1,:) = Dl_in(l1,:,i) 
+                end where
+             end do
+          end if
+       end do
+       close(unit2)
+
+       ! Spline spectra
+       do j = 1, 6
+          if (.not. self%active_lookup(j)) cycle
+          do l = self%lmin_lookup, self%lmax_lookup
+             call spline(Dl_spline, p_in, Dl_in(l,j,:))
+             do k = 1, nspline*(n-1)+1
+                self%par_lookup(k) = p_in(1) + (p_in(n)-p_in(1)) * (k-1)/real(nspline*(n-1),dp)
+                self%Dl_lookup(l,j,k) = splint(Dl_spline, self%par_lookup(k))
+             end do
+             call free_spline(Dl_spline)
+          end do
+       end do
+    end if
 
     ! Find number of bins
-    open(unit,file=trim(binfile))
     read(unit,*) self%nbin2
     allocate(self%bins2(self%nbin2))
     do i = 1, self%nbin2
@@ -604,30 +654,32 @@ contains
     if (.not. positive .and. get_Cl_apod /= 0.d0) get_Cl_apod = 1.d0 / get_Cl_apod
   end function get_Cl_apod
 
-  subroutine read_Cl_file(self, clfile)
+  subroutine read_Cl_file(clfile, Dl, lmin, lmax, col_order)
     implicit none
-    class(comm_Cl),   intent(inout) :: self
-    character(len=*), intent(in)    :: clfile
+    character(len=*),                      intent(in)  :: clfile, col_order
+    real(dp),         dimension(lmin:,1:), intent(out) :: Dl
+    integer(i4b),                          intent(in)  :: lmin, lmax
 
-    integer(i4b)       :: unit, l, n
+    integer(i4b)       :: unit, l, n, nspec
     character(len=512) :: line
     real(dp)           :: Dl_TT, Dl_TE, Dl_EE, Dl_BB
     real(dp),          allocatable, dimension(:,:) :: clin
     character(len=80),              dimension(120) :: header
-    n    = len(trim(clfile))
-    unit = getlun()
+    n     = len(trim(clfile))
+    nspec = size(Dl,2)
+    unit  = getlun()
 
-    self%Dl = 0.d0
+    Dl = 0.d0
     if (clfile(n-3:n) == 'fits') then
        ! Assume input file is in standard Healpix FITS format
-       allocate(clin(0:self%lmax,4))
-       call fits2cl(clfile, clin, self%lmax, 4, header)
-       do l = 0, self%lmax
-          self%Dl(l,TT) = clin(l,1) * (l*(l+1)/(2.d0*pi))
-          if (self%nmaps == 3) then
-             self%Dl(l,EE) = clin(l,2)
-             self%Dl(l,BB) = clin(l,3)
-             self%Dl(l,TE) = clin(l,4)
+       allocate(clin(0:lmax,4))
+       call fits2cl(clfile, clin, lmax, 4, header)
+       do l = lmin, lmax
+          Dl(l,TT) = clin(l,1) * (l*(l+1)/(2.d0*pi))
+          if (nspec == 6) then
+             Dl(l,EE) = clin(l,2)
+             Dl(l,BB) = clin(l,3)
+             Dl(l,TE) = clin(l,4)
           end if
        end do
        deallocate(clin)
@@ -639,27 +691,36 @@ contains
           read(unit,'(a)',end=3) line
           line = trim(line)
           if (line(1:1) == '#' .or. trim(line) == '') cycle
-          if (self%nmaps == 1) then
+          if (nspec == 1) then
              read(line,*) l, Dl_TT
-             if (l <= self%lmax) then
-                self%Dl(l,TT) = Dl_TT 
+             if (l >= lmin .and. l <= lmax) then
+                Dl(l,TT) = Dl_TT 
              end if
           else
              !write(*,*) trim(line)
-             read(line,*) l, Dl_TT, Dl_TE, Dl_EE, Dl_BB
-             if (l <= self%lmax) then
-                self%Dl(l,TT) = Dl_TT 
-                self%Dl(l,TE) = Dl_TE 
-                self%Dl(l,EE) = Dl_EE 
-                self%Dl(l,BB) = Dl_BB 
+             if (trim(col_order) == 'TT_TE_EE_BB') then
+                read(line,*) l, Dl_TT, Dl_TE, Dl_EE, Dl_BB
+             else if (trim(col_order) == 'TT_EE_BB_TE') then
+                read(line,*) l, Dl_TT, Dl_EE, Dl_BB, Dl_TE
+             else
+                write(*,*) 'Unsupported column ordering = ', trim(col_order)
+                stop
+             end if
+             if (l >= lmin .and. l <= lmax) then
+                Dl(l,TT) = Dl_TT 
+                Dl(l,TE) = Dl_TE 
+                Dl(l,EE) = Dl_EE 
+                Dl(l,BB) = Dl_BB 
              end if
           end if
        end do
 3      close(unit)
     end if
 
-    if (self%Dl(0,TT) == 0.d0) then
-       if (self%info%myid == 0) write(*,*) 'Warning: Input spectrum file ' // trim(clfile) // ' has vanishing monopole'
+    if (lmin == 0) then
+       if (Dl(0,TT) == 0.d0) &
+            & write(*,*) 'Warning: Input spectrum file ' // trim(clfile) &
+            & // ' has vanishing monopole'
     end if
     
   end subroutine read_Cl_file
@@ -921,6 +982,10 @@ contains
     end do
 
     if (self%info%myid == 0) then
+       if (self%lmin_lookup >= 0) then
+          call sample_Dl_lookup(handle, ok)
+       end if
+
        do i = 1, self%nbin2
           call sample_Dl_bin(self%bins2(i), handle, ok)
 !          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
@@ -944,6 +1009,90 @@ contains
 
   contains
 
+    subroutine sample_Dl_lookup(handle, ok)
+      implicit none
+      type(planck_rng),                   intent(inout) :: handle
+      logical(lgt),                       intent(inout) :: ok
+    
+      integer(i4b) :: i, j, k, l, m, n, status
+      real(dp)     :: S(3,3), eta, w, ln_det_S
+      real(dp), allocatable, dimension(:) :: lnL
+      
+      if (.not. ok) return
+
+      ! Compute log-likelihood for each model
+      n        = size(self%par_lookup)
+      allocate(lnL(n))
+      lnL = 0.d0
+      do i = 1, n
+         do l = self%lmin_lookup, self%lmax_lookup
+            S = self%S_mat(:,:,l)
+            m = 0
+            do j = 1, self%nmaps
+               do k = j, self%nmaps
+                  m = m+1
+                  if (self%active_lookup(m)) then
+                     S(j,k) = self%Dl_lookup(l,m,i) / &
+                          & (l*(l+1)/2.d0/pi*self%RJ2unit(j)*self%RJ2unit(k))
+                     S(k,j) = S(j,k)
+                  end if
+               end do
+            end do
+            do j = 1, self%nmaps
+               if (S(j,j) == 0.d0) S(j,j) = 1.d0
+            end do
+            call invert_matrix(S, cholesky=.true., status=status, ln_det=ln_det_S)
+            if (status /= 0) then
+               lnL(i) = -1.d30
+            else
+!!$               write(*,*) 
+!!$               write(*,*) i, l, real(S,sp)
+!!$               write(*,*) i, l, real(sigma_l(:,:,l),sp)
+!!$               write(*,*) i, l, ln_det_S, trace_sigma_inv_Cl(sigma_l(:,:,l), S)
+               lnL(i) = lnL(i) - 0.5d0 * (real(2*l+1,dp) * ln_det_S + &
+                    & real(2*l+1,dp)*trace_sigma_inv_Cl(sigma_l(:,:,l), S))
+            end if
+         end do
+      end do
+
+      if (all(lnL == -1d30)) then
+         ok = .false.
+         return
+      end if
+
+!      write(*,*) 'lnL = ', lnL 
+
+      ! Compute probabilities for each model spectrum
+      where (lnL > -1d30)
+         lnL = exp(lnL - maxval(lnL))
+      elsewhere
+         lnL = 0.d0
+      end where
+      lnL = lnL / sum(lnL)
+
+      !write(*,*) 'P = ', lnL 
+
+      ! Draw random model given respective probability
+      eta = rand_uni(handle)
+      w   = 0.d0
+      i   = 0
+      do while (w < eta)
+         w = w + lnL(i+1)  ! lnL is now probability
+         i = i + 1
+      end do
+
+      ! Update
+      do l = self%lmin_lookup, self%lmax_lookup
+         where (self%active_lookup)
+            self%Dl(l,:) = self%Dl_lookup(l,:,i)
+         end where
+      end do
+      write(*,*) '   Current lookup sample parameter = ', self%par_lookup(i), lnL(i)
+
+      deallocate(lnL)
+
+    end subroutine sample_Dl_lookup
+
     recursive subroutine sample_Dl_bin(bin, handle, ok)
       implicit none
       type(Cl_bin),                       intent(in)    :: bin
@@ -959,26 +1108,30 @@ contains
       if (.not. ok) return
       if (bin%stat == 'S') then
          ! Set up prior = positive definite Dl; thus is not exact for TEB
-         prior    = [-1.d5, 1.d5]
-         do l = bin%lmin, bin%lmax
-            select case (bin%spec)
-            case (1)
-               prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
-            case (2)
-               prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4)))
-               prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4)))
-            case (3)
-               prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6)))
-               prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6)))
-            case (4)
-               prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
-            case (5)
-               prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6)))
-               prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6)))
-            case (6)
-               prior(1) = max(prior(1), 0.d0)
-            end select
-         end do
+         if (self%nspec == 1) then
+            prior    = [0.d0, 1.d5]
+         else
+            prior    = [-1.d5, 1.d5]
+            do l = bin%lmin, bin%lmax
+               select case (bin%spec)
+               case (1)
+                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
+               case (2)
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4)))
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4)))
+               case (3)
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6)))
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6)))
+               case (4)
+                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+               case (5)
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6)))
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6)))
+               case (6)
+                  prior(1) = max(prior(1), 0.d0)
+               end select
+            end do
+         end if
          Dl_in(2) = self%Dl(bin%lmin,bin%spec)
          Dl_in(1) = max(Dl_in(2) - 3*bin%sigma, 0.5d0*(Dl_in(2)+prior(1)))
          Dl_in(3) = min(Dl_in(2) + 3*bin%sigma, 0.5d0*(Dl_in(2)+prior(2)))

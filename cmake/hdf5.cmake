@@ -5,7 +5,11 @@
 message(STATUS "---------------------------------------------------------------")
 # asking for an exact hdf5 version
 #find_package(HDF5 1.10.5 EXACT COMPONENTS Fortran) #Fortran_HL)
+
+if(USE_EXISTING_HDF5)
 find_package(HDF5 1.10.0 COMPONENTS Fortran) #Fortran_HL)
+endif()
+
 if(NOT HDF5_FOUND)
 	message(STATUS "Will download HDF5v1.10.5 from source.")
 	ExternalProject_Add(${project}

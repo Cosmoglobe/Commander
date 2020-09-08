@@ -429,7 +429,7 @@ contains
                 alms(i,:,pl) = buffer3(0,:c%nalm_tot,1)
                 deallocate(buffer3)
 
-                call theta_smooth%dealloc()
+                call theta_smooth%dealloc(); deallocate(theta_smooth)
                 ! ------- region sampling end
              end if
 
@@ -701,11 +701,11 @@ contains
        if (info%myid == 0) close(69)   
        if (info%myid == 0) close(66)   
        deallocate(alms, regs, chisq, maxit)
-       call theta%dealloc()
+       call theta%dealloc(); deallocate(theta)
 
        if (c%apply_jeffreys) then
           do k = 1, numband
-             call df(k)%p%dealloc()
+             call df(k)%p%dealloc(); deallocate(df(k)%p)
           end do
           deallocate(df)
        end if
@@ -749,7 +749,7 @@ contains
     do i = 1, numband
        res             => compute_residual(i)
        data(i)%res%map =  res%map
-       call res%dealloc()
+       call res%dealloc(); deallocate(res)
        nullify(res)
     end do
 
@@ -893,14 +893,14 @@ contains
     class is (comm_diffuse_comp)
        
        if (associated(c%x_smooth)) then
-          call c%x_smooth%dealloc()
+          call c%x_smooth%dealloc(); deallocate(c%x_smooth)
           nullify(c%x_smooth)
        end if
        do k =1, c%npar
           if (k == par_id) cycle
           if (allocated(c%theta_smooth)) then
              if (associated(c%theta_smooth(k)%p)) then
-                call c%theta_smooth(k)%p%dealloc()
+                call c%theta_smooth(k)%p%dealloc(); deallocate(c%theta_smooth(k)%p)
              end if
           end if
        end do
@@ -908,7 +908,7 @@ contains
        do i = 1, numband
           if (.not. associated(rms_smooth(i)%p)) cycle
           if (status_fit(i) == 2) then
-             call res_smooth(i)%p%dealloc()
+             call res_smooth(i)%p%dealloc(); deallocate(res_smooth(i)%p)
           end if
           nullify(res_smooth(i)%p)
        end do
@@ -956,11 +956,11 @@ contains
                       ! assign smoothed theta map to relevant polarizations
                       c%theta(par_id)%p%map(:,p) = c%theta_smooth(par_id)%p%map(:,1)
                    end do
-                   call c%theta_smooth(par_id)%p%dealloc()
+                   call c%theta_smooth(par_id)%p%dealloc(); deallocate(c%theta_smooth(par_id)%p)
                    deallocate(c%theta_smooth)
                 end if
              end do
-             call theta_single_pol%dealloc()
+             call theta_single_pol%dealloc(); deallocate(theta_single_pol)
              theta_single_pol => null()
 
           end if
@@ -1136,56 +1136,49 @@ contains
        theta_min = c_lnL%p_uni(1,id)
        theta_max = c_lnL%p_uni(2,id)
 
-       !needs rewriting to only sample polarizations covered by polt_id
-       if (trim(cpar%operation) == 'optimize') then
-          call c_lnL%sampleSpecInd(cpar, handle, par_id, iter) !use code in diffuse_comp_mod
 
-       else if (trim(cpar%operation) == 'sample') then
-
-          allocate(buffer_lnL(0:c_lnL%theta(id)%p%info%np-1,c_lnL%theta(id)%p%info%nmaps))
-          buffer_lnL=max(min(c_lnL%theta(id)%p%map,theta_max),theta_min) 
-          
-
-          do p = 1,c_lnL%poltype(id)
-             if (c_lnL%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
-             if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
-             if (p > c_lnL%nmaps) cycle ! poltype > number of maps
+       allocate(buffer_lnL(0:c_lnL%theta(id)%p%info%np-1,c_lnL%theta(id)%p%info%nmaps))
+       buffer_lnL=max(min(c_lnL%theta(id)%p%map,theta_max),theta_min) 
+       
+       
+       do p = 1,c_lnL%poltype(id)
+          if (c_lnL%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
+          if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
+          if (p > c_lnL%nmaps) cycle ! poltype > number of maps
 
 
 
-             call wall_time(t1)
-             if (c_lnL%pol_pixreg_type(p,id) > 0) then
-                if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
-                     & 'of ', c_lnL%poltype(id) !Needed?
-                call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
-                call wall_time(t2)
-                if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
-                     & p,'CPU time specind = ', real(t2-t1,sp)
-             else
-                write(*,*) 'Undefined spectral index sample region'
-                write(*,*) 'Component:',trim(c_lnL%label),'ind:',trim(c_lnL%indlabel(id))
-                stop
-             end if
+          call wall_time(t1)
+          if (c_lnL%pol_pixreg_type(p,id) > 0) then
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
+                  & 'of ', c_lnL%poltype(id) !Needed?
+             call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
+             call wall_time(t2)
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
+                  & p,'CPU time specind = ', real(t2-t1,sp)
+          else
+             write(*,*) 'Undefined spectral index sample region'
+             write(*,*) 'Component:',trim(c_lnL%label),'ind:',trim(c_lnL%indlabel(id))
+             stop
+          end if
 
 
 
-          end do
+       end do
 
-          !after sampling is done we assign the spectral index its new value(s)
-          c_lnL%theta(id)%p%map = buffer_lnL
-          
-          if (info%myid == 0 .and. cpar%verbosity > 2) write(*,*) 'Updating Mixing matrix'
-          ! Update mixing matrix
-          call c_lnL%updateMixmat
+       !after sampling is done we assign the spectral index its new value(s)
+       c_lnL%theta(id)%p%map = buffer_lnL
 
-          ! Ask for CG preconditioner update
-          if (c_lnL%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
+       if (info%myid == 0 .and. cpar%verbosity > 2) write(*,*) 'Updating Mixing matrix'
+       ! Update mixing matrix
+       call c_lnL%updateMixmat
 
-          ! deallocate
+       ! Ask for CG preconditioner update
+       if (c_lnL%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
 
-          deallocate(buffer_lnL)
+       ! deallocate
 
-       end if !operation
+       deallocate(buffer_lnL)
 
     end select
 
@@ -2439,7 +2432,7 @@ contains
                          temp_res%map = temp_res%map*temp_res%map
                         
                          lnL_old = lnL_old -0.5d0*sum(temp_res%map(:,pol_j(k)))
-                         call temp_res%dealloc()
+                         call temp_res%dealloc(); deallocate(temp_res)
                       end if
                       
                       !build residual map
@@ -2476,7 +2469,7 @@ contains
                       temp_res%map = temp_res%map*temp_res%map
 
                       lnL_new = lnL_new -0.5d0*sum(temp_res%map(:,pol_j(k)))
-                      call temp_res%dealloc()
+                      call temp_res%dealloc(); deallocate(temp_res)
 
                    end if
                 end do
@@ -2590,16 +2583,21 @@ contains
                 !if delta_lnL is more negative than -25.d0, limit to -25.d0
                 if (abs(delta_lnL) > delta_lnL_threshold) delta_lnL = -delta_lnL_threshold 
 
-                !draw random uniform number
-                a = rand_uni(handle) !draw uniform number from 0 to 1
-                if (exp(delta_lnL) > a) then
-                   !accept
-                   old_theta = new_theta
-                   lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
-                   n_accept = n_accept + 1
-                   accept_arr(arr_ind) = 1 !accept
+
+                if (trim(cpar%operation) == 'sample') then
+                   !draw random uniform number
+                   a = rand_uni(handle) !draw uniform number from 0 to 1
+                   if (exp(delta_lnL) > a) then
+                      !accept
+                      old_theta = new_theta
+                      lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+                      n_accept = n_accept + 1
+                      accept_arr(arr_ind) = 1 !accept
+                   else
+                      accept_arr(arr_ind) = 0 !reject
+                   end if
                 else
-                   accept_arr(arr_ind) = 0 !reject
+                   accept_arr(arr_ind) = 0 !reject if running optimize
                 end if
              else
                 !accept new sample, higher likelihood
@@ -2729,8 +2727,8 @@ contains
        end if
 
        if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
-       call theta_single_lr%dealloc()
-       call theta_lr_hole%dealloc()
+       call theta_single_lr%dealloc(); deallocate(theta_single_lr)
+       call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
 
     end do !pr = 1,max_pr
 
@@ -2795,7 +2793,7 @@ contains
           filename=trim(filename)//'_'//trim(postfix)//'.fits'
 
           call lr_chisq(k)%p%writeFITS(trim(filename))
-          call lr_chisq(k)%p%dealloc()
+          call lr_chisq(k)%p%dealloc(); deallocate(lr_chisq(k)%p)
        end do
        deallocate(lr_chisq)
     end if
@@ -2847,10 +2845,10 @@ contains
     if (allocated(df)) deallocate(df)
     deallocate(accept_arr,dlnL_arr)
 
-    call theta_fr%dealloc()
-    call theta_single_fr%dealloc()
-    call mask_lr%dealloc()
-    call res_map%dealloc()
+    call theta_fr%dealloc();        deallocate(theta_fr)
+    call theta_single_fr%dealloc(); deallocate(theta_single_fr)
+    call mask_lr%dealloc();         deallocate(mask_lr)
+    call res_map%dealloc();         deallocate(res_map)
     theta_fr => null()
     theta_single_fr => null()
     mask_lr => null()

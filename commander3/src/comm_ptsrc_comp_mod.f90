@@ -129,6 +129,15 @@ contains
 
     if (.not. constructor%apply_pos_prior) recompute_ptsrc_precond = .true.
 
+    call get_tokens(cpar%output_comps, ",", comp_label, n)
+    constructor%output = .false.
+    do i = 1, n
+       if (trim(comp_label(i)) == trim(constructor%label) .or. trim(comp_label(i)) == 'all') then
+          constructor%output = .true.
+          exit
+       end if
+    end do
+
     ! Initialize frequency scaling parameters
     constructor%ndet = maxval(data%ndet)
     allocate(constructor%F_int(3,numband,0:constructor%ndet))
@@ -413,6 +422,8 @@ contains
     character(len=512) :: filename, path
     class(comm_map), pointer :: map => null()
     real(dp), allocatable, dimension(:,:,:) :: theta
+
+    if (.not. self%output) return
 
     ! Output point source maps for each frequency
     do i = 1, numband
