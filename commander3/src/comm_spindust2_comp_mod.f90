@@ -82,7 +82,7 @@ contains
     do i = 1, constructor%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default') then
           constructor%theta(i)%p => comm_map(info)
-          constructor%theta(i)%p%map = constructor%theta_def(1)
+          constructor%theta(i)%p%map = constructor%theta_def(i)
        else
           ! Read map from FITS file, and convert to alms
           constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
