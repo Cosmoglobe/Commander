@@ -10,11 +10,12 @@ contains
 
  ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr)
+  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix)
     implicit none
     class(comm_tod),               intent(in)     :: self
     type(planck_rng),                  intent(inout)  :: handle
     integer(i4b),                      intent(in)     :: scan
+    integer(i4b),   dimension(1:,1:),  intent(in)     :: pix
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
     real(sp),          dimension(:,:), intent(out)    :: n_corr
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
@@ -92,7 +93,9 @@ contains
              end do
           end if      
        end if
-      
+       if (self%first_call) then
+          call find_d_prime_spikes(self, scan, i, d_prime, pix)
+       end if
        ! Preparing for fft
        dt(1:ntod)           = d_prime(:)
        dt(2*ntod:ntod+1:-1) = dt(1:ntod)
@@ -134,11 +137,11 @@ contains
        call sfftw_execute_dft_c2r(plan_back, dv, dt)
        dt          = dt / nfft
        n_corr(:,i) = dt(1:ntod) 
-       ! if (.true.) then
-       !    write(filename, "(A, I0.3, A, I0.3, A)") 'ncorr_times', self%scanid(scan), '_', i, '.dat' 
+       ! if (mod(self%scanid(scan),100) == 1) then
+       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_hundred_mask.dat' 
        !    open(65,file=trim(filename),status='REPLACE')
-       !    do j = i, ntod
-       !       write(65, '(12(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def
+       !    do j = 1, ntod
+       !       write(65, '(13(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate
        !    end do
        !    close(65)
        !    !stop
@@ -164,6 +167,68 @@ contains
   
   end subroutine sample_n_corr
 
+
+  subroutine find_d_prime_spikes(self, scan, det, d_prime, pix)
+    implicit none
+    class(comm_tod),                 intent(in)    :: self
+    integer(i4b),                    intent(in)    :: scan, det
+    real(sp),          dimension(:), intent(in)    :: d_prime
+    integer(i4b),  dimension(1:,1:), intent(in)    :: pix
+    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, n_downsamp, n_short
+    integer(i4b) :: nfft, nbuff, j_end, j_start, sampnum
+    real(dp)     :: nu, power, n_sigma, rms, avg
+    real(dp),     allocatable, dimension(:) :: d_downsamp, backup
+    logical(lgt) :: found_spike
+    character(len=1024) :: filename
+    
+    ntod = self%scans(scan)%ntod
+    n_downsamp = floor(self%samprate)
+    n = ntod - mod(ntod, n_downsamp)
+    n_short = n / n_downsamp
+
+    allocate(backup(n_short), d_downsamp(n_short))
+
+    avg = mean(d_prime * 1.d0)
+    do i = 1, n_short
+       backup(i) = sum(d_prime((i-1)*n_downsamp+1:i*n_downsamp) - avg) / n_downsamp  
+    end do
+    
+    do i = 1, n_short
+       l = max(i-5, 1)
+       k = min(i+5, n_short)
+       d_downsamp(i) = backup(i) - median(backup(l:k))
+    end do
+    found_spike = .false.
+    rms = sqrt(variance(d_downsamp(:)))
+    n_sigma = 5
+    do i = 1, n_short
+       if (d_downsamp(i) > n_sigma * rms) then
+          if (.not. found_spike) then
+             write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_pix_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
+             open(62,file=filename, status='REPLACE')
+             found_spike = .true.
+          end if
+          sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
+          write(62, '(4I, A)') pix(sampnum,det), sampnum, det, self%scanid(scan), trim(self%freq)
+       end if
+    end do
+    
+    
+
+    if (found_spike) then
+       close(62)
+       write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_tod_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
+       open(63,file=filename, status='REPLACE')
+       do i = 1, n_short
+          sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
+          write(63, '(I, 2(E15.6E3))') sampnum, d_downsamp(i), rms
+       end do
+       close(63)
+    end if
+
+  
+    deallocate(backup, d_downsamp)
+  end subroutine find_d_prime_spikes
 
   ! Sample noise psd
   subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
