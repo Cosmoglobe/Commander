@@ -330,7 +330,7 @@ contains
           prior(2) = 0.45
        else if (trim(self%freq) == '044') then
           prior(1) = 0.002
-          prior(2) = 0.20
+          prior(2) = 0.40
        else if (trim(self%freq) == '070') then
           prior(1) = 0.001
           prior(2) = 0.25
@@ -349,7 +349,7 @@ contains
        if ((fknee < prior(1)) .or. (fknee > prior(2))) then
           fknee = self%scans(scan)%d(i)%fknee
        end if
-       
+       alpha_dpc = self%scans(scan)%d(i)%alpha_def
        ! Sampling alpha
        if (trim(self%freq) == '030') then
           prior(1) = -1.6
@@ -360,7 +360,6 @@ contains
        else if (trim(self%freq) == '070') then
           prior(1) = -2.5
           prior(2) = -0.4
-          alpha_dpc = self%scans(scan)%d(i)%alpha_def
        else 
           write(*,*) "invalid band label in sample_noise_psd"
           stop
@@ -426,9 +425,11 @@ contains
       end if
       lnL_alpha = 0.d0
 
-      if (trim(self%freq) == '070') then
-         lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
-      end if
+      lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
+      
+      ! if (trim(self%freq) == '070') then
+      !    lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
+      ! end if
       
       sconst = sigma0 ** 2 * fknee ** (-x) 
       
