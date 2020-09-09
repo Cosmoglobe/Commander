@@ -242,7 +242,7 @@ contains
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
     integer(i4b) :: ndet
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, f
-    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior(2), alpha_dpc
+    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior(2), alpha_dpc, fknee_dpc
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
@@ -314,9 +314,11 @@ contains
        
        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 
+       fknee_dpc = self%scans(scan)%d(i)%fknee_def
+
        ! n_f should be the index representing fknee
        ! we want to only use smaller frequencies than this in the likelihood
-       n_f = ceiling(fknee * (n-1) / (samprate/2)) !ceiling(0.01d0 * (n-1) / (samprate/2)) ! n-1 
+       n_f = ceiling(2 * fknee_dpc * (n-1) / (samprate/2)) !ceiling(0.01d0 * (n-1) / (samprate/2)) ! n-1 
        !n_f = 1000
        do l = 1, n_f !n-1
           ps(l) = abs(dv(l)) ** 2 / ntod          
@@ -425,7 +427,7 @@ contains
       end if
       lnL_alpha = 0.d0
 
-      lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
+      lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.1d0 ** 2
       
       ! if (trim(self%freq) == '070') then
       !    lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
