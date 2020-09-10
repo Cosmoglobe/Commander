@@ -81,26 +81,25 @@ contains
 
 
   ! Sky signal template
-  subroutine project_sky_differential(tod, map, pix, psi, loss, flag, pmask, scan_id,&
+  subroutine project_sky_differential(tod, map, pix, psi, x_im, flag, pmask, scan_id,&
        & s_sky, tmask, s_bp)
     implicit none
     class(comm_tod),                          intent(in)  :: tod
     integer(i4b),        dimension(0:),       intent(in)  :: pmask
     real(sp),            dimension(1:,1:,0:), intent(in)  :: map
-    real(dp),            dimension(:),        intent(in)  :: loss
+    real(dp),            dimension(:),        intent(in)  :: x_im
     !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
-    integer(i4b),        dimension(:,:,:),      intent(in)  :: pix, psi
+    integer(i4b),        dimension(:,:,:),    intent(in)  :: pix, psi
     integer(i4b),        dimension(:,:),      intent(in)  :: flag
     integer(i4b),                             intent(in)  :: scan_id
     real(sp),            dimension(:,:),      intent(out) :: s_sky, tmask
     real(sp),            dimension(:,:),      intent(out), optional :: s_bp
 
-    integer(i4b) :: i, j, point, ang
+    integer(i4b) :: i, j, lpoint, rpoint, sgn
 
 
     ! This should be almost identical to project_sky, but use the horn imbalance
     ! coefficients.
-
 
     do i = 1, tod%ndet
       if (.not. tod%scans(scan_id)%d(i)%accept) then
@@ -108,32 +107,39 @@ contains
         tmask(:,i) = 0.d0
         cycle
       end if
+      sgn = (-1)**((i+1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
+      print *, '(i+1)/2+1', (i+1)/2+1, 'sgn', sgn
 
       do j = 1, tod%scans(scan_id)%ntod
-        point = tod%pix2ind(pix(j,i,mod(i,2)))
-        ang   = psi(j,i,mod(i,2))
-        !todo: add correct coefficients here when they are loaded in
-
+        lpoint = tod%pix2ind(pix(j,i,1))
+        rpoint = tod%pix2ind(pix(j,i,2))
         ! The gain imbalance parameters x are different for each radiometer.
-        ! Could be another parameter that would be fit. How would that be
-        ! included? Conversely, could just use the fixed values from Bennett et
-        ! al. (2013). I believe they're supposed to be constant throughout the
-        ! experiment.
-        ! d1 = (1+x1)*[T(pA) + P(pA,gA) + S(pA)] 
-        !     -(1-x1)*[T(pB) + P(pB,gB) + S(pB)]
-        ! For a single timestream, i.e., 13, we have
-        ! d13 = 2*loss_13 * [T(pA) + P(pA,gA) * S(pA)]
-        ! since d = 0.5*(d13 + d14)
-        ! We need to have some way to link loss_13 and loss_14 such that
-        ! loss_13 = 1 + x_im and loss_14 = 1 - x_im
+        ! d13 = (1+x1)*[T(pA) + P(pA,gA) + S(pA)] 
+        !      -(1-x1)*[T(pB) + P(pB,gB) + S(pB)]
+        ! We need to make sure that the imbalance parameters are redundant,
+        ! i.e., d13 and d14 have the same model,
+        ! d14 = (1+x1)*[T(pA) + P(pA,gA) + S(pA)] 
+        !      -(1-x1)*[T(pB) + P(pB,gB) + S(pB)]
+        ! but d23 and d24 have different models,
+        ! i.e., d13 and d14 have the same model,
+        ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)] 
+        !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
+        ! We need to have an extra parameter or something to mark the
+        ! orientation of the polarization sensitive detectors, \pm1.
+        ! I added this sgn parameter to account for polarization orientation of
+        ! detectors
+        ! I also am integer dividing by 2 in x_im.
 
-        s_sky(j,i) =  2*loss(i)*(map(1,point,i) + &
-                   &             map(2,point,i) * tod%cos2psi(ang) + &
-                   &             map(3,point,i) * tod%sin2psi(ang) + &
-                   &             map(4,point,i))
-
+        s_sky(j,i) =  (1+x_im(i/2))*(map(1,lpoint,i) + &
+                                  &  sgn*( &
+                                  &  map(2,lpoint,i) * tod%cos2psi(psi(j,i,1))  + &
+                                  &  map(3,lpoint,i) * tod%sin2psi(psi(j,i,1))))- &
+                   &  (1-x_im(i/2))*(map(1,rpoint,i) + &
+                                  &  sgn*( &
+                                  &  map(2,rpoint,i) * tod%cos2psi(psi(j,i,2))  + &
+                                  &  map(3,rpoint,i) * tod%sin2psi(psi(j,i,2))))
         if (iand(flag(j,i),tod%flag0) .ne. 0) tmask(j,i) = 0.
-        if(pmask(point)) then
+        if(pmask(lpoint) .or. pmask(rpoint)) then
           tmask(j,i) = 1
         end if
       end do

@@ -72,6 +72,7 @@ contains
     integer(i4b) :: i,nside_beam, lmax_beam, nmaps_beam, ndelta
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
+    real(dp), allocatable, dimension(:)  :: x_im
 
     ! Set up WMAP specific parameters
     allocate(constructor)
@@ -84,6 +85,9 @@ contains
     nmaps_beam = 3
     pol_beam   = .true.
     constructor%nside_beam = nside_beam
+
+
+    x_im(:)    = 0d0
 
 
     !initialize the common tod stuff
@@ -99,6 +103,7 @@ contains
        end if
        constructor%horn_id(i) = (i+1)/2
     end do
+
 
     ! Read the actual TOD
     ! TODO: this probabl needs a seperate fucntion/ modifications for wmap
@@ -149,7 +154,7 @@ contains
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
     integer(i4b), allocatable, dimension(:,:,:)   :: pix, psi
     integer(i4b), allocatable, dimension(:,:)     :: flag
-    real(dp),     allocatable, dimension(:)       :: loss
+    real(dp),     allocatable, dimension(:)       :: x_im
     character(len=512) :: prefix, postfix, prefix4D, filename
     character(len=2048) :: Sfilename
     character(len=4)   :: ctext, myid_text
@@ -186,6 +191,7 @@ contains
     allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta))
     allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
+    allocate(x_im(ndet/2))
     slist = ''
     allocate(outmaps(nout))
     do i = 1, nout 
@@ -251,7 +257,6 @@ contains
       allocate(pix(ntod, ndet, nhorn))             ! Decompressed pointing
       allocate(psi(ntod, ndet, nhorn))             ! Decompressed pol angle
       allocate(flag(ntod, ndet))                   ! Decompressed flags
-      allocate(loss(ndet))                         ! Loss coefficients
 
       ! --------------------
       ! Analyze current scan
@@ -270,7 +275,7 @@ contains
 
       write(*,*) "Making sky signal template"
       ! Construct sky signal template
-      call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, loss, flag, &
+      call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, x_im, flag, &
                & sprocmask%a, i, s_sky, mask)
       !      call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
       !           & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))
