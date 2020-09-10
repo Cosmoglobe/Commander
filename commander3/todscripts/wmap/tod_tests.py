@@ -45,7 +45,7 @@ files = glob(prefix + 'tod/new/*.fits')
 files.sort()
 data = fits.open(files[0])
 
-version=11
+version=13
 
 allbands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
@@ -106,7 +106,7 @@ axes_test[1].set_ylabel('p')
 band = 'K1'
 
 #plt.close('all')
-cg = hp.read_map(f'cg_v{version}_{band}.fits')
+cg = hp.read_map(f'cg_v{version}_{band}_pol.fits')
 #cg = hp.remove_dipole(cg, gal_cut=20)
 #hp.mollview(cg, min=-2.5, max=2.5)
 
