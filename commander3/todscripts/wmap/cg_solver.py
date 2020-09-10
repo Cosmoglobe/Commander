@@ -1,12 +1,11 @@
 import os
-
-import os
-os.environ["OMP_NUM_THREADS"] = "64" # export OMP_NUM_THREADS=4
-os.environ["OPENBLAS_NUM_THREADS"] = "64" # export OPENBLAS_NUM_THREADS=4 
-os.environ["MKL_NUM_THREADS"] = "64" # export MKL_NUM_THREADS=6
-os.environ["VECLIB_MAXIMUM_THREADS"] = "64" # export VECLIB_MAXIMUM_THREADS=4
-os.environ["NUMEXPR_NUM_THREADS"] = "64" # export NUMEXPR_NUM_THREADS=6
-os.environ["MKL_INTERFACE_LAYER"]="ILP64"
+ncpus = 144
+#os.environ["OMP_NUM_THREADS"] = f"{ncpus}" # export OMP_NUM_THREADS=4
+#os.environ["OPENBLAS_NUM_THREADS"] = f"{ncpus}" # export OPENBLAS_NUM_THREADS=4 
+#os.environ["MKL_NUM_THREADS"] = f"{ncpus}" # export MKL_NUM_THREADS=6
+#os.environ["VECLIB_MAXIMUM_THREADS"] = f"{ncpus}" # export VECLIB_MAXIMUM_THREADS=4
+#os.environ["NUMEXPR_NUM_THREADS"] = f"{ncpus}" # export NUMEXPR_NUM_THREADS=6
+#os.environ["MKL_INTERFACE_LAYER"]="ILP64"
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -178,6 +177,7 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     d = 0.5*(d1 + d2) # = i_A - i_B
     p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
 
+
     # subtract dipole solution from d
     #d = d - ((1*xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
     
@@ -194,13 +194,9 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     pB = pm[pixB]
     f_A = (1 - pA*(1-pB))*inds
     f_B = (1 - pB*(1-pA))*inds
-    p_hi = (pA==0) | (pB==0)
-    p_lo = (pA==1) & (pB==1)
-    sigma_hi = n[p_hi].std()
-    sigma_lo = n[p_lo].std()
 
 
-    sigmas = []
+    sigmas = np.ones(len(d))*sigma0
     for t in range(len(d)):
         '''
         Asymmetric masking means that when one beam is in a high Galactic
@@ -214,7 +210,6 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
         M[pixA[t]] += f_A[t]*(1+xbar)**2/sigma0**2
         M[pixB[t]] += f_B[t]*(1-xbar)**2/sigma0**2
-        sigmas.append(sigma0)
         if pol:
             b[pixA[t]] += f_A[t]*dxbar*p[t]/sigma0**2
             b[pixB[t]] += f_B[t]*dxbar*p[t]/sigma0**2
@@ -278,6 +273,32 @@ def innerproduct_pol(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, x, nside=256
         U_[pixB[t]] += f_B[t]*(np.sin(2*psiB[t])*(dxbar*Px_d - (1-xbar)*Px_p))
         S_[pixA[t]] += f_A[t]*(dxbar*Px_d + (1+xbar)*Px_p )
         S_[pixB[t]] += f_B[t]*(dxbar*Px_d - (1-xbar)*Px_p )
+    '''
+    # For loops are slow in python. Maybe better to loop over fewer elements?
+    # No.
+    npix = hp.nside2npix(nside)
+    Px_d = (1+xbar)*T[pixA] - (1-xbar)*T[pixB] +\
+            dxbar*(Q[pixA]*np.cos(2*psiA) + Q[pixB]*np.cos(2*psiB)) +\
+            dxbar*(U[pixA]*np.sin(2*psiA) + U[pixB]*np.sin(2*psiB)) +\
+            dxbar*(S[pixA] + S[pixB])
+
+    Px_p = dxbar*(T[pixA] + T[pixB]) +\
+            (1+xbar)*Q[pixA]*np.cos(2*psiA) - (1-xbar)*Q[pixB]*np.cos(psiB) +\
+            (1+xbar)*U[pixA]*np.sin(2*psiA) - (1-xbar)*U[pixB]*np.sin(psiB) +\
+            (1+xbar)*S[pixA] - (1-xbar)*S[pixB]
+    for p in tqdm(range(npix)):
+        indA = np.where(pixA == p)
+        indB = np.where(pixB == p)
+
+        T_[p] += (f_A[indA]*( (1+xbar)*Px_d + dxbar*Px_p)[indA]).sum()
+        T_[p] += (f_B[indB]*(-(1-xbar)*Px_d + dxbar*Px_p)[indB]).sum()
+        Q_[p] += (f_A[indA]*(np.cos(2*psiA[indA])*(dxbar*Px_d + (1+xbar)*Px_p)[indA])).sum()
+        Q_[p] += (f_B[indB]*(np.cos(2*psiB[indB])*(dxbar*Px_d - (1-xbar)*Px_p)[indB])).sum()
+        U_[p] += (f_A[indA]*(np.sin(2*psiA[indA])*(dxbar*Px_d + (1+xbar)*Px_p)[indA])).sum()
+        U_[p] += (f_B[indB]*(np.sin(2*psiB[indB])*(dxbar*Px_d - (1-xbar)*Px_p)[indB])).sum()
+        S_[p] += (f_A[indA]*( dxbar*Px_d + (1+xbar)*Px_p)[indA]).sum()
+        S_[p] += (f_B[indB]*( dxbar*Px_d - (1-xbar)*Px_p)[indB]).sum()
+    '''
 
     return np.concatenate((T_,Q_,U_,S_))
 
@@ -364,7 +385,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     else:
         fnames = fnames
 
-    pool = Pool(processes=min(nfiles, 24))
+    pool = Pool(processes=min(nfiles, ncpus))
     print('Preparing pool')
     funcs = [pool.apply_async(get_data, (fname, band, xbar, dxbar),
         dict(pol=pol, mask=mask)) for fname in fnames]
@@ -395,7 +416,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
                 b_p += bp_i
                 psiA += psiA_i.tolist()
                 psiB += psiB_i.tolist()
-            sigma0s += sigma_i
+            sigma0s += sigma_i.tolist()
     print('Finished pool')
     sigma0s = np.array(sigma0s)
     # For some reason when loading the entire dataset, the integers became
@@ -409,51 +430,65 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     f_A = np.array(f_A)/sigma0s
     f_B = np.array(f_B)/sigma0s
 
+    del sigma0s
+
     print('Loaded data')
 
     if sparse_test or sparse_only:
         if pol:
-            print('Constructing pointing matrix')
-            A_p = sparse.csr_matrix((
-             np.concatenate((
-                f_A*(1+xbar),
-                f_A*dxbar*np.cos(2*psiA),
-                f_A*dxbar*np.sin(2*psiA),
-                f_A*dxbar,
-                f_A*dxbar,
-                f_A*(1+xbar)*np.cos(2*psiA),
-                f_A*(1+xbar)*np.sin(2*psiA),
-                f_A*(1+xbar))),
-                (np.arange(8*len(pixA)), 
-                 np.concatenate((pixA, pixA+npix, pixA+2*npix, pixA+3*npix,
-                                 pixA, pixA+npix, pixA+2*npix, pixA+3*npix)))))\
-             + sparse.csr_matrix((
-                np.concatenate((
-                f_B*(-1+xbar),
-                f_B*dxbar*np.cos(2*psiB),
-                f_B*dxbar*np.sin(2*psiB),
-                f_B*dxbar,
-                f_B*dxbar,
-                f_B*(-1+xbar)*np.cos(2*psiB),
-                f_B*(-1+xbar)*np.sin(2*psiB),
-                f_B*(-1+xbar))),
-                (np.arange(8*len(pixB)), 
-                 np.concatenate((pixB, pixB+npix, pixB+2*npix, pixB+3*npix,
-                                 pixB, pixB+npix, pixB+2*npix, pixB+3*npix)))))
+            print(f'Constructing pointing matrix')
+            # Can split up the A_p construction... would 100 be enough?
+            A_p = sparse.csr_matrix((4*npix, 4*npix))
+            n_split = len(f_A)//(32*npix)
+            f_A = np.array_split(f_A, n_split)
+            f_B = np.array_split(f_B, n_split)
+            pixA = np.array_split(pixA, n_split)
+            pixB = np.array_split(pixB, n_split)
+            psiA = np.array_split(psiA, n_split)
+            psiB = np.array_split(psiB, n_split)
+            for n in tqdm(range(n_split)):
+                P_p = sparse.csc_matrix((
+                 np.concatenate((
+                    f_A[n]*(1+xbar),
+                    f_A[n]*dxbar*np.cos(2*psiA[n]),
+                    f_A[n]*dxbar*np.sin(2*psiA[n]),
+                    f_A[n]*dxbar,
+                    f_A[n]*dxbar,
+                    f_A[n]*(1+xbar)*np.cos(2*psiA[n]),
+                    f_A[n]*(1+xbar)*np.sin(2*psiA[n]),
+                    f_A[n]*(1+xbar))),
+                    (np.arange(8*len(pixA[n])), 
+                     np.concatenate((pixA[n], pixA[n]+npix, pixA[n]+2*npix, pixA[n]+3*npix,
+                                     pixA[n], pixA[n]+npix, pixA[n]+2*npix,
+                                     pixA[n]+3*npix)))),
+                     shape=(8*len(pixA[n]), 4*npix)) + \
+                 sparse.csc_matrix((
+                 np.concatenate((
+                    f_B[n]*(-1+xbar),
+                    f_B[n]*dxbar*np.cos(2*psiB[n]),
+                    f_B[n]*dxbar*np.sin(2*psiB[n]),
+                    f_B[n]*dxbar,
+                    f_B[n]*dxbar,
+                    f_B[n]*(-1+xbar)*np.cos(2*psiB[n]),
+                    f_B[n]*(-1+xbar)*np.sin(2*psiB[n]),
+                    f_B[n]*(-1+xbar))),
+                    (np.arange(8*len(pixB[n])), 
+                     np.concatenate((pixB[n], pixB[n]+npix, pixB[n]+2*npix, pixB[n]+3*npix,
+                                     pixB[n], pixB[n]+npix, pixB[n]+2*npix,
+                                     pixB[n]+3*npix)))),
+                     shape=(8*len(pixA[n]), 4*npix))
 
-            del pixA, pixB, psiA, psiB, f_A, f_B, sigma0s
+
+
+
            
 
-
-            print('Constructing A')
-            A_p = dot_product_mkl(A_p.T, A_p)
-            # Gram Matrix returns A^T A, but only the upper triangular elements.
-            #A_p = gram_matrix_mkl(A_p)
-            #A_p = A_p + sparse.triu(A_p,k=1).T
-
-            # Dot product transpose takes inner product with transpose of the
-            # matrix?
-            #A_p = dot_product_transpose_mkl(A_p.T)
+                A_p += dot_product_mkl(P_p.T, P_p)
+                #A_p = (A_p.tolil() + A_pi.tolil()).tocsr()
+                #A_p = A_p + A_pi
+                del P_p
+            del pixA, pixB, psiA, psiB, f_A, f_B
+            print('Finished constructing A matrix')
         else:
             times = np.arange(len(pixA))
             print('Creating the pointing matrices')
@@ -504,7 +539,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         while ((i < imax) & (delta_new > eps**2*delta_0) & (delta_new <= delta_old)):
             t0 = time()
             if sparse_only:
-                q = dot_product_mkl(A_p, d)
+                #q = dot_product_mkl(A_p, d)
+                q = A_p.dot(d)
             else:
                 q = innerproduct_pol(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, d)
             alpha = delta_new/d.dot(q)
@@ -512,7 +548,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             if i % 50 == 0:
                 print('Divisible by 50')
                 if sparse_only:
-                    r = b_p - dot_product_mkl(A_p, x_p)
+                    #r = b_p - dot_product_mkl(A_p, x_p)
+                    r = b_p - A_p.dot(x_p)
                 else:
                     r = b_p - innerproduct_pol(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, x_p)
             else:
@@ -717,7 +754,7 @@ def plot_maps_pol(band='K1', version='13', nside=256):
     hp.mollview(d_smooth[2], sub=324, min=-0.1, max=0.1, title='WM U',
             cmap='RdBu_r')
     hp.mollview(x_smooth[1]-d_smooth[1], sub=325, min=-0.1, max=0.1, title='Diff Q', cmap='RdBu_r')
-    hp.mollview(x_smooth[2]-d_smooth[1], sub=326, min=-0.1, max=0.1, title='Diff U', cmap='RdBu_r')
+    hp.mollview(x_smooth[2]-d_smooth[2], sub=326, min=-0.1, max=0.1, title='Diff U', cmap='RdBu_r')
     plt.savefig('smooth_pol.png', bbox_inches='tight')
 
     return
@@ -847,8 +884,8 @@ def check_hdf5(nside=256, version=8, band='K1'):
 if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-    get_cg(band='K1', nfiles=2**9, sparse_test=False, sparse_only=True,
-            imbalance=True, mask=True, pol=True, imax=100)
+    #get_cg(band='K1', nfiles=2**12, sparse_test=False, sparse_only=True,
+    #        imbalance=True, mask=True, pol=True, imax=np.inf)
     plot_maps_pol()
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
