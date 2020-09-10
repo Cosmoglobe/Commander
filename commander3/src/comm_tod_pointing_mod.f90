@@ -130,14 +130,14 @@ contains
         ! detectors
         ! I also am integer dividing by 2 in x_im.
 
-        s_sky(j,i) =  (1+x_im(i/2))*(map(1,lpoint,i) + &
-                                  &  sgn*( &
-                                  &  map(2,lpoint,i) * tod%cos2psi(psi(j,i,1))  + &
-                                  &  map(3,lpoint,i) * tod%sin2psi(psi(j,i,1))))- &
-                   &  (1-x_im(i/2))*(map(1,rpoint,i) + &
-                                  &  sgn*( &
-                                  &  map(2,rpoint,i) * tod%cos2psi(psi(j,i,2))  + &
-                                  &  map(3,rpoint,i) * tod%sin2psi(psi(j,i,2))))
+        s_sky(j,i) =  (1+x_im((i+1)/2))*(map(1,lpoint,i) + &
+                                      &  sgn*( &
+                                      &  map(2,lpoint,i) * tod%cos2psi(psi(j,i,1))  + &
+                                      &  map(3,lpoint,i) * tod%sin2psi(psi(j,i,1))))- &
+                   &  (1-x_im((i+1)/2))*(map(1,rpoint,i) + &
+                                      &  sgn*( &
+                                      &  map(2,rpoint,i) * tod%cos2psi(psi(j,i,2))  + &
+                                      &  map(3,rpoint,i) * tod%sin2psi(psi(j,i,2))))
         if (iand(flag(j,i),tod%flag0) .ne. 0) tmask(j,i) = 0.
         if(pmask(lpoint) .or. pmask(rpoint)) then
           tmask(j,i) = 1
