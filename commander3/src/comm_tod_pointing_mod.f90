@@ -81,21 +81,22 @@ contains
 
 
   ! Sky signal template
-  subroutine project_sky_differential(tod, map, pix, psi, x_im, flag, pmask, scan_id,&
+  subroutine project_sky_differential(tod, map, pix, psi, flag, x_im, pmask, scan_id,&
        & s_sky, tmask, s_bp)
     implicit none
     class(comm_tod),                          intent(in)  :: tod
     integer(i4b),        dimension(0:),       intent(in)  :: pmask
     real(sp),            dimension(1:,1:,0:), intent(in)  :: map
-    real(dp),            dimension(:),        intent(in)  :: x_im
     !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
     integer(i4b),        dimension(:,:,:),    intent(in)  :: pix, psi
     integer(i4b),        dimension(:,:),      intent(in)  :: flag
     integer(i4b),                             intent(in)  :: scan_id
+    real(dp),            dimension(:),        intent(in)  :: x_im
     real(sp),            dimension(:,:),      intent(out) :: s_sky, tmask
     real(sp),            dimension(:,:),      intent(out), optional :: s_bp
 
     integer(i4b) :: i, j, lpoint, rpoint, sgn
+
 
 
     ! This should be almost identical to project_sky, but use the horn imbalance
@@ -108,7 +109,6 @@ contains
         cycle
       end if
       sgn = (-1)**((i+1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
-      print *, '(i+1)/2+1', (i+1)/2+1, 'sgn', sgn
 
       do j = 1, tod%scans(scan_id)%ntod
         lpoint = tod%pix2ind(pix(j,i,1))

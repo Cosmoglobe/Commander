@@ -74,14 +74,14 @@ contains
   end subroutine bin_TOD
 
   ! differential TOD computation, written with WMAP in mind.
-  subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_im, dx_im, b, scan, comp_S, b_mono)
+  subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_im, b, scan, comp_S, b_mono)
     implicit none
     class(comm_tod),                                intent(in)    :: tod
     integer(i4b),                                   intent(in)    :: scan
     real(sp),            dimension(1:,1:,1:),       intent(in)    :: data
     integer(i4b),        dimension(1:,1:),          intent(in)    :: flag
     integer(i4b),        dimension(1:,1:,1:),       intent(in)    :: pix, psi
-    real(sp),                                       intent(in)    :: x_im, dx_im
+    real(dp),            dimension(1:),              intent(in)    :: x_im
     real(dp),            dimension(1:,1:,1:),       intent(inout) :: b
     real(dp),            dimension(1:,1:,1:),       intent(inout), optional :: b_mono
     logical(lgt),                                   intent(in)    :: comp_S
@@ -89,10 +89,9 @@ contains
     integer(i4b) :: det, i, t, off, nout
     real(dp)     :: inv_sigmasq
 
-    integer(i4b) :: lpoint, rpoint, lpsi, rpsi
+    integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn
 
 
-    real(dp) :: d, p
 
     nout        = size(b,dim=1)
 
@@ -114,23 +113,25 @@ contains
           ! Does data include full array, d13, d14, d23, d24?
 
           ! I think the correct thing to do is to construct 
-          ! d = 0.5*(d13 + d14 + d23 + d24) and
-          ! p = 0.5*(d13 + d14 - d23 - d24)
+          ! d = 0.25*(d13 + d14 + d23 + d24) and
+          ! p = 0.25*(d13 + d14 - d23 - d24)
+          ! sgn 
+          sgn = (-1)**((det+1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
 
           
           do i = 1, nout
-             b(i,1,lpoint) = b(i,1,lpoint) + ( (1+x_im)*d + dx_im*p )                     * inv_sigmasq
-             b(i,1,rpoint) = b(i,1,rpoint) - ( (1-x_im)*d - dx_im*p )                     * inv_sigmasq
-             b(i,2,lpoint) = b(i,2,lpoint) + ( (1+x_im)*p + dx_im*d ) * tod%cos2psi(lpsi) * inv_sigmasq
-             b(i,2,rpoint) = b(i,2,rpoint) - ( (1-x_im)*p - dx_im*d ) * tod%cos2psi(rpsi) * inv_sigmasq
-             b(i,3,lpoint) = b(i,3,lpoint) + ( (1+x_im)*p + dx_im*d ) * tod%sin2psi(lpsi) * inv_sigmasq
-             b(i,3,rpoint) = b(i,3,rpoint) - ( (1-x_im)*p - dx_im*d ) * tod%sin2psi(rpsi) * inv_sigmasq
+             b(i,1,lpoint) = b(i,1,lpoint) + (1+x_im((i+1)/2)) * data(i,t,det)                           * inv_sigmasq
+             b(i,1,rpoint) = b(i,1,rpoint) - (1-x_im((i+1)/2)) * data(i,t,det)                           * inv_sigmasq
+             b(i,2,lpoint) = b(i,2,lpoint) + (1+x_im((i+1)/2)) * data(i,t,det) * tod%cos2psi(lpsi) * sgn * inv_sigmasq
+             b(i,2,rpoint) = b(i,2,rpoint) - (1-x_im((i+1)/2)) * data(i,t,det) * tod%cos2psi(rpsi) * sgn * inv_sigmasq
+             b(i,3,lpoint) = b(i,3,lpoint) + (1+x_im((i+1)/2)) * data(i,t,det) * tod%sin2psi(lpsi) * sgn * inv_sigmasq
+             b(i,3,rpoint) = b(i,3,rpoint) - (1-x_im((i+1)/2)) * data(i,t,det) * tod%sin2psi(rpsi) * sgn * inv_sigmasq
           end do
           
           if (comp_S .and. det < tod%ndet) then
              do i = 1, nout
-                b(i,4,lpoint) = b(i,4,lpoint) + ( (1+x_im)*p + dx_im*d ) * inv_sigmasq
-                b(i,4,rpoint) = b(i,4,rpoint) - ( (1-x_im)*p - dx_im*d ) * inv_sigmasq
+                b(i,4,lpoint) = b(i,4,lpoint) + (1+x_im((i+1)/2)) * data(i,t,det) * sgn * inv_sigmasq
+                b(i,4,rpoint) = b(i,4,rpoint) - (1-x_im((i+1)/2)) * data(i,t,det) * sgn * inv_sigmasq
              end do
           end if
           

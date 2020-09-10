@@ -47,6 +47,7 @@ module comm_tod_WMAP_mod
 
   type, extends(comm_tod) :: comm_WMAP_tod
     class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
+    real(dp), allocatable, dimension(:)  :: x_im
 
    contains
      procedure     :: process_tod        => process_WMAP_tod
@@ -72,7 +73,6 @@ contains
     integer(i4b) :: i,nside_beam, lmax_beam, nmaps_beam, ndelta
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
-    real(dp), allocatable, dimension(:)  :: x_im
 
     ! Set up WMAP specific parameters
     allocate(constructor)
@@ -87,11 +87,12 @@ contains
     constructor%nside_beam = nside_beam
 
 
-    x_im(:)    = 0d0
-
 
     !initialize the common tod stuff
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+    allocate(constructor%x_im(constructor%ndet/2))
+    print *, constructor%ndet/2, 'constructor%ndet/2'
+    constructor%x_im(:)    = 0.0d0
     
     !TODO: this is LFI specific, write something here for wmap
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -154,7 +155,6 @@ contains
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
     integer(i4b), allocatable, dimension(:,:,:)   :: pix, psi
     integer(i4b), allocatable, dimension(:,:)     :: flag
-    real(dp),     allocatable, dimension(:)       :: x_im
     character(len=512) :: prefix, postfix, prefix4D, filename
     character(len=2048) :: Sfilename
     character(len=4)   :: ctext, myid_text
@@ -191,7 +191,6 @@ contains
     allocate(map_sky(nmaps,self%nobs,0:ndet,ndelta))
     allocate(chisq_S(ndet,ndelta))
     allocate(slist(self%nscan))
-    allocate(x_im(ndet/2))
     slist = ''
     allocate(outmaps(nout))
     do i = 1, nout 
@@ -275,8 +274,8 @@ contains
 
       write(*,*) "Making sky signal template"
       ! Construct sky signal template
-      call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, x_im, flag, &
-               & sprocmask%a, i, s_sky, mask)
+      call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+               & self%x_im, sprocmask%a, i, s_sky, mask)
       !      call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
       !           & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))
       !   end do
@@ -379,6 +378,33 @@ contains
 
    end do
 
+   ! start a new loop that is the CG solver loop
+
+   !    do while ((i .lt. i_max). and (delta_new .gt. (epsil**2)*delta_0))
+   !         do i = 1, self%nscan
+   !             ! decompress the data so we have one chunk of TOD in memory
+   !             q = A.dot(d)    
+   !         end do
+   !         alpha = delta_new/sum(d*q)
+   !         if (mod(i,50) == 0) then
+   !             do i = 1, self%nscan
+   !                 ! decompress the data so we have one chunk of TOD in memory
+   !                 r = r - A.dot(x)
+   !             end do
+   !         else
+   !             r = r - alpha*q
+   !         end if
+   !         delta_old = delta_new
+   !         delta_new = sum(r*r)
+   !         beta = delta_new/delta_old
+   !         d = r + beta*d
+   !         i = i + 1
+   !         
+   !         end do
+
+   !    end do
+
+   ! x = wmap_estimate
 
    ! Output latest scan list with new timing information
    if (self%first_call) then

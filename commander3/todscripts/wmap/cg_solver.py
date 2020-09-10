@@ -177,6 +177,11 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     d = 0.5*(d1 + d2) # = i_A - i_B
     p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
 
+    N_tod = len(d)
+    for i in range(25):
+        d[i*N_tod:(i+1)*N_tod] -= np.median(d[i*N_tod:(i+1)*N_tod])
+        p[i*N_tod:(i+1)*N_tod] -= np.median(p[i*N_tod:(i+1)*N_tod])
+
 
     # subtract dipole solution from d
     #d = d - ((1*xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
@@ -884,9 +889,9 @@ def check_hdf5(nside=256, version=8, band='K1'):
 if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-    #get_cg(band='K1', nfiles=2**12, sparse_test=False, sparse_only=True,
-    #        imbalance=True, mask=True, pol=True, imax=np.inf)
-    plot_maps_pol()
+    get_cg(band='K1', nfiles=2**10, sparse_test=False, sparse_only=True,
+            imbalance=True, mask=True, pol=True, imax=np.inf)
+    #plot_maps_pol()
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)

@@ -603,8 +603,15 @@ def fits_to_h5(file_input, file_ind, compress, plot):
 
 
 
-    alpha = -1
+    alpha = -1.7
     fknee = 0.1
+    fknees = np.array([0.40, 0.51, 0.71, 0.32,
+                       1.09, 0.35, 5.76, 8.62,
+                       0.09, 1.41, 0.88, 8.35,
+                       7.88, 0.66, 9.02, 7.47,
+                       0.93, 0.28, 46.5, 26.0]) # mHz
+    # From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
+    # characterization", alpha=-1.7 from Figure
 
     nside = 256
     ntodsigma = 100
@@ -637,6 +644,8 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     # the quaternion problem?
     genflags = data[2].data['genflags']
     daflags = data[2].data['daflags']
+    print(genflags.shape)
+    print(daflags.shape)
 
     TODs = []
     for key in band_labels:
@@ -661,12 +670,11 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     dt0 = np.median(np.diff(time))
 
     quat = data[1].data['QUATERN']
+    print(quat.shape)
     #if np.any(genflags != 0):
         #return
     if np.any(~np.isfinite(quat)):
         print(f'{file_input} has non-finite quaternions...')
-        print(quat[~np.isfinite(quat)])
-        print(genflags)
         return
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
 
@@ -728,7 +736,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
         pool.join()
     else:
         for i, f in zip(inds, files):
-            print(i, f)
+            #print(i, f)
             fits_to_h5(f,i,compress, plot)
 
     # I don't know what this line of code was doing, so I will skip it...
@@ -746,4 +754,4 @@ if __name__ == '__main__':
     '''
     If the file exists, skip it!
     '''
-    main(par=True, plot=False, compress=True)
+    main(par=False, plot=False, compress=True)
