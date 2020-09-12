@@ -1,5 +1,5 @@
 import os
-ncpus = 144
+ncpus = 48
 #os.environ["OMP_NUM_THREADS"] = f"{ncpus}" # export OMP_NUM_THREADS=4
 #os.environ["OPENBLAS_NUM_THREADS"] = f"{ncpus}" # export OPENBLAS_NUM_THREADS=4 
 #os.environ["MKL_NUM_THREADS"] = f"{ncpus}" # export MKL_NUM_THREADS=6
@@ -45,13 +45,12 @@ def make_dipole(amp, lon, lat, nside):
     return dip_map*amp
 
 def cg_solve(A, b, M_diag, imax=1000, eps=1e-6):
-    p = (M_diag != 0)
     x = np.zeros_like(b)
     s = np.zeros_like(b)
     i = 0
     r = b - A.dot(x)
     d = np.zeros_like(b)
-    d[p] = (r/M_diag)[p]
+    d = (r/M_diag)
     delta_new = r.dot(d)
     delta_old = np.copy(delta_new)
     delta_0 = r.dot(d)
@@ -63,7 +62,7 @@ def cg_solve(A, b, M_diag, imax=1000, eps=1e-6):
             r = b - A.dot(x)
         else:
             r = r - alpha*q
-        s[p] = (r/M_diag)[p]
+        s = (r/M_diag)
         delta_old = np.copy(delta_new)
         delta_new = r.dot(s)
         beta = delta_new/delta_old
@@ -72,14 +71,60 @@ def cg_solve(A, b, M_diag, imax=1000, eps=1e-6):
     return x
 
 
+def bicgstab_solve(A, b, M_diag, imax=1000, eps=1e-6):
+    '''
+    From Figure 2.10 of Barrett et al. (1994), Templates for the Solutions of
+    Linear Systems.
+    '''
+    x = np.zeros(len(b))
+    r = b - A.dot(x)
+    rp = np.copy(r)
+    i = 0
+    rho_old = 1
+    delta_0 = r.dot(r/M_diag)
+    delta_new = np.copy(delta_0)
+    while ((i < imax) & (delta_new > eps**2*delta_0)):
+        rho = rp.dot(r)
+        if rho == 0:
+            print('something is wrong')
+            return x
+        if i == 0:
+            p = np.copy(r)
+        else:
+            beta = (rho/rho_old)*(alpha/omega)
+            p = r + beta*(p - omega*v)
+        phat = p/M_diag
+        v = A.dot(phat)
+        alpha = rho/rp.dot(v)
+        s = r - alpha*v
+        # norm(s) is small enough, set x += alpha*phat and stop
+        shat = s/M_diag
+        t = A.dot(shat)
+        omega = t.dot(s)/t.dot(t)
+        x += alpha*phat + omega*shat
+        r = s - omega*t
+        # check convergence, continue if necessary
+        delta_new = r.dot(r/M_diag)
+
+        rho_old = rho
+
+        i += 1
+
+    return x
+
+
 def cg_test():
     A = np.array([[3,2],
                   [2,6]])
     b = np.array([2,-8])
-    Minv = np.eye(2)
+    Minv = np.array([1,1])
 
     x = cg_solve(A, b, Minv)
     assert np.allclose(A.dot(x), b), 'CG solution is not close enough'
+    x = bicgstab_solve(A, b, Minv)
+    assert np.allclose(A.dot(x), b), 'BiCGSTAB solution is not close enough'
+    x, info = sparse.linalg.bicgstab(A, b)
+    assert np.allclose(A.dot(x), b), 'BiCGSTAB solution is not close enough'
     return
 
 def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
@@ -197,6 +242,8 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
     pA = pm[pixA]
     pB = pm[pixB]
+    # This SHOULD make it so that if pA is 0 (high emission) and pB is 1 (low
+    # emission), pixA is updated and pixB isn't.
     f_A = (1 - pA*(1-pB))*inds
     f_B = (1 - pB*(1-pA))*inds
 
@@ -222,8 +269,8 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
             b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma0**2
             b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma0**2
             b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma0**2
-            b_s[pixA[t]] += f_A[t]*(dxbar*d[t] + (1+xbar)*p[t])/sigma0**2
-            b_s[pixB[t]] += f_B[t]*(dxbar*d[t] - (1-xbar)*p[t])/sigma0**2
+            b_s[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])/sigma0**2
+            b_s[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])/sigma0**2
 
 
             M_q[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.cos(2*psiA[t]))**2/sigma0**2
@@ -244,12 +291,10 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
         return M, b, pixA, pixB, sigmas, f_A, f_B
 
 def inner_productdq(t):
-    global d, sigma0s, pixA, pixB
     dq = (d[pixA[t]] - d[pixB[t]])/sigma0s[t]*2
     return pixA[t], pixB[t], dq
 
 def inner_productxr(t):
-    global x, sigma0s, pixA, pixB
     dr = (x[pixA[t]] - x[pixB[t]])/sigma0s[t]**2
     return pixA[t], pixB[t], dr
 
@@ -334,7 +379,7 @@ def innerproduct_pol_t(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, x, nside=2
 def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         sparse_only=False, pol=False, imbalance=True, mask=True,
         imax = 3000,
-        eps = 1e-16,
+        eps = 1e-8,
         ):
 
     imax = min(imax, nfiles)
@@ -365,7 +410,6 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
 
 
-    global x, d, sigma0s, pixA, pixB
     npix = hp.nside2npix(nside)
     b = np.zeros(npix)
     b_full = np.zeros(npix)
@@ -421,6 +465,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
                 b_p += bp_i
                 psiA += psiA_i.tolist()
                 psiB += psiB_i.tolist()
+            # You can construct the pointing matrix here...
             sigma0s += sigma_i.tolist()
     print('Finished pool')
     sigma0s = np.array(sigma0s)
@@ -432,10 +477,9 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     if pol:
         psiA = np.array(psiA)
         psiB = np.array(psiB)
-    f_A = np.array(f_A)/sigma0s
-    f_B = np.array(f_B)/sigma0s
+    f_A = np.array(f_A)
+    f_B = np.array(f_B)
 
-    del sigma0s
 
     print('Loaded data')
 
@@ -451,33 +495,66 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             pixB = np.array_split(pixB, n_split)
             psiA = np.array_split(psiA, n_split)
             psiB = np.array_split(psiB, n_split)
+            sigma0s = np.array_split(sigma0s, n_split)
+            t_arr = np.arange(8*len(pixA[0]))
             for n in tqdm(range(n_split)):
-                P_p = sparse.csc_matrix((
+                P_p_AM = sparse.csc_matrix((
                  np.concatenate((
-                    f_A[n]*(1+xbar),
-                    f_A[n]*dxbar*np.cos(2*psiA[n]),
-                    f_A[n]*dxbar*np.sin(2*psiA[n]),
-                    f_A[n]*dxbar,
-                    f_A[n]*dxbar,
-                    f_A[n]*(1+xbar)*np.cos(2*psiA[n]),
-                    f_A[n]*(1+xbar)*np.sin(2*psiA[n]),
-                    f_A[n]*(1+xbar))),
-                    (np.arange(8*len(pixA[n])), 
+                    f_A[n]*(1+xbar)/sigma0s[n],
+                    f_A[n]*dxbar*np.cos(2*psiA[n])/sigma0s[n],
+                    f_A[n]*dxbar*np.sin(2*psiA[n])/sigma0s[n],
+                    f_A[n]*dxbar/sigma0s[n],
+                    f_A[n]*dxbar/sigma0s[n],
+                    f_A[n]*(1+xbar)*np.cos(2*psiA[n])/sigma0s[n],
+                    f_A[n]*(1+xbar)*np.sin(2*psiA[n])/sigma0s[n],
+                    f_A[n]*(1+xbar)/sigma0s[n])),
+                 (t_arr[:len(f_A[n])], 
                      np.concatenate((pixA[n], pixA[n]+npix, pixA[n]+2*npix, pixA[n]+3*npix,
                                      pixA[n], pixA[n]+npix, pixA[n]+2*npix,
                                      pixA[n]+3*npix)))),
                      shape=(8*len(pixA[n]), 4*npix)) + \
                  sparse.csc_matrix((
                  np.concatenate((
-                    f_B[n]*(-1+xbar),
-                    f_B[n]*dxbar*np.cos(2*psiB[n]),
-                    f_B[n]*dxbar*np.sin(2*psiB[n]),
-                    f_B[n]*dxbar,
-                    f_B[n]*dxbar,
-                    f_B[n]*(-1+xbar)*np.cos(2*psiB[n]),
-                    f_B[n]*(-1+xbar)*np.sin(2*psiB[n]),
-                    f_B[n]*(-1+xbar))),
-                    (np.arange(8*len(pixB[n])), 
+                    f_B[n]*(-1+xbar)/sigma0s[n],
+                    f_B[n]*dxbar*np.cos(2*psiB[n])/sigma0s[n],
+                    f_B[n]*dxbar*np.sin(2*psiB[n])/sigma0s[n],
+                    f_B[n]*dxbar/sigma0s[n],
+                    f_B[n]*dxbar/sigma0s[n],
+                    f_B[n]*(-1+xbar)*np.cos(2*psiB[n])/sigma0s[n],
+                    f_B[n]*(-1+xbar)*np.sin(2*psiB[n])/sigma0s[n],
+                    f_B[n]*(-1+xbar)/sigma0s[n])),
+                 (t_arr[:len(f_A[n])], 
+                     np.concatenate((pixB[n], pixB[n]+npix, pixB[n]+2*npix, pixB[n]+3*npix,
+                                     pixB[n], pixB[n]+npix, pixB[n]+2*npix,
+                                     pixB[n]+3*npix)))),
+                     shape=(8*len(pixA[n]), 4*npix))
+
+                P_p = sparse.csc_matrix((
+                 np.concatenate((
+                    (1+xbar)/sigma0s[n],
+                    dxbar*np.cos(2*psiA[n])/sigma0s[n],
+                    dxbar*np.sin(2*psiA[n])/sigma0s[n],
+                    dxbar/sigma0s[n],
+                    dxbar/sigma0s[n],
+                    (1+xbar)*np.cos(2*psiA[n])/sigma0s[n],
+                    (1+xbar)*np.sin(2*psiA[n])/sigma0s[n],
+                    (1+xbar)/sigma0s[n])),
+                 (t_arr[:len(f_A[n])], 
+                     np.concatenate((pixA[n], pixA[n]+npix, pixA[n]+2*npix, pixA[n]+3*npix,
+                                     pixA[n], pixA[n]+npix, pixA[n]+2*npix,
+                                     pixA[n]+3*npix)))),
+                     shape=(8*len(pixA[n]), 4*npix)) + \
+                 sparse.csc_matrix((
+                 np.concatenate((
+                    (-1+xbar)/sigma0s[n],
+                    dxbar*np.cos(2*psiB[n])/sigma0s[n],
+                    dxbar*np.sin(2*psiB[n])/sigma0s[n],
+                    dxbar/sigma0s[n],
+                    dxbar/sigma0s[n],
+                    (-1+xbar)*np.cos(2*psiB[n])/sigma0s[n],
+                    (-1+xbar)*np.sin(2*psiB[n])/sigma0s[n],
+                    (-1+xbar)/sigma0s[n])),
+                 (t_arr[:len(f_A[n])], 
                      np.concatenate((pixB[n], pixB[n]+npix, pixB[n]+2*npix, pixB[n]+3*npix,
                                      pixB[n], pixB[n]+npix, pixB[n]+2*npix,
                                      pixB[n]+3*npix)))),
@@ -485,14 +562,13 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
 
 
-
            
 
-                A_p += dot_product_mkl(P_p.T, P_p)
+                A_p += dot_product_mkl(P_p_AM.T, P_p)
                 #A_p = (A_p.tolil() + A_pi.tolil()).tocsr()
                 #A_p = A_p + A_pi
-                del P_p
-            del pixA, pixB, psiA, psiB, f_A, f_B
+                del P_p, P_p_AM, t_arr
+            del pixA, pixB, psiA, psiB, f_A, f_B, sigma0s
             print('Finished constructing A matrix')
         else:
             times = np.arange(len(pixA))
@@ -519,8 +595,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     '''
 
     if pol:
-        data = hp.ud_grade(hp.read_map(f'data/wmap_iqusmap_r9_9yr_K1_v5.fits',
-            verbose=False, field=(0,1,2,3)), nside)
+        '''
         x_arr = []
         delta_arr = []
 
@@ -533,43 +608,51 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         q = np.zeros_like(b_p)
         s = np.zeros_like(b_p)
         r = b_p
-        p = (M_diag_p != 0)
-        d[p] = r[p]/M_diag_p[p]
+        pix = (M_diag_p != 0)
+        d[pix] = r[pix]/M_diag_p[pix]
+        shat = np.zeros(len(r))
         delta_new = r.dot(d)
         delta_0 = np.copy(delta_new)
         delta_old = np.copy(delta_new)
 
+        rtilde = np.copy(b_p)
+        phat = np.zeros_like(r)
         
         print('starting while loop')
         while ((i < imax) & (delta_new > eps**2*delta_0) & (delta_new <= delta_old)):
-            t0 = time()
-            if sparse_only:
-                #q = dot_product_mkl(A_p, d)
-                q = A_p.dot(d)
+            rho = rtilde.dot(r)
+            if rho == 0:
+                print('We have a failure')
+            if i == 0:
+                p = np.copy(r)
             else:
-                q = innerproduct_pol(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, d)
-            alpha = delta_new/d.dot(q)
-            x_p = x_p + alpha*d
-            if i % 50 == 0:
-                print('Divisible by 50')
-                if sparse_only:
-                    #r = b_p - dot_product_mkl(A_p, x_p)
-                    r = b_p - A_p.dot(x_p)
-                else:
-                    r = b_p - innerproduct_pol(pixA, pixB, psiA, psiB, f_A, f_B, xbar, dxbar, x_p)
-            else:
-                r = r - alpha*q
-            if i % 10 == 0:
-                print(np.round(i/imax,2),\
-                        int(np.log10(delta_new)),\
-                        delta_new)
-            s[p] = r[p]/M_diag_p[p]
+                beta = (rho/rho_old)*(alpha/omega)
+                p = r + beta*(p - omega*v)
+            phat[pix] = p[pix]/M_diag_p[pix]
+            v = A_p.dot(phat)
+            alpha = rho/rtilde.dot(v)
+            s = r - alpha*v
+            # check norm of s, if small enough, set x += alpha*phat
+            x_p += alpha*phat
+            delta_new1 = s[pix].dot(s[pix]/M_diag_p[pix])
+
+
+            shat[pix] = s[pix]/M_diag_p[pix]
+            t = A_p.dot(shat)
+            omega = t.dot(s)/t.dot(t)
+
+            
+            r = s - omega*t
+
+            delta_new2 = r[pix].dot(r[pix]/M_diag_p[pix])
+            print(i, delta_new1, delta_new2)
+            if delta_new2 < delta_new1:
+                x_p += omega*shat
+            delta_new = min(delta_new1, delta_new2)
             delta_old = np.copy(delta_new)
-            delta_new = r.dot(s)
-            beta = delta_new/delta_old
-            d = s + beta*d
+            rho_old = np.copy(rho)
+
             i += 1
-            dts.append(time()-t0)
             delta_arr.append(delta_new)
             x_arr.append(x_p)
 
@@ -583,11 +666,20 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
         d = np.array(delta_arr)
         np.save('all_samples_delta_pol', d)
+        '''
+        b_p = np.concatenate((b, b_p))
+        M_diag_p = np.concatenate((M_diag, M_diag_p))
+        print('Using prepackaged BiCGstab')
+        # callback is a function that will evaluate the solution x_k at thte kth
+        # iteration.
+        A_p, info = sparse.linalg.bicgstab(A_p, b_p, x0=np.zeros_like(b_p),
+                M=sparse.diags(M_diag_p), maxiter=imax, callback=None)
+        print('Finished BiCGstab', info)
+        x_i, x_q, x_u, x_s = np.split(A_p, 4)
+        x_tot = np.array([x_i, x_q, x_u, x_s])
+        hp.write_map(f'cg_v{version}_{band}_pol.fits', x_tot, overwrite=True)
 
     else:
-        data = hp.ud_grade(hp.read_map(f'data/wmap_imap_r9_9yr_{band}_v5.fits',
-            verbose=False), nside)
-
         dts = []
         i = 0
         x = np.zeros_like(b)
@@ -886,11 +978,12 @@ def check_hdf5(nside=256, version=8, band='K1'):
     return
 
 
+
 if __name__ == '__main__':
     #cg_test()
-    bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-    get_cg(band='K1', nfiles=2**10, sparse_test=False, sparse_only=True,
-            imbalance=True, mask=True, pol=True, imax=np.inf)
+    #bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+    get_cg(band='K1', nfiles=2**7, sparse_test=False, sparse_only=True,
+            imbalance=True, mask=True, pol=True, imax=1000)
     #plot_maps_pol()
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
