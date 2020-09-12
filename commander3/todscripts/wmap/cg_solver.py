@@ -1,5 +1,5 @@
 import os
-ncpus = 48
+ncpus = 128
 #os.environ["OMP_NUM_THREADS"] = f"{ncpus}" # export OMP_NUM_THREADS=4
 #os.environ["OPENBLAS_NUM_THREADS"] = f"{ncpus}" # export OPENBLAS_NUM_THREADS=4 
 #os.environ["MKL_NUM_THREADS"] = f"{ncpus}" # export MKL_NUM_THREADS=6
@@ -496,8 +496,14 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             psiA = np.array_split(psiA, n_split)
             psiB = np.array_split(psiB, n_split)
             sigma0s = np.array_split(sigma0s, n_split)
-            t_arr = np.arange(8*len(pixA[0]))
             for n in tqdm(range(n_split)):
+                t_arr = np.arange(8*len(pixA[n]))
+                A_arr = np.concatenate((pixA[n], pixA[n]+npix, pixA[n]+2*npix, pixA[n]+3*npix,
+                                     pixA[n], pixA[n]+npix, pixA[n]+2*npix,
+                                     pixA[n]+3*npix))
+                B_arr = np.concatenate((pixB[n], pixB[n]+npix, pixB[n]+2*npix, pixB[n]+3*npix,
+                                     pixB[n], pixB[n]+npix, pixB[n]+2*npix,
+                                     pixB[n]+3*npix))
                 P_p_AM = sparse.csc_matrix((
                  np.concatenate((
                     f_A[n]*(1+xbar)/sigma0s[n],
@@ -508,10 +514,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
                     f_A[n]*(1+xbar)*np.cos(2*psiA[n])/sigma0s[n],
                     f_A[n]*(1+xbar)*np.sin(2*psiA[n])/sigma0s[n],
                     f_A[n]*(1+xbar)/sigma0s[n])),
-                 (t_arr[:len(f_A[n])], 
-                     np.concatenate((pixA[n], pixA[n]+npix, pixA[n]+2*npix, pixA[n]+3*npix,
-                                     pixA[n], pixA[n]+npix, pixA[n]+2*npix,
-                                     pixA[n]+3*npix)))),
+                 (t_arr, A_arr)), 
                      shape=(8*len(pixA[n]), 4*npix)) + \
                  sparse.csc_matrix((
                  np.concatenate((
@@ -523,10 +526,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
                     f_B[n]*(-1+xbar)*np.cos(2*psiB[n])/sigma0s[n],
                     f_B[n]*(-1+xbar)*np.sin(2*psiB[n])/sigma0s[n],
                     f_B[n]*(-1+xbar)/sigma0s[n])),
-                 (t_arr[:len(f_A[n])], 
-                     np.concatenate((pixB[n], pixB[n]+npix, pixB[n]+2*npix, pixB[n]+3*npix,
-                                     pixB[n], pixB[n]+npix, pixB[n]+2*npix,
-                                     pixB[n]+3*npix)))),
+                 (t_arr, B_arr)),
                      shape=(8*len(pixA[n]), 4*npix))
 
                 P_p = sparse.csc_matrix((
@@ -539,10 +539,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
                     (1+xbar)*np.cos(2*psiA[n])/sigma0s[n],
                     (1+xbar)*np.sin(2*psiA[n])/sigma0s[n],
                     (1+xbar)/sigma0s[n])),
-                 (t_arr[:len(f_A[n])], 
-                     np.concatenate((pixA[n], pixA[n]+npix, pixA[n]+2*npix, pixA[n]+3*npix,
-                                     pixA[n], pixA[n]+npix, pixA[n]+2*npix,
-                                     pixA[n]+3*npix)))),
+                 (t_arr, A_arr )),
                      shape=(8*len(pixA[n]), 4*npix)) + \
                  sparse.csc_matrix((
                  np.concatenate((
@@ -554,10 +551,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
                     (-1+xbar)*np.cos(2*psiB[n])/sigma0s[n],
                     (-1+xbar)*np.sin(2*psiB[n])/sigma0s[n],
                     (-1+xbar)/sigma0s[n])),
-                 (t_arr[:len(f_A[n])], 
-                     np.concatenate((pixB[n], pixB[n]+npix, pixB[n]+2*npix, pixB[n]+3*npix,
-                                     pixB[n], pixB[n]+npix, pixB[n]+2*npix,
-                                     pixB[n]+3*npix)))),
+                 (t_arr, B_arr)),
                      shape=(8*len(pixA[n]), 4*npix))
 
 
@@ -567,7 +561,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
                 A_p += dot_product_mkl(P_p_AM.T, P_p)
                 #A_p = (A_p.tolil() + A_pi.tolil()).tocsr()
                 #A_p = A_p + A_pi
-                del P_p, P_p_AM, t_arr
+                del P_p, P_p_AM, t_arr, A_arr, B_arr
             del pixA, pixB, psiA, psiB, f_A, f_B, sigma0s
             print('Finished constructing A matrix')
         else:
@@ -595,7 +589,6 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     '''
 
     if pol:
-        '''
         x_arr = []
         delta_arr = []
 
@@ -619,7 +612,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         phat = np.zeros_like(r)
         
         print('starting while loop')
-        while ((i < imax) & (delta_new > eps**2*delta_0) & (delta_new <= delta_old)):
+        while ((i < imax) & (delta_new1 > eps**2*delta_0) & \
+                (delta_new1 <= delta_old1) & (delta_new2 <= delta_old2)):
             rho = rtilde.dot(r)
             if rho == 0:
                 print('We have a failure')
@@ -634,6 +628,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             s = r - alpha*v
             # check norm of s, if small enough, set x += alpha*phat
             x_p += alpha*phat
+            delta_old1 = np.copy(delta_new1)
             delta_new1 = s[pix].dot(s[pix]/M_diag_p[pix])
 
 
@@ -644,12 +639,12 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             
             r = s - omega*t
 
+            delta_old2 = np.copy(delta_new2)
             delta_new2 = r[pix].dot(r[pix]/M_diag_p[pix])
             print(i, delta_new1, delta_new2)
             if delta_new2 < delta_new1:
                 x_p += omega*shat
             delta_new = min(delta_new1, delta_new2)
-            delta_old = np.copy(delta_new)
             rho_old = np.copy(rho)
 
             i += 1
@@ -678,6 +673,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         x_i, x_q, x_u, x_s = np.split(A_p, 4)
         x_tot = np.array([x_i, x_q, x_u, x_s])
         hp.write_map(f'cg_v{version}_{band}_pol.fits', x_tot, overwrite=True)
+        '''
 
     else:
         dts = []
@@ -983,8 +979,8 @@ if __name__ == '__main__':
     #cg_test()
     #bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     get_cg(band='K1', nfiles=2**7, sparse_test=False, sparse_only=True,
-            imbalance=True, mask=True, pol=True, imax=1000)
-    #plot_maps_pol()
+            imbalance=False, mask=True, pol=True, imax=1000)
+    plot_maps_pol()
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
