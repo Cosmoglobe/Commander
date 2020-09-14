@@ -91,7 +91,6 @@ contains
     !initialize the common tod stuff
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
     allocate(constructor%x_im(constructor%ndet/2))
-    print *, constructor%ndet/2, 'constructor%ndet/2'
     constructor%x_im(:)    = 0.0d0
     
     !TODO: this is LFI specific, write something here for wmap
@@ -138,7 +137,7 @@ contains
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
 
-    integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
+    integer(i4b) :: i, j, k, l, t, start_chunk, end_chunk, chunk_size, ntod, ndet
     integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
@@ -152,7 +151,7 @@ contains
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
     real(dp),     allocatable, dimension(:,:)     :: chisq_S, m_buf
     real(dp),     allocatable, dimension(:,:)     :: A_map, dipole_mod
-    real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
+    real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono, M_diag
     integer(i4b), allocatable, dimension(:,:,:)   :: pix, psi
     integer(i4b), allocatable, dimension(:,:)     :: flag
     character(len=512) :: prefix, postfix, prefix4D, filename
@@ -166,6 +165,15 @@ contains
     type(shared_3d_dp) :: sb_map, sb_mono
     class(comm_map), pointer :: condmap
     class(map_ptr), allocatable, dimension(:) :: outmaps
+
+    ! conjugate gradient parameters
+    integer(i4b) :: i_max
+    real(dp) :: delta_0, delta_old, delta_new, epsil
+    real(dp) :: alpha, beta
+    real(dp), allocatable, dimension(:,:,:) :: x, r, s, d, q
+    real(dp), allocatable, dimension(:,:) :: A
+    integer(i4b) :: lpoint, rpoint, lpsi, rpsi
+    real(dp) ::  inv_sigmasq
 
     if (iter > 1) self%first_call = .false.
     call int2string(iter, ctext)
@@ -276,15 +284,6 @@ contains
       ! Construct sky signal template
       call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
                & self%x_im, sprocmask%a, i, s_sky, mask)
-      !      call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
-      !           & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))
-      !   end do
-      !else if (do_oper(prep_absbp)) then
-      !   do j = 2, ndelta
-      !      call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
-      !           & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)
-      !   end do
-      !end if
       if (main_iter == 1 .and. self%first_call) then
          do j = 1, ndet
             if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
@@ -352,9 +351,6 @@ contains
          inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
          d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
              & inv_gain - s_tot(:,j) + s_sky(:,j)
-        ! why is s_tot subtracted and s_sky added? aren't they the same thing?
-        ! Also, is this the stage where it would make sense to create a d stream
-        ! and a p stream?
         if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) ! Residual
         if (nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
      !   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
@@ -365,6 +361,11 @@ contains
 
      !   end if
      end do
+     !
+     if (allocated(b_map)) deallocate(M_diag, b_map)
+     allocate(M_diag(nout, ndet, self%nobs), b_map(nout,ndet,self%nobs))
+     call bin_differential_TOD(self, d_calib, pix,  &
+            & psi, flag, self%x_im, b_map, M_diag, i)
       deallocate(n_corr, s_sky, s_orb, s_tot, s_buf, s_sky_prop, d_calib)
       deallocate(mask, mask2, pix, psi, flag)
       if (allocated(s_lowres)) deallocate(s_lowres)
@@ -379,30 +380,109 @@ contains
    end do
 
    ! start a new loop that is the CG solver loop
+    allocate(r(nout, ndet, self%nobs), q(nout, ndet, self%nobs), d(nout, ndet, self%nobs))
+    x(:,:,:) = 0.0d0
+    epsil = 1.0d-16
 
-   !    do while ((i .lt. i_max). and (delta_new .gt. (epsil**2)*delta_0))
-   !         do i = 1, self%nscan
-   !             ! decompress the data so we have one chunk of TOD in memory
-   !             q = A.dot(d)    
-   !         end do
-   !         alpha = delta_new/sum(d*q)
-   !         if (mod(i,50) == 0) then
-   !             do i = 1, self%nscan
-   !                 ! decompress the data so we have one chunk of TOD in memory
-   !                 r = r - A.dot(x)
-   !             end do
-   !         else
-   !             r = r - alpha*q
-   !         end if
-   !         delta_old = delta_new
-   !         delta_new = sum(r*r)
-   !         beta = delta_new/delta_old
-   !         d = r + beta*d
-   !         i = i + 1
-   !         
-   !         end do
-
-   !    end do
+    do l = 1, nout
+         r(l,:,:) = b_map(l,:,:)
+         !d(l,:,:) = r(l,:,:)/M_diag(l,:,:)
+         d(l,:,:) = r(l,:,:)
+         delta_new = sum(r(l,:,:)*d(l,:,:))
+         delta_0   = delta_new
+         i = 0
+         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))
+              do j = 1, self%nscan
+                 do k = 1, self%ndet
+                    ! decompress the data so we have one chunk of TOD in memory
+                    ! In the working code above, i is looping over nscan, j is ndet...
+                    ! call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
+                    !     & psi(:,j,:), flag(:,j))
+                    call self%decompress_pointing_and_flags(j, k, pix(:,k,:), &
+                        & psi(:,k,:), flag(:,k))
+                    do t = 1, self%scans(j)%ntod
+                        inv_sigmasq = 1/self%scans(t)%d(j)%sigma0**2
+                        lpoint = self%pix2ind(pix(t,k,1))
+                        rpoint = self%pix2ind(pix(t,k,2))
+                        lpsi   = psi(t,k,1)
+                        rpsi   = psi(t,k,2)
+                        ! Temperature
+                        q(l,1,lpoint) = q(l,1,lpoint) + 4*(d(l,1,lpoint) - d(l,1,rpoint)) * inv_sigmasq
+                        q(l,1,rpoint) = q(l,1,rpoint) - 4*(d(l,1,lpoint) - d(l,1,rpoint)) * inv_sigmasq
+                        ! Q
+                        q(l,2,lpoint) = q(l,2,lpoint) + 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
+                                                          +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
+                                        & * self%cos2psi(lpsi) * inv_sigmasq
+                        q(l,2,rpoint) = q(l,2,rpoint) - 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
+                                                          +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
+                                        & * self%cos2psi(rpsi) * inv_sigmasq
+                        ! U
+                        q(l,3,lpoint) = q(l,3,lpoint) + 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
+                                                          +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
+                                        & * self%sin2psi(lpsi) * inv_sigmasq
+                        q(l,3,rpoint) = q(l,3,rpoint) - 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
+                                                          +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
+                                        & * self%sin2psi(rpsi) * inv_sigmasq
+                        !!!!!
+                        ! n.b. the factors of four for temperature and factors
+                        ! of 2 for polarization come from the fact that we are
+                        ! adding 4 separate timestreams, so we are matching the
+                        ! scaling in both the P^T P x calculation and P^T d,
+                        ! where d is taken to be a stacked series of vectors,
+                        ! with d = (d13, d14, d23, d24), for example.
+                        !!!!!
+                        end do
+                    end do
+              end do
+              alpha = delta_new/sum(d(l,:,:)*q(l,:,:))
+              x(l,:,:) = x(l,:,:) + alpha*d(l,:,:)
+              if (mod(i,50) == 0) then
+                  do k = 1, self%ndet
+                        ! decompress the data so we have one chunk of TOD in memory
+                        ! call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
+                        !     & psi(:,j,:), flag(:,j))
+                        !r = b_map - matmul(A,x)
+                        r(l,k,:) = b_map(l,k,:)
+                        call self%decompress_pointing_and_flags(j, k, pix(:,k,:), &
+                            & psi(:,k,:), flag(:,k))
+                        do t = 1, self%scans(j)%ntod
+                            inv_sigmasq = 1/self%scans(t)%d(j)%sigma0**2
+                            lpoint = self%pix2ind(pix(t,k,1))
+                            rpoint = self%pix2ind(pix(t,k,2))
+                            lpsi   = psi(t,k,1)
+                            rpsi   = psi(t,k,2)
+                            ! Temperature
+                            q(l,1,lpoint) = q(l,1,lpoint) + b_map(l,1,lpoint) -  4*(d(l,1,lpoint) - d(l,1,rpoint)) * inv_sigmasq
+                            q(l,1,rpoint) = q(l,1,rpoint) + b_map(l,1,rpoint) +  4*(d(l,1,lpoint) - d(l,1,rpoint)) * inv_sigmasq
+                            ! Q
+                            q(l,2,lpoint) = q(l,2,lpoint) + b_map(l,2,lpoint) -  2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
+                                                                                 & +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
+                                                                                 & * self%cos2psi(lpsi) * inv_sigmasq
+                            q(l,2,rpoint) = q(l,2,rpoint) + b_map(l,2,rpoint) + 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
+                                                                                & +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) & 
+                                                                                & * self%cos2psi(rpsi) * inv_sigmasq
+                            ! U
+                            q(l,3,lpoint) = q(l,3,lpoint) + b_map(l,2,lpoint) - 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
+                                                                                & +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
+                                                                                & * self%sin2psi(lpsi) * inv_sigmasq
+                            q(l,3,rpoint) = q(l,3,rpoint) + b_map(l,2,rpoint) + 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
+                                                                                & +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
+                                                                                & * self%sin2psi(rpsi) * inv_sigmasq
+                        end do
+                 end do
+              else
+                  r(l,:,:) = r(l,:,:) - alpha*q(l,:,:)
+              end if
+              !s(l,:,:) = r(l,:,:)/M_diag(l,:,:)
+              s(l,:,:) = r(l,:,:)
+              delta_old = delta_new
+              delta_new = sum(r(l,:,:)*s(l,:,:))
+              beta = delta_new/delta_old
+              d(l,:,:) = s(l,:,:) + beta*d(l,:,:)
+              i = i + 1
+              
+              end do
+         end do
 
    ! x = wmap_estimate
 
@@ -419,7 +499,6 @@ contains
    ! Solve combined map, summed over all pixels
    !TODO: this probably also needs changing, also why is this so long and not a
    !functions
-   ! This is where we would think CG solver would go
    call wall_time(t1)
    call update_status(status, "shared1")
    if (sA_map%init) then
