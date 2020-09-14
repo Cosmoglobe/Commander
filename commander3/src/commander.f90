@@ -190,7 +190,10 @@ program commander
      !----------------------------------------------------------------------------------
      ! If we are on 1st iteration and simulation was enabled,
      ! we copy real LFI data into specified folder.
-     if ((iter == 1) .and. cpar%enable_tod_simulations) call copy_LFI_tod(cpar, ierr)
+     if ((iter == 1) .and. cpar%enable_tod_simulations) then
+       call copy_LFI_tod(cpar, ierr)
+       call write_filelists_to_disk(cpar, ierr)
+     end if
      ! Process TOD structures
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)

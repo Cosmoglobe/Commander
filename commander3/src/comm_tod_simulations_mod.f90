@@ -17,62 +17,7 @@ module comm_tod_simulations_mod
   use comm_param_mod
   use comm_utils
   use comm_tod_LFI_mod
-  !use comm_tod_mod
-  !use comm_map_mod
-  !use comm_conviqt_mod
-  !use pix_tools
-  !use healpix_types
-  !use comm_huffman_mod
-  !use comm_4D_map_mod
-  !use comm_zodi_mod
-  !use comm_tod_mapmaking_mod
-  !use comm_tod_pointing_mod
-  !use comm_tod_gain_mod
-  !use comm_tod_bandpass_mod
-  !use comm_tod_orbdipole_mod
   implicit none
-
-  !private
-  !public comm_LFI_tod
-
-  !integer(i4b), parameter :: N_test      = 19
-  !integer(i4b), parameter :: samp_N      = 1
-  !integer(i4b), parameter :: prep_G      = 15
-  !integer(i4b), parameter :: samp_G      = 2
-  !integer(i4b), parameter :: prep_acal   = 3
-  !integer(i4b), parameter :: samp_acal   = 4
-  !integer(i4b), parameter :: prep_rcal   = 18
-  !integer(i4b), parameter :: samp_rcal   = 19
-  !integer(i4b), parameter :: prep_relbp  = 5
-  !integer(i4b), parameter :: prep_absbp  = 16
-  !integer(i4b), parameter :: samp_bp     = 11
-  !integer(i4b), parameter :: samp_sl     = 6
-  !integer(i4b), parameter :: samp_N_par  = 7
-  !integer(i4b), parameter :: sel_data    = 8
-  !integer(i4b), parameter :: bin_map     = 9
-  !integer(i4b), parameter :: calc_chisq  = 10
-  !integer(i4b), parameter :: output_slist = 12
-  !integer(i4b), parameter :: samp_mono   = 13
-  !integer(i4b), parameter :: sub_sl      = 14
-  !integer(i4b), parameter :: sub_zodi    = 17
-  !logical(lgt), dimension(N_test) :: do_oper
-
-
-  !type, extends(comm_tod) :: comm_LFI_tod
-  !  class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
-  ! contains
-  !   !procedure     :: process_tod        => process_LFI_tod
-  !   !----------------------------------------------------------------------------------
-  !   ! Simulation Routine
-  !   procedure     :: simulate_LFI_tod
-  !   procedure     :: copy_LFI_tod
-  !   procedure     :: split_workload 
-  !   !----------------------------------------------------------------------------------
-  !end type comm_LFI_tod
-
-  !interface comm_LFI_tod
-  !   procedure constructor
-  !end interface comm_LFI_tod
 
 contains
 
@@ -307,13 +252,20 @@ contains
        simsdir = trim(cpar%sims_output_dir)//'/'
        datadir = trim(cpar%datadir)//'/'
        filelist = trim(datadir)//trim(cpar%ds_tod_filelist(band))
-       ! dump one simulation to disc and that is it
+       ! central frequency (label)
+       !freq = cpar%ds_label(band)
+       !write(*,*) "freq is "//trim(freq)
        n_lines = 0
        n_elem  = 0
        val     = 0
        ! processing files only with Master process
        if (cpar%myid == 0) then
          write(*,*) "   Starting copying files..."
+         ! copying an existing filelist into simulation folder
+         !call system("cp "//trim(filelist)//" "//trim(simsdir))
+         !mystring = filelist
+         !mysubstring = ".txt"
+         !myindex = index(trim(mystring), trim(mysubstring))
          unit = getlun()
          ! open corresponding filelist, e.g. filelist_30_v15.txt
          open(unit, file=trim(filelist), action="read")
@@ -382,6 +334,23 @@ contains
          call system("cp "//trim(output_array(i))//" "//trim(simsdir))
        end do
        deallocate(output_array)
+       ! Last thing we need to do is to copy and modify filelist*.txt
+       ! which points to the new (simulations) directory
+       !if (cpar%myid == 0) then
+       !  ! if the band is not included then skip it
+       !  if (.not. cpar%ds_active(band)) cycle
+       !  simsdir = trim(cpar%sims_output_dir)//'/'
+       !  datadir = trim(cpar%datadir)//'/'
+       !  filelist = trim(datadir)//trim(cpar%ds_tod_filelist(band))
+       !  ! central frequency (label)
+       !  freq = cpar%ds_nu_c(band)!id_abs)
+       !  constructor%freq          = cpar%ds_label(id_abs)
+       !  constructor%central_freq  = cpar%ds_nu_c(id_abs)
+       !  write(*,*) trim(cpar%ds_tod_filelist(band)), band
+       !  !new_filelist = trim(simsdir)//trim()
+       !  !call system("cp "//trim(filelist)//" "//trim(simsdir))
+       !  !call 
+       !end if 
        if (cpar%myid == 0) write(*,*) "Finished copying files!"
        if (cpar%myid == 0) write(*,*) "--------------------------------------------------------------"
        call MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -391,236 +360,118 @@ contains
    end subroutine copy_LFI_tod
 
 
-   ! ************************************************
-   !
-   !> @brief Commander3 native simulation module. It
-   !! simulates correlated noise and then rewrites
-   !! the original timestreams inside the files.
-   !
-   !> @author Maksym Brilenkov
-   !
-   !> @param[in]
-   !> @param[out]
-   !
-   ! ************************************************
-   subroutine simulate_LFI_tod(cpar, scan_id, s_tot, handle)
-     implicit none
-     ! Parameter file variables
-     type(comm_params),                     intent(in)    :: cpar
-     ! Other input/output variables
-     real(sp), allocatable, dimension(:,:), intent(in)    :: s_tot   !< total sky signal
-     integer(i4b),                          intent(in)    :: scan_id !< current PID
-     class(comm_LFI_tod), pointer                   :: ctod
-     type(planck_rng),                      intent(inout) :: handle
-     ! Simulation variables
-     real(sp), allocatable, dimension(:,:) :: tod_per_detector !< simulated tods per detector
-     real(sp)                              :: gain   !< detector's gain value
-     real(sp)                              :: sigma0
-     integer(i4b)                          :: ntod !< total amount of ODs
-     integer(i4b)                          :: ndet !< total amount of detectors
-     ! Other vaiables
-     integer(i4b)                          :: i, j !< loop variables
-     integer(i4b)       :: mpi_err !< MPI error status
+  ! ************************************************
+  !
+  !> @brief Subroutine to copy and overwrite original
+  !! filelist.txt to point to the new (simulation) dir
+  !
+  ! ************************************************
+  subroutine write_filelists_to_disk(cpar, ierr)
+    implicit none
+    ! Parameter file variables
+    type(comm_params), intent(in) :: cpar
+    integer(i4b)                  :: id_abs   !< absolute ID of the channel which includes inactive bands
+    character(len=512)            :: filelist !< file, which contains correspondance between PIDs and ODs
+    character(len=512)            :: datadir  !< data directory, which contains all h5 files 
+    character(len=512)            :: simsdir  !< directory where to output simulations 
 
-     ! shortcuts
-     ntod = ctod%scans(scan_id)%ntod
-     ndet = ctod%ndet
+    integer(i4b) :: unit    !< the current file list value
+    integer(i4b) :: iostatus !< to indicate error status when opening a file
+    integer(i4b) :: n_lines !< total number of raws in the, e.g. filelist_v15.txt file
+    integer(i4b) :: n_elem  !< number of unique elements
+    integer(i4b) :: val     !< dummy value
+    integer(i4b) :: i, band     !< loop variables
+    integer(i4b)       :: myindex     !< dummy value for string manipulation
+    character(len=512) :: sims_filelist
+    character(len=512) :: freq !< central frequency label
+    character(len=512) :: mystring, mysubstring !< dummy values for string manipulation
+    character(len=256), allocatable, dimension(:) :: input_array  !< array of input h5 file names
+    integer(i4b), allocatable, dimension(:) :: pid_array  !< array of input pid labels
+    character(len=256), allocatable, dimension(:) :: output_array !< array of output h5 file names
+    real(sp), allocatable, dimension(:) :: column3, column4, column5
+    ! MPI variables
+    integer(i4b), intent(in) :: ierr        !< MPI error status
+    integer(i4b) :: nprocs !< number of cores
 
-     ! Allocating main simulations' array
-     allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
 
-     ! Main simulation loop
-     do i = 1, ntod
-       do j = 1, ndet
-       ! skipping iteration if scan was not accepted
-       if (.not. ctod%scans(scan_id)%d(j)%accept) cycle
-       ! getting gain for each detector (units, V / K)
-       ! (gain is assumed to be CONSTANT for EACH SCAN)
-       gain   = ctod%scans(scan_id)%d(j)%gain
-       write(*,*) "gain ", gain
-       sigma0 = ctod%scans(scan_id)%d(j)%sigma0
-       write(*,*) "sigma0 ", sigma0
-       ! Simulating tods
-       tod_per_detector(i,j) = gain * s_tot(i,j) + sigma0 * rand_gauss(handle)
-       end do
-     end do
+    nprocs = cpar%numprocs
+    id_abs = cpar%numband
+    ! looping through all the bands
+    do band = 1, id_abs
+      ! if the band is not included then skip it
+      if (.not. cpar%ds_active(band)) cycle
+      simsdir = trim(cpar%sims_output_dir)//'/'
+      datadir = trim(cpar%datadir)//'/'
+      filelist = trim(datadir)//trim(cpar%ds_tod_filelist(band))
+      ! processing files only with Master process
+      if (cpar%myid == 0) then
+        mysubstring = 'LFI_0'
+        n_lines = 0
+        n_elem  = 0
+        val     = 0
+        ! copying an existing filelist and renaming it
+        freq = cpar%ds_label(band)
+        sims_filelist = trim(simsdir)//"filelist_"//trim(freq)//"_simulations.txt"
+        write(*,*) "filelist is "//trim(filelist)
+        write(*,*) "sims_filelist is "//trim(sims_filelist)
+        call system("cp "//trim(filelist)//" "//trim(sims_filelist))
+        ! Now, changing pointings inside the file
+        unit = getlun()
+        ! open corresponding filelist, e.g. filelist_30_v15.txt
+        open(unit, file=trim(sims_filelist), action="read")
+        ! we loop through the file until it reaches its end
+        ! (iostatus will give positive number) to get the
+        ! total number of lines in the file
+        iostatus = 0
+        do while(iostatus == 0)
+          read(unit,*, iostat=iostatus) val
+          n_lines = n_lines + 1
+        end do
+        write(*,*) "n_lines is ", n_lines
+        close(unit)
+        allocate(input_array(n_lines), pid_array(n_lines), output_array(n_lines))
+        allocate(column3(n_lines), column4(n_lines), column5(n_lines))
+        ! array which will store pid values
+        !allocate(pid_array(1:n_lines))
+        write(*,*) "--------------------------------------------------------------"
+        ! once again open the same file to start reading
+        ! it from the top to bottom
+        open(unit, file=trim(sims_filelist), action="read")
+        ! we need to ignore the first line, otherwise it will appear inside an input array
+        ! also, we will get 1 additional line (i.e. the number n_lines will be  1 value larger
+        ! than it should be, because of the way we count lines); thus, we need to loop from
+        ! 1 to (n_lines - 1), or from 0 to (n_lines - 2)
+        do i = 0, n_lines-2
+          if (i == 0) then
+            read(unit,*) val
+          else
+            read(unit,*) pid_array(i), input_array(i), column3(i), column4(i), column5(i)
+            ! making the new pointing
+            mystring = trim(input_array(i))
+            myindex = index(trim(mystring), trim(mysubstring))
+            output_array(i) = trim(simsdir)//trim(mystring(myindex:))
+          end if
+        end do
+        close(unit)
+        ! opening this file again, now to (over)write new values 
+        ! (recl=1024 is used so the last column won't be put into
+        ! next row)
+        open(unit, file=trim(sims_filelist), action="write", recl=1024)
+        do i = 0, n_lines-2
+          if (i == 0) then
+            write(unit,*) val
+          else
+            write(unit,*) pid_array(i), trim(output_array(i)), column3(i), column4(i), column5(i)
+          end if
+        end do
+        close(unit)
+        write(*,*) "--------------------------------------------------------------"
+      end if
+    end do
 
-     !----------------------------------------------------------------------------------
-     ! Saving stuff to hdf file
-     ! Getting the full path and name of the current hdf file to overwrite
+  end subroutine write_filelists_to_disk
 
-     ! freeing memory up
-     deallocate(tod_per_detector)
-     call MPI_Finalize(mpi_err)
-     stop
-
-!     character(len=*),                      intent(in)    :: sims_output_dir !< output dir for simulated tods
-!
-!     ! FFTW variables
-!     integer*8    :: plan_forward  !< FFT plan for forward transformation
-!     integer*8    :: plan_backward !< FFT plan for backward transformation
-!     integer(i4b) :: nfft 
-!     real(sp),     allocatable, dimension(:) :: dt
-!     complex(spc), allocatable, dimension(:) :: dv
-!
-!     real(sp), allocatable, dimension(:,:) :: tod_per_detector !< simulated tods per detector
-!     real(sp)           :: gain     !< detector's gain value
-!     real(sp)           :: sigma0
-!     real(sp)           :: progress !< percentage counter
-!     character(len=50)  :: message  !< message to pass to progress bar
-!     integer(i4b)       :: ntod !< total amount of ODs
-!     integer(i4b)       :: ndet !< total amount of detectors
-!     integer(i4b)       :: j, k, myindex !< loop variables
-!     integer(i4b)       :: start_chunk !< Starting iteration value for processor of rank n
-!     integer(i4b)       :: end_chunk   !< End iteration value for processor of rank n
-!     integer(i4b)       :: mpi_err !< MPI error status
-!     integer(i4b)       :: omp_err !< OMP error status
-!
-!     ! Doing small string manipulation - retreaving the name of the current file
-!     character(len=512) :: mystring, mysubstring, cwd, currentHDFFile
-!     character(len=6)   :: pidLabel
-!     character(len=3)   :: detectorLabel
-!     type(hdf_file)     :: file !< hdf5 file to work with
-!     integer(i4b)       :: hdf5_error
-!     integer(HID_T)     :: file_id       ! File identifier
-!     integer(HID_T)     :: dset_id       ! Dataset identifier
-!     integer(HSIZE_T), dimension(1) :: dims
-!
-!     ntod = self%scans(scan_id)%ntod
-!     ndet = self%ndet
-     ! Planning FFTW
-!     nomp = omp_get_max_threads()
-!     nfft = ntod !2 * ntod
-!     n = nfft / 2 + 1
-!     call sfftw_init_threads(omp_err)
-!     call sfftw_plan_with_nthreads(nomp)
-!     allocate(dt(nfft), dv(0:n-1))
-!     call sfftw_plan_dft_r2c_1d(plan_forward,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-!     call sfftw_plan_dft_c2r_1d(plan_backward, nfft, dv, dt, fftw_estimate + fftw_unaligned)
-     ! Need to run detenctor by detector
-     ! Populating data arrays
-!     do k = 1, ndet !<= here should be ntod or something like that
-       ! skipping iteration if scan was not accepted
-!       if (.not. self%scans(scan_id)%d(k)%accept) cycle
-       ! getting gain for each detector (units, V / K)
-       ! (gain is assumed to be CONSTANT for EACH SCAN)
-!       gain   = self%scans(scan_id)%d(k)%gain
-!       sigma0 = self%scans(scan_id)%d(k)%sigma0
-       ! Starting to simulate 1/f for each detector 
-!       dt(k) = sigma_0 * rand_gauss(handle)  
-!     end do 
-     ! Executing Forward FFT
-!     call sfftw_execute_dft_r2c(plan_forward, dt, dv)
-     ! Multiplying the result by [1 + (f_knee/f)^alpha]
-!     do k = 1, ndet !<= here should be ntod or something like that
-       ! skipping iteration if scan was not accepted
-!       if (.not. self%scans(scan_id)%d(k)%accept) cycle
-       ! Getting \alpha, f_knee
-!       alpha = self%scans(scan_id)%d(k)%alpha
-!       fknee = self%scans(scan_id)%d(k)%fknee
-
-!     end do
-
-!     dv(0) = sigma_0 * rand_gauss(handle)
-     ! for all others
-!     do k = 1, ndet
-!       dv(k) = sigma_0 * cmplx(rand_gauss(handle), rand_gauss(handle)) / sqrt(2) * (1 + (f/fknee)**alpha)
-!     end do
-!     call sfftw_execute_dft_c2r(plan_forward, dv, dt)
-
-     
-
-!     allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
-
-     ! TODO:
-     ! - Make this work with MPI => figure out how commander handles 2d arrays
-     ! - Add correlated noise component with MPI support as well
-     ! - Change (if needed) the output routine
-     !call self%split_workload(1, size(output_array), self%numprocs, self%myid, start_chunk, end_chunk)
-     !do i = start_chunk, end_chunk
-     !  if (self%myid == 0) then
-     !    message  = "Copying files: "
-     !    progress = i * 100.0 / (end_chunk - start_chunk + 1)
-     !    call pbar%run_progressbar(progress, message, 2)
-     ! Dividing workload among processors and simulating tods
-!     call self%split_workload(1, ntod, self%numprocs, self%myid, start_chunk, end_chunk)
-     !do j = 1, ntod
-!     do j = start_chunk, end_chunk
-       !if (self%myid == 0) then
-       !  message = " Simulating TODs per detector: "
-       !  progress = j * 100.0 / (end_chunk - start_chunk + 1)
-       !end if
-!       do k = 1, ndet
-          ! skipping iteration if scan was not accepted
-!          if (.not. self%scans(scan_id)%d(k)%accept) cycle
-          ! getting gain for each detector (units, V / K)
-          ! (gain is assumed to be CONSTANT for EACH SCAN)
-!          gain     = self%scans(scan_id)%d(k)%gain
-!          sigma0   = self%scans(scan_id)%d(k)%sigma0
-          ! Getting sample rate, \nu frequency, and alpha
-          ! for each detector for each scan
-!          samprate = self%samprate
-!          alpha    = self%scans(scan_id)%d(k)%alpha
-!          nu_knee  = self%scans(scan_id)%d(k)%fknee
-!          N_wn     = sigma_0 ** 2  ! white noise power spectrum
-          
-!          tod_per_detector(j,k) = gain * s_tot(j,k) + sigma0 * rand_gauss(handle)
-          !tod_per_detector(j,k) = gain * s_tot(k,j) + n_corr(k,j) + sigma0 * rand_gauss(handle)
-!       end do
-!     end do
-     ! waiting for all processors to finish
-     !call MPI_BARRIER(self%comm, ierr)
-     !call MPI_BCAST(tod_per_detector, size(tod_per_detector), MPI_REAL, 0, self%comm, ierr)
-     !call MPI_REDUCE(2darray, 2darray(1), 1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-
-     !f_fill = constructor%nobs/(12.*constructor%nside**2)
-     !call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, constructor%info%comm, ierr)
-     !call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, constructor%info%comm, ierr)
-     !call mpi_reduce(f_fill, f_fill_lim(3), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, constructor%info%comm, ierr)
-
-     !----------------------------------------------------------------------------------
-     ! Saving stuff to hdf file
-     ! Getting the full path and name of the current hdf file to overwrite
-!     mystring = trim(self%hdfname(scan_id))
-!     mysubstring = 'LFI_0'
-!     myindex = index(trim(mystring), trim(mysubstring))
-!     call getcwd(cwd)
-!     currentHDFFile = trim(cwd)//'/'//trim(sims_output_dir)//'/'//trim(mystring(myindex:))
-!     write(*,*) "Write PID into "//trim(currentHDFFile)
-!     ! Converting PID number into string value
-!     call int2string(self%scanid(scan_id), pidLabel)
-!
-!     dims(1) = ntod
-!     ! Initialize FORTRAN interface.
-!     call h5open_f(hdf5_error)
-!     ! Open an existing file - returns file_id
-!     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, file_id, hdf5_error)
-!     do j = 1, ndet
-!         detectorLabel = self%label(j)
-!         ! Create new dataset inside "PID/Detector" Group
-!
-!         ! Delete group if it already exists
-!         !call h5eset_auto_f(0, hdferr)
-!         !call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
-!         !if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
-!         !write(*,*) 'group ', trim(adjustl(itext))
-!         !call create_hdf_group(file, trim(adjustl(itext)))
-!         !if (.not. cpar%resamp_CMB) call create_hdf_group(file, trim(adjustl(itext))//'/md')
-!
-!         ! Open an existing dataset.
-!         call h5dopen_f(file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
-!         ! Write tod data to a dataset
-!         call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
-!         ! Close the dataset.
-!         call h5dclose_f(dset_id, hdf5_error)
-!    end do
-!    ! Close the file.
-!    call h5fclose_f(file_id, hdf5_error)
-!    ! Close FORTRAN interface.
-!    call h5close_f(hdf5_error)
-!
-  end subroutine simulate_LFI_tod
-
+  
 
   ! ************************************************
   !

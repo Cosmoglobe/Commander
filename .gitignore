@@ -5,6 +5,7 @@
 *.gitignore
 *.pyc
 *.swp
+*.swo
 *comm_like_sampler
 *comm_like_tools
 *comm_like_tools_mpi

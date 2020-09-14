@@ -1297,10 +1297,19 @@ contains
 
     ! freeing memory up
     deallocate(n_corr, tod_per_detector)
+
+    ! lastly, we need to copy an existing filelist.txt into simulation folder 
+    ! and change the pointers to new files
+    !if (self%myid == 0) then
+    !  call system("cp "//trim(filelist)//" "//trim(simsdir))
+    !  !mystring = filelist
+    !  !mysubstring = ".txt"
+    !  !myindex = index(trim(mystring), trim(mysubstring))
+    !end if
+
     ! For debugging
     !call MPI_Finalize(mpi_err)
     !stop
   end subroutine simulate_LFI_tod
-
 
 end module comm_tod_LFI_mod

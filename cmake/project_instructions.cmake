@@ -1,6 +1,6 @@
 #==============================================================================
 # This file contains general instructions how to
-# fetch and build the commander dependencies
+# fetch and build the Commander dependencies
 # Author: Maksym Brilenkov
 #==============================================================================
 
@@ -122,9 +122,10 @@ endif()
 # With the Intel compilers, use -xHost and -O2 or higher. 
 # With the gnu compilers, use -march=native and -O3. 
 # The PGI compilers by default use the highest available instruction set, so no additional flags are necessary.
+#------------------------------------------------------------------------------
 if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	# Compiler flags
-	# If user has not specified compillation flag, we use default configuration
+	# If user has not specified compilation flag, we use default configuration
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
 			"-Ofast" 
@@ -191,6 +192,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
 		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 	endif()
+#------------------------------------------------------------------------------
 # GNU - 9.3 - 10.x needs different flags
 # setting different flags for different version
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
@@ -256,7 +258,10 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
 		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 	endif()
+#------------------------------------------------------------------------------
 # PGI	
+# TODO: For some reason commander dependencies crashes on this one
+# so figure out how to make it work
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 	# Compiler flags
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
@@ -302,6 +307,11 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
 		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 	endif()
+#------------------------------------------------------------------------------
+# NVIDIA bought PGI compilers and now they are NVIDIA CUDA compilers
+#elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVIDIA)
+#	message(STATUS "This is a DEBUG MESSAGE FO NVIDIA COMPILERS")
+#------------------------------------------------------------------------------
 # Flang
 # TODO: need to figure out why healpix doesn't compile with flang
 # and then add support for flang
@@ -319,6 +329,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 #	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
 #	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 endif()
+#------------------------------------------------------------------------------
 # Making a summary of compiler location and compile flags
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "SUMMARY ON COMPILERS:")
