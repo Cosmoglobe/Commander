@@ -16,7 +16,7 @@ project(CommanderSuperbuild
 	)
 
 # ensuring that we do out-of-source build
-if(${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
+if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there.")
 endif()
 
@@ -41,4 +41,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 # including cmake modules
 include(project_instructions)
 # adding commander3 source files
-add_subdirectory(commander3)
+# Note: I have added commander.cmake as an "independent" project 
+# so there is no need for other cmake lists. Advantage of this 
+# approach is that everything located in the same folder (cmake)
+#add_subdirectory(commander3)

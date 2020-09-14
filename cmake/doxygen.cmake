@@ -9,7 +9,10 @@ if(DOXYGEN_BUILD_DOCS)
 		 #$ENV{PATH}:${out_install_dir}/include/:${out_lib_dir}/:${out_bin_dir}/curl
 		 $ENV{PATH}:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 		 )
-	find_package(FLEX)
+
+	if(NOT FLEX_FORCE_COMPILE)
+		find_package(FLEX)
+	endif()
 	if(NOT FLEX_FOUND)
 		message(STATUS "Will download flex from source.")
 		ExternalProject_Add(flex
@@ -29,7 +32,9 @@ if(DOXYGEN_BUILD_DOCS)
 		add_custom_target(flex ALL "")
 	endif()
 
-	find_package(BISON)
+	if(NOT BISON_FORCE_COMPILE)
+		find_package(BISON)
+	endif()
 	if(NOT BISON_FOUND)
 		message(STATUS "Will download Bison from source")
 		ExternalProject_Add(bison
@@ -48,7 +53,9 @@ if(DOXYGEN_BUILD_DOCS)
 		add_custom_target(bison ALL "")
 	endif()
 
-	find_package(Doxygen)
+	if(NOT DOXYGEN_FORCE_COMPILE)
+		find_package(Doxygen)
+	endif()
 	if(NOT DOXYGEN_FOUND)
 		message(STATUS "Will download Doxygen from source.")
 		ExternalProject_Add(${project}
