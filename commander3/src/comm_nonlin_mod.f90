@@ -166,7 +166,7 @@ contains
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind, nalm_tot_reg
     integer(i4b) :: p_min, p_max, nalm_tot, pix, region
     real(dp)     :: t1, t2, ts, dalm, thresh, steplen
-    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys
+    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys, chisq_temp
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext
@@ -346,9 +346,16 @@ contains
 
                 ! Output init sample
                 write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
-                !if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
-                if (cpar%almsamp_pixreg) write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
-                chisq(0) = chisq(0) + chisq_prior
+                if (cpar%almsamp_pixreg) then
+                   if (size(c%theta_pixreg(1:,pl,j))==9) then
+                      write(*,fmt='(a,9(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
+                   else
+                      write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
+                   end if
+                end if
+                chisq(0) = chisq(0) + chisq_prior 
+                !chisq(0) = chisq_prior ! test2
+
              else 
                 write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
              end if
@@ -380,6 +387,14 @@ contains
                    end do
                    alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
                 end if
+
+                ! Broadcast proposed alms from root
+                allocate(buffer(c%nalm_tot))
+                buffer = alms(i,:,pl)
+                call mpi_bcast(buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)                   
+                alms(i,:,pl) = buffer
+                deallocate(buffer)
+
              else
                 ! --------- region sampling start
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
@@ -398,8 +413,9 @@ contains
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
 
                 ! Loop over pixels in region
+                !if (info%myid==0) write(*,*) size(c%ind_pixreg_arr(1,:,j)), size(c%ind_pixreg_arr(1,pl,:)), pl, j
                 do pix = 0, theta%info%np-1
-                   ! Else, use calculated change
+                   !if (info%myid==0) write(*,*) c%ind_pixreg_arr(pix,pl,j), theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j)), theta%map(pix,1), info%myid, pl, pix
                    theta%map(pix,1) = theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j))
                 end do
 
@@ -419,11 +435,10 @@ contains
                    theta_smooth%map=theta%map
                 end if
 
-                
                 call theta_smooth%YtW_scalar
                 call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
                 allocate(buffer3(0:1, 0:nalm_tot_reg-1, 2)) ! Denne er nalm for 1! trenger alle
-
+                
                 call gather_alms(theta_smooth%alm, buffer3, theta_smooth%info%nalm, theta_smooth%info%lm, 0, 1, 1)
                 call mpi_allreduce(MPI_IN_PLACE, buffer3, nalm_tot_reg, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
                 alms(i,:,pl) = buffer3(0,:c%nalm_tot,1)
@@ -432,13 +447,6 @@ contains
                 call theta_smooth%dealloc(); deallocate(theta_smooth)
                 ! ------- region sampling end
              end if
-
-             ! Broadcast proposed alms from root
-             allocate(buffer(c%nalm_tot))
-             buffer = alms(i,:,pl)
-             call mpi_bcast(buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)                   
-             alms(i,:,pl) = buffer
-             deallocate(buffer)
 
              ! Save to correct poltypes
              if (c%poltype(j) == 1) then      ! {T+E+B}
@@ -452,7 +460,7 @@ contains
                 else
                    do q = 2, c%theta(j)%p%info%nmaps
                       alms(i,:,q) = alms(i,:,pl)
-                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)                            
+                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
                    end do
                 end if
              else if (c%poltype(j) == 3) then ! {T,E,B}
@@ -469,10 +477,12 @@ contains
 
              ! Calculate proposed chisq
              if (allocated(c%indmask)) then
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq_temp, mask=c%indmask, lowres_eval=.true., evalpol=.true.)
              else
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true., evalpol=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq_temp, lowres_eval=.true., evalpol=.true.)
              end if
+
+             chisq(i) = chisq_temp
 
              ! Accept/reject test
              ! Reset accepted bool
@@ -502,6 +512,7 @@ contains
                    end if
 
                    chisq(i) = chisq(i) + chisq_prior
+                   !chisq(i) = chisq_prior !test2
                 end if
 
                 diff = chisq(i-1)-chisq(i)
@@ -528,9 +539,13 @@ contains
                 write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 if (cpar%almsamp_pixreg) then
-                   !write(outmessage, fmt='(a, *(f7.3))') "regs:", theta_pixreg_prop(1:) ! Max space
-                   write(outmessage, *) "regs:", real(theta_pixreg_prop(1:),sp) ! Max space
-                   write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                   if (size(theta_pixreg_prop(1:))==9) then
+                      write(outmessage,fmt='(a,9(f7.3))') " regs:", theta_pixreg_prop(1:)
+                      write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                   else
+                      write(outmessage,*) " regs:", theta_pixreg_prop(1:)
+                      write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                   end if
                 end if
              end if
 
@@ -560,6 +575,7 @@ contains
                    call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, pl)
                 end if
 
+                ! Revert results
                 call c%updateMixmat                                   
              end if
 
@@ -574,7 +590,14 @@ contains
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
                    write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                    !if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
-                   if (cpar%almsamp_pixreg) write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
+
+                   if (cpar%almsamp_pixreg) then
+                      if (size(c%theta_pixreg(1:,pl,j))==9) then
+                         write(*,fmt='(a,9(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
+                      else
+                         write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
+                      end if
+                   end if
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
