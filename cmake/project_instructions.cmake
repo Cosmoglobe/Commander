@@ -1,6 +1,6 @@
 #==============================================================================
 # This file contains general instructions how to
-# fetch and build the commander dependencies
+# fetch and build the Commander dependencies
 # Author: Maksym Brilenkov
 #==============================================================================
 
@@ -122,9 +122,10 @@ endif()
 # With the Intel compilers, use -xHost and -O2 or higher. 
 # With the gnu compilers, use -march=native and -O3. 
 # The PGI compilers by default use the highest available instruction set, so no additional flags are necessary.
+#------------------------------------------------------------------------------
 if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	# Compiler flags
-	# If user has not specified compillation flag, we use default configuration
+	# If user has not specified compilation flag, we use default configuration
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
 			"-Ofast" 
@@ -191,6 +192,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
 		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 	endif()
+#------------------------------------------------------------------------------
 # GNU - 9.3 - 10.x needs different flags
 # setting different flags for different version
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
@@ -256,7 +258,10 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
 		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 	endif()
+#------------------------------------------------------------------------------
 # PGI	
+# TODO: For some reason commander dependencies crashes on this one
+# so figure out how to make it work
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 	# Compiler flags
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
@@ -302,6 +307,11 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
 		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 	endif()
+#------------------------------------------------------------------------------
+# NVIDIA bought PGI compilers and now they are NVIDIA CUDA compilers
+#elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVIDIA)
+#	message(STATUS "This is a DEBUG MESSAGE FO NVIDIA COMPILERS")
+#------------------------------------------------------------------------------
 # Flang
 # TODO: need to figure out why healpix doesn't compile with flang
 # and then add support for flang
@@ -319,6 +329,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 #	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
 #	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 endif()
+#------------------------------------------------------------------------------
 # Making a summary of compiler location and compile flags
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "SUMMARY ON COMPILERS:")
@@ -373,32 +384,71 @@ set(CMAKE_DOWNLOAD_DIRECTORY "${CMAKE_SOURCE_DIR}/build/downloads"
 #	"Directory where to install commander dependencies"
 #	)
 # where to output libraries
-#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/lib")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
 	CACHE STRING
 	"Directory where to install all the libraries."
 	)
 # where to output executable(s)
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_OUTPUT_DIRECTORY}/bin")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/bin"
 	CACHE STRING
 	"Directory where to install all the executables."
+	)
+# HEALPix install (root) dir - by default we will install it in "healpix" dir
+set(HEALPIX_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/healpix"
+	CACHE STRING
+	"Directory where to install (copy compiled and data files of) HEALPix."
 	)
 set(DOXYGEN_BUILD_DOCS OFF 
 	CACHE BOOL
 	"Determine whether to use doxygen or not."
 	)
+#------------------------------------------------------------------------------
+# If any problems with installation will occur, which cannot be fixed quickly,
+# these variables will force a fresh installation for every specified library.
 # forces fresh installation of HDF5 to avoid some errors with old versions
-set(USE_EXISTING_HDF5 FALSE
+set(HDF5_FORCE_COMPILE FALSE
   CACHE BOOL
-  "Forces fresh installation of HDF5 to avoid some errors with old versions."
+  "Forces fresh installation of HDF5."
   )
+set(FFTW_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of FFTW."
+  )
+set(CFITSIO_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of CFITSIO."
+  )
+set(HEALPIX_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of HEALPIX."
+  )
+set(CURL_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of CURL."
+  )
+set(DOXYGEN_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of DOXYGEN."
+  )
+set(FLEX_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of FLEX."
+  )
+set(BISON_FORCE_COMPILE FALSE
+  CACHE BOOL
+	"Forces fresh installation of BISON."
+  )
+
+#------------------------------------------------------------------------------
 # Commander source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
 # tempita source dir
 set(TEMPITA_DIR ${CMAKE_SOURCE_DIR}/commander3/python)
 # adding custom cmake modules directory, e.g. for FindSomething.cmake
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+# Note: It should be already inside root CmakeLists.txt, so 
+# don't need to include in here
+#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+#------------------------------------------------------------------------------
 # output of the summary into the screen
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "SUMMARY ON INSTALLATION:")
@@ -414,7 +464,6 @@ message(STATUS "Looking for packages...")
 # use this to write your own find_package
 find_package(PkgConfig)
 # We will be using Git to download some dependencies, so we need to check if git available
-#include(FindGit)
 find_package(Git REQUIRED)
 # finding math library
 message(STATUS "math (m) libraries are: ${LIBM_LIBRARIES}")
@@ -430,12 +479,13 @@ list(APPEND projects
 	openmp
 	curl
 	zlib
-	sharp2
+	##sharp2
 	fftw
 	cfitsio
 	hdf5
 	doxygen
 	healpix
+	commander3
 	)
 #==============================================================================
 # PROJECTS' URL SOURCES, MD5 HASHES AND CONFIGURE COMMANDS
@@ -450,19 +500,53 @@ set(fftw_url "http://fftw.org/fftw-3.3.8.tar.gz")
 set(fftw_md5 "8aac833c943d8e90d51b697b27d4384d")
 # we need to compile fftw twice
 # float
-set(fftw_f_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "MPICC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--enable-float" "--enable-threads" "--enable-openmp" "--enable-mpi")
+#set(fftw_f_configure_command 
+#	"${CMAKE_COMMAND}" "-E" "env" 
+#	"FC=${COMMANDER3_Fortran_COMPILER}" 
+#	"CXX=${COMMANDER3_CXX_COMPILER}" 
+#	"CPP=${COMMANDER3_CPP_COMPILER}" 
+#	"CC=${COMMANDER3_C_COMPILER}" 
+#	"MPICC=${COMMANDER3_C_COMPILER}" 
+#	"./configure" 
+#	"--prefix=<INSTALL_DIR>" 
+#	"--enable-float" 
+#	"--enable-threads" 
+#	"--enable-openmp" 
+#	"--enable-mpi"
+#	)
 # double
-set(fftw_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "MPICC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--enable-threads" "--enable-openmp" "--enable-mpi")
+#set(fftw_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "MPICC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--enable-threads" "--enable-openmp" "--enable-mpi")
 #------------------------------------------------------------------------------
 # HDF5
 set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.5/src/hdf5-1.10.5.tar.gz")#"https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.4/src/hdf5-1.10.4.tar.gz")#"https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.1/src/hdf5-1.10.1.tar.gz")
 set(hdf5_md5 "e115eeb66e944fa7814482415dd21cc4")
-set(hdf5_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>" "--enable-fortran")
+set(hdf5_configure_command 
+	"${CMAKE_COMMAND}" "-E" "env" 
+	"FC=${COMMANDER3_Fortran_COMPILER}" 
+	"CXX=${COMMANDER3_CXX_COMPILER}" 
+	"CPP=${COMMANDER3_CPP_COMPILER}" 
+	"CC=${COMMANDER3_C_COMPILER}" 
+	"./configure" 
+	"--prefix=<INSTALL_DIR>" 
+	"--enable-fortran"
+	)
 #------------------------------------------------------------------------------
 # LibSharp2
+# Note: libsharp2 comes as a native part of Healpix 3.70 and thus, we do not
+# need to compile it independently. But, I will leave this just in case we need
+# to switch to older versions (for whatever reason).
 set(sharp2_url "https://gitlab.mpcdf.mpg.de/mtr/libsharp/-/archive/master/libsharp-master.tar.gz")#"https://gitlab.mpcdf.mpg.de/mtr/libsharp/-/archive/master/libsharp-master.tar.gz") #"https://github.com/Libsharp/libsharp/archive/v1.0.0.tar.gz")
 set(SHARP2_C_FLAGS "-DUSE_MPI -std=c99 -O3 -ffast-math")
-set(sharp2_configure_command "autoreconf" "-i" "&&" "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "CFLAGS=${SHARP2_C_FLAGS}" "./configure")
+set(sharp2_configure_command 
+	"autoreconf" "-i" "&&" 
+	"${CMAKE_COMMAND}" "-E" "env" 
+	"FC=${COMMANDER3_Fortran_COMPILER}" 
+	"CXX=${COMMANDER3_CXX_COMPILER}" 
+	"CPP=${COMMANDER3_CPP_COMPILER}" 
+	"CC=${COMMANDER3_C_COMPILER}" 
+	"CFLAGS=${SHARP2_C_FLAGS}" 
+	"./configure"
+	)
 #------------------------------------------------------------------------------
 # CFitsio
 set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.47.tar.gz")
@@ -485,6 +569,18 @@ set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
 # this command is for healpix 3.50 and below
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
+#set(healpix_components
+	#profile
+	#sharp
+	#profile
+	#healpy
+	#profile
+	#f90
+	#profile
+	#c
+	#profile
+	#cxx
+	#	)
 set(healpix_configure_command 
 	"${CMAKE_COMMAND}" "-E" "env" 
 	"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
@@ -495,31 +591,38 @@ set(healpix_configure_command
 	"CC=${COMMANDER3_C_COMPILER}" 
 	"SHARP_COPT=${HEALPIX_SHARP2_C_FLAGS}"
 	"./configure" 
-	"--auto=f90" 
+	"--auto=f90" #${healpix_components}" #profile,f90,c,cxx;" 
 	)
 #set(healpix_configure_command 
 #	"${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER} CXX=${COMMANDER3_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${COMMANDER3_C_COMPILER} FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY} FITSINC=${CMAKE_INSTALL_PREFIX}/include SHARP_COPT=${HEALPIX_SHARP2_C_FLAGS} ./configure --auto=all" 
 #	)
-#message(STATUS "HEalpix configure command is: ${healpix_configure_command}")
+#message(STATUS "Healpix configure command is: ${healpix_configure_command}")
 #------------------------------------------------------------------------------
 # Doxygen
 # there is some weird errors appearing for doxygen v1.8.17 and above, so will stick with this one
 set(doxygen_url "https://github.com/doxygen/doxygen/archive/Release_1_8_16.tar.gz")#"https://github.com/doxygen/doxygen/archive/Release_1_8_18.tar.gz")#"https://github.com/doxygen/doxygen.git")
 # compile doxygen with cmake itself, so no need to specify configure options here
 set(flex_url "http://sourceforge.net/projects/flex/files/flex-2.5.39.tar.gz/download")#"https://sourceforge.net/projects/flex/files/flex-2.6.0.tar.xz/download")
-set(flex_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>")
+set(flex_configure_command 
+	"${CMAKE_COMMAND}" "-E" "env" 
+	"FC=${COMMANDER3_Fortran_COMPILER}" 
+	"CXX=${COMMANDER3_CXX_COMPILER}" 
+	"CPP=${COMMANDER3_CPP_COMPILER}" 
+	"CC=${COMMANDER3_C_COMPILER}" 
+	"./configure" 
+	"--prefix=<INSTALL_DIR>"
+	)
 set(bison_url "http://ftp.gnu.org/gnu/bison/bison-3.6.tar.gz")#"http://ftp.gnu.org/gnu/bison/bison-3.6.2.tar.gz")
-set(bison_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure" "--prefix=<INSTALL_DIR>")
+set(bison_configure_command 
+	"${CMAKE_COMMAND}" "-E" "env" 
+	"FC=${COMMANDER3_Fortran_COMPILER}" 
+	"CXX=${COMMANDER3_CXX_COMPILER}" 
+	"CPP=${COMMANDER3_CPP_COMPILER}" 
+	"CC=${COMMANDER3_C_COMPILER}" 
+	"./configure" 
+	"--prefix=<INSTALL_DIR>"
+	)
 #------------------------------------------------------------------------------
-
-# projects configure commands (by default it is assumes to be cmake)
-#set(tempita_configure_command "")
-
-# projects install commands
-#set(fftw_install_command "make install")
-##set(hdf5_install_command )
-##set(sharp2_install_command "")
-#set(cfitsio_install_command )
 
 # include all project configuration files
 foreach(project ${projects})
