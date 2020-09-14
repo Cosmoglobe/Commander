@@ -74,7 +74,9 @@ contains
   end subroutine bin_TOD
 
   ! differential TOD computation, written with WMAP in mind.
-  subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_im, b, scan, comp_S, b_mono)
+  subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_im, b, M_diag, scan, &
+      !comp_S, 
+      & b_mono)
     implicit none
     class(comm_tod),                                intent(in)    :: tod
     integer(i4b),                                   intent(in)    :: scan
@@ -82,9 +84,9 @@ contains
     integer(i4b),        dimension(1:,1:),          intent(in)    :: flag
     integer(i4b),        dimension(1:,1:,1:),       intent(in)    :: pix, psi
     real(dp),            dimension(1:),              intent(in)    :: x_im
-    real(dp),            dimension(1:,1:,1:),       intent(inout) :: b
+    real(dp),            dimension(1:,1:,1:),       intent(inout) :: b, M_diag
     real(dp),            dimension(1:,1:,1:),       intent(inout), optional :: b_mono
-    logical(lgt),                                   intent(in)    :: comp_S
+    !logical(lgt),                                   intent(in)    :: comp_S
 
     integer(i4b) :: det, i, t, off, nout
     real(dp)     :: inv_sigmasq
@@ -120,20 +122,28 @@ contains
 
           
           do i = 1, nout
-             b(i,1,lpoint) = b(i,1,lpoint) + (1+x_im((i+1)/2)) * data(i,t,det)                           * inv_sigmasq
-             b(i,1,rpoint) = b(i,1,rpoint) - (1-x_im((i+1)/2)) * data(i,t,det)                           * inv_sigmasq
-             b(i,2,lpoint) = b(i,2,lpoint) + (1+x_im((i+1)/2)) * data(i,t,det) * tod%cos2psi(lpsi) * sgn * inv_sigmasq
-             b(i,2,rpoint) = b(i,2,rpoint) - (1-x_im((i+1)/2)) * data(i,t,det) * tod%cos2psi(rpsi) * sgn * inv_sigmasq
-             b(i,3,lpoint) = b(i,3,lpoint) + (1+x_im((i+1)/2)) * data(i,t,det) * tod%sin2psi(lpsi) * sgn * inv_sigmasq
-             b(i,3,rpoint) = b(i,3,rpoint) - (1-x_im((i+1)/2)) * data(i,t,det) * tod%sin2psi(rpsi) * sgn * inv_sigmasq
+             b(i,1,lpoint) = b(i,1,lpoint) + (1+x_im((det+1)/2)) * data(i,t,det)                           * inv_sigmasq
+             b(i,1,rpoint) = b(i,1,rpoint) - (1-x_im((det+1)/2)) * data(i,t,det)                           * inv_sigmasq
+             b(i,2,lpoint) = b(i,2,lpoint) + (1+x_im((det+1)/2)) * data(i,t,det) * tod%cos2psi(lpsi) * sgn * inv_sigmasq
+             b(i,2,rpoint) = b(i,2,rpoint) - (1-x_im((det+1)/2)) * data(i,t,det) * tod%cos2psi(rpsi) * sgn * inv_sigmasq
+             b(i,3,lpoint) = b(i,3,lpoint) + (1+x_im((det+1)/2)) * data(i,t,det) * tod%sin2psi(lpsi) * sgn * inv_sigmasq
+             b(i,3,rpoint) = b(i,3,rpoint) - (1-x_im((det+1)/2)) * data(i,t,det) * tod%sin2psi(rpsi) * sgn * inv_sigmasq
+
+
+             M_diag(i,1,lpoint) = M_diag(i,1,lpoint) + ((1+x_im((det+1)/2))                    )**2 * inv_sigmasq
+             M_diag(i,1,rpoint) = M_diag(i,1,rpoint) + ((1-x_im((det+1)/2))                    )**2 * inv_sigmasq
+             M_diag(i,2,lpoint) = M_diag(i,2,lpoint) + ((1+x_im((det+1)/2)) * tod%cos2psi(lpsi))**2 * inv_sigmasq
+             M_diag(i,2,rpoint) = M_diag(i,2,rpoint) + ((1-x_im((det+1)/2)) * tod%cos2psi(rpsi))**2 * inv_sigmasq
+             M_diag(i,3,lpoint) = M_diag(i,3,lpoint) + ((1+x_im((det+1)/2)) * tod%sin2psi(lpsi))**2 * inv_sigmasq
+             M_diag(i,3,rpoint) = M_diag(i,3,rpoint) + ((1-x_im((det+1)/2)) * tod%sin2psi(rpsi))**2 * inv_sigmasq
           end do
           
-          if (comp_S .and. det < tod%ndet) then
-             do i = 1, nout
-                b(i,4,lpoint) = b(i,4,lpoint) + (1+x_im((i+1)/2)) * data(i,t,det) * sgn * inv_sigmasq
-                b(i,4,rpoint) = b(i,4,rpoint) - (1-x_im((i+1)/2)) * data(i,t,det) * sgn * inv_sigmasq
-             end do
-          end if
+          !if (comp_S .and. det < tod%ndet) then
+          !   do i = 1, nout
+          !      b(i,4,lpoint) = b(i,4,lpoint) + (1+x_im((det+1)/2)) * data(i,t,det) * sgn * inv_sigmasq
+          !      b(i,4,rpoint) = b(i,4,rpoint) - (1-x_im((det+1)/2)) * data(i,t,det) * sgn * inv_sigmasq
+          !   end do
+          !end if
           
        end do
     end do
