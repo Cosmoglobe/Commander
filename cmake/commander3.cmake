@@ -57,7 +57,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_WMAP_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
+	#${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
 	${COMMANDER3_SOURCE_DIR}/comm_F_int_1D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_output_mod.f90
