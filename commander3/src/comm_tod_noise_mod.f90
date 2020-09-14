@@ -21,13 +21,13 @@ contains
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
     integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: init_masked_region, end_masked_region
+    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c
     real(dp)     :: nu, power, fft_norm
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
-    ! real(dp),     allocatable, dimension(:) :: dt
-    ! complex(dpc), allocatable, dimension(:) :: dv
+    ! real(sp),     allocatable, dimension(:) :: dt
+    ! complex(spc), allocatable, dimension(:) :: dv
+    real(dp),     allocatable, dimension(:) :: dt
+    complex(dpc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2
     character(len=1024) :: filename
 
@@ -40,12 +40,12 @@ contains
     
     n = nfft / 2 + 1
 
-    call sfftw_init_threads(err)
-    call sfftw_plan_with_nthreads(nomp)
+    call dfftw_init_threads(err)
+    call dfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1))
-    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    call dfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    call dfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
     !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
@@ -109,11 +109,14 @@ contains
        !n_corr(:, i) = ncorr2(:)
        
 
+!  subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, freq)
        !!!! add choice between PCG and regular ncorr here
        if (.true.) then !(self%scanid(scan) == 2116) .and. (i == 6)) then
-          call get_ncorr_pcg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back)
+          call get_ncorr_pcg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           n_corr(:, i) = ncorr2(:)
-       else
+       end if
+
+       if (.not. pcg_converged) then
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
@@ -124,7 +127,7 @@ contains
 
 
 
-          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
 
 
           fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
@@ -152,13 +155,13 @@ contains
                 dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
              end if
           end do
-          call sfftw_execute_dft_c2r(plan_back, dv, dt)
+          call dfftw_execute_dft_c2r(plan_back, dv, dt)
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
        end if
 
        ! if (.true.) then !mod(self%scanid(scan),100) == 1) then
-       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_pcg.dat' 
+       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_pcg_test.dat' 
        !    open(65,file=trim(filename),status='REPLACE')
        !    do j = 1, ntod
        !       write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
@@ -177,8 +180,8 @@ contains
     
     
 
-    call sfftw_destroy_plan(plan_fwd)                                           
-    call sfftw_destroy_plan(plan_back)                                          
+    call dfftw_destroy_plan(plan_fwd)                                           
+    call dfftw_destroy_plan(plan_back)                                          
   
   end subroutine sample_n_corr
 
@@ -247,31 +250,37 @@ contains
 
 
 
-  subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back)
+  subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band)
     implicit none
     type(planck_rng),    intent(inout)  :: handle
     integer*8,  intent(in)   :: plan_fwd, plan_back
     real(sp),   intent(in)   :: alpha, fknee, wn, samprate
-    integer(i4b), intent(in) :: nfft 
+    integer(i4b), intent(in) :: nfft, scan, det
+    logical(lgt), intent(out) :: converged 
+    character(len=*), intent(in) :: band
     real(sp),          dimension(:), intent(out)   :: ncorr
     real(sp),          dimension(:), intent(in)    :: d_prime, mask
     real(dp),    allocatable,      dimension(:) :: x, b, r, d, Mr, Ad
     real(dp),    allocatable,      dimension(:) :: invNcorr, invM
-    real(dp)           :: r2, r2new, alp, bet, eps, freq
-    ! real(dp),     allocatable, dimension(:) :: dt
-    ! complex(dpc), allocatable, dimension(:) :: dv
-    real(sp),     allocatable, dimension(:) :: dt
-    complex(spc), allocatable, dimension(:) :: dv
+    real(dp)           :: r2, r2new, alp, bet, eps, freq, d2
+    real(dp),     allocatable, dimension(:) :: dt
+    complex(dpc), allocatable, dimension(:) :: dv
+    ! real(sp),     allocatable, dimension(:) :: dt
+    ! complex(spc), allocatable, dimension(:) :: dv
     integer(i4b) :: i, j, k, l, ntod, n, n_iter
-    n_iter = 5
+    character(len=1024) :: filename
+
+    n_iter = 10
     n = nfft / 2 + 1
     ntod = size(d_prime, 1)
       
-    eps = 0.01d0
+    eps = 0.1d0
+
+    converged = .false.
+
     allocate(dt(nfft), dv(0:n-1))
     allocate(invNcorr(0:n-1),invM(0:n-1))
     allocate(x(ntod), b(ntod), r(ntod), d(ntod), Mr(ntod), Ad(ntod))
-
 
     do l=0, n-1
        freq = l*(samprate/2)/(n-1)
@@ -286,75 +295,51 @@ contains
     x(:) = d_prime(:) / sqrt(wn) 
     b(:) = x * mask(:) + d(:) * mask(:) 
     
-    ! open(60,file='test_pcg_norm.dat',status='REPLACE')
-    
-    ! write(60, '(*(E15.6E3))') d(:)
-    ! write(60, '(*(E15.6E3))') r(:)
-
-    
     
     call apply_fourier_mat(r, sqrt(invNcorr), Ad, dt, dv, nfft, plan_fwd, plan_back)
-    
-    ! write(60, '(*(E15.6E3))') Ad(:) 
     b(:) = b(:) + Ad(:)
-    ! write(60, '(*(E15.6E3))') b(:)
-      
-    !x(:) = d_prime(:)  ! initial vector for PCG
-
+    
+    x(:) = (x(:) - mean(x)) / 10.d0 + mean(x) ! initial vector for PCG
     call apply_fourier_mat(x, invNcorr, Ad, dt, dv, nfft, plan_fwd, plan_back)
     r(:) = b(:) - Ad(:) - x(:) * mask(:) 
-    ! write(60, '(*(E15.6E3))') r(:)
-    ! write(60, '(*(E15.6E3))') Ad(:)
     
     call apply_fourier_mat(r, invM, Mr, dt, dv, nfft, plan_fwd, plan_back)
-    ! write(60, '(*(E15.6E3))') Mr(:)
     d(:) = Mr(:)
     r2 = sum(r(:) * Mr(:))
     
     do k = 1, n_iter
        call apply_fourier_mat(d, invNcorr, Ad, dt, dv, nfft, plan_fwd, plan_back)
        Ad(:) = Ad(:) + d(:) * mask(:) 
-       ! write(60, '(*(E15.6E3))') Ad(:)
-    
-       ! if (.true.) then !mod(self%scanid(scan),100) == 1) then
-       !    !write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_pcg.dat' 
-       !    open(65,file='ncorr_pcg_norm.dat',status='REPLACE')
-       !    do j = 1, ntod
-       !       write(65, '(9(E15.6E3))') d_prime(j), mask(j), b(j), x(j), r(j), d(j), Mr(j), Ad(j), r2
-       !    end do
-       !    close(65)
-       !    open(65,file='ncorr_invmats_norm.dat',status='REPLACE')
-       !    do j = 0, n-1
-       !       freq = j*(samprate/2)/(n-1)
-       !       write(65, '(6(E15.6E3))') freq, invNcorr(j), invM(j), alpha, fknee, wn
-       !    end do
-       !    close(65)
-       !    !stop
-       ! end if
-
+       !d2 = sum(d(:) ** 2 * mask(:) + Ad(:) ** 2)
 
        alp = r2 / sum(d(:) * Ad(:))
        x(:) = x(:) + alp * d(:)
-       ! write(60, '(*(E15.6E3))') x(:)
     
-       ! can add if-test here to skip the final fourier transform
        r(:) = r(:) - alp * Ad(:)
-       ! write(60, '(*(E15.6E3))') r(:)
     
        call apply_fourier_mat(r, invM, Mr, dt, dv, nfft, plan_fwd, plan_back)
-       ! write(60, '(*(E15.6E3))') Mr(:)
-       r2new = sum(r(:) * Mr(:))
-       !! add convergence test here
+       r2new = sum(Mr(:) * r(:))
+       if (sqrt(abs(r2new)) < eps) then
+          converged = .true.
+!          write(*,*) 'converged after ', k, ' iterations ', scan, det, trim(band)
+          exit
+       end if
        bet = r2new / r2
+!       write(*,*) 'iteration ', k, r2, r2new, scan, det, trim(band)
        d(:) = Mr(:) + bet * d(:)
-       ! write(60, '(*(E15.6E3))') d(:)
-       ! write(*,*) alp, bet, r2, r2new
        r2 = r2new
     end do
     
+    if (.not. converged) then
+       write(filename, "(A, I0.3, A, I0.3, 3A)") 'pcg_tod_', scan, '_', det, '_',trim(band),'.dat' 
+       open(63,file=filename, status='REPLACE')
+       do i = 1, ntod
+          write(63, '(13(E15.6E3))') d_prime(i), b(i), x(i), r(i), d(i), Ad(i), Mr(i), r2, alp, bet, alpha, fknee, wn 
+       end do
+       close(63)
+    end if
+    
     ncorr(:) = x(:) * sqrt(wn)
-    ! write(60, '(*(E15.6E3))') ncorr(:)
-    ! close(60)
     
     deallocate(dt, dv)
     deallocate(invNcorr, invM)
@@ -368,21 +353,21 @@ contains
       real(dp),  dimension(:), intent(out)   :: res
       !real(sp),  dimension(:)  :: apply_fourier_mat
       integer(i4b), intent(in) :: nfft 
-      ! real(dp),     allocatable, dimension(:), intent(inout) :: dt
-      ! complex(dpc), allocatable, dimension(:), intent(inout) :: dv
-      real(sp),     allocatable, dimension(:), intent(inout) :: dt
-      complex(spc), allocatable, dimension(:), intent(inout) :: dv
+      real(dp),     allocatable, dimension(:), intent(inout) :: dt
+      complex(dpc), allocatable, dimension(:), intent(inout) :: dv
+      ! real(sp),     allocatable, dimension(:), intent(inout) :: dt
+      ! complex(spc), allocatable, dimension(:), intent(inout) :: dv
       integer(i4b) :: i, j, k, l, ntod, n
       n = nfft / 2 + 1
       ntod = size(vec, 1)
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 
-      call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
       do l = 0, n-1
          dv(l) = dv(l) * mat(l)
       end do
-      call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call dfftw_execute_dft_c2r(plan_back, dv, dt)
       dt = dt / nfft
       res(:) = dt(1:ntod)
       
