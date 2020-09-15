@@ -46,8 +46,8 @@ module comm_tod_WMAP_mod
 
 
   type, extends(comm_tod) :: comm_WMAP_tod
-    class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
-    real(dp), allocatable, dimension(:)  :: x_im
+    class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
+    real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
 
    contains
      procedure     :: process_tod        => process_WMAP_tod
@@ -139,7 +139,7 @@ contains
 
     integer(i4b) :: i, j, k, l, t, start_chunk, end_chunk, chunk_size, ntod, ndet
     integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
-    integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
+    integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0,nout=1
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
     real(dp)     :: t_tot(22)
     real(sp)     :: inv_gain
@@ -154,6 +154,7 @@ contains
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono, M_diag
     integer(i4b), allocatable, dimension(:,:,:)   :: pix, psi
     integer(i4b), allocatable, dimension(:,:)     :: flag
+    real(dp),     allocatable, dimension(:,:,:)   :: b_tot
     character(len=512) :: prefix, postfix, prefix4D, filename
     character(len=2048) :: Sfilename
     character(len=4)   :: ctext, myid_text
@@ -170,7 +171,7 @@ contains
     integer(i4b) :: i_max
     real(dp) :: delta_0, delta_old, delta_new, epsil
     real(dp) :: alpha, beta
-    real(dp), allocatable, dimension(:,:,:) :: x, r, s, d, q
+    real(dp), allocatable, dimension(:,:,:) :: cg_sol, r, s, d, q
     real(dp), allocatable, dimension(:,:) :: A
     integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn
     real(dp) ::  inv_sigmasq, x_im
@@ -381,8 +382,9 @@ contains
    end do
 
    ! start a new loop that is the CG solver loop
-    allocate(r(nout, ndet, self%nobs), q(nout, ndet, self%nobs), d(nout, ndet, self%nobs))
-    x(:,:,:) = 0.0d0
+    allocate(r(nout, ndet, npix), q(nout, ndet, npix), d(nout, ndet, npix))
+    ! allocate as a shared memory array, so that everything can access it.
+    cg_sol(:,:,:) = 0.0d0
     epsil = 1.0d-16
 
     do l = 1, nout
@@ -431,7 +433,7 @@ contains
                     end do
               end do
               alpha = delta_new/sum(d(l,:,:)*q(l,:,:))
-              x(l,:,:) = x(l,:,:) + alpha*d(l,:,:)
+              cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
               if (mod(i,50) == 0) then
                   do k = 1, self%ndet
                   ! evaluating the matrix operation r = b_map - Ax
@@ -450,8 +452,8 @@ contains
                             ! for timestreams 23 and 24, and also is used to switch
                             ! the sign of the polarization sensitive parts of the
                             ! model
-                            dA = x(l, 1, lpoint) + sgn*(x(l,2,lpoint)*self%cos2psi(lpsi) + x(l,3,lpoint)*self%sin2psi(lpsi))
-                            dB = x(l, 1, rpoint) + sgn*(x(l,2,rpoint)*self%cos2psi(rpsi) + x(l,3,rpoint)*self%sin2psi(rpsi))
+                            dA = cg_sol(l, 1, lpoint) + sgn*(cg_sol(l,2,lpoint)*self%cos2psi(lpsi) + cg_sol(l,3,lpoint)*self%sin2psi(lpsi))
+                            dB = cg_sol(l, 1, rpoint) + sgn*(cg_sol(l,2,rpoint)*self%cos2psi(rpsi) + cg_sol(l,3,rpoint)*self%sin2psi(rpsi))
                             d1 = (1+x_im)*dA - (1+x_im)*dB
                             ! Temperature
                             r(l,1,lpoint) = r(l,1,lpoint) + b_map(l,1,lpoint) - (1+x_im)*d1 * inv_sigmasq
@@ -478,62 +480,98 @@ contains
               end do
          end do
 
-   ! x = wmap_estimate
+   ! cg_sol = wmap_estimate
+   ! distribute x to map object
+   ! in comm_map_mod
+   ! each core will have a subset of the pixels and alms at all times.
+   ! figure out for each core, which cores that pixel needs, then populate the
+   ! array
+   ! np is the number of pixels that each core has
+   ! Basically, it's ordered by rings.
+   ! the pixel value should be included in the array pix, ordered from the first
+   ! pixel that that core has and the last one that that one has.
 
-   ! Output latest scan list with new timing information
-   if (self%first_call) then
-     call update_status(status, "scanlist1")
-     call wall_time(t1)
-     call self%output_scan_list(slist)
-     !TODO: all this timing stuff is a disaster
-     call wall_time(t2); t_tot(20) = t_tot(20) + t2-t1
-     call update_status(status, "scanlist2")
-   end if
+   ! each core has a pix array as part of the comm_mapinfo
+   ! it's an array of pixel indices.
+   ! In the map array, it has the values of those particular values.
+   ! Take the common array of the map solution, on each core go through the list
+   ! of cores, look up the value, and put it in the map array.
 
-   ! Solve combined map, summed over all pixels
-   !TODO: this probably also needs changing, also why is this so long and not a
-   !functions
-   call wall_time(t1)
-   call update_status(status, "shared1")
-   if (sA_map%init) then
-     do i = 0, self%numprocs_shared-1
-      !call update_status(status, "tod_share_loop")
-      start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
-      end_chunk   = min(start_chunk+chunk_size-1,npix-1)
-      do while (start_chunk < npix)
-         if (self%pix2ind(start_chunk) /= -1) exit
-         start_chunk = start_chunk+1
-      end do
-      do while (end_chunk >= start_chunk)
-         if (self%pix2ind(end_chunk) /= -1) exit
-         end_chunk = end_chunk-1
-      end do
-      if (start_chunk < npix)       start_chunk = self%pix2ind(start_chunk)
-      if (end_chunk >= start_chunk) end_chunk   = self%pix2ind(end_chunk)
 
-      call mpi_win_fence(0, sA_map%win, ierr)
-      call mpi_win_fence(0, sb_map%win, ierr)
-      do j = start_chunk, end_chunk
-         sA_map%a(:,self%ind2pix(j)+1) = sA_map%a(:,self%ind2pix(j)+1) + &
-              & A_map(:,j)
-         sb_map%a(:,:,self%ind2pix(j)+1) = sb_map%a(:,:,self%ind2pix(j)+1) + &
-              & b_map(:,:,j)
+   ! get a do loop; for each core, it'll go through its own pix array, and put
+   ! it in the map array for that core.
+
+   ! a sort of equivalent thing is in line 333 of comm_tod_mapmaking_mod, except
+   ! the pixels have already been distributed here, so I need to do that for
+   ! cg_sol. It's looping over np0, which is the number of pixels that each core
+   ! has.
+
+   ! In the LFI one, pixel i is the pixel that comm knows about, but I need it
+   ! to be referring to that pixel. Create a look-up table that will turn a
+   ! pixel number in the core's array to the right indexing convention.
+
+   ! I also think that I need to use the "shared_2d_dp, shared_3d_dp" types.
+
+
+   ! I will be "done" when I have put cg_sol into outmaps(1).
+
+   ! there is the "shared bmap" sb_map that I think needs to be distributed.
+
+   ! initialize shared map object, sb_map
+   call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
+        & self%myid_inter, self%comm_inter, [nout,ncol,npix], sb_map)
+
+   ! distributing the cg_sol to sb_map
+   if (sb_map%init) then
+       do i = 0, self%numprocs_shared-1
+          ! Define chunk indices
+          start_chunk = mod(self%myid_shared+i,self%numprocs_shared)*chunk_size
+          end_chunk   = min(start_chunk+chunk_size-1,npix-1)
+          do while (start_chunk < npix)
+             if (self%pix2ind(start_chunk) /= -1) exit
+             start_chunk = start_chunk+1
+          end do
+          do while (end_chunk >= start_chunk)
+             if (self%pix2ind(end_chunk) /= -1) exit
+             end_chunk = end_chunk-1
+          end do
+          if (start_chunk < npix)       start_chunk = self%pix2ind(start_chunk)
+          if (end_chunk >= start_chunk) end_chunk   = self%pix2ind(end_chunk)
+
+          call mpi_win_fence(0, sA_map%win, ierr)
+          call mpi_win_fence(0, sb_map%win, ierr)
+
+          ! Assign cg_sol to each chunk of the data
+          do j = start_chunk, end_chunk
+             sb_map%a(:,:,self%ind2pix(j)+1) = sb_map%a(:,:,self%ind2pix(j)+1) + &
+                  & cg_sol(:,:,j)
+          end do
       end do
-     end do
-     call mpi_win_fence(0, sA_map%win, ierr)
-     call mpi_win_fence(0, sb_map%win, ierr)
-     Sfilename = trim(prefix) // 'Smap'// trim(postfix)
-     call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
     end if
+    np0   = self%info%np
+    allocate(b_tot(nout,nmaps,0:np0-1))
+    b_tot  = sb_map%a(:,1:nmaps,self%info%pix+1)
+    do i = 0, np0-1
+       do j = 1, nmaps
+          do k = 1, self%output_n_maps
+             outmaps(k)%p%map(i,j) = b_tot(k,j,i) * 1.d3 ! convert from mK to uK
+          end do
+       end do
+    end do
+
+       
+
+
 
    map_out%map = outmaps(1)%p%map
 
    ! Output maps to disk
-   call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+   ! call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
 
+   ! This is the thing that I can check to see if it makes sense.
    call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix)) 
-   if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-   if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+   !if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
+   !if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
    !if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
    !if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
    !if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
