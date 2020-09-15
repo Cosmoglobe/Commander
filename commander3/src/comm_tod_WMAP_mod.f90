@@ -172,8 +172,9 @@ contains
     real(dp) :: alpha, beta
     real(dp), allocatable, dimension(:,:,:) :: x, r, s, d, q
     real(dp), allocatable, dimension(:,:) :: A
-    integer(i4b) :: lpoint, rpoint, lpsi, rpsi
-    real(dp) ::  inv_sigmasq
+    integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn
+    real(dp) ::  inv_sigmasq, x_im
+    real(dp) :: dA, dB, d1
 
     if (iter > 1) self%first_call = .false.
     call int2string(iter, ctext)
@@ -393,6 +394,7 @@ contains
          i = 0
          do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))
               do j = 1, self%nscan
+              ! This is evaluating the matrix product q = (P^T Ninv P) d
                  do k = 1, self%ndet
                     ! decompress the data so we have one chunk of TOD in memory
                     ! In the working code above, i is looping over nscan, j is ndet...
@@ -406,31 +408,25 @@ contains
                         rpoint = self%pix2ind(pix(t,k,2))
                         lpsi   = psi(t,k,1)
                         rpsi   = psi(t,k,2)
+                        x_im = self%x_im((k+1)/2)
+                        sgn = (-1)**((k+1)/2 + 1)
+                        ! This is the model for each timestream
+                        ! The sgn parameter is +1 for timestreams 13 and 14, -1
+                        ! for timestreams 23 and 24, and also is used to switch
+                        ! the sign of the polarization sensitive parts of the
+                        ! model
+                        dA = d(l, 1, lpoint) + sgn*(d(l,2,lpoint)*self%cos2psi(lpsi) + d(l,3,lpoint)*self%sin2psi(lpsi))
+                        dB = d(l, 1, rpoint) + sgn*(d(l,2,rpoint)*self%cos2psi(rpsi) + d(l,3,rpoint)*self%sin2psi(rpsi))
+                        d1 = (1+x_im)*dA - (1+x_im)*dB
                         ! Temperature
-                        q(l,1,lpoint) = q(l,1,lpoint) + 4*(d(l,1,lpoint) - d(l,1,rpoint)) * inv_sigmasq
-                        q(l,1,rpoint) = q(l,1,rpoint) - 4*(d(l,1,lpoint) - d(l,1,rpoint)) * inv_sigmasq
+                        q(l,1,lpoint) = q(l,1,lpoint) + (1+x_im)*d1 * inv_sigmasq
+                        q(l,1,rpoint) = q(l,1,rpoint) - (1-x_im)*d1 * inv_sigmasq
                         ! Q
-                        q(l,2,lpoint) = q(l,2,lpoint) + 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
-                                                          +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
-                                        & * self%cos2psi(lpsi) * inv_sigmasq
-                        q(l,2,rpoint) = q(l,2,rpoint) - 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
-                                                          +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
-                                        & * self%cos2psi(rpsi) * inv_sigmasq
+                        q(l,2,lpoint) = q(l,2,lpoint) + (1+x_im)*d1 * self%cos2psi(lpsi) * sgn * inv_sigmasq
+                        q(l,2,rpoint) = q(l,2,rpoint) - (1-x_im)*d1 * self%cos2psi(rpsi) * sgn * inv_sigmasq
                         ! U
-                        q(l,3,lpoint) = q(l,3,lpoint) + 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
-                                                          +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
-                                        & * self%sin2psi(lpsi) * inv_sigmasq
-                        q(l,3,rpoint) = q(l,3,rpoint) - 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
-                                                          +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
-                                        & * self%sin2psi(rpsi) * inv_sigmasq
-                        !!!!!
-                        ! n.b. the factors of four for temperature and factors
-                        ! of 2 for polarization come from the fact that we are
-                        ! adding 4 separate timestreams, so we are matching the
-                        ! scaling in both the P^T P x calculation and P^T d,
-                        ! where d is taken to be a stacked series of vectors,
-                        ! with d = (d13, d14, d23, d24), for example.
-                        !!!!!
+                        q(l,2,lpoint) = q(l,2,lpoint) + (1+x_im)*d1 * self%sin2psi(lpsi) * sgn * inv_sigmasq
+                        q(l,2,rpoint) = q(l,2,rpoint) - (1-x_im)*d1 * self%sin2psi(rpsi) * sgn * inv_sigmasq
                         end do
                     end do
               end do
@@ -438,11 +434,7 @@ contains
               x(l,:,:) = x(l,:,:) + alpha*d(l,:,:)
               if (mod(i,50) == 0) then
                   do k = 1, self%ndet
-                        ! decompress the data so we have one chunk of TOD in memory
-                        ! call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
-                        !     & psi(:,j,:), flag(:,j))
-                        !r = b_map - matmul(A,x)
-                        r(l,k,:) = b_map(l,k,:)
+                  ! evaluating the matrix operation r = b_map - Ax
                         call self%decompress_pointing_and_flags(j, k, pix(:,k,:), &
                             & psi(:,k,:), flag(:,k))
                         do t = 1, self%scans(j)%ntod
@@ -451,23 +443,25 @@ contains
                             rpoint = self%pix2ind(pix(t,k,2))
                             lpsi   = psi(t,k,1)
                             rpsi   = psi(t,k,2)
+                            x_im = self%x_im((k+1)/2)
+                            sgn = (-1)**((k+1)/2 + 1)
+                            ! This is the model for each timestream
+                            ! The sgn parameter is +1 for timestreams 13 and 14, -1
+                            ! for timestreams 23 and 24, and also is used to switch
+                            ! the sign of the polarization sensitive parts of the
+                            ! model
+                            dA = x(l, 1, lpoint) + sgn*(x(l,2,lpoint)*self%cos2psi(lpsi) + x(l,3,lpoint)*self%sin2psi(lpsi))
+                            dB = x(l, 1, rpoint) + sgn*(x(l,2,rpoint)*self%cos2psi(rpsi) + x(l,3,rpoint)*self%sin2psi(rpsi))
+                            d1 = (1+x_im)*dA - (1+x_im)*dB
                             ! Temperature
-                            q(l,1,lpoint) = q(l,1,lpoint) + b_map(l,1,lpoint) -  4*(d(l,1,lpoint) - d(l,1,rpoint)) * inv_sigmasq
-                            q(l,1,rpoint) = q(l,1,rpoint) + b_map(l,1,rpoint) +  4*(d(l,1,lpoint) - d(l,1,rpoint)) * inv_sigmasq
+                            r(l,1,lpoint) = r(l,1,lpoint) + b_map(l,1,lpoint) - (1+x_im)*d1 * inv_sigmasq
+                            r(l,1,rpoint) = r(l,1,rpoint) + b_map(l,1,rpoint) + (1-x_im)*d1 * inv_sigmasq
                             ! Q
-                            q(l,2,lpoint) = q(l,2,lpoint) + b_map(l,2,lpoint) -  2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
-                                                                                 & +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
-                                                                                 & * self%cos2psi(lpsi) * inv_sigmasq
-                            q(l,2,rpoint) = q(l,2,rpoint) + b_map(l,2,rpoint) + 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
-                                                                                & +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) & 
-                                                                                & * self%cos2psi(rpsi) * inv_sigmasq
+                            r(l,2,lpoint) = r(l,2,lpoint) + b_map(l,2,lpoint) - (1+x_im)*d1 * self%cos2psi(lpsi) * sgn * inv_sigmasq
+                            r(l,2,rpoint) = r(l,2,rpoint) + b_map(l,2,rpoint) + (1-x_im)*d1 * self%cos2psi(rpsi) * sgn * inv_sigmasq
                             ! U
-                            q(l,3,lpoint) = q(l,3,lpoint) + b_map(l,2,lpoint) - 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
-                                                                                & +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
-                                                                                & * self%sin2psi(lpsi) * inv_sigmasq
-                            q(l,3,rpoint) = q(l,3,rpoint) + b_map(l,2,rpoint) + 2*(d(l,2,lpoint)*self%cos2psi(lpsi) - d(l,2,rpoint)*self%cos2psi(rpsi) &
-                                                                                & +d(l,3,lpoint)*self%sin2psi(lpsi) - d(l,3,rpoint)*self%sin2psi(rpsi)) &
-                                                                                & * self%sin2psi(rpsi) * inv_sigmasq
+                            r(l,2,lpoint) = r(l,2,lpoint) + b_map(l,3,lpoint) - (1+x_im)*d1 * self%sin2psi(lpsi) * sgn * inv_sigmasq
+                            r(l,2,rpoint) = r(l,2,rpoint) + b_map(l,3,rpoint) + (1-x_im)*d1 * self%sin2psi(rpsi) * sgn * inv_sigmasq
                         end do
                  end do
               else
