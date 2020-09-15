@@ -1,5 +1,5 @@
 import os
-ncpus = 128
+ncpus = 48
 #os.environ["OMP_NUM_THREADS"] = f"{ncpus}" # export OMP_NUM_THREADS=4
 #os.environ["OPENBLAS_NUM_THREADS"] = f"{ncpus}" # export OPENBLAS_NUM_THREADS=4 
 #os.environ["MKL_NUM_THREADS"] = f"{ncpus}" # export MKL_NUM_THREADS=6
@@ -244,8 +244,13 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     pB = pm[pixB]
     # This SHOULD make it so that if pA is 0 (high emission) and pB is 1 (low
     # emission), pixA is updated and pixB isn't.
-    f_A = (1 - pA*(1-pB))*inds
-    f_B = (1 - pB*(1-pA))*inds
+    #f_A = (1 - pA*(1-pB))*inds
+    #f_B = (1 - pB*(1-pA))*inds
+
+    # Let's make it a bit easier, if horn A is in a high-emission region, horn B
+    # isn't updated.
+    f_A = pB*inds
+    f_B = pA*inds
 
 
     sigmas = np.ones(len(d))*sigma0
@@ -257,32 +262,26 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
         in the high emission region is iteratively updated.
         # pm == 0 means it is in a high emission region
         '''
-        b[pixA[t]] = b[pixA[t]] + f_A[t]*(1+xbar)*d[t]/sigma0**2
-        b[pixB[t]] = b[pixB[t]] - f_B[t]*(1-xbar)*d[t]/sigma0**2
+        b[pixA[t]]   += f_A[t]*((1+xbar)*d[t] + dxbar*p[t])/sigma0**2
+        b[pixB[t]]   -= f_B[t]*((1-xbar)*d[t] - dxbar*p[t])/sigma0**2
+        b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma0**2
+        b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma0**2
+        b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma0**2
+        b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma0**2
+        b_s[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])/sigma0**2
+        b_s[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])/sigma0**2
 
-        M[pixA[t]] += f_A[t]*(1+xbar)**2/sigma0**2
-        M[pixB[t]] += f_B[t]*(1-xbar)**2/sigma0**2
-        if pol:
-            b[pixA[t]] += f_A[t]*dxbar*p[t]/sigma0**2
-            b[pixB[t]] += f_B[t]*dxbar*p[t]/sigma0**2
-            b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma0**2
-            b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma0**2
-            b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma0**2
-            b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma0**2
-            b_s[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])/sigma0**2
-            b_s[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])/sigma0**2
+        M[pixA[t]]   += f_A[t]*(1+xbar+dxbar)**2/sigma0**2
+        M[pixB[t]]   += f_B[t]*(1-xbar-dxbar)**2/sigma0**2
+        M_q[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.cos(2*psiA[t]))**2/sigma0**2
+        M_q[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.cos(2*psiB[t]))**2/sigma0**2
+        M_u[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.sin(2*psiA[t]))**2/sigma0**2
+        M_u[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.sin(2*psiB[t]))**2/sigma0**2
+        M_s[pixA[t]] += f_A[t]*(1+xbar+dxbar)**2/sigma0**2
+        M_s[pixB[t]] += f_B[t]*(1-xbar-dxbar)**2/sigma0**2
 
-
-            M_q[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.cos(2*psiA[t]))**2/sigma0**2
-            M_q[pixB[t]] += f_B[t]*(((1-xbar) - dxbar)*np.cos(2*psiB[t]))**2/sigma0**2
-            M_u[pixA[t]] += f_A[t]*(((1+xbar) + dxbar)*np.sin(2*psiA[t]))**2/sigma0**2
-            M_u[pixB[t]] += f_B[t]*(((1-xbar) +-dxbar)*np.sin(2*psiB[t]))**2/sigma0**2
-            M_s[pixA[t]] += f_A[t]*(dxbar + (1+xbar))**2/sigma0**2
-            M_s[pixB[t]] += f_B[t]*(dxbar - (1-xbar))**2/sigma0**2
-
-    if pol:
-        b_p = np.concatenate((b_q, b_u, b_s))
-        M_p = np.concatenate((M_q, M_u, M_s))
+    b_p = np.concatenate((b_q, b_u, b_s))
+    M_p = np.concatenate((M_q, M_u, M_s))
 
 
     if pol:
@@ -429,8 +428,9 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         np.random.seed(137)
         fnames = np.random.choice(fnames, nfiles, replace=False)
     elif nfiles < len(fnames):
-        np.random.seed(137)
-        fnames = np.random.choice(fnames, nfiles, replace=False)
+        #np.random.seed(137)
+        #fnames = np.random.choice(fnames, nfiles, replace=False)
+        fnames = fnames[:nfiles]
     else:
         fnames = fnames
 
@@ -488,7 +488,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             print(f'Constructing pointing matrix')
             # Can split up the A_p construction... would 100 be enough?
             A_p = sparse.csr_matrix((4*npix, 4*npix))
-            n_split = len(f_A)//(32*npix)
+            n_split = len(f_A)//(64*npix)
             f_A = np.array_split(f_A, n_split)
             f_B = np.array_split(f_B, n_split)
             pixA = np.array_split(pixA, n_split)
@@ -499,11 +499,9 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             for n in tqdm(range(n_split)):
                 t_arr = np.arange(8*len(pixA[n]))
                 A_arr = np.concatenate((pixA[n], pixA[n]+npix, pixA[n]+2*npix, pixA[n]+3*npix,
-                                     pixA[n], pixA[n]+npix, pixA[n]+2*npix,
-                                     pixA[n]+3*npix))
+                                        pixA[n], pixA[n]+npix, pixA[n]+2*npix, pixA[n]+3*npix))
                 B_arr = np.concatenate((pixB[n], pixB[n]+npix, pixB[n]+2*npix, pixB[n]+3*npix,
-                                     pixB[n], pixB[n]+npix, pixB[n]+2*npix,
-                                     pixB[n]+3*npix))
+                                        pixB[n], pixB[n]+npix, pixB[n]+2*npix, pixB[n]+3*npix))
                 P_p_AM = sparse.csc_matrix((
                  np.concatenate((
                     f_A[n]*(1+xbar)/sigma0s[n],
@@ -604,9 +602,11 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         pix = (M_diag_p != 0)
         d[pix] = r[pix]/M_diag_p[pix]
         shat = np.zeros(len(r))
-        delta_new = r.dot(d)
-        delta_0 = np.copy(delta_new)
-        delta_old = np.copy(delta_new)
+        delta_new1 = r.dot(d)
+        delta_new2 = np.copy(delta_new1)
+        delta_0 = np.copy(delta_new1)
+        delta_old1 = np.copy(delta_new1)
+        delta_old2 = np.copy(delta_new2)
 
         rtilde = np.copy(b_p)
         phat = np.zeros_like(r)
@@ -764,8 +764,9 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
 def plot_maps_pol(band='K1', version='13', nside=256):
     amps = [0.35, 0.035, 0.035, 0.035]
-    mpl.rcParams['figure.figsize'][0] *= 2
-    mpl.rcParams['figure.figsize'][1] *= 2
+
+    mpl.rcParams['figure.figsize'][0] = 12.8
+    mpl.rcParams['figure.figsize'][1] = 9.6
     data = hp.ud_grade(hp.read_map(f'data/wmap_iqusmap_r9_9yr_{band}_v5.fits',
         verbose=False, field=(0,1,2,3)), nside)
     x_arr = np.load('all_samples.npy')
@@ -838,17 +839,18 @@ def plot_maps_pol(band='K1', version='13', nside=256):
     d_smooth = hp.smoothing(data[:3], fwhm=3*np.pi/180)
 
     plt.figure()
-    hp.mollview(x_smooth[1], sub=321, min=-0.1, max=0.1, title='CG Q',
+    lim = 0.05
+    hp.mollview(x_smooth[1], sub=321, min=-lim, max=lim, title='CG Q',
             cmap='RdBu_r')
-    hp.mollview(x_smooth[2], sub=322, min=-0.1, max=0.1, title='CG U',
+    hp.mollview(x_smooth[2], sub=322, min=-lim, max=lim, title='CG U',
             cmap='RdBu_r')
-    hp.mollview(d_smooth[1], sub=323, min=-0.1, max=0.1, title='WM Q',
+    hp.mollview(d_smooth[1], sub=323, min=-lim, max=lim, title='WM Q',
             cmap='RdBu_r')
-    hp.mollview(d_smooth[2], sub=324, min=-0.1, max=0.1, title='WM U',
+    hp.mollview(d_smooth[2], sub=324, min=-lim, max=lim, title='WM U',
             cmap='RdBu_r')
-    hp.mollview(x_smooth[1]-d_smooth[1], sub=325, min=-0.1, max=0.1, title='Diff Q', cmap='RdBu_r')
-    hp.mollview(x_smooth[2]-d_smooth[2], sub=326, min=-0.1, max=0.1, title='Diff U', cmap='RdBu_r')
-    plt.savefig('smooth_pol.png', bbox_inches='tight')
+    hp.mollview(x_smooth[1]-d_smooth[1], sub=325, min=-lim, max=lim, title='Diff Q', cmap='RdBu_r')
+    hp.mollview(x_smooth[2]-d_smooth[2], sub=326, min=-lim, max=lim, title='Diff U', cmap='RdBu_r')
+    plt.savefig(f'smooth_pol_{band}.png', bbox_inches='tight')
 
     return
 
@@ -977,10 +979,11 @@ def check_hdf5(nside=256, version=8, band='K1'):
 
 if __name__ == '__main__':
     #cg_test()
-    #bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-    get_cg(band='K1', nfiles=2**7, sparse_test=False, sparse_only=True,
-            imbalance=False, mask=True, pol=True, imax=1000)
-    plot_maps_pol()
+    bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+    for b in ['W2', 'W3']:
+        #get_cg(band=b, nfiles=2**10, sparse_test=False, sparse_only=True,
+        #        imbalance=True, mask=True, pol=True, imax=1000)
+        plot_maps_pol(band=b)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
