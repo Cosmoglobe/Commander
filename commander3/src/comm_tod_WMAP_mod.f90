@@ -302,7 +302,7 @@ contains
         s_tot(:,j) = s_sky(:,j)
         s_buf(:,j) = s_tot(:,j)  
       end do
-        call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
+      ! call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
 
       ! Compute chisquare
       !TODO: this but probably different code?

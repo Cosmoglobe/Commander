@@ -130,14 +130,14 @@ def cg_test():
 def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
     # From Planck 2019 I
-    #dipoles = {'cobe':[3.358,  264.31,  48.05],
-    #           'wmap':[3.355,  263.99,  48.26],
-    #           'pl15':[3.3645, 264.00,  48.24],
-    #           'lf18':[3.3644, 263.998, 48.265],
-    #           'hf18':[3.3621, 264.021, 48.253],
-    #           'pl18':[3.3621, 264.021, 48.253]}
-    #amp, lon, lat = dipoles['cobe']
-    #dipole = make_dipole(amp, lon, lat, nside)
+    dipoles = {'cobe':[3.358,  264.31,  48.05],
+               'wmap':[3.355,  263.99,  48.26],
+               'pl15':[3.3645, 264.00,  48.24],
+               'lf18':[3.3644, 263.998, 48.265],
+               'hf18':[3.3621, 264.021, 48.253],
+               'pl18':[3.3621, 264.021, 48.253]}
+    amp, lon, lat = dipoles['wmap']
+    dipole = make_dipole(amp, lon, lat, nside)
 
 
     ntodsigma = 100
@@ -229,7 +229,7 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
 
     # subtract dipole solution from d
-    #d = d - ((1*xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
+    d = d - ((1*xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
     
 
     # most aggressive mask
@@ -773,8 +773,8 @@ def plot_maps_pol(band='K1', version='13', nside=256):
     d = np.load('all_samples_delta.npy')
     x_tot = hp.read_map(f'cg_v{version}_{band}_pol.fits', field=(0,1,2,3))
     for i in range(4):
-        if i == 0:
-            x_tot[i] = hp.remove_dipole(x_tot[i], gal_cut=20)
+        #if i == 0:
+        #    x_tot[i] = hp.remove_dipole(x_tot[i], gal_cut=20)
         plt.figure('sol1')
         hp.mollview(x_tot[i], min=-amps[i], max=amps[i], title='Solution',
                 cmap=cmap, sub=(2,2,i+1))
@@ -852,127 +852,6 @@ def plot_maps_pol(band='K1', version='13', nside=256):
     hp.mollview(x_smooth[2]-d_smooth[2], sub=326, min=-lim, max=lim, title='Diff U', cmap='RdBu_r')
     plt.savefig(f'smooth_pol_{band}.png', bbox_inches='tight')
 
-    return
-
-
-def check_hdf5(nside=256, version=8, band='K1'):
-    # Take official W-band K-band, scan it with the same pointing matrix, divide
-    # by gain, subtract from timestream, check the gain and pointing solution
-    # directly. Should just be white noise.
-    npix = hp.nside2npix(nside)
-    b = np.zeros(hp.nside2npix(nside))
-    b_p = np.zeros(2*hp.nside2npix(nside))
-    M_diag = np.zeros(npix)
-    M_diag_p = np.zeros(2*npix)
-
-    from glob import glob
-    fnames = glob(f'/mn/stornext/d16/cmbco/bp/wmap/data/wmap_{band}_*v{version}.h5')
-    fnames.sort()
-    fname = fnames[0]
-    f= h5py.File(fname, 'r')
-    obsid = str(list(f.keys())[0])
-    labels = [f'{band}13', f'{band}14',f'{band}23',f'{band}24']
-
-    huffTree = f[obsid+'/common/hufftree']
-    huffSymb = f[obsid+'/common/huffsymb']
-    h = huffman.Huffman(tree=huffTree, symb=huffSymb)
-
-
-    '''
-    TOD0 = np.array(f[obsid + '/' + labels[0] + '/tod'])
-    if band == 'K1':
-        if len(TOD0) != 675000:
-            print(f'{fname} has wrong length')
-            return None
-    elif band == 'V1':
-        if len(TOD0) != 1125000:
-            print(f'{fname} has wrong length')
-            return None
-    '''
-    
-    
-    DAs = [[], [], [], []]
-    pixAs = []
-    pixBs = []
-    sigmas = []
-    gains = np.zeros(len(labels))
-    for num, label in enumerate(labels):
-        TODs = np.array(f[obsid + '/' + label + '/tod'])
-        scalars = f[obsid + '/' + label + '/scalars']
-        #flag = h.Decoder(np.array(f[obsid + '/' + label + '/flag']))
-        gains[num] = scalars[0]
-        TODs = TODs - np.median(TODs)
-        DAs[num] = DAs[num] + TODs.tolist()
-        sigmas.append(TODs.std())
-        if label == f'{band}13':
-            pixA = h.Decoder(np.array(f[obsid + '/' + label + \
-                '/pixA'])).astype('int')
-            pixB = h.Decoder(np.array(f[obsid + '/' + label + \
-                '/pixB'])).astype('int')
-
-    DAs = np.array(DAs)/gains.reshape(4,1)
-    
-    d1 = 0.5*(DAs[0] + DAs[1])
-    d2 = 0.5*(DAs[2] + DAs[3])
-    
-    d = 0.5*(d1 + d2) # = i_A - i_B
-    p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
-
-
-    cg = hp.read_map(f'cg_v{version}_{band}.fits', verbose=False)
-    # dipole
-    dipoles = {'cobe':[3.358,  264.31,  48.05],
-               'wmap':[3.355,  263.99,  48.26],
-               'pl15':[3.3645, 264.00,  48.24],
-               'lf18':[3.3644, 263.998, 48.265],
-               'hf18':[3.3621, 264.021, 48.253],
-               'pl18':[3.3621, 264.021, 48.253]}
-    amp, lon, lat = dipoles['pl18']
-    dipole = make_dipole(amp, lon, lat, nside)
-    # all in mK
-    sol = hp.read_map(f'data/wmap_imap_r9_9yr_{band}_v5.fits', verbose=False)
-    sol = hp.ud_grade(sol, nside)
-
-
-    dip_sub = hp.remove_dipole(cg, gal_cut=10)
-
-    hp.mollview(sol, min=-2.5, max=2.5, title='WMAP', cmap='RdBu_r')
-    plt.savefig(f'wmap_{band}.png', bbox_inches='tight')
-    hp.mollview(dip_sub, min=-2.5, max=2.5, title='CG Dipole Subtracted', cmap='RdBu_r')
-    plt.savefig(f'cg_dipsub_{band}.png', bbox_inches='tight')
-    hp.mollview(sol - dip_sub, min=-0.25, max=0.25, title='Difference', cmap='RdBu_r')
-    plt.savefig(f'diff_{band}.png', bbox_inches='tight')
-
-    sol += dipole
-
-    max_t = 10000
-
-    d_sol = np.zeros(len(pixA))
-    d_cg = np.zeros(len(pixA))
-    for t in range(len(pixA)):
-        d_sol[t] = sol[pixA[t]] - sol[pixB[t]]
-        d_cg[t] = cg[pixA[t]] - cg[pixB[t]]
-    fig, axes = plt.subplots(nrows=2, sharex=True, sharey=True)
-    axes[0].plot(d_sol[:max_t])
-    axes[0].set_ylabel('WMAP solution (mK)')
-    #axes[1].plot(d[:max_t])
-    #axes[1].set_ylabel('(Raw timestream - baseline) x g (mK)')
-
-    axes[1].plot(d_cg[:max_t])
-    axes[1].set_ylabel('CG solution')
-
-    #plt.figure()
-    #bins = np.linspace(-15, 15,  100)
-    #plt.hist(d, label='CG Solution', alpha=0.5, bins=bins)
-    #plt.hist(d_sol, label='WMAP solution', alpha=0.5, bins=bins)
-    #plt.legend(loc='best')
-    #plt.show()
-
-
-    #plt.show()
-
-    hp.mollview(abs(sol - dip_sub), norm='hist', title='Difference', cmap='RdBu_r')
-    plt.show()
     return
 
 
