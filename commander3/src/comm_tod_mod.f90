@@ -1335,17 +1335,11 @@ contains
     integer(i4b),        dimension(:,:),intent(out) :: psi, pix
     integer(i4b) :: i
 
-    integer(i4b) :: offset
-
-    if( self%halfring_split == 2 )then
-      offset = size(pix)
-    else 
-      offset = 0
-    end if
-
-    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix, pix, offset=offset)
-    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, imod=self%npsi-1, offset=offset)
-    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag, offset=offset)
+    do i=1, self%nhorn
+      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
+      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
+    end do
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
 !!$    if (det == 2) psi = modulo(psi + 20,self%npsi)
