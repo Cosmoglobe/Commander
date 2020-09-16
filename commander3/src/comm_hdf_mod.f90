@@ -386,7 +386,7 @@ contains
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
-  subroutine read_hdf_0d_dp(file, setname, val)
+  subroutine read_hdf_0d_dp(file, setname, val, opt)
     implicit none
     type(hdf_file) :: file
     character(len=*), intent(in)  :: setname
@@ -941,6 +941,28 @@ contains
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
        stop
+    end if
+    call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+  end subroutine
+
+  subroutine read_hdf_3d_int(file, setname, val, opt)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: setname
+    logical(lgt), intent(in), optional :: opt
+    TYPE(h5o_info_t) :: object_info
+    integer(i4b) :: hdferr, v(100)
+    integer(hsize_t) :: s(3), ext2(3)
+    integer(i4b)     :: ext(3)
+    integer(i4b) ,dimension(:,:,:), intent(out) :: val
+    logical(lgt) :: opt_   
+ 
+    if(.not. present(opt)) then
+      opt_ = .false.
+    else
+      opt_ = opt
+    end if
     call h5eset_auto_f(0, hdferr)
     call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
     if (hdferr /= 0) then
