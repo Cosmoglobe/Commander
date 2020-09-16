@@ -15,14 +15,24 @@ if(DOXYGEN_BUILD_DOCS)
 	endif()
 	if(NOT FLEX_FOUND)
 		message(STATUS "Will download flex from source.")
+		# Creating configure command for Flex
+		set(flex_configure_command 
+			"${CMAKE_COMMAND}" "-E" "env" 
+			"FC=${COMMANDER3_Fortran_COMPILER}" 
+			"CXX=${COMMANDER3_CXX_COMPILER}" 
+			"CPP=${COMMANDER3_CPP_COMPILER}" 
+			"CC=${COMMANDER3_C_COMPILER}" 
+			"./configure" 
+			"--prefix=<INSTALL_DIR>"
+			)
+		#------------------------------------------------------------------------------
+		# Getting Flex from source
 		ExternalProject_Add(flex
 			URL ${flex_url}
 			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/flex"
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/flex/src/flex"
 			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-			#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR>
-			#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${MPI_C_COMPILER} ./configure --prefix=<INSTALL_DIR>
 			CONFIGURE_COMMAND "${flex_configure_command}"
 			)
 		set(FLEX_EXECUTABLE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/flex)
@@ -37,14 +47,24 @@ if(DOXYGEN_BUILD_DOCS)
 	endif()
 	if(NOT BISON_FOUND)
 		message(STATUS "Will download Bison from source")
+		# Creating configure command for Bison
+		set(bison_configure_command 
+			"${CMAKE_COMMAND}" "-E" "env" 
+			"FC=${COMMANDER3_Fortran_COMPILER}" 
+			"CXX=${COMMANDER3_CXX_COMPILER}" 
+			"CPP=${COMMANDER3_CPP_COMPILER}" 
+			"CC=${COMMANDER3_C_COMPILER}" 
+			"./configure" 
+			"--prefix=<INSTALL_DIR>"
+			)
+		#------------------------------------------------------------------------------
+		# Getting Bison from source
 		ExternalProject_Add(bison
 			URL ${bison_url}
 			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/bison"
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/bison/src/bison"
 			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-			#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR>
-			#CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${MPI_C_COMPILER} ./configure --prefix=<INSTALL_DIR>
 			CONFIGURE_COMMAND "${bison_configure_command}"
 			)
 		set(BISON_EXECUTABLE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/bison)	
@@ -58,6 +78,8 @@ if(DOXYGEN_BUILD_DOCS)
 	endif()
 	if(NOT DOXYGEN_FOUND)
 		message(STATUS "Will download Doxygen from source.")
+		#------------------------------------------------------------------------------
+		# Getting Doxygen from source
 		ExternalProject_Add(${project}
 			DEPENDS flex bison
 			URL "${${project}_url}"

@@ -13,6 +13,28 @@ if(NOT HEALPIX_FOUND)
 	if(NOT HEALPIX_Fortran_FOUND)
 		message(STATUS "Missing component - Fortran - will be compiled from source")	
 	endif()
+	# Creating configure command for HEALPix
+	# Below flags used to configure Libsharp as part of HEALPix
+	if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
+		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -qopenmp")
+	elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
+		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -fopenmp")
+	elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
+		set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
+	endif()
+	set(healpix_configure_command 
+		"${CMAKE_COMMAND}" "-E" "env" 
+		"FITSDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+		"FITSINC=${CMAKE_INSTALL_PREFIX}/include"
+		"FC=${COMMANDER3_Fortran_COMPILER}" 
+		"CXX=${COMMANDER3_CXX_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
+		"CC=${COMMANDER3_C_COMPILER}" 
+		"SHARP_COPT=${healpix_sharp2_C_FLAGS}"
+		"./configure" 
+		"--auto=f90" #${healpix_components}" #profile,f90,c,cxx;" 
+		)
+	#------------------------------------------------------------------------------
 	# Getting Healpix from source
 	ExternalProject_Add(${project}
 		URL "${${project}_url}"
