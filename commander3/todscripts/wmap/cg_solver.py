@@ -1,5 +1,5 @@
 import os
-ncpus = 48
+ncpus = 144
 #os.environ["OMP_NUM_THREADS"] = f"{ncpus}" # export OMP_NUM_THREADS=4
 #os.environ["OPENBLAS_NUM_THREADS"] = f"{ncpus}" # export OPENBLAS_NUM_THREADS=4 
 #os.environ["MKL_NUM_THREADS"] = f"{ncpus}" # export MKL_NUM_THREADS=6
@@ -612,8 +612,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         phat = np.zeros_like(r)
         
         print('starting while loop')
-        while ((i < imax) & (delta_new1 > eps**2*delta_0) & \
-                (delta_new1 <= delta_old1) & (delta_new2 <= delta_old2)):
+        while ((i < imax) & (delta_new1 > eps**2*delta_0)):
+                #(delta_new1 <= delta_old1) & (delta_new2 <= delta_old2)):
             rho = rtilde.dot(r)
             if rho == 0:
                 print('We have a failure')
@@ -980,10 +980,10 @@ def check_hdf5(nside=256, version=8, band='K1'):
 if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-    for b in ['W2', 'W3']:
-        #get_cg(band=b, nfiles=2**10, sparse_test=False, sparse_only=True,
-        #        imbalance=True, mask=True, pol=True, imax=1000)
-        plot_maps_pol(band=b)
+    for b in ['K1']:
+        get_cg(band=b, nfiles=np.inf, sparse_test=False, sparse_only=True,
+                imbalance=False, mask=False, pol=True, imax=1000)
+        #plot_maps_pol(band=b)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
