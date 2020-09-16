@@ -237,9 +237,11 @@ contains
          offset = constructor%scans(i)%ntod
        end if
        do j = 1, constructor%ndet
-          call huffman_decode2(constructor%scans(i)%hkey, &
-               constructor%scans(i)%d(j)%pix, pix, offset=offset)
-          do k = 1, constructor%scans(i)%ntod
+          call huffman_decode(constructor%scans(i)%hkey, &
+               constructor%scans(i)%d(j)%pix(1)%p, pix)
+          constructor%pix2ind(pix(1)) = 1
+          do k = 2, constructor%scans(i)%ntod
+             pix(k)  = pix(k-1)  + pix(k)
              constructor%pix2ind(pix(k)) = 1
           end do
        end do
@@ -716,7 +718,7 @@ contains
                    s_buf(:,j) = s_tot(:,j)
                 end if
              end do
-             call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix)
+             !call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix)
 !!$             do j = 1, ndet
 !!$                n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
 !!$             end do
