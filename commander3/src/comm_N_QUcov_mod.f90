@@ -85,13 +85,14 @@ contains
     character(len=*),                    intent(in),   optional :: noisefile
     class(comm_map),                     intent(in),   optional :: map
 
-    integer(i4b) :: i, ierr, status, unit
+    integer(i4b) :: i, j, k, ierr, status, unit, nval
     logical(lgt) :: exist
     character(len=512) :: filename
     real(dp)     :: sum_tau, sum_tau2, val
     real(sp),        dimension(:,:), pointer     :: Ninv_sp => null()
-    real(dp),        dimension(:,:), allocatable :: Ninv, Ncov, sNinv, buffer, mask_fullsky
+    real(dp),        dimension(:,:), allocatable :: Ninv, Ncov, sNinv, buffer, mask_fullsky, rms
     class(comm_map),                 pointer     :: invW_tau => null()
+    integer(i4b), allocatable, dimension(:) :: ind
 
     if (allocated(self%iN)) return
 
@@ -125,6 +126,18 @@ contains
           allocate(Ninv_sp(2*self%npix,2*self%npix))
           call WMAP_Read_NInv(noisefile, status, Ninv_sp)
 
+          ! Scale with sigma0**2
+          if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_Ka_v5.fits') then
+             Ninv_sp = Ninv_sp !* 1.472**2 
+          else if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_Q_v5.fits') then
+             Ninv_sp = Ninv_sp !* 2.197**2 
+          else if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_V_v5.fits') then
+             Ninv_sp = Ninv_sp !* 3.141**2 
+          else
+             write(*,*) 'Unsupported file = ', trim(noisefile)
+             stop
+          end if
+
           ! Convert from nest to ring format
           do i = 1, 2*self%npix ! Rows
              call convert_nest2ring(self%nside, Ninv_sp(          1:  self%npix,i))
@@ -148,6 +161,45 @@ contains
              end if
           end do
 
+          nval = 0
+          do j = 1, size(Ncov,2)
+             if (Ncov(j,j) > 0.d0) nval = nval+1
+          end do
+
+          write(*,*) 'nval =' , nval, nval/2
+          allocate(ind(nval))
+          i = 1
+          do j = 1, size(Ncov,2)
+             if (Ncov(j,j) > 0.d0) then
+                ind(i) = j
+                i = i+1
+             end if
+          end do
+
+       open(unit,file=trim(noisefile)//'_N.unf',form='unformatted')
+       write(unit) nval
+       write(unit) 1 ! Ordering
+       write(unit) 3 ! Polarization status
+       do i = 1, nval
+          write(unit) Ncov(ind,ind(i)) * 1e6
+       end do
+       write(unit) .false. ! Not inverse
+       close(unit)
+       write(*,*) 'done'
+       deallocate(ind)
+
+!!$       allocate(rms(self%npix,self%nmaps))
+!!$       rms = 0.d0
+!!$       k = 1
+!!$       do i = 1, self%npix
+!!$          if (mask_fullsky(i-1,2) > 0.d0) then
+!!$             rms(i-1,2) = sqrt(Ncov(i,i))
+!!$             rms(i-1,3) = sqrt(Ncov(i+self%npix,i+self%npix))
+!!$          end if
+!!$       end do
+!!$       call write_map2("rms_int.fits", rms)
+!!$       deallocate(rms)
+
           Ninv = Ncov
           call compute_hermitian_root_with_mask(Ninv, -1.d0, sNinv, -0.5d0)
           open(unit,file=trim(filename),form='unformatted')
@@ -158,6 +210,9 @@ contains
        end if
     end if
     if (.not. exist) deallocate(mask_fullsky)
+
+!!$    call mpi_finalize(ierr)
+!!$    stop
 
     if (self%myid == 0) buffer = Ninv
     call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
@@ -234,7 +289,7 @@ contains
        else
           self%alpha_nu(2:3) = 0.d0
        end if
-       call invW_tau%dealloc()
+       call invW_tau%dealloc(); deallocate(invW_tau)
     end if
 
   end subroutine update_N_QUcov

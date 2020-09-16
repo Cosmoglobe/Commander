@@ -332,14 +332,68 @@ contains
   ! Set read operations
   ! *****************************************************
 
-  subroutine read_hdf_0d_dp(file, setname, val, opt)
+  subroutine read_hdf_dp_2d_buffer(file, setname, val)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: setname
+    TYPE(h5o_info_t) :: object_info
+    integer(i4b) :: hdferr, v(100)
+    integer(hsize_t) :: s(2), ext2(2)
+    integer(i4b)     :: ext(2)
+    real(dp), dimension(:,:), intent(out) :: val
+    real(dp), dimension(:,:), allocatable :: buffer
+    call h5eset_auto_f(0, hdferr)
+    call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
+    if (hdferr /= 0) then
+       write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       return
+    end if
+    call open_hdf_set(file, setname)
+    s = int(shape(val))
+    call get_size_hdf(file, setname, ext)
+    allocate(buffer(ext(1),ext(2)))
+    ext2 = ext
+    call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, buffer, ext2, file%status)
+    val = buffer(1:s(1),1:s(2))
+    deallocate(buffer)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+  end subroutine
+
+  subroutine read_hdf_int_2d_buffer(file, setname, val)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: setname
+    TYPE(h5o_info_t) :: object_info
+    integer(i4b) :: hdferr, v(100)
+    integer(hsize_t) :: s(2), ext2(2)
+    integer(i4b)     :: ext(2)
+    integer(i4b), dimension(:,:), intent(out) :: val
+    integer(i4b), dimension(:,:), allocatable :: buffer
+    call h5eset_auto_f(0, hdferr)
+    call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
+    if (hdferr /= 0) then
+       write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       return
+    end if
+    call open_hdf_set(file, setname)
+    s = int(shape(val))
+    call get_size_hdf(file, setname, ext)
+    allocate(buffer(ext(1),ext(2)))
+    ext2 = ext
+    call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, buffer, ext2, file%status)
+    val = buffer(1:s(1),1:s(2))
+    deallocate(buffer)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+  end subroutine
+
+  subroutine read_hdf_0d_dp(file, setname, val)
     implicit none
     type(hdf_file) :: file
     character(len=*), intent(in)  :: setname
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(0)
+    integer(hsize_t) :: s(0), ext2(0)
     integer(i4b)     :: ext(0)
     real(dp) , intent(out) :: val
     logical(lgt) :: opt_   
@@ -358,27 +412,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -391,7 +433,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(0)
+    integer(hsize_t) :: s(0), ext2(0)
     integer(i4b)     :: ext(0)
     real(sp) , intent(out) :: val
     logical(lgt) :: opt_   
@@ -410,27 +452,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -443,7 +473,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(0)
+    integer(hsize_t) :: s(0), ext2(0)
     integer(i4b)     :: ext(0)
     integer(i4b) , intent(out) :: val
     logical(lgt) :: opt_   
@@ -462,27 +492,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -495,7 +513,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(0)
+    integer(hsize_t) :: s(0), ext2(0)
     integer(i4b)     :: ext(0)
     character(len=*) , intent(out) :: val
     logical(lgt) :: opt_   
@@ -514,27 +532,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -547,7 +553,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(1)
+    integer(hsize_t) :: s(1), ext2(1)
     integer(i4b)     :: ext(1)
     real(dp) ,dimension(:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -566,27 +572,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -599,7 +593,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(1)
+    integer(hsize_t) :: s(1), ext2(1)
     integer(i4b)     :: ext(1)
     real(sp) ,dimension(:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -618,27 +612,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -651,7 +633,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(1)
+    integer(hsize_t) :: s(1), ext2(1)
     integer(i4b)     :: ext(1)
     integer(i4b) ,dimension(:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -670,27 +652,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -703,7 +673,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(1)
+    integer(hsize_t) :: s(1), ext2(1)
     integer(i4b)     :: ext(1)
     character(len=*) ,dimension(:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -722,27 +692,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -755,7 +713,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(2)
+    integer(hsize_t) :: s(2), ext2(2)
     integer(i4b)     :: ext(2)
     real(dp) ,dimension(:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -774,27 +732,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -807,7 +753,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(2)
+    integer(hsize_t) :: s(2), ext2(2)
     integer(i4b)     :: ext(2)
     real(sp) ,dimension(:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -826,27 +772,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -859,7 +793,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(2)
+    integer(hsize_t) :: s(2), ext2(2)
     integer(i4b)     :: ext(2)
     integer(i4b) ,dimension(:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -878,27 +812,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -911,7 +833,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(2)
+    integer(hsize_t) :: s(2), ext2(2)
     integer(i4b)     :: ext(2)
     character(len=*) ,dimension(:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -930,27 +852,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -963,7 +873,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(3)
+    integer(hsize_t) :: s(3), ext2(3)
     integer(i4b)     :: ext(3)
     real(dp) ,dimension(:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -982,27 +892,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1015,7 +913,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(3)
+    integer(hsize_t) :: s(3), ext2(3)
     integer(i4b)     :: ext(3)
     real(sp) ,dimension(:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1034,49 +932,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
-    end if
-    call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
-  end subroutine
-
-  subroutine read_hdf_3d_int(file, setname, val, opt)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in)  :: setname
-    logical(lgt), intent(in), optional :: opt
-    TYPE(h5o_info_t) :: object_info
-    integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(3)
-    integer(i4b)     :: ext(3)
-    integer(i4b) ,dimension(:,:,:), intent(out) :: val
-    logical(lgt) :: opt_   
- 
-    if(.not. present(opt)) then
-      opt_ = .false.
-    else
-      opt_ = opt
-    end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     call h5eset_auto_f(0, hdferr)
     call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
     if (hdferr /= 0) then
@@ -1086,27 +950,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1119,7 +971,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(3)
+    integer(hsize_t) :: s(3), ext2(3)
     integer(i4b)     :: ext(3)
     character(len=*) ,dimension(:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1138,27 +990,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1171,7 +1011,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(4)
+    integer(hsize_t) :: s(4), ext2(4)
     integer(i4b)     :: ext(4)
     real(dp) ,dimension(:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1190,27 +1030,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1223,7 +1051,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(4)
+    integer(hsize_t) :: s(4), ext2(4)
     integer(i4b)     :: ext(4)
     real(sp) ,dimension(:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1242,27 +1070,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1275,7 +1091,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(4)
+    integer(hsize_t) :: s(4), ext2(4)
     integer(i4b)     :: ext(4)
     integer(i4b) ,dimension(:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1294,27 +1110,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1327,7 +1131,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(4)
+    integer(hsize_t) :: s(4), ext2(4)
     integer(i4b)     :: ext(4)
     character(len=*) ,dimension(:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1346,27 +1150,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1379,7 +1171,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(5)
+    integer(hsize_t) :: s(5), ext2(5)
     integer(i4b)     :: ext(5)
     real(dp) ,dimension(:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1398,27 +1190,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1431,7 +1211,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(5)
+    integer(hsize_t) :: s(5), ext2(5)
     integer(i4b)     :: ext(5)
     real(sp) ,dimension(:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1450,27 +1230,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1483,7 +1251,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(5)
+    integer(hsize_t) :: s(5), ext2(5)
     integer(i4b)     :: ext(5)
     integer(i4b) ,dimension(:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1502,27 +1270,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1535,7 +1291,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(5)
+    integer(hsize_t) :: s(5), ext2(5)
     integer(i4b)     :: ext(5)
     character(len=*) ,dimension(:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1554,27 +1310,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1587,7 +1331,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(6)
+    integer(hsize_t) :: s(6), ext2(6)
     integer(i4b)     :: ext(6)
     real(dp) ,dimension(:,:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1606,27 +1350,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1639,7 +1371,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(6)
+    integer(hsize_t) :: s(6), ext2(6)
     integer(i4b)     :: ext(6)
     real(sp) ,dimension(:,:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1658,27 +1390,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1691,7 +1411,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(6)
+    integer(hsize_t) :: s(6), ext2(6)
     integer(i4b)     :: ext(6)
     integer(i4b) ,dimension(:,:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1710,27 +1430,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1743,7 +1451,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(6)
+    integer(hsize_t) :: s(6), ext2(6)
     integer(i4b)     :: ext(6)
     character(len=*) ,dimension(:,:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1762,27 +1470,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1795,7 +1491,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(7)
+    integer(hsize_t) :: s(7), ext2(7)
     integer(i4b)     :: ext(7)
     real(dp) ,dimension(:,:,:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1814,27 +1510,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1847,7 +1531,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(7)
+    integer(hsize_t) :: s(7), ext2(7)
     integer(i4b)     :: ext(7)
     real(sp) ,dimension(:,:,:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1866,27 +1550,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1899,7 +1571,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(7)
+    integer(hsize_t) :: s(7), ext2(7)
     integer(i4b)     :: ext(7)
     integer(i4b) ,dimension(:,:,:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1918,27 +1590,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1951,7 +1611,7 @@ contains
     logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
-    integer(hsize_t) :: s(7)
+    integer(hsize_t) :: s(7), ext2(7)
     integer(i4b)     :: ext(7)
     character(len=*) ,dimension(:,:,:,:,:,:,:), intent(out) :: val
     logical(lgt) :: opt_   
@@ -1970,27 +1630,15 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    if (.true.) then
-       ! Validate that sizes are consistent
-       call get_size_hdf(file, setname, ext)
-       if (any(ext /= s)) then
-        if(.not. opt_) then
-          write(*,*) 'HDF error -- inconsistent array sizes'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          !write(*,*) v(-1000000)
-          stop
-        else
-          write(*,*) 'Warning: Optional HDF field has wrong dimensions'
-          write(*,*) '             Filename       = ', trim(file%filename)
-          write(*,*) '             Setname        = ', trim(setname)
-          write(*,*) '             HDF size       = ', ext
-          write(*,*) '             Requested size = ', int(s,i4b)
-          return
-        end if
-       end if
+    call get_size_hdf(file, setname, ext)
+    ! Validate that sizes are consistent
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       stop
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)

@@ -18,9 +18,10 @@ module comm_tod_mod
   end type byte_pointer
 
   type :: comm_detscan
-     character(len=10) :: label                           ! Detector label
-     real(dp)          :: gain, dgain, gain_sigma         ! Gain; assumed constant over scan
-     real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
+     character(len=10) :: label                             ! Detector label
+     real(dp)          :: gain, dgain, gain_sigma           ! Gain; assumed constant over scan
+     real(dp)          :: sigma0, alpha, fknee              ! Noise parameters
+     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def  ! Default parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
@@ -84,6 +85,8 @@ module comm_tod_mod
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
      integer(i4b) :: output_4D_map                                ! Output 4D maps
+     integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
+     integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
@@ -197,8 +200,10 @@ contains
     self%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
+    self%output_aux_maps = cpar%output_aux_maps
     self%subtract_zodi = cpar%include_TOD_zodi
     self%central_freq  = cpar%ds_nu_c(id_abs)
+    self%halfring_split= cpar%ds_tod_halfring(id_abs)
 
     call mpi_comm_size(cpar%comm_shared, self%numprocs_shared, ierr)
 
@@ -529,13 +534,21 @@ contains
     ! Find array sizes
     call get_size_hdf(file, slabel // "/" // trim(detlabels(1)) // "/tod", ext)
     n         = ext(1)
+    if (tod%halfring_split == 0) then
+      m = get_closest_fft_magic_number(n)
+    else if (tod%halfring_split == 1 .or. tod%halfring_split == 2) then
+      m = get_closest_fft_magic_number(n/2)
+    else 
+      write(*,*) "Unknown halfring_split value in read_hdf_scan"
+      stop
+    end if
     !m = n
-    m         = get_closest_fft_magic_number(n)
 !!$    m         = get_closest_fft_magic_number(2*n)
 !!$    do while (mod(m,2) == 1)
 !!$       m = get_closest_fft_magic_number(m-1)
 !!$    end do
 !!$    m = m/2
+
     self%ntod = m
     self%ext_lowres(1)   = -5    ! Lowres padding
     self%ext_lowres(2)   = int(self%ntod/int(tod%samprate/tod%samprate_lowres)) + 1 + self%ext_lowres(1)
@@ -560,15 +573,23 @@ contains
        allocate(self%d(i)%tod(m))
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
-       self%d(i)%gain = scalars(1)
-       self%d(i)%sigma0 = scalars(2)/1.0e6
-       self%d(i)%fknee = scalars(3)
-       self%d(i)%alpha = scalars(4)
+       self%d(i)%gain_def   = scalars(1)
+       self%d(i)%sigma0_def = scalars(2) * self%d(i)%gain_def  ! To get sigma0 in uncalibrated units
+       self%d(i)%fknee_def  = scalars(3)
+       self%d(i)%alpha_def  = scalars(4)
+       self%d(i)%gain       = self%d(i)%gain_def
+       self%d(i)%sigma0     = self%d(i)%sigma0_def
+       self%d(i)%fknee      = self%d(i)%fknee_def
+       self%d(i)%alpha      = self%d(i)%alpha_def
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
        call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-       self%d(i)%tod = buffer_sp(1:m)/1.0e6
+       if (tod%halfring_split == 2 )then
+         self%d(i)%tod = buffer_sp(m+1:2*m)
+       else
+         self%d(i)%tod = buffer_sp(1:m)
+       end if
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1
 
@@ -1092,12 +1113,13 @@ contains
     real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
     real(sp), dimension(:),             intent(in),  optional :: mask
 
-    integer(i4b) :: i, j, k, n, step, ntod, w, npad
+    integer(i4b) :: i, j, k, n, ntod, w, npad
+    real(dp) :: step
 
     ntod = size(tod_in)
     npad = 5
-    step = int(self%samprate/self%samprate_lowres)
-    w    = 2*step    ! Boxcar window width
+    step = self%samprate / self%samprate_lowres
+    w    = step/2    ! Boxcar window width
     n    = int(ntod / step) + 1
     if (.not. present(tod_out)) then
        ext = [-npad, n+npad]
@@ -1105,17 +1127,17 @@ contains
     end if
 
     do i = -npad, n+npad
-       j = max(i*step - w, 1)
-       k = min(i*step + w, ntod)
+      j = floor(max(i*step - w + 1, 1.d0))
+      k = floor(min(i*step + w, real(ntod, dp)))
 
        if (j > k) then
           tod_out(i) = 0.
        else
           !write(*,*) i, shape(tod_in), j, k
           if (present(mask)) then
-             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / (2*w+1)
+             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
           else
-             tod_out(i) = sum(tod_in(j:k)) / (2*w+1)
+             tod_out(i) = sum(tod_in(j:k)) / (k - j + 1)
           end if
        end if
        !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))
@@ -1313,11 +1335,17 @@ contains
     integer(i4b),        dimension(:,:),intent(out) :: psi, pix
     integer(i4b) :: i
 
-    do i=1, self%nhorn
-      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
-      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
-    end do
-    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    integer(i4b) :: offset
+
+    if( self%halfring_split == 2 )then
+      offset = size(pix)
+    else 
+      offset = 0
+    end if
+
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix, pix, offset=offset)
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi,  psi, imod=self%npsi-1, offset=offset)
+    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag, offset=offset)
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
 !!$    if (det == 2) psi = modulo(psi + 20,self%npsi)

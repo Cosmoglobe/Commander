@@ -147,13 +147,13 @@ contains
     else
        self%rms0%map = map%map
     end if
-    if (associated(self%rms_reg)) then
-       self%rms0%map = sqrt(self%rms0%map**2 + self%rms_reg%map**2) 
-    end if
     if (associated(self%siN)) then
        self%siN%map = self%rms0%map
     else
        self%siN     => comm_map(self%rms0)
+    end if
+    if (associated(self%rms_reg)) then
+       self%siN%map = sqrt(self%siN%map**2 + self%rms_reg%map**2) 
     end if
     call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
     self%siN%map = self%siN%map * mask%map ! Apply mask
@@ -223,7 +223,7 @@ contains
           else
              self%alpha_nu(2:3) = 0.d0
           end if
-          call invW_tau%dealloc()
+          call invW_tau%dealloc(); deallocate(invW_tau)
        end if
     end if
 
@@ -235,7 +235,7 @@ contains
     iN => comm_map(self%siN)
     iN%map = iN%map**2
     call iN%udgrade(self%siN_lowres)
-    call iN%dealloc()
+    call iN%dealloc(); deallocate(iN)
     self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_chisq_lowres)
 
   end subroutine update_N_rms
@@ -357,14 +357,14 @@ contains
     class(comm_map),                    intent(inout) :: rms
     real(dp),                           intent(in)    :: fsky
     class(comm_map),                    intent(in)    :: mask
-    real(dp),         dimension(0:,1:), intent(out)   :: regnoise
+    real(dp),         dimension(0:,1:), intent(out), optional   :: regnoise
 
     integer(i4b) :: i, j, nbin=1000, ierr, b
     real(dp)     :: limits(2), dx, threshold, sigma
     real(dp), allocatable, dimension(:) :: F
 
     if (fsky <= 0.d0) then
-       regnoise = 0.d0
+       if (present(regnoise)) regnoise = 0.d0
        return
     end if
 
@@ -378,7 +378,7 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, limits(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, rms%info%comm, ierr)       
        dx = (limits(2)-limits(1))/nbin
        if (dx == 0.d0) then
-          regnoise(:,j) = 0.d0
+          if (present(regnoise)) regnoise(:,j) = 0.d0
           cycle
        end if
        F = 0.d0
@@ -407,9 +407,9 @@ contains
           if (rms%map(i,j) < threshold .and. mask%map(i,j) > 0.5d0) then
              sigma         = sqrt(threshold**2 - rms%map(i,j)**2)
              rms%map(i,j)  = threshold                  ! Update RMS map to requested limit
-             regnoise(i,j) = sigma * rand_gauss(handle) ! Draw corresponding noise realization
+             if (present(regnoise)) regnoise(i,j) = sigma * rand_gauss(handle) ! Draw corresponding noise realization
           else
-             regnoise(i,j) = 0.d0
+             if (present(regnoise)) regnoise(i,j) = 0.d0
           end if
        end do
     end do

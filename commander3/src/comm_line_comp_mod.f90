@@ -48,7 +48,7 @@ contains
     
     ! General parameters
     allocate(constructor)
-    constructor%npar = 0 !temporary value so that lmax_ind can be checked in initDiffuse
+    constructor%npar = 0 !temporary value so that lmax_ind is correcty set (to 0) in initDiffuse
     call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Read line template file
@@ -68,6 +68,10 @@ contains
 
     allocate(constructor%ind2band(n))
     constructor%npar = n
+
+    allocate(constructor%lmax_ind_pol(3,constructor%npar))
+    constructor%lmax_ind_pol = 0 !always fullsky (lmax=0) for line component
+
     allocate(constructor%theta_def(n), constructor%p_gauss(2,n), constructor%p_uni(2,n))
     allocate(constructor%poltype(n), constructor%indlabel(n), constructor%line2RJ(n))
     n         = 0
@@ -255,8 +259,8 @@ contains
     call mpi_allreduce(MPI_IN_PLACE, A, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
     call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
     
-    call amp%dealloc()
-    call invN_amp%dealloc()
+    call amp%dealloc(); deallocate(amp)
+    call invN_amp%dealloc(); deallocate(invN_amp)
     
     ! Compute new line ratio; just root processor
     if (self%x%info%myid == 0) then

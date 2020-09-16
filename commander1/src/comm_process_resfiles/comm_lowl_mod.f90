@@ -16,7 +16,7 @@ module comm_lowl_mod
   ! *                                                                   *
   ! *  Please cite the following papers when using this code:           *
   ! *                                                                   *
-  ! *  - Gjerløw, Eriksen and Wehus 2014, ApJS, in preparation          *
+  ! *  Gjerloew, Eriksen and Wehus 2014, ApJS, in preparation          *
   ! *                                                                   *
   ! *  History:                                                         *
   ! *      January 10th, 2014 -- First fully functional version         *
@@ -122,6 +122,8 @@ contains
     call read_lowl_datafile(datafile, comm_lowl(id)%n, comm_lowl(id)%n_d, comm_lowl(id)%n_h, &
          & comm_lowl(id)%lmax, comm_lowl(id)%nmaps, comm_lowl(id)%d, comm_lowl(id)%N_cov, &
          & comm_lowl(id)%beam, comm_lowl(id)%P_harm, comm_lowl(id)%w)
+
+    !comm_lowl(id)%N_cov = comm_lowl(id)%N_cov * 0.75d0**2
 
     ncomp = (comm_lowl(id)%lmax + 1) ** 2
     nmode = comm_lowl(id)%n
@@ -340,7 +342,6 @@ contains
        return
     end if
 
-    write(*,*) 'a'
     ! Cholesky decompose matrix
     call dpotrf('L', n, C, n, stat)
     if (stat /= 0) then
@@ -349,7 +350,6 @@ contains
        deallocate(C)
        return
     end if
-    write(*,*) 'b'
 
     ! Compute log-determinant
     logdet =  0.d0
@@ -363,12 +363,10 @@ contains
     cond = (L_max/L_min)**2
     if (present(cond_number)) cond_number = cond
 
-    write(*,*) 'c'
     ! Compute chi-square term
     allocate(invC_d(n,n_d))
     invC_d = comm_lowl(id)%d
     call dpotrs('L', n, n_d, C, n, invC_d, n, stat)
-    write(*,*) 'd'
 
     ! Return log-like value
     if (stat == 0 .and. cond < comm_lowl(id)%cond_threshold) then
@@ -387,14 +385,12 @@ contains
        if (present(lnL_multi)) lnL_multi = -1.d30
     end if
 
-    write(*,*) 'e'
     ! Update data structures for quick look-up 
     comm_lowl(id)%lnL_recent         = comm_lowl_compute_lnL
     comm_lowl(id)%chisq_recent       = sum(comm_lowl(id)%d(:,1)*invC_d(:,1))
     comm_lowl(id)%red_chisq_recent   = comm_lowl(id)%chisq_recent / n
     comm_lowl(id)%cond_number_recent = cond
 
-    write(*,*) 'f'
     deallocate(C, invC_d)
 
   end function comm_lowl_compute_lnL

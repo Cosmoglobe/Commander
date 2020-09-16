@@ -25,22 +25,23 @@ module comm_diffuse_comp_mod
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg
-     integer(i4b)       :: lmax_amp, lmax_ind, lpiv, l_apod, lmax_pre_lowl
+     integer(i4b)       :: lmin_amp, lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
      real(dp),     allocatable, dimension(:,:)   :: sigma_priors, steplen, chisq_min
      real(dp),     allocatable, dimension(:,:,:,:)   :: L
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
-     logical(lgt),    dimension(:), allocatable :: L_read
+     logical(lgt),    dimension(:), allocatable :: L_read, L_calculated
 
      real(dp)           :: cg_scale, latmask, fwhm_def, test
      real(dp),           allocatable, dimension(:,:)   :: cls
      real(dp),           allocatable, dimension(:,:,:) :: F_mean
      character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'ridge', 'marginal'}
      integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_pol    ! lmax per poltype per spec. ind  
+     integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_mix    ! equal to lmax_ind_pol, but 0 where lmax=-1 and fullsky pixreg
      integer(i4b),       allocatable, dimension(:,:)   :: pol_pixreg_type ! {1=fullsky, 2=single_pix, 3=pixel_regions}
      integer(i4b),       allocatable, dimension(:,:)   :: nprop_uni       ! limits on nprop
-     integer(i4b),       allocatable, dimension(:,:)   :: npixreg         ! number of pixel regions
+     integer(i4b),       allocatable, dimension(:,:)   :: npixreg          ! number of pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
@@ -49,6 +50,7 @@ module comm_diffuse_comp_mod
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
+     logical(lgt),       allocatable, dimension(:,:,:) :: fix_pixreg
      class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
@@ -80,6 +82,7 @@ module comm_diffuse_comp_mod
      procedure :: initDiffuse
      procedure :: initPixregSampling
      procedure :: initSpecindProp
+     procedure :: initLmaxSpecind
      procedure :: updateMixmat  => updateDiffuseMixmat
      procedure :: update_F_int  => updateDiffuseFInt
 !!$     procedure :: dumpHDF    => dumpDiffuseToHDF
@@ -135,8 +138,6 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=2) :: jtext
-
     integer(i4b) :: i, j, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
@@ -145,19 +146,21 @@ contains
     
     call self%initComp(cpar, id, id_abs)
 
+    call update_status(status, "init_diffuse_start")
+
     ! Initialize variables specific to diffuse source type
     self%pol           = cpar%cs_polarization(id_abs)
     self%nside         = cpar%cs_nside(id_abs)
+    self%lmin_amp      = cpar%cs_lmin_amp(id_abs)
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
+    self%lmax_prior    = cpar%cs_lmax_amp_prior(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
 
-    self%lmax_ind      = cpar%cs_lmax_ind(id_abs) 
-    !should add check to set this to max of lmax_ind and any lmax_ind_pol 
-    do i = 1,self%npar
-       do j = 1,self%poltype(i)
-          if (self%lmax_ind_pol(j,i) > self%lmax_ind) self%lmax_ind = self%lmax_ind_pol(j,i)
-       end do
-    end do
+    if(self%npar == 0) then
+       self%lmax_ind = 0 !default
+       allocate(self%lmax_ind_mix(3,1))
+       self%lmax_ind_mix = 0
+    end if
 
     self%cltype        = cpar%cs_cltype(id_abs)
     self%cg_scale      = cpar%cs_cg_scale(id_abs)
@@ -207,6 +210,11 @@ contains
           self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale)
        end do
        call self%x%YtW
+
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
+       end do
     end if
     self%ncr = size(self%x%alm)
 
@@ -259,13 +267,13 @@ contains
              elsewhere
                 self%indmask(i)%p%map = 0.d0
              end where
-             call mask_ud%dealloc()
+             call mask_ud%dealloc(); deallocate(mask_ud)
           end if
 !!$          call self%indmask(i)%p%writeFITS('TEST.fits')
 !!$          call mpi_finalize(j)
 !!$          stop
        end do
-       call indmask%dealloc()
+       call indmask%dealloc(); deallocate(indmask)
     end if
 
     ! Read deflation mask
@@ -322,8 +330,96 @@ contains
        filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
        self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
     end if
+
+    call update_status(status, "init_diffuse_end")
     
   end subroutine initDiffuse
+
+  subroutine initLmaxSpecind(self, cpar, id, id_abs)
+    implicit none
+    class(comm_diffuse_comp)            :: self
+    type(comm_params),       intent(in) :: cpar
+    integer(i4b),            intent(in) :: id, id_abs
+
+    integer(i4b) :: i, j, k, l, m, nmaps, p, ierr
+
+    call update_status(status, "lmax_specind_start")
+
+    !check nmaps of the component
+    nmaps = 1
+    if (cpar%cs_polarization(id_abs)) nmaps=3
+
+    if (self%npar==0) return !do not go further, lmax_ind is set in initDiffuse 
+
+    allocate(self%lmax_ind_pol(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
+
+    !self%lmax_ind      = cpar%cs_lmax_ind(id_abs) !not to be used anymore
+
+    self%lmax_ind = -1 !default
+    do i = 1,self%npar
+       do p = 1, self%poltype(i)
+          l = cpar%cs_lmax_ind_pol(p,i,id_abs)
+
+          !assign lmax per spec ind per polarization (poltype)
+          if (self%poltype(i)==1) then !all polarizations have the same lmax
+             self%lmax_ind_pol(:,i) = l 
+          else if (self%poltype(i)==2) then 
+             if (p == 1) then 
+                if (cpar%only_pol) cycle
+                self%lmax_ind_pol(1,i) = l
+             else
+                !if only_pol, we don't want a possible Stokes I to slow down a potential lmax_ind == 0 speed up in SHT
+                if (cpar%only_pol) self%lmax_ind_pol(1,i) = l 
+                if (p > nmaps) then
+                   self%lmax_ind_pol(2:3,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(2:3,i) = l
+                end if
+             end if
+          else if (self%poltype(i)==3) then 
+             if (p == 1) then 
+                if (cpar%only_pol) cycle
+                self%lmax_ind_pol(1,i) = l
+             else if (p == 2) then 
+                !if only_pol, we don't want a possible Stokes I to slow down a potential lmax_ind == 0 speed up in SHT
+                if (cpar%only_pol) self%lmax_ind_pol(1,i) = l 
+                if (p > nmaps) then
+                   self%lmax_ind_pol(2,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(2,i) = l
+                end if
+             else
+                if (p > nmaps) then
+                   self%lmax_ind_pol(3,i) = self%lmax_ind_pol(nmaps,i)
+                   cycle
+                else
+                   self%lmax_ind_pol(3,i) = l
+                end if
+             end if
+          else
+             write(*,fmt='(a,i1,a)') 'Incompatible poltype ',p,' for '//trim(self%label)//' '//trim(self%indlabel(i))
+             stop
+          end if
+          if (l > self%lmax_ind) self%lmax_ind = l
+       end do
+    end do
+
+
+    allocate(self%lmax_ind_mix(3,self%npar))  ! {integer}: lmax per. polarization (poltype index) per spec. ind.
+                                              ! Set to zero if lmax = -1 and fullsky pixregions are used
+
+    self%lmax_ind_mix = self%lmax_ind_pol
+    ! Comment: We are defining lmax per poltype index (or polarization) so that only the valid polarizations contribute
+    !          to the overall lmax_ind. It also makes sure that if all valid lmax_ind parameters per poltype index and 
+    !          parameter is 0, then all non-active are set to zero as well, i.e. we save some time on SHT.
+    !          
+    ! Note: This subroutine must be called for all diffuse components with npar > 0, before initializing diffuse comp,
+    !       i.e. initDiffuse(), but after the number of spec. ind. parameters (npar) and poltype has been set.
+    call update_status(status, "lmax_specind_end")
+
+  end subroutine initLmaxSpecind
 
   subroutine initPixregSampling(self, cpar, id, id_abs)
     implicit none
@@ -331,18 +427,21 @@ contains
     type(comm_params),       intent(in) :: cpar
     integer(i4b),            intent(in) :: id, id_abs
 
-    integer(i4b) :: i, j, k, l, m, n, p, ierr
+    integer(i4b) :: i, j, k, l, m, n, p, pr, ierr
     type(comm_mapinfo), pointer :: info => null()
     real(dp)           :: par_dp
-    integer(i4b), allocatable, dimension(:) :: sum_pix
-    real(dp),     allocatable, dimension(:) :: sum_theta, sum_proplen, sum_nprop
-    real(dp),     allocatable, dimension(:,:) :: m_in, m_out, buffer
+    character(len=16),         dimension(1000) :: pixreg_label
+    integer(i4b), allocatable, dimension(:)    :: sum_pix
+    real(dp),     allocatable, dimension(:)    :: sum_theta, sum_proplen, sum_nprop
+    real(dp),     allocatable, dimension(:,:)  :: m_in, m_out, buffer
     character(len=512) :: temptxt, partxt
     integer(i4b) :: smooth_scale, p_min, p_max
     class(comm_mapinfo), pointer :: info2 => null(), info_ud => null()
     class(comm_map),     pointer :: tp => null() 
     class(comm_map),     pointer :: tp_smooth => null() 
 
+
+    call update_status(status, "initPixreg_specind_start")
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
@@ -365,14 +464,16 @@ contains
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
 
-    self%npixreg = 0
-    do i = 1,self%npar
-       self%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
-       do j = 1,self%poltype(i)
-          self%pol_lnLtype(j,i)  = cpar%cs_spec_lnLtype(j,i,id_abs)
-          self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
-          self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
+    call update_status(status, "initPixreg_specind_pixreg_type")
 
+    self%npixreg = 0
+    self%pol_pixreg_type = 0
+
+    do i = 1,self%npar
+       
+       do j = 1,self%poltype(i)
+          if (j > self%nmaps) cycle
+          if (cpar%only_pol .and. j == 1 .and. self%poltype(i) > 1) cycle
           if (self%lmax_ind_pol(j,i) < 0) then
              if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='fullsky') then
                 self%pol_pixreg_type(j,i) = 1
@@ -397,26 +498,80 @@ contains
              if (cpar%almsamp_pixreg) then
                 self%pol_pixreg_type(j,i) = 3
                 self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
-             else
-                self%pol_pixreg_type(j,i) = 0
              end if
           end if
        end do
     end do
 
+    call update_status(status, "initPixreg_specind_allocate")
+
     if (any(self%pol_pixreg_type(:,:) > 0)) then
-       !find highest number of pixel regions
+       !find highest number of pixel regions and init some key parameters
        k = 0
+       m = 0
        do i = 1,self%npar
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
-             if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
+             if (cpar%only_pol .and. j == 1 .and. self%poltype(i) > 1) cycle
+
+             if (self%pol_pixreg_type(j,i) > 0) then
+                if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
+             end if
+             if (self%pol_pixreg_type(j,i) == 3) then
+                if (self%npixreg(j,i) > m) m = self%npixreg(j,i)
+             end if
+             if (self%lmax_ind_pol(j,i) >= 0) cycle
+             self%pol_lnLtype(j,i)  = cpar%cs_spec_lnLtype(j,i,id_abs)
+             self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
+             self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
           end do
+          if (all(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) >= 0)) cycle
+          self%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
        end do
        allocate(self%nprop_pixreg(k,3,self%npar))
        allocate(self%npix_pixreg(k,3,self%npar))
        allocate(self%proplen_pixreg(k,3,self%npar))
        allocate(self%B_pp_fr(self%npar))
+       allocate(self%theta_pixreg(0:k,3,self%npar))
+       self%theta_pixreg = 1.d0 !just some default values, is set later in the code
+       self%nprop_pixreg = 0    ! default values, is set later in the code
+       self%proplen_pixreg = 1.d0 ! default values, is set later in the code
+
+
+       if (any(self%pol_pixreg_type(:,:) == 3)) then
+          allocate(self%fix_pixreg(m,3,self%npar))
+          do i = 1,self%npar
+             do j = 1,self%poltype(i)
+                if (j > self%nmaps) cycle
+                if (self%pol_pixreg_type(j,i) == 3) then
+                   self%fix_pixreg(:,j,i) = .false.
+                   if (trim(cpar%cs_spec_fix_pixreg(j,i,id_abs)) == 'none') cycle
+                   do pr = 1,self%npixreg(j,i)
+                      call get_tokens(cpar%cs_spec_fix_pixreg(j,i,id_abs), ",", pixreg_label, n)
+                      do m = 1, n
+                         call str2int(trim(pixreg_label(m)),k,ierr)
+                         if (ierr == 0) then
+                            if (pr == k) then
+                               self%fix_pixreg(pr,j,i) = .true.
+                               exit
+                            end if
+                         end if
+                      end do
+                   end do
+
+                   !if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) == .true.)) then    
+                   if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) .eqv. .true.)) then    
+                      !write(*,fmt='(a,i,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                      write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                           & //trim(self%indlabel(i))//'", poltype index ',j,', all pixelregions are defined fixed .'//&
+                           & 'This only the prior RMS should do. Exiting'
+                      stop
+                   end if
+                end if !pixreg_type == 3
+             end do !poltype
+          end do !npar
+       end if
+
     end if
 
     ! Set up spectral index sampling masks, proposal length maps and nprop maps
@@ -425,23 +580,12 @@ contains
     allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
 
-    if (any(self%pol_pixreg_type(:,:) > 0)) then
-       k=0
-       do i = 1,self%npar
-          do j = 1,self%poltype(i)
-             if (self%pol_pixreg_type(j,i) > 0) then
-                if (self%npixreg(j,i) > k) k = self%npixreg(j,i)
-             end if
-          end do
-       end do
-       allocate(self%theta_pixreg(0:k,3,self%npar))
-    end if
 
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
 
     if (any(self%pol_pixreg_type > 0)) then
-       if (any(self%poltype > 1)) then
+       if (self%nmaps > 1 .and. any(self%poltype > 1)) then
           allocate(self%ind_pixreg_arr(0:info%np-1,3,self%npar)) 
        else
           allocate(self%ind_pixreg_arr(0:info%np-1,1,self%npar)) 
@@ -449,89 +593,100 @@ contains
        self%ind_pixreg_arr = 0 !all pixels assigned to pixelregion 0 (not to be sampled), will read in pixreg later
     end if
 
+
     do i = 1,self%npar
-       ! spec. ind. mask
-       if (trim(cpar%cs_spec_mask(i,id_abs)) == 'fullsky') then
-          self%pol_ind_mask(i)%p => comm_map(info)
-          self%pol_ind_mask(i)%p%map = 1.d0
-       else
-          ! Read map from FITS file
-          self%pol_ind_mask(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_mask(i,id_abs)))
+       if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0)) then
+          call update_status(status, "initPixreg_specind_mask")
+          ! spec. ind. mask
+          if (trim(cpar%cs_spec_mask(i,id_abs)) == 'fullsky') then
+             self%pol_ind_mask(i)%p => comm_map(info)
+             self%pol_ind_mask(i)%p%map = 1.d0
+          else
+             ! Read map from FITS file
+             self%pol_ind_mask(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_mask(i,id_abs)))
 
-          if (min(self%poltype(i),self%nmaps) > &
-               & self%pol_ind_mask(i)%p%info%nmaps) then
-             write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' mask has fewer maps (', & 
-                  & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
-                  & ') for component nr. ',id_abs
-             stop
-          else if (self%theta(i)%p%info%nside /= self%pol_ind_mask(i)%p%info%nside) then
-             write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' mask has different nside (', & 
-                  & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
-                  & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
-             stop
+             if (min(self%poltype(i),self%nmaps) > &
+                  & self%pol_ind_mask(i)%p%info%nmaps) then
+                write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' mask has fewer maps (', & 
+                     & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                     & ') for component nr. ',id_abs
+                stop
+             else if (self%theta(i)%p%info%nside /= self%pol_ind_mask(i)%p%info%nside) then
+                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' mask has different nside (', & 
+                     & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                     & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+                stop
+             end if
           end if
-       end if
 
-       ! prop. len. map
-       if (trim(cpar%cs_spec_proplen(i,id_abs)) == 'fullsky') then
-          self%pol_proplen(i)%p => comm_map(info)
-          self%pol_proplen(i)%p%map = 1.d0
-       else
-          ! Read map from FITS file
-          self%pol_proplen(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_proplen(i,id_abs)))
-          if (min(self%poltype(i),self%nmaps) > &
-               & self%pol_proplen(i)%p%info%nmaps) then
-             write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' proplen map has fewer maps (', & 
-                  & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
-                  & ') for component nr. ',id_abs
-             stop
-          else if (self%theta(i)%p%info%nside /= self%pol_proplen(i)%p%info%nside) then
-             write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' proplen map has different nside (', & 
-                  & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
-                  & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
-             stop
-          end if
-       end if
-       
-       ! replace proplen of input map for given poltype with user specified value, if given
-       do j = 1,self%poltype(i)
-          if (j > self%nmaps) cycle
-          if (cpar%cs_spec_proplen_init(j,i,id_abs) > 0.d0) then
-             self%pol_proplen(i)%p%map(:,j)=cpar%cs_spec_proplen_init(j,i,id_abs)
-          end if
-       end do
-    
-       ! nprop map
-       if (trim(cpar%cs_spec_nprop(i,id_abs)) == 'fullsky') then
-          self%pol_nprop(i)%p => comm_map(info)
-          self%pol_nprop(i)%p%map = 1.d0
-       else
-          ! Read map from FITS file
-          self%pol_nprop(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_nprop(i,id_abs)))
-          if (min(self%poltype(i),self%nmaps) > &
-               & self%pol_nprop(i)%p%info%nmaps) then
-             write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' nprop map has fewer maps (', & 
-                  & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
-                  & ') for component nr. ',id_abs
-             stop
-          else if (self%theta(i)%p%info%nside /= self%pol_nprop(i)%p%info%nside) then
-             write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' nprop map has different nside (', & 
-                  & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
-                  & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
-             stop
-          end if
-       end if
-       ! replace nprop of input map for given poltype with user specified value, if given       
-       do j = 1,self%poltype(i)
-          if (j > self%nmaps) cycle
-          if (cpar%cs_spec_nprop_init(j,i,id_abs) > 0) then
-             self%pol_nprop(i)%p%map(:,j)=cpar%cs_spec_nprop_init(j,i,id_abs)*1.d0
-          end if
-       end do
+          call update_status(status, "initPixreg_specind_proplen")
 
-       ! limit nprop
-       self%pol_nprop(i)%p%map = min(max(self%pol_nprop(i)%p%map,self%nprop_uni(1,i)*1.d0), &
-            & self%nprop_uni(2,i)*1.d0)
+          ! prop. len. map
+          if (trim(cpar%cs_spec_proplen(i,id_abs)) == 'fullsky') then
+             self%pol_proplen(i)%p => comm_map(info)
+             self%pol_proplen(i)%p%map = 1.d0
+          else
+             ! Read map from FITS file
+             self%pol_proplen(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_proplen(i,id_abs)))
+             if (min(self%poltype(i),self%nmaps) > &
+                  & self%pol_proplen(i)%p%info%nmaps) then
+                write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' proplen map has fewer maps (', & 
+                     & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                     & ') for component nr. ',id_abs
+                stop
+             else if (self%theta(i)%p%info%nside /= self%pol_proplen(i)%p%info%nside) then
+                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' proplen map has different nside (', & 
+                     & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                     & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+                stop
+             end if
+          end if
+
+          ! replace proplen of input map for given poltype with user specified value, if given
+          do j = 1,self%poltype(i)
+             if (j > self%nmaps) cycle
+             if (cpar%cs_spec_proplen_init(j,i,id_abs) > 0.d0) then
+                self%pol_proplen(i)%p%map(:,j)=cpar%cs_spec_proplen_init(j,i,id_abs)
+             end if
+          end do
+
+          call update_status(status, "initPixreg_specind_nprop")
+
+          ! nprop map
+          if (trim(cpar%cs_spec_nprop(i,id_abs)) == 'fullsky') then
+             self%pol_nprop(i)%p => comm_map(info)
+             self%pol_nprop(i)%p%map = 1.d0
+          else
+             ! Read map from FITS file
+             self%pol_nprop(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_nprop(i,id_abs)))
+             if (min(self%poltype(i),self%nmaps) > &
+                  & self%pol_nprop(i)%p%info%nmaps) then
+                write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' nprop map has fewer maps (', & 
+                     & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                     & ') for component nr. ',id_abs
+                stop
+             else if (self%theta(i)%p%info%nside /= self%pol_nprop(i)%p%info%nside) then
+                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' nprop map has different nside (', & 
+                     & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                     & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+                stop
+             end if
+          end if
+          ! replace nprop of input map for given poltype with user specified value, if given       
+          do j = 1,self%poltype(i)
+             if (j > self%nmaps) cycle
+             if (cpar%cs_spec_nprop_init(j,i,id_abs) > 0) then
+                self%pol_nprop(i)%p%map(:,j)=cpar%cs_spec_nprop_init(j,i,id_abs)*1.d0
+             end if
+          end do
+
+          ! limit nprop
+          self%pol_nprop(i)%p%map = min(max(self%pol_nprop(i)%p%map,self%nprop_uni(1,i)*1.d0), &
+               & self%nprop_uni(2,i)*1.d0)
+
+       end if !any lmax_ind_pol < 0
+
+       call update_status(status, "initPixreg_specind_pixel_regions")
 
        ! initialize pixel regions if relevant 
        if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
@@ -548,79 +703,98 @@ contains
              end if
           end if
 
-          ! Check if 'fullsky' or 'none' 
-          if (self%pol_pixreg_type(j,i) == 1) then !fullsky
+          call update_status(status, "initPixreg_specind_pixreg_map")
+          if (any(self%pol_pixreg_type(1:self%poltype(i),i) == 3)) then !pixreg map defined from file ! Trygve edited to any
+             if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
+                self%ind_pixreg_map(i)%p => comm_map(info)
+                self%ind_pixreg_map(i)%p%map = 1.d0
+             else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'none') then
+                self%ind_pixreg_map(i)%p => comm_map(info)
+                self%ind_pixreg_map(i)%p%map = 0.d0
+             else
+                ! Read map from FITS file
+                self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
+                if (min(self%poltype(i),self%nmaps) > &
+                     & self%ind_pixreg_map(i)%p%info%nmaps) then
+                   write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' pixreg map has fewer maps (', & 
+                        & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                        & ') for component nr. ',id_abs
+                   stop
+                else if (self%theta(i)%p%info%nside /= self%ind_pixreg_map(i)%p%info%nside) then
+                   write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' pixreg map has different nside (', & 
+                        & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
+                        & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
+                   stop
+                end if
+             end if
+          else !pixreg map assigned later.
              self%ind_pixreg_map(i)%p => comm_map(info)
              self%ind_pixreg_map(i)%p%map = 1.d0
-          else if (self%pol_pixreg_type(j,i) == 2) then 
-             !single pix at smoothing scale pix size
-             !make a map at smooth scale nside, give pixels value from 1 to npix
-             !udgrade to full resolution
-             if (cpar%nside_smooth(smooth_scale) > self%nside) then
-                !only allow nside up to full resolution
-                info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
-                     & self%theta(i)%p%info%nside, -1, 1, .false.) 
-             else
-                info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
-                     & cpar%nside_smooth(smooth_scale), -1, 1, .false.) 
-             end if
-             self%ind_pixreg_map(i)%p => comm_map(info)
-
-             if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
-                tp => comm_map(info_ud)
-                tp%map(:,1) = tp%info%pix*1.d0 + 1.d0 !set pixel value equal to pixel number+1
-                allocate(m_in(0:info_ud%npix-1,1))
-                allocate(m_out(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
-                allocate(buffer(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
-                m_in(tp%info%pix,1) = tp%map(:,1)
-                call udgrade_ring(m_in, info_ud%nside, m_out, &
-                     & self%ind_pixreg_map(i)%p%info%nside)
-                call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, &
-                     & MPI_SUM, self%ind_pixreg_map(i)%p%info%comm, ierr)
-
-                self%ind_pixreg_map(i)%p%map(:,j) = buffer(self%ind_pixreg_map(i)%p%info%pix,1)
-                deallocate(m_in, m_out, buffer)
-                call tp%dealloc()
-                tp => null()
-             else
-                self%ind_pixreg_map(i)%p%map(:,j) = self%ind_pixreg_map(i)%p%info%pix*1.d0 +1.d0
-             end if
-
-          !from here pixreg_type == 3
-          else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
-             self%ind_pixreg_map(i)%p => comm_map(info)
-             self%ind_pixreg_map(i)%p%map = 1.d0
-          else if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'none') then
-             self%ind_pixreg_map(i)%p => comm_map(info)
-             self%ind_pixreg_map(i)%p%map = 0.d0
-          else
-             ! Read map from FITS file
-             self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
-             if (min(self%poltype(i),self%nmaps) > &
-                  & self%ind_pixreg_map(i)%p%info%nmaps) then
-                write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' pixreg map has fewer maps (', & 
-                     & self%pol_ind_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
-                     & ') for component nr. ',id_abs
-                stop
-             else if (self%theta(i)%p%info%nside /= self%ind_pixreg_map(i)%p%info%nside) then
-                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' pixreg map has different nside (', & 
-                     & self%pol_ind_mask(i)%p%info%nside,') than the spectral index map (', &
-                     & self%theta(i)%p%info%nside, ') for component nr. ',id_abs
-                stop
-             end if
           end if
 
+          ! Check if pixel region type = 'fullsky' og 'single_pix' for given poltype index  
+          do j = 1,self%poltype(i)
+             if (j > self%nmaps) cycle
+             if (self%pol_pixreg_type(j,i) == 1) then !fullsky
+                self%ind_pixreg_map(i)%p%map(:,j) = 1.d0
+             else if (self%pol_pixreg_type(j,i) == 2) then 
+                !single pix at smoothing scale pix size
+                !make a map at smooth scale nside, give pixels value from 1 to npix
+                !udgrade to full resolution
+                if (cpar%nside_smooth(smooth_scale) > self%nside) then
+                   !only allow nside up to full resolution
+                   info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
+                        & self%theta(i)%p%info%nside, -1, 1, .false.) 
+                else
+                   info_ud  => comm_mapinfo(self%theta(i)%p%info%comm, &
+                        & cpar%nside_smooth(smooth_scale), -1, 1, .false.) 
+                end if
+
+                if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
+                   tp => comm_map(info_ud)
+                   tp%map(:,1) = tp%info%pix*1.d0 + 1.d0 !set pixel value equal to pixel number+1
+                   allocate(m_in(0:info_ud%npix-1,1))
+                   allocate(m_out(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
+                   allocate(buffer(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
+                   m_in(tp%info%pix,1) = tp%map(:,1)
+                   call udgrade_ring(m_in, info_ud%nside, m_out, &
+                        & self%ind_pixreg_map(i)%p%info%nside)
+                   call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, &
+                        & MPI_SUM, self%ind_pixreg_map(i)%p%info%comm, ierr)
+
+                   self%ind_pixreg_map(i)%p%map(:,j) = buffer(self%ind_pixreg_map(i)%p%info%pix,1)
+                   deallocate(m_in, m_out, buffer)
+                   call tp%dealloc(); deallocate(tp)
+                   tp => null()
+                else
+                   self%ind_pixreg_map(i)%p%map(:,j) = self%ind_pixreg_map(i)%p%info%pix*1.d0 +1.d0
+                end if
+             end if
+          end do
+
+          call update_status(status, "initPixreg_specind_pixreg_values")
+
+          ! check if there is a non-smoothed init map for theta of pixelregions
+          if (cpar%cs_pixreg_init_theta(i,id_abs) == 'none') then
+             tp => comm_map(self%theta(i)%p%info)
+             tp%map = self%theta(i)%p%map !take avrage from existing theta map
+          else
+             !read map from init map (non-smoothed theta map)
+             tp => comm_map(self%theta(i)%p%info, trim(cpar%datadir) // '/' // trim(cpar%cs_pixreg_init_theta(i,id_abs)))
+          end if
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
              self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
-             if (.not. self%pol_pixreg_type(j,i) == 3) cycle
+             if (self%pol_pixreg_type(j,i) < 1) cycle
 
              n=self%npixreg(j,i)
              allocate(sum_pix(n),sum_theta(n),sum_nprop(n),sum_proplen(n))
              sum_theta=0.d0
              sum_pix=0
+             self%nprop_pixreg(:,j,i) = 0
+             self%proplen_pixreg(:,j,i) = 1.d0
              sum_nprop=0.d0
              sum_proplen=0.d0
 
@@ -628,43 +802,56 @@ contains
                 do m = 1,n
                    if ( self%ind_pixreg_map(i)%p%map(k,j) > (m-0.5d0) .and. &
                         & self%ind_pixreg_map(i)%p%map(k,j) < (m+0.5d0) ) then
-                      sum_theta(m)=sum_theta(m)+self%theta(i)%p%map(k,j)
-                      sum_proplen(m)=sum_proplen(m)+self%pol_proplen(i)%p%map(k,j)
-                      sum_nprop(m)=sum_nprop(m)+self%pol_nprop(i)%p%map(k,j)
-                      sum_pix(m)=sum_pix(m)+1
+                      !sum_theta(m)=sum_theta(m)+self%theta(i)%p%map(k,j)
+                      sum_theta(m)=sum_theta(m)+tp%map(k,j)
+                      sum_pix(m)=sum_pix(m)+1 
                       self%ind_pixreg_arr(k,j,i)=m !assign pixel region index 
+                      if (self%lmax_ind_pol(j,i) < 0) then
+                         sum_proplen(m)=sum_proplen(m)+self%pol_proplen(i)%p%map(k,j)
+                         sum_nprop(m)=sum_nprop(m)+self%pol_nprop(i)%p%map(k,j)
+                      end if
                       exit
                    end if
                 end do
              end do
-
-             
              !allreduce
              call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             call mpi_allreduce(MPI_IN_PLACE, sum_nprop, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_pix, n, MPI_INTEGER, MPI_SUM, info%comm, ierr)
+             if (self%lmax_ind_pol(j,i) < 0) then
+                call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+                call mpi_allreduce(MPI_IN_PLACE, sum_nprop, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             end if
 
              do k = 1,n
                 !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- numbe of pixels',sum_pix(k)
                 if (sum_pix(k) > 0) then
                    self%theta_pixreg(k,j,i) = sum_theta(k)/(1.d0*sum_pix(k))
-                   self%nprop_pixreg(k,j,i) = IDINT(sum_nprop(k)/(1.d0*sum_pix(k)))
-                   self%proplen_pixreg(k,j,i) = sum_proplen(k)/(1.d0*sum_pix(k))
+                   if (self%lmax_ind_pol(j,i) < 0) then
+                      self%nprop_pixreg(k,j,i) = IDINT(sum_nprop(k)/(1.d0*sum_pix(k)))
+                      self%proplen_pixreg(k,j,i) = sum_proplen(k)/(1.d0*sum_pix(k))
+                   end if
                 else
                    self%theta_pixreg(k,j,i) = self%p_gauss(1,i) ! the prior as theta
-                   self%nprop_pixreg(k,j,i) = 0
-                   self%proplen_pixreg(k,j,i) = 1.d0
+                   if (self%lmax_ind_pol(j,i) < 0) then
+                      self%nprop_pixreg(k,j,i) = 0
+                      self%proplen_pixreg(k,j,i) = 1.d0
+                   end if
                 end if
                 self%npix_pixreg(k,j,i)=sum_pix(k)
              end do
              self%theta_pixreg(0,j,i)=self%p_gauss(1,i) !all pixels in region 0 has the prior as theta
              
              deallocate(sum_pix,sum_theta,sum_proplen,sum_nprop)
-             
-             !Should also assign (and smooth) theta map. This might be dangerous so we don't assign for now
-             ! might put in a flag for this if wanted
-             if (.false.) then
+          end do
+          call tp%dealloc(); deallocate(tp)
+
+          call update_status(status, "initPixreg_specind_precalc_sampled_theta")
+
+          do j = 1,self%poltype(i)
+             !Should also assign (and smooth) theta map if RMS /= 0 and we're not initializing from HDF
+             if (self%p_gauss(2,i) /= 0.d0 .and. (trim(cpar%init_chain_prefix) == 'none' .or. &
+                  & (trim(cpar%init_chain_prefix) /= 'none' .and. trim(self%init_from_HDF) == 'none'))) then 
+                !We are not initializing from HDF
                 if (self%poltype(i) == 1) then
                    p_min = 1; p_max = self%nmaps
                    if (cpar%only_pol) p_min = 2
@@ -676,43 +863,120 @@ contains
                    end if
                 else if (self%poltype(i) == 3) then
                    p_min = j
-                   p_max = j
+                   p_max = self%nmaps
                 else
                    write(*,*) 'Unsupported polarization type'
                    stop
                 end if
+                if (p_min > p_max) cycle !just a guaranty that we dont smooth for nothing
 
                 smooth_scale = self%smooth_scale(i)
                 if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                   
+                   !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
+                   tp => comm_map(info2)
+
+                   do k = 0,info2%np-1
+                      tp%map(k,1) = self%theta_pixreg(self%ind_pixreg_arr(k,j,i),j,i)
+                   end do
                    if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
-                      if (p_min<=p_max) then !just a guaranty that we dont smooth for nothing
+                      !smooth single map as intensity (i.e. zero spin)
+                      call smooth_map(info2, .false., &
+                           & self%B_pp_fr(i)%p%b_l*0.d0+1.d0, tp, &  
+                           & self%B_pp_fr(i)%p%b_l, tp_smooth)
 
-                         !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
-                         tp => comm_map(info2)
+                      tp%map=tp_smooth%map
+                      call tp_smooth%dealloc(); deallocate(tp_smooth)
+                   end if
 
-                         do k = 0,info2%np-1
-                            tp%map(k,1) = self%theta_pixreg(self%ind_pixreg_arr(k,j,i),j,i)
-                         end do
-                         !smooth single map as intensity (i.e. zero spin)
-                         call smooth_map(info2, .false., &
-                              & self%B_pp_fr(i)%p%b_l*0.d0+1.d0, tp, &  
-                              & self%B_pp_fr(i)%p%b_l, tp_smooth)
+                   do k = p_min,p_max
+                      self%theta(i)%p%map(:,k) = tp%map(:,1)
+                   end do
 
-                         do k = p_min,p_max
-                            self%theta(i)%p%map(:,k) = tp_smooth%map(:,1)
-                         end do
-                         call tp_smooth%dealloc()
-                         call tp%dealloc()
 
-                      end if
+                   if (self%lmax_ind_pol(j,i) >= 0) then
+                      info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind_pol(j,i), &
+                           & 1, .false.)
+                      tp_smooth => comm_map(info)
+                      tp_smooth%map = tp%map
+                      call tp_smooth%YtW_scalar()
+                      do k = p_min,p_max
+                         self%theta(i)%p%alm(0:info%nalm-1,k) = tp_smooth%alm(0:info%nalm-1,1)
+                      end do
+                      call tp_smooth%dealloc(); deallocate(tp_smooth)
+                   end if
+                   call tp%dealloc(); deallocate(tp)
+                else
+                   if (cpar%num_smooth_scales <= 0) then
+                      write(*,*) 'need to define smoothing scales'
+                      stop
+                   else if (smooth_scale <= 0) then
+                      write(*,*) 'need to define smoothing scale for component '//&
+                           & trim(self%label)//', parameter '//trim(self%indlabel(i))
+                      stop
                    end if
                 end if !num smooth scales > 0
              end if
           end do !poltype
-          
-       end if !any pixreg_type == 3
+
+       end if !any pixreg_type > 0
+
+       call update_status(status, "initPixreg_specind_lmax_ind_mix")
+
+       !final check to see if lmax < 0 and pixel region is fullsky
+       do j = 1,self%poltype(i)
+          if (j > self%nmaps) then
+             self%lmax_ind_mix(j:,i) = self%lmax_ind_mix(self%nmaps,i)
+             cycle
+          end if
+
+          if (self%poltype(i) == 1) then
+             p_min = 1; p_max = 3
+          else if (self%poltype(i) == 2) then
+             if (j == 1) then
+                if (cpar%only_pol) cycle
+                p_min = 1; p_max = 1
+             else
+                p_min = 2; p_max = 3
+                if (cpar%only_pol) p_min = 1 !add the first index to this case
+             end if
+          else if (self%poltype(i) == 3) then
+             if (cpar%only_pol .and. j == 1) cycle
+             p_min = j
+             p_max = j
+             if (cpar%only_pol .and. j == 2) p_min = 1 !add the first index to this case
+          else
+             write(*,*) 'Unsupported polarization type'
+             stop
+          end if
+             
+          if (self%lmax_ind_pol(j,i) >= 0) then
+             self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
+          else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
+             self%lmax_ind_mix(p_min:p_max,i) = 0
+          end if
+       end do
 
     end do !npar
+
+    if (self%theta(1)%p%info%myid == 0 .and. .false.) then !debug
+
+       write(*,*) ''
+       write(*,*) 'lmax_ind_pol'
+       do i = 1,self%npar
+          write(*,*) i, self%lmax_ind_pol(:,i)
+       end do
+       write(*,*) ''
+       write(*,*) 'lmax_ind_mix'
+       do i = 1,self%npar
+          write(*,*) i, self%lmax_ind_mix(:,i)
+       end do
+       write(*,*) ''
+       if (all(self%lmax_ind_mix(:,:) == 0)) write(*,*) '  all lmax_ind_mix zero'
+
+    end if
+
+    call update_status(status, "initPixreg_specind_end")
 
   end subroutine initPixregSampling
 
@@ -723,9 +987,7 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=2) :: jtext
-
-    integer(i4b) :: i, j, l, m, ntot, nloc, p
+    integer(i4b) :: i, j, l, m, ntot, nloc, p, q
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
 
@@ -733,9 +995,10 @@ contains
     allocate(self%corrlen(self%npar, self%nmaps))
     self%corrlen    = 0     ! Init correlation length
     
-    ! Init bool for L_read
-    allocate(self%L_read(self%npar))
-    self%L_read    = .false.
+    ! Init bool for L-flags
+    allocate(self%L_read(self%npar), self%L_calculated(self%npar))
+    self%L_read = .false.
+    self%L_calculated = .false.
 
     ! save minimum chisq per iteration
     allocate(self%chisq_min(self%npar, self%nmaps))
@@ -747,7 +1010,7 @@ contains
 
     fwhm_prior = cpar%almsamp_prior_fwhm   !600.d0 ! 1200.d0
     do j = 1, self%npar
-       self%sigma_priors(0,j) = 0.05 !p_gauss(2,j)*0.1
+       self%sigma_priors(0,j) = self%p_gauss(2,j)
        if (self%nalm_tot > 1) then
           ! Saving and smoothing priors
           i = 1
@@ -757,9 +1020,9 @@ contains
           end do
           do l = 1, self%lmax_ind
              do m = 1, l
-                self%sigma_priors(i,j) = 0.01*self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+                self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
                 i = i + 1
-                self%sigma_priors(i,j) = 0.01*self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+                self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
                 i = i + 1
              end do
           end do
@@ -767,29 +1030,40 @@ contains
     end do
 
     ! Initialize cholesky matrix
-    allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))           
+    if (cpar%almsamp_pixreg)  then
+       allocate(self%L(0:maxval(self%npixreg), 0:maxval(self%npixreg), self%nmaps, self%npar)) ! Set arbitrary number of max regions
+    else
+       allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))
+    end if
+
     allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
     self%L = 0.d0
     self%steplen = 1 !0.3d0
 
     ! Filename formatting
     do j = 1, self%npar
-       write(jtext, fmt = '(I1)') j
-       filename = trim(cpar%datadir)//'/init_alm_cholesky_'//trim(self%label)//'_par'//trim(jtext)//'.dat'
-
-       inquire(file=filename, exist=exist)
-       if (exist) then ! If present cholesky file
-          self%L_read(j) = .true.
-          if (self%myid == 0) write(*,*) "Reading cholesky matrix for parameter", j
-          open(unit=11, file=filename, recl=10000)
-          read(11,*) self%corrlen(j,:)
-          read(11,*) self%L(:,:,:,j)
-          close(11)
+       if (trim(cpar%cs_almsamp_init(j,id_abs)) == 'none') then ! If present cholesky file
+          if (cpar%almsamp_pixreg) then
+             do p = 1, maxval(self%npixreg)
+                self%L(p,p,:,j) = self%sigma_priors(0,j)
+             end do
+          else
+             do p = 0, self%nalm_tot-1
+                self%L(p,p,:,j) = self%sigma_priors(p,j)
+             end do
+          end if
        else
-          if (self%myid == 0) write(*,*) "No cholesky matrix found for parameter ", j       
-          do p = 0, self%nalm_tot-1
-             self%L(p,p,:,j) = self%sigma_priors(p,j)
+          self%L_read(j) = .true.
+          if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
+          open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
+          read(11,*) self%corrlen(j,:)
+          do p = 1, self%nmaps
+             read(11,*)
+             do q = 0, size(self%L(:,1,p,j))-1
+                read(11,*) self%L(q,:,p,j)
+             end do
           end do
+          close(11)
        end if
     end do
     
@@ -1391,7 +1665,7 @@ contains
                       td%map(:,k) = t%map(:,k)
                    end do
                 end do
-                call t%dealloc()
+                call t%dealloc(); deallocate(t)
              end if
 
              ! if any polarization is local sampled. Only set theta using polarizations with local sampling
@@ -1415,19 +1689,19 @@ contains
 
 !!$                call tp%udgrade(t)
 !!$
-                bad = any(t%map == 0.d0)
-                call mpi_allreduce(mpi_in_place, bad, 1, &
-                     & MPI_LOGICAL, MPI_LOR, self%x%info%comm, ierr)
-                if (bad) then
-                   write(*,*) trim(self%label), i, j
-                   call int2string(j, ctext)
-                   call t%writeFITS("beta1.fits")
-                   call tp%writeFITS("beta2.fits")
-                   call mpi_finalize(k)
-                   stop
-                end if
+!!$                bad = any(t%map == 0.d0)
+!!$                call mpi_allreduce(mpi_in_place, bad, 1, &
+!!$                     & MPI_LOGICAL, MPI_LOR, self%x%info%comm, ierr)
+!!$                if (bad) then
+!!$                   write(*,*) trim(self%label), i, j
+!!$                   call int2string(j, ctext)
+!!$                   call t%writeFITS("beta1.fits")
+!!$                   call tp%writeFITS("beta2.fits")
+!!$                   call mpi_finalize(k)
+!!$                   stop
+!!$                end if
 
-                call tp%dealloc()
+                call tp%dealloc(); deallocate(tp)
 
                 
                 call wall_time(t2)
@@ -1459,7 +1733,7 @@ contains
                    end do
                 end do
 
-                call t%dealloc()
+                call t%dealloc(); deallocate(t)
 
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
@@ -1467,7 +1741,7 @@ contains
              !write(*,*) 'q1', minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
 !!$             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
 !!$             theta_prev(j)%p => comm_map(t)
-             call td%dealloc()
+             call td%dealloc(); deallocate(td)
           end do
        end if
 
@@ -1527,7 +1801,7 @@ contains
                 end if
              end if
 
-!          if (self%lmax_ind == 0) then
+!          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
 
@@ -1640,6 +1914,7 @@ contains
              self%F_mean(i,l,j) = sum(self%F(i,l)%p%map(:,j))
           end do
           buff2 = self%F_mean(i,l,:)
+          !call mpi_barrier(mpi_comm_world, ierr)
           call mpi_allreduce(buff2, buffer, self%nmaps, &
                & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
           self%F_mean(i,l,:) = buffer / self%F(i,l)%p%info%npix
@@ -1719,7 +1994,8 @@ contains
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
-       if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
+
+       if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
           do i = 1, m%info%nmaps
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
@@ -1748,7 +2024,7 @@ contains
        
 
     ! Clean up
-    call m%dealloc()
+    call m%dealloc(); deallocate(m)
     nullify(info)
 
   end function evalDiffuseBand
@@ -1792,7 +2068,7 @@ contains
     end if
     call data(band)%B(d)%p%conv(trans=.true., map=m)
     
-    if (self%lmax_ind == 0 .and. self%latmask < 0.d0) then
+    if (all(self%lmax_ind_mix(1:nmaps,:) == 0) .and. self%latmask < 0.d0) then
        do i = 1, nmaps
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
@@ -1806,8 +2082,8 @@ contains
     if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
     projectDiffuseBand = m_out%alm
 
-    call m%dealloc()
-    call m_out%dealloc()
+    call m%dealloc(); deallocate(m)
+    call m_out%dealloc(); deallocate(m_out)
 
   end function projectDiffuseBand
 
@@ -1826,7 +2102,6 @@ contains
     end select
 
   end subroutine applyDiffPrecond
-
 
 
   subroutine applyDiffPrecond_diagonal(x)
@@ -1968,7 +2243,7 @@ contains
        !!$OMP END PARALLEL
 !       call update_status(status, "pseudo7")
 
-       call invN_x%dealloc()
+       call invN_x%dealloc(); deallocate(invN_x)
     end do
 
     ! Prior terms
@@ -2038,7 +2313,7 @@ contains
     character(len=*),                        intent(in)           :: dir
 
     integer(i4b)       :: i, l, j, k, m, ierr, unit
-    integer(i4b)       :: p, p_min, p_max
+    integer(i4b)       :: p, p_min, p_max, npr, npol
     real(dp)           :: vals(10)
     logical(lgt)       :: exist, first_call = .true.
     character(len=6)   :: itext
@@ -2046,6 +2321,10 @@ contains
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map), pointer :: map => null(), tp => null()
     real(dp), allocatable, dimension(:,:) :: sigma_l
+    real(dp),     allocatable, dimension(:,:) :: dp_pixreg
+    integer(i4b), allocatable, dimension(:,:) :: int_pixreg
+
+    if (.not. self%output) return
 
     if (trim(self%type) == 'md') then
        filename = trim(dir)//'/md_' // trim(postfix) // '.dat'
@@ -2131,7 +2410,7 @@ contains
        else
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if
-       call map%dealloc()
+       call map%dealloc(); deallocate(map)
        call update_status(status, "writeFITS_5")
 
        if (self%output_EB) then
@@ -2146,7 +2425,7 @@ contains
           call map%Y_EB
           !call self%apply_proc_mask(map)
           call map%writeFITS(trim(dir)//'/'//trim(filename))
-          call map%dealloc()
+          call map%dealloc(); deallocate(map)
        end if
        !call update_status(status, "writeFITS_6")
        
@@ -2210,7 +2489,7 @@ contains
                       self%theta(i)%p%map(:,k) = tp%map(:,k)
                    end do
                 end do
-                call tp%dealloc()
+                call tp%dealloc(); deallocate(tp)
              end if
           end if
 
@@ -2224,7 +2503,7 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (any(self%lmax_ind_pol(:self%poltype(i),i)<0)) then
+          if (any(self%lmax_ind_pol(:min(self%poltype(i),self%nmaps),i)<0)) then
              filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
                   & '_proplen_'  // trim(postfix) // '.fits'
              call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
@@ -2233,45 +2512,78 @@ contains
                   & '_nprop_'  // trim(postfix) // '.fits'
              call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
 
-             !if pixelregions, create map without smoothed thetas (for input in new runs)
-             if (any(self%pol_pixreg_type(1:self%poltype(i),i) == 3)) then
+          end if
+
+          !if pixelregions, create map without smoothed thetas (for input in new runs)
+          if (any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
              
-                info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
-                     & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
-                tp => comm_map(info)
-                tp%map = self%theta(i)%p%map
-                do p = 1,self%poltype(i)
-                   if (self%pol_pixreg_type(p,i) /=3) cycle
-                   if (self%poltype(i) == 1) then
-                      p_min=1
-                      p_max=info%nmaps
-                      if (only_pol) p_min = 2
-                   else if (self%poltype(i)==2) then
-                      if (p == 1) then
-                         p_min = 1
-                         p_max = 1
-                      else
-                         p_min = 2
-                         p_max = info%nmaps
-                      end if
-                   else if (self%poltype(i)==3) then
-                      p_min = p
-                      p_max = p
+             info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                  & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+             tp => comm_map(info)
+             tp%map = self%theta(i)%p%map
+             do p = 1,self%poltype(i)
+                if (self%pol_pixreg_type(p,i) /=3) cycle
+                if (self%poltype(i) == 1) then
+                   p_min=1
+                   p_max=info%nmaps
+                   if (only_pol) p_min = 2
+                else if (self%poltype(i)==2) then
+                   if (p == 1) then
+                      p_min = 1
+                      p_max = 1
                    else
-                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
-                      stop
+                      p_min = 2
+                      p_max = info%nmaps
                    end if
+                else if (self%poltype(i)==3) then
+                   p_min = p
+                   p_max = p
+                else
+                   write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                   stop
+                end if
 
-                   do j = 0,info%np-1
-                      tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
-                   end do
+                do j = 0,info%np-1
+                   tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
                 end do
-                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                     & '_noSmooth_'  // trim(postfix) // '.fits'
-                call tp%writeFITS(trim(dir)//'/'//trim(filename))
-                call tp%dealloc()
+             end do
+             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                  & '_noSmooth_'  // trim(postfix) // '.fits'
+             call tp%writeFITS(trim(dir)//'/'//trim(filename))
+             call tp%dealloc(); deallocate(tp)
 
+          end if
+
+          !output theta, proposal length and number of proposals per pixel region to HDF
+          if (output_hdf) then
+             npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
+             if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+                npr=0
+                do j = 1,npol
+                   if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
+                end do
+                if (npr == 0) then !no pixelregions, theta = prior
+                   if (self%theta(i)%p%info%myid == 0) write(*,*) 'No defined pixel regions for ',trim(self%label)//'_'//&
+                        & trim(self%indlabel(i))//' in writing to HDF'
+                else
+                   allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
+                   !pixel region values for theta
+                   dp_pixreg=self%theta_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_val', real(dp_pixreg,sp))
+                   !pixel region values for proposal length
+                   dp_pixreg=self%proplen_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', real(dp_pixreg,sp))
+                   !pixel region values for number of proposals
+                   int_pixreg=self%nprop_pixreg(1:npr,1:npol,i)
+                   if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
+                        & trim(adjustl(self%indlabel(i)))//'_pixreg_nprop', int_pixreg)
+
+                   deallocate(dp_pixreg,int_pixreg)
+                end if
              end if
+
           end if
 
        end do
@@ -2299,12 +2611,14 @@ contains
     type(hdf_file),            intent(in)    :: hdffile
     character(len=*),          intent(in)    :: hdfpath
 
-    integer(i4b)       :: i, j, l, m
-    integer(i4b)       :: p, p_min, p_max
+    integer(i4b)       :: i, j, l, m, ierr
+    integer(i4b)       :: p, p_min, p_max, npr, npol
     real(dp)           :: md(4)
     character(len=512) :: path
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map), pointer     :: tp => null()
+    real(dp),     allocatable, dimension(:,:) :: dp_pixreg
+    integer(i4b), allocatable, dimension(:,:) :: int_pixreg
     
     if (trim(self%type) == 'md') then
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'md/'//trim(adjustl(self%label)), md)
@@ -2328,6 +2642,11 @@ contains
        do i = 1, self%x%info%nmaps
          self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale)
        end do
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
+       end do
+
 
 !!$       if (trim(self%label) == 'cmb') then
 !!$          do i = 0, self%x%info%nalm-1
@@ -2433,12 +2752,51 @@ contains
                       self%theta(i)%p%map(:,j) = tp%map(:,j)
                    end do
                 end do
-                call tp%dealloc()
+                call tp%dealloc(); deallocate(tp)
              end if
           end if !lmax_ind > 0
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,:) = 1.60d0 
-          !if (trim(self%label) == 'synch' .and. i == 1) self%theta(i)%p%alm(:,:) = -3.1d0 * sqrt(4*pi)
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,1) = 1.65d0 
+          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%map(:,1) = 18.d0 
+          !if (trim(self%label) == 'dust' .and. i > 1) self%theta(i)%p%map(:,1) = 1.6d0 
+          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%alm(:,:) = 1.65d0 * sqrt(4*pi)
+!!$          if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
+          !if (trim(self%label) == 'synch' .and. i > 1) self%theta(i)%p%alm(:,:) = -3.11d0 * sqrt(4*pi)
           !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
+
+          !Need to initialize pixelregions and local sampler from chain as well (where relevant)
+          npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
+          if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+             npr=0
+             do j = 1,npol
+                if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
+             end do
+             if (npr == 0) then !no pixelregions, theta = prior
+                if (self%theta(i)%p%info%myid == 0) write(*,*) 'No defined pixel regions for ',trim(self%label)//'_'//&
+                     & trim(self%indlabel(i))
+             else
+                allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
+                !pixel region values for theta
+                if (self%theta(i)%p%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
+                call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
+                self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
+                if (trim(self%label) == 'synch') then !very ugly hack, should not do it like this!!!
+                   self%theta_pixreg(1:4,1:npol,1) = -3.11d0
+                end if
+                !pixel region values for proposal length
+                if (self%theta(i)%p%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', dp_pixreg)
+                call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
+                self%proplen_pixreg(1:npr,1:npol,i)=dp_pixreg
+                !pixel region values for number of proposals
+                if (self%theta(i)%p%info%myid == 0) call read_hdf_int_2d_buffer(hdffile, trim(path)//'/'//&
+                     & trim(adjustl(self%indlabel(i)))//'_pixreg_nprop', int_pixreg)
+                call mpi_bcast(int_pixreg, size(int_pixreg),  MPI_INTEGER, 0, self%theta(i)%p%info%comm, ierr)
+                self%nprop_pixreg(1:npr,1:npol,i)=int_pixreg
+
+                deallocate(dp_pixreg,int_pixreg)
+             end if
+          end if
        end do !i = 1,npar
     end if
 
@@ -2746,7 +3104,7 @@ contains
           cycle
        end if
        
-       if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id)) then
+       if (self%pol_sample_nprop(p,id) .or. self%pol_sample_proplen(p,id) ) then
           pixreg_nprop = 10000 !should be enough to find correlation length (and proposal length if prompted) 
           allocate(theta_corr_arr(pixreg_nprop))
           n_spec_prop = 0
@@ -3671,7 +4029,7 @@ contains
                       ! assign smoothed theta map to theta buffers
                       old_theta_smooth = theta_single_pol_smooth%map(:,1)
 
-                      call theta_single_pol_smooth%dealloc()
+                      call theta_single_pol_smooth%dealloc(); deallocate(theta_single_pol_smooth)
                       theta_single_pol_smooth => null()
                    end if
                    theta_single_pol%map(:,1) = new_theta_smooth
@@ -3683,11 +4041,11 @@ contains
                    ! assign smoothed theta map to theta buffers
                    new_theta_smooth = theta_single_pol_smooth%map(:,1)
 
-                   call theta_single_pol_smooth%dealloc()
+                   call theta_single_pol_smooth%dealloc(); deallocate(theta_single_pol_smooth)
                    theta_single_pol_smooth => null()
 
 
-                   call theta_single_pol%dealloc()
+                   call theta_single_pol%dealloc(); deallocate(theta_single_pol)
                    theta_single_pol => null()
 
                 end if
@@ -4739,7 +5097,7 @@ contains
              ! Add up alms
              tot%alm(:,1) = tot%alm(:,1) + map2%alm(:,1)
 
-             call map2%dealloc()
+             call map2%dealloc(); deallocate(map2)
           end do
 
              if (any(tot%alm /= tot%alm)) then
@@ -4809,8 +5167,8 @@ contains
     end do
 
     deallocate(invM, buffer)
-    call map%dealloc()
-    call tot%dealloc()
+    call map%dealloc(); deallocate(map)
+    call tot%dealloc(); deallocate(tot)
 
     call wall_time(t2)
     if (info%myid == 0) write(*,*) '  Low-ell init = ', t2-t1
@@ -4826,7 +5184,7 @@ contains
 
     real(dp)                  :: t1, t2
     integer(i4b)              :: i, j, k, l, m, q, myid, nalm, ntot, ierr
-    real(dp), allocatable, dimension(:) :: y, yloc
+    real(dp), allocatable, dimension(:) :: y, yloc, buffer
 
     ntot = (self%lmax_pre_lowl+1)**2
     allocate(y(0:ntot-1))
@@ -4849,8 +5207,11 @@ contains
        nalm = 0
        y    = 0.d0
     end if
-    call mpi_allreduce(MPI_IN_PLACE, y, ntot, MPI_DOUBLE_PRECISION, MPI_SUM, &
+    allocate(buffer(0:ntot-1))
+    call mpi_allreduce(y, buffer, ntot, MPI_DOUBLE_PRECISION, MPI_SUM, &
          & self%x%info%comm, ierr)
+    y = buffer
+    deallocate(buffer)
 
     alm = alm0
     do l = 0, self%lmax_pre_lowl
@@ -4974,7 +5335,7 @@ contains
 
        if (self%myid == 0) allocate(self%invM_def(self%ndef,self%ndef))
 
-       call map%dealloc()
+       call map%dealloc(); deallocate(map)
        deallocate(Z)
     end if
 
@@ -5020,7 +5381,7 @@ contains
              tot%alm(:,k) = tot%alm(:,k) + map2%alm(:,k)
           end do
 
-          call map2%dealloc()
+          call map2%dealloc(); deallocate(map2)
        end do
 
        ! Add prior term and multiply with sqrt(S) for relevant components
@@ -5059,8 +5420,8 @@ contains
 !!$stop
 
     deallocate(invM, buffer)
-    call map%dealloc()
-    call tot%dealloc()
+    call map%dealloc(); deallocate(map)
+    call tot%dealloc(); deallocate(tot)
 
     call wall_time(t2)
     if (info%myid == 0) write(*,*) '  Deflate init = ', t2-t1
@@ -5119,7 +5480,7 @@ contains
        if (j > -1) Qalm(j,1) = map%alm(i,1)
     end do
     
-    call map%dealloc()
+    call map%dealloc(); deallocate(map)
     deallocate(y, ytot)
 
   end subroutine applyDeflatePrecond
@@ -5289,7 +5650,7 @@ contains
     call free_spline(sb)
     call free_spline(spsi)
     call free_spline(sphi)
-    call map%dealloc()
+    call map%dealloc(); deallocate(map)
     deallocate(x, t, f, psi, phi, b0)
 
   end subroutine setup_needlets
@@ -5381,7 +5742,7 @@ contains
        end if
     end do
 
-    call map%dealloc()
+    call map%dealloc(); deallocate(map)
     
   end subroutine applyMonoDipolePrior
 

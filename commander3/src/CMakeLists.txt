@@ -1,5 +1,34 @@
+# To resolve conflict with the flags, we need to compile *.cpp
+# into a stand alone library and then just link it to rest of 
+# the files. However, with CMake it is possible to compile the
+# file into object, which will not create *.a files. We go with
+# this approach.
+add_library(comm_system_backend 
+	STATIC 
+	comm_system_backend.cpp
+	)
+target_compile_options(comm_system_backend
+	PUBLIC
+	# setting flags depending on configuration
+	#"$<$<CONFIG:Release>:${COMMANDER3_CXX_COMPILER_FLAGS_RELEASE}>"
+	#"$<$<CONFIG:Debug>:${COMMANDER3_CXX_COMPILER_FLAGS_DEBUG}>"
+	#"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_CXX_COMPILER_FLAGS_RELWITHDEBINFO}>"
+	#"$<$<CONFIG:MinSizeRel>:${COMMANDER3_CXX_COMPILER_FLAGS_MINSIZEREL}>"
+	# setting other compiler dependent flags
+	${COMMANDER3_CXX_COMPILER_FLAGS}
+	)
+#target_link_options(${comm_system_backend}
+#	PUBLIC
+#	"$<$<CONFIG:Release>:${COMMANDER3_CXX_LINKER_FLAGS_RELEASE}>"
+#	"$<$<CONFIG:Debug>:${COMMANDER3_CXX_LINKER_FLAGS_DEBUG}>"
+#	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_CXX_LINKER_FLAGS_RELWITHDEBINFO}>"
+#	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_CXX_LINKER_FLAGS_MINSIZEREL}>"
+#	# setting other compiler dependent flags
+#	${COMMANDER3_CXX_LINKER_FLAGS}
+#	)
+
 # setting the directory where to output all .mod and .o files
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_INSTALL_OUTPUT_DIRECTORY}/mod)
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/mod)
 # TODO: add all sources manually instead of this command, as 
 # there seems to be a problem with tempita language
 #file(GLOB_RECURSE sources *.f90 *.cpp *.f)
@@ -47,7 +76,6 @@ set(sources
 	comm_signal_mod.f90
 	hashtbl_4Dmap.f90
 	comm_cmb_comp_mod.f90
-	#comm_hdf_mod.f90.in
 	comm_spindust2_comp_mod.f90
 	hashtbl.f90
 	comm_cmb_relquad_comp_mod.f90
@@ -60,7 +88,7 @@ set(sources
 	locate_mod.f90
 	comm_conviqt_mod.f90
 	comm_map_mod.f90
-	comm_system_backend.cpp
+	#comm_system_backend.cpp
 	math_tools.f90
 	comm_cr_mod.f90
 	comm_MBB_comp_mod.f90
@@ -84,29 +112,67 @@ set(sources
 	comm_diffuse_comp_mod.f90
 	comm_nonlin_mod.f90
 	comm_tod_WMAP_mod.f90
+	#progressbar_mod.f90
 	)
 
-#
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
-#
-set(executable commander3)
-add_executable(${executable} "")
+# manually setting Fortran compiler flags for different compilers
+#if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
+	# To prevent error with length and turn type mismatch into a warnings
+	# -fallow-argument-mismatch <= is for 10x compilers
+	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -W -ffree-line-length-none -fallow-argument-mismatch -std=legacy")
+	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wl -ffree-line-length-none -fallow-argument-mismatch")
+	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -fallow-argument-mismatch")
+	# -Wno-argument-mismatch <= is th flag for 9x and older compilers
+	#	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -Wno-argument-mismatch")
+	#	message(STATUS "CMAKE_Fortran_FLAGS are: ${CMAKE_Fortran_FLAGS}")
+	#elseif("${CMAKE_Fortran_COMPILER}" MATCHES "Intel")
+	#	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -qopt-matmul")
+	#endif()
+# setting executable name
+set(commander3 commander3)
+add_executable(${commander3} "")
 # make sure that commander executable will be built last
-add_dependencies(${executable} ${projects})
-target_sources(${executable}
+add_dependencies(${commander3} ${projects}) #fftw_ fftw_f)
+target_sources(${commander3}
 	PUBLIC	
 	${sources}
 	)
-set_property(TARGET ${executable} PROPERTY ENABLE_EXPORTS TRUE)
-set_property(TARGET ${executable} PROPERTY LINKER_LANGUAGE Fortran)
+set_property(TARGET ${commander3} PROPERTY ENABLE_EXPORTS TRUE)
+set_property(TARGET ${commander3} PROPERTY LINKER_LANGUAGE Fortran)
+# adding compiler flags to commander3 target
+target_compile_options(${commander3}
+	PUBLIC
+	# setting flags depending on configuration
+	"$<$<CONFIG:Release>:${COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE}>"
+	"$<$<CONFIG:Debug>:${COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG}>"
+	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO}>"
+	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL}>"
+	# setting other compiler dependent flags
+	${COMMANDER3_Fortran_COMPILER_FLAGS}
+	)
+# adding linker flags to commander3 target
+target_link_options(${commander3}
+	PUBLIC
+	"$<$<CONFIG:Release>:${COMMANDER3_Fortran_LINKER_FLAGS_RELEASE}>"
+	"$<$<CONFIG:Debug>:${COMMANDER3_Fortran_LINKER_FLAGS_DEBUG}>"
+	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO}>"
+	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL}>"
+	# setting other compiler dependent flags
+	${COMMANDER3_Fortran_LINKER_FLAGS}
+	)
 
-# the linking order in libraries is important
-target_link_libraries(${executable} 
+#message("cmake dl libs are ${CMAKE_DL_LIBS}")
+# LINKING ORDER IN LIBRARIES IS IMPORTANT!
+target_link_libraries(${commander3} 
 	PUBLIC	
 	# linking MPI
 	MPI::MPI_Fortran
 	# linking OpenMP
 	OpenMP::OpenMP_Fortran
+	# including MKL
+	#-qopt-matmul
+	${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES}
+	${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES}
 	#-ffree-line-length-none
 	#-fno-strict-overflow
 	#hdf5_lib
@@ -116,7 +182,7 @@ target_link_libraries(${executable}
 	# including sharp2
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
 	#"${out_lib_dir}/libsharp2.a"
-	${SHARP2_LIBRARIES}
+	#${SHARP2_LIBRARIES}
 	# including healpix
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhealpix.a"
 	#"${out_lib_dir}/libhealpix.a"
@@ -125,14 +191,16 @@ target_link_libraries(${executable}
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libcfitsio.a"
 	#"${out_lib_dir}/libcfitsio.a"
 	${CFITSIO_LIBRARIES}
-	# including MKL
-	${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES}
-	${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES}
 	# including hdf5 - first fortran and then general
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhdf5_fortran.a" #<= getting other errors when linking this one as well
 	#"${out_lib_dir}/libhdf5_fortran.a"
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhdf5.a"
 	#"${out_lib_dir}/libhdf5.a"
+	# to avoid error error dlclose@@GLIBC_2.2.5', so 
+	# we need to link math library
+	-lm
+	# and -ldl (dl library)
+	${CMAKE_DL_LIBS}
 	${HDF5_Fortran_LIBRARIES}
 	#${HDF5_LIBRARIES}
 	#${hdf5_fortran}
@@ -152,7 +220,9 @@ target_link_libraries(${executable}
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libfftw3.a"
 	#"${out_lib_dir}/libfftw3.a"
 	${FFTW3_LIBRARIES}
+	# Linking commander *.cpp file(s)
+	comm_system_backend
 	)
 
 # installing commander into appropriate folder
-install(TARGETS ${executable} RUNTIME DESTINATION ${CMAKE_INSTALL_OUTPUT_DIRECTORY}/bin)
+install(TARGETS ${commander3} RUNTIME DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
