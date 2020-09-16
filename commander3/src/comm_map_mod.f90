@@ -617,7 +617,7 @@ contains
        npix  = self%info%npix
        nmaps = self%info%nmaps
        allocate(p(npix), map(0:npix-1,nmaps))
-       call read_hdf(hdffile, trim(adjustl(hdfpath)), map)
+       call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
        self%map = map(self%info%pix,:)
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
@@ -859,7 +859,7 @@ contains
        if (lmax < 0) return
       ! Only the root actually reads from disk; data are distributed via MPI
       allocate(alms(0:nalm-1,nmaps))
-      if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
+      if (self%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), alms)
       call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       do i = 0, self%info%nalm-1
         call self%info%i2lm(i, l, m)
@@ -870,7 +870,7 @@ contains
     else
       ! Only the root actually reads from disk; data are distributed via MPI
       allocate(map(0:npix-1,nmaps))
-      if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), map)
+      if (self%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
       call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 !!$      if (self%info%myid == 0) then
 !!$         call write_map2("test2.fits", map)

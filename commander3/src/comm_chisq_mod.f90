@@ -9,10 +9,12 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, lowres_eval)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, lowres_eval, evalpol)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
+    logical(lgt),                   intent(in),    optional :: evalpol
+    !character(len=512),             intent(in),    optional :: evalsig
     !logical(lgt),                   intent(in),    optional :: udgrade_chisq
     class(comm_map),                intent(inout), optional :: chisq_map
     real(dp),                       intent(out),   optional :: chisq_fullsky
@@ -21,40 +23,51 @@ contains
     integer(i4b) :: i, j, k, p, ierr, nmaps
     real(dp)     :: t1, t2
     logical(lgt) :: apply_mask, lowres
-    class(comm_map), pointer :: res, res_lowres, res_lowres_temp, chisq_sub
+    class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub
     class(comm_mapinfo), pointer :: info, info_lowres
 
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
        do i = 1, numband
+          
+          ! Skip non-essential chisq evaluation
+          if (present(evalpol)) then
+             if (evalpol) then
+                if (.not. data(i)%info%pol) cycle
+             else
+                if (data(i)%info%pol) cycle
+             end if
+          end if
+
           res => compute_residual(i)
 
           apply_mask = present(mask)
           if (apply_mask) apply_mask = associated(mask(i)%p)
           if (apply_mask) then
              res%map = res%map * mask(i)%p%map
-!!$             call res%writeFITS("chisq.fits")
-!!$             call mask(i)%p%writeFITS("mask.fits")
-!!$             call mpi_finalize(j)
-!!$             stop
+             !call res%writeFITS("chisq.fits")
+             !call mask(i)%p%writeFITS("mask.fits")
+             !call mpi_finalize(j)
+             !stop
           end if
           
-          if (data(i)%N%type == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. lowres_eval) then
-             lowres = .true.
-             info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+          if (trim(data(i)%N%type) == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
+             if (lowres_eval) then
+                lowres = .true.
+                info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
 
-             res_lowres => comm_map(info_lowres)
-             res_lowres_temp => comm_map(info_lowres)
+                res_lowres => comm_map(info_lowres)
+                res_lowres_temp => comm_map(info_lowres)
 
-             call res%udgrade(res_lowres)
-             res_lowres_temp%map = res_lowres%map ! Save temporarily
+                call res%udgrade(res_lowres)
+                res_lowres_temp%map = res_lowres%map ! Save temporarily
 
-             call data(i)%N%invN_lowres(res_lowres) ! invN*res
-             res_lowres%map = res_lowres_temp%map*res_lowres%map ! res*(invN*res)
+                call data(i)%N%invN_lowres(res_lowres) ! invN*res
+                res_lowres%map = res_lowres_temp%map*res_lowres%map ! res*(invN*res)
 
-             call res_lowres_temp%dealloc()
-
+                call res_lowres_temp%dealloc(); deallocate(res_lowres_temp)
+             end if
           else
              lowres=.false.
              call data(i)%N%sqrtInvN(res) 
@@ -69,7 +82,7 @@ contains
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (res%info%npix/chisq_sub%info%npix)
              end do
-             call chisq_sub%dealloc()
+             call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
           if (present(chisq_fullsky)) then
              if (lowres) then
@@ -79,8 +92,11 @@ contains
              end if
           end if
 
-          call res_lowres%dealloc()
-          call res%dealloc()
+          if (associated(res_lowres)) then
+             call res_lowres%dealloc(); deallocate(res_lowres)
+             nullify(res_lowres)
+          end if
+          call res%dealloc(); deallocate(res)
        end do
     end if
 
@@ -143,7 +159,7 @@ contains
        call data(i)%N%sqrtInvN(map)
        chisq_jeffreys = chisq_jeffreys + sum(map%map**2)
 
-       call map%dealloc()
+       call map%dealloc(); deallocate(map)
     end do
 
     call mpi_allreduce(MPI_IN_PLACE, chisq_jeffreys, 1, MPI_DOUBLE_PRECISION, MPI_SUM, c%comm, ierr)    
@@ -226,7 +242,7 @@ contains
 
     ! Clean up
     nullify(c)
-    call ptsrc%dealloc()
+    call ptsrc%dealloc(); deallocate(ptsrc)
 
   end function compute_residual
 
@@ -269,7 +285,7 @@ contains
           call dipole%Y()
           map%map = map%map - dipole%map
           deallocate(alm)
-          call dipole%dealloc()
+          call dipole%dealloc(); deallocate(dipole)
        end select
        c => c%next()
     end do
@@ -362,19 +378,25 @@ contains
 
   end subroutine output_signals_per_band
 
-  subroutine get_sky_signal(band, det, map_out, mono)
+  subroutine get_sky_signal(band, det, map_out, mono, cmb_pol)
     implicit none
     integer(i4b),    intent(in)     :: band, det
     class(comm_map), pointer        :: map_out
     logical(lgt), optional          :: mono 
+    logical(lgt), optional          :: cmb_pol
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j, k
     logical(lgt) :: skip, mono_
     class(comm_map),  pointer :: map_diff
     class(comm_comp), pointer :: c
     real(dp),     allocatable, dimension(:,:) :: map, alm
+    real(dp),                  dimension(5)   :: P_quad
     
     mono_ = .true.; if (present(mono)) mono_=mono 
+
+    P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]
+    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! NPOPE
+    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! SROLL2
 
     ! Allocate map
     map_out  => comm_map(data(band)%info)  
@@ -401,7 +423,22 @@ contains
 !!$          end if
           !write(*,*) c%x%info%nalm, map_diff%info%nalm, c%x%info%nmaps, map_diff%info%nmaps
 !          call map_diff%add_alm(alm, c%x%info)
-          map_diff%alm = map_diff%alm + alm
+          if (present(cmb_pol) .and. trim(c%label) == 'cmb') then
+             !map_diff%alm(:,1) = map_diff%alm(:,1) + alm(:,1)
+             do j = 1, data(band)%info%nmaps
+                do i = 0, data(band)%info%nalm-1
+                   if (j == 1 .or. data(band)%info%lm(1,i) > 2) then
+                      map_diff%alm(i,j) = map_diff%alm(i,j) + alm(i+1,j)
+                   else if (j == 2 .and. data(band)%info%lm(1,i) == 2) then
+                      ! Apply external E quadrupole prior
+                      k = 3+data(band)%info%lm(2,i)
+                      map_diff%alm(i,j) = map_diff%alm(i,j) + P_quad(k)
+                   end if
+                end do
+             end do
+          else
+             map_diff%alm = map_diff%alm + alm
+          end if
           deallocate(alm)
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))

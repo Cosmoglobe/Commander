@@ -23,6 +23,7 @@ module comm_comp_mod
      logical(lgt)       :: active
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_unique_sampgroup
      character(len=512) :: label, class, type, unit, operation, init_from_HDF
+     logical(lgt)       :: output
      real(dp)           :: nu_ref(3), RJ2unit_(3)
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
@@ -215,6 +216,15 @@ contains
     self%init_from_HDF   = cpar%cs_initHDF(id_abs)
     self%operation       = cpar%operation
 
+    call get_tokens(cpar%output_comps, ",", comp_label, n)
+    self%output = .false.
+    do i = 1, n
+       if (trim(comp_label(i)) == trim(self%label) .or. trim(comp_label(i)) == 'all') then
+          self%output = .true.
+          exit
+       end if
+    end do
+
     ! Set up conversion factor between RJ and native component unit
     do i = 1, 3
        select case (trim(self%unit))
@@ -241,7 +251,8 @@ contains
     ! Set up CG sampling groups
     allocate(self%active_samp_group(cpar%cg_num_samp_groups))
     self%active_samp_group = .false.
-    do i = 1, cpar%cg_num_samp_groups
+    !loop the additional sampling groups added to guarantee all components having their own sampling group
+    do i = 1, cpar%cg_num_samp_groups 
        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
        do j = 1, n
           if (trim(self%label) == trim(comp_label(j))) then

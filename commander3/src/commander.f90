@@ -33,7 +33,7 @@ program commander
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
-  logical(lgt)        :: ok
+  logical(lgt)        :: ok, first
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
 
@@ -81,6 +81,7 @@ program commander
 
   end if
 
+
   ! ************************************************
   ! *               Initialize modules             *
   ! ************************************************
@@ -94,7 +95,7 @@ program commander
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
-  call initialize_from_chain(cpar, handle); call update_status(status, "init_from_chain")
+  call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
@@ -134,8 +135,9 @@ program commander
 
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
-!write(*,*) 'first', first_sample
+  !write(*,*) 'first', first_sample
   !first_sample = 1
+
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
      first_sample = 1
@@ -143,7 +145,8 @@ program commander
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
      !first_sample = 10
-     call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true.)
+     first_sample=first_sample-1 ! Reject last sample, which may be corrupt
+     call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
 
@@ -151,8 +154,11 @@ program commander
   !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
   ! Run Gibbs loop
-  iter = first_sample
+  iter  = first_sample
+  first = .true.
   do while (iter <= cpar%num_gibbs_iter)
+     ok = .true.
+
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') '---------------------------------------------------------------------'
@@ -187,15 +193,15 @@ program commander
         end do
         ! Perform joint alm-Cl Metropolis move
         do i = 1, 3
-           if (cpar%resamp_CMB) call sample_joint_alm_Cl(handle)
+           if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
         end do
      end if
 
      ! Sample power spectra
-     call sample_powspec(handle, ok)
+     if (cpar%sample_powspec) call sample_powspec(handle, ok)
 
      ! Output sample to disk
-     call output_FITS_sample(cpar, iter, .true.)
+     if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
 
      ! Sample partial-sky templates
      !call sample_partialsky_tempamps(cpar, handle)
@@ -206,14 +212,9 @@ program commander
      if (cpar%sample_specind) then
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
      end if
-
-     !call output_FITS_sample(cpar, 2000+iter, .true.)
-
-     ! Sample instrumental parameters
-
-     
-
+    
      call wall_time(t2)
+     if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
@@ -226,6 +227,7 @@ program commander
         end if        
      end if
      
+     first = .false.
   end do
 
   
@@ -277,7 +279,7 @@ contains
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
                    if (.true. .or. mod(iter,2) == 0) then
-                      write(*,*) 'relative',  iter
+                      !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
                       do j = 1, ndet
@@ -290,7 +292,7 @@ contains
                       delta(1:ndet,l,k) = delta(1:ndet,l,k) - mean(delta(1:ndet,l,k)) + &
                            & data(i)%bp(0)%p%delta(l)
                    else
-                      write(*,*) 'absolute',  iter
+                      !write(*,*) 'absolute',  iter
                       ! Propose only an overall shift in the total bandpass, keeping relative differences constant
                       dnu_prop = data(i)%tod%prop_bp_mean(l) * rand_gauss(handle)
                       do j = 0, ndet
@@ -310,18 +312,19 @@ contains
           end if
 
           ! Update mixing matrices
-          if (k > 1 .or. iter == 1) then
+          !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
                 call data(i)%bp(j)%p%update_tau(delta(j,:,k))
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
-          end if
+          !end if
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
+             !call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
+             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false., cmb_pol=.false.) 
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
              !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
