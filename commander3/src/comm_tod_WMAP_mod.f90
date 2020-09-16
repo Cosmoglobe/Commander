@@ -266,6 +266,7 @@ contains
       allocate(pix(ntod, ndet, nhorn))             ! Decompressed pointing
       allocate(psi(ntod, ndet, nhorn))             ! Decompressed pol angle
       allocate(flag(ntod, ndet))                   ! Decompressed flags
+      write(*,*), "Allocated variables for the current scan"
 
       ! --------------------
       ! Analyze current scan
@@ -277,8 +278,9 @@ contains
          if (.not. self%scans(i)%d(j)%accept) cycle
          call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
               & psi(:,j,:), flag(:,j))
+         !write(*,*), "Decompressed pointing and flags"
       end do
-      call self%symmetrize_flags(flag)
+      !call self%symmetrize_flags(flag)
       call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
       !call update_status(status, "tod_decomp")
 
@@ -364,8 +366,9 @@ contains
      !   end if
      end do
      !
-     if (allocated(b_map)) deallocate(M_diag, b_map)
-     allocate(M_diag(nout, ndet, self%nobs), b_map(nout,ndet,self%nobs))
+     !if (allocated(b_map)) deallocate(M_diag, b_map)
+     allocate(M_diag(nout, ndet, npix), b_map(nout,ndet,npix))
+     write(*,*), size(b_map), 'size(b_map)'
      call bin_differential_TOD(self, d_calib, pix,  &
             & psi, flag, self%x_im, b_map, M_diag, i)
       deallocate(n_corr, s_sky, s_orb, s_tot, s_buf, s_sky_prop, d_calib)
@@ -386,6 +389,9 @@ contains
     ! allocate as a shared memory array, so that everything can access it.
     cg_sol(:,:,:) = 0.0d0
     epsil = 1.0d-16
+
+    write(*,*), size(r), 'r'
+    write(*,*), size(b_map), 'b_map'
 
     do l = 1, nout
          r(l,:,:) = b_map(l,:,:)
@@ -591,7 +597,7 @@ contains
 
     ! Clean up temporary arrays
     !deallocate(A_abscal, b_abscal, chisq_S)
-    if (allocated(A_map)) deallocate(A_map, b_map)
+    if (allocated(b_map)) deallocate(A_map, b_map)
     if (sA_map%init)  call dealloc_shared_2d_dp(sA_map)
     if (sb_map%init)  call dealloc_shared_3d_dp(sb_map)
     if (sb_mono%init) call dealloc_shared_3d_dp(sb_mono)
