@@ -1576,7 +1576,7 @@ contains
     character(len=512) :: line
     integer(i4b)       :: i
     logical(lgt)       :: found
-    do i = 1, iargc()
+    do i = 1, command_argument_count() !iargc()
        call getarg(i, line)
        if(line(1:2) /= "--") cycle
        call parse_parameter(line(3:), parname, found, par_int, par_char, par_string, par_sp, par_dp, par_lgt)
@@ -1608,7 +1608,7 @@ contains
     ounit = getlun()
     open(ounit,file=outfile,action="write")
     write(ounit,fmt="(a)",advance="no") '# Arguments:'
-    do i = 1, iargc()
+    do i = 1, command_argument_count() !iargc()
        call getarg(i, arg)
        write(ounit,fmt="(a)",advance="no") " '" // trim(arg) // "'"
     end do

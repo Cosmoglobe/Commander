@@ -11,24 +11,26 @@ if(NOT CURL_FORCE_COMPILE)
 endif()
 
 if(NOT CURL_FOUND)
-	#message(STATUS "Haven't found curl on the system. Will download and compile it from source:
-	#https://github.com/curl/curl")
+	# Creating configure command for cURL
+	set(curl_configure_command 
+		"${CMAKE_COMMAND}" "-E" "env" 
+		"FC=${COMMANDER3_Fortran_COMPILER}" 
+		"CXX=${COMMANDER3_CXX_COMPILER}" 
+		"CC=${COMMANDER3_C_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
+		"./configure" 
+		"--prefix=<INSTALL_DIR>"
+		)
+	#------------------------------------------------------------------------------
+	# Getting cURL from source
 	ExternalProject_Add(${project}
 		URL "${${project}_url}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		#INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}" #"${out_install_dir}"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
-		#PATCH_COMMAND ./buildconf
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		BUILD_ALWAYS FALSE
-		#LOG_DOWNLOAD ON
-		#LOG_UPDATE ON
-		#LOG_CONFIGURE ON
-		#LOG_BUILD ON
-		#LOG_TEST ON
-		#LOG_INSTALL ON
 		)
 	# getting curl directories
 	ExternalProject_Get_Property(${project} source_dir)

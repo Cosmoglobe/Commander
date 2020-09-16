@@ -8,15 +8,28 @@ if(NOT CFITSIO_FORCE_COMPILE)
 endif()
 
 if(NOT CFITSIO_FOUND)
+	# Creating configure command for CFITSIO
+	set(cfitsio_configure_command 
+		"${CMAKE_COMMAND}" "-E" "env" 
+		"FC=${COMMANDER3_Fortran_COMPILER}" 
+		"CXX=${COMMANDER3_CXX_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
+		"CC=${COMMANDER3_C_COMPILER}" 
+		"./configure" 
+		"--prefix=<INSTALL_DIR>" 
+		"--disable-curl"
+		)
+	#------------------------------------------------------------------------------
+	# Getting CFITSIO from source
 	ExternalProject_Add(${project}
 		# specifying that cfitsio depends on the curl project and should be built after it
 		# Note: I have removed curl support from cfitsio, but curl is left here for now
 		DEPENDS curl
 		URL "${${project}_url}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
+		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
+		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		#COMMAND ${CMAKE_COMMAND} -E env --unset=PATH PATH=$ENV{PATH} ./configure --prefix=<INSTALL_DIR> 

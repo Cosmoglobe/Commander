@@ -22,7 +22,7 @@ module comm_Cl_mod
      integer(i4b)     :: lmin, lmax, spec, nsub, ntot, p1, p2
      real(dp)         :: sigma
      character(len=1) :: stat
-     type(Cl_bin), allocatable, dimension(:)   :: sub
+     type(Cl_bin), pointer, dimension(:)   :: sub
      real(dp),     allocatable, dimension(:,:) :: M_prop
   end type Cl_bin
   
