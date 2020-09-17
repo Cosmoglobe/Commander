@@ -230,6 +230,8 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
     # subtract dipole solution from d
     d = d - ((1*xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
+
+    p = p - dxbar*(dipole[pixA] + dipole[pixB])
     
 
     # most aggressive mask
