@@ -408,6 +408,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -420,7 +422,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -448,6 +453,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -460,7 +467,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -488,6 +498,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -500,7 +512,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -528,6 +543,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -540,7 +557,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -568,6 +588,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -580,7 +602,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -608,6 +633,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -620,7 +647,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -648,6 +678,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -660,7 +692,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -688,6 +723,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -700,7 +737,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -728,6 +768,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -740,7 +782,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -768,6 +813,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -780,7 +827,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -808,6 +858,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -820,7 +872,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -848,6 +903,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -860,7 +917,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -888,6 +948,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -900,7 +962,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -928,6 +993,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -940,7 +1007,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -968,6 +1038,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -980,7 +1052,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1008,6 +1083,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1020,7 +1097,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1048,6 +1128,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1060,7 +1142,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1088,6 +1173,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1100,7 +1187,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1128,6 +1218,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1140,7 +1232,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1168,6 +1263,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1180,7 +1277,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1208,6 +1308,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1220,7 +1322,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1248,6 +1353,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1260,7 +1367,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1288,6 +1398,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1300,7 +1412,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1328,6 +1443,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1340,7 +1457,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1368,6 +1488,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1380,7 +1502,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1408,6 +1533,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1420,7 +1547,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1448,6 +1578,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1460,7 +1592,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1488,6 +1623,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1500,7 +1637,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1528,6 +1668,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1540,7 +1682,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1568,6 +1713,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1580,7 +1727,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1608,6 +1758,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1620,7 +1772,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -1648,6 +1803,8 @@ contains
     if (hdferr /= 0) then
        if(.not. opt_) then
          write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       else
+         return
        end if
     end if
     call open_hdf_set(file, setname)
@@ -1660,7 +1817,10 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       stop
+       write(*,*) opt_, 'Optional parameter'
+       if(.not. opt_) then
+         stop
+       end if
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
