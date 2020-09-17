@@ -79,6 +79,7 @@ CONTAINS
     INTEGER                                      :: vallen
 
     vallen = 0
+    write(*,*), key, 'key'
     IF (ALLOCATED(list%key) .AND. (list%key == key)) THEN
        vallen = LEN(list%val)
        IF (ALLOCATED(val)) DEALLOCATE(val)
