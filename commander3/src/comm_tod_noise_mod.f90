@@ -109,11 +109,12 @@ contains
        !call get_ncorr_pcg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back)
        !n_corr(:, i) = ncorr2(:)
        
-
+       pcg_converged = .false.
 !  subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, freq)
        !!!! add choice between PCG and regular ncorr here
-       if (.true.) then !(self%scanid(scan) == 2116) .and. (i == 6)) then
-          call get_ncorr_pcg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
+       if (.true.) then !(self%scanid(scan) == 2112) .and. (i == 1)) then
+          !call test_fft(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
+          call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           n_corr(:, i) = ncorr2(:)
        end if
 
@@ -162,7 +163,7 @@ contains
        end if
 
        ! if (.true.) then !mod(self%scanid(scan),100) == 1) then
-       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_pcg_test.dat' 
+       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_ms_cg_test.dat' 
        !    open(65,file=trim(filename),status='REPLACE')
        !    do j = 1, ntod
        !       write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
@@ -187,69 +188,254 @@ contains
   end subroutine sample_n_corr
 
 
-  subroutine find_d_prime_spikes(self, scan, det, d_prime, pix)
+
+  ! subroutine test_fft(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band)
+  !   implicit none
+  !   type(planck_rng),    intent(inout)  :: handle
+  !   integer*8,  intent(in)   :: plan_fwd, plan_back
+  !   real(sp),   intent(in)   :: alpha, fknee, wn, samprate
+  !   integer(i4b), intent(in) :: nfft, scan, det
+  !   logical(lgt), intent(out) :: converged 
+  !   character(len=*), intent(in) :: band
+  !   real(sp),          dimension(:), intent(out)   :: ncorr
+  !   real(sp),          dimension(:), intent(in)    :: d_prime, mask
+  !   real(dp),    allocatable,      dimension(:) :: x, b, r, d, Mr, Ad, u, bp, xp, p, rp
+  !   real(dp),    allocatable,      dimension(:) :: invNcorr, invM
+  !   real(dp)           :: r2, r2new, alp, bet, eps, freq, d2
+  !   real(dp),     allocatable, dimension(:) :: dt
+  !   complex(dpc), allocatable, dimension(:) :: dv
+  !   ! real(sp),     allocatable, dimension(:) :: dt
+  !   ! complex(spc), allocatable, dimension(:) :: dv
+  !   integer(i4b) :: i, j, k, l, ntod, n, n_iter, nmask
+  !   character(len=1024) :: filename
+
+  !   n_iter = 10
+  !   n = nfft / 2 + 1
+  !   ntod = size(d_prime, 1)
+  !   nmask = ntod - sum(mask)
+  !   write(*,*) ntod, nfft, n
+  !   eps = 0.1d0
+
+  !   converged = .false.
+
+  !   allocate(dt(nfft), dv(0:n-1))
+  !   allocate(invM(0:n-1),invNcorr(0:n-1))
+  !   allocate(x(ntod), b(ntod), r(ntod), d(ntod), Mr(ntod), Ad(ntod))
+  !   allocate(u(nmask), bp(nmask), xp(nmask), rp(nmask), p(nmask))
+
+  !   do l=0, n-1
+  !      freq = l*(samprate/2)/(n-1)
+  !      invNcorr(l) = 1.d0 * (freq / fknee) ** (-alpha)
+  !      invM(l) = 1.d0 / ( 1.d0 * (1.d0 + (freq / fknee) ** (-alpha)))
+  !   end do
+  !   ! b = d_prime * mask / wn + w1 * mask / np.sqrt(wn) + apply_sqrt_S_inv(w2, f, mask, alpha, fknee, wn)
+  !   j = 1
+  !   do i = 1, ntod
+  !      r(i) = rand_gauss(handle)
+  !   end do
+  !   write(*,*) invM(0)
+  !   call apply_fourier_mat(r, invM, Mr, dt, dv, nfft, plan_fwd, plan_back)
+    
+  !   call apply_fourier_mat(Mr, 1.d0 / invM, d, dt, dv, nfft, plan_fwd, plan_back)
+    
+  !   x(:) = r(:) - d(:)
+  !   if (.true.) then !.not. converged) then
+  !      write(filename, "(A)") 'fft_test.dat' 
+  !      open(63,file=filename, status='REPLACE')
+  !      do i = 1, ntod
+  !         write(63, '(14(E21.11E3))') d_prime(i), b(i), x(i), r(i), d(i), Ad(i), Mr(i), r2, alp, bet, alpha, fknee, wn, mask(i)
+  !      end do
+  !      close(63)
+  !   end if
+    
+  !   deallocate(dt, dv)
+  !   deallocate(invNcorr, invM)
+  !   deallocate(x, b, r, d, Mr, Ad)
+  !   deallocate(u, bp, xp, p, rp)
+  ! contains
+
+  !   subroutine apply_fourier_mat(vec, mat, res, dt, dv, nfft, plan_fwd, plan_back)
+  !     integer*8,  intent(in)   :: plan_fwd, plan_back
+  !     !real(dp),   intent(in)   :: alpha, fknee, wn, samprate
+  !     real(dp),  dimension(0:), intent(in)    :: mat
+  !     real(dp),  dimension(:), intent(in)    :: vec
+  !     real(dp),  dimension(:), intent(out)   :: res
+  !     !real(sp),  dimension(:)  :: apply_fourier_mat
+  !     integer(i4b), intent(in) :: nfft 
+  !     real(dp),     dimension(:), intent(inout) :: dt
+  !     complex(dpc), dimension(0:), intent(inout) :: dv
+  !     ! real(sp),     allocatable, dimension(:), intent(inout) :: dt
+  !     ! complex(spc), allocatable, dimension(:), intent(inout) :: dv
+  !     integer(i4b) :: i, j, k, l, ntod, n
+  !     n = nfft / 2 + 1
+  !     ntod = size(vec, 1)
+  !     dt(1:ntod)           = vec(:)
+  !     dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+      
+  !     call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
+  !     do l = 0, n-1
+  !        dv(l) = dv(l) * mat(l)
+  !     end do
+  !     call dfftw_execute_dft_c2r(plan_back, dv, dt)
+  !     dt = dt / nfft
+  !     res(:) = dt(1:ntod)
+      
+  !   end subroutine apply_fourier_mat
+  ! end subroutine test_fft
+
+
+
+
+  subroutine get_ncorr_sm_cg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band)
     implicit none
-    class(comm_tod),                 intent(in)    :: self
-    integer(i4b),                    intent(in)    :: scan, det
-    real(sp),          dimension(:), intent(in)    :: d_prime
-    integer(i4b),  dimension(1:,1:), intent(in)    :: pix
-    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, n_downsamp, n_short
-    integer(i4b) :: nfft, nbuff, j_end, j_start, sampnum
-    real(dp)     :: nu, power, n_sigma, rms, avg
-    real(dp),     allocatable, dimension(:) :: d_downsamp, backup
-    logical(lgt) :: found_spike
+    type(planck_rng),    intent(inout)  :: handle
+    integer*8,  intent(in)   :: plan_fwd, plan_back
+    real(sp),   intent(in)   :: alpha, fknee, wn, samprate
+    integer(i4b), intent(in) :: nfft, scan, det
+    logical(lgt), intent(out) :: converged 
+    character(len=*), intent(in) :: band
+    real(sp),          dimension(:), intent(out)   :: ncorr
+    real(sp),          dimension(:), intent(in)    :: d_prime, mask
+    real(dp),    allocatable,      dimension(:) :: x, b, r, d, Mr, Ad, u, bp, xp, p, rp
+    real(dp),    allocatable,      dimension(:) :: invNcorr, invM
+    real(dp)           :: r2, r2new, alp, bet, eps, freq, d2
+    real(dp),     allocatable, dimension(:) :: dt
+    complex(dpc), allocatable, dimension(:) :: dv
+    ! real(sp),     allocatable, dimension(:) :: dt
+    ! complex(spc), allocatable, dimension(:) :: dv
+    integer(i4b) :: i, j, k, l, ntod, n, n_iter, nmask
     character(len=1024) :: filename
-    
-    ntod = self%scans(scan)%ntod
-    n_downsamp = floor(self%samprate)
-    n = ntod - mod(ntod, n_downsamp)
-    n_short = n / n_downsamp
 
-    allocate(backup(n_short), d_downsamp(n_short))
-
-    avg = mean(d_prime * 1.d0)
-    do i = 1, n_short
-       backup(i) = sum(d_prime((i-1)*n_downsamp+1:i*n_downsamp) - avg) / n_downsamp  
-    end do
+    n_iter = 15
+    n = nfft / 2 + 1
+    ntod = size(d_prime, 1)
+    nmask = ntod - sum(mask)
     
-    do i = 1, n_short
-       l = max(i-5, 1)
-       k = min(i+5, n_short)
-       d_downsamp(i) = backup(i) - median(backup(l:k))
+    eps = 0.1d0
+
+    converged = .false.
+
+    allocate(dt(nfft), dv(0:n-1))
+    allocate(invM(0:n-1),invNcorr(0:n-1))
+    allocate(x(ntod), b(ntod), r(ntod), d(ntod), Mr(ntod), Ad(ntod))
+    allocate(u(nmask), bp(nmask), xp(nmask), rp(nmask), p(nmask))
+
+    do l=0, n-1
+       freq = l*(samprate/2)/(n-1)
+       invNcorr(l) = 1.d0 * (freq / fknee) ** (-alpha)
+       invM(l) = 1.d0 / ( 1.d0 * (1.d0 + (freq / fknee) ** (-alpha)))
     end do
-    found_spike = .false.
-    rms = sqrt(variance(d_downsamp(:)))
-    n_sigma = 5
-    do i = 1, n_short
-       if (d_downsamp(i) > n_sigma * rms) then
-          if (.not. found_spike) then
-             write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_pix_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
-             open(62,file=filename, status='REPLACE')
-             found_spike = .true.
-          end if
-          sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
-          write(62, '(4I7, A)') pix(sampnum,det), sampnum, det, self%scanid(scan), trim(self%freq)
+    ! b = d_prime * mask / wn + w1 * mask / np.sqrt(wn) + apply_sqrt_S_inv(w2, f, mask, alpha, fknee, wn)
+    j = 1
+    do i = 1, ntod
+       d(i) = rand_gauss(handle)
+       r(i) = rand_gauss(handle)
+       if (mask(i) == 0.d0) then
+          u(j) = i
+          j = j + 1
        end if
     end do
-    
-    
 
-    if (found_spike) then
-       close(62)
-       write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_tod_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
+    x(:) = d_prime(:) / sqrt(wn) 
+    b(:) = x * mask(:) + d(:) * mask(:) 
+    
+    
+    call apply_fourier_mat(r, sqrt(invNcorr), Ad, dt, dv, nfft, plan_fwd, plan_back)
+    b(:) = b(:) + Ad(:)
+    
+    x(:) = (x(:) - mean(x)) / 10.d0 + mean(x) ! initial vector for PCG
+    
+    call apply_fourier_mat(b, invM, Mr, dt, dv, nfft, plan_fwd, plan_back)
+    bp(:) = Mr(u)
+    xp(:) = x(u)  !! not sure exactly how to get a good initial vector
+    x(:) = 0.d0
+    x(u) = xp(:)
+    call apply_fourier_mat(x, invM, Ad, dt, dv, nfft, plan_fwd, plan_back)
+    rp(:) = bp(:) + Ad(u) - xp(:)
+    
+    p(:) = rp(:)
+    r2 = sum(rp(:) ** 2)
+
+    do k = 1, n_iter
+       x(u) = p(:)
+       call apply_fourier_mat(x, invM, Ad, dt, dv, nfft, plan_fwd, plan_back)
+       Ad(u) = p(:) - Ad(u) 
+       !d2 = sum(d(:) ** 2 * mask(:) + Ad(:) ** 2)
+
+       alp = r2 / sum(p(:) * Ad(u))
+       xp(:) = xp(:) + alp * p(:)
+    
+       rp(:) = rp(:) - alp * Ad(u)
+    
+       r2new = sum(rp(:) ** 2)
+       if (sqrt(abs(r2new)) < eps) then
+          converged = .true.
+          !write(*,*) 'converged after ', k, ' iterations ', scan, det, trim(band)
+          exit
+       end if
+       bet = r2new / r2
+       !write(*,*) 'iteration ', k, r2, r2new, scan, det, trim(band)
+       p(:) = rp(:) + bet * p(:)
+       r2 = r2new
+    end do
+    x(u) = xp(:)
+    call apply_fourier_mat(x + b, invM, Ad, dt, dv, nfft, plan_fwd, plan_back)
+
+    ! !! extra
+    ! call apply_fourier_mat(Ad, invNcorr, Mr, dt, dv, nfft, plan_fwd, plan_back)
+    ! Mr(:) =  Mr(:) + Ad(:) * mask(:)  !!! this is Ax 
+    ! d(:) = Mr(:) - b(:)
+
+    ! call apply_fourier_mat(Ad, 1.d0 / invM, r, dt, dv, nfft, plan_fwd, plan_back)
+    ! r(:) = r(:) - x(:) - b(:) 
+
+    if (.not. converged) then
+       write(filename, "(A, I0.3, A, I0.3, 3A)") 'ms_cg_tod_', scan, '_', det, '_',trim(band),'.dat' 
        open(63,file=filename, status='REPLACE')
-       do i = 1, n_short
-          sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
-          write(63, '(I7, 2(E15.6E3))') sampnum, d_downsamp(i), rms
+       do i = 1, ntod
+          write(63, '(14(E21.11E3))') d_prime(i), b(i), x(i), r(i), d(i), Ad(i), Mr(i), r2, alp, bet, alpha, fknee, wn, mask(i)
        end do
        close(63)
     end if
+    x(:) = Ad(:)
+    ncorr(:) = x(:) * sqrt(wn)
+    
+    deallocate(dt, dv)
+    deallocate(invNcorr, invM)
+    deallocate(x, b, r, d, Mr, Ad)
+    deallocate(u, bp, xp, p, rp)
+  contains
 
-  
-    deallocate(backup, d_downsamp)
-  end subroutine find_d_prime_spikes
+    subroutine apply_fourier_mat(vec, mat, res, dt, dv, nfft, plan_fwd, plan_back)
+      integer*8,  intent(in)   :: plan_fwd, plan_back
+      !real(dp),   intent(in)   :: alpha, fknee, wn, samprate
+      real(dp),  dimension(:), intent(in)    :: vec
+      real(dp),  dimension(0:), intent(in)    :: mat
+      real(dp),  dimension(:), intent(out)   :: res
+      !real(sp),  dimension(:)  :: apply_fourier_mat
+      integer(i4b), intent(in) :: nfft 
+      real(dp),      dimension(:), intent(inout) :: dt
+      complex(dpc), dimension(0:), intent(inout) :: dv
+      ! real(sp),     allocatable, dimension(:), intent(inout) :: dt
+      ! complex(spc), allocatable, dimension(:), intent(inout) :: dv
+      integer(i4b) :: i, j, k, l, ntod, n
+      n = nfft / 2 + 1
+      ntod = size(vec, 1)
+      dt(1:ntod)           = vec(:)
+      dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 
+      call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      do l = 0, n-1
+         dv(l) = dv(l) * mat(l)
+      end do
+      call dfftw_execute_dft_c2r(plan_back, dv, dt)
+      dt = dt / nfft
+      res(:) = dt(1:ntod)
+      
+    end subroutine apply_fourier_mat
+  end subroutine get_ncorr_sm_cg
 
+!!!!!!!!!!!!!!!!!!!!! OLD PCG method below !!!!!!!!!!!!!!
 
   subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band)
     implicit none
@@ -516,6 +702,76 @@ contains
       
   !   end subroutine apply_fourier_mat
   ! end subroutine get_ncorr_pcg
+
+
+
+
+  subroutine find_d_prime_spikes(self, scan, det, d_prime, pix)
+    implicit none
+    class(comm_tod),                 intent(in)    :: self
+    integer(i4b),                    intent(in)    :: scan, det
+    real(sp),          dimension(:), intent(in)    :: d_prime
+    integer(i4b),  dimension(1:,1:), intent(in)    :: pix
+    integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, n_downsamp, n_short
+    integer(i4b) :: nfft, nbuff, j_end, j_start, sampnum
+    real(dp)     :: nu, power, n_sigma, rms, avg
+    real(dp),     allocatable, dimension(:) :: d_downsamp, backup
+    logical(lgt) :: found_spike
+    character(len=1024) :: filename
+    
+    ntod = self%scans(scan)%ntod
+    n_downsamp = floor(self%samprate)
+    n = ntod - mod(ntod, n_downsamp)
+    n_short = n / n_downsamp
+
+    allocate(backup(n_short), d_downsamp(n_short))
+
+    avg = mean(d_prime * 1.d0)
+    do i = 1, n_short
+       backup(i) = sum(d_prime((i-1)*n_downsamp+1:i*n_downsamp) - avg) / n_downsamp  
+    end do
+    
+    do i = 1, n_short
+       l = max(i-5, 1)
+       k = min(i+5, n_short)
+       d_downsamp(i) = backup(i) - median(backup(l:k))
+    end do
+    found_spike = .false.
+    rms = sqrt(variance(d_downsamp(:)))
+    n_sigma = 5
+    do i = 1, n_short
+       if (d_downsamp(i) > n_sigma * rms) then
+          if (.not. found_spike) then
+             write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_pix_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
+             open(62,file=filename, status='REPLACE')
+             found_spike = .true.
+          end if
+          sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
+          write(62, '(4I7, A)') pix(sampnum,det), sampnum, det, self%scanid(scan), trim(self%freq)
+       end if
+    end do
+    
+    
+
+    if (found_spike) then
+       close(62)
+       write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_tod_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
+       open(63,file=filename, status='REPLACE')
+       do i = 1, n_short
+          sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
+          write(63, '(I7, 2(E15.6E3))') sampnum, d_downsamp(i), rms
+       end do
+       close(63)
+    end if
+
+  
+    deallocate(backup, d_downsamp)
+  end subroutine find_d_prime_spikes
+
+
+
+
+
 
   ! Sample noise psd
   subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
