@@ -746,7 +746,7 @@ contains
              found_spike = .true.
           end if
           sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
-          write(62, '(4I, A)') pix(sampnum,det), sampnum, det, self%scanid(scan), trim(self%freq)
+          write(62, '(4I7, A)') pix(sampnum,det), sampnum, det, self%scanid(scan), trim(self%freq)
        end if
     end do
     
@@ -758,7 +758,7 @@ contains
        open(63,file=filename, status='REPLACE')
        do i = 1, n_short
           sampnum = i*n_downsamp - floor(n_downsamp / 2.d0)
-          write(63, '(I, 2(E15.6E3))') sampnum, d_downsamp(i), rms
+          write(63, '(I7, 2(E15.6E3))') sampnum, d_downsamp(i), rms
        end do
        close(63)
     end if
