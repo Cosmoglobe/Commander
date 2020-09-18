@@ -704,8 +704,7 @@ contains
           end if
 
           call update_status(status, "initPixreg_specind_pixreg_map")
-
-          if (self%pol_pixreg_type(j,i) == 3) then !pixreg map defined from file
+          if (any(self%pol_pixreg_type(1:self%poltype(i),i) == 3)) then !pixreg map defined from file ! Trygve edited to any
              if (trim(cpar%cs_spec_pixreg_map(i,id_abs)) == 'fullsky') then
                 self%ind_pixreg_map(i)%p => comm_map(info)
                 self%ind_pixreg_map(i)%p%map = 1.d0
@@ -815,7 +814,6 @@ contains
                    end if
                 end do
              end do
-
              !allreduce
              call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_pix, n, MPI_INTEGER, MPI_SUM, info%comm, ierr)
@@ -1012,7 +1010,7 @@ contains
 
     fwhm_prior = cpar%almsamp_prior_fwhm   !600.d0 ! 1200.d0
     do j = 1, self%npar
-       self%sigma_priors(0,j) = 0.05 !p_gauss(2,j)*0.1
+       self%sigma_priors(0,j) = self%p_gauss(2,j)
        if (self%nalm_tot > 1) then
           ! Saving and smoothing priors
           i = 1
@@ -1022,9 +1020,9 @@ contains
           end do
           do l = 1, self%lmax_ind
              do m = 1, l
-                self%sigma_priors(i,j) = 0.01*self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+                self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
                 i = i + 1
-                self%sigma_priors(i,j) = 0.01*self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+                self%sigma_priors(i,j) = self%sigma_priors(0,j)*exp(-0.5d0*l*(l+1)*(fwhm_prior * pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
                 i = i + 1
              end do
           end do

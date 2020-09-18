@@ -14,6 +14,20 @@ message(STATUS "---------------------------------------------------------------"
 
 find_package(SHARP2)
 if(NOT SHARP2_FOUND)
+	# Creating configure command for SHARP2 
+	set(sharp2_C_FLAGS "-DUSE_MPI -std=c99 -O3 -ffast-math")
+	set(sharp2_configure_command 
+		"autoreconf" "-i" "&&" 
+		"${CMAKE_COMMAND}" "-E" "env" 
+		"FC=${COMMANDER3_Fortran_COMPILER}" 
+		"CXX=${COMMANDER3_CXX_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
+		"CC=${COMMANDER3_C_COMPILER}" 
+		"CFLAGS=${sharp2_C_FLAGS}" 
+		"./configure"
+		)
+	#------------------------------------------------------------------------------
+	# Getting Sharp2 from source
 	ExternalProject_Add(${project}
 		URL "${${project}_url}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
