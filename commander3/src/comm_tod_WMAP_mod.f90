@@ -243,11 +243,19 @@ contains
     call update_status(status, "tod_init")
 
     ! Perform main analysis loop
+    ! In LFI, this was in the loop
+    ! if (do_oper(sel_data)) then
+    !    naccept = 0; ntot    = 0
+    ! end if
+    naccept = 0; ntot = 0 
+    allocate(M_diag(nout, ndet, npix))           
+    allocate(b_map(nout, ndet, npix))
+    write(*,*), "Allocated variables for total experiment"
     do i = 1, self%nscan
 
       write(*,*) "Processing scan: ", i, self%scans(i)%d%accept
-      !call update_status(status, "tod_loop1")
-      !if (.not. any(self%scans(i)%d%accept)) cycle
+      call update_status(status, "tod_loop1")
+      if (.not. any(self%scans(i)%d%accept)) cycle
 
       ! Short-cuts to local variables
       call wall_time(t1)
@@ -266,7 +274,6 @@ contains
       allocate(pix(ntod, ndet, nhorn))             ! Decompressed pointing
       allocate(psi(ntod, ndet, nhorn))             ! Decompressed pol angle
       allocate(flag(ntod, ndet))                   ! Decompressed flags
-      write(*,*), "Allocated variables for the current scan"
 
       ! --------------------
       ! Analyze current scan
@@ -278,7 +285,7 @@ contains
          if (.not. self%scans(i)%d(j)%accept) cycle
          call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
               & psi(:,j,:), flag(:,j))
-         !write(*,*), "Decompressed pointing and flags"
+         write(*,*), "Decompressed pointing and flags"
       end do
       !call self%symmetrize_flags(flag)
       call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
@@ -288,7 +295,7 @@ contains
       ! Construct sky signal template
       call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
                & self%x_im, sprocmask%a, i, s_sky, mask)
-      if (main_iter == 1 .and. self%first_call) then
+      if (self%first_call) then
          do j = 1, ndet
             if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
             if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
@@ -315,34 +322,11 @@ contains
             call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
                  & s_buf(:,j), n_corr(:,j))
          end do
-      !   call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
+         call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
       !end if
 
       ! Select data
      call wall_time(t1)
-     !TODO: cut scans here
-     if (self%first_call) then 
-        do j = 1, ndet
-          write(*,*) "selecting: ", i, j, self%scans(i)%d(j)%chisq
-            ntot= ntot + 1
-            if (.not. self%scans(i)%d(j)%accept) cycle
-            if (count(iand(flag(:,j),self%flag0) .ne. 0) > 0.1*ntod) then
-               self%scans(i)%d(j)%accept = .false.
-            else if (isNaN(self%scans(i)%d(j)%chisq) .or. &
-                & abs(self%scans(i)%d(j)%chisq) > chisq_threshold) then
-               write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
-                    & self%scanid(i), j, ', chisq = ', &
-                    & self%scans(i)%d(j)%chisq
-               self%scans(i)%d(j)%accept = .false.
-               cycle
-            else
-               write(*,fmt='(a,i8,i5,a,f12.1)') 'Accept scan, det = ', &
-                    & self%scanid(i), j, ', chisq = ', &
-                    & self%scans(i)%d(j)%chisq
-               naccept = naccept + 1
-            end if
-         end do
-     end if
 
      ! Compute binned map
      ! By the end of this loop, you won't have access to the raw TOD loop
@@ -357,25 +341,16 @@ contains
              & inv_gain - s_tot(:,j) + s_sky(:,j)
         if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) ! Residual
         if (nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
-     !   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_bp(:,j)
-     !   if (do_oper(bin_map) .and. do_oper(samp_mono) .and. nout > 4) d_calib(5,:,j) = s_mono(:,j)
-     !   if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_orb(:,j)
-     !   if (do_oper(bin_map) .and. nout > 6) d_calib(7,:,j) = s_sl(:,j)
-     !   if (do_oper(bin_map) .and. nout > 7 .and. do_oper(sub_zodi)) d_calib(8,:,j) = s_zodi(:,j)
-
-     !   end if
      end do
-     !
-     !if (allocated(b_map)) deallocate(M_diag, b_map)
-     allocate(M_diag(nout, ndet, npix), b_map(nout,ndet,npix))
-     write(*,*), size(b_map), 'size(b_map)'
+
      call bin_differential_TOD(self, d_calib, pix,  &
             & psi, flag, self%x_im, b_map, M_diag, i)
+      write(*,*), minval(b_map), maxval(b_map), 'minmax(b_map) (right after calling)'
       deallocate(n_corr, s_sky, s_orb, s_tot, s_buf, s_sky_prop, d_calib)
       deallocate(mask, mask2, pix, psi, flag)
       if (allocated(s_lowres)) deallocate(s_lowres)
       if (allocated(s_invN)) deallocate(s_invN)
-      call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
+      call wall_time(t8); t_tot(19) = t_tot(19) + t8
 
       !update scanlist with new timing info
       self%scans(i)%proctime = t8 - t1
@@ -390,19 +365,25 @@ contains
     cg_sol(:,:,:) = 0.0d0
     epsil = 1.0d-16
 
-    write(*,*), size(r), 'r'
-    write(*,*), size(b_map), 'b_map'
+
+    i_max = 100
 
     do l = 1, nout
          r(l,:,:) = b_map(l,:,:)
          !d(l,:,:) = r(l,:,:)/M_diag(l,:,:)
          d(l,:,:) = r(l,:,:)
          delta_new = sum(r(l,:,:)*d(l,:,:))
+         write(*,*), delta_new, 'delta_new'
          delta_0   = delta_new
          i = 0
          do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))
               do j = 1, self%nscan
               ! This is evaluating the matrix product q = (P^T Ninv P) d
+                 ntod = self%scans(j)%ntod
+                 ndet = self%ndet
+                 allocate(pix(ntod, ndet, nhorn))             ! Decompressed pointing
+                 allocate(psi(ntod, ndet, nhorn))             ! Decompressed pol angle
+                 allocate(flag(ntod, ndet))                   ! Decompressed flags
                  do k = 1, self%ndet
                     ! decompress the data so we have one chunk of TOD in memory
                     ! In the working code above, i is looping over nscan, j is ndet...
@@ -410,8 +391,9 @@ contains
                     !     & psi(:,j,:), flag(:,j))
                     call self%decompress_pointing_and_flags(j, k, pix(:,k,:), &
                         & psi(:,k,:), flag(:,k))
-                    do t = 1, self%scans(j)%ntod
-                        inv_sigmasq = 1/self%scans(t)%d(j)%sigma0**2
+                    write(*,*), ntod, 'ntod'
+                    do t = 1, ntod
+                        inv_sigmasq = 1/self%scans(j)%d(k)%sigma0**2
                         lpoint = self%pix2ind(pix(t,k,1))
                         rpoint = self%pix2ind(pix(t,k,2))
                         lpsi   = psi(t,k,1)
@@ -437,16 +419,26 @@ contains
                         q(l,2,rpoint) = q(l,2,rpoint) - (1-x_im)*d1 * self%sin2psi(rpsi) * sgn * inv_sigmasq
                         end do
                     end do
+                    deallocate(pix,psi,flag)
               end do
+              write(*,*), minval(d), maxval(d), 'min(d(l,:,:)), max(d(l,:,:))'
+              write(*,*), minval(r), maxval(r), 'min(r(l,:,:)), max(r(l,:,:))'
+              write(*,*), minval(q), maxval(q), 'min(q(l,:,:)), max(q(l,:,:))'
               alpha = delta_new/sum(d(l,:,:)*q(l,:,:))
               cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
               if (mod(i,50) == 0) then
-                  do k = 1, self%ndet
-                  ! evaluating the matrix operation r = b_map - Ax
+                do j = 1, self%nscan
+                    ntod = self%scans(j)%ntod
+                    ndet = self%ndet
+                    allocate(pix(ntod, ndet, nhorn))             ! Decompressed pointing
+                    allocate(psi(ntod, ndet, nhorn))             ! Decompressed pol angle
+                    allocate(flag(ntod, ndet))                   ! Decompressed flags
+                    do k = 1, self%ndet
+                    ! evaluating the matrix operation r = b_map - Ax
                         call self%decompress_pointing_and_flags(j, k, pix(:,k,:), &
                             & psi(:,k,:), flag(:,k))
-                        do t = 1, self%scans(j)%ntod
-                            inv_sigmasq = 1/self%scans(t)%d(j)%sigma0**2
+                        do t = 1, ntod
+                            inv_sigmasq = 1/self%scans(j)%d(k)%sigma0**2
                             lpoint = self%pix2ind(pix(t,k,1))
                             rpoint = self%pix2ind(pix(t,k,2))
                             lpsi   = psi(t,k,1)
@@ -471,6 +463,8 @@ contains
                             r(l,2,lpoint) = r(l,2,lpoint) + b_map(l,3,lpoint) - (1+x_im)*d1 * self%sin2psi(lpsi) * sgn * inv_sigmasq
                             r(l,2,rpoint) = r(l,2,rpoint) + b_map(l,3,rpoint) + (1-x_im)*d1 * self%sin2psi(rpsi) * sgn * inv_sigmasq
                         end do
+                    end do
+                    deallocate(pix,psi,flag)
                  end do
               else
                   r(l,:,:) = r(l,:,:) - alpha*q(l,:,:)
