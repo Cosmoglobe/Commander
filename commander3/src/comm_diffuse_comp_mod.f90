@@ -2569,6 +2569,10 @@ contains
                    allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
                    !pixel region values for theta
                    dp_pixreg=self%theta_pixreg(1:npr,1:npol,i)
+                   write(*,*), npr, npol, i, 'npr, npol, i'
+                   write(*,*), 'dp_pixreg', dp_pixreg
+                   write(*,*), 'sp', sp
+                   write(*,*), 'indlabel', self%indlabel(i)
                    if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
                         & trim(adjustl(self%indlabel(i)))//'_pixreg_val', real(dp_pixreg,sp))
                    !pixel region values for proposal length
