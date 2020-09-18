@@ -2,20 +2,20 @@
 # File which contains setup for current project 
 # Author: Maksym Brilenkov
 
-# To get rid of "C preprocessor fails sanity check" error
-# we need to link the CPP as follows
-#set(FFTW_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 message(STATUS "---------------------------------------------------------------")
 # TODO: make it so components will matter because now it install everything because 
 # I gave the command to add appropriate configure suboptions to configure command
-find_package(FFTW 
-	COMPONENTS 
-	DOUBLE 
-	FLOAT 
-	#FLOAT_MPI 
-	FLOAT_OPENMP
-	FLOAT_THREADS
-	)
+if(NOT FFTW_FORCE_COMPILE)
+	find_package(FFTW 
+		COMPONENTS 
+		DOUBLE 
+		DOUBLE_THREADS
+		FLOAT 
+		#FLOAT_MPI 
+		FLOAT_OPENMP
+		FLOAT_THREADS
+		)
+endif()
 # Is TRUE if one of the components were missing
 if(NOT FFTW_FOUND)
 	# Configure command to compile FFTW from source
@@ -47,6 +47,12 @@ if(NOT FFTW_FOUND)
 	else()
 		message(STATUS "Found FFTW_DOUBLE_LIB: ${FFTW_DOUBLE_LIB}")
 	endif()
+	if(NOT FFTW_DOUBLE_THREADS_FOUND)
+		message(STATUS "Missing component - DOUBLE_THREADS - will be compiled from source")	
+		list(APPEND fftw_double_configure_command "--enable-threads")
+	else()
+		message(STATUS "Found FFTW_DOUBLE_THREADS_LIB: ${FFTW_DOUBLE_THREADS_LIB}")
+	endif()
 	if(NOT FFTW_FLOAT_FOUND)
 		message(STATUS "Missing component - FLOAT - will be compiled from source")	
 		list(APPEND fftw_float_configure_command "--enable-float")
@@ -71,6 +77,8 @@ if(NOT FFTW_FOUND)
 	else()
 		message(STATUS "Found FFTW_FLOAT_MPI_LIB: ${FFTW_FLOAT_MPI_LIB}")
 	endif()
+	#------------------------------------------------------------------------------
+	# Getting FFTW from source
 	# Splitting external project add into 3 steps:
 	# 1. To download the project
 	# 2. To compile with single and double precision - requiores by GNU compilers
@@ -123,6 +131,11 @@ if(NOT FFTW_FOUND)
 	else()
 		list(APPEND FFTW3_LIBRARIES "${FFTW_DOUBLE_LIB}")
 	endif()
+	if(NOT FFTW_DOUBLE_THREADS_FOUND)
+		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3_threads${CMAKE_STATIC_LIBRARY_SUFFIX}")
+	else()
+		list(APPEND FFTW3_LIBRARIES "${FFTW_DOUBLE_THREADS_LIB}")
+	endif()
 	if(NOT FFTW_FLOAT_FOUND)
 		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f${CMAKE_STATIC_LIBRARY_SUFFIX}")
 	else()
@@ -143,13 +156,6 @@ if(NOT FFTW_FOUND)
 	else()
 		list(APPEND FFTW3_LIBRARIES "${FFTW_FLOAT_MPI_LIB}")
 	endif()
-	#set(FFTW3_LIBRARIES 
-	#	${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3${CMAKE_STATIC_LIBRARY_SUFFIX} 
-	#	${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f${CMAKE_STATIC_LIBRARY_SUFFIX} 
-	#	${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f_omp${CMAKE_STATIC_LIBRARY_SUFFIX}
-	#	${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f_threads${CMAKE_STATIC_LIBRARY_SUFFIX}
-	#	${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f_mpi${CMAKE_STATIC_LIBRARY_SUFFIX}
-	#	)
 else()
 	# adding empty targets in case FFTW was found on the system
 	add_custom_target(${project} ALL "")
@@ -157,6 +163,7 @@ else()
 	add_custom_target(fftw_float ALL "")
 	set(FFTW3_LIBRARIES
 		${FFTW_DOUBLE_LIB}
+		${FFTW_DOUBLE_THREADS_LIB}
 		${FFTW_FLOAT_LIB}
 		${FFTW_FLOAT_OPENMP_LIB}
 		${FFTW_FLOAT_THREADS_LIB}
