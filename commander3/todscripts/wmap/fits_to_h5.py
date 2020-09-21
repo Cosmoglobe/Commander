@@ -480,6 +480,10 @@ def quat_to_sky_coords(quat, center=True):
     M = Q2M(Q)
     M = np.transpose(M, [2,0,1])
 
+    qf = quat.flatten()
+
+
+
     gal_A = []
     pol_A = []
     gal_B = []
@@ -497,7 +501,9 @@ def quat_to_sky_coords(quat, center=True):
         M2 = np.zeros((len(t), 3, 3))
         for i in range(3):
             for j in range(3):
-                f = interp1d(t0, M[:,i,j], kind='cubic')
+                inds = np.isfinite(M[:,i,j])
+                f = interp1d(t0[inds], M[:,i,j][inds], kind='cubic',
+                        fill_value='extrapolate')
                 M2[:,i,j] = f(t)
 
 
@@ -640,12 +646,11 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     gain_guesses = np.array([get_gain(data, b)[1][0] for b in band_labels])
 
 
-    # If genflags == 1, there is an issue with the spacecraft attitude. Is this
-    # the quaternion problem?
+    # If genflags == 1, there is an issue with the spacecraft attitude. This
+    # appears to be the quaternion problem.
+    # v14: add genflags somehow.
     genflags = data[2].data['genflags']
     daflags = data[2].data['daflags']
-    print(genflags.shape)
-    print(daflags.shape)
 
     TODs = []
     for key in band_labels:
@@ -670,13 +675,11 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     dt0 = np.median(np.diff(time))
 
     quat = data[1].data['QUATERN']
-    print(quat.shape)
-    #if np.any(genflags != 0):
-        #return
-    if np.any(~np.isfinite(quat)):
+    gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
+    print('non-finite gal_A', gal_A[0][~np.isfinite(gal_A[0])])
+    if np.any(~np.isfinite(gal_A[0])):
         print(f'{file_input} has non-finite quaternions...')
         return
-    gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
 
     data.close()
 
