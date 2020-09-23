@@ -23,7 +23,7 @@ from tqdm import tqdm
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
-version = 13
+version = 14
 
 from time import sleep
 from time import time as timer
@@ -619,7 +619,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     # From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
     # characterization", alpha=-1.7 from Figure
 
-    nside = 256
+    nside = 512
     ntodsigma = 100
     npsi = 2048
     psiBins = np.linspace(0, 2*np.pi, npsi)
@@ -676,7 +676,6 @@ def fits_to_h5(file_input, file_ind, compress, plot):
 
     quat = data[1].data['QUATERN']
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
-    print('non-finite gal_A', gal_A[0][~np.isfinite(gal_A[0])])
     if np.any(~np.isfinite(gal_A[0])):
         print(f'{file_input} has non-finite quaternions...')
         return
@@ -709,7 +708,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
             write_file_parallel(*args[i])
 
 
-    #print(f'\t{f_name} took {int(timer()-t0)} seconds')
+    print(f'\t{f_name} took {int(timer()-t0)} seconds')
 
     return
 
@@ -727,7 +726,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 100
+        nprocs = 64
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -743,4 +742,4 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
             fits_to_h5(f,i,compress, plot)
 
 if __name__ == '__main__':
-    main(par=False, plot=False, compress=True)
+    main(par=True, plot=False, compress=True)
