@@ -436,7 +436,7 @@ contains
     real(dp),     allocatable, dimension(:,:)  :: m_in, m_out, buffer
     character(len=512) :: temptxt, partxt
     integer(i4b) :: smooth_scale, p_min, p_max
-    class(comm_mapinfo), pointer :: info2 => null(), info_ud => null()
+    class(comm_mapinfo), pointer :: info2 => null(), info_ud => null(), info3 => null()
     class(comm_map),     pointer :: tp => null() 
     class(comm_map),     pointer :: tp_smooth => null() 
 
@@ -895,9 +895,9 @@ contains
 
 
                    if (self%lmax_ind_pol(j,i) >= 0) then
-                      info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind_pol(j,i), &
+                      info3 => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind_pol(j,i), &
                            & 1, .false.)
-                      tp_smooth => comm_map(info)
+                      tp_smooth => comm_map(info3)
                       tp_smooth%map = tp%map
                       call tp_smooth%YtW_scalar()
                       do k = p_min,p_max
