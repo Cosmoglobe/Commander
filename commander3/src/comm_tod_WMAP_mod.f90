@@ -166,7 +166,7 @@ contains
       ! conjugate gradient parameters
       integer(i4b) :: i_max
       real(dp) :: delta_0, delta_old, delta_new, epsil
-      real(dp) :: alpha, beta
+      real(dp) :: alpha, beta, g
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
       real(dp), allocatable, dimension(:, :) :: A
       integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn
@@ -286,6 +286,7 @@ contains
          ! Construct sky signal template
          call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
                   & self%x_im, sprocmask%a, i, s_sky, mask)
+         call update_status(status, "Finished projecting sky")
          !if (self%first_call) then
          !   do j = 1, ndet
          !      if (all(mask(:, j) == 0)) self%scans(i)%d(j)%accept = .false.
@@ -334,6 +335,7 @@ contains
 
          call bin_differential_TOD(self, d_calib, pix,  &
                 & psi, flag, self%x_im, b_map, M_diag, i)
+         call update_status(status, "Finished binning TOD")
          deallocate (n_corr, s_sky, s_orb, s_tot, s_buf, s_sky_prop, d_calib)
          deallocate (mask, mask2, pix, psi, flag)
          if (allocated(s_lowres)) deallocate (s_lowres)
@@ -389,20 +391,31 @@ contains
       ! 
       ! To get the i+1st estimate, compute the following;
       !
+      ! q_i     = A.dot(d_i)
+      ! You need to distribute q_i, because it includes contributions from
+      ! pixels you don't already have
       !
-      ! alpha_i = r_i.dot(r_i)/(d_i.dot(A.dot(d_i)))
+      ! delta_i = r_i.dot(r_i)  can be done per core
+      ! gamma_i = d_i.dot(q_i)
+      ! mpi_allreduce(gamma_i) as well.
+      ! alpha_i = delta_i/gamma_i
       !
       ! x_{i+1} = x_i + alpha_i*d_i
-      !
-      ! r_{i+1} = r_i - alpha_i*A.dot(d_i)
+      ! ! 1 out of 50 times, compute r_{i+1} = b - A.dot(x_{i+1})
+      ! r_{i+1} = r_i - alpha_i*q_i
       !
       ! beta_{i+1} = r_{i+1}.dot(r_{i+1})/r_i.dot(r_i)
+      ! beta_{i+1} = delta_{i+1}/delta_i
+      ! allreduce(delta_{i+1})
       !
       ! d_{i+1} = r_{i+1} + beta_{i+1}*d_i
       !
       ! 
       ! Note that this can be simplified by computing q_i = A.dot(d_i) once per
       ! loop, so that r_{i+1} = r_i - alpha_i q_i
+      ! 
+      ! As long as you distribute q_i, the rest should be done per core.
+      ! A is the only operator that requires distributing the result.
       !
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -423,10 +436,15 @@ contains
          d(l,:,:) = r(l,:,:)/M_diag(l,:,:)
          !d(l, :, :) = r(l, :, :)
          delta_new = sum(r(l, :, :)*d(l, :, :))
-         write (*, *), delta_new, 'delta_new'
+         call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+                           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
          delta_0 = delta_new
+         if (self%myid_shared==1) then 
+            write (*, *), delta_new, 'delta_0'
+         end if
          i = 1
          do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))
+            call update_status(status, 'While loop iteration')
             ! This is evaluating the matrix product q = (P^T Ninv P) d
             q(:,:,:) = 0d0
             do j = 1, self%nscan
@@ -469,16 +487,14 @@ contains
                end do
                deallocate (pix, psi, flag)
             end do
-            call mpi_allreduce(MPI_IN_PLACE, q, size(q), &
+            g = sum(d(l,:,:)*q(l,:,:))
+            call mpi_allreduce(MPI_IN_PLACE, g, 1, &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            call mpi_allreduce(MPI_IN_PLACE, d, size(d), &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            alpha = delta_new/sum(d(l, :, :)*q(l, :, :))
+            alpha = delta_new/g
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
-            !call mpi_allreduce(MPI_IN_PLACE, cg_sol, size(cg_sol), &
-            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             ! evaluating r = b - Ax
             if (mod(i, 50) == 0) then
+               call update_status(status, 'iter % 50 == 0, recomputing residual')
                r(l,:,:) = 0d0
                do j = 1, self%nscan
                   ntod = self%scans(j)%ntod
@@ -527,19 +543,21 @@ contains
             s(l,:,:) = r(l,:,:)/M_diag(l,:,:)
             !s(l, :, :) = r(l, :, :)
             delta_old = delta_new
-            call mpi_allreduce(MPI_IN_PLACE, r, size(r), &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            call mpi_allreduce(MPI_IN_PLACE, s, size(s), &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             delta_new = sum(r(l, :, :)*s(l, :, :))
-            write (*, *) delta_new, 'delta'
+            call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            if (self%myid_shared==1) then 
+                write (*, *) delta_new, 'delta'
+            end if
             beta = delta_new/delta_old
             d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
             i = i + 1
 
          end do
       end do
-      cg_sol = b_map
+      ! cg_sol = b_map
+      call mpi_allreduce(MPI_IN_PLACE, cg_sol, size(cg_sol), &
+                        & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
 
       ! cg_sol = wmap_estimate
       ! distribute x to map object
