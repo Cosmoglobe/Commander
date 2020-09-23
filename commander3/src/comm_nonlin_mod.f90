@@ -2256,6 +2256,8 @@ contains
        running_dlnL=1.d3
        running_accept=0.d0
 
+       old_theta = old_thetas(pr)
+
        theta_fr%map = old_thetas(0) !prior value
        theta_single_fr%map = 0.d0
 
@@ -2323,7 +2325,7 @@ contains
 
        call wall_time(t1)
        lnl_init=0.d0
-
+       
        do j = 1,pixreg_nprop !propose new sample n times (for faster mixing in total)
 
           nsamp = nsamp + 1
