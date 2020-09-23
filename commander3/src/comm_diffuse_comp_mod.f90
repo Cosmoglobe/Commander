@@ -531,7 +531,7 @@ contains
        allocate(self%nprop_pixreg(k,3,self%npar))
        allocate(self%npix_pixreg(k,3,self%npar))
        allocate(self%proplen_pixreg(k,3,self%npar))
-       allocate(self%B_pp_fr(self%npar))
+       allocate(self%B_pp_fr(3,self%npar))
        allocate(self%theta_pixreg(0:k,3,self%npar))
        self%theta_pixreg = 1.d0 !just some default values, is set later in the code
        self%nprop_pixreg = 0    ! default values, is set later in the code
@@ -692,7 +692,7 @@ contains
        if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
 
           info2  => comm_mapinfo(self%theta(i)%p%info%comm, self%nside, &
-               & 2*self%nside, 1, .false.) 
+               & 3*self%nside, 1, .false.) 
 
           smooth_scale = self%smooth_scale(i)
           if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then

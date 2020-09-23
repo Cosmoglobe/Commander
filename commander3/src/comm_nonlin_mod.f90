@@ -218,7 +218,7 @@ contains
             & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
 
        info_theta  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
-            & 2*c%x%info%nside, 1, .false.)
+            & 3*c%x%info%nside, 1, .false.)
        theta => comm_map(info_theta)
 
        ! Params
@@ -945,7 +945,7 @@ contains
              !so that the evaluation/sampling can be done at an arbitrary nside (given by smoothing scale),
              !then be smoothed with a post processing beam at the components full resolution
              info  => comm_mapinfo(c%theta(par_id)%p%info%comm, c%theta(par_id)%p%info%nside, &
-                  & 2*c%theta(par_id)%p%info%nside, 1, c%theta(par_id)%p%info%pol) !only want 1 map
+                  & 3*c%theta(par_id)%p%info%nside, 1, c%theta(par_id)%p%info%pol) !only want 1 map
 
              !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
              theta_single_pol => comm_map(info)
