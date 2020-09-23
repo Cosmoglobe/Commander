@@ -408,6 +408,8 @@ contains
 
                    ! Propose new pixel regions
                    theta_pixreg_prop = c%theta_pixreg(:,pl,j) + matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
+                   !Should have a test to see if proposed thetas are outside uniform priors (in the case of pixel region sampling)
+
                 end if
 
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
@@ -434,6 +436,9 @@ contains
                    theta_smooth => comm_map(info_theta)
                    theta_smooth%map=theta%map
                 end if
+
+                !threshold theta map on uniform priors (in case of ringing; done after smoothing)
+                theta_smooth%map = min(c%p_uni(2,j),max(c%p_uni(1,j),theta_smooth%map)) 
 
                 call theta_smooth%YtW_scalar
                 call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
@@ -2374,9 +2379,14 @@ contains
              if (first_sample) then
                 !set up the old theta map
                 old_theta_smooth(:)=theta_lr_hole%map(:,1)+ old_theta*theta_single_lr%map(:,1)
+                ! threshold smoothed map on uniform limits
+                old_theta_smooth(:) =min(theta_max,max(theta_min, old_theta_smooth(:))) 
+
              end if
              !set up the new theta map
              new_theta_smooth(:)=theta_lr_hole%map(:,1)+ new_theta*theta_single_lr%map(:,1)
+             ! threshold smoothed map on uniform limits
+             new_theta_smooth(:) =min(theta_max,max(theta_min, new_theta_smooth(:))) 
 
              !lnL type should split here
              if (trim(c_lnL%pol_lnLtype(p,id))=='chisq') then
