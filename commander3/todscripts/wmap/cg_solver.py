@@ -1,5 +1,5 @@
 import os
-ncpus = 144
+ncpus = 48
 #os.environ["OMP_NUM_THREADS"] = f"{ncpus}" # export OMP_NUM_THREADS=4
 #os.environ["OPENBLAS_NUM_THREADS"] = f"{ncpus}" # export OPENBLAS_NUM_THREADS=4 
 #os.environ["MKL_NUM_THREADS"] = f"{ncpus}" # export MKL_NUM_THREADS=6
@@ -36,7 +36,7 @@ from sparse_dot_mkl import dot_product_mkl, gram_matrix_mkl
 
 
 # Fixed the coordinate transformation
-version = 13
+version = 14
 
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
@@ -229,7 +229,7 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
 
     # subtract dipole solution from d
-    d = d - ((1*xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
+    d = d - ((1+xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
 
     p = p - dxbar*(dipole[pixA] + dipole[pixB])
     
@@ -246,13 +246,13 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     pB = pm[pixB]
     # This SHOULD make it so that if pA is 0 (high emission) and pB is 1 (low
     # emission), pixA is updated and pixB isn't.
-    #f_A = (1 - pA*(1-pB))*inds
-    #f_B = (1 - pB*(1-pA))*inds
+    f_A = (1 - pA*(1-pB))*inds
+    f_B = (1 - pB*(1-pA))*inds
 
     # Let's make it a bit easier, if horn A is in a high-emission region, horn B
     # isn't updated.
-    f_A = pB*inds
-    f_B = pA*inds
+    #f_A = pB*inds
+    #f_B = pA*inds
 
 
     sigmas = np.ones(len(d))*sigma0
@@ -439,7 +439,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
     pool = Pool(processes=min(nfiles, ncpus))
     print('Preparing pool')
     funcs = [pool.apply_async(get_data, (fname, band, xbar, dxbar),
-        dict(pol=pol, mask=mask)) for fname in fnames]
+        dict(pol=pol, mask=mask, nside=nside)) for fname in fnames]
     pixA = []
     pixB = []
     psiA = []
@@ -490,7 +490,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             print(f'Constructing pointing matrix')
             # Can split up the A_p construction... would 100 be enough?
             A_p = sparse.csr_matrix((4*npix, 4*npix))
-            n_split = len(f_A)//(64*npix)
+            n_split = max(2, len(f_A)//(64*npix))
             f_A = np.array_split(f_A, n_split)
             f_B = np.array_split(f_B, n_split)
             pixA = np.array_split(pixA, n_split)
@@ -559,6 +559,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
            
 
                 A_p += dot_product_mkl(P_p_AM.T, P_p)
+                #A_p += dot_product_mkl(P_p_AM.T, P_p_AM)
                 #A_p = (A_p.tolil() + A_pi.tolil()).tocsr()
                 #A_p = A_p + A_pi
                 del P_p, P_p_AM, t_arr, A_arr, B_arr
@@ -593,7 +594,9 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         delta_arr = []
 
         b_p = np.concatenate((b, b_p))
+
         M_diag_p = np.concatenate((M_diag, M_diag_p))
+        M_diag_p = np.ones_like(M_diag_p)
         dts = []
         i = 0
         x_p = np.zeros_like(b_p)
@@ -603,6 +606,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         r = b_p
         pix = (M_diag_p != 0)
         d[pix] = r[pix]/M_diag_p[pix]
+        #BiCG-STAB
         shat = np.zeros(len(r))
         delta_new1 = r.dot(d)
         delta_new2 = np.copy(delta_new1)
@@ -627,31 +631,63 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             phat[pix] = p[pix]/M_diag_p[pix]
             v = A_p.dot(phat)
             alpha = rho/rtilde.dot(v)
+            print(alpha, 'alpha')
             s = r - alpha*v
             # check norm of s, if small enough, set x += alpha*phat
             x_p += alpha*phat
             delta_old1 = np.copy(delta_new1)
             delta_new1 = s[pix].dot(s[pix]/M_diag_p[pix])
 
+            if delta_new1 > eps**2*delta_0:
+                shat[pix] = s[pix]/M_diag_p[pix]
+                t = A_p.dot(shat)
+                omega = t.dot(s)/t.dot(t)
 
-            shat[pix] = s[pix]/M_diag_p[pix]
-            t = A_p.dot(shat)
-            omega = t.dot(s)/t.dot(t)
+                print(omega, 'beta') 
+                r = s - omega*t
 
-            
-            r = s - omega*t
-
-            delta_old2 = np.copy(delta_new2)
-            delta_new2 = r[pix].dot(r[pix]/M_diag_p[pix])
-            print(i, delta_new1, delta_new2)
-            if delta_new2 < delta_new1:
+                delta_old2 = np.copy(delta_new2)
+                delta_new2 = r[pix].dot(r[pix]/M_diag_p[pix])
+                print(i, delta_new1, delta_new2)
                 x_p += omega*shat
-            delta_new = min(delta_new1, delta_new2)
-            rho_old = np.copy(rho)
+                delta_new = min(delta_new1, delta_new2)
+                rho_old = np.copy(rho)
 
             i += 1
             delta_arr.append(delta_new)
             x_arr.append(x_p)
+            print(min(x_p), max(x_p), 'minmax(x)')
+        '''
+        # CG
+        delta_new = r.dot(d)
+        print(delta_new, 'original delta')
+        delta_0 = np.copy(delta_new)
+        while ((i < imax) & (delta_new > eps**2*delta_0)):
+            q = A_p.dot(d)
+            alpha = delta_new/d.dot(q)
+            print(min(d), max(d), 'minmax(d)')
+            print(min(r), max(r), 'minmax(r)')
+            print(min(q), max(q), 'minmax(q)')
+            x_p = x_p + alpha*d
+            print(min(x_p), max(x_p), 'minmax(sol)')
+            if (i % 50) == 0:
+                r = b_p - A_p.dot(x_p)
+            else:
+                r = r - alpha*q
+            s[pix] = r[pix]/M_diag_p[pix]
+            delta_old = np.copy(delta_new)
+            delta_new = r.dot(s)
+            beta = delta_new/delta_old
+            d = s + beta*d
+            i += 1
+            delta_arr.append(delta_new)
+            x_arr.append(x_p)
+            print(alpha, 'alpha')
+            print(delta_new, 'delta')
+            print(beta, 'beta')
+        '''
+
+
 
         x_i, x_q, x_u, x_s = np.split(x_p, 4)
         x_tot = np.array([x_i, x_q, x_u, x_s])
@@ -862,9 +898,9 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        get_cg(band=b, nfiles=np.inf, sparse_test=False, sparse_only=True,
-                imbalance=False, mask=False, pol=True, imax=1000)
-        #plot_maps_pol(band=b)
+        #get_cg(band=b, nfiles=500, sparse_test=False, sparse_only=True,
+        #        imbalance=False, mask=True, pol=True, imax=1000, nside=512)
+        plot_maps_pol(band=b, nside=512, version=version)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
