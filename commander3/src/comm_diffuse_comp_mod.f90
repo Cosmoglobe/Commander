@@ -901,7 +901,7 @@ contains
                       tp_smooth%map = tp%map
                       call tp_smooth%YtW_scalar()
                       do k = p_min,p_max
-                         self%theta(i)%p%alm(0:info%nalm-1,k) = tp_smooth%alm(0:info%nalm-1,1)
+                         self%theta(i)%p%alm(0:info3%nalm-1,k) = tp_smooth%alm(0:info3%nalm-1,1)
                       end do
                       call tp_smooth%dealloc(); deallocate(tp_smooth)
                    end if
