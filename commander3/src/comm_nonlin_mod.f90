@@ -975,6 +975,9 @@ contains
                         & c%B_pp_fr(par_id)%p%b_l*0.d0+1.d0, theta_single_pol, &  
                         & c%B_pp_fr(par_id)%p%b_l, c%theta_smooth(par_id)%p)
 
+                   c%theta_smooth(par_id)%p%map = min(c%p_uni(2,par_id),max(c%p_uni(1,par_id), &
+                        & c%theta_smooth(par_id)%p%map)) ! threshold smoothed map on uniform limits
+                   
                    do p = p_min,p_max
                       ! assign smoothed theta map to relevant polarizations
                       c%theta(par_id)%p%map(:,p) = c%theta_smooth(par_id)%p%map(:,1)
