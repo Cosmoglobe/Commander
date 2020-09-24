@@ -436,7 +436,7 @@ contains
     real(dp),     allocatable, dimension(:,:)  :: m_in, m_out, buffer
     character(len=512) :: temptxt, partxt
     integer(i4b) :: smooth_scale, p_min, p_max
-    class(comm_mapinfo), pointer :: info2 => null(), info_ud => null()
+    class(comm_mapinfo), pointer :: info2 => null(), info_ud => null(), info3 => null()
     class(comm_map),     pointer :: tp => null() 
     class(comm_map),     pointer :: tp_smooth => null() 
 
@@ -692,7 +692,7 @@ contains
        if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
 
           info2  => comm_mapinfo(self%theta(i)%p%info%comm, self%nside, &
-               & 2*self%nside, 1, .false.) 
+               & 3*self%nside, 1, .false.) 
 
           smooth_scale = self%smooth_scale(i)
           if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
@@ -895,13 +895,13 @@ contains
 
 
                    if (self%lmax_ind_pol(j,i) >= 0) then
-                      info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind_pol(j,i), &
+                      info3 => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind_pol(j,i), &
                            & 1, .false.)
-                      tp_smooth => comm_map(info)
+                      tp_smooth => comm_map(info3)
                       tp_smooth%map = tp%map
                       call tp_smooth%YtW_scalar()
                       do k = p_min,p_max
-                         self%theta(i)%p%alm(0:info%nalm-1,k) = tp_smooth%alm(0:info%nalm-1,1)
+                         self%theta(i)%p%alm(0:info3%nalm-1,k) = tp_smooth%alm(0:info3%nalm-1,1)
                       end do
                       call tp_smooth%dealloc(); deallocate(tp_smooth)
                    end if
