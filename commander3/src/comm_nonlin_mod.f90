@@ -218,7 +218,7 @@ contains
             & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
 
        info_theta  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
-            & 2*c%x%info%nside, 1, .false.)
+            & 3*c%x%info%nside, 1, .false.)
        theta => comm_map(info_theta)
 
        ! Params
@@ -408,6 +408,8 @@ contains
 
                    ! Propose new pixel regions
                    theta_pixreg_prop = c%theta_pixreg(:,pl,j) + matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
+                   !Should have a test to see if proposed thetas are outside uniform priors (in the case of pixel region sampling)
+
                 end if
 
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
@@ -434,6 +436,9 @@ contains
                    theta_smooth => comm_map(info_theta)
                    theta_smooth%map=theta%map
                 end if
+
+                !threshold theta map on uniform priors (in case of ringing; done after smoothing)
+                theta_smooth%map = min(c%p_uni(2,j),max(c%p_uni(1,j),theta_smooth%map)) 
 
                 call theta_smooth%YtW_scalar
                 call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
@@ -945,7 +950,7 @@ contains
              !so that the evaluation/sampling can be done at an arbitrary nside (given by smoothing scale),
              !then be smoothed with a post processing beam at the components full resolution
              info  => comm_mapinfo(c%theta(par_id)%p%info%comm, c%theta(par_id)%p%info%nside, &
-                  & 2*c%theta(par_id)%p%info%nside, 1, c%theta(par_id)%p%info%pol) !only want 1 map
+                  & 3*c%theta(par_id)%p%info%nside, 1, c%theta(par_id)%p%info%pol) !only want 1 map
 
              !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
              theta_single_pol => comm_map(info)
@@ -975,6 +980,9 @@ contains
                         & c%B_pp_fr(par_id)%p%b_l*0.d0+1.d0, theta_single_pol, &  
                         & c%B_pp_fr(par_id)%p%b_l, c%theta_smooth(par_id)%p)
 
+                   c%theta_smooth(par_id)%p%map = min(c%p_uni(2,par_id),max(c%p_uni(1,par_id), &
+                        & c%theta_smooth(par_id)%p%map)) ! threshold smoothed map on uniform limits
+                   
                    do p = p_min,p_max
                       ! assign smoothed theta map to relevant polarizations
                       c%theta(par_id)%p%map(:,p) = c%theta_smooth(par_id)%p%map(:,1)
@@ -2248,6 +2256,8 @@ contains
        running_dlnL=1.d3
        running_accept=0.d0
 
+       old_theta = old_thetas(pr)
+
        theta_fr%map = old_thetas(0) !prior value
        theta_single_fr%map = 0.d0
 
@@ -2315,7 +2325,7 @@ contains
 
        call wall_time(t1)
        lnl_init=0.d0
-
+       
        do j = 1,pixreg_nprop !propose new sample n times (for faster mixing in total)
 
           nsamp = nsamp + 1
@@ -2371,9 +2381,14 @@ contains
              if (first_sample) then
                 !set up the old theta map
                 old_theta_smooth(:)=theta_lr_hole%map(:,1)+ old_theta*theta_single_lr%map(:,1)
+                ! threshold smoothed map on uniform limits
+                old_theta_smooth(:) =min(theta_max,max(theta_min, old_theta_smooth(:))) 
+
              end if
              !set up the new theta map
              new_theta_smooth(:)=theta_lr_hole%map(:,1)+ new_theta*theta_single_lr%map(:,1)
+             ! threshold smoothed map on uniform limits
+             new_theta_smooth(:) =min(theta_max,max(theta_min, new_theta_smooth(:))) 
 
              !lnL type should split here
              if (trim(c_lnL%pol_lnLtype(p,id))=='chisq') then
