@@ -580,7 +580,6 @@ contains
     allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
 
-
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
 
@@ -592,7 +591,6 @@ contains
        end if
        self%ind_pixreg_arr = 0 !all pixels assigned to pixelregion 0 (not to be sampled), will read in pixreg later
     end if
-
 
     do i = 1,self%npar
        if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0)) then
