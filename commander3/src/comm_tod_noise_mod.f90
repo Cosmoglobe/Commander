@@ -295,8 +295,9 @@ contains
     character(len=*), intent(in) :: band
     real(sp),          dimension(:), intent(out)   :: ncorr
     real(sp),          dimension(:), intent(in)    :: d_prime, mask
-    real(dp),    allocatable,      dimension(:) :: x, b, r, d, Mr, Ad, u, bp, xp, p, rp
+    real(dp),    allocatable,      dimension(:) :: x, b, r, d, Mr, Ad, bp, xp, p, rp
     real(dp),    allocatable,      dimension(:) :: invNcorr, invM
+    integer(i4b),    allocatable,  dimension(:) :: u
     real(dp)           :: r2, r2new, alp, bet, eps, freq, d2
     real(dp),     allocatable, dimension(:) :: dt
     complex(dpc), allocatable, dimension(:) :: dv
