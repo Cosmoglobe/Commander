@@ -25,6 +25,9 @@ prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
 version = 14
 
+# version 15 uses the pre-calibrated data, gain = 1
+version = 15
+
 from time import sleep
 from time import time as timer
 
@@ -644,6 +647,8 @@ def fits_to_h5(file_input, file_ind, compress, plot):
 
     # Returns the gain model estimate at the start of each frame.
     gain_guesses = np.array([get_gain(data, b)[1][0] for b in band_labels])
+    if version == 15:
+        gain_guesses *= 1
 
 
     # If genflags == 1, there is an issue with the spacecraft attitude. This
@@ -719,7 +724,11 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     # happening right now.
     '''
 
-    files = glob(prefix + 'tod/new/*.fits')
+    if version == 15:
+        files = glob(prefix + 'tod_calibrated/*.fits')
+        print(files)
+    else:
+        files = glob(prefix + 'tod/new/*.fits')
     files.sort()
     files = np.array(files)[:nfiles]
 

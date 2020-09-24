@@ -35,8 +35,10 @@ warnings.filterwarnings("ignore")
 from sparse_dot_mkl import dot_product_mkl, gram_matrix_mkl
 
 
-# Fixed the coordinate transformation
+# nside = 512
 version = 14
+# using pre-calibrated data
+version = 15
 
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
