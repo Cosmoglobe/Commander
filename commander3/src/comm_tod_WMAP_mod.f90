@@ -351,9 +351,8 @@ contains
 
       end do
 
-      ! mpi all_reduce, add, adds them all together to make a map that is the
-      ! sum of all of them.
-      ! This will produce one big map from that.
+      ! sum up all of the individual threads so that everybody has access to the
+      ! hits map and the binned map P^T Ninv d.
       call mpi_allreduce(MPI_IN_PLACE, b_map, size(b_map), &
                         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
       call mpi_allreduce(MPI_IN_PLACE, M_diag, size(M_diag), &
@@ -428,25 +427,32 @@ contains
       ! allocate as a shared memory array, so that everything can access it.
       cg_sol(:, :, :) = 0.0d0
       epsil = 1.0d-16
+      ! Properties to test to ensure that the CG solver is basically doing the
+      ! correct thing
+      ! Each direction is conjugate (A-orthogonal) to each other
+      ! d_{i}.dot(A.dot(d_j)) = delta_{ij}
+      ! Each residual is orthogonal,
+      ! r_{i}.dot(r_{j}) = delta_{ij}
 
       i_max = 100
 
-      do l = 1, nout
+      !do l = 1, nout
+      l = 1
+         ! All threads have access to the same b_map, hence the same residual
+         ! map r and the direction map d.
          r(l, :, :) = b_map(l, :, :)
          d(l,:,:) = r(l,:,:)/M_diag(l,:,:)
-         !d(l, :, :) = r(l, :, :)
+         ! delta_new is the same for all threads.
          delta_new = sum(r(l, :, :)*d(l, :, :))
-         call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-                           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-         delta_0 = delta_new
-         if (self%myid_shared==1) then 
+         if (self%myid_shared==0) then 
             write (*, *), delta_new, 'delta_0'
          end if
-         i = 1
+         delta_0 = delta_new
+         i = 0
          do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))
             call update_status(status, 'While loop iteration')
             ! This is evaluating the matrix product q = (P^T Ninv P) d
-            q(:,:,:) = 0d0
+            q(l,:,:) = 0d0
             do j = 1, self%nscan
                ntod = self%scans(j)%ntod
                ndet = self%ndet
@@ -487,11 +493,26 @@ contains
                end do
                deallocate (pix, psi, flag)
             end do
-            g = sum(d(l,:,:)*q(l,:,:))
-            call mpi_allreduce(MPI_IN_PLACE, g, 1, &
+            ! q is populated using the decompressed pointing and flags from
+            ! self, which is distributed among the cores. So it is necessary to
+            ! add up the different cores' results.
+            write(*, *), minval(q), maxval(q), 'minmax(q)'
+            call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            write(*, *) minval(q), maxval(q), 'minmax(q) (after reduce)'
+            ! In the pre-loop operations, d was available to every core. It
+            ! makes sense that this should be the case within the loop.
+            ! Similarly, every core has the same access to q. Therefore, g
+            ! should be the same in every core.
+            g = sum(d(l,:,:)*q(l,:,:))
+            write(*, *) g, 'g'
+            !call mpi_allreduce(MPI_IN_PLACE, g, 1, &
+            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             alpha = delta_new/g
+            ! Every core has access to the same d, so for this to make sense, we
+            ! need to have the same cg_sol available to every core.
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
+            write (*, *) minval(cg_sol(l,:,:)), maxval(cg_sol(l,:,:)), 'minmax(cg_sol)'
             ! evaluating r = b - Ax
             if (mod(i, 50) == 0) then
                call update_status(status, 'iter % 50 == 0, recomputing residual')
@@ -525,18 +546,21 @@ contains
                                                 &      + cg_sol(l, 3, rpoint)*self%sin2psi(rpsi))
                         d1 = (1 + x_im)*dA - (1 - x_im)*dB
                         ! Temperature
-                        r(l, 1, lpoint) = r(l, 1, lpoint) + b_map(l, 1, lpoint) - (1 + x_im)*d1*inv_sigmasq
-                        r(l, 1, rpoint) = r(l, 1, rpoint) + b_map(l, 1, rpoint) + (1 - x_im)*d1*inv_sigmasq
+                        r(l, 1, lpoint) = r(l, 1, lpoint) - (1 + x_im)*d1*inv_sigmasq
+                        r(l, 1, rpoint) = r(l, 1, rpoint) + (1 - x_im)*d1*inv_sigmasq
                         ! Q
-                        r(l, 2, lpoint) = r(l, 2, lpoint) + b_map(l, 2, lpoint) - (1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
-                        r(l, 2, rpoint) = r(l, 2, rpoint) + b_map(l, 2, rpoint) + (1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
+                        r(l, 2, lpoint) = r(l, 2, lpoint) - (1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
+                        r(l, 2, rpoint) = r(l, 2, rpoint) + (1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
                         ! U
-                        r(l, 2, lpoint) = r(l, 2, lpoint) + b_map(l, 3, lpoint) - (1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
-                        r(l, 2, rpoint) = r(l, 2, rpoint) + b_map(l, 3, rpoint) + (1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
+                        r(l, 2, lpoint) = r(l, 2, lpoint) - (1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
+                        r(l, 2, rpoint) = r(l, 2, rpoint) + (1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
                      end do
                   end do
                   deallocate (pix, psi, flag)
                end do
+               call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
+                                 & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+               r(l, :, :) = b_map(l, :, :) + r(l, :, :)
             else
                r(l, :, :) = r(l, :, :) - alpha*q(l, :, :)
             end if
@@ -544,20 +568,23 @@ contains
             !s(l, :, :) = r(l, :, :)
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
-            call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            if (self%myid_shared==1) then 
+            if (self%myid_shared==0) then 
                 write (*, *) delta_new, 'delta'
+                write (*, *) g, 'd.T.dot(q)'
+                write (*, *), minval(q(l,:,:)), maxval(q(l,:,:)), 'minmax(q)'
+                write (*, *), minval(r(l,:,:)), maxval(r(l,:,:)), 'minmax(r)'
+                write (*, *), minval(s(l,:,:)), maxval(s(l,:,:)), 'minmax(s)'
+                write (*, *), minval(cg_sol(l,:,:)), maxval(cg_sol(l,:,:)), 'minmax(cg)'
             end if
             beta = delta_new/delta_old
             d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
             i = i + 1
 
          end do
-      end do
-      ! cg_sol = b_map
-      call mpi_allreduce(MPI_IN_PLACE, cg_sol, size(cg_sol), &
-                        & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+      !end do
+
+      ! cg_sol should be the total array at this point
+      write (*, *), minval(cg_sol), maxval(cg_sol), 'minmax(cg_sol)'
 
       ! cg_sol = wmap_estimate
       ! distribute x to map object
