@@ -2247,7 +2247,7 @@ contains
     if (c_lnL%pol_sample_nprop(p,id)) sampled_nprop = .true.
     if (c_lnL%pol_sample_proplen(p,id)) sampled_proplen = .true.
 
-    old_thetas = c_lnL%theta_pixreg(:,p,id)
+    old_thetas = c_lnL%theta_pixreg(:npixreg,p,id)
     old_thetas = min(max(old_thetas,theta_min),theta_max)
     new_thetas = old_thetas
     ! that the root processor operates on
