@@ -51,6 +51,7 @@ module comm_diffuse_comp_mod
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
      logical(lgt),       allocatable, dimension(:,:,:) :: fix_pixreg
+     real(dp),           allocatable, dimension(:,:,:) :: theta_prior ! prior if pixel region (local sampler) == prior
      class(map_ptr),     allocatable, dimension(:)     :: pol_ind_mask
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
@@ -489,6 +490,9 @@ contains
              else if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='pixreg') then
                 self%pol_pixreg_type(j,i) = 3
                 self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
+             else if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='prior') then
+                self%pol_pixreg_type(j,i) = -1
+                self%npixreg(j,i) = 1 !fullsky gaussian prior
              else
                 write(*,*) 'Unspecified pixel region type for poltype',j,'of spectral index',i,'in component',id_abs
                 stop
@@ -521,7 +525,7 @@ contains
              if (self%pol_pixreg_type(j,i) == 3) then
                 if (self%npixreg(j,i) > m) m = self%npixreg(j,i)
              end if
-             if (self%lmax_ind_pol(j,i) >= 0) cycle
+             if (self%lmax_ind_pol(j,i) >= 0 .or. self%pol_pixreg_type(j,i) == -1) cycle
              self%pol_lnLtype(j,i)  = cpar%cs_spec_lnLtype(j,i,id_abs)
              self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
              self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
@@ -573,13 +577,13 @@ contains
                 else
                    all_fixed=.false. !not all poltypes are pixelregions
                 end if
-                if (all_fixed==.true.) then
-                   write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
-                        & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
-                        & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
-                   stop
-                end if
-             end do !poltype
+             end do
+             if (all_fixed==.true.) then
+                write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                     & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
+                     & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
+                stop
+             end if
           end do !npar
        end if
 
@@ -604,9 +608,11 @@ contains
        self%ind_pixreg_arr = 0 !all pixels assigned to pixelregion 0 (not to be sampled), will read in pixreg later
     end if
 
+    if (any(self%pol_pixreg_type(:,:) < 0)) allocate(self%theta_prior(2,3,self%npar))
 
     do i = 1,self%npar
-       if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0)) then
+       if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+            & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
           call update_status(status, "initPixreg_specind_mask")
           ! spec. ind. mask
           if (trim(cpar%cs_spec_mask(i,id_abs)) == 'fullsky') then
@@ -700,7 +706,7 @@ contains
        call update_status(status, "initPixreg_specind_pixel_regions")
 
        ! initialize pixel regions if relevant 
-       if (any(self%pol_pixreg_type(1:self%poltype(i),i) > 0)) then
+       if (any(self%pol_pixreg_type(1:self%poltype(i),i) /= 0)) then
 
           info2  => comm_mapinfo(self%theta(i)%p%info%comm, self%nside, &
                & 3*self%nside, 1, .false.) 
@@ -741,12 +747,13 @@ contains
           else !pixreg map assigned later.
              self%ind_pixreg_map(i)%p => comm_map(info)
              self%ind_pixreg_map(i)%p%map = 1.d0
-          end if
+          end if !any pixregtype == 3
 
           ! Check if pixel region type = 'fullsky' og 'single_pix' for given poltype index  
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
-             if (self%pol_pixreg_type(j,i) == 1) then !fullsky
+             !fullsky (or fullsky gauusian prior)
+             if (self%pol_pixreg_type(j,i) == 1) then
                 self%ind_pixreg_map(i)%p%map(:,j) = 1.d0
              else if (self%pol_pixreg_type(j,i) == 2) then 
                 !single pix at smoothing scale pix size
@@ -797,6 +804,15 @@ contains
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
+             
+             if (self%pol_pixreg_type(j,i)== -1) then
+                self%theta_prior(:,j,i) = cpar%cs_theta_prior(:,j,i,id_abs)
+                self%theta_pixreg(:,j,i) = self%theta_prior(1,j,i)
+                self%nprop_pixreg(:,j,i) = 1
+                self%proplen_pixreg(:,j,i) = 1.d0
+                self%ind_pixreg_arr(:,j,i) = 1
+                cycle
+             end if
              self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
              if (self%pol_pixreg_type(j,i) < 1) cycle
 
@@ -851,14 +867,15 @@ contains
                 self%npix_pixreg(k,j,i)=sum_pix(k)
              end do
              self%theta_pixreg(0,j,i)=self%p_gauss(1,i) !all pixels in region 0 has the prior as theta
-             
+
              deallocate(sum_pix,sum_theta,sum_proplen,sum_nprop)
-          end do
+          end do !poltype
           call tp%dealloc(); deallocate(tp)
 
           call update_status(status, "initPixreg_specind_precalc_sampled_theta")
 
           do j = 1,self%poltype(i)
+             if (j > self%nmaps) cycle
              !Should also assign (and smooth) theta map if RMS /= 0 and we're not initializing from HDF
              if (self%p_gauss(2,i) /= 0.d0 .and. (trim(cpar%init_chain_prefix) == 'none' .or. &
                   & (trim(cpar%init_chain_prefix) /= 'none' .and. trim(self%init_from_HDF) == 'none'))) then 
@@ -2514,7 +2531,8 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (any(self%lmax_ind_pol(:min(self%poltype(i),self%nmaps),i)<0)) then
+          if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+               & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
              filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
                   & '_proplen_'  // trim(postfix) // '.fits'
              call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))

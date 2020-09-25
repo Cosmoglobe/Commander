@@ -104,7 +104,17 @@ contains
                 do p = 1,c%poltype(j)
                    if (p > c%nmaps) cycle
                    if (c%lmax_ind_pol(p,j) < 0 .and. &
-                        & trim(c%pol_lnLtype(p,j)) /= 'chisq') samp_cg = .true.
+                        & trim(c%pol_lnLtype(p,j)) /= 'chisq') then
+                      if (trim(c%pol_lnLtype(p,j)) == 'pixreg' .and. &
+                          (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.))) then
+                         samp_cg = .true.
+                      else if (trim(c%pol_lnLtype(p,j)) == 'prior' .and. &
+                           & c%theta_prior(2,p,j) /= 0.d0) then
+                         samp_cg = .true.
+                      else
+                         samp_cg = .true.
+                      end if
+                   end if
                 end do
 
                 if (samp_cg) then !need to resample amplitude
@@ -1180,7 +1190,7 @@ contains
 
 
           call wall_time(t1)
-          if (c_lnL%pol_pixreg_type(p,id) > 0) then
+          if (c_lnL%pol_pixreg_type(p,id) /= 0) then
              if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
                   & 'of ', c_lnL%poltype(id) !Needed?
              call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
@@ -1189,7 +1199,7 @@ contains
                   & p,'CPU time specind = ', real(t2-t1,sp)
           else
              write(*,*) 'Undefined spectral index sample region'
-             write(*,*) 'Component:',trim(c_lnL%label),'ind:',trim(c_lnL%indlabel(id))
+             write(*,*) 'Component: ',trim(c_lnL%label),', ind: ',trim(c_lnL%indlabel(id))
              stop
           end if
 
@@ -2102,18 +2112,7 @@ contains
     info_lr_single  => comm_mapinfo(c_lnL%x_smooth%info%comm, c_lnL%x_smooth%info%nside, &
          & c_lnL%x_smooth%info%lmax, 1, c_lnL%x_smooth%info%pol)
                 
-    theta_single_fr => comm_map(info_fr_single)
-    theta_fr => comm_map(info_fr_single)
-
     myid_pix = info_fr%myid ! using this proc id and info_fr%comm in all mpi calls to ensure that values are properly dispersed between processors 
-
-    !ud_grade mask
-    mask_lr => comm_map(info_lr)
-    call c_lnL%pol_ind_mask(id)%p%udgrade(mask_lr)
-
-    !init lowres residual map
-    res_map => comm_map(info_lr)
-
 
     delta_lnL_threshold = 25.d0
     n                   = 101
@@ -2154,6 +2153,37 @@ contains
 
     theta_min = c_lnL%p_uni(1,id)
     theta_max = c_lnL%p_uni(2,id)
+
+    if (c_lnL%pol_pixreg_type(p,id) < 0) then !Prior sample
+       if (myid_pix == 0) then
+          new_theta = c_lnL%theta_prior(1,p,id) + c_lnL%theta_prior(2,p,id)*rand_gauss(handle)
+          new_theta = min(theta_max,max(theta_min,new_theta))
+       end if
+
+       !broadcast new_theta
+       call mpi_bcast(new_theta, 1, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
+       buffer_lnL(:,p_min:p_max) = new_theta
+       if (myid_pix == 0) then
+          write(*,*) 'Sampled new value using Gaussian prior'
+          write(*,fmt='(a,f7.3)') '  Prior mean = ',c_lnL%theta_prior(1,p,id)
+          write(*,fmt='(a,f10.6)') '  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
+          write(*,fmt='(a,f10.6)') '  Old value  = ',c_lnL%theta_pixreg(1,p,id)
+          write(*,fmt='(a,f10.6)') '  New value  = ',new_theta
+       end if
+       c_lnL%theta_pixreg(1:npixreg,p,id) = new_theta
+       return
+    end if
+
+    ! init full resolution theta maps for smoothing
+    theta_single_fr => comm_map(info_fr_single)
+    theta_fr => comm_map(info_fr_single)
+
+    !ud_grade mask
+    mask_lr => comm_map(info_lr)
+    call c_lnL%pol_ind_mask(id)%p%udgrade(mask_lr)
+
+    !init lowres residual map
+    res_map => comm_map(info_lr)
 
 
     !set up which bands and polarizations to include
