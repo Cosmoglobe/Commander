@@ -105,13 +105,10 @@ contains
                    if (p > c%nmaps) cycle
                    if (c%lmax_ind_pol(p,j) < 0 .and. &
                         & trim(c%pol_lnLtype(p,j)) /= 'chisq') then
-                      if (trim(c%pol_lnLtype(p,j)) == 'pixreg' .and. &
-                          & (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.))) then
-                         samp_cg = .true.
+                      if (trim(c%pol_lnLtype(p,j)) == 'pixreg') then
+                         if (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.)) samp_cg = .true.
                       else if (trim(c%pol_lnLtype(p,j)) == 'prior') then
-                         if (c%theta_prior(2,p,j) /= 0.d0) then
-                            samp_cg = .true.
-                         end if
+                         if (c%theta_prior(2,p,j) /= 0.d0) samp_cg = .true.
                       else
                          samp_cg = .true.
                       end if
