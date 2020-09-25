@@ -10,19 +10,18 @@ contains
    subroutine project_sky(tod, map, pix_in, psi_in, flag, pmask, scan_id, &
         & s_sky, tmask, s_bp)
       implicit none
-      class(comm_tod), intent(in)  :: tod
-      integer(i4b), dimension(0:), intent(in)  :: pmask
-      real(sp), dimension(1:, 1:, 0:), intent(in)  :: map
-      !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
-      integer(i4b), dimension(:, :, :), intent(in)  :: pix_in, psi_in
-      integer(i4b), dimension(:, :), intent(in)  :: flag
-      integer(i4b), intent(in)  :: scan_id
-      real(sp), dimension(:, :), intent(out) :: s_sky, tmask
-      real(sp), dimension(:, :), intent(out), optional :: s_bp
+      class(comm_tod), intent(in)                       :: tod
+      integer(i4b), dimension(0:), intent(in)           :: pmask
+      real(sp), dimension(1:, 1:, 0:), intent(in)       :: map
+      integer(i4b), dimension(:, :, :), intent(in)      :: pix_in, psi_in
+      integer(i4b), dimension(:, :), intent(in)         :: flag
+      integer(i4b), intent(in)                          :: scan_id
+      real(sp), dimension(:, :), intent(out)            :: s_sky, tmask
+      real(sp), dimension(:, :), intent(out), optional  :: s_bp
 
-      integer(i4b) :: i, p, det
-      real(sp)     :: s
-      integer(i4b), allocatable, dimension(:, :)   :: pix, psi
+      integer(i4b)                                      :: i, p, det
+      real(sp)                                          :: s
+      integer(i4b), allocatable, dimension(:, :)        :: pix, psi
 
       if (size(pix, 2) /= 1 .or. size(psi, 2) /= 1) then
          write (*, *) "Call to project sky with nhorn /= 1. You probably want project_sky_differential."

@@ -2150,7 +2150,6 @@ contains
     integer(i4b)                    :: i,j
 
     key=trim(parname)
-    write(*,*), key
     call tolower(key)
     call get_hash_tbl_sll(htbl,trim(key),val)
     if (.not. allocated(val)) then
