@@ -108,9 +108,10 @@ contains
                       if (trim(c%pol_lnLtype(p,j)) == 'pixreg' .and. &
                           & (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.))) then
                          samp_cg = .true.
-                      else if (trim(c%pol_lnLtype(p,j)) == 'prior' .and. &
-                           & c%theta_prior(2,p,j) /= 0.d0) then
-                         samp_cg = .true.
+                      else if (trim(c%pol_lnLtype(p,j)) == 'prior') then
+                         if (c%theta_prior(2,p,j) /= 0.d0) then
+                            samp_cg = .true.
+                         end if
                       else
                          samp_cg = .true.
                       end if
@@ -2230,9 +2231,11 @@ contains
     allocate(mixing_old_arr(band_count),mixing_new_arr(band_count),invN_arr(band_count),data_arr(band_count))
 
     !This is used for all
+    write(*,*) npixreg
     allocate(old_thetas(0:npixreg),new_thetas(0:npixreg),init_thetas(0:npixreg))
     allocate(old_theta_smooth(0:np_lr-1), new_theta_smooth(0:np_lr-1))
     allocate(accept_arr(n_prop_limit), dlnL_arr(n_prop_limit))
+    write(*,*) 'a', shape(old_thetas), lbound(old_thetas)
 
     !This is used for fullres chisq
     if (c_lnL%apply_jeffreys) then
@@ -2249,8 +2252,10 @@ contains
 
     old_thetas = c_lnL%theta_pixreg(:npixreg,p,id)
     old_thetas = min(max(old_thetas,theta_min),theta_max)
+    write(*,*) 'a3', shape(old_thetas), lbound(old_thetas)
     new_thetas = old_thetas
     ! that the root processor operates on
+    write(*,*) 'b', shape(old_thetas), lbound(old_thetas)
     init_thetas = old_thetas
     if (cpar%verbosity>2 .and. info_fr%myid == 0 .and. npixreg > 0) write(*,fmt='(a, f10.5)') "  initial (avg) spec. ind. value: ", &
          & sum(init_thetas(1:npixreg))/npixreg
@@ -2260,6 +2265,7 @@ contains
        theta_MC_arr = 0.d0
     end if
 
+    write(*,*) 'c', shape(old_thetas), lbound(old_thetas)
     do pr = 1,npixreg
        if (c_lnL%pol_pixreg_type(p,id) == 3) then
           if (c_lnL%fix_pixreg(pr,p,id)) cycle
@@ -2288,6 +2294,7 @@ contains
 
        old_theta = old_thetas(pr)
 
+    write(*,*) 'd', shape(old_thetas), lbound(old_thetas)
        theta_fr%map = old_thetas(0) !prior value
        theta_single_fr%map = 0.d0
 
