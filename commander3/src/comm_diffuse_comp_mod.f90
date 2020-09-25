@@ -436,6 +436,7 @@ contains
     real(dp),     allocatable, dimension(:,:)  :: m_in, m_out, buffer
     character(len=512) :: temptxt, partxt
     integer(i4b) :: smooth_scale, p_min, p_max
+    logical(lgt) :: all_fixed
     class(comm_mapinfo), pointer :: info2 => null(), info_ud => null(), info3 => null()
     class(comm_map),     pointer :: tp => null() 
     class(comm_map),     pointer :: tp_smooth => null() 
@@ -540,11 +541,11 @@ contains
 
        if (any(self%pol_pixreg_type(:,:) == 3)) then
           allocate(self%fix_pixreg(m,3,self%npar))
+          self%fix_pixreg(:,:,:) = .false.
           do i = 1,self%npar
              do j = 1,self%poltype(i)
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
-                   self%fix_pixreg(:,j,i) = .false.
                    if (trim(cpar%cs_spec_fix_pixreg(j,i,id_abs)) == 'none') cycle
                    do pr = 1,self%npixreg(j,i)
                       call get_tokens(cpar%cs_spec_fix_pixreg(j,i,id_abs), ",", pixreg_label, n)
@@ -558,16 +559,26 @@ contains
                          end if
                       end do
                    end do
-
-                   !if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) == .true.)) then    
-                   if (all(self%fix_pixreg(:self%npixreg(j,i),j,i) .eqv. .true.)) then    
-                      !write(*,fmt='(a,i,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
-                      write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
-                           & //trim(self%indlabel(i))//'", poltype index ',j,', all pixelregions are defined fixed .'//&
-                           & 'This only the prior RMS should do. Exiting'
-                      stop
-                   end if
-                end if !pixreg_type == 3
+                end if
+             end do
+             all_fixed=.true. !assume all pixregs are fixed
+             !This should check if all pixregs for all active poltypes are frozen
+             ! I.e. if any poltype doen't have pixreg we always allow fixing a full poltype
+             ! only if all poltypes have pixreg and everything is frozen we exit
+             do j = 1,self%poltype(i)
+                if (j > self%nmaps) cycle
+                if (self%pol_pixreg_type(j,i) == 3) then
+                   if (any(self%fix_pixreg(:self%npixreg(j,i),j,i) .eqv. .false.)) &
+                        & all_fixed=.false. !there is an un-frozen pixel region
+                else
+                   all_fixed=.false. !not all poltypes are pixelregions
+                end if
+                if (all_fixed==.true.) then
+                   write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
+                        & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
+                        & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
+                   stop
+                end if
              end do !poltype
           end do !npar
        end if
