@@ -11,17 +11,17 @@ contains
    ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain
    subroutine bin_TOD(tod, data, pix, psi, flag, A, b, scan, comp_S, b_mono)
       implicit none
-      class(comm_tod), intent(in)    :: tod
-      integer(i4b), intent(in)    :: scan
-      real(sp), dimension(1:, 1:, 1:), intent(in)    :: data
-      integer(i4b), dimension(1:, 1:), intent(in)    :: pix, psi, flag
-      real(dp), dimension(1:, 1:), intent(inout) :: A
-      real(dp), dimension(1:, 1:, 1:), intent(inout) :: b
-      real(dp), dimension(1:, 1:, 1:), intent(inout), optional :: b_mono
-      logical(lgt), intent(in)    :: comp_S
+      class(comm_tod), intent(in)                               :: tod
+      integer(i4b), intent(in)                                  :: scan
+      real(sp), dimension(1:, 1:, 1:), intent(in)               :: data
+      integer(i4b), dimension(1:, 1:), intent(in)               :: pix, psi, flag
+      real(dp), dimension(1:, 1:), intent(inout)                :: A
+      real(dp), dimension(1:, 1:, 1:), intent(inout)            :: b
+      real(dp), dimension(1:, 1:, 1:), intent(inout), optional  :: b_mono
+      logical(lgt), intent(in)                                  :: comp_S
 
-      integer(i4b) :: det, i, t, pix_, off, nout, psi_
-      real(dp)     :: inv_sigmasq
+      integer(i4b)                                              :: det, i, t, pix_, off, nout, psi_
+      real(dp)                                                  :: inv_sigmasq
 
       nout = size(b, dim=1)
 
