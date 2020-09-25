@@ -1009,9 +1009,13 @@ contains
        end if
 
        call update_status(status, "nonlin stop " // trim(c%label)// ' ' // trim(c%indlabel(par_id)))
+       if (c%theta(par_id)%p%info%myid == 0 .and. cpar%verbosity > 2) &
+            & write(*,*) 'Updating Mixing matrix after sampling '// &
+            & trim(c%label)// ' ' // trim(c%indlabel(par_id))
 
     end select
 
+    ! Update mixing matrix 
     call c%updateMixmat 
 
 
@@ -1209,11 +1213,7 @@ contains
        end do
 
        !after sampling is done we assign the spectral index its new value(s)
-       c_lnL%theta(id)%p%map = buffer_lnL
-
-       if (info%myid == 0 .and. cpar%verbosity > 2) write(*,*) 'Updating Mixing matrix'
-       ! Update mixing matrix
-       call c_lnL%updateMixmat
+       c_lnL%theta(id)%p%map = buffer_lnL !unsmoothed map (not post_proc smoothed)
 
        ! Ask for CG preconditioner update
        if (c_lnL%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
