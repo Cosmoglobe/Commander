@@ -106,7 +106,7 @@ contains
                    if (c%lmax_ind_pol(p,j) < 0 .and. &
                         & trim(c%pol_lnLtype(p,j)) /= 'chisq') then
                       if (trim(c%pol_lnLtype(p,j)) == 'pixreg' .and. &
-                          (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.))) then
+                          & (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.))) then
                          samp_cg = .true.
                       else if (trim(c%pol_lnLtype(p,j)) == 'prior' .and. &
                            & c%theta_prior(2,p,j) /= 0.d0) then
