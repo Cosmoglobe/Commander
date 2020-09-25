@@ -926,7 +926,7 @@ contains
           self%scans(i)%d(j)%sigma0 = output(k,j,2)
           self%scans(i)%d(j)%alpha  = output(k,j,3)
           self%scans(i)%d(j)%fknee  = output(k,j,4)
-          self%scans(i)%d(j)%accept = output(k,j,5) == 1.d0
+          self%scans(i)%d(j)%accept = .true.  !output(k,j,5) == 1.d0
        end do
     end do
 
