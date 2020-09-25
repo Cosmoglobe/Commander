@@ -1017,7 +1017,7 @@ contains
     integer(i4b) :: i, j, l, m, ntot, nloc, p, q
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
-
+    
     ! Init alm sampling params (Trygve)
     allocate(self%corrlen(self%npar, self%nmaps))
     self%corrlen    = 0     ! Init correlation length
@@ -1069,6 +1069,7 @@ contains
 
     ! Filename formatting
     do j = 1, self%npar
+       if (all(self%lmax_ind_pol(:min(self%nmaps,self%poltype(j)),j)<0)) cycle 
        if (trim(cpar%cs_almsamp_init(j,id_abs)) == 'none') then ! If present cholesky file
           if (cpar%almsamp_pixreg) then
              do p = 1, maxval(self%npixreg)
