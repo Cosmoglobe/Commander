@@ -150,7 +150,8 @@ contains
       real(dp), allocatable, dimension(:, :, :)   :: b_map, b_mono, sys_mono, M_diag
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
       integer(i4b), allocatable, dimension(:, :)     :: flag
-      real(dp), allocatable, dimension(:, :, :)   :: b_tot
+      real(dp), allocatable, dimension(:, :, :)   :: b_tot, Mdiag_tot
+      real(dp), allocatable, dimension(:, :)   :: cg_tot
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
       character(len=4)   :: ctext, myid_text
@@ -158,7 +159,7 @@ contains
       character(len=512), allocatable, dimension(:) :: slist
       type(shared_1d_int) :: sprocmask, sprocmask2
       real(sp), allocatable, dimension(:, :, :, :) :: map_sky
-      type(shared_2d_dp) :: sA_map
+      type(shared_2d_dp) :: sA_map, scg_sol
       type(shared_3d_dp) :: sb_map, sb_mono, sM_diag
       class(comm_map), pointer :: condmap
       class(map_ptr), allocatable, dimension(:) :: outmaps
@@ -169,7 +170,7 @@ contains
       real(dp) :: alpha, beta, g
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
       real(dp), allocatable, dimension(:, :) :: A
-      integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn
+      integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn, lpix, rpix
       real(dp) ::  inv_sigmasq, x_im
       real(dp) :: dA, dB, d1
 
@@ -238,10 +239,6 @@ contains
       call update_status(status, "tod_init")
 
       ! Perform main analysis loop
-      ! In LFI, this was in the loop
-      ! if (do_oper(sel_data)) then
-      !    naccept = 0; ntot    = 0
-      ! end if
       naccept = 0; ntot = 0
       allocate (M_diag(nout, nmaps, npix))
       allocate (b_map(nout, nmaps, npix))
@@ -279,7 +276,6 @@ contains
             call self%decompress_pointing_and_flags(i, j, pix(:, j, :), &
                  & psi(:, j, :), flag(:, j))
          end do
-         !call self%symmetrize_flags(flag)
          call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
          call update_status(status, "tod_decomp")
 
@@ -287,12 +283,6 @@ contains
          call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
                   & self%x_im, sprocmask%a, i, s_sky, mask)
          call update_status(status, "Finished projecting sky")
-         !if (self%first_call) then
-         !   do j = 1, ndet
-         !      if (all(mask(:, j) == 0)) self%scans(i)%d(j)%accept = .false.
-         !      if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
-         !   end do
-         !end if
 
          !estimate the correlated noise
          s_buf = 0.d0
@@ -301,20 +291,7 @@ contains
             s_buf(:, j) = s_tot(:, j)
          end do
          n_corr(:, :) = 0d0
-         !call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
-
-         ! Compute chisquare
-         !TODO: this but probably different code?
-         !if (do_oper(calc_chisq)) then
-         !   call wall_time(t1)
-         !do j = 1, ndet
-         !   s_buf(:,j) =  s_sl(:,j) + s_orb(:,j)
-         !         if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
-         !   call self%compute_chisq(i, j, mask(:, j), s_sky(:, j), &
-         !        & s_buf(:, j), n_corr(:, j))
-         !end do
          call wall_time(t2); t_tot(7) = t_tot(7) + t2 - t1
-         !end if
 
          ! Select data
          call wall_time(t1)
@@ -351,6 +328,47 @@ contains
       !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
       !call mpi_allreduce(MPI_IN_PLACE, M_diag, size(M_diag), &
       !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+      if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
+      call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
+           & self%myid_inter, self%comm_inter, [nout, nmaps, npix], sb_map)
+      if (sM_diag%init) call dealloc_shared_3d_dp(sM_diag)
+      call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
+           & self%myid_inter, self%comm_inter, [nout, nmaps, npix], sM_diag)
+
+      call update_status(status, "Distributing binned map")
+      ! distributing b_map to sb_map and M_diag to sM_diag
+      if (sb_map%init) then
+         do i = 0, self%numprocs_shared - 1
+            ! Define chunk indices
+            start_chunk = mod(self%myid_shared + i, self%numprocs_shared)*chunk_size
+            end_chunk = min(start_chunk + chunk_size - 1, npix - 1)
+            do while (start_chunk < npix)
+               if (self%pix2ind(start_chunk) /= -1) exit
+               start_chunk = start_chunk + 1
+            end do
+            do while (end_chunk >= start_chunk)
+               if (self%pix2ind(end_chunk) /= -1) exit
+               end_chunk = end_chunk - 1
+            end do
+            if (start_chunk < npix) start_chunk = self%pix2ind(start_chunk)
+            if (end_chunk >= start_chunk) end_chunk = self%pix2ind(end_chunk)
+
+            do j = start_chunk, end_chunk
+               sb_map%a(:, :, self%ind2pix(j) + 1) = sb_map%a(:, :, self%ind2pix(j) + 1) + &
+                    & b_map(:, :, j)
+               sM_diag%a(:, :, self%ind2pix(j) + 1) = sM_diag%a(:, :, self%ind2pix(j) + 1) + &
+                    & M_diag(:, :, j)
+            end do
+         end do
+      end if
+      call update_status(status, "All-reducing binned maps")
+      call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
+                        & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, sM_diag%a, size(sM_diag%a), &
+                        & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+
+      b_map = sb_map%a
+      M_diag = sM_diag%a
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Summary of the conjugate gradient algorithm as I am implementing it.
@@ -419,7 +437,6 @@ contains
       allocate (d(nout, nmaps, npix))
       allocate (cg_sol(nout, nmaps, npix))
       ! allocate as a shared memory array, so that everything can access it.
-      M_diag(:, :, :) = 1d0
       cg_sol(:, :, :) = 0.0d0
       epsil = 1.0d-16
       ! Properties to test to ensure that the CG solver is basically doing the
@@ -429,155 +446,161 @@ contains
       ! Each residual is orthogonal,
       ! r_{i}.dot(r_{j}) = delta_{ij}
 
-      !     i_max = 100
+      i_max = 5
 
-      !     !do l = 1, nout
-      !     l = 1
-      !        ! All threads have access to the same b_map, hence the same residual
-      !        ! map r and the direction map d.
-      !        r(l, :, :) = b_map(l, :, :)
-      !        d(l,:,:) = r(l,:,:)/M_diag(l,:,:)
-      !        ! delta_new is the same for all threads.
-      !        delta_new = sum(r(l, :, :)*d(l, :, :))
-      !        if (self%myid_shared==0) then 
-      !           write (*, *), delta_new, 'delta_0'
-      !        end if
-      !        delta_0 = delta_new
-      !        i = 0
-      !        do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))
-      !           call update_status(status, 'While loop iteration')
-      !           ! This is evaluating the matrix product q = (P^T Ninv P) d
-      !           q(l,:,:) = 0d0
-      !           do j = 1, self%nscan
-      !              ntod = self%scans(j)%ntod
-      !              ndet = self%ndet
-      !              allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
-      !              allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
-      !              allocate (flag(ntod, ndet))                   ! Decompressed flags
-      !              do k = 1, self%ndet
-      !                 ! decompress the data so we have one chunk of TOD in memory
-      !                 ! In the working code above, i is looping over nscan, j is ndet...
-      !                 call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
-      !                     & psi(:, k, :), flag(:, k))
-      !                 do t = 1, ntod
-      !                    inv_sigmasq = 1/self%scans(j)%d(k)%sigma0**2
-      !                    lpoint = self%pix2ind(pix(t, k, 1))
-      !                    rpoint = self%pix2ind(pix(t, k, 2))
-      !                    lpsi = psi(t, k, 1)
-      !                    rpsi = psi(t, k, 2)
-      !                    x_im = self%x_im((k + 1)/2)
-      !                    sgn = (-1)**((k + 1)/2 + 1)
-      !                    ! This is the model for each timestream
-      !                    ! The sgn parameter is +1 for timestreams 13 and 14, -1
-      !                    ! for timestreams 23 and 24, and also is used to switch
-      !                    ! the sign of the polarization sensitive parts of the
-      !                    ! model
-      !                    dA = d(l, 1, lpoint) + sgn*(d(l, 2, lpoint)*self%cos2psi(lpsi) + d(l, 3, lpoint)*self%sin2psi(lpsi))
-      !                    dB = d(l, 1, rpoint) + sgn*(d(l, 2, rpoint)*self%cos2psi(rpsi) + d(l, 3, rpoint)*self%sin2psi(rpsi))
-      !                    d1 = (1 + x_im)*dA - (1 - x_im)*dB
-      !                    ! Temperature
-      !                    q(l, 1, lpoint) = q(l, 1, lpoint) + (1 + x_im)*d1*inv_sigmasq
-      !                    q(l, 1, rpoint) = q(l, 1, rpoint) - (1 - x_im)*d1*inv_sigmasq
-      !                    ! Q
-      !                    q(l, 2, lpoint) = q(l, 2, lpoint) + (1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
-      !                    q(l, 2, rpoint) = q(l, 2, rpoint) - (1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
-      !                    ! U
-      !                    q(l, 3, lpoint) = q(l, 3, lpoint) + (1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
-      !                    q(l, 3, rpoint) = q(l, 3, rpoint) - (1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
-      !                 end do
-      !              end do
-      !              deallocate (pix, psi, flag)
-      !           end do
-      !           ! q is populated using the decompressed pointing and flags from
-      !           ! self, which is distributed among the cores. So it is necessary to
-      !           ! add up the different cores' results.
-      !           call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
-      !                             & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-      !           ! In the pre-loop operations, d was available to every core. It
-      !           ! makes sense that this should be the case within the loop.
-      !           ! Similarly, every core has the same access to q. Therefore, g
-      !           ! should be the same in every core.
-      !           g = sum(d(l,:,:)*q(l,:,:))
-      !           alpha = delta_new/g
-      !           ! Every core has access to the same d, so for this to make sense, we
-      !           ! need to have the same cg_sol available to every core.
-      !           cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
-      !           ! evaluating r = b - Ax
-      !           if (mod(i, 50) == 0) then
-      !              call update_status(status, 'iter % 50 == 0, recomputing residual')
-      !              r(l,:,:) = 0d0
-      !              do j = 1, self%nscan
-      !                 ntod = self%scans(j)%ntod
-      !                 ndet = self%ndet
-      !                 allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
-      !                 allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
-      !                 allocate (flag(ntod, ndet))                   ! Decompressed flags
-      !                 do k = 1, self%ndet
-      !                    ! evaluating the matrix operation r = b_map - Ax
-      !                    call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
-      !                        & psi(:, k, :), flag(:, k))
-      !                    do t = 1, ntod
-      !                       inv_sigmasq = 1/self%scans(j)%d(k)%sigma0**2
-      !                       lpoint = self%pix2ind(pix(t, k, 1))
-      !                       rpoint = self%pix2ind(pix(t, k, 2))
-      !                       lpsi = psi(t, k, 1)
-      !                       rpsi = psi(t, k, 2)
-      !                       x_im = self%x_im((k + 1)/2)
-      !                       sgn = (-1)**((k + 1)/2 + 1)
-      !                       ! This is the model for each timestream
-      !                       ! The sgn parameter is +1 for timestreams 13 and 14, -1
-      !                       ! for timestreams 23 and 24, and also is used to switch
-      !                       ! the sign of the polarization sensitive parts of the
-      !                       ! model
-      !                       dA = cg_sol(l, 1, lpoint) + sgn*(cg_sol(l, 2, lpoint)*self%cos2psi(lpsi) &
-      !                                               &      + cg_sol(l, 3, lpoint)*self%sin2psi(lpsi))
-      !                       dB = cg_sol(l, 1, rpoint) + sgn*(cg_sol(l, 2, rpoint)*self%cos2psi(rpsi) &
-      !                                               &      + cg_sol(l, 3, rpoint)*self%sin2psi(rpsi))
-      !                       d1 = (1 + x_im)*dA - (1 - x_im)*dB
-      !                       ! Temperature
-      !                       r(l, 1, lpoint) = r(l, 1, lpoint) - (1 + x_im)*d1*inv_sigmasq
-      !                       r(l, 1, rpoint) = r(l, 1, rpoint) + (1 - x_im)*d1*inv_sigmasq
-      !                       ! Q
-      !                       r(l, 2, lpoint) = r(l, 2, lpoint) - (1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
-      !                       r(l, 2, rpoint) = r(l, 2, rpoint) + (1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
-      !                       ! U
-      !                       r(l, 3, lpoint) = r(l, 3, lpoint) - (1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
-      !                       r(l, 3, rpoint) = r(l, 3, rpoint) + (1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
-      !                    end do
-      !                 end do
-      !                 deallocate (pix, psi, flag)
-      !              end do
-      !              call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
-      !                                & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-      !              r(l, :, :) = b_map(l, :, :) + r(l, :, :)
-      !           else
-      !              if (self%myid_shared==0) then
-      !                  write(*, *) sum(r(l,:,:)*(r(l,:,:)-alpha*q(l,:,:))), 'r_i.dot(r_{i+1})'
-      !              end if
-      !              r(l, :, :) = r(l, :, :) - alpha*q(l, :, :)
-      !           end if
-      !           s(l,:,:) = r(l,:,:)/M_diag(l,:,:)
-      !           !s(l, :, :) = r(l, :, :)
-      !           delta_old = delta_new
-      !           delta_new = sum(r(l, :, :)*s(l, :, :))
-      !           beta = delta_new/delta_old
-      !           if (self%myid_shared==0) then 
-      !               write (*, *) delta_new, 'delta'
-      !               write (*, *) alpha, 'alpha'
-      !               write (*, *) beta, 'beta'
-      !               write (*, *), minval(r(l,:,:)), maxval(r(l,:,:)), 'minmax(r)'
-      !               write (*, *), minval(s(l,:,:)), maxval(s(l,:,:)), 'minmax(s)'
-      !               write (*, *), minval(cg_sol(l,:,:)), maxval(cg_sol(l,:,:)), 'minmax(cg)'
-      !           end if
-      !           d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
-      !           i = i + 1
+      !do l = 1, nout
+      l = 1
+         r(l, :, :) = sb_map%a(l, :, :)
+         d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
+         ! delta_new is the same for all threads.
+         delta_new = sum(r(l, :, :)*d(l, :, :))
+         !call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+         !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+         ! Is each delta the same?
+         if (self%myid_shared==0) then 
+           write (*, *), delta_new, 'delta_0'
+         end if
+         delta_0 = delta_new
+         i = 0
+         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))
+            call update_status(status, 'While loop iteration')
+            ! This is evaluating the matrix product q = (P^T Ninv P) d
+            q(l,:,:) = 0d0
+            do j = 1, self%nscan
+               ntod = self%scans(j)%ntod
+               ndet = self%ndet
+               allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
+               allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
+               allocate (flag(ntod, ndet))                   ! Decompressed flags
+               do k = 1, self%ndet
+                  ! decompress the data so we have one chunk of TOD in memory
+                  ! In the working code above, i is looping over nscan, j is ndet...
+                  call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
+                      & psi(:, k, :), flag(:, k))
+                  do t = 1, ntod
+                     inv_sigmasq = 1/self%scans(j)%d(k)%sigma0**2
+                     ! required to convert from healpix-to-fortran indexing
+                     lpix = pix(t, k, 1) + 1 
+                     rpix = pix(t, k, 2) + 1
+                     lpsi = psi(t, k, 1)
+                     rpsi = psi(t, k, 2)
+                     x_im = self%x_im((k + 1)/2)
+                     sgn = (-1)**((k + 1)/2 + 1)
+                     ! This is the model for each timestream
+                     ! The sgn parameter is +1 for timestreams 13 and 14, -1
+                     ! for timestreams 23 and 24, and also is used to switch
+                     ! the sign of the polarization sensitive parts of the
+                     ! model
+                     dA = d(l, 1, lpix) + sgn*(d(l, 2, lpix)*self%cos2psi(lpsi) + d(l, 3, lpix)*self%sin2psi(lpsi))
+                     dB = d(l, 1, rpix) + sgn*(d(l, 2, rpix)*self%cos2psi(rpsi) + d(l, 3, rpix)*self%sin2psi(rpsi))
+                     d1 = (1 + x_im)*dA - (1 - x_im)*dB
+                     ! Temperature
+                     q(l, 1, lpix) = q(l, 1, lpix) + (1 + x_im)*d1*inv_sigmasq
+                     q(l, 1, rpix) = q(l, 1, rpix) - (1 - x_im)*d1*inv_sigmasq
+                     ! Q
+                     q(l, 2, lpix) = q(l, 2, lpix) + (1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
+                     q(l, 2, rpix) = q(l, 2, rpix) - (1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
+                     ! U
+                     q(l, 3, lpix) = q(l, 3, lpix) + (1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
+                     q(l, 3, rpix) = q(l, 3, rpix) - (1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
+                  end do
+               end do
+               deallocate (pix, psi, flag)
+            end do
+            ! q is populated using the decompressed pointing and flags from
+            ! self, which is distributed among the cores. So it is necessary to
+            ! add up the different cores' results.
+            call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
+                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            ! In the pre-loop operations, d was available to every core. It
+            ! makes sense that this should be the case within the loop.
+            ! Similarly, every core has the same access to q. Therefore, g
+            ! should be the same in every core.
+            g = sum(d(l,:,:)*q(l,:,:))
+            ! write (*,*), g, 'g, Should all be the same'
+            !call mpi_allreduce(MPI_IN_PLACE, g, 1, &
+            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            alpha = delta_new/g
+            !write (*,*), alpha, 'alpha, Should all be the same'
+            ! Every core has access to the same d, so for this to make sense, we
+            ! need to have the same cg_sol available to every core.
+            cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
+            ! evaluating r = b - Ax
+            if (mod(i, 50) == 0) then
+               call update_status(status, 'iter % 50 == 0, recomputing residual')
+               r(l,:,:) = 0d0
+               do j = 1, self%nscan
+                  ntod = self%scans(j)%ntod
+                  ndet = self%ndet
+                  allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
+                  allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
+                  allocate (flag(ntod, ndet))                   ! Decompressed flags
+                  do k = 1, self%ndet
+                     ! evaluating the matrix operation r = b_map - Ax
+                     call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
+                         & psi(:, k, :), flag(:, k))
+                     do t = 1, ntod
+                        inv_sigmasq = 1/self%scans(j)%d(k)%sigma0**2
+                        lpix = pix(t, k, 1) + 1
+                        rpix = pix(t, k, 2) + 1
+                        lpsi = psi(t, k, 1)
+                        rpsi = psi(t, k, 2)
+                        x_im = self%x_im((k + 1)/2)
+                        sgn = (-1)**((k + 1)/2 + 1)
+                        ! This is the model for each timestream
+                        ! The sgn parameter is +1 for timestreams 13 and 14, -1
+                        ! for timestreams 23 and 24, and also is used to switch
+                        ! the sign of the polarization sensitive parts of the
+                        ! model
+                        dA = cg_sol(l, 1, lpix) + sgn*(cg_sol(l, 2, lpix)*self%cos2psi(lpsi) &
+                                              &      + cg_sol(l, 3, lpix)*self%sin2psi(lpsi))
+                        dB = cg_sol(l, 1, rpix) + sgn*(cg_sol(l, 2, rpix)*self%cos2psi(rpsi) &
+                                              &      + cg_sol(l, 3, rpix)*self%sin2psi(rpsi))
+                        d1 = (1 + x_im)*dA - (1 - x_im)*dB
+                        ! Temperature
+                        r(l, 1, lpix) = r(l, 1, lpix) - (1 + x_im)*d1*inv_sigmasq
+                        r(l, 1, rpix) = r(l, 1, rpix) + (1 - x_im)*d1*inv_sigmasq
+                        ! Q
+                        r(l, 2, lpix) = r(l, 2, lpix) - (1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
+                        r(l, 2, rpix) = r(l, 2, rpix) + (1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
+                        ! U
+                        r(l, 3, lpix) = r(l, 3, lpix) - (1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
+                        r(l, 3, rpix) = r(l, 3, rpix) + (1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
+                     end do
+                  end do
+                  deallocate (pix, psi, flag)
+               end do
+               call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
+                                 & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+               r(l, :, :) = sb_map%a(l, :, :) + r(l, :, :)
+            else
+               r(l, :, :) = r(l, :, :) - alpha*q(l, :, :)
+            end if
+            s(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
+            delta_old = delta_new
+            delta_new = sum(r(l, :, :)*s(l, :, :))
+            !call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            beta = delta_new/delta_old
+            d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
+            i = i + 1
 
-      !        end do
-      !     !end do
+            if (self%myid_shared==0) then 
+                write (*, *) delta_new, 'delta'
+                write (*, *) alpha, 'alpha'
+                write (*, *) beta, 'beta'
+                ! convert rmap, cg_sol map, to map structure here.
+                write (*, *), minval(r(l,:,:)), maxval(r(l,:,:)), 'minmax(r)'
+                write (*, *), minval(cg_sol(l,:,:)), maxval(cg_sol(l,:,:)), 'minmax(cg)'
+            end if
+
+         end do
+      !end do
+
+      ! Write a map that will be the latest cg iteration loop.
 
       ! cg_sol should be the total array at this point
       !write (*, *), minval(cg_sol), maxval(cg_sol), 'minmax(cg_sol)'
-      cg_sol = b_map
 
       ! cg_sol = wmap_estimate
       ! distribute x to map object
@@ -614,69 +637,30 @@ contains
 
       ! there is the "shared bmap" sb_map that I think needs to be distributed.
 
-      ! initialize shared map object, sb_map
-      if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
-      call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
-           & self%myid_inter, self%comm_inter, [nout, nmaps, npix], sb_map)
-      if (sM_diag%init) call dealloc_shared_3d_dp(sM_diag)
-      call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
-           & self%myid_inter, self%comm_inter, [nout, nmaps, npix], sM_diag)
-
-      ! distributing b_map to sb_map and M_diag to sM_diag
-      if (sb_map%init) then
-         do i = 0, self%numprocs_shared - 1
-            ! Define chunk indices
-            start_chunk = mod(self%myid_shared + i, self%numprocs_shared)*chunk_size
-            end_chunk = min(start_chunk + chunk_size - 1, npix - 1)
-            do while (start_chunk < npix)
-               if (self%pix2ind(start_chunk) /= -1) exit
-               start_chunk = start_chunk + 1
-            end do
-            do while (end_chunk >= start_chunk)
-               if (self%pix2ind(end_chunk) /= -1) exit
-               end_chunk = end_chunk - 1
-            end do
-            if (start_chunk < npix) start_chunk = self%pix2ind(start_chunk)
-            if (end_chunk >= start_chunk) end_chunk = self%pix2ind(end_chunk)
-
-            !call mpi_win_fence(0, sA_map%win, ierr)
-            call mpi_win_fence(0, sb_map%win, ierr)
-
-            ! Assign cg_sol to each chunk of the data
-            do j = start_chunk, end_chunk
-               sb_map%a(:, :, self%ind2pix(j) + 1) = sb_map%a(:, :, self%ind2pix(j) + 1) + &
-                    & b_map(:, :, j)
-               sM_diag%a(:, :, self%ind2pix(j) + 1) = sM_diag%a(:, :, self%ind2pix(j) + 1) + &
-                    & M_diag(:, :, j)
-            end do
-         end do
-      end if
       np0 = self%info%np
+      call update_status(status, "Allocatting total maps")
       allocate (b_tot(nout, nmaps, 0:np0 - 1))
+      allocate (Mdiag_tot(nout, nmaps, 0:np0 - 1))
+      allocate (cg_tot(nmaps, 0:np0 - 1))
       b_tot = sb_map%a(:, 1:nmaps, self%info%pix + 1)
+      Mdiag_tot = sM_diag%a(:, 1:nmaps, self%info%pix + 1)
+      cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
       do i = 0, np0 - 1
          do j = 1, nmaps
-            do k = 1, self%output_n_maps
-               outmaps(k)%p%map(i, j) = b_tot(k, j, i)*1.d3 ! convert from mK to uK
-               !outmaps(k)%p%map(i, j) = cg_sol(k, j, self%info%pix(i)) ! convert from mK to uK
-            end do
+            outmaps(1)%p%map(i, j) = b_tot(1, j, i)*1.d3 ! convert from mK to uK
+            outmaps(2)%p%map(i, j) = Mdiag_tot(1, j, i)
+            !outmaps(3)%p%map(i, j) = cg_sol(1, j, i)*1.d3 ! convert from mK to uK
+            outmaps(3)%p%map(i, j) = cg_tot(j, i)*1.d3 ! convert from mK to uK
+            !outmaps(3)%p%map(i, j) = r(1, j, i)*1.d3 ! convert from mK to uK
          end do
       end do
 
       map_out%map = outmaps(1)%p%map
 
-      ! Output maps to disk
-      ! call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-
-      ! This is the thing that I can check to see if it makes sense.
-      call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix))
-      !if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-      !if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-      !if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
-      !if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
-      !if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-      !if (self%output_n_maps > 6) call outmaps(7)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-      !if (self%output_n_maps > 7) call outmaps(8)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+      call outmaps(1)%p%writeFITS(trim(prefix)//'binned'//trim(postfix))
+      call outmaps(2)%p%writeFITS(trim(prefix)//'precond'//trim(postfix))
+      call outmaps(3)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
+      !call outmaps(3)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &

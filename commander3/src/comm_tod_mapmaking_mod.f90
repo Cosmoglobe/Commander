@@ -470,118 +470,49 @@ contains
 
    end subroutine sample_mono
 
-   ! Compute conjugate gradient solution for map with differential feedhorn data.
-   ! Assuming data are baseline subtracted and gain corrected
-   subroutine compute_cg_wmap(pixA, pixB, psiA, psiB, flagsA, flagsB, sigma0, x_im, dx_im, x, b)
-      ! Implementation of the canned algorithm (B2) outlined in Jonathan Richard Shewuck (1994)
-      ! "An introduction to the Conjugate Gradient Method Without the Agonizing Pain"
-      ! adapted fromfrom hermada02's linalg_mod.f90
-      ! Solves Ax = b, where A is an n by n symmetric matrix.
-      implicit none
+   !subroutine array_to_map(tod, arr, map, nout, nmaps, npix)
+   !   implicit none
+   !   integer(i4b), intent(in)               :: nout, nmaps, npix
+   !   type(comm_shared), intent(in)          :: tod
+   !   real(dp), intent(in), dimension(:,:,:) :: arr
 
-      real(dp), dimension(:), intent(in)      :: pixA
-      real(dp), dimension(:), intent(in)      :: pixB
-      real(dp), dimension(:), intent(in)      :: psiA
-      real(dp), dimension(:), intent(in)      :: psiB
-      integer(i4b), dimension(:), intent(in)  :: flagsA
-      integer(i4b), dimension(:), intent(in)  :: flagsB
-      real(dp), intent(in)                    :: x_im, dx_im, sigma0
-      real(dp), dimension(:), intent(in)      :: b
-      real(dp), dimension(:), intent(out)     :: x
+   !   call init_shared_3d_dp(tod%myid_shared, tod%comm_shared, &
+   !        & tod%myid_inter, tod%comm_inter, [nout, nmaps, npix], shared_arr)
 
-    !! Internal variables
-      real(dp), allocatable, dimension(:)     :: r, q, d, Ax
-      real(dp)                                :: epsil, alpha, beta, delta_0
-      real(dp)                                :: delta_old, delta_new
-      integer(i4b)                            :: i_max, i
+   !   ! distributing b_map to sb_map and M_diag to sM_diag
+   !   do i = 0, tod%numprocs_shared - 1
+   !      ! Define chunk indices
+   !      start_chunk = mod(tod%myid_shared + i, tod%numprocs_shared)*chunk_size
+   !      end_chunk = min(start_chunk + chunk_size - 1, npix - 1)
+   !      do while (start_chunk < npix)
+   !         if (tod%pix2ind(start_chunk) /= -1) exit
+   !         start_chunk = start_chunk + 1
+   !      end do
+   !      do while (end_chunk >= start_chunk)
+   !         if (tod%pix2ind(end_chunk) /= -1) exit
+   !         end_chunk = end_chunk - 1
+   !      end do
+   !      if (start_chunk < npix) start_chunk = tod%pix2ind(start_chunk)
+   !      if (end_chunk >= start_chunk) end_chunk = tod%pix2ind(end_chunk)
 
-      r(:) = 0d0
-      q(:) = 0d0
-      d(:) = 0d0
+   !      ! Assign cg_sol to each chunk of the data
+   !      do j = start_chunk, end_chunk
+   !         sb_map%a(:, :, tod%ind2pix(j) + 1) = sb_map%a(:, :, tod%ind2pix(j) + 1) + &
+   !              & b_map(:, :, j)
+   !         sM_diag%a(:, :, tod%ind2pix(j) + 1) = sM_diag%a(:, :, tod%ind2pix(j) + 1) + &
+   !              & M_diag(:, :, j)
+   !      end do
+   !   end do
+   !   np0 = tod%info%np
+   !   allocate (b_tot(nout, nmaps, 0:np0 - 1))
+   !   allocate (Mdiag_tot(nout, nmaps, 0:np0 - 1))
+   !   b_tot = sb_map%a(:, 1:nmaps, tod%info%pix + 1)
+   !   Mdiag_tot = sM_diag%a(:, 1:nmaps, tod%info%pix + 1)
 
-      ! Sets all elements of x to zero, the initial guess for Ax = b.
-      x(:) = 0.0d0
-      ! If it doesn't solve in 10 iterations, return.
-      i_max = 10
 
-      ! sets initial loop value
-      i = 0
-      ! precision for which the solution must converge.
-      epsil = 1.0d-16
+   !end subroutine array_to_map
 
-      ! Uses Fortran matrix multiplication method. Will need to manually populate
-      ! by looping the time indices in P^T Ninv P.
-      r = b - inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0)
 
-      d = r
-      delta_new = sum(r*r)
-      delta_0 = delta_new
-      do while ((i .lt. i_max) .and. (delta_new .gt. (epsil**2)*delta_0))
-         q = inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, d, x_im, dx_im, sigma0)
-         alpha = delta_new/sum(d*q)
-         x = x + alpha*d
-         if (mod(i, 50) == 0) then
-            r = b - inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0)
-         else
-            r = r - alpha*q
-         end if
-         delta_old = delta_new
-         delta_new = sum(r*r)
-         beta = delta_new/delta_old
-         d = r + beta*d
-         i = i + 1
-      end do
 
-      deallocate (r)
-      deallocate (q)
-      deallocate (d)
-
-   end subroutine compute_cg_wmap
-
-   function inner_prod(pixA, pixB, psiA, psiB, flagsA, flagsB, x, x_im, dx_im, sigma0) result(y)
-      ! Implements an inner product when you have a pointing matrix that observes
-      ! pixels pixA and pixB. Returns y = P^T Ninv P x
-      implicit none
-
-      real(dp), dimension(:), intent(in)      :: pixA
-      real(dp), dimension(:), intent(in)      :: pixB
-      real(dp), dimension(:), intent(in)      :: psiA
-      real(dp), dimension(:), intent(in)      :: psiB
-      integer(i4b), dimension(:), intent(in)  :: flagsA
-      integer(i4b), dimension(:), intent(in)  :: flagsB
-      real(dp), intent(in)                    :: x_im, dx_im, sigma0
-      real(dp), dimension(:), intent(in)      :: x
-      real(dp), allocatable, dimension(:)     :: y
-
-      ! internal
-      integer(i4b)                            :: tmax, npix, t
-      real(dp)                                :: Px_d, Px_p
-
-      tmax = size(pixA)
-      npix = size(x)/4
-
-      y(:) = 0
-
-      do t = 1, tmax
-         Px_d = (1 + x_im)*x(pixA(t)) - (1 - x_im)*x(pixA(t)) + &
-             &    dx_im*(x(pixA(t) + npix)*cos(2*psiA(t)) + x(pixA(t) + npix)*cos(2*psiB(t))) + &
-             &    dx_im*(x(pixA(t) + 2*npix)*sin(2*psiA(t)) + x(pixA(t) + 2*npix)*sin(2*psiB(t))) + &
-             &    dx_im*(x(pixA(t) + 3*npix) + x(pixA(t) + 3*npix))
-         Px_p = dx_im*(x(pixA(t)) + x(pixA(t))) + &
-             & (1 + x_im)*(x(pixA(t) + npix)*cos(2*psiA(t)) - (1 - x_im)*x(pixA(t) + npix)*cos(2*psiB(t))) + &
-             & (1 + x_im)*(x(pixA(t) + 2*npix)*sin(2*psiA(t)) - (1 - x_im)*x(pixA(t) + 2*npix)*sin(2*psiB(t))) + &
-             & (1 + x_im)*(x(pixA(t) + 4*npix) - (1 - x_im)*x(pixA(t) + 4*npix))
-
-         y(pixA(t)) = y(pixA(t)) + flagsA(t)*((1 + x_im)*Px_d + dx_im*Px_p)/sigma0**2
-         y(pixB(t)) = y(pixB(t)) + flagsB(t)*(-(1 - x_im)*Px_d + dx_im*Px_p)/sigma0**2
-         y(pixA(t) + npix) = y(pixA(t) + npix) + flagsA(t)*(cos(2*psiA(t))*(dx_im*Px_d + (1 + x_im)*Px_p))/sigma0**2
-         y(pixB(t) + npix) = y(pixA(t) + npix) + flagsB(t)*(cos(2*psiB(t))*(dx_im*Px_d - (1 - x_im)*Px_p))/sigma0**2
-         y(pixA(t) + 2*npix) = y(pixA(t) + 2*npix) + flagsA(t)*(sin(2*psiA(t))*(dx_im*Px_d + (1 + x_im)*Px_p))/sigma0**2
-         y(pixB(t) + 2*npix) = y(pixA(t) + 2*npix) + flagsB(t)*(sin(2*psiB(t))*(dx_im*Px_d - (1 - x_im)*Px_p))/sigma0**2
-         y(pixA(t) + 3*npix) = y(pixA(t) + 3*npix) + flagsA(t)*(dx_im*Px_d + (1 + x_im)*Px_p)/sigma0**2
-         y(pixB(t) + 3*npix) = y(pixA(t) + 3*npix) + flagsB(t)*(dx_im*Px_d - (1 - x_im)*Px_p)/sigma0**2
-      end do
-
-   end function inner_prod
 
 end module comm_tod_mapmaking_mod
