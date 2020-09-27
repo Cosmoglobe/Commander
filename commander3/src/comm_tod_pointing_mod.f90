@@ -119,23 +119,16 @@ contains
             ! i.e., d13 and d14 have the same model,
             ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
             !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
-            ! We need to have an extra parameter or something to mark the
-            ! orientation of the polarization sensitive detectors, \pm1.
-            ! I added this sgn parameter to account for polarization orientation of
-            ! detectors
-            ! I also am integer dividing by 2 in x_im.
 
-            s_sky(j, i) = (1 + x_im((i + 1)/2))*(map(1, lpoint, i) + &
-                                          &  sgn*( &
-                                          &  map(2, lpoint, i)*tod%cos2psi(psi(j, i, 1)) + &
-                                          &  map(3, lpoint, i)*tod%sin2psi(psi(j, i, 1)))) - &
-                       &  (1 - x_im((i + 1)/2))*(map(1, rpoint, i) + &
-                                          &  sgn*( &
-                                          &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
-                                          &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
-            !if (iand(flag(j, i), tod%flag0) .ne. 0) tmask(j, i) = 0.
-            !if (pmask(lpoint) .or. pmask(rpoint)) then
-            !   tmask(j, i) = 1
+            !if (flag(j,i)==0) then
+               s_sky(j, i) = (1 + x_im((i + 1)/2))*(map(1, lpoint, i) + &
+                                             &  sgn*( &
+                                             &  map(2, lpoint, i)*tod%cos2psi(psi(j, i, 1)) + &
+                                             &  map(3, lpoint, i)*tod%sin2psi(psi(j, i, 1)))) - &
+                          &  (1 - x_im((i + 1)/2))*(map(1, rpoint, i) + &
+                                             &  sgn*( &
+                                             &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
+                                             &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
             !end if
          end do
       end do

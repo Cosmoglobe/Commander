@@ -46,7 +46,7 @@ def make_dipole(amp, lon, lat, nside):
     dip_map = x*vec[0] + y*vec[1] + z*vec[2]
     return dip_map*amp
 
-def cg_solve(A, b, M_diag, imax=1000, eps=1e-6):
+def cg_solve(A, b, M_diag, imax=1000, eps=1e-16):
     x = np.zeros_like(b)
     s = np.zeros_like(b)
     i = 0
@@ -56,7 +56,7 @@ def cg_solve(A, b, M_diag, imax=1000, eps=1e-6):
     delta_new = r.dot(d)
     delta_old = np.copy(delta_new)
     delta_0 = r.dot(d)
-    while ((i < imax) & (delta_new > eps**2*delta_0) & (delta_new <= delta_old)):
+    while ((i < imax) & (delta_new > eps**2*delta_0)):
         q = A.dot(d)
         alpha = delta_new/d.dot(q)
         x = x + alpha*d
@@ -126,7 +126,20 @@ def cg_test():
     x = bicgstab_solve(A, b, Minv)
     assert np.allclose(A.dot(x), b), 'BiCGSTAB solution is not close enough'
     x, info = sparse.linalg.bicgstab(A, b)
+    assert np.allclose(A.dot(x), b), 'Scipy BiCGSTAB solution is not close enough'
+
+
+    n = 10
+    A = sparse.random(n, n)
+    A = 0.5*(A + A.T)
+    b = np.random.randn(n)
+    Minv = np.ones(n)
+    x = cg_solve(A, b, Minv, imax=n)
+    assert np.allclose(A.dot(x), b), 'CG solution is not close enough'
+    x = bicgstab_solve(A, b, Minv, imax=n)
     assert np.allclose(A.dot(x), b), 'BiCGSTAB solution is not close enough'
+    x, info = sparse.linalg.bicgstab(A, b)
+    assert np.allclose(A.dot(x), b), 'Scipy BiCGSTAB solution is not close enough'
     return
 
 def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
@@ -698,6 +711,9 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         x_tot = np.array([x_i, x_q, x_u, x_s])
         hp.write_map(f'cg_v{version}_{band}_pol.fits', x_tot, overwrite=True)
 
+        i,q,u,s = np.split(b_p, 4)
+        b_p = np.array([i,q,u,s])
+        hp.write_map(f'b_v{version}_{band}_pol.fits', b_p, overwrite=True)
 
         x_arr = np.array(x_arr)
         np.save('all_samples_pol', x_arr)
@@ -903,9 +919,10 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        get_cg(band=b, nfiles=256, sparse_test=False, sparse_only=True,
-                imbalance=True, mask=True, pol=True, imax=1000, nside=512)
-        #plot_maps_pol(band=b, nside=512, version=version)
+        #get_cg(band=b, nfiles=256, sparse_test=False, sparse_only=True,
+        #        imbalance=False, mask=False, pol=True, imax=1000, nside=512)
+        #plot_maps_pol(band=b, nside=512, version=14)
+        plot_maps_pol(band=b, nside=256, version=13)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)

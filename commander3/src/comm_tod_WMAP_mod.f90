@@ -133,7 +133,7 @@ contains
       class(comm_map), intent(inout) :: map_out      ! Combined output map
       class(comm_map), intent(inout) :: rms_out      ! Combined output rms
 
-      integer(i4b) :: i, j, k, l, t, start_chunk, end_chunk, chunk_size, ntod, ndet
+      integer(i4b) :: i, j, k, l, m, n, t, start_chunk, end_chunk, chunk_size, ntod, ndet
       integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
       integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0, nout = 1
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
@@ -151,7 +151,7 @@ contains
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
       integer(i4b), allocatable, dimension(:, :)     :: flag
       real(dp), allocatable, dimension(:, :, :)   :: b_tot, Mdiag_tot
-      real(dp), allocatable, dimension(:, :)   :: cg_tot
+      real(dp), allocatable, dimension(:, :)   :: cg_tot, r_tot
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
       character(len=4)   :: ctext, myid_text
@@ -173,6 +173,8 @@ contains
       integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn, lpix, rpix
       real(dp) ::  inv_sigmasq, x_im
       real(dp) :: dA, dB, d1
+
+      integer(i4b) :: pA, pB, f_A, f_B
 
       if (iter > 1) self%first_call = .false.
       call int2string(iter, ctext)
@@ -242,7 +244,7 @@ contains
       naccept = 0; ntot = 0
       allocate (M_diag(nout, nmaps, npix))
       allocate (b_map(nout, nmaps, npix))
-      M_diag(:,:,:) = 1d-3
+      M_diag(:,:,:) = 0
       do i = 1, self%nscan
 
          !write(*,*) "Processing scan: ", i, self%scans(i)%d%accept
@@ -256,7 +258,7 @@ contains
          ! Set up local data structure for current scan
          allocate (n_corr(ntod, ndet))                 ! Correlated noise in V
          allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
-         allocate (s_sky_prop(ntod, ndet, 2:ndelta))    ! Sky signal in uKcmb
+         allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
          allocate (s_orb(ntod, ndet))                  ! Orbital dipole in uKcmb
          allocate (s_buf(ntod, ndet))                  ! Buffer
          allocate (s_tot(ntod, ndet))                  ! Sum of all sky compnents
@@ -297,10 +299,6 @@ contains
          call wall_time(t1)
 
          ! Compute binned map
-         ! By the end of this loop, you won't have access to the raw TOD loop
-         ! have a pixA array, pixB, psiA, psiB, flags_A, flags_B
-         ! Also, compute P^T Ninv d (over raw tod)
-         ! Potentially decompress these arrays during the CG solving?
          allocate (d_calib(nout, ntod, ndet))
          do j = 1, ndet
             inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
@@ -310,8 +308,9 @@ contains
             if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
          end do
 
+
          call bin_differential_TOD(self, d_calib, pix,  &
-                & psi, flag, self%x_im, b_map, M_diag, i)
+                & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
          call update_status(status, "Finished binning TOD")
          deallocate (n_corr, s_sky, s_orb, s_tot, s_buf, s_sky_prop, d_calib)
          deallocate (mask, mask2, pix, psi, flag)
@@ -322,12 +321,6 @@ contains
 
       end do
 
-      ! sum up all of the individual threads so that everybody has access to the
-      ! hits map and the binned map P^T Ninv d.
-      !call mpi_allreduce(MPI_IN_PLACE, b_map, size(b_map), &
-      !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-      !call mpi_allreduce(MPI_IN_PLACE, M_diag, size(M_diag), &
-      !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
       if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
       call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
            & self%myid_inter, self%comm_inter, [nout, nmaps, npix], sb_map)
@@ -336,7 +329,6 @@ contains
            & self%myid_inter, self%comm_inter, [nout, nmaps, npix], sM_diag)
 
       call update_status(status, "Distributing binned map")
-      ! distributing b_map to sb_map and M_diag to sM_diag
       if (sb_map%init) then
          do i = 0, self%numprocs_shared - 1
             ! Define chunk indices
@@ -354,8 +346,10 @@ contains
             if (end_chunk >= start_chunk) end_chunk = self%pix2ind(end_chunk)
 
             do j = start_chunk, end_chunk
+               ! I am a bit concerned about the potential of overflow, so I am going
+               ! to convert from mK to K.
                sb_map%a(:, :, self%ind2pix(j) + 1) = sb_map%a(:, :, self%ind2pix(j) + 1) + &
-                    & b_map(:, :, j)
+                    & b_map(:, :, j)*1.d-3
                sM_diag%a(:, :, self%ind2pix(j) + 1) = sM_diag%a(:, :, self%ind2pix(j) + 1) + &
                     & M_diag(:, :, j)
             end do
@@ -367,104 +361,37 @@ contains
       call mpi_allreduce(MPI_IN_PLACE, sM_diag%a, size(sM_diag%a), &
                         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
 
-      b_map = sb_map%a
-      M_diag = sM_diag%a
-
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Summary of the conjugate gradient algorithm as I am implementing it.
-      ! The mapmaking problem is in sum, P^T Ninv P m = P^T Ninv d
-      ! where m is a map, d is the time-ordered data, Ninv is the diagonal noise
-      ! covariance matrix, and P is the pointing matrix. The right-hand side is
-      ! b = P^T Ninv d
-      ! and is constructed iteratively
-      ! for t in time_index:
-      !     b[pixA[t]] += d[t]/sigma**2
-      !     b[pixB[t]] -= d[t]/sigma**2
-      ! (for temperature only data)
-      !
-      ! For a given map m, you can construct b = P^T Ninv P m as follows:
-      ! for t in time_index:
-      !     b[pixA[t]] += (m[pixA[t]] - m[pixB[t]])/sigma**2
-      !     b[pixB[t]] -= (m[pixA[t]] - m[pixB[t]])/sigma**2
-      !
-      ! In linear algebra terms, we can write this whole matrix as
-      ! Am = b
-      ! where b is the binned matrix P^T Ninv d. This is computed as we load the
-      ! data, and is a map.
-      ! 
-      ! The CG algorithm iteratively solves for the m in Am = b.
-      ! If you start with a guess m_0, there is a residual r_0 = b - Am_0
-      ! r_0 also gives us a guess for which direction will reduce the error in
-      ! the solution; we can call this direction d_0.
-      !
-      ! For every iteration, we start with a residual map, r_i, a direction map
-      ! d_i, and an estimate of the solution x_i.
-      ! 
-      ! To get the i+1st estimate, compute the following;
-      !
-      ! q_i     = A.dot(d_i)
-      ! You need to distribute q_i, because it includes contributions from
-      ! pixels you don't already have
-      !
-      ! delta_i = r_i.dot(r_i)  can be done per core
-      ! gamma_i = d_i.dot(q_i)
-      ! mpi_allreduce(gamma_i) as well.
-      ! alpha_i = delta_i/gamma_i
-      !
-      ! x_{i+1} = x_i + alpha_i*d_i
-      ! ! 1 out of 50 times, compute r_{i+1} = b - A.dot(x_{i+1})
-      ! r_{i+1} = r_i - alpha_i*q_i
-      !
-      ! beta_{i+1} = r_{i+1}.dot(r_{i+1})/r_i.dot(r_i)
-      ! beta_{i+1} = delta_{i+1}/delta_i
-      ! allreduce(delta_{i+1})
-      !
-      ! d_{i+1} = r_{i+1} + beta_{i+1}*d_i
-      !
-      ! 
-      ! Note that this can be simplified by computing q_i = A.dot(d_i) once per
-      ! loop, so that r_{i+1} = r_i - alpha_i q_i
-      ! 
-      ! As long as you distribute q_i, the rest should be done per core.
-      ! A is the only operator that requires distributing the result.
-      !
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      ! start a new loop that is the CG solver loop
+      ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       allocate (r(nout, nmaps, npix))
       allocate (s(nout, nmaps, npix))
       allocate (q(nout, nmaps, npix))
       allocate (d(nout, nmaps, npix))
       allocate (cg_sol(nout, nmaps, npix))
-      ! allocate as a shared memory array, so that everything can access it.
-      cg_sol(:, :, :) = 0.0d0
-      epsil = 1.0d-16
-      ! Properties to test to ensure that the CG solver is basically doing the
-      ! correct thing
-      ! Each direction is conjugate (A-orthogonal) to each other
-      ! d_{i}.dot(A.dot(d_j)) = delta_{ij}
-      ! Each residual is orthogonal,
-      ! r_{i}.dot(r_{j}) = delta_{ij}
+      np0 = self%info%np
 
-      i_max = 5
+      cg_sol(:, :, :) = 0.0d0
+      epsil = 1.0d-5
+
+      i_max = int(npix**0.5)
 
       !do l = 1, nout
       l = 1
+         ! start with r = b - Ax0, where x0 is the current map estimate.
          r(l, :, :) = sb_map%a(l, :, :)
          d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
-         ! delta_new is the same for all threads.
          delta_new = sum(r(l, :, :)*d(l, :, :))
-         !call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-         !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-         ! Is each delta the same?
          if (self%myid_shared==0) then 
-           write (*, *), delta_new, 'delta_0'
+            write (*, *), delta_new, 'delta_0'
          end if
          delta_0 = delta_new
+         delta_old = delta_0
          i = 0
-         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))
-            call update_status(status, 'While loop iteration')
-            ! This is evaluating the matrix product q = (P^T Ninv P) d
+         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0) .and. (delta_new .le. delta_old))
+            if (self%myid_shared==0) then 
+                write (*, *) i, ':',  delta_new, 'delta'
+            end if
+            call update_status(status, 'q=Ad')
+            ! q = Ad
             q(l,:,:) = 0d0
             do j = 1, self%nscan
                ntod = self%scans(j)%ntod
@@ -473,8 +400,6 @@ contains
                allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
                allocate (flag(ntod, ndet))                   ! Decompressed flags
                do k = 1, self%ndet
-                  ! decompress the data so we have one chunk of TOD in memory
-                  ! In the working code above, i is looping over nscan, j is ndet...
                   call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
                       & psi(:, k, :), flag(:, k))
                   do t = 1, ntod
@@ -486,6 +411,10 @@ contains
                      rpsi = psi(t, k, 2)
                      x_im = self%x_im((k + 1)/2)
                      sgn = (-1)**((k + 1)/2 + 1)
+                     pA = sprocmask%a(pix(t, k, 1))
+                     pB = sprocmask%a(pix(t, k, 2))
+                     f_A = 1-pA*(1-pB)
+                     f_B = 1-pB*(1-pA)
                      ! This is the model for each timestream
                      ! The sgn parameter is +1 for timestreams 13 and 14, -1
                      ! for timestreams 23 and 24, and also is used to switch
@@ -494,40 +423,39 @@ contains
                      dA = d(l, 1, lpix) + sgn*(d(l, 2, lpix)*self%cos2psi(lpsi) + d(l, 3, lpix)*self%sin2psi(lpsi))
                      dB = d(l, 1, rpix) + sgn*(d(l, 2, rpix)*self%cos2psi(rpsi) + d(l, 3, rpix)*self%sin2psi(rpsi))
                      d1 = (1 + x_im)*dA - (1 - x_im)*dB
-                     ! Temperature
-                     q(l, 1, lpix) = q(l, 1, lpix) + (1 + x_im)*d1*inv_sigmasq
-                     q(l, 1, rpix) = q(l, 1, rpix) - (1 - x_im)*d1*inv_sigmasq
-                     ! Q
-                     q(l, 2, lpix) = q(l, 2, lpix) + (1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
-                     q(l, 2, rpix) = q(l, 2, rpix) - (1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
-                     ! U
-                     q(l, 3, lpix) = q(l, 3, lpix) + (1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
-                     q(l, 3, rpix) = q(l, 3, rpix) - (1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
+                     if (sum(flag(t,:)) == 0) then
+                        ! Temperature
+                        q(l, 1, lpix) = q(l, 1, lpix) + f_A*(1 + x_im)*d1*inv_sigmasq
+                        q(l, 1, rpix) = q(l, 1, rpix) - f_B*(1 - x_im)*d1*inv_sigmasq
+                        ! Q
+                        q(l, 2, lpix) = q(l, 2, lpix) + f_A*(1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
+                        q(l, 2, rpix) = q(l, 2, rpix) - f_B*(1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
+                        ! U
+                        q(l, 3, lpix) = q(l, 3, lpix) + f_A*(1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
+                        q(l, 3, rpix) = q(l, 3, rpix) - f_B*(1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
+                     end if
                   end do
                end do
                deallocate (pix, psi, flag)
             end do
-            ! q is populated using the decompressed pointing and flags from
-            ! self, which is distributed among the cores. So it is necessary to
-            ! add up the different cores' results.
             call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            ! In the pre-loop operations, d was available to every core. It
-            ! makes sense that this should be the case within the loop.
-            ! Similarly, every core has the same access to q. Therefore, g
-            ! should be the same in every core.
-            g = sum(d(l,:,:)*q(l,:,:))
-            ! write (*,*), g, 'g, Should all be the same'
-            !call mpi_allreduce(MPI_IN_PLACE, g, 1, &
-            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            alpha = delta_new/g
-            !write (*,*), alpha, 'alpha, Should all be the same'
-            ! Every core has access to the same d, so for this to make sense, we
-            ! need to have the same cg_sol available to every core.
+            if (self%myid_shared==0) then 
+                write(*,*) minval(q), maxval(q), 'minmax(q)'
+            end if
+            alpha = delta_new/sum(d(l,:,:)*q(l,:,:))
+            if (self%myid_shared==0) then 
+                write(*,*) alpha, 'alpha'
+            end if
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
+            if (self%myid_shared==0) then 
+                write(*,*) minval(cg_sol), maxval(cg_sol), 'minmax(cg_sol)'
+            end if
             ! evaluating r = b - Ax
+            !if ((mod(i, 50) == 0) .or. (beta .ge. 1)) then
             if (mod(i, 50) == 0) then
-               call update_status(status, 'iter % 50 == 0, recomputing residual')
+               call update_status(status, 'r = r - Ax')
+               ! r = b - Ax
                r(l,:,:) = 0d0
                do j = 1, self%nscan
                   ntod = self%scans(j)%ntod
@@ -547,25 +475,27 @@ contains
                         rpsi = psi(t, k, 2)
                         x_im = self%x_im((k + 1)/2)
                         sgn = (-1)**((k + 1)/2 + 1)
-                        ! This is the model for each timestream
-                        ! The sgn parameter is +1 for timestreams 13 and 14, -1
-                        ! for timestreams 23 and 24, and also is used to switch
-                        ! the sign of the polarization sensitive parts of the
-                        ! model
+                        pA = sprocmask%a(pix(t, k, 1))
+                        pB = sprocmask%a(pix(t, k, 2))
+                        f_A = 1-pA*(1-pB)
+                        f_B = 1-pB*(1-pA)
+                        
                         dA = cg_sol(l, 1, lpix) + sgn*(cg_sol(l, 2, lpix)*self%cos2psi(lpsi) &
                                               &      + cg_sol(l, 3, lpix)*self%sin2psi(lpsi))
                         dB = cg_sol(l, 1, rpix) + sgn*(cg_sol(l, 2, rpix)*self%cos2psi(rpsi) &
                                               &      + cg_sol(l, 3, rpix)*self%sin2psi(rpsi))
                         d1 = (1 + x_im)*dA - (1 - x_im)*dB
-                        ! Temperature
-                        r(l, 1, lpix) = r(l, 1, lpix) - (1 + x_im)*d1*inv_sigmasq
-                        r(l, 1, rpix) = r(l, 1, rpix) + (1 - x_im)*d1*inv_sigmasq
-                        ! Q
-                        r(l, 2, lpix) = r(l, 2, lpix) - (1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
-                        r(l, 2, rpix) = r(l, 2, rpix) + (1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
-                        ! U
-                        r(l, 3, lpix) = r(l, 3, lpix) - (1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
-                        r(l, 3, rpix) = r(l, 3, rpix) + (1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
+                        if (sum(flag(t,:)) == 0) then
+                           ! Temperature
+                           r(l, 1, lpix) = r(l, 1, lpix) - f_A*(1 + x_im)*d1*inv_sigmasq
+                           r(l, 1, rpix) = r(l, 1, rpix) + f_B*(1 - x_im)*d1*inv_sigmasq
+                           ! Q
+                           r(l, 2, lpix) = r(l, 2, lpix) - f_A*(1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
+                           r(l, 2, rpix) = r(l, 2, rpix) + f_B*(1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
+                           ! U
+                           r(l, 3, lpix) = r(l, 3, lpix) - f_A*(1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
+                           r(l, 3, rpix) = r(l, 3, rpix) + f_B*(1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
+                        end if
                      end do
                   end do
                   deallocate (pix, psi, flag)
@@ -574,93 +504,71 @@ contains
                                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
                r(l, :, :) = sb_map%a(l, :, :) + r(l, :, :)
             else
+               call update_status(status, 'r = r - alpha*q')
                r(l, :, :) = r(l, :, :) - alpha*q(l, :, :)
             end if
+            if (self%myid_shared==0) then 
+                write(*,*) minval(r), maxval(r), 'minmax(r)'
+            end if
             s(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
+            if (self%myid_shared==0) then 
+                write(*,*) minval(s), maxval(s), 'minmax(s)'
+            end if
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
-            !call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            if (self%myid_shared==0) then 
+                write(*,*) delta_new, 'delta_new'
+            end if
             beta = delta_new/delta_old
             d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
-            i = i + 1
+            if (self%myid_shared==0) then 
+                write(*,*) minval(d), maxval(d), 'minmax(d)'
+            end if
+            ! if beta starts getting larger... can we restart the loop?
 
             if (self%myid_shared==0) then 
-                write (*, *) delta_new, 'delta'
-                write (*, *) alpha, 'alpha'
-                write (*, *) beta, 'beta'
-                ! convert rmap, cg_sol map, to map structure here.
-                write (*, *), minval(r(l,:,:)), maxval(r(l,:,:)), 'minmax(r)'
-                write (*, *), minval(cg_sol(l,:,:)), maxval(cg_sol(l,:,:)), 'minmax(cg)'
+                !write (*, *) alpha*maxval(abs(q))/maxval(r), beta*maxval(abs(d))/maxval(s), 'relative res update, dir update'
+                write (*, *) ''
+                ! save cg solution iteration
+                ! cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
+                ! do m = 0, np0 - 1
+                !    do n = 1, nmaps
+                !       outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
+                !    end do
+                ! end do
+                ! call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//char(i)//trim(postfix))
             end if
+            i = i + 1
 
          end do
       !end do
 
-      ! Write a map that will be the latest cg iteration loop.
-
-      ! cg_sol should be the total array at this point
-      !write (*, *), minval(cg_sol), maxval(cg_sol), 'minmax(cg_sol)'
-
-      ! cg_sol = wmap_estimate
-      ! distribute x to map object
-      ! in comm_map_mod
-      ! each core will have a subset of the pixels and alms at all times.
-      ! figure out for each core, which cores that pixel needs, then populate the
-      ! array
-      ! np is the number of pixels that each core has
-      ! Basically, it's ordered by rings.
-      ! the pixel value should be included in the array pix, ordered from the first
-      ! pixel that that core has and the last one that that one has.
-
-      ! each core has a pix array as part of the comm_mapinfo
-      ! it's an array of pixel indices.
-      ! In the map array, it has the values of those particular values.
-      ! Take the common array of the map solution, on each core go through the list
-      ! of cores, look up the value, and put it in the map array.
-
-      ! get a do loop; for each core, it'll go through its own pix array, and put
-      ! it in the map array for that core.
-
-      ! a sort of equivalent thing is in line 333 of comm_tod_mapmaking_mod, except
-      ! the pixels have already been distributed here, so I need to do that for
-      ! cg_sol. It's looping over np0, which is the number of pixels that each core
-      ! has.
-
-      ! In the LFI one, pixel i is the pixel that comm knows about, but I need it
-      ! to be referring to that pixel. Create a look-up table that will turn a
-      ! pixel number in the core's array to the right indexing convention.
-
-      ! I also think that I need to use the "shared_2d_dp, shared_3d_dp" types.
-
-      ! I will be "done" when I have put cg_sol into outmaps(1).
-
-      ! there is the "shared bmap" sb_map that I think needs to be distributed.
-
-      np0 = self%info%np
       call update_status(status, "Allocatting total maps")
       allocate (b_tot(nout, nmaps, 0:np0 - 1))
       allocate (Mdiag_tot(nout, nmaps, 0:np0 - 1))
       allocate (cg_tot(nmaps, 0:np0 - 1))
+      allocate (r_tot(nmaps, 0:np0 - 1))
       b_tot = sb_map%a(:, 1:nmaps, self%info%pix + 1)
       Mdiag_tot = sM_diag%a(:, 1:nmaps, self%info%pix + 1)
       cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
+      !r_tot = r(1, 1:nmaps, self%info%pix + 1)
+      ! I think there is a factor of ncpus that needs to be divided out, but
+      ! want to be clear about that.
       do i = 0, np0 - 1
          do j = 1, nmaps
-            outmaps(1)%p%map(i, j) = b_tot(1, j, i)*1.d3 ! convert from mK to uK
+            outmaps(1)%p%map(i, j) = cg_tot(j, i)*1.d6 ! convert from K to uK
             outmaps(2)%p%map(i, j) = Mdiag_tot(1, j, i)
-            !outmaps(3)%p%map(i, j) = cg_sol(1, j, i)*1.d3 ! convert from mK to uK
-            outmaps(3)%p%map(i, j) = cg_tot(j, i)*1.d3 ! convert from mK to uK
-            !outmaps(3)%p%map(i, j) = r(1, j, i)*1.d3 ! convert from mK to uK
+            outmaps(3)%p%map(i, j) = b_tot(1, j, i)*1.d6 ! convert from K to uK
+            !outmaps(4)%p%map(i, j) = r_tot(j, i)*1.d3 ! convert from mK to uK
          end do
       end do
 
       map_out%map = outmaps(1)%p%map
 
-      call outmaps(1)%p%writeFITS(trim(prefix)//'binned'//trim(postfix))
+      call outmaps(1)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
       call outmaps(2)%p%writeFITS(trim(prefix)//'precond'//trim(postfix))
-      call outmaps(3)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
-      !call outmaps(3)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
+      call outmaps(3)%p%writeFITS(trim(prefix)//'binned'//trim(postfix))
+      !call outmaps(4)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
