@@ -80,7 +80,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
 
 
             psi = np.array_split(psi_A[j//4], n_per_day)[i]
-            psi = np.where(psi < 0,         2*np.pi+psi,    psi)
+            psi = np.where(psi < 0,         2*np.pi + psi,  psi)
             psi = np.where(psi >= 2*np.pi,  psi - 2*np.pi,  psi)
             psiIndexes = np.digitize(psi, psiBins)
             delta = np.diff(psiIndexes)
@@ -88,7 +88,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             pixArray[1].append(delta)
 
             psi = np.array_split(psi_B[j//4], n_per_day)[i]
-            psi = np.where(psi < 0,         2*np.pi+psi,    psi)
+            psi = np.where(psi < 0,         2*np.pi + psi,  psi)
             psi = np.where(psi >= 2*np.pi,  psi - 2*np.pi,  psi)
             psiIndexes = np.digitize(psi, psiBins)
             delta = np.diff(psiIndexes)

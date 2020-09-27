@@ -72,12 +72,13 @@ contains
    end subroutine bin_TOD
 
    ! differential TOD computation, written with WMAP in mind.
-   subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_im, b, M_diag, scan, b_mono)
+   subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_im, pmask, b, M_diag, scan, b_mono)
       implicit none
       class(comm_tod), intent(in)    :: tod
       integer(i4b), intent(in)    :: scan
-      real(sp), dimension(1:, 1:, 1:), intent(in)    :: data
-      integer(i4b), dimension(1:, 1:), intent(in)    :: flag
+      real(sp), dimension(1:, 1:, 1:), intent(in)       :: data
+      integer(i4b), dimension(1:, 1:), intent(in)       :: flag
+      integer(i4b), dimension(0:), intent(in)           :: pmask
       integer(i4b), dimension(1:, 1:, 1:), intent(in)    :: pix, psi
       real(dp), dimension(1:), intent(in)    :: x_im
       real(dp), dimension(1:, 1:, 1:), intent(inout) :: b, M_diag
@@ -88,6 +89,8 @@ contains
       real(dp)     :: inv_sigmasq
 
       integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn
+
+      integer(i4b) :: pA, pB, f_A, f_B
 
       !M_diag(:,:,:) = 1d0
 
@@ -102,29 +105,30 @@ contains
             lpsi = psi(t, det, 1)
             rpsi = psi(t, det, 2)
             sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
+            pA = pmask(pix(t, det, 1))
+            pB = pmask(pix(t, det, 2))
+            ! This SHOULD make it so that if pA is 0 (high emission) and pB
+            ! is 1 (low emission), pixA is updated and pixB isn't.
+            f_A = 1-pA*(1-pB)
+            f_B = 1-pB*(1-pA)
 
-            do i = 1, nout
-               b(i, 1, lpoint) = b(i, 1, lpoint) + (1 + x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
-               b(i, 1, rpoint) = b(i, 1, rpoint) - (1 - x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
-               b(i, 2, lpoint) = b(i, 2, lpoint) + (1 + x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(lpsi)*sgn*inv_sigmasq
-               b(i, 2, rpoint) = b(i, 2, rpoint) - (1 - x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(rpsi)*sgn*inv_sigmasq
-               b(i, 3, lpoint) = b(i, 3, lpoint) + (1 + x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(lpsi)*sgn*inv_sigmasq
-               b(i, 3, rpoint) = b(i, 3, rpoint) - (1 - x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+            if (sum(flag(t,:))==0) then
+               do i = 1, nout
+                  b(i, 1, lpoint) = b(i, 1, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
+                  b(i, 1, rpoint) = b(i, 1, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
+                  b(i, 2, lpoint) = b(i, 2, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+                  b(i, 2, rpoint) = b(i, 2, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+                  b(i, 3, lpoint) = b(i, 3, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+                  b(i, 3, rpoint) = b(i, 3, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(rpsi)*sgn*inv_sigmasq
 
-               M_diag(i, 1, lpoint) = M_diag(i, 1, lpoint) + ((1 + x_im((det + 1)/2)))**2*inv_sigmasq
-               M_diag(i, 1, rpoint) = M_diag(i, 1, rpoint) + ((1 - x_im((det + 1)/2)))**2*inv_sigmasq
-               M_diag(i, 2, lpoint) = M_diag(i, 2, lpoint) + ((1 + x_im((det + 1)/2))*tod%cos2psi(lpsi))**2*inv_sigmasq
-               M_diag(i, 2, rpoint) = M_diag(i, 2, rpoint) + ((1 - x_im((det + 1)/2))*tod%cos2psi(rpsi))**2*inv_sigmasq
-               M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + ((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2*inv_sigmasq
-               M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + ((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2*inv_sigmasq
-            end do
-
-            !if (comp_S .and. det < tod%ndet) then
-            !   do i = 1, nout
-            !      b(i,4,lpoint) = b(i,4,lpoint) + (1+x_im((det+1)/2)) * data(i,t,det) * sgn * inv_sigmasq
-            !      b(i,4,rpoint) = b(i,4,rpoint) - (1-x_im((det+1)/2)) * data(i,t,det) * sgn * inv_sigmasq
-            !   end
-            !end if
+                  M_diag(i, 1, lpoint) = M_diag(i, 1, lpoint) + f_A*((1 + x_im((det + 1)/2)))**2*inv_sigmasq
+                  M_diag(i, 1, rpoint) = M_diag(i, 1, rpoint) + f_B*((1 - x_im((det + 1)/2)))**2*inv_sigmasq
+                  M_diag(i, 2, lpoint) = M_diag(i, 2, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%cos2psi(lpsi))**2*inv_sigmasq
+                  M_diag(i, 2, rpoint) = M_diag(i, 2, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%cos2psi(rpsi))**2*inv_sigmasq
+                  M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2*inv_sigmasq
+                  M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2*inv_sigmasq
+               end do
+            end if
 
          end do
       end do
