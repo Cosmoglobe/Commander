@@ -449,7 +449,7 @@ contains
        do_oper(samp_bp)      = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false. !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
-       do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
+       do_oper(sel_data)     = .false. !(main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  )
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
@@ -1075,8 +1075,8 @@ contains
        write(*,*) '  Time scanlist   = ', t_tot(20)
        write(*,*) '  Time final      = ', t_tot(10)
        if (self%first_call) then
-          write(*,*) '  Time total      = ', t6-t5, &
-               & ', accept rate = ', real(naccept,sp) / ntot
+!!$          write(*,*) '  Time total      = ', t6-t5, &
+!!$               & ', accept rate = ', real(naccept,sp) / ntot
        else
           write(*,*) '  Time total      = ', t6-t5, sum(t_tot(1:18))
        end if
