@@ -179,6 +179,7 @@ contains
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext
     character(len=3) :: tag
+    character(len=15) :: regfmt
     character(len=9) :: ar_tag
     character(len=1000) :: outmessage
     character(len=512) :: filename
@@ -292,7 +293,11 @@ contains
 
           if (cpar%almsamp_pixreg) then
              allocate(theta_pixreg_prop(0:c%npixreg(pl,j))) 
-             allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vector
+             allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vecto
+             
+             ! Formatter for region output
+             write(regfmt,'(I0)') size(c%theta_pixreg(1:,pl,j))
+             regfmt = '(a,'//adjustl(trim(regfmt))//'(f7.3))'
           else 
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
           end if
@@ -354,13 +359,8 @@ contains
 
                 ! Output init sample
                 write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
-                if (cpar%almsamp_pixreg) then
-                   if (size(c%theta_pixreg(1:,pl,j))==9) then
-                      write(*,fmt='(a,9(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
-                   else
-                      write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
-                   end if
-                end if
+                if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
+
                 chisq(0) = chisq(0) + chisq_prior 
                 !chisq(0) = chisq_prior ! test2
 
@@ -539,6 +539,12 @@ contains
                    accepted = .true.
                 end if
 
+                ! Reject if proposed values are outside of range
+                if (any(theta_pixreg_prop(1:) > c%p_uni(2,j)) .or. any(theta_pixreg_prop(1:) < c%p_uni(1,j))) then
+                   accepted = .false.
+                   write(*,fmt='(a, f7.3, f7.3, a)') "Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
+                end if
+
                 ! Count accepted and assign chisq values
                 if (accepted) then
                    num_accepted = num_accepted + 1
@@ -548,17 +554,16 @@ contains
                    chisq(i) = chisq(i-1)
                    ar_tag = achar(27)//'[91m'
                 end if
-                if (cpar%almsamp_pixreg) regs(i,:,pl) = c%theta_pixreg(:,pl,j)
+                
+                ! Output chisq and diff and mean alm
                 write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+
+                ! Output region information
                 if (cpar%almsamp_pixreg) then
-                   if (size(theta_pixreg_prop(1:))==9) then
-                      write(outmessage,fmt='(a,9(f7.3))') " regs:", theta_pixreg_prop(1:)
-                      write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
-                   else
-                      write(outmessage,*) " regs:", theta_pixreg_prop(1:)
-                      write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
-                   end if
+                   regs(i,:,pl) = c%theta_pixreg(:,pl,j)
+                   write(outmessage,fmt=regfmt) " regs:", theta_pixreg_prop(1:)
+                   write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 end if
              end if
 
@@ -602,15 +607,9 @@ contains
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
                    write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                   !if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
 
-                   if (cpar%almsamp_pixreg) then
-                      if (size(c%theta_pixreg(1:,pl,j))==9) then
-                         write(*,fmt='(a,9(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
-                      else
-                         write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
-                      end if
-                   end if
+                   ! Format region info
+                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
