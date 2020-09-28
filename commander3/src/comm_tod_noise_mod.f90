@@ -741,7 +741,7 @@ contains
     end do
     found_spike = .false.
     rms = sqrt(variance(d_downsamp(:)))
-    n_sigma = 5
+    n_sigma = 10
     do i = 1, n_short
        if (d_downsamp(i) > n_sigma * rms) then
           if (.not. found_spike) then
