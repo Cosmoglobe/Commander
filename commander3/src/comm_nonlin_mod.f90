@@ -417,7 +417,7 @@ contains
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
                    ! Save old values
-                   theta_pixreg_prop = c%theta_pixreg(:,pl,j)
+                   theta_pixreg_prop = c%theta_pixreg(:c%npixreg(pl,j),pl,j)
                    
                    rgs = 0.d0
                    do p = 1, c%npixreg(pl,j)
@@ -697,6 +697,9 @@ contains
 
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
 
+                !assign new thetas to frozen
+                c%theta_pixreg(:c%npixreg(pl,j),pl,j) = theta_pixreg_prop
+
                 ! Loop over pixels in region
                 !if (info%myid==0) write(*,*) size(c%ind_pixreg_arr(1,:,j)), size(c%ind_pixreg_arr(1,pl,:)), pl, j
                 do pix = 0, theta%info%np-1
@@ -760,7 +763,6 @@ contains
                 else
                    call c%updateMixmat
                 end if
-
              end if !almsamp_priorsamp_frozen .and. any frozen pixregs
           end if !almsamp_pixreg
 
