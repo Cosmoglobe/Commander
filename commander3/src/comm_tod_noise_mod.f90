@@ -161,8 +161,8 @@ contains
           n_corr(:,i) = dt(1:ntod) 
        end if
 
-       ! if (.true.) then !mod(self%scanid(scan),100) == 1) then
-       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_ms_cg_test.dat' 
+       ! if (mod(self%scanid(scan),100) == 1) then
+       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
        !    open(65,file=trim(filename),status='REPLACE')
        !    do j = 1, ntod
        !       write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
@@ -298,7 +298,7 @@ contains
     real(dp),    allocatable,      dimension(:) :: x, b, r, d, Mr, Ad, bp, xp, p, rp
     real(dp),    allocatable,      dimension(:) :: invNcorr, invM
     integer(i4b),    allocatable,  dimension(:) :: u
-    real(dp)           :: r2, r2new, alp, bet, eps, freq, d2
+    real(dp)           :: r2, r2new, alp, bet, eps, freq, d2, sigma_bp
     real(dp),     allocatable, dimension(:) :: dt
     complex(dpc), allocatable, dimension(:) :: dv
     ! real(sp),     allocatable, dimension(:) :: dt
@@ -311,7 +311,7 @@ contains
     ntod = size(d_prime, 1)
     nmask = ntod - sum(mask)
     
-    eps = 0.1d0
+    eps = 1.d-5
 
     converged = .false.
 
@@ -347,6 +347,9 @@ contains
     
     call apply_fourier_mat(b, invM, Mr, dt, dv, nfft, plan_fwd, plan_back)
     bp(:) = Mr(u)
+
+    sigma_bp = sqrt(variance(bp))
+
     xp(:) = x(u)  !! not sure exactly how to get a good initial vector
     x(:) = 0.d0
     x(u) = xp(:)
@@ -368,7 +371,7 @@ contains
        rp(:) = rp(:) - alp * Ad(u)
     
        r2new = sum(rp(:) ** 2)
-       if (sqrt(abs(r2new)) < eps) then
+       if (sqrt(abs(r2new)) < eps * sigma_bp * nmask) then  ! average error in each datapoint < eps * sigma_bp
           converged = .true.
           !write(*,*) 'converged after ', k, ' iterations ', scan, det, trim(band)
           exit
@@ -945,7 +948,9 @@ contains
       end if
       lnL_fknee = 0.d0
       sconst = sigma0 ** 2 * x ** (-alpha) 
-         
+
+      lnL_fknee = lnL_fknee - 0.5d0 * (log(x) - log(fknee_dpc)) ** 2 / (0.15d0 * log(10.d0)) ** 2 - log(x)
+
       do l = 1, n_f  ! n-1
          f = l*(samprate/2)/(n-1)
          if (abs(f-1.d0/60.d0)*60.d0 < 0.05d0) then
@@ -970,7 +975,7 @@ contains
       end if
       lnL_alpha = 0.d0
 
-      lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.1d0 ** 2
+!      lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.1d0 ** 2
       
       ! if (trim(self%freq) == '070') then
       !    lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
