@@ -291,6 +291,14 @@ contains
           ! p to be sampled with a local sampler 
           if (c%lmax_ind_pol(pl,j) < 0) cycle
 
+          do p = 1, c%npixreg(pl,j)
+             ! Fix specified pixel regions
+             if (c%fix_pixreg(p,pl,j)) then 
+                c%L(p,:,pl,j) = 0.d0  
+                c%L(:,p,pl,j) = 0.d0  
+             end if
+          end do
+
           if (cpar%almsamp_pixreg) then
              allocate(theta_pixreg_prop(0:c%npixreg(pl,j))) 
              allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vecto
@@ -410,18 +418,14 @@ contains
                    rgs = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
-                      ! Fix specified pixel regions
-                      if (c%fix_pixreg(p,pl,j)) rgs(p) = 0.d0
                    end do
-
                    ! Propose new pixel regions
                    theta_pixreg_prop = c%theta_pixreg(:,pl,j) + matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
-                   !Should have a test to see if proposed thetas are outside uniform priors (in the case of pixel region sampling)
-
                 end if
 
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
 
+                if (.not. (any(c%ind_pixreg_arr(:,pl,j) > 1) ) .and. (c%npixreg(pl,j)>1) ) write(*,*) "Bug in pixreg init"
                 ! Loop over pixels in region
                 !if (info%myid==0) write(*,*) size(c%ind_pixreg_arr(1,:,j)), size(c%ind_pixreg_arr(1,pl,:)), pl, j
                 do pix = 0, theta%info%np-1
