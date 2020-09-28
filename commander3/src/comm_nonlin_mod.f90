@@ -104,7 +104,15 @@ contains
                 do p = 1,c%poltype(j)
                    if (p > c%nmaps) cycle
                    if (c%lmax_ind_pol(p,j) < 0 .and. &
-                        & trim(c%pol_lnLtype(p,j)) /= 'chisq') samp_cg = .true.
+                        & trim(c%pol_lnLtype(p,j)) /= 'chisq') then
+                      if (trim(c%pol_lnLtype(p,j)) == 'pixreg') then
+                         if (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.)) samp_cg = .true.
+                      else if (trim(c%pol_lnLtype(p,j)) == 'prior') then
+                         if (c%theta_prior(2,p,j) /= 0.d0) samp_cg = .true.
+                      else
+                         samp_cg = .true.
+                      end if
+                   end if
                 end do
 
                 if (samp_cg) then !need to resample amplitude
@@ -171,6 +179,7 @@ contains
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext
     character(len=3) :: tag
+    character(len=15) :: regfmt
     character(len=9) :: ar_tag
     character(len=1000) :: outmessage
     character(len=512) :: filename
@@ -185,7 +194,7 @@ contains
 
     real(dp),          allocatable, dimension(:,:,:)  :: alms, regs, buffer3
     real(dp),          allocatable, dimension(:,:)    :: m
-    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop
+    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop, theta_delta_prop
     integer(c_int),    allocatable, dimension(:)      :: maxit
 
 
@@ -282,9 +291,15 @@ contains
           ! p to be sampled with a local sampler 
           if (c%lmax_ind_pol(pl,j) < 0) cycle
 
+
           if (cpar%almsamp_pixreg) then
              allocate(theta_pixreg_prop(0:c%npixreg(pl,j))) 
-             allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vector
+             allocate(theta_delta_prop(0:c%npixreg(pl,j))) 
+             allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vecto
+             
+             ! Formatter for region output
+             write(regfmt,'(I0)') size(c%theta_pixreg(1:,pl,j))
+             regfmt = '(a,'//adjustl(trim(regfmt))//'(f7.3))'
           else 
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
           end if
@@ -346,13 +361,8 @@ contains
 
                 ! Output init sample
                 write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
-                if (cpar%almsamp_pixreg) then
-                   if (size(c%theta_pixreg(1:,pl,j))==9) then
-                      write(*,fmt='(a,9(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
-                   else
-                      write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
-                   end if
-                end if
+                if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
+
                 chisq(0) = chisq(0) + chisq_prior 
                 !chisq(0) = chisq_prior ! test2
 
@@ -399,21 +409,24 @@ contains
                 ! --------- region sampling start
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
+                   ! Save old values
+                   theta_pixreg_prop = c%theta_pixreg(:,pl,j)
+                   
                    rgs = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
-                      ! Fix specified pixel regions
-                      if (c%fix_pixreg(p,pl,j)) rgs(p) = 0.d0
                    end do
-
-                   ! Propose new pixel regions
-                   theta_pixreg_prop = c%theta_pixreg(:,pl,j) + matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
-                   !Should have a test to see if proposed thetas are outside uniform priors (in the case of pixel region sampling)
-
+                   
+                   ! Only propose change to regions not frozen
+                   theta_delta_prop = matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
+                   do p = 1, c%npixreg(pl,j)
+                      if (.not. c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = theta_pixreg_prop(p) + theta_delta_prop(p)
+                   end do
                 end if
 
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
 
+                if (.not. (any(c%ind_pixreg_arr(:,pl,j) > 1) ) .and. (c%npixreg(pl,j)>1) ) write(*,*) "Bug in pixreg init"
                 ! Loop over pixels in region
                 !if (info%myid==0) write(*,*) size(c%ind_pixreg_arr(1,:,j)), size(c%ind_pixreg_arr(1,pl,:)), pl, j
                 do pix = 0, theta%info%np-1
@@ -531,6 +544,12 @@ contains
                    accepted = .true.
                 end if
 
+                ! Reject if proposed values are outside of range
+                if (any(theta_pixreg_prop(1:) > c%p_uni(2,j)) .or. any(theta_pixreg_prop(1:) < c%p_uni(1,j))) then
+                   accepted = .false.
+                   write(*,fmt='(a, f7.3, f7.3, a)') "Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
+                end if
+
                 ! Count accepted and assign chisq values
                 if (accepted) then
                    num_accepted = num_accepted + 1
@@ -540,17 +559,16 @@ contains
                    chisq(i) = chisq(i-1)
                    ar_tag = achar(27)//'[91m'
                 end if
-                if (cpar%almsamp_pixreg) regs(i,:,pl) = c%theta_pixreg(:,pl,j)
+                
+                ! Output chisq and diff and mean alm
                 write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+
+                ! Output region information
                 if (cpar%almsamp_pixreg) then
-                   if (size(theta_pixreg_prop(1:))==9) then
-                      write(outmessage,fmt='(a,9(f7.3))') " regs:", theta_pixreg_prop(1:)
-                      write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
-                   else
-                      write(outmessage,*) " regs:", theta_pixreg_prop(1:)
-                      write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
-                   end if
+                   regs(i,:,pl) = c%theta_pixreg(:,pl,j)
+                   write(outmessage,fmt=regfmt) " regs:", theta_pixreg_prop(1:)
+                   write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 end if
              end if
 
@@ -594,15 +612,9 @@ contains
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
                    write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                   !if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
 
-                   if (cpar%almsamp_pixreg) then
-                      if (size(c%theta_pixreg(1:,pl,j))==9) then
-                         write(*,fmt='(a,9(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
-                      else
-                         write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
-                      end if
-                   end if
+                   ! Format region info
+                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
@@ -663,7 +675,7 @@ contains
 
           end do ! End samples
           deallocate(rgs)
-          if (cpar%almsamp_pixreg) deallocate(theta_pixreg_prop) 
+          if (cpar%almsamp_pixreg) deallocate(theta_pixreg_prop, theta_delta_prop) 
        end do ! End pl
 
 
@@ -998,9 +1010,13 @@ contains
        end if
 
        call update_status(status, "nonlin stop " // trim(c%label)// ' ' // trim(c%indlabel(par_id)))
+       if (c%theta(par_id)%p%info%myid == 0 .and. cpar%verbosity > 2) &
+            & write(*,*) 'Updating Mixing matrix after sampling '// &
+            & trim(c%label)// ' ' // trim(c%indlabel(par_id))
 
     end select
 
+    ! Update mixing matrix 
     call c%updateMixmat 
 
 
@@ -1180,7 +1196,7 @@ contains
 
 
           call wall_time(t1)
-          if (c_lnL%pol_pixreg_type(p,id) > 0) then
+          if (c_lnL%pol_pixreg_type(p,id) /= 0) then
              if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
                   & 'of ', c_lnL%poltype(id) !Needed?
              call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
@@ -1189,7 +1205,7 @@ contains
                   & p,'CPU time specind = ', real(t2-t1,sp)
           else
              write(*,*) 'Undefined spectral index sample region'
-             write(*,*) 'Component:',trim(c_lnL%label),'ind:',trim(c_lnL%indlabel(id))
+             write(*,*) 'Component: ',trim(c_lnL%label),', ind: ',trim(c_lnL%indlabel(id))
              stop
           end if
 
@@ -1198,11 +1214,7 @@ contains
        end do
 
        !after sampling is done we assign the spectral index its new value(s)
-       c_lnL%theta(id)%p%map = buffer_lnL
-
-       if (info%myid == 0 .and. cpar%verbosity > 2) write(*,*) 'Updating Mixing matrix'
-       ! Update mixing matrix
-       call c_lnL%updateMixmat
+       c_lnL%theta(id)%p%map = buffer_lnL !unsmoothed map (not post_proc smoothed)
 
        ! Ask for CG preconditioner update
        if (c_lnL%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
@@ -2102,18 +2114,7 @@ contains
     info_lr_single  => comm_mapinfo(c_lnL%x_smooth%info%comm, c_lnL%x_smooth%info%nside, &
          & c_lnL%x_smooth%info%lmax, 1, c_lnL%x_smooth%info%pol)
                 
-    theta_single_fr => comm_map(info_fr_single)
-    theta_fr => comm_map(info_fr_single)
-
     myid_pix = info_fr%myid ! using this proc id and info_fr%comm in all mpi calls to ensure that values are properly dispersed between processors 
-
-    !ud_grade mask
-    mask_lr => comm_map(info_lr)
-    call c_lnL%pol_ind_mask(id)%p%udgrade(mask_lr)
-
-    !init lowres residual map
-    res_map => comm_map(info_lr)
-
 
     delta_lnL_threshold = 25.d0
     n                   = 101
@@ -2154,6 +2155,37 @@ contains
 
     theta_min = c_lnL%p_uni(1,id)
     theta_max = c_lnL%p_uni(2,id)
+
+    if (c_lnL%pol_pixreg_type(p,id) < 0) then !Prior sample
+       if (myid_pix == 0) then
+          new_theta = c_lnL%theta_prior(1,p,id) + c_lnL%theta_prior(2,p,id)*rand_gauss(handle)
+          new_theta = min(theta_max,max(theta_min,new_theta))
+       end if
+
+       !broadcast new_theta
+       call mpi_bcast(new_theta, 1, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
+       buffer_lnL(:,p_min:p_max) = new_theta
+       if (myid_pix == 0) then
+          write(*,*) 'Sampled new value using Gaussian prior'
+          write(*,fmt='(a,f7.3)') '  Prior mean = ',c_lnL%theta_prior(1,p,id)
+          write(*,fmt='(a,f10.6)') '  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
+          write(*,fmt='(a,f10.6)') '  Old value  = ',c_lnL%theta_pixreg(1,p,id)
+          write(*,fmt='(a,f10.6)') '  New value  = ',new_theta
+       end if
+       c_lnL%theta_pixreg(1:npixreg,p,id) = new_theta
+       return
+    end if
+
+    ! init full resolution theta maps for smoothing
+    theta_single_fr => comm_map(info_fr_single)
+    theta_fr => comm_map(info_fr_single)
+
+    !ud_grade mask
+    mask_lr => comm_map(info_lr)
+    call c_lnL%pol_ind_mask(id)%p%udgrade(mask_lr)
+
+    !init lowres residual map
+    res_map => comm_map(info_lr)
 
 
     !set up which bands and polarizations to include
@@ -2217,7 +2249,7 @@ contains
     if (c_lnL%pol_sample_nprop(p,id)) sampled_nprop = .true.
     if (c_lnL%pol_sample_proplen(p,id)) sampled_proplen = .true.
 
-    old_thetas = c_lnL%theta_pixreg(:,p,id)
+    old_thetas = c_lnL%theta_pixreg(:npixreg,p,id)
     old_thetas = min(max(old_thetas,theta_min),theta_max)
     new_thetas = old_thetas
     ! that the root processor operates on
