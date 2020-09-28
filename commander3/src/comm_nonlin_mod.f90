@@ -194,7 +194,7 @@ contains
 
     real(dp),          allocatable, dimension(:,:,:)  :: alms, regs, buffer3
     real(dp),          allocatable, dimension(:,:)    :: m
-    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop
+    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop, theta_delta_prop
     integer(c_int),    allocatable, dimension(:)      :: maxit
 
 
@@ -291,16 +291,10 @@ contains
           ! p to be sampled with a local sampler 
           if (c%lmax_ind_pol(pl,j) < 0) cycle
 
-          do p = 1, c%npixreg(pl,j)
-             ! Fix specified pixel regions
-             if (c%fix_pixreg(p,pl,j)) then 
-                c%L(p,:,pl,j) = 0.d0  
-                c%L(:,p,pl,j) = 0.d0  
-             end if
-          end do
 
           if (cpar%almsamp_pixreg) then
              allocate(theta_pixreg_prop(0:c%npixreg(pl,j))) 
+             allocate(theta_delta_prop(0:c%npixreg(pl,j))) 
              allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vecto
              
              ! Formatter for region output
@@ -415,12 +409,19 @@ contains
                 ! --------- region sampling start
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
+                   ! Save old values
+                   theta_pixreg_prop = c%theta_pixreg(:,pl,j)
+                   
                    rgs = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
                    end do
-                   ! Propose new pixel regions
-                   theta_pixreg_prop = c%theta_pixreg(:,pl,j) + matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
+                   
+                   ! Only propose change to regions not frozen
+                   theta_delta_prop = matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
+                   do p = 1, c%npixreg(pl,j)
+                      if (.not. c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = theta_pixreg_prop(p) + theta_delta_prop(p)
+                   end do
                 end if
 
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
@@ -674,7 +675,7 @@ contains
 
           end do ! End samples
           deallocate(rgs)
-          if (cpar%almsamp_pixreg) deallocate(theta_pixreg_prop) 
+          if (cpar%almsamp_pixreg) deallocate(theta_pixreg_prop, theta_delta_prop) 
        end do ! End pl
 
 
