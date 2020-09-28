@@ -109,13 +109,15 @@ contains
                          if (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.)) samp_cg = .true.
                       else if (trim(c%pol_lnLtype(p,j)) == 'prior') then
                          if (c%theta_prior(2,p,j) /= 0.d0) samp_cg = .true.
-                      else if (cpar%almsamp_pixreg) then
+                      else
+                         samp_cg = .true.
+                      end if
+                   else
+                      if (cpar%almsamp_pixreg) then
                          if (cpar%almsamp_priorsamp_frozen .and. &
                               & any(c%fix_pixreg(:c%npixreg(p,j),p,j)==.true.)) then
                             samp_cg = .true.
                          end if
-                      else
-                         samp_cg = .true.
                       end if
                    end if
                 end do
