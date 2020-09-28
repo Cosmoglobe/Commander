@@ -53,7 +53,7 @@ module comm_param_mod
 
      ! alm-sampler
      integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
-     logical(lgt)       :: almsamp_optimize, almsamp_apply_prior, almsamp_pixreg
+     logical(lgt)       :: almsamp_optimize, almsamp_apply_prior, almsamp_pixreg, almsamp_priorsamp_frozen
 
      ! Output parameters
      character(len=512) :: outdir
@@ -447,6 +447,8 @@ contains
     call get_parameter_hashtable(htbl, 'ALMSAMP_OPTIMIZE_ALM',       par_lgt=cpar%almsamp_optimize)
     call get_parameter_hashtable(htbl, 'ALMSAMP_APPLY_PRIOR',        par_lgt=cpar%almsamp_apply_prior)
     call get_parameter_hashtable(htbl, 'ALMSAMP_PIXREG',             par_lgt=cpar%almsamp_pixreg)
+    if (cpar%almsamp_pixreg) &
+         & call get_parameter_hashtable(htbl, 'ALMSAMP_PRIORSAMP_FROZEN_REGIONS', par_lgt=cpar%almsamp_priorsamp_frozen)
 
   end subroutine read_global_params_hash
 
