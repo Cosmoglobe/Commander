@@ -648,7 +648,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     # Returns the gain model estimate at the start of each frame.
     gain_guesses = np.array([get_gain(data, b)[1][0] for b in band_labels])
     if version == 15:
-        gain_guesses *= 1
+        gain_guesses = gain_guesses*0 + 1
 
 
     # If genflags == 1, there is an issue with the spacecraft attitude. This

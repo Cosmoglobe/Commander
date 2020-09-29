@@ -34,9 +34,10 @@ warnings.filterwarnings("ignore")
 
 from sparse_dot_mkl import dot_product_mkl, gram_matrix_mkl
 
-
+#nside = 256
+version = 13
 # nside = 512
-version = 14
+#version = 14
 # using pre-calibrated data
 #version = 15
 
@@ -622,6 +623,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         r = b_p - A_p.dot(x_p)
         pix = (M_diag_p != 0)
         d[pix] = r[pix]/M_diag_p[pix]
+        '''
         #BiCG-STAB
         shat = np.zeros(len(r))
         delta_new1 = r.dot(d)
@@ -679,31 +681,30 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         print(delta_new, 'original delta')
         delta_0 = np.copy(delta_new)
         while ((i < imax) & (delta_new > eps**2*delta_0)):
+            print(delta_new, 'delta')
             q = A_p.dot(d)
+            print(min(q), max(q), 'minmax(q)')
             alpha = delta_new/d.dot(q)
+            print(d.dot(q), 'd.dot(q)')
+            print(alpha, 'alpha')
             x_p = x_p + alpha*d
+            print(x_p.min(), x_p.max(), 'minmax(cg_sol)')
             if (i % 50) == 0:
                 r = b_p - A_p.dot(x_p)
             else:
                 r = r - alpha*q
+            print(min(r), max(r), 'minmax(r)')
             s[pix] = r[pix]/M_diag_p[pix]
+            print(min(s), max(s), 'minmax(s)')
             delta_old = np.copy(delta_new)
             delta_new = r.dot(s)
             beta = delta_new/delta_old
+            print(beta, 'beta')
             d = s + beta*d
+            print(min(d), max(d), 'minmax(d)')
             i += 1
             delta_arr.append(delta_new)
             x_arr.append(x_p)
-            print(delta_new, 'delta')
-            print(alpha, 'alpha')
-            print(beta, 'beta')
-            print(d.dot(q), 'd.dot(q)')
-            print(min(d), max(d), 'minmax(d)')
-            print(min(q), max(q), 'minmax(q)')
-            print(min(r), max(r), 'minmax(r)')
-            print(min(s), max(s), 'minmax(s)')
-            print(x_p.min(), x_p.max(), 'minmax(cg_sol)')
-        '''
 
 
 
@@ -919,10 +920,10 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        #get_cg(band=b, nfiles=256, sparse_test=False, sparse_only=True,
-        #        imbalance=False, mask=False, pol=True, imax=1000, nside=512)
+        get_cg(band=b, nfiles=np.inf, sparse_test=False, sparse_only=True, 
+                imbalance=False, mask=False, pol=True, imax=1000, nside=256)
         #plot_maps_pol(band=b, nside=512, version=14)
-        plot_maps_pol(band=b, nside=256, version=13)
+        #plot_maps_pol(band=b, nside=256, version=13)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
