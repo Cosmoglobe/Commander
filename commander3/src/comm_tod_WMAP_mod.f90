@@ -431,55 +431,7 @@ contains
             call update_status(status, 'q=Ad')
             ! q = Ad
             q(l,:,:) = 0d0
-            do j = 1, self%nscan
-               ntod = self%scans(j)%ntod
-               ndet = self%ndet
-               allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
-               allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
-               allocate (flag(ntod, ndet))                   ! Decompressed flags
-               do k = 1, self%ndet
-                  call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
-                      & psi(:, k, :), flag(:, k))
-                  do t = 1, ntod
-                     ! sigma0 is in units of du, so need to convert back to mK
-                     inv_sigmasq = (self%scans(j)%d(k)%gain/self%scans(j)%d(k)%sigma0)**2
-                     !inv_sigmasq = 1d0
-                     ! required to convert from healpix-to-fortran indexing
-                     lpix = pix(t, k, 1) + 1 
-                     rpix = pix(t, k, 2) + 1
-                     lpsi = psi(t, k, 1)
-                     rpsi = psi(t, k, 2)
-                     x_im = self%x_im((k + 1)/2)
-                     sgn = (-1)**((k + 1)/2 + 1)
-                     pA = sprocmask%a(pix(t, k, 1))
-                     pB = sprocmask%a(pix(t, k, 2))
-                     f_A = 1-pA*(1-pB)
-                     f_B = 1-pB*(1-pA)
-                     f_A = 1
-                     f_B = 1
-                     ! This is the model for each timestream
-                     ! The sgn parameter is +1 for timestreams 13 and 14, -1
-                     ! for timestreams 23 and 24, and also is used to switch
-                     ! the sign of the polarization sensitive parts of the
-                     ! model
-                     dA = d(l, 1, lpix) + sgn*(d(l, 2, lpix)*self%cos2psi(lpsi) + d(l, 3, lpix)*self%sin2psi(lpsi))
-                     dB = d(l, 1, rpix) + sgn*(d(l, 2, rpix)*self%cos2psi(rpsi) + d(l, 3, rpix)*self%sin2psi(rpsi))
-                     d1 = (1 + x_im)*dA - (1 - x_im)*dB
-                     !if (sum(flag(t,:)) == 0) then
-                        ! Temperature
-                        q(l, 1, lpix) = q(l, 1, lpix) + f_A*(1 + x_im)*d1*inv_sigmasq
-                        q(l, 1, rpix) = q(l, 1, rpix) - f_B*(1 - x_im)*d1*inv_sigmasq
-                        ! Q
-                        q(l, 2, lpix) = q(l, 2, lpix) + f_A*(1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
-                        q(l, 2, rpix) = q(l, 2, rpix) - f_B*(1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
-                        ! U
-                        q(l, 3, lpix) = q(l, 3, lpix) + f_A*(1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
-                        q(l, 3, rpix) = q(l, 3, rpix) - f_B*(1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
-                     !end if
-                  end do
-               end do
-               deallocate (pix, psi, flag)
-            end do
+            call compute_Ax(self, d, q, self%x_im, sprocmask%a, i, l)
             call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             if (self%myid_shared==0) then 
@@ -500,60 +452,14 @@ contains
                 write(*,*) minval(cg_sol), maxval(cg_sol), 'minmax(cg_sol)'
             end if
             ! evaluating r = b - Ax
-            !if ((mod(i, 50) == 0) .or. (beta .ge. 1)) then
             if (mod(i, 50) == 0) then
                call update_status(status, 'r = r - Ax')
                ! r = b - Ax
                r(l,:,:) = 0d0
-               do j = 1, self%nscan
-                  ntod = self%scans(j)%ntod
-                  ndet = self%ndet
-                  allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
-                  allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
-                  allocate (flag(ntod, ndet))                   ! Decompressed flags
-                  do k = 1, self%ndet
-                     ! evaluating the matrix operation r = b_map - Ax
-                     call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
-                         & psi(:, k, :), flag(:, k))
-                     do t = 1, ntod
-                        inv_sigmasq = (self%scans(j)%d(k)%gain/self%scans(j)%d(k)%sigma0)**2
-                        !inv_sigmasq = 1d0
-                        lpix = pix(t, k, 1) + 1
-                        rpix = pix(t, k, 2) + 1
-                        lpsi = psi(t, k, 1)
-                        rpsi = psi(t, k, 2)
-                        x_im = self%x_im((k + 1)/2)
-                        sgn = (-1)**((k + 1)/2 + 1)
-                        pA = sprocmask%a(pix(t, k, 1))
-                        pB = sprocmask%a(pix(t, k, 2))
-                        f_A = 1-pA*(1-pB)
-                        f_B = 1-pB*(1-pA)
-                        f_A = 1
-                        f_B = 1
-                        
-                        dA = cg_sol(l, 1, lpix) + sgn*(cg_sol(l, 2, lpix)*self%cos2psi(lpsi) &
-                                              &      + cg_sol(l, 3, lpix)*self%sin2psi(lpsi))
-                        dB = cg_sol(l, 1, rpix) + sgn*(cg_sol(l, 2, rpix)*self%cos2psi(rpsi) &
-                                              &      + cg_sol(l, 3, rpix)*self%sin2psi(rpsi))
-                        d1 = (1 + x_im)*dA - (1 - x_im)*dB
-                        !if (sum(flag(t,:)) == 0) then
-                           ! Temperature
-                           r(l, 1, lpix) = r(l, 1, lpix) - f_A*(1 + x_im)*d1*inv_sigmasq
-                           r(l, 1, rpix) = r(l, 1, rpix) + f_B*(1 - x_im)*d1*inv_sigmasq
-                           ! Q
-                           r(l, 2, lpix) = r(l, 2, lpix) - f_A*(1 + x_im)*d1*self%cos2psi(lpsi)*sgn*inv_sigmasq
-                           r(l, 2, rpix) = r(l, 2, rpix) + f_B*(1 - x_im)*d1*self%cos2psi(rpsi)*sgn*inv_sigmasq
-                           ! U
-                           r(l, 3, lpix) = r(l, 3, lpix) - f_A*(1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
-                           r(l, 3, rpix) = r(l, 3, rpix) + f_B*(1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
-                        !end if
-                     end do
-                  end do
-                  deallocate (pix, psi, flag)
-               end do
+               call compute_Ax(self, cg_sol, r, self%x_im, sprocmask%a, i, l)
                call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
                                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-               r(l, :, :) = sb_map%a(l, :, :) + r(l, :, :)
+               r(l, :, :) = sb_map%a(l, :, :) - r(l, :, :)
             else
                call update_status(status, 'r = r - alpha*q')
                r(l, :, :) = r(l, :, :) - alpha*q(l, :, :)
@@ -590,10 +496,6 @@ contains
             !end if
             if (self%myid_shared==0) then 
                 write(*,*) minval(d), maxval(d), 'minmax(d)'
-            end if
-            if (self%myid_shared==0) then 
-                !write (*, *) alpha*maxval(abs(q))/maxval(r), beta*maxval(abs(d))/maxval(s), 'relative res update, dir update'
-                write (*, *) ''
             end if
             !save cg solution iteration
             cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
