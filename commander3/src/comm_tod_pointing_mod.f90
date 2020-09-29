@@ -94,9 +94,6 @@ contains
 
       integer(i4b) :: i, j, lpoint, rpoint, sgn
 
-      ! This should be almost identical to project_sky, but use the horn imbalance
-      ! coefficients.
-
       do i = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(i)%accept) then
             s_sky(:, i) = 0.d0
@@ -120,16 +117,14 @@ contains
             ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
             !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
 
-            !if (flag(j,i)==0) then
-               s_sky(j, i) = (1 + x_im((i + 1)/2))*(map(1, lpoint, i) + &
-                                             &  sgn*( &
-                                             &  map(2, lpoint, i)*tod%cos2psi(psi(j, i, 1)) + &
-                                             &  map(3, lpoint, i)*tod%sin2psi(psi(j, i, 1)))) - &
-                          &  (1 - x_im((i + 1)/2))*(map(1, rpoint, i) + &
-                                             &  sgn*( &
-                                             &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
-                                             &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
-            !end if
+            s_sky(j, i) = (1 + x_im((i + 1)/2))*(map(1, lpoint, i) + &
+                                          &  sgn*( &
+                                          &  map(2, lpoint, i)*tod%cos2psi(psi(j, i, 1)) + &
+                                          &  map(3, lpoint, i)*tod%sin2psi(psi(j, i, 1)))) - &
+                       &  (1 - x_im((i + 1)/2))*(map(1, rpoint, i) + &
+                                          &  sgn*( &
+                                          &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
+                                          &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
          end do
       end do
 

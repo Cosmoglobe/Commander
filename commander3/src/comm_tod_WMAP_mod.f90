@@ -58,6 +58,32 @@ module comm_tod_WMAP_mod
 
 contains
 
+   !*************************************************
+   !    Convert integer to string
+   !*************************************************
+   character(len=20) function str(k)
+       integer, intent(in) :: k
+       write (str, *) k
+       str = adjustl(str)
+   end function str
+
+   !*************************************************
+   !            Random normal generator
+   !*************************************************
+   function rand_normal(mean,stdev) result(c)
+            double precision :: mean,stdev,c,temp(2),theta,r
+            if (stdev <= 0.0d0) then
+               write(*,*) "Standard Deviation must be positive."
+            else
+               call RANDOM_NUMBER(temp)
+               r=(-2.0d0*log(temp(1)))**0.5
+               theta = 2.0d0*PI*temp(2)
+           c= mean+stdev*r*sin(theta)
+         end if
+       end function
+
+
+
    !**************************************************
    !             Constructor
    !**************************************************
@@ -298,17 +324,29 @@ contains
          ! Select data
          call wall_time(t1)
 
+
+         !*******************
          ! Compute binned map
+         !*******************
+
+         ! Get calibrated map
          allocate (d_calib(nout, ntod, ndet))
          do j = 1, ndet
             inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
             d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-                & inv_gain - s_tot(:, j) + s_sky(:, j)
+               & inv_gain - s_tot(:, j) + s_sky(:, j)
+            ! Simulated data
+            ! Input data is in K
+            ! standard deviations in mK
+            ! sigma  = abs(self%scans(i)%d(j)%sigma0/self%scans(i)%d(j)%gain)
+            d_calib(1, :, j) = s_sky(:, j)*1d9 + &
+                   rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
+
             if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
             if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
          end do
 
-
+         ! Bin the calibrated map
          call bin_differential_TOD(self, d_calib, pix,  &
                 & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
          call update_status(status, "Finished binning TOD")
@@ -346,10 +384,8 @@ contains
             if (end_chunk >= start_chunk) end_chunk = self%pix2ind(end_chunk)
 
             do j = start_chunk, end_chunk
-               ! I am a bit concerned about the potential of overflow, so I am going
-               ! to convert from mK to K.
                sb_map%a(:, :, self%ind2pix(j) + 1) = sb_map%a(:, :, self%ind2pix(j) + 1) + &
-                    & b_map(:, :, j)*1.d-3
+                    & b_map(:, :, j)
                sM_diag%a(:, :, self%ind2pix(j) + 1) = sM_diag%a(:, :, self%ind2pix(j) + 1) + &
                     & M_diag(:, :, j)
             end do
@@ -380,13 +416,15 @@ contains
          r(l, :, :) = sb_map%a(l, :, :)
          d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
          delta_new = sum(r(l, :, :)*d(l, :, :))
+         call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+                           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
          if (self%myid_shared==0) then 
             write (*, *), delta_new, 'delta_0'
          end if
          delta_0 = delta_new
          delta_old = delta_0
          i = 0
-         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0) .and. (delta_new .le. delta_old))
+         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0) .and. (delta_new .le. delta_0))
             if (self%myid_shared==0) then 
                 write (*, *) i, ':',  delta_new, 'delta'
             end if
@@ -403,7 +441,9 @@ contains
                   call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
                       & psi(:, k, :), flag(:, k))
                   do t = 1, ntod
-                     inv_sigmasq = 1/self%scans(j)%d(k)%sigma0**2
+                     ! sigma0 is in units of du, so need to convert back to mK
+                     inv_sigmasq = (self%scans(j)%d(k)%gain/self%scans(j)%d(k)%sigma0)**2
+                     !inv_sigmasq = 1d0
                      ! required to convert from healpix-to-fortran indexing
                      lpix = pix(t, k, 1) + 1 
                      rpix = pix(t, k, 2) + 1
@@ -415,6 +455,8 @@ contains
                      pB = sprocmask%a(pix(t, k, 2))
                      f_A = 1-pA*(1-pB)
                      f_B = 1-pB*(1-pA)
+                     f_A = 1
+                     f_B = 1
                      ! This is the model for each timestream
                      ! The sgn parameter is +1 for timestreams 13 and 14, -1
                      ! for timestreams 23 and 24, and also is used to switch
@@ -423,7 +465,7 @@ contains
                      dA = d(l, 1, lpix) + sgn*(d(l, 2, lpix)*self%cos2psi(lpsi) + d(l, 3, lpix)*self%sin2psi(lpsi))
                      dB = d(l, 1, rpix) + sgn*(d(l, 2, rpix)*self%cos2psi(rpsi) + d(l, 3, rpix)*self%sin2psi(rpsi))
                      d1 = (1 + x_im)*dA - (1 - x_im)*dB
-                     if (sum(flag(t,:)) == 0) then
+                     !if (sum(flag(t,:)) == 0) then
                         ! Temperature
                         q(l, 1, lpix) = q(l, 1, lpix) + f_A*(1 + x_im)*d1*inv_sigmasq
                         q(l, 1, rpix) = q(l, 1, rpix) - f_B*(1 - x_im)*d1*inv_sigmasq
@@ -433,7 +475,7 @@ contains
                         ! U
                         q(l, 3, lpix) = q(l, 3, lpix) + f_A*(1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
                         q(l, 3, rpix) = q(l, 3, rpix) - f_B*(1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
-                     end if
+                     !end if
                   end do
                end do
                deallocate (pix, psi, flag)
@@ -443,7 +485,13 @@ contains
             if (self%myid_shared==0) then 
                 write(*,*) minval(q), maxval(q), 'minmax(q)'
             end if
-            alpha = delta_new/sum(d(l,:,:)*q(l,:,:))
+            g = sum(d(l,:,:)*q(l,:,:))
+            call mpi_allreduce(MPI_IN_PLACE, g, 1, &
+                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            if (self%myid_shared==0) then 
+                write(*,*) g, 'd.dot(q)'
+            end if
+            alpha = delta_new/g
             if (self%myid_shared==0) then 
                 write(*,*) alpha, 'alpha'
             end if
@@ -468,7 +516,8 @@ contains
                      call self%decompress_pointing_and_flags(j, k, pix(:, k, :), &
                          & psi(:, k, :), flag(:, k))
                      do t = 1, ntod
-                        inv_sigmasq = 1/self%scans(j)%d(k)%sigma0**2
+                        inv_sigmasq = (self%scans(j)%d(k)%gain/self%scans(j)%d(k)%sigma0)**2
+                        !inv_sigmasq = 1d0
                         lpix = pix(t, k, 1) + 1
                         rpix = pix(t, k, 2) + 1
                         lpsi = psi(t, k, 1)
@@ -479,13 +528,15 @@ contains
                         pB = sprocmask%a(pix(t, k, 2))
                         f_A = 1-pA*(1-pB)
                         f_B = 1-pB*(1-pA)
+                        f_A = 1
+                        f_B = 1
                         
                         dA = cg_sol(l, 1, lpix) + sgn*(cg_sol(l, 2, lpix)*self%cos2psi(lpsi) &
                                               &      + cg_sol(l, 3, lpix)*self%sin2psi(lpsi))
                         dB = cg_sol(l, 1, rpix) + sgn*(cg_sol(l, 2, rpix)*self%cos2psi(rpsi) &
                                               &      + cg_sol(l, 3, rpix)*self%sin2psi(rpsi))
                         d1 = (1 + x_im)*dA - (1 - x_im)*dB
-                        if (sum(flag(t,:)) == 0) then
+                        !if (sum(flag(t,:)) == 0) then
                            ! Temperature
                            r(l, 1, lpix) = r(l, 1, lpix) - f_A*(1 + x_im)*d1*inv_sigmasq
                            r(l, 1, rpix) = r(l, 1, rpix) + f_B*(1 - x_im)*d1*inv_sigmasq
@@ -495,7 +546,7 @@ contains
                            ! U
                            r(l, 3, lpix) = r(l, 3, lpix) - f_A*(1 + x_im)*d1*self%sin2psi(lpsi)*sgn*inv_sigmasq
                            r(l, 3, rpix) = r(l, 3, rpix) + f_B*(1 - x_im)*d1*self%sin2psi(rpsi)*sgn*inv_sigmasq
-                        end if
+                        !end if
                      end do
                   end do
                   deallocate (pix, psi, flag)
@@ -508,6 +559,7 @@ contains
                r(l, :, :) = r(l, :, :) - alpha*q(l, :, :)
             end if
             if (self%myid_shared==0) then 
+                write(*,*) minval(sb_map%a), maxval(sb_map%a), 'minmax(b)'
                 write(*,*) minval(r), maxval(r), 'minmax(r)'
             end if
             s(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
@@ -516,28 +568,41 @@ contains
             end if
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
+            call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             if (self%myid_shared==0) then 
                 write(*,*) delta_new, 'delta_new'
             end if
             beta = delta_new/delta_old
+            if (self%myid_shared==0) then 
+                write(*,*) beta, 'beta'
+            end if
             d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
+            ! if beta starts getting larger... can we restart the loop? I feel
+            ! like something is a little wrong with the algorithm if we start
+            ! getting beta increasing.
+            !if (beta .ge. 1) then
+            !   r(l, :, :) = sb_map%a(l, :, :)
+            !   d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
+            !   delta_new = sum(r(l, :, :)*d(l, :, :))
+            !   call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+            !                     & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            !end if
             if (self%myid_shared==0) then 
                 write(*,*) minval(d), maxval(d), 'minmax(d)'
             end if
-            ! if beta starts getting larger... can we restart the loop?
-
             if (self%myid_shared==0) then 
                 !write (*, *) alpha*maxval(abs(q))/maxval(r), beta*maxval(abs(d))/maxval(s), 'relative res update, dir update'
                 write (*, *) ''
-                ! save cg solution iteration
-                ! cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
-                ! do m = 0, np0 - 1
-                !    do n = 1, nmaps
-                !       outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
-                !    end do
-                ! end do
-                ! call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//char(i)//trim(postfix))
             end if
+            !save cg solution iteration
+            cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
+            do m = 0, np0 - 1
+               do n = 1, nmaps
+                  outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
+               end do
+            end do
+            call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(i))//trim(postfix))
             i = i + 1
 
          end do
