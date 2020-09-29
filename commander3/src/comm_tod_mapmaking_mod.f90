@@ -29,7 +29,8 @@ contains
          if (.not. tod%scans(scan)%d(det)%accept) cycle
          !write(*,*) tod%scanid(scan), det, tod%scans(scan)%d(det)%sigma0
          off = 6 + 4*(det - 1)
-         inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+         !inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+         inv_sigmasq = 1/(tod%scans(scan)%d(det)%sigma0)**2
          do t = 1, tod%scans(scan)%ntod
 
             if (iand(flag(t, det), tod%flag0) .ne. 0) cycle
@@ -92,12 +93,11 @@ contains
 
       integer(i4b) :: pA, pB, f_A, f_B
 
-      !M_diag(:,:,:) = 1d0
-
       nout = size(b, dim=1)
 
       do det = 1, tod%ndet
          inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+         !inv_sigmasq = 1d0
          do t = 1, tod%scans(scan)%ntod
 
             lpoint = tod%pix2ind(pix(t, det, 1))
@@ -111,8 +111,10 @@ contains
             ! is 1 (low emission), pixA is updated and pixB isn't.
             f_A = 1-pA*(1-pB)
             f_B = 1-pB*(1-pA)
+            f_A = 1
+            f_B = 1
 
-            if (sum(flag(t,:))==0) then
+            !if (sum(flag(t,:))==0) then
                do i = 1, nout
                   b(i, 1, lpoint) = b(i, 1, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
                   b(i, 1, rpoint) = b(i, 1, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
@@ -128,12 +130,83 @@ contains
                   M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2*inv_sigmasq
                   M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2*inv_sigmasq
                end do
-            end if
+            !end if
 
          end do
       end do
 
    end subroutine bin_differential_TOD
+
+   subroutine compute_Ax(tod, x, y, pix, psi, flag, pmask, scan)
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! Code to compute matrix product P^T N^-1 P m
+      ! y = Ax
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      implicit none
+      class(comm_tod), intent(in)                        :: tod
+      integer(i4b), intent(in)                           :: scan
+      real(sp), dimension(1:, 1:), intent(in)            :: x
+      integer(i4b), dimension(1:, 1:), intent(in)        :: flag
+      integer(i4b), dimension(0:), intent(in)            :: pmask
+      integer(i4b), dimension(1:, 1:, 1:), intent(in)    :: pix, psi
+      real(dp), dimension(1:), intent(in)                :: x_im
+
+      real(sp), dimension(1:, 1:), intent(out)           :: y
+
+      y(:,:) = 0d0
+      do j = 1, tod%nscan
+         ntod = tod%scans(j)%ntod
+         ndet = tod%ndet
+         allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
+         allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
+         allocate (flag(ntod, ndet))                   ! Decompressed flags
+         do k = 1, tod%ndet
+            call tod%decompress_pointing_and_flags(j, k, pix(:, k, :), &
+                & psi(:, k, :), flag(:, k))
+            do t = 1, ntod
+               ! sigma0 is in units of du, so need to convert back to mK
+               inv_sigmasq = (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
+               !inv_sigmasq = 1d0
+               ! required to convert from healpix-to-fortran indexing
+               lpix = pix(t, k, 1) + 1 
+               rpix = pix(t, k, 2) + 1
+               lpsi = psi(t, k, 1)
+               rpsi = psi(t, k, 2)
+               x_im = tod%x_im((k + 1)/2)
+               sgn = (-1)**((k + 1)/2 + 1)
+               pA = sprocmask%a(pix(t, k, 1))
+               pB = sprocmask%a(pix(t, k, 2))
+               f_A = 1-pA*(1-pB)
+               f_B = 1-pB*(1-pA)
+               ! This is the model for each timestream
+               ! The sgn parameter is +1 for timestreams 13 and 14, -1
+               ! for timestreams 23 and 24, and also is used to switch
+               ! the sign of the polarization sensitive parts of the
+               ! model
+               dA = d(l, 1, lpix) + sgn*(x(l, 2, lpix)*tod%cos2psi(lpsi) + x(l, 3, lpix)*tod%sin2psi(lpsi))
+               dB = d(l, 1, rpix) + sgn*(x(l, 2, rpix)*tod%cos2psi(rpsi) + x(l, 3, rpix)*tod%sin2psi(rpsi))
+               d1 = (1 + x_im)*dA - (1 - x_im)*dB
+               !if (sum(flag(t,:)) == 0) then
+                  ! Temperature
+                  y(1, lpix) = y(1, lpix) + f_A*(1 + x_im)*d1*inv_sigmasq
+                  y(1, rpix) = y(1, rpix) - f_B*(1 - x_im)*d1*inv_sigmasq
+                  ! Q
+                  y(2, lpix) = y(2, lpix) + f_A*(1 + x_im)*d1*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+                  y(2, rpix) = y(2, rpix) - f_B*(1 - x_im)*d1*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+                  ! U
+                  y(3, lpix) = y(3, lpix) + f_A*(1 + x_im)*d1*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+                  y(3, rpix) = y(3, rpix) - f_B*(1 - x_im)*d1*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+                  !!S
+                  !y(4, lpix) = y(4, lpix) + f_A*(1 + x_im)*d1*sgn*inv_sigmasq
+                  !y(4, rpix) = y(4, rpix) - f_B*(1 - x_im)*d1*sgn*inv_sigmasq
+               !end if
+            end do
+         end do
+         deallocate (pix, psi, flag)
+      end do
+
+   end subroutine compute_Ax
+
 
    subroutine finalize_binned_map(tod, handle, sA_map, sb_map, rms, outmaps, chisq_S, Sfile, mask, sb_mono, sys_mono, condmap)
       implicit none
