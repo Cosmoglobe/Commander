@@ -195,12 +195,6 @@ contains
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
-      real(dp), allocatable, dimension(:, :) :: A
-      integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn, lpix, rpix
-      real(dp) ::  inv_sigmasq, x_im
-      real(dp) :: dA, dB, d1
-
-      integer(i4b) :: pA, pB, f_A, f_B
 
       if (iter > 1) self%first_call = .false.
       call int2string(iter, ctext)
@@ -339,8 +333,8 @@ contains
             ! Input data is in K
             ! standard deviations in mK
             ! sigma  = abs(self%scans(i)%d(j)%sigma0/self%scans(i)%d(j)%gain)
-            d_calib(1, :, j) = s_sky(:, j)*1d9 + &
-                   rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
+            !d_calib(1, :, j) = s_sky(:, j)*1d9 + &
+            !       rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
 
             if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
             if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
@@ -391,11 +385,13 @@ contains
             end do
          end do
       end if
+      ! Is this necessary for a shared array? Is this where my factor of 72
+      ! coming in?
       call update_status(status, "All-reducing binned maps")
-      call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
-                        & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, sM_diag%a, size(sM_diag%a), &
-                        & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+      !call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
+      !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+      !call mpi_allreduce(MPI_IN_PLACE, sM_diag%a, size(sM_diag%a), &
+      !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       allocate (r(nout, nmaps, npix))
@@ -403,6 +399,7 @@ contains
       allocate (q(nout, nmaps, npix))
       allocate (d(nout, nmaps, npix))
       allocate (cg_sol(nout, nmaps, npix))
+      allocate (cg_tot(nmaps, 0:np0 - 1))
       np0 = self%info%np
 
       cg_sol(:, :, :) = 0.0d0
@@ -416,41 +413,27 @@ contains
          r(l, :, :) = sb_map%a(l, :, :)
          d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
          delta_new = sum(r(l, :, :)*d(l, :, :))
-         call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-                           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-         if (self%myid_shared==0) then 
-            write (*, *), delta_new, 'delta_0'
-         end if
+         !call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+         !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
          delta_0 = delta_new
          delta_old = delta_0
          i = 0
+         ! Currently, every compute_Ax term allocates and deallocates the pix,
+         ! psi, and flag internally, and then deallocates. To what extent is it
+         ! possible to keep them all in memory and call them as arguments to
+         ! compute_Ax?
          do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0) .and. (delta_new .le. delta_0))
-            if (self%myid_shared==0) then 
-                write (*, *) i, ':',  delta_new, 'delta'
-            end if
             call update_status(status, 'q=Ad')
             ! q = Ad
             q(l,:,:) = 0d0
             call compute_Ax(self, d, q, self%x_im, sprocmask%a, i, l)
             call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            if (self%myid_shared==0) then 
-                write(*,*) minval(q), maxval(q), 'minmax(q)'
-            end if
             g = sum(d(l,:,:)*q(l,:,:))
-            call mpi_allreduce(MPI_IN_PLACE, g, 1, &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            if (self%myid_shared==0) then 
-                write(*,*) g, 'd.dot(q)'
-            end if
+            !call mpi_allreduce(MPI_IN_PLACE, g, 1, &
+            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             alpha = delta_new/g
-            if (self%myid_shared==0) then 
-                write(*,*) alpha, 'alpha'
-            end if
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
-            if (self%myid_shared==0) then 
-                write(*,*) minval(cg_sol), maxval(cg_sol), 'minmax(cg_sol)'
-            end if
             ! evaluating r = b - Ax
             if (mod(i, 50) == 0) then
                call update_status(status, 'r = r - Ax')
@@ -464,39 +447,17 @@ contains
                call update_status(status, 'r = r - alpha*q')
                r(l, :, :) = r(l, :, :) - alpha*q(l, :, :)
             end if
-            if (self%myid_shared==0) then 
-                write(*,*) minval(sb_map%a), maxval(sb_map%a), 'minmax(b)'
-                write(*,*) minval(r), maxval(r), 'minmax(r)'
-            end if
             s(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
-            if (self%myid_shared==0) then 
-                write(*,*) minval(s), maxval(s), 'minmax(s)'
-            end if
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
-            call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            if (self%myid_shared==0) then 
-                write(*,*) delta_new, 'delta_new'
-            end if
+            !call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
+            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             beta = delta_new/delta_old
             if (self%myid_shared==0) then 
-                write(*,*) beta, 'beta'
+                write(*,*) i, ':', beta, 'beta'
             end if
+
             d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
-            ! if beta starts getting larger... can we restart the loop? I feel
-            ! like something is a little wrong with the algorithm if we start
-            ! getting beta increasing.
-            !if (beta .ge. 1) then
-            !   r(l, :, :) = sb_map%a(l, :, :)
-            !   d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
-            !   delta_new = sum(r(l, :, :)*d(l, :, :))
-            !   call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-            !                     & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            !end if
-            if (self%myid_shared==0) then 
-                write(*,*) minval(d), maxval(d), 'minmax(d)'
-            end if
             !save cg solution iteration
             cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
             do m = 0, np0 - 1
@@ -513,7 +474,6 @@ contains
       call update_status(status, "Allocatting total maps")
       allocate (b_tot(nout, nmaps, 0:np0 - 1))
       allocate (Mdiag_tot(nout, nmaps, 0:np0 - 1))
-      allocate (cg_tot(nmaps, 0:np0 - 1))
       allocate (r_tot(nmaps, 0:np0 - 1))
       b_tot = sb_map%a(:, 1:nmaps, self%info%pix + 1)
       Mdiag_tot = sM_diag%a(:, 1:nmaps, self%info%pix + 1)

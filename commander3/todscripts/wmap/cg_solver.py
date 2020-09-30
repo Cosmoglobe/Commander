@@ -156,7 +156,6 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     dipole = make_dipole(amp, lon, lat, nside)
 
 
-    ntodsigma = 100
     npix = hp.nside2npix(nside)
     M = np.zeros(npix)
     b = np.zeros(npix)
@@ -176,18 +175,6 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
 
 
-    '''
-    TOD0 = np.array(f[obsid + '/' + labels[0] + '/tod'])
-    if band == 'K1':
-        if len(TOD0) != 675000:
-            print(f'{fname} has wrong length')
-            return None
-    elif band == 'V1':
-        if len(TOD0) != 1125000:
-            print(f'{fname} has wrong length')
-            return None
-    '''
-    
     DAs = [[], [], [], []]
     flags = [[], [], [], []]
     sigmas = []
@@ -198,7 +185,6 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
         TODs = np.array(f[obsid + '/' + label + '/tod'])
         scalars = f[obsid + '/' + label + '/scalars']
         gains[num] = scalars[0]
-        #TODs = TODs - np.median(TODs)
         flag = h.Decoder(np.array(f[obsid + '/' + label + '/flag']))
         flags[num] = flags[num] + flag.tolist()
         DAs[num] = DAs[num] + TODs.tolist()
@@ -245,9 +231,9 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
 
 
     # subtract dipole solution from d
-    d = d - ((1+xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
+    #   d = d - ((1+xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
 
-    p = p - dxbar*(dipole[pixA] + dipole[pixB])
+    #   p = p - dxbar*(dipole[pixA] + dipole[pixB])
     
 
     # most aggressive mask
@@ -574,7 +560,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
            
 
-                A_p += dot_product_mkl(P_p_AM.T, P_p)
+                A_p += dot_product_mkl(P_p.T, P_p)
+                #A_p += dot_product_mkl(P_p_AM.T, P_p)
                 #A_p += dot_product_mkl(P_p_AM.T, P_p_AM)
                 #A_p = (A_p.tolil() + A_pi.tolil()).tocsr()
                 #A_p = A_p + A_pi
@@ -920,10 +907,10 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        get_cg(band=b, nfiles=np.inf, sparse_test=False, sparse_only=True, 
-                imbalance=False, mask=False, pol=True, imax=1000, nside=256)
+        #get_cg(band=b, nfiles=100, sparse_test=False, sparse_only=True, 
+        #        imbalance=False, mask=False, pol=True, imax=1000, nside=256)
         #plot_maps_pol(band=b, nside=512, version=14)
-        #plot_maps_pol(band=b, nside=256, version=13)
+        plot_maps_pol(band=b, nside=256, version=13)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
