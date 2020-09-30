@@ -23,7 +23,7 @@ for i in range(len(deltas)):
             title='', sub=(2,2,1))
     hp.mollview(np.split(bla[i],4)[1], min=-0.35, max=0.35, cmap=cmr.pride, 
             title='', sub=(2,2,2))
-    hp.mollview(np.split(bla[i],4)[1], min=-0.35, max=0.35, cmap=cmr.pride, 
+    hp.mollview(np.split(bla[i],4)[2], min=-0.35, max=0.35, cmap=cmr.pride, 
             title='', sub=(2,2,3))
     hp.mollview(np.split(bla[i],4)[3], min=-0.35, max=0.35, cmap=cmr.pride, 
             title='', sub=(2,2,4))
