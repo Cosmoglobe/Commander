@@ -339,7 +339,9 @@ contains
              select type (N)
              class is (comm_N_rms)
                 call data(i)%tod%dumpToHDF(file, iter, &
-                     & data(i)%map, N%rms0)
+                     & data(i)%map0, N%rms0)
+                call data(i)%map0%dealloc()
+                data(i)%map0 => null()
              end select
           end if
        end do

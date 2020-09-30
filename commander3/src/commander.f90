@@ -346,6 +346,8 @@ contains
           call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
        end if
        if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
+       !copy data map without regnoise, to write to chain file
+       data(i)%map0%map = data(i)%map%map
        data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
        data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
        deallocate(regnoise)

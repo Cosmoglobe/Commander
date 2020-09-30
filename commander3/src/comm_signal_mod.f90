@@ -341,15 +341,19 @@ contains
              end if
           end select
 
-          ! Update rms and data maps; no regularization noise, because it is already included in the sample on disk
+          ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
+          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, map=rms)
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
+          data(i)%map0%map = data(i)%map%map
+          data(i)%map%map = data(i)%map%map + regnoise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
           call rms%dealloc
+          deallocate(regnoise)
        end do
     else if (cpar%resamp_CMB) then
        do i = 1, numband  
@@ -367,16 +371,18 @@ contains
              call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
           end select
 
-
-          ! Update rms and data maps; regularization noise already included in stored maps
+          ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
+          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, map=rms)
+             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
+          data(i)%map%map = data(i)%map%map + regnoise
           data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
           call rms%dealloc
+          deallocate(regnoise)
        end do
     end if
 
