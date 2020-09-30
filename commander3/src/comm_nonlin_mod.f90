@@ -112,6 +112,13 @@ contains
                       else
                          samp_cg = .true.
                       end if
+                   else
+                      if (cpar%almsamp_pixreg) then
+                         if (cpar%almsamp_priorsamp_frozen .and. &
+                              & any(c%fix_pixreg(:c%npixreg(p,j),p,j)==.true.)) then
+                            samp_cg = .true.
+                         end if
+                      end if
                    end if
                 end do
 
@@ -410,7 +417,7 @@ contains
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
                    ! Save old values
-                   theta_pixreg_prop = c%theta_pixreg(:,pl,j)
+                   theta_pixreg_prop = c%theta_pixreg(:c%npixreg(pl,j),pl,j)
                    
                    rgs = 0.d0
                    do p = 1, c%npixreg(pl,j)
@@ -674,6 +681,91 @@ contains
              end if
 
           end do ! End samples
+
+          if (cpar%almsamp_pixreg) then
+             if (cpar%almsamp_priorsamp_frozen .and. &
+                  & any(c%fix_pixreg(:c%npixreg(pl,j),pl,j)==.true.)) then
+                !Sample frozen regions using component prior
+                if (info%myid == 0) then
+                   ! Save old values
+                   theta_pixreg_prop = c%theta_pixreg(:,pl,j)
+
+                   do p = 1, c%npixreg(pl,j)
+                      if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%p_gauss(1,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                   end do
+                end if
+
+                call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
+
+                !assign new thetas to frozen
+                c%theta_pixreg(:c%npixreg(pl,j),pl,j) = theta_pixreg_prop
+
+                ! Loop over pixels in region
+                !if (info%myid==0) write(*,*) size(c%ind_pixreg_arr(1,:,j)), size(c%ind_pixreg_arr(1,pl,:)), pl, j
+                do pix = 0, theta%info%np-1
+                   !if (info%myid==0) write(*,*) c%ind_pixreg_arr(pix,pl,j), theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j)), theta%map(pix,1), info%myid, pl, pix
+                   theta%map(pix,1) = theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j))
+                end do
+
+                ! Smooth after regions are set, if smoothing scale > 0 and beam FWHM > 0.0
+                smooth_scale = c%smooth_scale(j)
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                   if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                      call smooth_map(info_theta, .false., &
+                           & c%B_pp_fr(j)%p%b_l*0.d0+1.d0, theta, &  
+                           & c%B_pp_fr(j)%p%b_l, theta_smooth)
+                   else
+                      theta_smooth => comm_map(info_theta)
+                      theta_smooth%map=theta%map
+                   end if
+                else
+                   theta_smooth => comm_map(info_theta)
+                   theta_smooth%map=theta%map
+                end if
+
+                !threshold theta map on uniform priors (in case of ringing; done after smoothing)
+                theta_smooth%map = min(c%p_uni(2,j),max(c%p_uni(1,j),theta_smooth%map)) 
+
+                call theta_smooth%YtW_scalar
+                call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
+                allocate(buffer3(0:1, 0:nalm_tot_reg-1, 2)) ! Denne er nalm for 1! trenger alle
+
+                call gather_alms(theta_smooth%alm, buffer3, theta_smooth%info%nalm, theta_smooth%info%lm, 0, 1, 1)
+                call mpi_allreduce(MPI_IN_PLACE, buffer3, nalm_tot_reg, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+                alms(i,:,pl) = buffer3(0,:c%nalm_tot,1)
+                deallocate(buffer3)
+
+                call theta_smooth%dealloc(); deallocate(theta_smooth)
+             
+                ! Save to correct poltypes
+                if (c%poltype(j) == 1) then      ! {T+E+B}
+                   do q = 1, c%theta(j)%p%info%nmaps
+                      alms(i,:,q) = alms(i,:,pl) ! Save to all maps
+                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
+                   end do
+                else if (c%poltype(j) == 2) then ! {T,E+B}
+                   if (pl == 1) then
+                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+                   else
+                      do q = 2, c%theta(j)%p%info%nmaps
+                         alms(i,:,q) = alms(i,:,pl)
+                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
+                      end do
+                   end if
+                else if (c%poltype(j) == 3) then ! {T,E,B}
+                   call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+                end if
+
+                ! Update mixing matrix with new alms
+                if (c%apply_jeffreys) then
+                   call c%updateMixmat(df=df, par=j)
+                   call compute_jeffreys_prior(c, df, pl, j, chisq_jeffreys)
+                else
+                   call c%updateMixmat
+                end if
+             end if !almsamp_priorsamp_frozen .and. any frozen pixregs
+          end if !almsamp_pixreg
+
           deallocate(rgs)
           if (cpar%almsamp_pixreg) deallocate(theta_pixreg_prop, theta_delta_prop) 
        end do ! End pl
