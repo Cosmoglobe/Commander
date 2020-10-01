@@ -96,8 +96,8 @@ contains
       nout = size(b, dim=1)
 
       do det = 1, tod%ndet
-         inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
-         !inv_sigmasq = 1d0
+         !inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+         inv_sigmasq = 1d0
          do t = 1, tod%scans(scan)%ntod
 
             lpoint = tod%pix2ind(pix(t, det, 1))
@@ -168,8 +168,8 @@ contains
                 & psi(:, k, :), flag(:, k))
             do t = 1, ntod
                ! sigma0 is in units of du, so need to convert back to mK
-               inv_sigmasq = (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
-               !inv_sigmasq = 1d0
+               !inv_sigmasq = (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
+               inv_sigmasq = 1d0
                ! required to convert from healpix-to-fortran indexing
                lpix = pix(t, k, 1) + 1 
                rpix = pix(t, k, 2) + 1
