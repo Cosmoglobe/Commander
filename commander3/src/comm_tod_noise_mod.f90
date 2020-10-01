@@ -901,13 +901,13 @@ contains
        alpha_dpc = self%scans(scan)%d(i)%alpha_def
        ! Sampling alpha
        if (trim(self%freq) == '030') then
-          prior(1) = -1.6
+          prior(1) = -2.5
           prior(2) = -0.4
        else if (trim(self%freq) == '044') then
-          prior(1) = -1.8
+          prior(1) = -2.5
           prior(2) = -0.4
        else if (trim(self%freq) == '070') then
-          prior(1) = -2.5
+          prior(1) = -3.0
           prior(2) = -0.4
        else 
           write(*,*) "invalid band label in sample_noise_psd"
@@ -950,7 +950,7 @@ contains
       lnL_fknee = 0.d0
       sconst = sigma0 ** 2 * x ** (-alpha) 
 
-      lnL_fknee = lnL_fknee - 0.5d0 * (log(x) - log(fknee_dpc)) ** 2 / (0.15d0 * log(10.d0)) ** 2 - log(x)
+      lnL_fknee = lnL_fknee - 0.5d0 * (log(x) - log(fknee_dpc)) ** 2 / (0.10d0 * log(10.d0)) ** 2 - log(x)
 
       do l = 1, n_f  ! n-1
          f = l*(samprate/2)/(n-1)
@@ -976,7 +976,7 @@ contains
       end if
       lnL_alpha = 0.d0
 
-!      lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.1d0 ** 2
+      lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
       
       ! if (trim(self%freq) == '070') then
       !    lnL_alpha = lnL_alpha - 0.5d0 * (x - alpha_dpc) ** 2 / 0.2d0 ** 2
