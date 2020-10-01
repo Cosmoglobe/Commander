@@ -264,7 +264,7 @@ contains
       naccept = 0; ntot = 0
       allocate (M_diag(nout, nmaps, npix))
       allocate (b_map(nout, nmaps, npix))
-      M_diag(:,:,:) = 0
+      M_diag(:,:,:) = 1d-6
       do i = 1, self%nscan
 
          !write(*,*) "Processing scan: ", i, self%scans(i)%d%accept
@@ -327,14 +327,14 @@ contains
          allocate (d_calib(nout, ntod, ndet))
          do j = 1, ndet
             inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
-            d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-               & inv_gain - s_tot(:, j) + s_sky(:, j)
+            !d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
+            !   & inv_gain - s_tot(:, j) + s_sky(:, j)
             ! Simulated data
             ! Input data is in K
             ! standard deviations in mK
             ! sigma  = abs(self%scans(i)%d(j)%sigma0/self%scans(i)%d(j)%gain)
-            !d_calib(1, :, j) = s_sky(:, j)*1d9 + &
-            !       rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
+            d_calib(1, :, j) = s_sky(:, j)*1d9
+                   !rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
 
             if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
             if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
@@ -394,13 +394,13 @@ contains
       !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
+      np0 = self%info%np
       allocate (r(nout, nmaps, npix))
       allocate (s(nout, nmaps, npix))
       allocate (q(nout, nmaps, npix))
       allocate (d(nout, nmaps, npix))
       allocate (cg_sol(nout, nmaps, npix))
       allocate (cg_tot(nmaps, 0:np0 - 1))
-      np0 = self%info%np
 
       cg_sol(:, :, :) = 0.0d0
       epsil = 1.0d-5
