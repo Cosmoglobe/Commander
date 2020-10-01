@@ -23,6 +23,7 @@ module comm_data_mod
 
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_map),     pointer :: map       => null()
+     class(comm_map),     pointer :: map0      => null() !for TOD data if outputing to HDF
      class(comm_map),     pointer :: res       => null()
      class(comm_map),     pointer :: c_old     => null()
      class(comm_map),     pointer :: c_prop    => null()
@@ -93,7 +94,6 @@ contains
        call get_mapfile(cpar, i, mapfile)
        data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
-
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
           data(n)%procmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
@@ -124,6 +124,11 @@ contains
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
           end if
+
+          if (trim(cpar%ds_tod_type(i)) /= 'none') then
+             data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
+          end if
+
        end if
        
 
