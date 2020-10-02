@@ -35,9 +35,9 @@ warnings.filterwarnings("ignore")
 from sparse_dot_mkl import dot_product_mkl, gram_matrix_mkl
 
 #nside = 256
-version = 13
+#version = 13
 # nside = 512
-#version = 14
+version = 14
 # using pre-calibrated data
 #version = 15
 
@@ -234,6 +234,18 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     #   d = d - ((1+xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
 
     #   p = p - dxbar*(dipole[pixA] + dipole[pixB])
+
+    # subtract orbital dipole
+    vsun = f[obsid + '/common/vsun'][:] # km/s
+    c = 299792.458
+    beta = vsun/c
+    vecs = np.array(hp.pix2vec(nside, np.arange(hp.nside2npix(nside))))
+    gamma = 1/np.sqrt(1-sum(beta**2))
+    # in mK
+    orb_dip = 2.7275e3*(1/(1-beta.dot(vecs))/gamma-1)
+
+    d = d - ((1+xbar)*orb_dip[pixA] - (1-xbar)*orb_dip[pixB])
+    p = p - dxbar*(orb_dip[pixA] + orb_dip[pixB])
     
 
     # most aggressive mask
@@ -385,7 +397,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         eps = 1e-8,
         ):
 
-    imax = min(imax, nfiles)
+    #imax = min(imax, nfiles)
 
     # There are gain imbalance parameters that need to be included in the
     # mapmaking. I don't think this fits in with the hdf5 files, so I'll include
@@ -422,6 +434,11 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         b_p = np.zeros(3*npix)
         M_diag_p = np.zeros(3*npix)
 
+    fnames = np.loadtxt('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/filelist_K1_v14_trunc.txt', 
+                skiprows=1, dtype=str)
+    fnames = fnames[:,1]
+    fnames = [f.strip('"') for f in fnames]
+    '''
     fnames = glob(f'/mn/stornext/d16/cmbco/bp/wmap/data/wmap_{band}_*v{version}.h5')
     fnames.sort()
     if ~np.isfinite(nfiles):
@@ -437,6 +454,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         fnames = fnames[:nfiles]
     else:
         fnames = fnames
+    '''
 
     pool = Pool(processes=min(nfiles, ncpus))
     print('Preparing pool')
@@ -907,10 +925,10 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        #get_cg(band=b, nfiles=100, sparse_test=False, sparse_only=True, 
-        #        imbalance=False, mask=False, pol=True, imax=1000, nside=256)
-        #plot_maps_pol(band=b, nside=512, version=14)
-        plot_maps_pol(band=b, nside=256, version=13)
+        get_cg(band=b, nfiles=100, sparse_test=False, sparse_only=True, 
+                imbalance=False, mask=False, pol=True, imax=1000, nside=512)
+        plot_maps_pol(band=b, nside=512, version=14)
+        #plot_maps_pol(band=b, nside=256, version=13)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
