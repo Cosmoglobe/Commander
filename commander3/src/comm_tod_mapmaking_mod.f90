@@ -96,8 +96,8 @@ contains
       nout = size(b, dim=1)
 
       do det = 1, tod%ndet
-         !inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
-         inv_sigmasq = 1d0
+         inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+         !inv_sigmasq = 1d0
          do t = 1, tod%scans(scan)%ntod
 
             lpoint = tod%pix2ind(pix(t, det, 1))
@@ -114,7 +114,7 @@ contains
             f_A = 1
             f_B = 1
 
-            !if (sum(flag(t,:))==0) then
+            if (sum(flag(t,:))==0) then
                do i = 1, nout
                   b(i, 1, lpoint) = b(i, 1, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
                   b(i, 1, rpoint) = b(i, 1, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
@@ -130,7 +130,7 @@ contains
                   M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2*inv_sigmasq
                   M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2*inv_sigmasq
                end do
-            !end if
+            end if
 
          end do
       end do
@@ -168,8 +168,8 @@ contains
                 & psi(:, k, :), flag(:, k))
             do t = 1, ntod
                ! sigma0 is in units of du, so need to convert back to mK
-               !inv_sigmasq = (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
-               inv_sigmasq = 1d0
+               inv_sigmasq = (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
+               !inv_sigmasq = 1d0
                ! required to convert from healpix-to-fortran indexing
                lpix = pix(t, k, 1) + 1 
                rpix = pix(t, k, 2) + 1
@@ -191,7 +191,7 @@ contains
                dA = x(n, 1, lpix) + sgn*(x(n, 2, lpix)*tod%cos2psi(lpsi) + x(n, 3, lpix)*tod%sin2psi(lpsi))
                dB = x(n, 1, rpix) + sgn*(x(n, 2, rpix)*tod%cos2psi(rpsi) + x(n, 3, rpix)*tod%sin2psi(rpsi))
                d1 = (1 + x_im)*dA - (1 - x_im)*dB
-               !if (sum(flag(t,:)) == 0) then
+               if (sum(flag(t,:)) == 0) then
                   ! Temperature
                   y(n, 1, lpix) = y(n, 1, lpix) + f_A*(1 + x_im)*d1*inv_sigmasq
                   y(n, 1, rpix) = y(n, 1, rpix) - f_B*(1 - x_im)*d1*inv_sigmasq
@@ -204,7 +204,7 @@ contains
                   !!S
                   !y(n, 4, lpix) = y(n, 4, lpix) + f_A*(1 + x_im)*d1*sgn*inv_sigmasq
                   !y(n, 4, rpix) = y(n, 4, rpix) - f_B*(1 - x_im)*d1*sgn*inv_sigmasq
-               !end if
+               end if
             end do
          end do
          deallocate (pix, psi, flag)

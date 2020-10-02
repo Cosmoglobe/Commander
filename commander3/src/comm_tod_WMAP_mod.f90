@@ -327,13 +327,13 @@ contains
          allocate (d_calib(nout, ntod, ndet))
          do j = 1, ndet
             inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
-            !d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-            !   & inv_gain - s_tot(:, j) + s_sky(:, j)
+            d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
+               & inv_gain - s_tot(:, j) + s_sky(:, j)
             ! Simulated data
             ! Input data is in K
             ! standard deviations in mK
             ! sigma  = abs(self%scans(i)%d(j)%sigma0/self%scans(i)%d(j)%gain)
-            d_calib(1, :, j) = s_sky(:, j)*1d9
+            !d_calib(1, :, j) = s_sky(:, j)*1d9
                    !rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
 
             if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
@@ -409,7 +409,8 @@ contains
 
       !do l = 1, nout
       l = 1
-         ! start with r = b - Ax0, where x0 is the current map estimate.
+         ! start with r = b - Ax0, where x0 is the current map estimate. map_sky(:, :, :, 1)
+         !call compute_Ax(self, map_sky(:,:,:,1), r, self%x_im, sprocmask%a, i, l)
          r(l, :, :) = sb_map%a(l, :, :)
          d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
          delta_new = sum(r(l, :, :)*d(l, :, :))
@@ -435,7 +436,7 @@ contains
             alpha = delta_new/g
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
             ! evaluating r = b - Ax
-            if (mod(i, 50) == 0) then
+            if (mod(i, 1) == 0) then
                call update_status(status, 'r = r - Ax')
                ! r = b - Ax
                r(l,:,:) = 0d0
