@@ -948,6 +948,8 @@ contains
           self%scans(i)%d(j)%alpha  = output(k,j,3)
           self%scans(i)%d(j)%fknee  = output(k,j,4)
           self%scans(i)%d(j)%accept = .true.  !output(k,j,5) == 1.d0
+          if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
+          if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
     end do
 

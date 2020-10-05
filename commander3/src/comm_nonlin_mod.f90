@@ -307,6 +307,7 @@ contains
              ! Formatter for region output
              write(regfmt,'(I0)') size(c%theta_pixreg(1:,pl,j))
              regfmt = '(a,'//adjustl(trim(regfmt))//'(f7.3))'
+             if (cpar%myid_chain == 0) write(*,regfmt) ' using region priors', c%pixreg_priors(:c%npixreg(pl,j),pl,j)
           else 
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
           end if
@@ -362,7 +363,8 @@ contains
                    chisq_prior = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
-                      chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
+                      !chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
+                      chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%pixreg_priors(p,pl,j))/c%p_gauss(2,j))**2)
                    end do
                 end if
 
@@ -531,7 +533,8 @@ contains
                       ! Apply a prior per region
                       chisq_prior = 0.d0
                       do p = 1, c%npixreg(pl,j)
-                         chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
+                         !chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
+                         chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%pixreg_priors(p,pl,j))/c%p_gauss(2,j))**2)
                       end do
                       !write(*,*) "prior ", chisq_prior
                    end if
@@ -691,7 +694,8 @@ contains
                    theta_pixreg_prop = c%theta_pixreg(:,pl,j)
 
                    do p = 1, c%npixreg(pl,j)
-                      if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%p_gauss(1,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                      !if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%p_gauss(1,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                      if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%pixreg_priors(p,pl,j) + rand_gauss(handle)*c%p_gauss(2,j)
                    end do
                 end if
 
