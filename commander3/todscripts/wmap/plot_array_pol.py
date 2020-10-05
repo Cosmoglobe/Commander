@@ -8,7 +8,7 @@ import cmasher as cmr
 mpl.rcParams['figure.figsize'][0] *= 2
 mpl.rcParams['figure.figsize'][1] *= 2
 
-nside = 256
+nside = 512
 band = 'K1'
 data = hp.ud_grade(hp.read_map(f'data/wmap_iqusmap_r9_9yr_{band}_v5.fits',
     field=(0,1,2),

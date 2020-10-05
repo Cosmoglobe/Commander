@@ -619,9 +619,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         M_diag_p = np.concatenate((M_diag, M_diag_p))
         dts = []
         i = 0
-        x_p = hp.read_map(f'data/wmap_iqusmap_r9_9yr_{band}_v5.fits',
-                field=(0,1,2,3))
-        x_p = hp.ud_grade(x_p, nside).flatten()
+        x_p = np.zeros_like(b_p)
         d = np.zeros_like(b_p)
         q = np.zeros_like(b_p)
         s = np.zeros_like(b_p)
