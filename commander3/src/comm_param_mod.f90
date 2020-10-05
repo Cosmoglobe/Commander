@@ -2026,7 +2026,9 @@ contains
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
           call validate_file(trim(datadir)//trim(cpar%cs_catalog(i)))
-          call validate_file(trim(datadir)//trim(cpar%cs_init_catalog(i)))
+          if (trim(cpar%cs_init_catalog(i)) /= 'none') then
+             call validate_file(trim(datadir)//trim(cpar%cs_init_catalog(i)))
+          end if
           call validate_file(trim(datadir)//trim(cpar%cs_ptsrc_template(i)), &
                & should_exist=.not. cpar%cs_output_ptsrc_beam(i))
        else if (trim(cpar%cs_type(i)) == 'template' .or. trim(cpar%cs_type(i)) == 'cmb_relquad') then
