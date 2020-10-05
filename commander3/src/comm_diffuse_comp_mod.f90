@@ -44,6 +44,7 @@ module comm_diffuse_comp_mod
      integer(i4b),       allocatable, dimension(:,:)   :: npixreg          ! number of pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
+     real(dp),           allocatable, dimension(:,:,:) :: prior_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
      integer(i4b),       allocatable, dimension(:,:,:) :: nprop_pixreg    ! number of proposals for pixregs
      integer(i4b),       allocatable, dimension(:,:,:) :: npix_pixreg     ! number of pixels per pixel region
@@ -538,6 +539,7 @@ contains
        allocate(self%proplen_pixreg(k,3,self%npar))
        allocate(self%B_pp_fr(self%npar))
        allocate(self%theta_pixreg(0:k,3,self%npar))
+       allocate(self%prior_pixreg(k,3,self%npar))
        self%theta_pixreg = 1.d0 !just some default values, is set later in the code
        self%nprop_pixreg = 0    ! default values, is set later in the code
        self%proplen_pixreg = 1.d0 ! default values, is set later in the code
@@ -804,6 +806,7 @@ contains
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
              
+             self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
              if (self%pol_pixreg_type(j,i)== -1) then
                 self%theta_prior(:,j,i) = cpar%cs_theta_prior(:,j,i,id_abs)
                 self%theta_pixreg(:,j,i) = self%theta_prior(1,j,i)
@@ -812,7 +815,6 @@ contains
                 self%ind_pixreg_arr(:,j,i) = 1
                 cycle
              end if
-             self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
              if (self%pol_pixreg_type(j,i) < 1) cycle
 
              n=self%npixreg(j,i)
