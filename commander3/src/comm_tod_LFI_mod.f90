@@ -203,7 +203,6 @@ contains
     end do
 
     allocate(constructor%orb_dp)
-
     constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
 
     do i = 1, constructor%ndet

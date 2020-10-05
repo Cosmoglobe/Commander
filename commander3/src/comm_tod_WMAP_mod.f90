@@ -47,7 +47,6 @@ module comm_tod_WMAP_mod
    type, extends(comm_tod) :: comm_WMAP_tod
       class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
-
    contains
       procedure     :: process_tod => process_WMAP_tod
    end type comm_WMAP_tod
@@ -306,18 +305,24 @@ contains
                   & self%x_im, sprocmask%a, i, s_sky, mask)
          call update_status(status, "Finished projecting sky")
 
+
+         ! Construct orbital dipole template
+         call wall_time(t1)
+         call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
+         call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
+         call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
+         call update_status(status, "tod_orb")
+
          !estimate the correlated noise
+         ! Add orbital dipole to total signal
          s_buf = 0.d0
          do j = 1, ndet
-            s_tot(:, j) = s_sky(:, j)
+            s_tot(:, j) = s_sky(:, j) + (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
+                                      & (1-self%x_im((j+1)/2))*s_orbB(:,j)
             s_buf(:, j) = s_tot(:, j)
          end do
          n_corr(:, :) = 0d0
          call wall_time(t2); t_tot(7) = t_tot(7) + t2 - t1
-
-         ! Select data
-         call wall_time(t1)
-
 
          !*******************
          ! Compute binned map
