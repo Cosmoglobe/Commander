@@ -1061,8 +1061,11 @@ contains
      real(dp)           :: curr_mean
 
      data_len = size(input_data)
+     output_data = 0.d0
+     output_summed_weights = 0.d0
 
      do i = 1, data_len
+        if (input_data(i) == 0.d0) cycle
          start_ind = max(1, int(i - window_size/2))
          end_ind = min(data_len, int(i + window_size/2))
          if (present(weights)) then
