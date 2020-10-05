@@ -46,6 +46,7 @@ module comm_diffuse_comp_mod
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: prior_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
+     real(dp),           allocatable, dimension(:,:,:) :: pixreg_priors   ! individual priors for pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: nprop_pixreg    ! number of proposals for pixregs
      integer(i4b),       allocatable, dimension(:,:,:) :: npix_pixreg     ! number of pixels per pixel region
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
@@ -433,6 +434,7 @@ contains
     type(comm_mapinfo), pointer :: info => null()
     real(dp)           :: par_dp
     character(len=16),         dimension(1000) :: pixreg_label
+    character(len=16),         dimension(1000) :: pixreg_prior
     integer(i4b), allocatable, dimension(:)    :: sum_pix
     real(dp),     allocatable, dimension(:)    :: sum_theta, sum_proplen, sum_nprop
     real(dp),     allocatable, dimension(:,:)  :: m_in, m_out, buffer
@@ -547,24 +549,43 @@ contains
 
        if (any(self%pol_pixreg_type(:,:) == 3)) then
           allocate(self%fix_pixreg(m,3,self%npar))
+          allocate(self%pixreg_priors(MAXVAL(self%npixreg(:,:)),3,self%npar))
           self%fix_pixreg(:,:,:) = .false.
           do i = 1,self%npar
+             self%pixreg_priors(:,:,i) = self%p_gauss(i,1)
              do j = 1,self%poltype(i)
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
-                   if (trim(cpar%cs_spec_fix_pixreg(j,i,id_abs)) == 'none') cycle
-                   do pr = 1,self%npixreg(j,i)
-                      call get_tokens(cpar%cs_spec_fix_pixreg(j,i,id_abs), ",", pixreg_label, n)
-                      do m = 1, n
-                         call str2int(trim(pixreg_label(m)),k,ierr)
-                         if (ierr == 0) then
-                            if (pr == k) then
-                               self%fix_pixreg(pr,j,i) = .true.
-                               exit
+                   
+                   ! Loop over priors on regions
+                   if (.not. trim(cpar%cs_spec_pixreg_priors(j,i,id_abs)) == 'none') then
+                      if (self%npixreg(j,i) > 20) write(*,*) "Max pixregs is 20 for this, youre trying",  self%npixreg(j,i)
+                      call get_tokens(cpar%cs_spec_pixreg_priors(j,i,id_abs), ",", pixreg_prior, n)
+                      if (n == self%npixreg(j,i)) then
+                         do pr = 1,self%npixreg(j,i)
+                            read(pixreg_prior(pr),*) self%pixreg_priors(pr,j,i)
+                         end do
+                      else
+                         write(*,*) "Must have same number of priors as regions for par", i, " and poltype", j
+                      end if
+                   end if
+                   !write(*,*) "pixreg priors", self%pixreg_priors(:,j,i)
+                   ! Loop over frozen regions
+                   if (.not. trim(cpar%cs_spec_fix_pixreg(j,i,id_abs)) == 'none') then
+                      do pr = 1,self%npixreg(j,i)
+                         call get_tokens(cpar%cs_spec_fix_pixreg(j,i,id_abs), ",", pixreg_label, n)
+                         do m = 1, n
+                            call str2int(trim(pixreg_label(m)),k,ierr)
+                            if (ierr == 0) then
+                               if (pr == k) then
+                                  self%fix_pixreg(pr,j,i) = .true.
+                                  exit
+                               end if
                             end if
-                         end if
+                         end do
                       end do
-                   end do
+                   end if
+
                 end if
              end do
              all_fixed=.true. !assume all pixregs are fixed
