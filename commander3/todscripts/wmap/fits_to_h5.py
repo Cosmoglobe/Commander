@@ -26,7 +26,8 @@ prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 version = 14
 
 # version 15 uses the pre-calibrated data, gain = 1
-version = 15
+#version = 15
+
 
 from time import sleep
 from time import time as timer
