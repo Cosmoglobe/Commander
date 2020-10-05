@@ -681,7 +681,7 @@ contains
 
 
     ! Initialize parameter values on existing catalog if requested
-    if (trim(cpar%cs_catalog(id_abs)) /= 'none') then
+    if (trim(cpar%cs_init_catalog(id_abs)) /= 'none') then
        open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_init_catalog(id_abs)),recl=1024)
        i    = 0
        do while (.true.)
