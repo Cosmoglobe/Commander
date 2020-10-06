@@ -434,7 +434,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         b_p = np.zeros(3*npix)
         M_diag_p = np.zeros(3*npix)
 
-    fnames = np.loadtxt('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/filelist_K1_v14_trunc.txt', 
+    '''
+    fnames = np.loadtxt(f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/filelist_K1_v{version}_trunc.txt', 
                 skiprows=1, dtype=str)
     fnames = fnames[:,1]
     fnames = [f.strip('"') for f in fnames]
@@ -454,7 +455,6 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         fnames = fnames[:nfiles]
     else:
         fnames = fnames
-    '''
 
     pool = Pool(processes=min(nfiles, ncpus))
     print('Preparing pool')
@@ -616,7 +616,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
         b_p = np.concatenate((b, b_p))
 
-        M_diag_p = np.concatenate((M_diag, M_diag_p))
+        M_diag_p = np.concatenate((M_diag, M_diag_p)) + 1e-3
         dts = []
         i = 0
         x_p = np.zeros_like(b_p)
@@ -684,27 +684,27 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         print(delta_new, 'original delta')
         delta_0 = np.copy(delta_new)
         while ((i < imax) & (delta_new > eps**2*delta_0)):
-            print(delta_new, 'delta')
+            #print(delta_new, 'delta')
             q = A_p.dot(d)
-            print(min(q), max(q), 'minmax(q)')
+            #print(min(q), max(q), 'minmax(q)')
             alpha = delta_new/d.dot(q)
-            print(d.dot(q), 'd.dot(q)')
-            print(alpha, 'alpha')
+            #print(d.dot(q), 'd.dot(q)')
+            #print(alpha, 'alpha')
             x_p = x_p + alpha*d
-            print(x_p.min(), x_p.max(), 'minmax(cg_sol)')
+            #print(x_p.min(), x_p.max(), 'minmax(cg_sol)')
             if (i % 50) == 0:
                 r = b_p - A_p.dot(x_p)
             else:
                 r = r - alpha*q
-            print(min(r), max(r), 'minmax(r)')
+            #print(min(r), max(r), 'minmax(r)')
             s[pix] = r[pix]/M_diag_p[pix]
-            print(min(s), max(s), 'minmax(s)')
+            #print(min(s), max(s), 'minmax(s)')
             delta_old = np.copy(delta_new)
             delta_new = r.dot(s)
             beta = delta_new/delta_old
             print(beta, 'beta')
             d = s + beta*d
-            print(min(d), max(d), 'minmax(d)')
+            #print(min(d), max(d), 'minmax(d)')
             i += 1
             delta_arr.append(delta_new)
             x_arr.append(x_p)
@@ -925,7 +925,7 @@ if __name__ == '__main__':
     for b in ['K1']:
         get_cg(band=b, nfiles=100, sparse_test=False, sparse_only=True, 
                 imbalance=False, mask=False, pol=True, imax=1000, nside=512)
-        plot_maps_pol(band=b, nside=512, version=14)
+        #plot_maps_pol(band=b, nside=512, version=14)
         #plot_maps_pol(band=b, nside=256, version=13)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
