@@ -336,13 +336,12 @@ def Q2M(Q):
 
     return M
 
-def gamma_from_pol(gal, pol, fixed_basis=False):
+def gamma_from_pol(gal, pol):
     # gal and pol are galactic lonlat vectors
     dir_gal = hp.ang2vec(gal[:,0]%np.pi,gal[:,1]%(2*np.pi), lonlat=False)
     dir_pol = hp.ang2vec(pol[:,0]%np.pi,pol[:,1]%(2*np.pi), lonlat=False)
 
     dir_Z = np.array([0,0,1])
-
 
     sin_theta = np.sqrt(dir_gal[:,0]**2 + dir_gal[:,1]**2)
 
@@ -351,6 +350,11 @@ def gamma_from_pol(gal, pol, fixed_basis=False):
     dir_west_z = dir_gal[:,1]*0
     dir_west = np.array([dir_west_x, dir_west_y, dir_west_z]).T
     dir_north = (dir_Z - dir_gal[2]*dir_gal)/sin_theta[:,np.newaxis]
+
+    # If north Galactic pole is observed
+    ind = (sin_theta == 0)
+    dir_west[ind] = np.array([1,0,0])
+    dir_north[ind] = np.array([0,1,0])
 
 
     sin_gamma = dir_pol[:,0]*dir_west[:,0] + dir_pol[:,1]*dir_west[:,1] + dir_pol[:,2]*dir_west[:,2]
