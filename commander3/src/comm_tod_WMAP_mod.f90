@@ -164,7 +164,7 @@ contains
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
-      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orb, mask, mask2, s_bp
+      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orbA, s_orbB, mask, mask2, s_bp
       real(sp), allocatable, dimension(:, :)     :: s_mono, s_buf, s_tot, s_zodi
       real(sp), allocatable, dimension(:, :)     :: s_invN, s_lowres
       real(sp), allocatable, dimension(:, :, :)   :: s_sky_prop, s_bp_prop
@@ -278,7 +278,8 @@ contains
          allocate (n_corr(ntod, ndet))                 ! Correlated noise in V
          allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
          allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
-         allocate (s_orb(ntod, ndet))                  ! Orbital dipole in uKcmb
+         allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A) in uKcmb
+         allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B) in uKcmb
          allocate (s_buf(ntod, ndet))                  ! Buffer
          allocate (s_tot(ntod, ndet))                  ! Sum of all sky compnents
          allocate (mask(ntod, ndet))                   ! Processing mask in time
@@ -338,7 +339,7 @@ contains
             ! Input data is in K
             ! standard deviations in mK
             ! sigma  = abs(self%scans(i)%d(j)%sigma0/self%scans(i)%d(j)%gain)
-            !d_calib(1, :, j) = s_sky(:, j)*1d9
+            !d_calib(1, :, j) = s_sky(:, j)*1d6
                    !rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
 
             if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
@@ -349,7 +350,7 @@ contains
          call bin_differential_TOD(self, d_calib, pix,  &
                 & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
          call update_status(status, "Finished binning TOD")
-         deallocate (n_corr, s_sky, s_orb, s_tot, s_buf, s_sky_prop, d_calib)
+         deallocate (n_corr, s_sky, s_orbA, s_orbB, s_tot, s_buf, s_sky_prop, d_calib)
          deallocate (mask, mask2, pix, psi, flag)
          if (allocated(s_lowres)) deallocate (s_lowres)
          if (allocated(s_invN)) deallocate (s_invN)
@@ -390,13 +391,6 @@ contains
             end do
          end do
       end if
-      ! Is this necessary for a shared array? Is this where my factor of 72
-      ! coming in?
-      call update_status(status, "All-reducing binned maps")
-      !call mpi_allreduce(MPI_IN_PLACE, sb_map%a, size(sb_map%a), &
-      !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-      !call mpi_allreduce(MPI_IN_PLACE, sM_diag%a, size(sM_diag%a), &
-      !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       np0 = self%info%np
@@ -406,6 +400,8 @@ contains
       allocate (d(nout, nmaps, npix))
       allocate (cg_sol(nout, nmaps, npix))
       allocate (cg_tot(nmaps, 0:np0 - 1))
+
+      sM_diag%a = 1d0
 
       cg_sol(:, :, :) = 0.0d0
       epsil = 1.0d-5
@@ -419,8 +415,6 @@ contains
          r(l, :, :) = sb_map%a(l, :, :)
          d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
          delta_new = sum(r(l, :, :)*d(l, :, :))
-         !call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-         !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
          delta_0 = delta_new
          delta_old = delta_0
          i = 0
@@ -428,16 +422,14 @@ contains
          ! psi, and flag internally, and then deallocates. To what extent is it
          ! possible to keep them all in memory and call them as arguments to
          ! compute_Ax?
-         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0) .and. (delta_new .le. delta_0))
-            call update_status(status, 'q=Ad')
+         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))! .and. ((delta_new .le. delta_0))
+            call update_status(status, 'q = Ad')
             ! q = Ad
             q(l,:,:) = 0d0
             call compute_Ax(self, d, q, self%x_im, sprocmask%a, i, l)
             call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             g = sum(d(l,:,:)*q(l,:,:))
-            !call mpi_allreduce(MPI_IN_PLACE, g, 1, &
-            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             alpha = delta_new/g
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
             ! evaluating r = b - Ax
@@ -456,8 +448,6 @@ contains
             s(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
-            !call mpi_allreduce(MPI_IN_PLACE, delta_new, 1, &
-            !                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             beta = delta_new/delta_old
             if (self%myid_shared==0) then 
                 write(*,*) i, ':', beta, 'beta'
