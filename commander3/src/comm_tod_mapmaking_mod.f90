@@ -114,14 +114,14 @@ contains
             f_A = 1
             f_B = 1
 
-            if (sum(flag(t,:))==0) then
+            !if (sum(flag(t,:))==0) then
                do i = 1, nout
                   b(i, 1, lpoint) = b(i, 1, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
                   b(i, 1, rpoint) = b(i, 1, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
-                  b(i, 2, lpoint) = b(i, 2, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(lpsi)*sgn*inv_sigmasq
-                  b(i, 2, rpoint) = b(i, 2, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(rpsi)*sgn*inv_sigmasq
-                  b(i, 3, lpoint) = b(i, 3, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(lpsi)*sgn*inv_sigmasq
-                  b(i, 3, rpoint) = b(i, 3, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+                  !b(i, 2, lpoint) = b(i, 2, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+                  !b(i, 2, rpoint) = b(i, 2, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+                  !b(i, 3, lpoint) = b(i, 3, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+                  !b(i, 3, rpoint) = b(i, 3, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(rpsi)*sgn*inv_sigmasq
 
                   M_diag(i, 1, lpoint) = M_diag(i, 1, lpoint) + f_A*((1 + x_im((det + 1)/2)))**2*inv_sigmasq
                   M_diag(i, 1, rpoint) = M_diag(i, 1, rpoint) + f_B*((1 - x_im((det + 1)/2)))**2*inv_sigmasq
@@ -130,7 +130,7 @@ contains
                   M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2*inv_sigmasq
                   M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2*inv_sigmasq
                end do
-            end if
+            !end if
 
          end do
       end do
@@ -191,20 +191,20 @@ contains
                dA = x(n, 1, lpix) + sgn*(x(n, 2, lpix)*tod%cos2psi(lpsi) + x(n, 3, lpix)*tod%sin2psi(lpsi))
                dB = x(n, 1, rpix) + sgn*(x(n, 2, rpix)*tod%cos2psi(rpsi) + x(n, 3, rpix)*tod%sin2psi(rpsi))
                d1 = (1 + x_im)*dA - (1 - x_im)*dB
-               if (sum(flag(t,:)) == 0) then
+               !if (sum(flag(t,:)) == 0) then
                   ! Temperature
                   y(n, 1, lpix) = y(n, 1, lpix) + f_A*(1 + x_im)*d1*inv_sigmasq
                   y(n, 1, rpix) = y(n, 1, rpix) - f_B*(1 - x_im)*d1*inv_sigmasq
                   ! Q
-                  y(n, 2, lpix) = y(n, 2, lpix) + f_A*(1 + x_im)*d1*tod%cos2psi(lpsi)*sgn*inv_sigmasq
-                  y(n, 2, rpix) = y(n, 2, rpix) - f_B*(1 - x_im)*d1*tod%cos2psi(rpsi)*sgn*inv_sigmasq
-                  ! U
-                  y(n, 3, lpix) = y(n, 3, lpix) + f_A*(1 + x_im)*d1*tod%sin2psi(lpsi)*sgn*inv_sigmasq
-                  y(n, 3, rpix) = y(n, 3, rpix) - f_B*(1 - x_im)*d1*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+                  !y(n, 2, lpix) = y(n, 2, lpix) + f_A*(1 + x_im)*d1*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+                  !y(n, 2, rpix) = y(n, 2, rpix) - f_B*(1 - x_im)*d1*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+                  !! U
+                  !y(n, 3, lpix) = y(n, 3, lpix) + f_A*(1 + x_im)*d1*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+                  !y(n, 3, rpix) = y(n, 3, rpix) - f_B*(1 - x_im)*d1*tod%sin2psi(rpsi)*sgn*inv_sigmasq
                   !!S
                   !y(n, 4, lpix) = y(n, 4, lpix) + f_A*(1 + x_im)*d1*sgn*inv_sigmasq
                   !y(n, 4, rpix) = y(n, 4, rpix) - f_B*(1 - x_im)*d1*sgn*inv_sigmasq
-               end if
+               !end if
             end do
          end do
          deallocate (pix, psi, flag)
