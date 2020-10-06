@@ -1086,33 +1086,55 @@ contains
   end subroutine moving_average
 
   subroutine moving_average_variable_window(input_data, output_data, &
-        & window_sizes, weights, output_summed_weights)
+        & window_sizes, weights, output_summed_weights, kernel_type)
      implicit none
      real(dp),  dimension(:), intent(in)                :: input_data
      real(dp),  dimension(:), intent(in), optional      :: weights
      real(dp),  dimension(:), intent(out)               :: output_data
      real(dp),  dimension(:), intent(out), optional     :: output_summed_weights
      integer(i4b), dimension(:), intent(in)             :: window_sizes
+     character(len=128)                                 :: kernel_type
 
-     integer(i4b)       :: i, data_len,  max_window_size
-     integer(i4b)       :: range_start, range_end, window_size
+     integer(i4b)       :: i, j, data_len,  max_window_size
+     integer(i4b)       :: range_start, range_end, window_size, kernel_start
+     integer(i4b)       :: kernel_end
      real(dp)           :: curr_mean
+     real(dp), allocatable, dimension(:)        :: kernel
 
      data_len = size(input_data)
+     output_data = 0.d0
+     output_summed_weights = 0.d0
 
      max_window_size = maxval(window_sizes)
 
      do i = 1, data_len
+         if (input_data(i) == 0.d0) cycle
          window_size = window_sizes(i)
+         allocate(kernel(window_size + 1))
+         if (trim(kernel_type) == 'boxcar') then
+            kernel = 1.d0
+         else if (trim(kernel_type) == 'gaussian') then
+            do j = 1, window_size + 1
+               kernel(j) = exp(-0.5 * ((real(j, dp) - 0.5d0 * window_size + 1) / &
+                  & (window_size/4.d0)) ** 2)
+            end do
+         else
+            write(*, *) 'Smoothing kernel invalid -- using boxcar'
+            kernel = 1.d0
+         end if
          range_start = max(1, int(i - window_size/2))
          range_end = min(data_len, int(i + window_size/2))
+         kernel_start = window_size/2 + 1 - (i - range_start)
+         kernel_end = window_size/2 + 1 + (range_end - i)
          if (present(weights)) then
             if (sum(weights(range_start:range_end)) == 0) then
                curr_mean = 0.d0
             else
                curr_mean = sum(input_data(range_start:range_end) * &
-                  & weights(range_start:range_end)) / &
-                  & sum(weights(range_start:range_end))
+                  & weights(range_start:range_end) * &
+                  & kernel(kernel_start:kernel_end)) / &
+                  & sum(weights(range_start:range_end) * &
+                  & kernel(kernel_start:kernel_end))
 
 !!$               if (i == 3652) then
 !!$                  do j = range_start, range_end
@@ -1135,9 +1157,10 @@ contains
                output_summed_weights(i) = sum(weights(range_start:range_end))
             end if
          else
-            curr_mean = sum(input_data(range_start:range_end)) / (range_end - range_start + 1)
+            curr_mean = sum(input_data(range_start:range_end)*kernel(kernel_start:kernel_end)) / sum(kernel(kernel_start:kernel_end))
          end if
          output_data(i) = curr_mean
+         deallocate(kernel)
      end do
 
   end subroutine moving_average_variable_window
