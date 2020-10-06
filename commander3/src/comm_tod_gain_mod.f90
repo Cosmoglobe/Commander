@@ -138,6 +138,7 @@ contains
     integer(i4b),   allocatable, dimension(:, :) :: pid_ranges
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
     integer(i4b), save :: count = 0
+    character(len=128)  :: kernel_type
 
     ndet       = tod%ndet
     nscan_tot  = tod%nscan_tot
@@ -276,8 +277,9 @@ contains
 !!$            end if
 !!$            call moving_average_padded_variable_window(temp_gain, smoothed_gain, &
 
+            kernel_type = 'gaussian'
             call moving_average_variable_window(temp_gain, smoothed_gain, &
-               & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared)
+               & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared, kernel_type)
             if (any(summed_invsigsquared < 0)) then
                write(*, *) 'WHOOOOPS'
                write(*, *) 'currstart', currstart
