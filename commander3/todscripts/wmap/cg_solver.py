@@ -34,8 +34,8 @@ warnings.filterwarnings("ignore")
 
 from sparse_dot_mkl import dot_product_mkl, gram_matrix_mkl
 
-#nside = 256
-#version = 13
+nside = 256
+version = 13
 # nside = 512
 version = 14
 # using pre-calibrated data
@@ -204,6 +204,7 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
     # planets in the beam, although i think the official release tried to use as
     # much data as possible, i.e., only cutting out the center.
     flags = np.array(flags).sum(axis=0)
+    #flags *= 0
     inds = (flags == 0)
     #inds = np.isfinite(flags)
 
@@ -434,7 +435,6 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         b_p = np.zeros(3*npix)
         M_diag_p = np.zeros(3*npix)
 
-    '''
     fnames = np.loadtxt(f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/filelist_K1_v{version}_trunc.txt', 
                 skiprows=1, dtype=str)
     fnames = fnames[:,1]
@@ -455,6 +455,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         fnames = fnames[:nfiles]
     else:
         fnames = fnames
+    '''
 
     pool = Pool(processes=min(nfiles, ncpus))
     print('Preparing pool')
@@ -684,27 +685,29 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         print(delta_new, 'original delta')
         delta_0 = np.copy(delta_new)
         while ((i < imax) & (delta_new > eps**2*delta_0)):
-            #print(delta_new, 'delta')
             q = A_p.dot(d)
-            #print(min(q), max(q), 'minmax(q)')
             alpha = delta_new/d.dot(q)
-            #print(d.dot(q), 'd.dot(q)')
-            #print(alpha, 'alpha')
             x_p = x_p + alpha*d
-            #print(x_p.min(), x_p.max(), 'minmax(cg_sol)')
             if (i % 50) == 0:
                 r = b_p - A_p.dot(x_p)
             else:
                 r = r - alpha*q
-            #print(min(r), max(r), 'minmax(r)')
             s[pix] = r[pix]/M_diag_p[pix]
-            #print(min(s), max(s), 'minmax(s)')
             delta_old = np.copy(delta_new)
             delta_new = r.dot(s)
             beta = delta_new/delta_old
-            print(beta, 'beta')
             d = s + beta*d
-            #print(min(d), max(d), 'minmax(d)')
+            if i == 0:
+                print(min(M_diag_p), max(M_diag_p), 'minmax(M_diag)')
+            print(i,':',beta, 'beta')
+            print(delta_new, 'delta')
+            print(d.dot(q), 'd.dot(q)')
+            print(alpha, 'alpha')
+            print(x_p.min(), x_p.max(), 'minmax(cg_sol)')
+            print(min(q), max(q), 'minmax(q)')
+            print(min(r), max(r), 'minmax(r)')
+            print(min(s), max(s), 'minmax(s)')
+            print(min(d), max(d), 'minmax(d)')
             i += 1
             delta_arr.append(delta_new)
             x_arr.append(x_p)
@@ -923,10 +926,10 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        get_cg(band=b, nfiles=100, sparse_test=False, sparse_only=True, 
+        get_cg(band=b, nfiles=48, sparse_test=False, sparse_only=True, 
                 imbalance=False, mask=False, pol=True, imax=1000, nside=512)
-        #plot_maps_pol(band=b, nside=512, version=14)
         #plot_maps_pol(band=b, nside=256, version=13)
+        plot_maps_pol(band=b, nside=512, version=14)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
