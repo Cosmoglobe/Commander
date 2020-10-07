@@ -191,6 +191,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
      character(len=512), allocatable, dimension(:)     :: cs_catalog
+     character(len=512), allocatable, dimension(:)     :: cs_init_catalog
      character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_min
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_max
@@ -652,7 +653,7 @@ contains
     allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
-    allocate(cpar%cs_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(n))!, cpar%cs_cg_samp_group(n))
+    allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
@@ -1542,6 +1543,7 @@ contains
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
           call get_parameter_hashtable(htbl, 'COMP_POLARIZATION'//itext, len_itext=len_itext,    par_lgt=cpar%cs_polarization(i))
           call get_parameter_hashtable(htbl, 'COMP_CATALOG'//itext, len_itext=len_itext,  par_string=cpar%cs_catalog(i))
+          call get_parameter_hashtable(htbl, 'COMP_INIT_CATALOG'//itext, len_itext=len_itext,  par_string=cpar%cs_init_catalog(i))
           call get_parameter_hashtable(htbl, 'COMP_PTSRC_TEMPLATE'//itext, len_itext=len_itext,  &
                & par_string=cpar%cs_ptsrc_template(i))
           call get_parameter_hashtable(htbl, 'COMP_BURN_IN_ON_FIRST_SAMPLE'//itext, &
@@ -2024,6 +2026,9 @@ contains
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
           call validate_file(trim(datadir)//trim(cpar%cs_catalog(i)))
+          if (trim(cpar%cs_init_catalog(i)) /= 'none') then
+             call validate_file(trim(datadir)//trim(cpar%cs_init_catalog(i)))
+          end if
           call validate_file(trim(datadir)//trim(cpar%cs_ptsrc_template(i)), &
                & should_exist=.not. cpar%cs_output_ptsrc_beam(i))
        else if (trim(cpar%cs_type(i)) == 'template' .or. trim(cpar%cs_type(i)) == 'cmb_relquad') then
