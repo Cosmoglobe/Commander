@@ -3015,6 +3015,7 @@ contains
     if (c_lnL%apply_jeffreys) then
        do k = 1, numband
           call df(k)%p%dealloc()
+          deallocate(df(k)%p)
        end do
        deallocate(df)
     end if
