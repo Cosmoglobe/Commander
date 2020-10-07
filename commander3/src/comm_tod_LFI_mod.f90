@@ -559,7 +559,7 @@ contains
           call self%symmetrize_flags(flag)
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
-          call update_status(status, "tod_decomp")
+          !call update_status(status, "tod_decomp")
 
           ! Construct sky signal template
           call wall_time(t1)
@@ -592,13 +592,13 @@ contains
              if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
-          call update_status(status, "tod_project")
+          !call update_status(status, "tod_project")
 
           ! Construct orbital dipole template
           call wall_time(t1)
           call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
-          call update_status(status, "tod_orb")
+          !call update_status(status, "tod_orb")
 
          !  call wall_time(t9)
           ! Construct zodical light template
