@@ -2272,17 +2272,6 @@ contains
        return
     end if
 
-    ! init full resolution theta maps for smoothing
-    theta_single_fr => comm_map(info_fr_single)
-    theta_fr => comm_map(info_fr_single)
-
-    !ud_grade mask
-    mask_lr => comm_map(info_lr)
-    call c_lnL%pol_ind_mask(id)%p%udgrade(mask_lr)
-
-    !init lowres residual map
-    res_map => comm_map(info_lr)
-
 
     !set up which bands and polarizations to include
     allocate(band_i(3*numband),pol_j(3*numband))
@@ -2322,6 +2311,18 @@ contains
           end do
        end if
     end if
+
+    ! init full resolution theta maps for smoothing
+    theta_single_fr => comm_map(info_fr_single)
+    theta_fr => comm_map(info_fr_single)
+
+    !ud_grade mask
+    mask_lr => comm_map(info_lr)
+    call c_lnL%pol_ind_mask(id)%p%udgrade(mask_lr)
+
+    !init lowres residual map
+    res_map => comm_map(info_lr)
+
 
     ! This is used for marginal/ridge sampling
     allocate(all_thetas(npar))
@@ -2893,8 +2894,8 @@ contains
        end if
 
        if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
-       call theta_single_lr%dealloc(); deallocate(theta_single_lr)
-       call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
+       call theta_single_lr%dealloc(); theta_single_lr => null()
+       call theta_lr_hole%dealloc(); theta_lr_hole => null()
 
     end do !pr = 1,max_pr
 
@@ -2959,7 +2960,7 @@ contains
           filename=trim(filename)//'_'//trim(postfix)//'.fits'
 
           call lr_chisq(k)%p%writeFITS(trim(filename))
-          call lr_chisq(k)%p%dealloc(); deallocate(lr_chisq(k)%p)
+          call lr_chisq(k)%p%dealloc(); lr_chisq(k)%p => null()
        end do
        deallocate(lr_chisq)
     end if
@@ -3008,17 +3009,18 @@ contains
     deallocate(mixing_old_arr,mixing_new_arr,data_arr,invN_arr,all_thetas)
     deallocate(band_i,pol_j)
     deallocate(old_thetas,new_thetas,init_thetas,old_theta_smooth, new_theta_smooth)
-    if (allocated(df)) deallocate(df)
+    if (c_lnL%apply_jeffreys) then
+       do k = 1, numband
+          call df(k)%p%dealloc()
+       end do
+       deallocate(df)
+    end if
     deallocate(accept_arr,dlnL_arr)
 
-    call theta_fr%dealloc();        deallocate(theta_fr)
-    call theta_single_fr%dealloc(); deallocate(theta_single_fr)
-    call mask_lr%dealloc();         deallocate(mask_lr)
-    call res_map%dealloc();         deallocate(res_map)
-    theta_fr => null()
-    theta_single_fr => null()
-    mask_lr => null()
-    res_map => null()
+    call theta_fr%dealloc();        theta_fr => null()
+    call theta_single_fr%dealloc(); theta_single_fr => null()
+    call mask_lr%dealloc();         mask_lr => null()
+    call res_map%dealloc();         res_map => null()
 
   end subroutine sampleDiffuseSpecIndPixReg_nonlin
 
