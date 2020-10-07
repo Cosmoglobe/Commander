@@ -2894,8 +2894,10 @@ contains
        end if
 
        if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
-       call theta_single_lr%dealloc(); theta_single_lr => null()
-       call theta_lr_hole%dealloc(); theta_lr_hole => null()
+       call theta_single_lr%dealloc(); deallocate(theta_single_lr)
+       call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
+       theta_single_lr => null()
+       theta_lr_hole => null()
 
     end do !pr = 1,max_pr
 
@@ -2960,7 +2962,8 @@ contains
           filename=trim(filename)//'_'//trim(postfix)//'.fits'
 
           call lr_chisq(k)%p%writeFITS(trim(filename))
-          call lr_chisq(k)%p%dealloc(); lr_chisq(k)%p => null()
+          call lr_chisq(k)%p%dealloc(); deallocate(lr_chisq(k)%p)
+          lr_chisq(k)%p => null()1;5C
        end do
        deallocate(lr_chisq)
     end if
@@ -3017,10 +3020,10 @@ contains
     end if
     deallocate(accept_arr,dlnL_arr)
 
-    call theta_fr%dealloc();        theta_fr => null()
-    call theta_single_fr%dealloc(); theta_single_fr => null()
-    call mask_lr%dealloc();         mask_lr => null()
-    call res_map%dealloc();         res_map => null()
+    call theta_fr%dealloc();        deallocate(theta_fr);        theta_fr => null()
+    call theta_single_fr%dealloc(); deallocate(theta_single_fr); theta_single_fr => null()
+    call mask_lr%dealloc();         deallocate(mask_lr);         mask_lr => null()
+    call res_map%dealloc();         deallocate(res_map);         res_map => null()
 
   end subroutine sampleDiffuseSpecIndPixReg_nonlin
 
