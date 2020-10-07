@@ -2963,7 +2963,7 @@ contains
 
           call lr_chisq(k)%p%writeFITS(trim(filename))
           call lr_chisq(k)%p%dealloc(); deallocate(lr_chisq(k)%p)
-          lr_chisq(k)%p => null()1;5C
+          lr_chisq(k)%p => null()
        end do
        deallocate(lr_chisq)
     end if
