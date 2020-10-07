@@ -1378,7 +1378,7 @@ contains
     case ('power_law_gauss')
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
-       call self%updatePowLaw()
+       call self%updatePowLawGauss()
     case ('exp')
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)

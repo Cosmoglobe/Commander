@@ -138,6 +138,7 @@ contains
     integer(i4b),   allocatable, dimension(:, :) :: pid_ranges
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
     integer(i4b), save :: count = 0
+    character(len=128)  :: kernel_type
 
     ndet       = tod%ndet
     nscan_tot  = tod%nscan_tot
@@ -243,7 +244,8 @@ contains
             if (pid_ranges(j, pid_id+1) == 0) then
                currend = nscan_tot
             else
-               currend = pid_ranges(j, pid_id +1)
+               !currend = pid_ranges(j, pid_id +1)
+               currend = pid_ranges(j, pid_id +1) - 1
             end if
             sum_weighted_gain = 0.d0
             sum_inv_sigma_squared = 0.d0
@@ -275,8 +277,9 @@ contains
 !!$            end if
 !!$            call moving_average_padded_variable_window(temp_gain, smoothed_gain, &
 
+            kernel_type = 'gaussian'
             call moving_average_variable_window(temp_gain, smoothed_gain, &
-               & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared)
+               & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared, kernel_type)
             if (any(summed_invsigsquared < 0)) then
                write(*, *) 'WHOOOOPS'
                write(*, *) 'currstart', currstart
@@ -741,30 +744,60 @@ contains
      integer(i4b)           :: n_jumps
 
 !     n_jumps = 17 ! Npipe has 15 events + the beginning and end
-     n_jumps = 16 ! Npipe has 15 events + the beginning and end (but two of them are too bunched up)
+     n_jumps = 26 ! Npipe has 15 events + the beginning and end (but two of them are too bunched up)
 
      allocate(pid_ranges(tod%ndet, n_jumps))
      pid_ranges(:, :) = 0
+
+!!$     pid_ranges(:, 1) = 1
+!!$     pid_ranges(:, 2) = 3352
+!!$     pid_ranges(:, 3) = 5030
+!!$     pid_ranges(:, 4) = 5484
+!!$     pid_ranges(:, 5) = 10911
+!!$     pid_ranges(:, 6) = 15957
+!!$     pid_ranges(:, 7) = 16455
+!!$     pid_ranges(:, 8) = 21484
+!!$     pid_ranges(:, 9) = 25654
+!!$     pid_ranges(:, 10) = 27110
+!!$     pid_ranges(:, 11) = 27343
+!!$     pid_ranges(:, 12) = 30387
+!!$     pid_ranges(:, 13) = 32763
+!!$     pid_ranges(:, 14) = 38591
+!!$     pid_ranges(:, 15) = 43929
+!!$!     pid_ranges(:, 16) = 44063
+!!$     ! This last event is too close to the previous one
+!!$     pid_ranges(:, 16) = 0
 
      pid_ranges(:, 1) = 1
      pid_ranges(:, 2) = 3352
      pid_ranges(:, 3) = 5030
      pid_ranges(:, 4) = 5484
-     pid_ranges(:, 5) = 10911
-     pid_ranges(:, 6) = 15957
-     pid_ranges(:, 7) = 16455
-     pid_ranges(:, 8) = 21484
-     pid_ranges(:, 9) = 25654
-     pid_ranges(:, 10) = 27110
-     pid_ranges(:, 11) = 27343
-     pid_ranges(:, 12) = 30387
-     pid_ranges(:, 13) = 32763
-     pid_ranges(:, 14) = 38591
-     pid_ranges(:, 15) = 43929
-!     pid_ranges(:, 16) = 44063
+     pid_ranges(:, 5) = 8309 ! 20K
+     pid_ranges(:, 6) = 8503 ! 20K
+     pid_ranges(:, 7) = 8606 ! 20K
+     pid_ranges(:, 8) = 9613 ! 20K
+     pid_ranges(:, 9) = 10117 ! 20K
+     pid_ranges(:, 10) = 10512 ! 20K
+     ! There's one more 20K at 10897 but that's very close to this one
+     pid_ranges(:, 11) = 10911
+     pid_ranges(:, 12) = 14061 ! 20K
+     pid_ranges(:, 13) = 15957
+     pid_ranges(:, 14) = 16204 ! 20K
+     pid_ranges(:, 15) = 16455
+     pid_ranges(:, 16) = 17024 ! 20K
+     pid_ranges(:, 17) = 18338 ! 20K
+     pid_ranges(:, 18) = 21484
+     pid_ranges(:, 19) = 25654
+     pid_ranges(:, 20) = 27110
+     pid_ranges(:, 21) = 27343
+     pid_ranges(:, 22) = 30387
+     pid_ranges(:, 23) = 32763
+     pid_ranges(:, 24) = 38591
+     pid_ranges(:, 25) = 43929
+     ! pid_ranges(:, 16) = 44063
      ! This last event is too close to the previous one
-     pid_ranges(:, 16) = 0
-
+     pid_ranges(:, 26) = 0
+     
   end subroutine get_pid_ranges_tabulated
 
   subroutine get_smoothing_windows(tod, windows, dipole_mods)
@@ -779,11 +812,14 @@ contains
      real(dp)   :: low_dipole_thresh, curr_dipole
      real(dp)   :: high_dipole_thresh
 
+     real(dp)   :: reduce_fac 
+
      integer(i4b)   :: i, j, window_size
 
 
      high_dipole_thresh = 5d-6
      low_dipole_thresh = 1d-6
+     reduce_fac = 0.5d0
 
      select case (trim(tod%freq))
          case ('030')
@@ -817,6 +853,7 @@ contains
                   & window_size_dipole_minimum, dp) / (high_dipole_thresh - &
                   & low_dipole_thresh) * (curr_dipole - low_dipole_thresh))
             end if
+            windows(j, i) = windows(j, i) * reduce_fac
          end do
       end do
 
