@@ -393,7 +393,7 @@ contains
     ! call apply_fourier_mat(Ad, 1.d0 / invM, r, dt, dv, nfft, plan_fwd, plan_back)
     ! r(:) = r(:) - x(:) - b(:) 
 
-    if (.not. converged) then
+    if (.false. .and. .not. converged) then
        write(filename, "(A, I0.3, A, I0.3, 3A)") 'ms_cg_tod_', scan, '_', det, '_',trim(band),'.dat' 
        open(63,file=filename, status='REPLACE')
        do i = 1, ntod
@@ -744,7 +744,7 @@ contains
     rms = sqrt(variance(d_downsamp(:)))
     n_sigma = 10
     do i = 1, n_short
-       if (d_downsamp(i) > n_sigma * rms) then
+       if (.false. .and. d_downsamp(i) > n_sigma * rms) then
           if (.not. found_spike) then
              write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_pix_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
              open(62,file=filename, status='REPLACE')

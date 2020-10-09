@@ -357,7 +357,7 @@ contains
              !out%map = out%map + map
              !deallocate(map)
           class is (comm_template_comp)
-             if (c%band /= i) skip = .true.
+              if (c%band /= i) skip = .true.
              if (.not. skip) then
                 !allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
                 out%map     = c%getBand(i)
@@ -370,11 +370,11 @@ contains
           if (.not. skip) call out%writeFITS(filename)
           c => c%next()
        end do
+       call out%dealloc; deallocate(out)
     end do
 
     ! Clean up
     nullify(c)
-    call out%dealloc
 
   end subroutine output_signals_per_band
 
@@ -461,7 +461,7 @@ contains
 
     ! Clean up
     nullify(c)
-    call map_diff%dealloc
+    call map_diff%dealloc; deallocate(map_diff)
 
   end subroutine get_sky_signal
 

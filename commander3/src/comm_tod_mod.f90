@@ -19,7 +19,7 @@ module comm_tod_mod
 
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
-     real(dp)          :: gain, dgain, gain_sigma           ! Gain; assumed constant over scan
+     real(dp)          :: gain, dgain, gain_invsigma           ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee              ! Noise parameters
      real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def  ! Default parameters
      real(dp)          :: chisq
