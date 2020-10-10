@@ -190,9 +190,9 @@ contains
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
       ! conjugate gradient parameters
-      integer(i4b) :: i_max
+      integer(i4b) :: i_min, i_max
       real(dp) :: delta_0, delta_old, delta_new, epsil
-      real(dp) :: alpha, beta, g
+      real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
 
       if (iter > 1) self%first_call = .false.
@@ -339,8 +339,7 @@ contains
             ! Input data is in K
             ! standard deviations in mK
             ! sigma  = abs(self%scans(i)%d(j)%sigma0/self%scans(i)%d(j)%gain)
-            !d_calib(1, :, j) = s_sky(:, j)*1d6
-                   !rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
+            !d_calib(1, :, j) = s_sky(:, j)*1d6 !+ rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
 
             if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
             if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
@@ -391,6 +390,23 @@ contains
             end do
          end do
       end if
+      call mpi_win_fence(0, sb_map%win, ierr)
+      if (sb_map%myid_shared == 0) then
+         do i = 1, size(sb_map%a, 1)
+            call mpi_allreduce(mpi_in_place, sb_map%a(i, :, :), size(sb_map%a(1, :, :)), &
+                 & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
+         end do
+      end if
+      call mpi_win_fence(0, sb_map%win, ierr)
+
+      call mpi_win_fence(0, sM_diag%win, ierr)
+      if (sb_map%myid_shared == 0) then
+         do i = 1, size(sb_map%a, 1)
+            call mpi_allreduce(mpi_in_place, sM_diag%a(i, :, :), size(sM_diag%a(1, :, :)), &
+                 & MPI_DOUBLE_PRECISION, MPI_SUM, sM_diag%comm_inter, ierr)
+         end do
+      end if
+      call mpi_win_fence(0, sM_diag%win, ierr)
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       np0 = self%info%np
@@ -401,13 +417,19 @@ contains
       allocate (cg_sol(nout, nmaps, npix))
       allocate (cg_tot(nmaps, 0:np0 - 1))
 
-      sM_diag%a = 1d0
+      !sM_diag%a(:,:,:) = 1d0
 
       cg_sol(:, :, :) = 0.0d0
       epsil = 1.0d-5
 
       i_max = int(npix**0.5)
+      i_min = 5
 
+      ! quadratic form
+      ! f_quad = x^T A x - b^T x
+      !  = x^T (Ax - b)
+      !  = -x^T r
+      ! If we're preconditionig, then the equation is Minv Ax = Minv b
       !do l = 1, nout
       l = 1
          ! start with r = b - Ax0, where x0 is the current map estimate. map_sky(:, :, :, 1)
@@ -417,12 +439,11 @@ contains
          delta_new = sum(r(l, :, :)*d(l, :, :))
          delta_0 = delta_new
          delta_old = delta_0
-         i = 0
          ! Currently, every compute_Ax term allocates and deallocates the pix,
          ! psi, and flag internally, and then deallocates. To what extent is it
          ! possible to keep them all in memory and call them as arguments to
          ! compute_Ax?
-         do while ((i .lt. i_max) .and. (delta_new .ge. (epsil**2)*delta_0))! .and. ((delta_new .le. delta_0))
+         cg: do i = 0, i_max
             call update_status(status, 'q = Ad')
             ! q = Ad
             q(l,:,:) = 0d0
@@ -433,7 +454,7 @@ contains
             alpha = delta_new/g
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
             ! evaluating r = b - Ax
-            if (mod(i, 1) == 0) then
+            if (mod(i, 50) == 0) then
                call update_status(status, 'r = r - Ax')
                ! r = b - Ax
                r(l,:,:) = 0d0
@@ -449,8 +470,10 @@ contains
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
             beta = delta_new/delta_old
+            f_quad = -0.5*sum(cg_sol(l,:,:)*r(l,:,:))
             if (self%myid_shared==0) then 
                 write(*,*) i, ':', beta, 'beta'
+                write(*,*) i, ':', f_quad, 'quadratic form'
             end if
 
             d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
@@ -462,9 +485,18 @@ contains
                end do
             end do
             call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(i))//trim(postfix))
-            i = i + 1
 
-         end do
+            if (i .gt. i_min) then
+                if (delta_new .le. (delta_0*epsil**2)) exit cg
+
+                ! This threshold is somewhat arbitrary, but it is (a) possible for
+                ! the distance in this space to incrase and (b) increasing a lot
+                ! means that something is quite wrong.
+                if (beta .ge. 2) exit cg
+            end if
+
+
+         end do cg
       !end do
 
       call update_status(status, "Allocatting total maps")
