@@ -114,7 +114,7 @@ contains
             f_A = 1
             f_B = 1
 
-            !if (sum(flag(t,:))==0) then
+            if (sum(flag(t,:))==0) then
                do i = 1, nout
                   b(i, 1, lpoint) = b(i, 1, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
                   b(i, 1, rpoint) = b(i, 1, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
@@ -123,14 +123,14 @@ contains
                   !b(i, 3, lpoint) = b(i, 3, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(lpsi)*sgn*inv_sigmasq
                   !b(i, 3, rpoint) = b(i, 3, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(rpsi)*sgn*inv_sigmasq
 
-                  M_diag(i, 1, lpoint) = M_diag(i, 1, lpoint) + f_A*((1 + x_im((det + 1)/2)))**2*inv_sigmasq
-                  M_diag(i, 1, rpoint) = M_diag(i, 1, rpoint) + f_B*((1 - x_im((det + 1)/2)))**2*inv_sigmasq
-                  M_diag(i, 2, lpoint) = M_diag(i, 2, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%cos2psi(lpsi))**2*inv_sigmasq
-                  M_diag(i, 2, rpoint) = M_diag(i, 2, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%cos2psi(rpsi))**2*inv_sigmasq
+                  M_diag(i, 1, lpoint) = M_diag(i, 1, lpoint) + f_A*((1 + x_im((det + 1)/2)))**2!*inv_sigmasq
+                  M_diag(i, 1, rpoint) = M_diag(i, 1, rpoint) + f_B*((1 - x_im((det + 1)/2)))**2!*inv_sigmasq
+                  M_diag(i, 2, lpoint) = M_diag(i, 2, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%cos2psi(lpsi))**2!*inv_sigmasq
+                  M_diag(i, 2, rpoint) = M_diag(i, 2, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%cos2psi(rpsi))**2!*inv_sigmasq
                   M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2*inv_sigmasq
-                  M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2*inv_sigmasq
+                  M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2!*inv_sigmasq
                end do
-            !end if
+            end if
 
          end do
       end do
@@ -191,7 +191,7 @@ contains
                dA = x(n, 1, lpix) + sgn*(x(n, 2, lpix)*tod%cos2psi(lpsi) + x(n, 3, lpix)*tod%sin2psi(lpsi))
                dB = x(n, 1, rpix) + sgn*(x(n, 2, rpix)*tod%cos2psi(rpsi) + x(n, 3, rpix)*tod%sin2psi(rpsi))
                d1 = (1 + x_im)*dA - (1 - x_im)*dB
-               !if (sum(flag(t,:)) == 0) then
+               if (sum(flag(t,:)) == 0) then
                   ! Temperature
                   y(n, 1, lpix) = y(n, 1, lpix) + f_A*(1 + x_im)*d1*inv_sigmasq
                   y(n, 1, rpix) = y(n, 1, rpix) - f_B*(1 - x_im)*d1*inv_sigmasq
@@ -204,7 +204,7 @@ contains
                   !!S
                   !y(n, 4, lpix) = y(n, 4, lpix) + f_A*(1 + x_im)*d1*sgn*inv_sigmasq
                   !y(n, 4, rpix) = y(n, 4, rpix) - f_B*(1 - x_im)*d1*sgn*inv_sigmasq
-               !end if
+               end if
             end do
          end do
          deallocate (pix, psi, flag)
@@ -551,50 +551,5 @@ contains
       deallocate (mono0, mono_prop, eta, mu)
 
    end subroutine sample_mono
-
-   !subroutine array_to_map(tod, arr, map, nout, nmaps, npix)
-   !   implicit none
-   !   integer(i4b), intent(in)               :: nout, nmaps, npix
-   !   type(comm_shared), intent(in)          :: tod
-   !   real(dp), intent(in), dimension(:,:,:) :: arr
-
-   !   call init_shared_3d_dp(tod%myid_shared, tod%comm_shared, &
-   !        & tod%myid_inter, tod%comm_inter, [nout, nmaps, npix], shared_arr)
-
-   !   ! distributing b_map to sb_map and M_diag to sM_diag
-   !   do i = 0, tod%numprocs_shared - 1
-   !      ! Define chunk indices
-   !      start_chunk = mod(tod%myid_shared + i, tod%numprocs_shared)*chunk_size
-   !      end_chunk = min(start_chunk + chunk_size - 1, npix - 1)
-   !      do while (start_chunk < npix)
-   !         if (tod%pix2ind(start_chunk) /= -1) exit
-   !         start_chunk = start_chunk + 1
-   !      end do
-   !      do while (end_chunk >= start_chunk)
-   !         if (tod%pix2ind(end_chunk) /= -1) exit
-   !         end_chunk = end_chunk - 1
-   !      end do
-   !      if (start_chunk < npix) start_chunk = tod%pix2ind(start_chunk)
-   !      if (end_chunk >= start_chunk) end_chunk = tod%pix2ind(end_chunk)
-
-   !      ! Assign cg_sol to each chunk of the data
-   !      do j = start_chunk, end_chunk
-   !         sb_map%a(:, :, tod%ind2pix(j) + 1) = sb_map%a(:, :, tod%ind2pix(j) + 1) + &
-   !              & b_map(:, :, j)
-   !         sM_diag%a(:, :, tod%ind2pix(j) + 1) = sM_diag%a(:, :, tod%ind2pix(j) + 1) + &
-   !              & M_diag(:, :, j)
-   !      end do
-   !   end do
-   !   np0 = tod%info%np
-   !   allocate (b_tot(nout, nmaps, 0:np0 - 1))
-   !   allocate (Mdiag_tot(nout, nmaps, 0:np0 - 1))
-   !   b_tot = sb_map%a(:, 1:nmaps, tod%info%pix + 1)
-   !   Mdiag_tot = sM_diag%a(:, 1:nmaps, tod%info%pix + 1)
-
-
-   !end subroutine array_to_map
-
-
-
 
 end module comm_tod_mapmaking_mod
