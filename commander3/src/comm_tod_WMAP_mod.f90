@@ -444,6 +444,10 @@ contains
          ! possible to keep them all in memory and call them as arguments to
          ! compute_Ax?
          cg: do i = 0, i_max
+            if (self%myid_shared==0) then 
+               write(*, 99) i
+               99 format (I3, ':')
+            end if
             call update_status(status, 'q = Ad')
             ! q = Ad
             q(l,:,:) = 0d0
@@ -470,13 +474,28 @@ contains
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
             beta = delta_new/delta_old
-            f_quad = -0.5*sum(cg_sol(l,:,:)*r(l,:,:))
-            if (self%myid_shared==0) then 
-                write(*,*) i, ':', beta, 'beta'
-                write(*,*) i, ':', f_quad, 'quadratic form'
-            end if
-
+            !f_quad = -0.5*sum(cg_sol(l,:,:)*r(l,:,:))
             d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
+            if (self%myid_shared==0) then 
+                write(*,100) beta
+                100 format ('beta:',  T12, F10.3)
+                write(*,101) delta_new
+                101 format ('delta_new:',  T12, ES9.2)
+                write(*,102) g
+                102 format ('d.dot(q):',  T12, ES9.2)
+                write(*,103) alpha
+                103 format ('alpha:',  T12, ES9.2)
+                write(*,104) minval(cg_sol(l,:,:)), maxval(cg_sol(l,:,:))
+                104 format ('minmax(sol):',  T12, 2F10.2)
+                write(*,105) minval(q(l,:,:)), maxval(q(l,:,:))
+                105 format ('minmax(q):',  T12, 2ES10.2)
+                write(*,106) minval(r(l,:,:)), maxval(r(l,:,:))
+                106 format ('minmax(r):',  T12, 2ES10.2)
+                write(*,107) minval(s(l,:,:)), maxval(s(l,:,:))
+                107 format ('minmax(s):',  T12, 2ES10.2)
+                write(*,108) minval(d(l,:,:)), maxval(d(l,:,:))
+                108 format ('minmax(d):',  T12, 2ES10.2)
+            end if
             !save cg solution iteration
             cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
             do m = 0, np0 - 1
