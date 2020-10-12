@@ -261,9 +261,9 @@ contains
 
       ! Perform main analysis loop
       naccept = 0; ntot = 0
-      allocate (M_diag(nout, nmaps, npix))
-      allocate (b_map(nout, nmaps, npix))
-      M_diag(:,:,:) = 1d-6
+      allocate (M_diag(nout, nmaps, 0:npix-1))
+      allocate (b_map(nout, nmaps, 0:npix-1))
+      M_diag(:,:,:) = 0d0
       do i = 1, self%nscan
 
          !write(*,*) "Processing scan: ", i, self%scans(i)%d%accept
@@ -355,66 +355,20 @@ contains
          if (allocated(s_invN)) deallocate (s_invN)
          call wall_time(t8); t_tot(19) = t_tot(19) + t8
 
-
       end do
 
-      if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
-      call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
-           & self%myid_inter, self%comm_inter, [nout, nmaps, npix], sb_map)
-      if (sM_diag%init) call dealloc_shared_3d_dp(sM_diag)
-      call init_shared_3d_dp(self%myid_shared, self%comm_shared, &
-           & self%myid_inter, self%comm_inter, [nout, nmaps, npix], sM_diag)
-
-      call update_status(status, "Distributing binned map")
-      if (sb_map%init) then
-         do i = 0, self%numprocs_shared - 1
-            ! Define chunk indices
-            start_chunk = mod(self%myid_shared + i, self%numprocs_shared)*chunk_size
-            end_chunk = min(start_chunk + chunk_size - 1, npix - 1)
-            do while (start_chunk < npix)
-               if (self%pix2ind(start_chunk) /= -1) exit
-               start_chunk = start_chunk + 1
-            end do
-            do while (end_chunk >= start_chunk)
-               if (self%pix2ind(end_chunk) /= -1) exit
-               end_chunk = end_chunk - 1
-            end do
-            if (start_chunk < npix) start_chunk = self%pix2ind(start_chunk)
-            if (end_chunk >= start_chunk) end_chunk = self%pix2ind(end_chunk)
-
-            do j = start_chunk, end_chunk
-               sb_map%a(:, :, self%ind2pix(j) + 1) = sb_map%a(:, :, self%ind2pix(j) + 1) + &
-                    & b_map(:, :, j)
-               sM_diag%a(:, :, self%ind2pix(j) + 1) = sM_diag%a(:, :, self%ind2pix(j) + 1) + &
-                    & M_diag(:, :, j)
-            end do
-         end do
-      end if
-      call mpi_win_fence(0, sb_map%win, ierr)
-      if (sb_map%myid_shared == 0) then
-         do i = 1, size(sb_map%a, 1)
-            call mpi_allreduce(mpi_in_place, sb_map%a(i, :, :), size(sb_map%a(1, :, :)), &
-                 & MPI_DOUBLE_PRECISION, MPI_SUM, sb_map%comm_inter, ierr)
-         end do
-      end if
-      call mpi_win_fence(0, sb_map%win, ierr)
-
-      call mpi_win_fence(0, sM_diag%win, ierr)
-      if (sb_map%myid_shared == 0) then
-         do i = 1, size(sb_map%a, 1)
-            call mpi_allreduce(mpi_in_place, sM_diag%a(i, :, :), size(sM_diag%a(1, :, :)), &
-                 & MPI_DOUBLE_PRECISION, MPI_SUM, sM_diag%comm_inter, ierr)
-         end do
-      end if
-      call mpi_win_fence(0, sM_diag%win, ierr)
+      call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
+           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+      call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
+           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       np0 = self%info%np
-      allocate (r(nout, nmaps, npix))
-      allocate (s(nout, nmaps, npix))
-      allocate (q(nout, nmaps, npix))
-      allocate (d(nout, nmaps, npix))
-      allocate (cg_sol(nout, nmaps, npix))
+      allocate (r(nout, nmaps, 0:npix-1))
+      allocate (s(nout, nmaps, 0:npix-1))
+      allocate (q(nout, nmaps, 0:npix-1))
+      allocate (d(nout, nmaps, 0:npix-1))
+      allocate (cg_sol(nout, nmaps, 0:npix-1))
       allocate (cg_tot(nmaps, 0:np0 - 1))
 
       !sM_diag%a(:,:,:) = 1d0
@@ -434,8 +388,8 @@ contains
       l = 1
          ! start with r = b - Ax0, where x0 is the current map estimate. map_sky(:, :, :, 1)
          !call compute_Ax(self, map_sky(:,:,:,1), r, self%x_im, sprocmask%a, i, l)
-         r(l, :, :) = sb_map%a(l, :, :)
-         d(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
+         r(l, :, :) = b_map(l, :, :)
+         d(l,:,:) = r(l,:,:)/M_diag(l,:,:)
          delta_new = sum(r(l, :, :)*d(l, :, :))
          delta_0 = delta_new
          delta_old = delta_0
@@ -443,7 +397,7 @@ contains
          ! psi, and flag internally, and then deallocates. To what extent is it
          ! possible to keep them all in memory and call them as arguments to
          ! compute_Ax?
-         cg: do i = 0, i_max
+         cg: do i = 1, i_max
             if (self%myid_shared==0) then 
                write(*, 99) i
                99 format (I3, ':')
@@ -465,12 +419,12 @@ contains
                call compute_Ax(self, cg_sol, r, self%x_im, sprocmask%a, i, l)
                call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
                                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-               r(l, :, :) = sb_map%a(l, :, :) - r(l, :, :)
+               r(l, :, :) = b_map(l, :, :) - r(l, :, :)
             else
                call update_status(status, 'r = r - alpha*q')
                r(l, :, :) = r(l, :, :) - alpha*q(l, :, :)
             end if
-            s(l,:,:) = r(l,:,:)/sM_diag%a(l,:,:)
+            s(l,:,:) = r(l,:,:)/M_diag(l,:,:)
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
             beta = delta_new/delta_old
@@ -519,20 +473,20 @@ contains
       !end do
 
       call update_status(status, "Allocatting total maps")
-      allocate (b_tot(nout, nmaps, 0:np0 - 1))
-      allocate (Mdiag_tot(nout, nmaps, 0:np0 - 1))
-      allocate (r_tot(nmaps, 0:np0 - 1))
-      b_tot = sb_map%a(:, 1:nmaps, self%info%pix + 1)
-      Mdiag_tot = sM_diag%a(:, 1:nmaps, self%info%pix + 1)
-      cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
+      !allocate (b_tot(nout, nmaps, 0:np0 - 1))
+      !allocate (M_diag_tot(nout, nmaps, 0:np0 - 1))
+      !allocate (r_tot(nmaps, 0:np0 - 1))
+      !b_tot = sb_map%a(:, 1:nmaps, self%info%pix + 1)
+      !Mdiag_tot = sM_diag%a(:, 1:nmaps, self%info%pix + 1)
+      !cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
       !r_tot = r(1, 1:nmaps, self%info%pix + 1)
       ! I think there is a factor of ncpus that needs to be divided out, but
       ! want to be clear about that.
       do i = 0, np0 - 1
          do j = 1, nmaps
             outmaps(1)%p%map(i, j) = cg_tot(j, i)*1.d6 ! convert from K to uK
-            outmaps(2)%p%map(i, j) = Mdiag_tot(1, j, i)
-            outmaps(3)%p%map(i, j) = b_tot(1, j, i)*1.d6 ! convert from K to uK
+            outmaps(2)%p%map(i, j) = M_diag(1, j, i)
+            outmaps(3)%p%map(i, j) = b_map(1, j, i)*1.d6 ! convert from K to uK
             !outmaps(4)%p%map(i, j) = r_tot(j, i)*1.d3 ! convert from mK to uK
          end do
       end do
