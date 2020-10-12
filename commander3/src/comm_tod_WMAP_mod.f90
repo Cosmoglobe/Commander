@@ -175,7 +175,7 @@ contains
       real(dp), allocatable, dimension(:, :, :)   :: b_map, b_mono, sys_mono, M_diag
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
       integer(i4b), allocatable, dimension(:, :)     :: flag
-      real(dp), allocatable, dimension(:, :, :)   :: b_tot, Mdiag_tot
+      real(dp), allocatable, dimension(:, :, :)   :: b_tot, M_diag_tot
       real(dp), allocatable, dimension(:, :)   :: cg_tot, r_tot
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
@@ -371,21 +371,13 @@ contains
       allocate (cg_sol(nout, nmaps, 0:npix-1))
       allocate (cg_tot(nmaps, 0:np0 - 1))
 
-      !sM_diag%a(:,:,:) = 1d0
-
       cg_sol(:, :, :) = 0.0d0
-      epsil = 1.0d-5
+      epsil = 1.0d-16
 
       i_max = int(npix**0.5)
       i_min = 5
 
-      ! quadratic form
-      ! f_quad = x^T A x - b^T x
-      !  = x^T (Ax - b)
-      !  = -x^T r
-      ! If we're preconditionig, then the equation is Minv Ax = Minv b
-      !do l = 1, nout
-      l = 1
+      do l=1, nout
          ! start with r = b - Ax0, where x0 is the current map estimate. map_sky(:, :, :, 1)
          !call compute_Ax(self, map_sky(:,:,:,1), r, self%x_im, sprocmask%a, i, l)
          r(l, :, :) = b_map(l, :, :)
@@ -398,23 +390,16 @@ contains
          ! possible to keep them all in memory and call them as arguments to
          ! compute_Ax?
          cg: do i = 1, i_max
-            if (self%myid_shared==0) then 
-               write(*, 99) i
-               99 format (I3, ':')
-            end if
             call update_status(status, 'q = Ad')
-            ! q = Ad
             q(l,:,:) = 0d0
             call compute_Ax(self, d, q, self%x_im, sprocmask%a, i, l)
             call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            g = sum(d(l,:,:)*q(l,:,:))
-            alpha = delta_new/g
+            alpha = delta_new/sum(d(l,:,:)*q(l,:,:))
+
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*d(l,:,:)
-            ! evaluating r = b - Ax
             if (mod(i, 50) == 0) then
                call update_status(status, 'r = r - Ax')
-               ! r = b - Ax
                r(l,:,:) = 0d0
                call compute_Ax(self, cg_sol, r, self%x_im, sprocmask%a, i, l)
                call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
@@ -428,27 +413,10 @@ contains
             delta_old = delta_new
             delta_new = sum(r(l, :, :)*s(l, :, :))
             beta = delta_new/delta_old
-            !f_quad = -0.5*sum(cg_sol(l,:,:)*r(l,:,:))
             d(l, :, :) = s(l, :, :) + beta*d(l, :, :)
             if (self%myid_shared==0) then 
-                write(*,100) beta
-                100 format ('beta:',  T12, F10.3)
-                write(*,101) delta_new
-                101 format ('delta_new:',  T12, ES9.2)
-                write(*,102) g
-                102 format ('d.dot(q):',  T12, ES9.2)
-                write(*,103) alpha
-                103 format ('alpha:',  T12, ES9.2)
-                write(*,104) minval(cg_sol(l,:,:)), maxval(cg_sol(l,:,:))
-                104 format ('minmax(sol):',  T12, 2F10.2)
-                write(*,105) minval(q(l,:,:)), maxval(q(l,:,:))
-                105 format ('minmax(q):',  T12, 2ES10.2)
-                write(*,106) minval(r(l,:,:)), maxval(r(l,:,:))
-                106 format ('minmax(r):',  T12, 2ES10.2)
-                write(*,107) minval(s(l,:,:)), maxval(s(l,:,:))
-                107 format ('minmax(s):',  T12, 2ES10.2)
-                write(*,108) minval(d(l,:,:)), maxval(d(l,:,:))
-                108 format ('minmax(d):',  T12, 2ES10.2)
+                write(*,101) i, delta_new/delta_0
+                101 format (I3, ':   delta_new/delta_0:',  2X, ES9.2)
             end if
             !save cg solution iteration
             cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
@@ -459,35 +427,28 @@ contains
             end do
             call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(i))//trim(postfix))
 
-            if (i .gt. i_min) then
-                if (delta_new .le. (delta_0*epsil**2)) exit cg
-
-                ! This threshold is somewhat arbitrary, but it is (a) possible for
-                ! the distance in this space to incrase and (b) increasing a lot
-                ! means that something is quite wrong.
-                if (beta .ge. 2) exit cg
-            end if
+            if ((delta_new .le. (delta_0*epsil**2)) .or. (i > i_max)) exit cg
 
 
          end do cg
-      !end do
+      end do
 
       call update_status(status, "Allocatting total maps")
-      !allocate (b_tot(nout, nmaps, 0:np0 - 1))
-      !allocate (M_diag_tot(nout, nmaps, 0:np0 - 1))
-      !allocate (r_tot(nmaps, 0:np0 - 1))
-      !b_tot = sb_map%a(:, 1:nmaps, self%info%pix + 1)
-      !Mdiag_tot = sM_diag%a(:, 1:nmaps, self%info%pix + 1)
-      !cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
-      !r_tot = r(1, 1:nmaps, self%info%pix + 1)
+      allocate (b_tot(nout, nmaps, 0:np0 - 1))
+      allocate (M_diag_tot(nout, nmaps, 0:np0 - 1))
+      allocate (r_tot(nmaps, 0:np0 - 1))
+      b_tot = b_map(:, 1:nmaps, self%info%pix + 1)
+      M_diag_tot = M_diag(:, 1:nmaps, self%info%pix + 1)
+      cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
+      r_tot = r(1, 1:nmaps, self%info%pix + 1)
       ! I think there is a factor of ncpus that needs to be divided out, but
       ! want to be clear about that.
       do i = 0, np0 - 1
          do j = 1, nmaps
             outmaps(1)%p%map(i, j) = cg_tot(j, i)*1.d6 ! convert from K to uK
-            outmaps(2)%p%map(i, j) = M_diag(1, j, i)
-            outmaps(3)%p%map(i, j) = b_map(1, j, i)*1.d6 ! convert from K to uK
-            !outmaps(4)%p%map(i, j) = r_tot(j, i)*1.d3 ! convert from mK to uK
+            outmaps(2)%p%map(i, j) = M_diag_tot(1, j, i)
+            outmaps(3)%p%map(i, j) = b_tot(1, j, i)*1.d6 ! convert from K to uK
+            outmaps(4)%p%map(i, j) = r_tot(j, i)*1.d3 ! convert from mK to uK
          end do
       end do
 
@@ -496,7 +457,7 @@ contains
       call outmaps(1)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
       call outmaps(2)%p%writeFITS(trim(prefix)//'precond'//trim(postfix))
       call outmaps(3)%p%writeFITS(trim(prefix)//'binned'//trim(postfix))
-      !call outmaps(4)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
+      call outmaps(4)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
