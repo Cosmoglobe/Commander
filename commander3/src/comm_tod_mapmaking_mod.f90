@@ -73,7 +73,7 @@ contains
    end subroutine bin_TOD
 
    ! differential TOD computation, written with WMAP in mind.
-   subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_im, pmask, b, M_diag, scan, b_mono)
+   subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_imarr, pmask, b, M_diag, scan, b_mono)
       implicit none
       class(comm_tod), intent(in)    :: tod
       integer(i4b), intent(in)    :: scan
@@ -81,13 +81,13 @@ contains
       integer(i4b), dimension(1:, 1:), intent(in)       :: flag
       integer(i4b), dimension(0:), intent(in)           :: pmask
       integer(i4b), dimension(1:, 1:, 1:), intent(in)    :: pix, psi
-      real(dp), dimension(1:), intent(in)    :: x_im
+      real(dp), dimension(1:), intent(in)    :: x_imarr
       real(dp), dimension(1:, 1:, 1:), intent(inout) :: b, M_diag
       real(dp), dimension(1:, 1:, 1:), intent(inout), optional :: b_mono
       !logical(lgt),                                   intent(in)    :: comp_S
 
       integer(i4b) :: det, i, t, nout
-      real(dp)     :: inv_sigmasq
+      real(dp)     :: inv_sigmasq, x_im, d
 
       integer(i4b) :: lpoint, rpoint, lpsi, rpsi, sgn
 
@@ -98,6 +98,7 @@ contains
       do det = 1, tod%ndet
          inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
          !inv_sigmasq = 1d0
+         x_im = x_imarr((det+1)/2)
          do t = 1, tod%scans(scan)%ntod
 
             lpoint = tod%pix2ind(pix(t, det, 1))
@@ -116,19 +117,20 @@ contains
 
             if (sum(flag(t,:))==0) then
                do i = 1, nout
-                  b(i, 1, lpoint) = b(i, 1, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
-                  b(i, 1, rpoint) = b(i, 1, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
-                  b(i, 2, lpoint) = b(i, 2, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(lpsi)*sgn*inv_sigmasq
-                  b(i, 2, rpoint) = b(i, 2, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(rpsi)*sgn*inv_sigmasq
-                  b(i, 3, lpoint) = b(i, 3, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(lpsi)*sgn*inv_sigmasq
-                  b(i, 3, rpoint) = b(i, 3, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+                  d = data(i, t, det)
+                  b(i, 1, lpoint) = b(i, 1, lpoint) + f_A*(1 + x_im)*d*inv_sigmasq
+                  b(i, 1, rpoint) = b(i, 1, rpoint) - f_B*(1 - x_im)*d*inv_sigmasq
+                  b(i, 2, lpoint) = b(i, 2, lpoint) + f_A*(1 + x_im)*d*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+                  b(i, 2, rpoint) = b(i, 2, rpoint) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+                  b(i, 3, lpoint) = b(i, 3, lpoint) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+                  b(i, 3, rpoint) = b(i, 3, rpoint) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
 
-                  M_diag(i, 1, lpoint) = M_diag(i, 1, lpoint) + f_A*((1 + x_im((det + 1)/2)))**2!*inv_sigmasq
-                  M_diag(i, 1, rpoint) = M_diag(i, 1, rpoint) + f_B*((1 - x_im((det + 1)/2)))**2!*inv_sigmasq
-                  M_diag(i, 2, lpoint) = M_diag(i, 2, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%cos2psi(lpsi))**2!*inv_sigmasq
-                  M_diag(i, 2, rpoint) = M_diag(i, 2, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%cos2psi(rpsi))**2!*inv_sigmasq
-                  M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2!*inv_sigmasq
-                  M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2!*inv_sigmasq
+                  M_diag(i, 1, lpoint) = M_diag(i, 1, lpoint) + f_A*((1 + x_im))**2
+                  M_diag(i, 1, rpoint) = M_diag(i, 1, rpoint) + f_B*((1 - x_im))**2
+                  M_diag(i, 2, lpoint) = M_diag(i, 2, lpoint) + f_A*((1 + x_im)*tod%cos2psi(lpsi))**2
+                  M_diag(i, 2, rpoint) = M_diag(i, 2, rpoint) + f_B*((1 - x_im)*tod%cos2psi(rpsi))**2
+                  M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im)*tod%sin2psi(lpsi))**2
+                  M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im)*tod%sin2psi(rpsi))**2
                end do
             end if
 
