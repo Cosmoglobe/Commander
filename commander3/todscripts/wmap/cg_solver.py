@@ -1,5 +1,5 @@
 import os
-ncpus = 48
+ncpus = 24
 #os.environ["OMP_NUM_THREADS"] = f"{ncpus}" # export OMP_NUM_THREADS=4
 #os.environ["OPENBLAS_NUM_THREADS"] = f"{ncpus}" # export OPENBLAS_NUM_THREADS=4 
 #os.environ["MKL_NUM_THREADS"] = f"{ncpus}" # export MKL_NUM_THREADS=6
@@ -37,7 +37,7 @@ from sparse_dot_mkl import dot_product_mkl, gram_matrix_mkl
 nside = 256
 version = 13
 # nside = 512
-version = 14
+#version = 14
 # using pre-calibrated data
 #version = 15
 
@@ -288,14 +288,14 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
         b_s[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])/sigma0**2
         b_s[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])/sigma0**2
 
-        M[pixA[t]]   += f_A[t]*(1+xbar+dxbar)**2/sigma0**2
-        M[pixB[t]]   += f_B[t]*(1-xbar-dxbar)**2/sigma0**2
-        M_q[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.cos(2*psiA[t]))**2/sigma0**2
-        M_q[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.cos(2*psiB[t]))**2/sigma0**2
-        M_u[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.sin(2*psiA[t]))**2/sigma0**2
-        M_u[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.sin(2*psiB[t]))**2/sigma0**2
-        M_s[pixA[t]] += f_A[t]*(1+xbar+dxbar)**2/sigma0**2
-        M_s[pixB[t]] += f_B[t]*(1-xbar-dxbar)**2/sigma0**2
+        M[pixA[t]]   += f_A[t]*(1+xbar+dxbar)**2
+        M[pixB[t]]   += f_B[t]*(1-xbar-dxbar)**2
+        M_q[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.cos(2*psiA[t]))**2
+        M_q[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.cos(2*psiB[t]))**2
+        M_u[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.sin(2*psiA[t]))**2
+        M_u[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.sin(2*psiB[t]))**2
+        M_s[pixA[t]] += f_A[t]*(1+xbar+dxbar)**2
+        M_s[pixB[t]] += f_B[t]*(1-xbar-dxbar)**2
 
     b_p = np.concatenate((b_q, b_u, b_s))
     M_p = np.concatenate((M_q, M_u, M_s))
@@ -435,6 +435,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         b_p = np.zeros(3*npix)
         M_diag_p = np.zeros(3*npix)
 
+    '''
     fnames = np.loadtxt(f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/filelist_K1_v{version}_trunc.txt', 
                 skiprows=1, dtype=str)
     fnames = fnames[:,1]
@@ -455,7 +456,6 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         fnames = fnames[:nfiles]
     else:
         fnames = fnames
-    '''
 
     pool = Pool(processes=min(nfiles, ncpus))
     print('Preparing pool')
@@ -617,7 +617,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
         b_p = np.concatenate((b, b_p))
 
-        M_diag_p = np.concatenate((M_diag, M_diag_p)) + 1e-3
+        M_diag_p = np.concatenate((M_diag, M_diag_p))
         dts = []
         i = 0
         x_p = np.zeros_like(b_p)
@@ -684,7 +684,9 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         delta_new = r.dot(d)
         print(delta_new, 'original delta')
         delta_0 = np.copy(delta_new)
-        while ((i < imax) & (delta_new > eps**2*delta_0)):
+        beta = 1
+        imin = 5
+        while ((i < imax) & (delta_new > eps**2*delta_0) & ((beta < 2) | (i < imin))):
             q = A_p.dot(d)
             alpha = delta_new/d.dot(q)
             x_p = x_p + alpha*d
@@ -721,6 +723,10 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         i,q,u,s = np.split(b_p, 4)
         b_p = np.array([i,q,u,s])
         hp.write_map(f'b_v{version}_{band}_pol.fits', b_p, overwrite=True)
+
+        i,q,u,s = np.split(M_diag_p, 4)
+        b_p = np.array([i,q,u,s])
+        hp.write_map(f'M_v{version}_{band}_pol.fits', b_p, overwrite=True)
 
         x_arr = np.array(x_arr)
         np.save('all_samples_pol', x_arr)
@@ -926,10 +932,10 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        get_cg(band=b, nfiles=48, sparse_test=False, sparse_only=True, 
-                imbalance=False, mask=False, pol=True, imax=1000, nside=512)
+        get_cg(band=b, nfiles=np.inf, sparse_test=False, sparse_only=True, 
+                imbalance=False, mask=False, pol=True, imax=1000, nside=256)
         #plot_maps_pol(band=b, nside=256, version=13)
-        plot_maps_pol(band=b, nside=512, version=14)
+        #plot_maps_pol(band=b, nside=512, version=14)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)

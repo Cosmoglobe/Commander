@@ -118,16 +118,16 @@ contains
                do i = 1, nout
                   b(i, 1, lpoint) = b(i, 1, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
                   b(i, 1, rpoint) = b(i, 1, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*inv_sigmasq
-                  !b(i, 2, lpoint) = b(i, 2, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(lpsi)*sgn*inv_sigmasq
-                  !b(i, 2, rpoint) = b(i, 2, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(rpsi)*sgn*inv_sigmasq
-                  !b(i, 3, lpoint) = b(i, 3, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(lpsi)*sgn*inv_sigmasq
-                  !b(i, 3, rpoint) = b(i, 3, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+                  b(i, 2, lpoint) = b(i, 2, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+                  b(i, 2, rpoint) = b(i, 2, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+                  b(i, 3, lpoint) = b(i, 3, lpoint) + f_A*(1 + x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+                  b(i, 3, rpoint) = b(i, 3, rpoint) - f_B*(1 - x_im((det + 1)/2))*data(i, t, det)*tod%sin2psi(rpsi)*sgn*inv_sigmasq
 
                   M_diag(i, 1, lpoint) = M_diag(i, 1, lpoint) + f_A*((1 + x_im((det + 1)/2)))**2!*inv_sigmasq
                   M_diag(i, 1, rpoint) = M_diag(i, 1, rpoint) + f_B*((1 - x_im((det + 1)/2)))**2!*inv_sigmasq
                   M_diag(i, 2, lpoint) = M_diag(i, 2, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%cos2psi(lpsi))**2!*inv_sigmasq
                   M_diag(i, 2, rpoint) = M_diag(i, 2, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%cos2psi(rpsi))**2!*inv_sigmasq
-                  M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2*inv_sigmasq
+                  M_diag(i, 3, lpoint) = M_diag(i, 3, lpoint) + f_A*((1 + x_im((det + 1)/2))*tod%sin2psi(lpsi))**2!*inv_sigmasq
                   M_diag(i, 3, rpoint) = M_diag(i, 3, rpoint) + f_B*((1 - x_im((det + 1)/2))*tod%sin2psi(rpsi))**2!*inv_sigmasq
                end do
             end if
@@ -151,7 +151,7 @@ contains
       integer(i4b), allocatable, dimension(:, :)       :: flag
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
 
-      real(dp), dimension(1:, 1:, 1:), intent(out)           :: y
+      real(dp), dimension(1:, 1:, 1:), intent(inout)           :: y
 
       integer(i4b)              :: i, j, k, ntod, ndet, lpix, rpix, lpsi, rpsi
       integer(i4b)              :: nhorn, t, sgn, pA, pB, f_A, f_B
