@@ -106,30 +106,32 @@ contains
             lpsi = psi(t, det, 1)
             rpsi = psi(t, det, 2)
             sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
-            pA = pmask(lpix)
-            pB = pmask(rpix)
+            !pA = pmask(lpix)
+            !pB = pmask(rpix)
             ! This SHOULD make it so that if pA is 0 (high emission) and pB
             ! is 1 (low emission), pixA is updated and pixB isn't.
-            f_A = 1-pA*(1-pB)
-            f_B = 1-pB*(1-pA)
+            !f_A = 1-pA*(1-pB)
+            !f_B = 1-pB*(1-pA)
             f_A = 1
             f_B = 1
 
             do i = 1, nout
                d = data(i, t, det)
-               b(i, 1, lpix) = b(i, 1, lpix) + f_A*(1 + x_im)*d*inv_sigmasq
-               b(i, 1, rpix) = b(i, 1, rpix) - f_B*(1 - x_im)*d*inv_sigmasq
+               b(i, 1, lpix) = b(i, 1, lpix) + f_A*(1 + x_im)*d                      *inv_sigmasq
+               b(i, 1, rpix) = b(i, 1, rpix) - f_B*(1 - x_im)*d                      *inv_sigmasq
                b(i, 2, lpix) = b(i, 2, lpix) + f_A*(1 + x_im)*d*tod%cos2psi(lpsi)*sgn*inv_sigmasq
                b(i, 2, rpix) = b(i, 2, rpix) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
                b(i, 3, lpix) = b(i, 3, lpix) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
                b(i, 3, rpix) = b(i, 3, rpix) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+               b(i, 4, lpix) = b(i, 4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
+               b(i, 4, rpix) = b(i, 4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
 
-               M_diag(i, 1, lpix) = M_diag(i, 1, lpix) + f_A*((1 + x_im))**2
-               M_diag(i, 1, rpix) = M_diag(i, 1, rpix) + f_B*((1 - x_im))**2
-               M_diag(i, 2, lpix) = M_diag(i, 2, lpix) + f_A*((1 + x_im)*tod%cos2psi(lpsi))**2
-               M_diag(i, 2, rpix) = M_diag(i, 2, rpix) + f_B*((1 - x_im)*tod%cos2psi(rpsi))**2
-               M_diag(i, 3, lpix) = M_diag(i, 3, lpix) + f_A*((1 + x_im)*tod%sin2psi(lpsi))**2
-               M_diag(i, 3, rpix) = M_diag(i, 3, rpix) + f_B*((1 - x_im)*tod%sin2psi(rpsi))**2
+               M_diag(i, 1, lpix) = M_diag(i, 1, lpix) + f_A
+               M_diag(i, 1, rpix) = M_diag(i, 1, rpix) + f_B
+               M_diag(i, 2, lpix) = M_diag(i, 2, lpix) + f_A*tod%cos2psi(lpsi)**2
+               M_diag(i, 2, rpix) = M_diag(i, 2, rpix) + f_B*tod%cos2psi(rpsi)**2
+               M_diag(i, 3, lpix) = M_diag(i, 3, lpix) + f_A*tod%sin2psi(lpsi)**2
+               M_diag(i, 3, rpix) = M_diag(i, 3, rpix) + f_B*tod%sin2psi(rpsi)**2
             end do
 
          end do
@@ -155,7 +157,7 @@ contains
 
       integer(i4b)              :: i, j, k, ntod, ndet, lpix, rpix, lpsi, rpsi
       integer(i4b)              :: nhorn, t, sgn, pA, pB, f_A, f_B
-      real(dp)                  :: inv_sigmasq, dA, dB, d1, x_im
+      real(dp)                  :: inv_sigmasq, dA, dB, d, x_im
       nhorn = tod%nhorn
       ndet = tod%ndet
       do j = 1, tod%nscan
@@ -193,19 +195,19 @@ contains
                ! model
                dA = x(n, 1, lpix) + sgn*(x(n, 2, lpix)*tod%cos2psi(lpsi) + x(n, 3, lpix)*tod%sin2psi(lpsi))
                dB = x(n, 1, rpix) + sgn*(x(n, 2, rpix)*tod%cos2psi(rpsi) + x(n, 3, rpix)*tod%sin2psi(rpsi))
-               d1 = (1 + x_im)*dA - (1 - x_im)*dB
+               d = (1 + x_im)*dA - (1 - x_im)*dB
                ! Temperature
-               y(n, 1, lpix) = y(n, 1, lpix) + f_A*(1 + x_im)*d1*inv_sigmasq
-               y(n, 1, rpix) = y(n, 1, rpix) - f_B*(1 - x_im)*d1*inv_sigmasq
+               y(n, 1, lpix) = y(n, 1, lpix) + f_A*(1 + x_im)*d                      *inv_sigmasq
+               y(n, 1, rpix) = y(n, 1, rpix) - f_B*(1 - x_im)*d                      *inv_sigmasq
                ! Q
-               y(n, 2, lpix) = y(n, 2, lpix) + f_A*(1 + x_im)*d1*tod%cos2psi(lpsi)*sgn*inv_sigmasq
-               y(n, 2, rpix) = y(n, 2, rpix) - f_B*(1 - x_im)*d1*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+               y(n, 2, lpix) = y(n, 2, lpix) + f_A*(1 + x_im)*d*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+               y(n, 2, rpix) = y(n, 2, rpix) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
                ! U
-               y(n, 3, lpix) = y(n, 3, lpix) + f_A*(1 + x_im)*d1*tod%sin2psi(lpsi)*sgn*inv_sigmasq
-               y(n, 3, rpix) = y(n, 3, rpix) - f_B*(1 - x_im)*d1*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+               y(n, 3, lpix) = y(n, 3, lpix) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+               y(n, 3, rpix) = y(n, 3, rpix) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
                !S
-               y(n, 4, lpix) = y(n, 4, lpix) + f_A*(1 + x_im)*d1*sgn*inv_sigmasq
-               y(n, 4, rpix) = y(n, 4, rpix) - f_B*(1 - x_im)*d1*sgn*inv_sigmasq
+               y(n, 4, lpix) = y(n, 4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
+               y(n, 4, rpix) = y(n, 4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
             end do
          end do
          deallocate (pix, psi, flag)
