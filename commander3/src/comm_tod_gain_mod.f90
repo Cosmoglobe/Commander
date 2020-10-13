@@ -58,19 +58,20 @@ contains
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
           tod%scans(scan_id)%d(j)%dgain      = sum(s_invN(:,j) * residual(:,j))
-          tod%scans(scan_id)%d(j)%gain_sigma = sum(s_invN(:,j) * s_ref(:,j))
-          if (tod%scans(scan_id)%d(j)%gain_sigma < 0.d0) then
-             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_sigma
+          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j))
+          if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
+             write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
           end if
        end if
     end do
 !    tod%scans(scan_id)%d(det)%dgain      = sum(stot_invN * residual)
-!    tod%scans(scan_id)%d(det)%gain_sigma = sum(stot_invN * s_tot)
-!    if (tod%scans(scan_id)%d(det)%gain_sigma < 0) then
+!    tod%scans(scan_id)%d(det)%gain_invsigma = sum(stot_invN * s_tot)
+!    if (tod%scans(scan_id)%d(det)%gain_invsigma < 0) then
 !       write(*,*) 's', sum(mask * stot_invN * s_tot), sum(stot_invN * s_tot)
 !    end if
 
-!!$    if (tod%scans(scan_id)%d(det)%dgain/tod%scans(scan_id)%d(det)%gain_sigma > 5.) then
+!!$    if
+!(tod%scans(scan_id)%d(det)%dgain/tod%scans(scan_id)%d(det)%gain_invsigma > 5.) then
 !!$       open(58, file='tod.dat')
 !!$       do i = p, q
 !!$          if (mask(i) > 0.5) write(58,*) i, residual(i), s_tot(i)*0.001 
@@ -79,13 +80,13 @@ contains
 !!$       stop
 !!$    end if
 
-    !write(*,*) det, scan_id, real(tod%scans(scan_id)%d(det)%dgain/tod%scans(scan_id)%d(det)%gain_sigma,sp), real(tod%gain0(0),sp), real(tod%gain0(det),sp), real(g_old,sp)
+    !write(*,*) det, scan_id, real(tod%scans(scan_id)%d(det)%dgain/tod%scans(scan_id)%d(det)%gain_invsigma,sp), real(tod%gain0(0),sp), real(tod%gain0(det),sp), real(g_old,sp)
 
-   ! write(*,*) tod%scanid(scan_id), real(tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(3)%gain_sigma,sp), real(tod%gain0(0) + tod%gain0(3) + tod%scans(scan_id)%d(3)%dgain/tod%scans(scan_id)%d(3)%gain_sigma,sp), '# deltagain'
+   ! write(*,*) tod%scanid(scan_id), real(tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(3)%gain_invsigma,sp), real(tod%gain0(0) + tod%gain0(3) + tod%scans(scan_id)%d(3)%dgain/tod%scans(scan_id)%d(3)%gain_invsigma,sp), '# deltagain'
 
     if (.false. .and. trim(tod%freq) == '030' .and. mod(tod%scanid(scan_id),100) == 0) then
        call int2string(tod%scanid(scan_id), itext)
-       !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_sigma
+       !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%scans(scan_id)%d(1)%dgain/tod%scans(scan_id)%d(1)%gain_invsigma
        open(58,file='gain_delta_'//itext//'.dat')
        do i = ext(1), ext(2)
           write(58,*) i, residual(i,1)
@@ -152,7 +153,7 @@ contains
           k        = tod%scanid(i)
           if (.not. tod%scans(i)%d(j)%accept) cycle
           g(k,j,1) = tod%scans(i)%d(j)%dgain
-          g(k,j,2) = tod%scans(i)%d(j)%gain_sigma
+          g(k,j,2) = tod%scans(i)%d(j)%gain_invsigma
        end do
     end do
     if (tod%myid == 0) then
@@ -276,8 +277,7 @@ contains
 !!$               write(*,*) temp_invsigsquared
 !!$            end if
 !!$            call moving_average_padded_variable_window(temp_gain, smoothed_gain, &
-
-            kernel_type = 'gaussian'
+            kernel_type = 'boxcar'
             call moving_average_variable_window(temp_gain, smoothed_gain, &
                & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared, kernel_type)
             if (any(summed_invsigsquared < 0)) then
@@ -819,7 +819,7 @@ contains
 
      high_dipole_thresh = 5d-6
      low_dipole_thresh = 1d-6
-     reduce_fac = 0.5d0
+     reduce_fac = 1.d0
 
      select case (trim(tod%freq))
          case ('030')
