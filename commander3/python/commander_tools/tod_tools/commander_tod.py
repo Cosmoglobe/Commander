@@ -94,7 +94,7 @@ class commander_tod:
                 else:
                     raise ValueError('Compression type ' + compArr[0] + ' is not a recognized compression')
             self.add_attribute(fieldName, 'compression', compInfo)
-            print("adding " + compInfo + ' to ' + fieldName)
+            #print("adding " + compInfo + ' to ' + fieldName)
 
         if writeField:
             try:
@@ -127,7 +127,8 @@ class commander_tod:
 
         if(not self.exists):
             for encoding in self.encodings.keys():
-                self.add_field(encoding, self.encodings[encoding])
+                self.add_field(encoding, [self.encodings[encoding]])
+                print('adding ' + encoding + ' to file ' + self.outPath)
 
             self.add_field('/common/version', self.version)
             self.add_field('/common/pids', list(self.pids.keys()))
@@ -151,11 +152,11 @@ class commander_tod:
 
             self.add_field('/' + str(pid).zfill(6) + '/common/hufftree' + numStr, huffArray)
             self.add_field('/' + str(pid).zfill(6) + '/common/huffsymb' + numStr, h.symbols)
-            with np.printoptions(threshold=np.inf):
-                print(huffArray, len(huffArray), len(h.symbols))
+            #with np.printoptions(threshold=np.inf):
+            #    print(huffArray, len(huffArray), len(h.symbols))
             for field in self.huffDict[key].keys():
                 self.add_field(field, np.void(bytes(h.byteCode(self.huffDict[key][field]))))
-                print(self.huffDict[key][field], bin(int.from_bytes(h.byteCode(self.huffDict[key][field]), byteorder=sys.byteorder)))
+                #print(self.huffDict[key][field], bin(int.from_bytes(h.byteCode(self.huffDict[key][field]), byteorder=sys.byteorder)))
 
         self.huffDict = {}
         self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)
