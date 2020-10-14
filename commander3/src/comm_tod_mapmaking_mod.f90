@@ -106,14 +106,14 @@ contains
             lpsi = psi(t, det, 1)
             rpsi = psi(t, det, 2)
             sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
-            !pA = pmask(lpix)
-            !pB = pmask(rpix)
+            pA = pmask(lpix)
+            pB = pmask(rpix)
             ! This SHOULD make it so that if pA is 0 (high emission) and pB
             ! is 1 (low emission), pixA is updated and pixB isn't.
-            !f_A = 1-pA*(1-pB)
-            !f_B = 1-pB*(1-pA)
-            f_A = 1
-            f_B = 1
+            f_A = 1-pA*(1-pB)
+            f_B = 1-pB*(1-pA)
+            !f_A = pB
+            !f_B = pA
 
             do i = 1, nout
                d = data(i, t, det)
@@ -132,6 +132,8 @@ contains
                M_diag(i, 2, rpix) = M_diag(i, 2, rpix) + f_B*tod%cos2psi(rpsi)**2
                M_diag(i, 3, lpix) = M_diag(i, 3, lpix) + f_A*tod%sin2psi(lpsi)**2
                M_diag(i, 3, rpix) = M_diag(i, 3, rpix) + f_B*tod%sin2psi(rpsi)**2
+               M_diag(i, 4, lpix) = M_diag(i, 4, lpix) + f_A
+               M_diag(i, 4, rpix) = M_diag(i, 4, rpix) + f_B
             end do
 
          end do
@@ -182,12 +184,12 @@ contains
                rpsi = psi(t, k, 2)
                x_im = x_imarr((k + 1)/2)
                sgn = (-1)**((k + 1)/2 + 1)
-               !pA = pmask(lpix)
-               !pB = pmask(rpix)
-               !f_A = 1-pA*(1-pB)
-               !f_B = 1-pB*(1-pA)
-               f_A = 1
-               f_B = 1
+               pA = pmask(lpix)
+               pB = pmask(rpix)
+               f_A = 1-pA*(1-pB)
+               f_B = 1-pB*(1-pA)
+               !f_A = pB
+               !f_B = pA
                ! This is the model for each timestream
                ! The sgn parameter is +1 for timestreams 13 and 14, -1
                ! for timestreams 23 and 24, and also is used to switch
