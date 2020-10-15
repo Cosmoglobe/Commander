@@ -1,6 +1,8 @@
+#==============================================================================
 # Project: HEALPix 
 # File which contains setup for current project 
 # Author: Maksym Brilenkov
+#==============================================================================
 
 message(STATUS "---------------------------------------------------------------")
 if(NOT HEALPIX_FORCE_COMPILE)
@@ -44,28 +46,40 @@ if(NOT HEALPIX_FOUND)
 		#SOURCE_DIR "${download_dir}/${project}/src/${project}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" 
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR "${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD ON
+		LOG_CONFIGURE ON
+		LOG_BUILD ON
+		LOG_INSTALL ON
+		BUILD_ALWAYS FALSE
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		# making healpix to be installed the last before commander3
 		DEPENDS cfitsio 
-						hdf5 
+						#hdf5 
 						#sharp2 
-						fftw 
-						fftw_double 
-						fftw_float 
-						doxygen 
-						tempita 
-						blas 
-						openmp 
-						curl 
-						mpi 
-						zlib
+						#fftw 
+						#fftw_double 
+						#fftw_float 
+						#doxygen 
+						#tempita 
+						#blas 
+						#openmp 
+						#curl 
+						#mpi 
+						#zlib
 		#
 		INSTALL_COMMAND ""
 		# copying Healpix and all its files (src and compiled) into CMAKE_INSTALL_PREFIX directory
 		#COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${CMAKE_INSTALL_PREFIX}/healpix"
 		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${HEALPIX_INSTALL_PREFIX}"
 		)
+
+	#ExternalProject_Add_Step(${project} ${project}_copy_step
+	#		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${HEALPIX_INSTALL_PREFIX}"
+	#	ALWAYS FALSE
+	#		)
+	#ExternalProject_Add_StepTargets(${project} ${project}_copy_step)
 
 	#set(HEALPIX_LIBRARIES 
 	#	${CMAKE_INSTALL_PREFIX}/healpix/lib/${CMAKE_STATIC_LIBRARY_PREFIX}sharp${CMAKE_STATIC_LIBRARY_SUFFIX}

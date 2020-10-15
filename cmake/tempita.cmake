@@ -1,7 +1,9 @@
+#==============================================================================
 # Project: Tempita 
 # File which contains setup for current project 
 # Tempita used to deal with comm_hdf_mod.f90.in
 # Author: Maksym Brilenkov
+#==============================================================================
 
 add_custom_target(${project} ALL "")
 set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")

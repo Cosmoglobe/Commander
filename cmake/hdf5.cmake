@@ -1,6 +1,8 @@
+#==============================================================================
 # Project: HDF5 
 # File which contains setup for current project 
 # Author: Maksym Brilenkov
+#==============================================================================
 
 message(STATUS "---------------------------------------------------------------")
 # asking for an exact hdf5 version
@@ -50,6 +52,11 @@ if(NOT HDF5_FOUND)
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR "${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD ON
+		LOG_CONFIGURE ON
+		LOG_BUILD ON
+		LOG_INSTALL ON
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		)
