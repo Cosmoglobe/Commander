@@ -123,8 +123,8 @@ contains
                b(i, 2, rpix) = b(i, 2, rpix) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
                b(i, 3, lpix) = b(i, 3, lpix) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
                b(i, 3, rpix) = b(i, 3, rpix) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
-               b(i, 4, lpix) = b(i, 4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
-               b(i, 4, rpix) = b(i, 4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
+               !b(i, 4, lpix) = b(i, 4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
+               !b(i, 4, rpix) = b(i, 4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
 
                M_diag(i, 1, lpix) = M_diag(i, 1, lpix) + f_A
                M_diag(i, 1, rpix) = M_diag(i, 1, rpix) + f_B
@@ -132,8 +132,8 @@ contains
                M_diag(i, 2, rpix) = M_diag(i, 2, rpix) + f_B*tod%cos2psi(rpsi)**2
                M_diag(i, 3, lpix) = M_diag(i, 3, lpix) + f_A*tod%sin2psi(lpsi)**2
                M_diag(i, 3, rpix) = M_diag(i, 3, rpix) + f_B*tod%sin2psi(rpsi)**2
-               M_diag(i, 4, lpix) = M_diag(i, 4, lpix) + f_A
-               M_diag(i, 4, rpix) = M_diag(i, 4, rpix) + f_B
+               !M_diag(i, 4, lpix) = M_diag(i, 4, lpix) + f_A
+               !M_diag(i, 4, rpix) = M_diag(i, 4, rpix) + f_B
             end do
 
          end do
@@ -208,8 +208,8 @@ contains
                y(n, 3, lpix) = y(n, 3, lpix) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
                y(n, 3, rpix) = y(n, 3, rpix) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
                !S
-               y(n, 4, lpix) = y(n, 4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
-               y(n, 4, rpix) = y(n, 4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
+               !y(n, 4, lpix) = y(n, 4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
+               !y(n, 4, rpix) = y(n, 4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
             end do
          end do
          deallocate (pix, psi, flag)
