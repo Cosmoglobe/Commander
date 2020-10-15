@@ -100,7 +100,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 3
+      constructor%output_n_maps = 2
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -115,7 +115,7 @@ contains
       allocate (constructor%x_im(constructor%ndet/2))
       constructor%x_im(:) = 0.0d0
       ! For K-band
-      ! constructor%x_im = [-0.00067, 0.00536]
+      constructor%x_im = [-0.00067, 0.00536]
 
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -239,7 +239,7 @@ contains
       allocate (m_buf(0:npix - 1, nmaps))
       do j = 1, ndelta
          do i = 1, self%ndet
-            map_in(i, j)%p%map = 1d-6*map_in(i, j)%p%map ! uK to K
+            map_in(i, j)%p%map = map_in(i, j)%p%map ! uK to K
             call map_in(i, j)%p%bcast_fullsky_map(m_buf)
             do k = 1, self%nobs
                map_sky(:, k, i, j) = m_buf(self%ind2pix(k), :) ! uK to K
@@ -270,8 +270,8 @@ contains
       naccept = 0; ntot = 0
       write(*,*) nmaps, 'nmaps'
       ! Using nmaps + 1 to include the spurious component
-      allocate (M_diag(nout, nmaps+1, 0:npix-1))
-      allocate (b_map(nout, nmaps+1, 0:npix-1))
+      allocate (M_diag(nout, nmaps, 0:npix-1))
+      allocate (b_map(nout, nmaps, 0:npix-1))
       M_diag(:,:,:) = 0d0
       do i = 1, self%nscan
 
@@ -287,7 +287,7 @@ contains
          allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A) in uKcmb
          allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B) in uKcmb
          allocate (s_buf(ntod, ndet))                  ! Buffer
-         allocate (s_tot(ntod, ndet))                  ! Sum of all sky compnents
+         allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
          allocate (mask(ntod, ndet))                   ! Processing mask in time
          allocate (mask2(ntod, ndet))                  ! Processing mask in time
          allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
@@ -338,14 +338,20 @@ contains
             inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
             d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
                & inv_gain - s_tot(:, j) + s_sky(:, j)
-            ! Simulated data
-            ! Input data is in K
-            ! standard deviations in mK
-            ! sigma  = abs(self%scans(i)%d(j)%sigma0/self%scans(i)%d(j)%gain)
-            !d_calib(1, :, j) = s_sky(:, j)*1d6 !+ rand_normal(0d0, abs(self%scans(i)%d(j)%sigma0*inv_gain))
 
             if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
             if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
+            if (i == 1) then
+               if (self%myid_shared == 0) then
+                  filename = trim(prefix)//'calib_'//trim(str(j))// '.dat'
+                  call write_tod_chunk(filename, d_calib(1,:,j))
+                  filename = trim(prefix)//'res'//trim(str(j))//'.dat'
+                  call write_tod_chunk(filename, d_calib(2,:,j))
+                  filename = trim(prefix)//'sky_sig'//trim(str(j))//'.dat'
+                  call write_tod_chunk(filename, s_sky(:,j)*1e6)
+               end if
+            end if
+
          end do
 
          ! Bin the calibrated map
@@ -365,6 +371,10 @@ contains
       call update_status(status, "Running allreduce on b")
       call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
            & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+      ! Mean-subtracting b_map to remove fitting of spurious monopole
+      !do j=1, nmaps
+      !   b_map(l,j,:) = b_map(l,j,:) - sum(b_map(l,j,:))/size(b_map(l,j,:))
+      !end do
 
       where (M_diag .eq. 0d0)
          M_diag = 1d0
@@ -373,109 +383,113 @@ contains
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       np0 = self%info%np
-      allocate (r(nout, nmaps+1, 0:npix-1))
-      allocate (s(nout, nmaps+1, 0:npix-1))
-      allocate (q(nout, nmaps+1, 0:npix-1))
-      allocate (d(nout, nmaps+1, 0:npix-1))
-      allocate (cg_sol(nout, nmaps+1, 0:npix-1))
+      allocate (r(nout, nmaps, 0:npix-1))
+      allocate (s(nout, nmaps, 0:npix-1))
+      allocate (q(nout, nmaps, 0:npix-1))
+      allocate (d(nout, nmaps, 0:npix-1))
+      allocate (cg_sol(nout, nmaps, 0:npix-1))
       allocate (cg_tot(nmaps, 0:np0 - 1))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-5
+      epsil = 1.0d-3
 
       i_max = int(npix**0.5)
-      l=1
 
-      allocate (r0(nout, nmaps+1, 0:npix-1))
-      allocate (v(nout, nmaps+1, 0:npix-1))
-      allocate (p(nout, nmaps+1, 0:npix-1))
-      allocate (phat(nout, nmaps+1, 0:npix-1))
-      allocate (shat(nout, nmaps+1, 0:npix-1))
-      call update_status(status, "Starting bicg-stab")
-      r(l, :, :)  = b_map(l, :, :)
-      r0(l, :, :) = b_map(l, :, :)
-      delta_0 = sum(r(l,:,:)**2/M_diag(l,:,:))
-      delta_r = delta_0
-      delta_s = delta_0
+      allocate (r0(nout, nmaps, 0:npix-1))
+      allocate (v(nout, nmaps, 0:npix-1))
+      allocate (p(nout, nmaps, 0:npix-1))
+      allocate (phat(nout, nmaps, 0:npix-1))
+      allocate (shat(nout, nmaps, 0:npix-1))
+      write(*,*) nout, 'nout'
+      do l=1, nout-1
+         call update_status(status, "Starting bicg-stab")
+         r(l, :, :)  = b_map(l, :, :)
+         r0(l, :, :) = b_map(l, :, :)
+         delta_0 = sum(r(l,:,:)**2/M_diag(l,:,:))
+         delta_r = delta_0
+         delta_s = delta_0
 
-      omega = 1
-      alpha = 1
+         omega = 1
+         alpha = 1
 
-      rho_new = sum(r0(l,:,:)*r(l,:,:))
-      bicg: do i = 1, i_max
-         rho_old = rho_new
          rho_new = sum(r0(l,:,:)*r(l,:,:))
-         if (i==1) then
-             p(l,:,:) = r(l,:,:)
-         else
-             beta = (rho_new/rho_old)/(alpha/omega)
-             p(l,:,:) = r(l,:,:) + beta*(p(l,:,:) - omega*v(l,:,:))
-         end if
-         phat(l,:,:) = p(l,:,:)/M_diag(l,:,:)
-         v(l,:,:) = 0d0
-         call update_status(status, "Calling p=Av")
-         call compute_Ax(self, phat, v, self%x_im, sprocmask%a, i, l)
-         call mpi_allreduce(MPI_IN_PLACE, v(l,:,:), size(v(l,:,:)), &
-                           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-         alpha = rho_new/sum(r0(l,:,:)*v(l,:,:))
-         s(l,:,:) = r(l,:,:) - alpha*v(l,:,:)
-
-         shat(l,:,:) = s(l,:,:)/M_diag(l,:,:)
-
-         delta_s = sum(s(l,:,:)*shat(l,:,:))
-         if (delta_s .le. (delta_0*epsil**2)) then
-             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
-             exit bicg
-         end if
-         if (self%myid_shared==0) then 
-             write(*,101) i, delta_s/delta_0
-             101 format (I3, ':   delta_s/delta_0:',  2X, ES9.2)
-         end if
-         q(l,:,:) = 0d0
-         call update_status(status, "Calling  t= A shat")
-         call compute_Ax(self, shat, q, self%x_im, sprocmask%a, i, l)
-         call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
-                           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-         omega = sum(q(l,:,:)*s(l,:,:))/sum(q(l,:,:)**2)
-         cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:) + omega*shat(l,:,:)
-         if (mod(i, 50) == 1) then
-            call update_status(status, 'r = b - Ax')
-            r(l,:,:) = 0d0
-            call compute_Ax(self, cg_sol, r, self%x_im, sprocmask%a, i, l)
-            call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
+         bicg: do i = 1, i_max
+            rho_old = rho_new
+            rho_new = sum(r0(l,:,:)*r(l,:,:))
+            if (i==1) then
+                p(l,:,:) = r(l,:,:)
+            else
+                beta = (rho_new/rho_old)/(alpha/omega)
+                p(l,:,:) = r(l,:,:) + beta*(p(l,:,:) - omega*v(l,:,:))
+            end if
+            phat(l,:,:) = p(l,:,:)/M_diag(l,:,:)
+            v(l,:,:) = 0d0
+            call update_status(status, "Calling p=Av")
+            call compute_Ax(self, phat, v, self%x_im, sprocmask%a, i, l)
+            call mpi_allreduce(MPI_IN_PLACE, v(l,:,:), size(v(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            r(l, :, :) = b_map(l, :, :) - r(l, :, :)
-         else
-            call update_status(status, 'r = s - omega*t')
-            r(l,:,:) = s(l,:,:) - omega*q(l,:,:)
-         end if
+            alpha = rho_new/sum(r0(l,:,:)*v(l,:,:))
+            s(l,:,:) = r(l,:,:) - alpha*v(l,:,:)
 
-         cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
-         do m = 0, np0 - 1
-            do n = 1, nmaps
-               outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
+            shat(l,:,:) = s(l,:,:)/M_diag(l,:,:)
+
+            delta_s = sum(s(l,:,:)*shat(l,:,:))
+            if (delta_s .le. (delta_0*epsil**2)) then
+                cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
+                exit bicg
+            end if
+            if (self%myid_shared==0) then 
+                write(*,101) i, delta_s/delta_0
+                101 format (I3, ':   delta_s/delta_0:',  2X, ES9.2)
+            end if
+            q(l,:,:) = 0d0
+            call update_status(status, "Calling  t= A shat")
+            call compute_Ax(self, shat, q, self%x_im, sprocmask%a, i, l)
+            call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
+                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+            omega = sum(q(l,:,:)*s(l,:,:))/sum(q(l,:,:)**2)
+            cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:) + omega*shat(l,:,:)
+            if (mod(i, 50) == 1) then
+               call update_status(status, 'r = b - Ax')
+               r(l,:,:) = 0d0
+               call compute_Ax(self, cg_sol, r, self%x_im, sprocmask%a, i, l)
+               call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
+                                 & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+               r(l, :, :) = b_map(l, :, :) - r(l, :, :)
+            else
+               call update_status(status, 'r = s - omega*t')
+               r(l,:,:) = s(l,:,:) - omega*q(l,:,:)
+            end if
+
+            cg_tot = cg_sol(l, 1:nmaps, self%info%pix + 1)
+            do m = 0, np0 - 1
+               do n = 1, nmaps
+                  outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
+               end do
             end do
-         end do
-         call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(i))//trim(postfix))
+            call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(i))//trim(postfix))
 
 
-         delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
-         if (self%myid_shared==0) then 
-             write(*,102) i, delta_r/delta_0
-             102 format (I3, ':   delta_r/delta_0:',  2X, ES9.2)
-         end if
-         if ((delta_r .le. (delta_0*epsil**2)) .or. (i > i_max)) exit bicg
+            delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
+            if (self%myid_shared==0) then 
+                write(*,102) i, delta_r/delta_0
+                102 format (I3, ':   delta_r/delta_0:',  2X, ES9.2)
+            end if
+            if ((delta_r .le. (delta_0*epsil**2))) exit bicg
 
-      end do bicg
+         end do bicg
+      end do
 
       call update_status(status, "Allocating total maps")
       allocate (b_tot(nout, nmaps, 0:np0 - 1))
       allocate (M_diag_tot(nout, nmaps, 0:np0 - 1))
       allocate (r_tot(nmaps, 0:np0 - 1))
-      b_tot = b_map(:, 1:nmaps, :)
-      M_diag_tot = M_diag(:, 1:nmaps, :)
-      cg_tot = cg_sol(1, 1:nmaps, :)
-      r_tot = r(1, 1:nmaps, :)
+      call update_status(status, "Allocated total maps")
+      b_tot = b_map(:, 1:nmaps, 0:npix-1)
+      M_diag_tot = M_diag(:, 1:nmaps, 0:npix-1)
+      cg_tot = cg_sol(1, 1:nmaps, 0:npix-1)
+      r_tot = cg_sol(2, 1:nmaps, 0:npix-1)
+      call update_status(status, "Got toal map arrays")
       ! I think there is a factor of ncpus that needs to be divided out, but
       ! want to be clear about that.
       do i = 0, np0 - 1
@@ -483,7 +497,7 @@ contains
             outmaps(1)%p%map(i, j) = cg_tot(j, i)*1.d6 ! convert from K to uK
             outmaps(2)%p%map(i, j) = M_diag_tot(1, j, i)
             outmaps(3)%p%map(i, j) = b_tot(1, j, i)*1.d6 ! convert from K to uK
-            outmaps(4)%p%map(i, j) = r_tot(j, i)*1.d3 ! convert from mK to uK
+            outmaps(4)%p%map(i, j) = r_tot(j, i)*1.d6 ! convert from K to uK
          end do
       end do
 
@@ -533,5 +547,29 @@ contains
       self%first_call = .false.
 
    end subroutine process_WMAP_tod
+
+
+
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ! Subroutine to save time-ordered-data chunk
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   subroutine write_tod_chunk(filename, tod)
+     implicit none
+     character(len=*),                   intent(in) :: filename
+     real(sp),         dimension(:),     intent(in) :: tod
+     ! Expects one-dimensional TOD chunk
+
+     integer(i4b) :: unit, n_tod, t
+
+     n_tod = size(tod)
+
+     unit = getlun()
+     open(unit,file=trim(filename), recl=1024)
+     write(unit,*) '# TOD value in mK'
+     do t = 1, n_tod
+        write(unit,fmt='(e16.8)') tod(t)
+     end do
+     close(unit)
+   end subroutine write_tod_chunk
 
 end module comm_tod_WMAP_mod
