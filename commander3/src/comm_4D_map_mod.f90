@@ -159,6 +159,10 @@ contains
        ! Output file
        dlabel   = detlabel(d(1))
        fullpath = trim(adjustl(path_scanid))//'/'//dlabel(1:2)
+
+       call h5eset_auto_f(0, hdferr)
+       call h5oget_info_by_name_f(file%filehandle, trim(adjustl(fullpath)), object_info, hdferr)
+       if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(fullpath)), hdferr)
        call create_hdf_group(file, trim(fullpath))
 
        ! Output general information in HDU1
