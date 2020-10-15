@@ -506,6 +506,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
     print('Loaded data')
 
+
     if sparse_test or sparse_only:
         if pol:
             print(f'Constructing pointing matrix')
@@ -616,6 +617,11 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         delta_arr = []
 
         b_p = np.concatenate((b, b_p))
+        # Mean-subtracting
+        b_p_arr = np.split(b_p, 4)
+        for i in range(len(b_p_arr)):
+            b_p_arr[i] -= b_p_arr[i].mean()
+        b_p = np.array(b_p_arr).flatten()
 
         M_diag_p = np.concatenate((M_diag, M_diag_p))
         dts = []
@@ -932,9 +938,9 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        get_cg(band=b, nfiles=np.inf, sparse_test=False, sparse_only=True, 
-                imbalance=False, mask=False, pol=True, imax=1000, nside=256)
-        #plot_maps_pol(band=b, nside=256, version=13)
+        get_cg(band=b, nfiles=48*4, sparse_test=False, sparse_only=True, 
+                imbalance=True, mask=True, pol=True, imax=1000, nside=256)
+        plot_maps_pol(band=b, nside=256, version=13)
         #plot_maps_pol(band=b, nside=512, version=14)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
