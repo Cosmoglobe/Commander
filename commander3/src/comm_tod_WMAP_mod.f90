@@ -115,7 +115,7 @@ contains
       allocate (constructor%x_im(constructor%ndet/2))
       constructor%x_im(:) = 0.0d0
       ! For K-band
-      constructor%x_im = [-0.00067, 0.00536]
+      ! constructor%x_im = [-0.00067, 0.00536]
 
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -196,6 +196,7 @@ contains
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
+      logical(lgt) :: write_cg_iter=.false.
 
       ! biconjugate gradient parameters
       real(dp) :: rho_old, rho_new
@@ -268,7 +269,6 @@ contains
 
       ! Perform main analysis loop
       naccept = 0; ntot = 0
-      write(*,*) nmaps, 'nmaps'
       ! Using nmaps + 1 to include the spurious component
       allocate (M_diag(nout, nmaps, 0:npix-1))
       allocate (b_map(nout, nmaps, 0:npix-1))
@@ -321,8 +321,8 @@ contains
          ! Add orbital dipole to total signal
          s_buf = 0.d0
          do j = 1, ndet
-            s_tot(:, j) = s_sky(:, j) + (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
-                                      & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+            s_tot(:, j) = s_sky(:, j)! + (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
+                                     ! & (1-self%x_im((j+1)/2))*s_orbB(:,j)
             s_buf(:, j) = s_tot(:, j)
          end do
          n_corr(:, :) = 0d0
@@ -400,7 +400,6 @@ contains
       allocate (p(nout, nmaps, 0:npix-1))
       allocate (phat(nout, nmaps, 0:npix-1))
       allocate (shat(nout, nmaps, 0:npix-1))
-      write(*,*) nout, 'nout'
       do l=1, nout
          call update_status(status, "Starting bicg-stab")
          r(l, :, :)  = b_map(l, :, :)
@@ -461,14 +460,15 @@ contains
                r(l,:,:) = s(l,:,:) - omega*q(l,:,:)
             end if
 
-            cg_tot = cg_sol(l, 1:nmaps, self%info%pix + 1)
-            do m = 0, np0 - 1
-               do n = 1, nmaps
-                  outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
+            if write_cg_iter then
+               cg_tot = cg_sol(l, 1:nmaps, self%info%pix + 1)
+               do m = 0, np0 - 1
+                  do n = 1, nmaps
+                     outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
+                  end do
                end do
-            end do
-            call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(i))//trim(postfix))
-
+               call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(i))//trim(postfix))
+            end if
 
             delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
             if (self%myid_shared==0) then 
@@ -480,13 +480,7 @@ contains
          end do bicg
       end do
 
-      call update_status(status, "Allocating total maps")
-      allocate (b_tot(nout, nmaps, 0:np0 - 1))
-      allocate (M_diag_tot(nout, nmaps, 0:np0 - 1))
       allocate (r_tot(nmaps, 0:np0 - 1))
-      call update_status(status, "Allocated total maps")
-      b_tot = b_map(:, 1:nmaps, 0:npix-1)
-      M_diag_tot = M_diag(:, 1:nmaps, 0:npix-1)
       cg_tot = cg_sol(1, 1:nmaps, 0:npix-1)
       r_tot = cg_sol(2, 1:nmaps, 0:npix-1)
       call update_status(status, "Got total map arrays")
@@ -495,18 +489,14 @@ contains
       do i = 0, np0 - 1
          do j = 1, nmaps
             outmaps(1)%p%map(i, j) = cg_tot(j, i)*1.d6 ! convert from K to uK
-            outmaps(2)%p%map(i, j) = M_diag_tot(1, j, i)
-            outmaps(3)%p%map(i, j) = b_tot(1, j, i)*1.d6 ! convert from K to uK
-            outmaps(4)%p%map(i, j) = r_tot(j, i)*1.d6 ! convert from K to uK
+            outmaps(2)%p%map(i, j) = r_tot(j, i)*1.d6 ! convert from K to uK
          end do
       end do
 
       map_out%map = outmaps(1)%p%map
-
+      write(*,*) "Writing fits"
       call outmaps(1)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
-      call outmaps(2)%p%writeFITS(trim(prefix)//'precond'//trim(postfix))
-      call outmaps(3)%p%writeFITS(trim(prefix)//'binned'//trim(postfix))
-      call outmaps(4)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
+      call outmaps(2)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
