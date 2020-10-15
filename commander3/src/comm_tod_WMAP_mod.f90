@@ -348,7 +348,7 @@ contains
                   filename = trim(prefix)//'res'//trim(str(j))//'.dat'
                   call write_tod_chunk(filename, d_calib(2,:,j))
                   filename = trim(prefix)//'sky_sig'//trim(str(j))//'.dat'
-                  call write_tod_chunk(filename, s_sky(:,j)*1e6)
+                  call write_tod_chunk(filename, s_sky(:,j))
                end if
             end if
 
@@ -401,7 +401,7 @@ contains
       allocate (phat(nout, nmaps, 0:npix-1))
       allocate (shat(nout, nmaps, 0:npix-1))
       write(*,*) nout, 'nout'
-      do l=1, nout-1
+      do l=1, nout
          call update_status(status, "Starting bicg-stab")
          r(l, :, :)  = b_map(l, :, :)
          r0(l, :, :) = b_map(l, :, :)
@@ -489,7 +489,7 @@ contains
       M_diag_tot = M_diag(:, 1:nmaps, 0:npix-1)
       cg_tot = cg_sol(1, 1:nmaps, 0:npix-1)
       r_tot = cg_sol(2, 1:nmaps, 0:npix-1)
-      call update_status(status, "Got toal map arrays")
+      call update_status(status, "Got total map arrays")
       ! I think there is a factor of ncpus that needs to be divided out, but
       ! want to be clear about that.
       do i = 0, np0 - 1
