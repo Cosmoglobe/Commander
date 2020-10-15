@@ -1,8 +1,10 @@
+#==============================================================================
 # Project: Curl 
 # Project link: https://github.com/curl/curl
 # Curl is a command-line tool for transferring data specified with URL syntax
 # Required by: CFitsio
 # Author: Maksym Brilenkov
+#==============================================================================
 
 message(STATUS "---------------------------------------------------------------")
 # looking for curl in the system and download it if it is not present
@@ -29,6 +31,11 @@ if(NOT CURL_FOUND)
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
+		LOG_DIR "${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD ON
+		LOG_CONFIGURE ON
+		LOG_BUILD ON
+		LOG_INSTALL ON
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		BUILD_ALWAYS FALSE
 		)

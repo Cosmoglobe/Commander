@@ -1,6 +1,8 @@
+#==============================================================================
 # Project: FFTW
 # File which contains setup for current project 
 # Author: Maksym Brilenkov
+#==============================================================================
 
 message(STATUS "---------------------------------------------------------------")
 # TODO: make it so components will matter because now it install everything because 
@@ -89,34 +91,54 @@ if(NOT FFTW_FOUND)
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR "${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD ON
 		# Ommiting Configuration, build and install steps
 		CONFIGURE_COMMAND ""
 		BUILD_COMMAND ""
 		INSTALL_COMMAND ""
-		# need to copy fftw to anotehr dir to run it in paralle
 		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_float" 
 		)
+
+	# Adding custon step to copy files (to be able to run the build in parallel)
+	#ExternalProject_Add_Step(${project} ${project}_copy_step
+	#	COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_float" 
+	#	ALWAYS FALSE
+	#	)
+	#ExternalProject_Add_StepTargets(${project} fftw_copy_step)
+
+		#add_custom_target(fftw_copy_step "")
+
 	# FLOAT
 	ExternalProject_Add(${project}_float
-		DEPENDS ${project}	
+		DEPENDS ${project} #${project}_copy_step	
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_float"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_float"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR "${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE ON
+		LOG_BUILD ON
+		LOG_INSTALL ON
 		# Disabling download
 		DOWNLOAD_COMMAND ""
 		BUILD_ALWAYS FALSE
 		# Commands to configure, build and install the project
 		CONFIGURE_COMMAND "${${project}_float_configure_command}"
 		)
+	
 	# DOUBLE
 	ExternalProject_Add(${project}_double
 		# specifying that this project depends on the previous one
-		DEPENDS ${project}
+		DEPENDS ${project} #${project}_copy_step
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR "${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE ON
+		LOG_BUILD ON
+		LOG_INSTALL ON
 		# Disabling download
 		DOWNLOAD_COMMAND ""
 		BUILD_ALWAYS FALSE

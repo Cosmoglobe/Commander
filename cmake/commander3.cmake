@@ -1,8 +1,10 @@
+#=============================================================================
 # Project: Commander3 
-# Link: https://gitlab.mpcdf.mpg.de/mtr/libsharp/-/tree/master
+# Link: https://github.com/Cosmoglobe/Commander
 # This file contains instructions on how to install commander3
 # on your machine.
 # Author: Maksym Brilenkov
+#==============================================================================
 
 message(STATUS "---------------------------------------------------------------")
 
@@ -16,7 +18,7 @@ add_library(comm_system_backend
 	${COMMANDER3_SOURCE_DIR}/comm_system_backend.cpp
 	)
 target_compile_options(comm_system_backend
-	PUBLIC
+	PRIVATE
 	# setting flags depending on configuration
 	#"$<$<CONFIG:Release>:${COMMANDER3_CXX_COMPILER_FLAGS_RELEASE}>"
 	#"$<$<CONFIG:Debug>:${COMMANDER3_CXX_COMPILER_FLAGS_DEBUG}>"
@@ -25,6 +27,8 @@ target_compile_options(comm_system_backend
 	# setting other compiler dependent flags
 	${COMMANDER3_CXX_COMPILER_FLAGS}
 	)
+# installing comm_system_backend as a library
+install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 #target_link_options(${comm_system_backend}
 #	PUBLIC
 #	"$<$<CONFIG:Release>:${COMMANDER3_CXX_LINKER_FLAGS_RELEASE}>"
@@ -100,7 +104,6 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/locate_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_conviqt_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_map_mod.f90
-	#comm_system_backend.cpp
 	${COMMANDER3_SOURCE_DIR}/math_tools.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_MBB_comp_mod.f90
@@ -175,7 +178,7 @@ target_link_options(${commander3}
 #message("cmake dl libs are ${CMAKE_DL_LIBS}")
 # LINKING ORDER IN LIBRARIES IS IMPORTANT!
 target_link_libraries(${commander3} 
-	PUBLIC	
+	PRIVATE
 	# linking MPI
 	MPI::MPI_Fortran
 	# linking OpenMP
@@ -186,37 +189,21 @@ target_link_libraries(${commander3}
 	${BLAS_LIBRARIES}
 	${LAPACK_LINKER_FLAGS} 
 	${LAPACK_LIBRARIES}
-	#-ffree-line-length-none
-	#-fno-strict-overflow
-	#hdf5_lib
-	#${HDF5_Fortran_LIBRARIES}
-	#${HDF5_Fortran_LIBRARIES}
-	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhdf5_fortran.a" #<= getting other errors when linking this one as well
 	# including sharp2
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
 	#"${out_lib_dir}/libsharp2.a"
 	#${SHARP2_LIBRARIES}
 	# including healpix
-	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhealpix.a"
-	#"${out_lib_dir}/libhealpix.a"
 	${HEALPIX_LIBRARIES}
 	# including cfitsio
-	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libcfitsio.a"
-	#"${out_lib_dir}/libcfitsio.a"
 	${CFITSIO_LIBRARIES}
-	# including hdf5 - first fortran and then general
-	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhdf5_fortran.a" #<= getting other errors when linking this one as well
-	#"${out_lib_dir}/libhdf5_fortran.a"
-	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libhdf5.a"
-	#"${out_lib_dir}/libhdf5.a"
 	# to avoid error error dlclose@@GLIBC_2.2.5', so 
 	# we need to link math library
 	-lm
 	# and -ldl (dl library)
 	${CMAKE_DL_LIBS}
+	# including hdf5 - first fortran and then general
 	${HDF5_Fortran_LIBRARIES}
-	#${HDF5_LIBRARIES}
-	#${hdf5_fortran}
 	# hdf5 requires zlib (?), otherwise will get some stupid error
 	#"-lz"
 	#"/usr/lib64/libz.so"
@@ -229,9 +216,7 @@ target_link_libraries(${commander3}
 	#-lcrypto 
 	#-lssl
 	#CURL::libcurl
-	# now, I am not even sure we need to include this one :)
-	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libfftw3.a"
-	#"${out_lib_dir}/libfftw3.a"
+	# Including FFTW3
 	${FFTW3_LIBRARIES}
 	# Linking commander *.cpp file(s)
 	comm_system_backend
