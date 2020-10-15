@@ -1,6 +1,8 @@
+#==============================================================================
 # Project: CFitsio 
 # File which contains setup for current project 
 # Author: Maksym Brilenkov
+#==============================================================================
 
 message(STATUS "---------------------------------------------------------------")
 if(NOT CFITSIO_FORCE_COMPILE)
@@ -21,6 +23,7 @@ if(NOT CFITSIO_FOUND)
 		)
 	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
+	#------------------------------------------------------------------------------
 	ExternalProject_Add(${project}
 		# specifying that cfitsio depends on the curl project and should be built after it
 		# Note: I have removed curl support from cfitsio, but curl is left here for now
@@ -30,6 +33,11 @@ if(NOT CFITSIO_FOUND)
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR "${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD ON
+		LOG_CONFIGURE ON
+		LOG_BUILD ON
+		LOG_INSTALL ON
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		#COMMAND ${CMAKE_COMMAND} -E env --unset=PATH PATH=$ENV{PATH} ./configure --prefix=<INSTALL_DIR> 
@@ -56,6 +64,7 @@ if(NOT CFITSIO_FOUND)
 	set(CFITSIO_LIBRARIES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
 	set(CFITSIO_INCLUDES "${CMAKE_INSTALL_PREFIX}/include/")
 	include_directories(${CFITSIO_INCLUDES})
+
 	message(STATUS "CFITSIO LIBRARIES will be: ${CFITSIO_LIBRARIES}")
 	message(STATUS "CFITSIO INCLUDE DIR will be: ${CFITSIO_INCLUDES}")
 else()
