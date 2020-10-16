@@ -460,7 +460,7 @@ contains
                r(l,:,:) = s(l,:,:) - omega*q(l,:,:)
             end if
 
-            if write_cg_iter then
+            if (write_cg_iter) then
                cg_tot = cg_sol(l, 1:nmaps, self%info%pix + 1)
                do m = 0, np0 - 1
                   do n = 1, nmaps
@@ -481,8 +481,8 @@ contains
       end do
 
       allocate (r_tot(nmaps, 0:np0 - 1))
-      cg_tot = cg_sol(1, 1:nmaps, 0:npix-1)
-      r_tot = cg_sol(2, 1:nmaps, 0:npix-1)
+      cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
+      r_tot = cg_sol(2, 1:nmaps, self%info%pix + 1)
       call update_status(status, "Got total map arrays")
       ! I think there is a factor of ncpus that needs to be divided out, but
       ! want to be clear about that.
@@ -494,7 +494,6 @@ contains
       end do
 
       map_out%map = outmaps(1)%p%map
-      write(*,*) "Writing fits"
       call outmaps(1)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
       call outmaps(2)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
 
