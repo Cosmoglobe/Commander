@@ -28,6 +28,9 @@ version = 14
 # version 15 uses the pre-calibrated data, gain = 1
 #version = 15
 
+# version 16 is an attempt to fix the quaternions
+version = 16
+
 
 from time import sleep
 from time import time as timer
@@ -436,7 +439,7 @@ def quat_to_sky_coords(quat, center=True):
     Q[1] = q1
     Q[2] = q2
     Q[3] = q3
-    t0 = np.arange(30*nt + 3)
+    t0 = np.arange(-1, 30*nt + 2)
 
     dir_A_los = np.array([
                 [  0.03993743194318,  0.92448267167832, -0.37912635267982],
@@ -488,10 +491,6 @@ def quat_to_sky_coords(quat, center=True):
     M = Q2M(Q)
     M = np.transpose(M, [2,0,1])
 
-    qf = quat.flatten()
-
-
-
     gal_A = []
     pol_A = []
     gal_B = []
@@ -501,10 +500,16 @@ def quat_to_sky_coords(quat, center=True):
         # which is equivalent to cutting out the first 1.5 time units from the
         # beginning of the total array and the final set of quaternions does not
         # need the last half of the time interval.
-        # offset = 1 + (k+0.5)/Nobs
-        # or
-        # offset = 1 + k/Nobs
-        t = np.arange(t0.min() + 1, t0.max()-1, 1/Nobs) + 0.5/Nobs
+        # for i in range(nt):
+        #     for j in range(30):
+        #          for k in range(Nobs):
+        #               offset = 1 + (k+0.5)/Nobs
+        #               or
+        #               offset = k/Nobs + 1 + 0.5/Nobs
+        #               interp(qt, offset, qout)
+        Npts = 30*nt*Nobs
+        t = np.linspace(0, 30*nt, Npts) + 1+0.5/Nobs
+        t = np.arange(0, 30*nt, 1/Nobs) + 0.5
 
         M2 = np.zeros((len(t), 3, 3))
         for i in range(3):
@@ -515,7 +520,6 @@ def quat_to_sky_coords(quat, center=True):
                 M2[:,i,j] = f(t)
 
 
-        Npts = 30*nt*Nobs
         dir_A_los_cel = []
         dir_B_los_cel = []
         dir_A_los_cel = np.sum(M2*np.tile(dir_A_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
