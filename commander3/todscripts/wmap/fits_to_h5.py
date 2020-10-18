@@ -439,7 +439,7 @@ def quat_to_sky_coords(quat, center=True):
     Q[1] = q1
     Q[2] = q2
     Q[3] = q3
-    t0 = np.arange(-1, 30*nt + 2)
+    t0 = np.arange(0, 30*nt + 3)
 
     dir_A_los = np.array([
                 [  0.03993743194318,  0.92448267167832, -0.37912635267982],
@@ -508,8 +508,13 @@ def quat_to_sky_coords(quat, center=True):
         #               offset = k/Nobs + 1 + 0.5/Nobs
         #               interp(qt, offset, qout)
         Npts = 30*nt*Nobs
-        t = np.linspace(0, 30*nt, Npts) + 1+0.5/Nobs
-        t = np.arange(0, 30*nt, 1/Nobs) + 0.5
+        k = np.arange(Npts)
+        if center:
+            t = 1+(k+0.5)/Nobs
+            #t = np.arange(0, 30*nt, 1/Nobs) + 0.5
+        else:
+            t = 1+k/Nobs
+            #t = np.arange(0, 30*nt, 1/Nobs) 
 
         M2 = np.zeros((len(t), 3, 3))
         for i in range(3):
@@ -676,7 +681,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     # position (and velocity) in km(/s) in Sun-centered coordinates
     pos = data[1].data['POSITION']
     vel = data[1].data['VELOCITY']
-    # time2jd = 2.45e6, comverts table time (modified reduced Julian day) to Julian day, for both...
+    # time2jd = 2.45e6, converts table time (modified reduced Julian day) to Julian day, for both...
     time_aihk = data[1].data['TIME'] + t2jd
 
 
@@ -722,7 +727,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
             write_file_parallel(*args[i])
 
 
-    print(f'\t{f_name} took {int(timer()-t0)} seconds')
+    #print(f'\t{f_name} took {int(timer()-t0)} seconds')
 
     return
 
@@ -744,7 +749,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 64
+        nprocs = 96
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)

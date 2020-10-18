@@ -1,5 +1,5 @@
 import os
-ncpus = 24
+ncpus = 64
 #os.environ["OMP_NUM_THREADS"] = f"{ncpus}" # export OMP_NUM_THREADS=4
 #os.environ["OPENBLAS_NUM_THREADS"] = f"{ncpus}" # export OPENBLAS_NUM_THREADS=4 
 #os.environ["MKL_NUM_THREADS"] = f"{ncpus}" # export MKL_NUM_THREADS=6
@@ -36,10 +36,11 @@ from sparse_dot_mkl import dot_product_mkl, gram_matrix_mkl
 
 nside = 256
 version = 13
-# nside = 512
+nside = 512
 #version = 14
 # using pre-calibrated data
 #version = 15
+version = 16
 
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
@@ -580,8 +581,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
 
            
 
-                A_p += dot_product_mkl(P_p.T, P_p)
-                #A_p += dot_product_mkl(P_p_AM.T, P_p)
+                #A_p += dot_product_mkl(P_p.T, P_p)
+                A_p += dot_product_mkl(P_p_AM.T, P_p)
                 #A_p += dot_product_mkl(P_p_AM.T, P_p_AM)
                 #A_p = (A_p.tolil() + A_pi.tolil()).tocsr()
                 #A_p = A_p + A_pi
@@ -633,7 +634,6 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
         r = b_p - A_p.dot(x_p)
         pix = (M_diag_p != 0)
         d[pix] = r[pix]/M_diag_p[pix]
-        '''
         #BiCG-STAB
         shat = np.zeros(len(r))
         delta_new1 = r.dot(d)
@@ -719,6 +719,7 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             i += 1
             delta_arr.append(delta_new)
             x_arr.append(x_p)
+        '''
 
 
 
@@ -938,9 +939,9 @@ if __name__ == '__main__':
     #cg_test()
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     for b in ['K1']:
-        get_cg(band=b, nfiles=48*4, sparse_test=False, sparse_only=True, 
-                imbalance=True, mask=True, pol=True, imax=1000, nside=256)
-        plot_maps_pol(band=b, nside=256, version=13)
+        get_cg(band=b, nfiles=512, sparse_test=False, sparse_only=True, 
+                imbalance=True, mask=True, pol=True, imax=1000, nside=512)
+        plot_maps_pol(band=b, nside=512, version=16)
         #plot_maps_pol(band=b, nside=512, version=14)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
