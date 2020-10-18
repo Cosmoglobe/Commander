@@ -47,7 +47,7 @@ files = glob(prefix + 'tod/new/*.fits')
 files.sort()
 data = fits.open(files[file_num])
 
-version=13
+version=16
 
 allbands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
@@ -178,7 +178,7 @@ print(dt*Ntod)
 amp = 3.355 # mK
 lon = 263.9
 lat = 48.26
-nside = 256
+nside = 512
 dipole = make_dipole(amp, lon, lat, nside)
 # all in mK
 sol = hp.read_map(f'data/wmap_iqusmap_r9_9yr_{band}_v5.fits', field=(0,1,2,3))
@@ -261,7 +261,7 @@ axes[1].legend(loc='best')
 #axes[1].set_xlim([0,20])
 #axes[1].set_ylim([-25, 25])
 
-plt.show()
+#plt.show()
 
 
 plt.figure()
@@ -356,4 +356,4 @@ plt.plot(d23, label='d23')
 plt.plot(d24, label='d24')
 plt.legend(loc='best')
 
-plt.show()
+#plt.show()
