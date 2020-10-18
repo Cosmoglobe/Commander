@@ -428,13 +428,25 @@ contains
             call mpi_allreduce(MPI_IN_PLACE, v(l,:,:), size(v(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             alpha = rho_new/sum(r0(l,:,:)*v(l,:,:))
+            cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
+            if (write_cg_iter) then
+               cg_tot = cg_sol(l, 1:nmaps, self%info%pix + 1)
+               do m = 0, np0 - 1
+                  do n = 1, nmaps
+                     outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
+                  end do
+               end do
+               call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(2*(i-1)))//trim(postfix))
+            end if
             s(l,:,:) = r(l,:,:) - alpha*v(l,:,:)
 
             shat(l,:,:) = s(l,:,:)/M_diag(l,:,:)
 
             delta_s = sum(s(l,:,:)*shat(l,:,:))
             if (delta_s .le. (delta_0*epsil**2)) then
-                cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
+                if (self%myid_shared==0) then 
+                    write(*,*) 'Converged'
+                end if
                 exit bicg
             end if
             if (self%myid_shared==0) then 
@@ -447,7 +459,7 @@ contains
             call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             omega = sum(q(l,:,:)*s(l,:,:))/sum(q(l,:,:)**2)
-            cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:) + omega*shat(l,:,:)
+            cg_sol(l,:,:) = cg_sol(l,:,:) + omega*shat(l,:,:)
             if (mod(i, 50) == 1) then
                call update_status(status, 'r = b - Ax')
                r(l,:,:) = 0d0
@@ -467,7 +479,7 @@ contains
                      outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
                   end do
                end do
-               call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(i))//trim(postfix))
+               call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(2*(i-1)+1))//trim(postfix))
             end if
 
             delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
@@ -475,8 +487,12 @@ contains
                 write(*,102) i, delta_r/delta_0
                 102 format (I3, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
-            if ((delta_r .le. (delta_0*epsil**2))) exit bicg
-
+            if ((delta_r .le. (delta_0*epsil**2))) then
+                if (self%myid_shared==0) then 
+                    write(*,*) 'Converged'
+                end if
+                exit bicg
+            end if
          end do bicg
       end do
 
