@@ -177,7 +177,6 @@ contains
                ! sigma0 is in units of du, so need to convert back to mK
                inv_sigmasq = (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
                !inv_sigmasq = 1d0
-               ! required to convert from healpix-to-fortran indexing
                lpix = pix(t, k, 1)
                rpix = pix(t, k, 2)
                lpsi = psi(t, k, 1)
