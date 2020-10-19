@@ -115,7 +115,7 @@ contains
       allocate (constructor%x_im(constructor%ndet/2))
       constructor%x_im(:) = 0.0d0
       ! For K-band
-      ! constructor%x_im = [-0.00067, 0.00536]
+      constructor%x_im = [-0.00067, 0.00536]
 
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -196,7 +196,7 @@ contains
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
-      logical(lgt) :: write_cg_iter=.false.
+      logical(lgt) :: write_cg_iter=.true.
 
       ! biconjugate gradient parameters
       real(dp) :: rho_old, rho_new
@@ -430,13 +430,13 @@ contains
             alpha = rho_new/sum(r0(l,:,:)*v(l,:,:))
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
             if (write_cg_iter) then
-               cg_tot = cg_sol(l, 1:nmaps, self%info%pix + 1)
+               cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
                do m = 0, np0 - 1
                   do n = 1, nmaps
                      outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
                   end do
                end do
-               call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(2*(i-1)))//trim(postfix))
+               call outmaps(1)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_iter_'//trim(str(2*(i-1)))//trim(postfix))
             end if
             s(l,:,:) = r(l,:,:) - alpha*v(l,:,:)
 
@@ -473,13 +473,13 @@ contains
             end if
 
             if (write_cg_iter) then
-               cg_tot = cg_sol(l, 1:nmaps, self%info%pix + 1)
+               cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
                do m = 0, np0 - 1
                   do n = 1, nmaps
                      outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
                   end do
                end do
-               call outmaps(1)%p%writeFITS(trim(prefix)//'cg_iter_'//trim(str(2*(i-1)+1))//trim(postfix))
+               call outmaps(1)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_iter_'//trim(str(2*(i-1)+1))//trim(postfix))
             end if
 
             delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
