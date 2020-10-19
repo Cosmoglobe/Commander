@@ -30,6 +30,8 @@ version = 14
 
 # version 16 is an attempt to fix the quaternions
 version = 16
+# version 17 is using center = False
+version = 17
 
 
 from time import sleep
@@ -414,7 +416,7 @@ def q_interp(q_arr, t):
     return Qi
 
 
-def quat_to_sky_coords(quat, center=True):
+def quat_to_sky_coords(quat, center=False, lonlat=False):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
     '''
     Quaternion is of form (N_frames, 30, 4), with one redundant frame at the
@@ -531,10 +533,10 @@ def quat_to_sky_coords(quat, center=True):
         dir_B_los_cel = np.sum(M2*np.tile(dir_B_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
 
         dir_A_los_gal = coord_trans(dir_A_los_cel, 'C', 'G')
-        Pll_A = np.array(hp.vec2ang(dir_A_los_gal, lonlat=False))
+        Pll_A = np.array(hp.vec2ang(dir_A_los_gal, lonlat=lonlat))
 
         dir_B_los_gal = coord_trans(dir_B_los_cel, 'C', 'G')
-        Pll_B = np.array(hp.vec2ang(dir_B_los_gal, lonlat=False))
+        Pll_B = np.array(hp.vec2ang(dir_B_los_gal, lonlat=lonlat))
         gal_A.append(Pll_A.T)
         gal_B.append(Pll_B.T)
 
@@ -542,10 +544,10 @@ def quat_to_sky_coords(quat, center=True):
         dir_B_pol_cel = np.sum(M2*np.tile(dir_B_pol[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
 
         dir_A_pol_gal = coord_trans(dir_A_pol_cel, 'C', 'G')
-        Pll_A = np.array(hp.vec2ang(dir_A_pol_gal, lonlat=False))
+        Pll_A = np.array(hp.vec2ang(dir_A_pol_gal, lonlat=lonlat))
 
         dir_B_pol_gal = coord_trans(dir_B_pol_cel, 'C', 'G')
-        Pll_B = np.array(hp.vec2ang(dir_B_pol_gal, lonlat=False))
+        Pll_B = np.array(hp.vec2ang(dir_B_pol_gal, lonlat=lonlat))
         pol_A.append(Pll_A.T)
         pol_B.append(Pll_B.T)
 
