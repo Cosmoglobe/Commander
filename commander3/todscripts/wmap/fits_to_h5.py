@@ -33,6 +33,10 @@ version = 16
 # version 17 is using center = False
 version = 17
 
+# version 18 computes the planet exclusion flags according to Bennett et al.
+# 2013
+version = 18
+
 
 from time import sleep
 from time import time as timer
@@ -41,6 +45,98 @@ from time import time as timer
 from get_gain_model import get_gain
 
 
+def get_ephem(time, planet):
+    # Obtained these from https://ssd.jpl.nasa.gov/horizons.cgi
+    t_p, ra_p, dec_p = np.loadtxt(f'{planet.lower()}_ephem.txt').T
+
+    f_ra = interp1d(t_p, ra_p, fill_value='extrapolate')
+    f_dec = interp1d(t_p, dec_p, fill_value='extrapolate')
+
+    return f_ra(time), f_dec(time)
+
+
+def get_flags(data, test=False):
+
+    t2jd = 2.45e6
+
+    quat = data[1].data['QUATERN']
+
+    ll_A, ll_B, p_A, p_B = quat_to_sky_coords(quat, lonlat=True, nointerp=True,
+            coord_out='C')
+
+    time = data[2].data['TIME'] + t2jd
+
+    daflags = data[2].data['daflags']
+
+    bands = np.arange(10)
+    planets = ['Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
+    radii   = np.array([
+              [2.0,     3.0,      2.0,      2.0,       2.0], #K (yr!=2)
+              [1.5,     2.5,      1.5,      1.5,       1.5], #Ka
+              [1.5,     2.5,      1.5,      1.5,       1.5], #Q1
+              [1.5,     2.5,      1.5,      1.5,       1.5], #Q2
+              [1.5,     2.2,      1.5,      1.5,       1.5], #V1
+              [1.5,     2.2,      1.5,      1.5,       1.5], #V2
+              [1.5,     2.0,      1.5,      1.5,       1.5], #W1
+              [1.5,     2.0,      1.5,      1.5,       1.5], #W2
+              [1.5,     2.0,      1.5,      1.5,       1.5], #W3
+              [1.5,     2.0,      1.5,      1.5,       1.5], #W4
+              ])
+
+    dists = np.zeros((2*len(planets), daflags.shape[0], daflags.shape[1]))
+    for i,p in enumerate(planets):
+        ra_p, dec_p = get_ephem(time, p)
+        ll_p = np.array([ra_p, dec_p])
+        for band in bands:
+            d_A = hp.rotator.angdist(ll_A[band].T, ll_p, lonlat=True)
+            d_B = hp.rotator.angdist(ll_B[band].T, ll_p, lonlat=True)
+            dists[2*i  ,:,band] = d_A*180/np.pi
+            dists[2*i+1,:,band] = d_B*180/np.pi
+
+    myflags = np.zeros(daflags.shape)
+    for i in range(2*len(planets)):
+        for band in bands:
+            inds = (dists[i,:,band] < radii[band][i//2])
+            myflags[inds,band]= 2**(i+1)
+
+    myflags = np.where(daflags == 1, 1, myflags)
+
+    if test:
+        return daflags, myflags
+    else:
+        return myflags
+
+
+def test_flags(band=0):
+    '''
+    Given a series of pointings in RA and Dec, first, for a single horn,
+    determine the distance from each planet, and if it is within a certain
+    radius, you need to bit-encode it.
+
+    You need to take into account that there are horns A and B, and you need the
+    distance from the planet for both of the horns, so you need 2 n_planets x
+    n_tod x n_bands to account for the distances.
+
+    THe final product will be n_tod x n_bands, and each element will be a flag
+    2**(i+1) where i is the planet index from 0 to nplanets - 1.
+    '''
+    files = glob(prefix + 'tod/new/*.fits')
+    file_input = np.random.choice(files)
+
+    data = fits.open(file_input)
+    daflags, myflags = get_flags(data, test=True)
+
+    band = 0
+    plt.figure()
+    plt.plot(daflags[:,band], '.', label='DAflags')
+    plt.yscale('log')
+
+    plt.semilogy(myflags[:,band], '.', label='My flags')
+    plt.legend(loc='best')
+
+    plt.show()
+
+    return
 
 def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         baseline_guesses,
@@ -268,6 +364,8 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
     return
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
+    if coord_in == coord_out:
+        return pos_in
     r = hp.rotator.Rotator(coord=[coord_in, coord_out])
     pos_out = r(pos_in.T).T
 
@@ -416,7 +514,8 @@ def q_interp(q_arr, t):
     return Qi
 
 
-def quat_to_sky_coords(quat, center=False, lonlat=False):
+def quat_to_sky_coords(quat, center=False, lonlat=False, nointerp=False,
+        coord_out='G'):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
     '''
     Quaternion is of form (N_frames, 30, 4), with one redundant frame at the
@@ -509,22 +608,26 @@ def quat_to_sky_coords(quat, center=False, lonlat=False):
         #               or
         #               offset = k/Nobs + 1 + 0.5/Nobs
         #               interp(qt, offset, qout)
-        Npts = 30*nt*Nobs
-        k = np.arange(Npts)
-        if center:
-            t = 1+(k+0.5)/Nobs
-            #t = np.arange(0, 30*nt, 1/Nobs) + 0.5
+        if nointerp:
+            M2 = M[1:-2]
+            Npts = 30*nt
         else:
-            t = 1+k/Nobs
-            #t = np.arange(0, 30*nt, 1/Nobs) 
+            Npts = 30*nt*Nobs
+            k = np.arange(Npts)
+            if center:
+                t = 1+(k+0.5)/Nobs
+                #t = np.arange(0, 30*nt, 1/Nobs) + 0.5
+            else:
+                t = 1+k/Nobs
+                #t = np.arange(0, 30*nt, 1/Nobs) 
 
-        M2 = np.zeros((len(t), 3, 3))
-        for i in range(3):
-            for j in range(3):
-                inds = np.isfinite(M[:,i,j])
-                f = interp1d(t0[inds], M[:,i,j][inds], kind='cubic',
-                        fill_value='extrapolate')
-                M2[:,i,j] = f(t)
+            M2 = np.zeros((len(t), 3, 3))
+            for i in range(3):
+                for j in range(3):
+                    inds = np.isfinite(M[:,i,j])
+                    f = interp1d(t0[inds], M[:,i,j][inds], kind='cubic',
+                            fill_value='extrapolate')
+                    M2[:,i,j] = f(t)
 
 
         dir_A_los_cel = []
@@ -532,10 +635,10 @@ def quat_to_sky_coords(quat, center=False, lonlat=False):
         dir_A_los_cel = np.sum(M2*np.tile(dir_A_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
         dir_B_los_cel = np.sum(M2*np.tile(dir_B_los[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
 
-        dir_A_los_gal = coord_trans(dir_A_los_cel, 'C', 'G')
+        dir_A_los_gal = coord_trans(dir_A_los_cel, 'C', coord_out)
         Pll_A = np.array(hp.vec2ang(dir_A_los_gal, lonlat=lonlat))
 
-        dir_B_los_gal = coord_trans(dir_B_los_cel, 'C', 'G')
+        dir_B_los_gal = coord_trans(dir_B_los_cel, 'C', coord_out)
         Pll_B = np.array(hp.vec2ang(dir_B_los_gal, lonlat=lonlat))
         gal_A.append(Pll_A.T)
         gal_B.append(Pll_B.T)
@@ -543,10 +646,10 @@ def quat_to_sky_coords(quat, center=False, lonlat=False):
         dir_A_pol_cel = np.sum(M2*np.tile(dir_A_pol[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
         dir_B_pol_cel = np.sum(M2*np.tile(dir_B_pol[n, np.newaxis, np.newaxis,:], (Npts,3,1)),axis=2)
 
-        dir_A_pol_gal = coord_trans(dir_A_pol_cel, 'C', 'G')
+        dir_A_pol_gal = coord_trans(dir_A_pol_cel, 'C', coord_out)
         Pll_A = np.array(hp.vec2ang(dir_A_pol_gal, lonlat=lonlat))
 
-        dir_B_pol_gal = coord_trans(dir_B_pol_cel, 'C', 'G')
+        dir_B_pol_gal = coord_trans(dir_B_pol_cel, 'C', coord_out)
         Pll_B = np.array(hp.vec2ang(dir_B_pol_gal, lonlat=lonlat))
         pol_A.append(Pll_A.T)
         pol_B.append(Pll_B.T)
@@ -697,9 +800,8 @@ def fits_to_h5(file_input, file_ind, compress, plot):
 
     quat = data[1].data['QUATERN']
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
-    if np.any(~np.isfinite(gal_A[0])):
-        print(f'{file_input} has non-finite quaternions...')
-        return
+
+    daflags = get_flags(data)
 
     data.close()
 
@@ -768,3 +870,4 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
 
 if __name__ == '__main__':
     main(par=True, plot=False, compress=True)
+    #test_flags()
