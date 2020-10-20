@@ -125,6 +125,7 @@ contains
                                           &  sgn*( &
                                           &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
                                           &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
+            tmask(j, i) = pmask(pix(j, i, 1))
          end do
       end do
 
