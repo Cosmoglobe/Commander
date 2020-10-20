@@ -10,13 +10,14 @@ contains
 
  ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix)
+  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix, dospike)
     implicit none
     class(comm_tod),               intent(in)     :: self
     type(planck_rng),                  intent(inout)  :: handle
     integer(i4b),                      intent(in)     :: scan
     integer(i4b),   dimension(1:,1:),  intent(in)     :: pix
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
+    logical(lgt),            intent(in), optional     :: dospike
     real(sp),          dimension(:,:), intent(out)    :: n_corr
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
@@ -59,8 +60,8 @@ contains
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
 
-       sigma_0 = self%scans(scan)%d(i)%sigma0
-       write(*,*) "rms:", scan, sigma_0, sqrt(sum(d_prime**2)/size(d_prime))
+       sigma_0 = abs(self%scans(scan)%d(i)%sigma0)
+       !write(*,*) "rms:", scan, sigma_0, sqrt(sum(d_prime**2)/size(d_prime))
        ! Fill gaps in data 
        init_masked_region = .true.
        end_masked_region = .false.
@@ -97,7 +98,7 @@ contains
           end if      
        end if
 
-       if (self%first_call) then
+       if (self%first_call .and. not(present(dospike))) then
           call find_d_prime_spikes(self, scan, i, d_prime, pix)
        end if
 
@@ -112,7 +113,7 @@ contains
        pcg_converged = .false.
 !  subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, freq)
        !!!! add choice between PCG and regular ncorr here
-       if (.true.) then !(self%scanid(scan) == 2112) .and. (i == 1)) then
+       if (.false.) then !(self%scanid(scan) == 2112) .and. (i == 1)) then
           !call test_fft(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           n_corr(:, i) = ncorr2(:)
@@ -126,7 +127,6 @@ contains
           ! do j=1, nbuff
           !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
           ! end do
-
 
 
           call dfftw_execute_dft_r2c(plan_fwd, dt, dv)

@@ -311,13 +311,14 @@ contains
 
          !estimate the correlated noise
          !if (do_oper(samp_N)) then
+         mask = 1d0
          if (.true.) then
             call wall_time(t1)
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                s_buf(:,j) = s_tot(:,j)
             end do
-            call sample_n_corr2(self, handle, i, mask, s_buf, n_corr)
+            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
             do j = 1, ndet
                n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
             end do
@@ -391,7 +392,7 @@ contains
 
       cg_sol = 0.0d0
       epsil = 1.0d-3
-      epsil = 1.0d-1
+      epsil = 1.0d-2
 
       i_max = int(npix**0.5)
 
