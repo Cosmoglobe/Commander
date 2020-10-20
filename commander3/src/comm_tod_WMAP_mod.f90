@@ -66,22 +66,6 @@ contains
        str = adjustl(str)
    end function str
 
-   !*************************************************
-   !            Random normal generator
-   !*************************************************
-   function rand_normal(mean,stdev) result(c)
-            double precision :: mean,stdev,c,temp(2),theta,r
-            if (stdev <= 0.0d0) then
-               write(*,*) "Standard Deviation must be positive."
-            else
-               call RANDOM_NUMBER(temp)
-               r=(-2.0d0*log(temp(1)))**0.5
-               theta = 2.0d0*PI*temp(2)
-           c= mean+stdev*r*sin(theta)
-         end if
-       end function
-
-
 
    !**************************************************
    !             Constructor
@@ -100,7 +84,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 2
+      constructor%output_n_maps = 3
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -178,7 +162,7 @@ contains
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
       integer(i4b), allocatable, dimension(:, :)     :: flag
       real(dp), allocatable, dimension(:, :, :)   :: b_tot, M_diag_tot
-      real(dp), allocatable, dimension(:, :)   :: cg_tot, r_tot
+      real(dp), allocatable, dimension(:, :)   :: cg_tot, r_tot, corr_tot
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
       character(len=4)   :: ctext, myid_text
@@ -317,15 +301,30 @@ contains
          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
          call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
-         !estimate the correlated noise
          ! Add orbital dipole to total signal
          s_buf = 0.d0
          do j = 1, ndet
-            s_tot(:, j) = s_sky(:, j)! + (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
-                                     ! & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+            s_tot(:, j) = s_sky(:, j) + (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
+                                      & (1-self%x_im((j+1)/2))*s_orbB(:,j)
             s_buf(:, j) = s_tot(:, j)
          end do
-         n_corr(:, :) = 0d0
+
+         !estimate the correlated noise
+         !if (do_oper(samp_N)) then
+         if (.true.) then
+            call wall_time(t1)
+            do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               s_buf(:,j) = s_tot(:,j)
+            end do
+            call sample_n_corr2(self, handle, i, mask, s_buf, n_corr)
+            do j = 1, ndet
+               n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
+            end do
+            call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
+         else
+            n_corr = 0.
+         end if
          call wall_time(t2); t_tot(7) = t_tot(7) + t2 - t1
 
          !*******************
@@ -392,6 +391,7 @@ contains
 
       cg_sol = 0.0d0
       epsil = 1.0d-3
+      epsil = 1.0d-1
 
       i_max = int(npix**0.5)
 
@@ -497,21 +497,23 @@ contains
       end do
 
       allocate (r_tot(nmaps, 0:np0 - 1))
+      allocate (corr_tot(nmaps, 0:np0 - 1))
       cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
       r_tot = cg_sol(2, 1:nmaps, self%info%pix + 1)
+      corr_tot = cg_sol(3, 1:nmaps, self%info%pix + 1)
       call update_status(status, "Got total map arrays")
-      ! I think there is a factor of ncpus that needs to be divided out, but
-      ! want to be clear about that.
       do i = 0, np0 - 1
          do j = 1, nmaps
             outmaps(1)%p%map(i, j) = cg_tot(j, i)*1.d6 ! convert from K to uK
-            outmaps(2)%p%map(i, j) = r_tot(j, i)*1.d6 ! convert from K to uK
+            if (nout > 1) outmaps(2)%p%map(i, j) = r_tot(j, i)*1.d6 ! convert from K to uK
+            if (nout > 2) outmaps(3)%p%map(i, j) = corr_tot(j, i)*1.d6 ! convert from K to uK
          end do
       end do
 
       map_out%map = outmaps(1)%p%map
       call outmaps(1)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
-      call outmaps(2)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
+      if (nout > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
+      if (nout > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
