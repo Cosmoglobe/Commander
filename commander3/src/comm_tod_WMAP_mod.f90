@@ -499,9 +499,9 @@ contains
 
       allocate (r_tot(nmaps, 0:np0 - 1))
       allocate (corr_tot(nmaps, 0:np0 - 1))
-      cg_tot = cg_sol(1, 1:nmaps, self%info%pix + 1)
-      r_tot = cg_sol(2, 1:nmaps, self%info%pix + 1)
-      corr_tot = cg_sol(3, 1:nmaps, self%info%pix + 1)
+      cg_tot = cg_sol(1, 1:nmaps, self%info%pix)
+      r_tot = cg_sol(2, 1:nmaps, self%info%pix)
+      corr_tot = cg_sol(3, 1:nmaps, self%info%pix)
       call update_status(status, "Got total map arrays")
       do i = 0, np0 - 1
          do j = 1, nmaps
