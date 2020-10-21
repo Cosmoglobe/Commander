@@ -76,7 +76,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: nu_c                                        ! Center frequency
      real(dp), allocatable, dimension(:,:,:) :: prop_bp         ! proposal matrix, L(ndet,ndet,ndelta),  for bandpass sampler
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
-     integer(i4b)      :: nside                           ! Nside for pixelized pointing
+     integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
@@ -201,6 +201,7 @@ contains
     self%subtract_zodi = cpar%include_TOD_zodi
     self%central_freq  = cpar%ds_nu_c(id_abs)
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
+    self%nside_param   = cpar%ds_nside(id_abs)
 
     call mpi_comm_size(cpar%comm_shared, self%numprocs_shared, ierr)
 
@@ -395,6 +396,10 @@ contains
 !!$       end do
        !write(*,*) ndet_tot
        call read_hdf(file, "common/nside",  self%nside)
+       if(self%nside /= self%nside_param) then
+         write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
+         stop
+       end if
        call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf)
