@@ -1,7 +1,9 @@
+#==============================================================================
 # Project: Doxygen 
 # File determines the location of Doxygen on the system.
 # Doxygen is a documentation file generator
 # Author: Maksym Brilenkov
+#==============================================================================
 
 if(DOXYGEN_BUILD_DOCS)
 	message(STATUS "---------------------------------------------------------------")
@@ -33,6 +35,11 @@ if(DOXYGEN_BUILD_DOCS)
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/flex/src/flex"
 			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR "${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD ON
+			LOG_CONFIGURE ON
+			LOG_BUILD ON
+			LOG_INSTALL ON
 			CONFIGURE_COMMAND "${flex_configure_command}"
 			)
 		set(FLEX_EXECUTABLE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/flex)
@@ -65,6 +72,11 @@ if(DOXYGEN_BUILD_DOCS)
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/bison/src/bison"
 			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR "${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD ON
+			LOG_CONFIGURE ON
+			LOG_BUILD ON
+			LOG_INSTALL ON
 			CONFIGURE_COMMAND "${bison_configure_command}"
 			)
 		set(BISON_EXECUTABLE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/bison)	
@@ -87,6 +99,11 @@ if(DOXYGEN_BUILD_DOCS)
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
 			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 			INSTALL_DIR ${CMAKE_INSTALL_PREFIX} #"${out_install_dir}"
+			LOG_DIR "${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD ON
+			LOG_CONFIGURE ON
+			LOG_BUILD ON
+			LOG_INSTALL ON
 			CMAKE_ARGS
 			-DFLEX_EXECUTABLE:PATH=${FLEX_EXECUTABLE}
 			-DBISON_EXECUTABLE:PATH=${BISON_EXECUTABLE}
