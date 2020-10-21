@@ -109,13 +109,17 @@ contains
     call int2string(scanid, scantext)
     path_scanid = trim(adjustl(path))//'/'//scantext
 
-    ! Delete group if it already exists
+    ! Create group if it doesnt already exists
     call h5eset_auto_f(0, hdferr)
     call h5oget_info_by_name_f(file%filehandle, trim(adjustl(path)), object_info, hdferr)
-    if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(path)), hdferr)
+    if (hdferr /= 0) call create_hdf_group(file, trim(adjustl(path)))
+    call h5oget_info_by_name_f(file%filehandle, trim(adjustl(path_scanid)), object_info, hdferr)
+    if (hdferr /= 0) call create_hdf_group(file, trim(adjustl(path_scanid)))
 
-    call create_hdf_group(file, trim(adjustl(path)))
-    call create_hdf_group(file, trim(adjustl(path_scanid)))
+!!$    if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(path)), hdferr)
+!!$
+!!$    call create_hdf_group(file, trim(adjustl(path)))
+!!$    call create_hdf_group(file, trim(adjustl(path_scanid)))
     
     ! Find number of unique horns
     ndet  = size(detlabel)
@@ -155,6 +159,10 @@ contains
        ! Output file
        dlabel   = detlabel(d(1))
        fullpath = trim(adjustl(path_scanid))//'/'//dlabel(1:2)
+
+       call h5eset_auto_f(0, hdferr)
+       call h5oget_info_by_name_f(file%filehandle, trim(adjustl(fullpath)), object_info, hdferr)
+       if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(fullpath)), hdferr)
        call create_hdf_group(file, trim(fullpath))
 
        ! Output general information in HDU1
@@ -184,7 +192,7 @@ contains
        call write_hdf(file, trim(adjustl(fullpath))//"/scet",    0.d0)
        call write_hdf(file, trim(adjustl(fullpath))//"/ecet",    0.d0)
 
-       call map4D%dealloc
+       call map4D%dealloc; deallocate(map4D)
        deallocate(d)
     end do
 
@@ -387,7 +395,7 @@ contains
        call ftclos(unit, status)
        call ftfiou(unit, status)
 
-       call map4D%dealloc
+       call map4D%dealloc; deallocate(map4D)
        deallocate(d, ttype, tform, tunit)
     end do
 
