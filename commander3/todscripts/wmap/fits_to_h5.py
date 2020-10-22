@@ -36,6 +36,8 @@ version = 17
 # version 18 computes the planet exclusion flags according to Bennett et al.
 # 2013
 version = 18
+# version 19 uses the new planet exclusion flags, also uses center = True
+version = 19
 
 
 from time import sleep
@@ -514,7 +516,7 @@ def q_interp(q_arr, t):
     return Qi
 
 
-def quat_to_sky_coords(quat, center=False, lonlat=False, nointerp=False,
+def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
         coord_out='G'):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
     '''
