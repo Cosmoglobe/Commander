@@ -23,21 +23,11 @@ from tqdm import tqdm
 
 prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
-version = 14
-
 # version 15 uses the pre-calibrated data, gain = 1
-#version = 15
-
 # version 16 is an attempt to fix the quaternions
-version = 16
 # version 17 is using center = False
-version = 17
-
 # version 18 computes the planet exclusion flags according to Bennett et al.
-# 2013
-version = 18
 # version 19 uses the new planet exclusion flags, also uses center = True
-version = 19
 
 
 from time import sleep
@@ -98,7 +88,7 @@ def get_flags(data, test=False):
     myflags = np.zeros(daflags.shape)
     for i in range(2*len(planets)):
         for band in bands:
-            inds = (dists[i,:,band] < radii[band][i//2])
+            inds = (dists[i,:,band] < radii[band][i//2]*2)
             myflags[inds,band]= 2**(i+1)
 
     myflags = np.where(daflags == 1, 1, myflags)
@@ -143,7 +133,7 @@ def test_flags(band=0):
 def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
-        ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, compress=False):
+        ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version, compress=False):
     file_out = prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     if os.path.exists(file_out):
         return
@@ -696,7 +686,7 @@ def get_psi_multiprocessing_2(i):
 def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
-def fits_to_h5(file_input, file_ind, compress, plot):
+def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     f_name = file_input.split('/')[-1][:-8]
     # It takes about 30 seconds for the extraction from the fits files, which is
     # very CPU intensive. After that, it maxes out at 1 cpu/process.
@@ -801,7 +791,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
     dt0 = np.median(np.diff(time))
 
     quat = data[1].data['QUATERN']
-    gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat)
+    gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center)
 
     daflags = get_flags(data)
 
@@ -828,7 +818,7 @@ def fits_to_h5(file_input, file_ind, compress, plot):
         args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses, baseline,
                     band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
                     alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
-                    fsamp, pos, vel, time, compress) for i in range(len(obs_inds))]
+                    fsamp, pos, vel, time, version, compress) for i in range(len(obs_inds))]
         for i in range(n_per_day):
             write_file_parallel(*args[i])
 
@@ -837,7 +827,8 @@ def fits_to_h5(file_input, file_ind, compress, plot):
 
     return
 
-def main(par=True, plot=False, compress=False, nfiles=-1):
+def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
+        center=False):
     '''
     Make 1 hdf5 file for every 10 fits files
     # Actually, just doing 1 hdf5 file for every fits file. Too much clashing is
@@ -855,11 +846,12 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 96
+        nprocs = 64
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
-        x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot]) for i, f in zip(inds, files)]
+        x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot, version,
+            center]) for i, f in zip(inds, files)]
         for i in tqdm(range(len(x))):
             x[i].get()
             #res.wait()
@@ -871,5 +863,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1):
             fits_to_h5(f,i,compress, plot)
 
 if __name__ == '__main__':
-    main(par=True, plot=False, compress=True)
+    #main(par=True, plot=False, compress=True, version=18, center=False)
+    #main(par=True, plot=False, compress=True, version=19, center=True)
+    main(par=True, plot=False, compress=True, version=15, center=True)
     #test_flags()

@@ -21,7 +21,7 @@ module comm_tod_mod
      character(len=10) :: label                             ! Detector label
      real(dp)          :: gain, dgain, gain_invsigma           ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee              ! Noise parameters
-     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def  ! Default parameters
+     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def, baseline  ! Default parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
@@ -116,6 +116,7 @@ module comm_tod_mod
      integer(i4b)                                      :: nside_beam
    contains
      procedure                        :: read_tod
+     procedure                        :: read_tod_WMAP
      procedure                        :: get_scan_ids
      procedure                        :: dumpToHDF
      procedure                        :: initHDF
@@ -374,7 +375,6 @@ contains
   end subroutine load_instrument_file
 
 
-
   subroutine read_tod(self, detlabels)
     implicit none
     class(comm_tod),                intent(inout)  :: self
@@ -509,6 +509,133 @@ contains
 
   end subroutine read_tod
 
+  subroutine read_tod_WMAP(self, detlabels)
+    implicit none
+    class(comm_tod),                intent(inout)  :: self
+    character(len=*), dimension(:), intent(in)     :: detlabels
+
+    integer(i4b) :: i, j, n, det, ierr, ndet_tot
+    real(dp)     :: t1, t2
+    real(sp)     :: psi
+    type(hdf_file)     :: file
+
+    integer(i4b), dimension(:), allocatable       :: ns
+    character(len=1024)                           :: det_buf
+    character(len=128), dimension(:), allocatable :: dets
+
+
+    ! Read common fields
+    allocate(self%mono(self%ndet), self%gain0(0:self%ndet))
+    self%mono = 0.d0
+    if (self%myid == 0) then
+       call open_hdf_file(self%initfile, file, "r")
+
+
+       !TODO: figure out how to make this work
+       call read_hdf_string2(file, "/common/det",    det_buf, n)
+       !call read_hdf(file, "/common/det",    det_buf)
+       !write(det_buf, *) "27M, 27S, 28M, 28S"
+       !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
+       ndet_tot = num_tokens(det_buf(1:n), ",")
+       allocate(dets(ndet_tot))
+       call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
+!!$       do i = 1, ndet_tot
+!!$          write(*,*) i, trim(adjustl(dets(i)))
+!!$       end do
+       !write(*,*) ndet_tot
+       call read_hdf(file, "common/nside",  self%nside)
+       if(self%nside /= self%nside_param) then
+         write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
+         stop
+       end if
+       call read_hdf(file, "common/npsi",   self%npsi)
+       call read_hdf(file, "common/fsamp",  self%samprate)
+
+
+!!$          do j = 1, ndet_tot
+!!$             write(*,*) j, trim(dets(j))
+!!$          end do
+
+       do i = 1, self%ndet
+          do j = 1, ndet_tot
+             if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
+                exit
+             end if
+          end do
+          if (j > ndet_tot) then
+             write(*,*) ' Error -- detector not found in HDF file: ', trim(adjustl(detlabels(i)))
+             stop
+          end if
+       end do
+       deallocate(dets)
+       call close_hdf_file(file)
+    end if
+    call mpi_bcast(self%nside,    1,     MPI_INTEGER,          0, self%comm, ierr)
+    call mpi_bcast(self%npsi,     1,     MPI_INTEGER,          0, self%comm, ierr)
+    call mpi_bcast(self%samprate, 1,     MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+
+    call wall_time(t1)
+    allocate(self%scans(self%nscan))
+    do i = 1, self%nscan
+       call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
+            & detlabels, self%nhorn)
+       do det = 1, self%ndet
+          self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
+          if (.not. self%scans(i)%d(det)%accept) then
+             write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
+                  & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
+             write(*,fmt='(a,a)') '    filename = ', &
+                  & trim(self%hdfname(i))
+          end if
+       end do
+    end do
+
+    ! Initialize mean gain
+    allocate(ns(0:self%ndet))
+    self%gain0 = 0.d0
+    ns         = 0
+    do i = 1, self%nscan
+       do j = 1, self%ndet
+          if (.not. self%scans(i)%d(j)%accept) cycle
+          self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
+          ns(j)         = ns(j) + 1
+       end do
+    end do
+    call mpi_allreduce(MPI_IN_PLACE, self%gain0, self%ndet+1, &
+         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
+         & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
+    self%gain0(0) = sum(self%gain0)/sum(ns)
+    where (ns > 0)
+       self%gain0 = self%gain0 / ns - self%gain0(0)
+    end where
+
+    do i = 1, self%nscan
+       do j = 1, self%ndet
+          self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
+!          self%scans(i)%d(j)%dgain = 0.d0
+!          self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j)
+       end do
+    end do
+
+    ! Precompute trigonometric functions
+    allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
+    allocate(self%psi(self%npsi))
+    do i = 1, self%npsi
+       psi             = (i-0.5)*2.0*pi/real(self%npsi,sp)
+       self%psi(i)     = psi
+       self%sin2psi(i) = sin(2.0*psi)
+       self%cos2psi(i) = cos(2.0*psi)
+    end do
+
+    call mpi_barrier(self%comm, ierr)
+    call wall_time(t2)
+    if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
+         & '    Myid = ', self%myid, ' -- nscan = ', self%nscan, &
+         & ', TOD IO time = ', t2-t1, ' sec'
+
+  end subroutine read_tod_WMAP
+
   subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels, nhorn)
     implicit none
     class(comm_scan),               intent(inout) :: self
@@ -518,7 +645,7 @@ contains
     character(len=*), dimension(:), intent(in)     :: detlabels
 
     integer(i4b)       :: i,j, n, m, ext(1)
-    real(dp)           :: t1, t2, t3, t4, t_tot(6), scalars(4)
+    real(dp)           :: t1, t2, t3, t4, t_tot(6), scalars(4), baseline
     character(len=6)   :: slabel
     character(len=128) :: field
     type(hdf_file)     :: file
@@ -589,11 +716,13 @@ contains
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
+       ! Currently, WMAP data includes the baseline. This is temporary.
+       call read_hdf(file, slabel // "/" // trim(field) // "/baseline", baseline)
        call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
        if (tod%halfring_split == 2 )then
-         self%d(i)%tod = buffer_sp(m+1:2*m)
+         self%d(i)%tod = buffer_sp(m+1:2*m) + baseline
        else
-         self%d(i)%tod = buffer_sp(1:m)
+         self%d(i)%tod = buffer_sp(1:m) + baseline
        end if
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1

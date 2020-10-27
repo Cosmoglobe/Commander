@@ -114,7 +114,7 @@ contains
 
       ! Read the actual TOD
       ! TODO: this probabl needs a seperate fucntion/ modifications for wmap
-      call constructor%read_tod(constructor%label)
+      call constructor%read_tod_WMAP(constructor%label)
 
       call constructor%precompute_lookups()
 
@@ -309,24 +309,20 @@ contains
             s_buf(:, j) = s_tot(:, j)
          end do
 
+         !! Fit gain
+         !if (.false.) then
+         !   call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
+         !end if
          !estimate the correlated noise
          !if (do_oper(samp_N)) then
-         mask = 1d0
-         if (.true.) then
-            call wall_time(t1)
-            do j = 1, ndet
-               if (.not. self%scans(i)%d(j)%accept) cycle
-               s_buf(:,j) = s_tot(:,j)
-            end do
-            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
-            do j = 1, ndet
-               n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
-            end do
-            call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
-         else
-            n_corr = 0.
-         end if
-         call wall_time(t2); t_tot(7) = t_tot(7) + t2 - t1
+         do j = 1, ndet
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            s_buf(:,j) = s_tot(:,j)
+         end do
+         call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
+         do j = 1, ndet
+            n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
+         end do
 
          !*******************
          ! Compute binned map
@@ -444,15 +440,15 @@ contains
             shat(l,:,:) = s(l,:,:)/M_diag(l,:,:)
 
             delta_s = sum(s(l,:,:)*shat(l,:,:))
+            if (self%myid_shared==0) then 
+                write(*,101) i, delta_s/delta_0
+                101 format (I3, ':   delta_s/delta_0:',  2X, ES9.2)
+            end if
             if (delta_s .le. (delta_0*epsil**2)) then
                 if (self%myid_shared==0) then 
                     write(*,*) 'Converged'
                 end if
                 exit bicg
-            end if
-            if (self%myid_shared==0) then 
-                write(*,101) i, delta_s/delta_0
-                101 format (I3, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
             q(l,:,:) = 0d0
             call update_status(status, "Calling  t= A shat")
