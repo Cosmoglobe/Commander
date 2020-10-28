@@ -431,11 +431,12 @@ def fullgain_tests():
     files = glob(prefix + 'tod/new/*.fits')
     files.sort()
     files = np.array(files)
-    data = fits.open(files[1000])
+    data = fits.open(files[100])
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     bands = [[b + '13', b+'14', b+'23', b+'24'] for b in bands]
     bands = np.array(bands).flatten()
 
+    bands = data[2].columns.names[1:-6]
     fig, axes = plt.subplots(nrows=10, ncols=4)
     axs = axes.flatten()
     for i, b in enumerate(bands):
@@ -457,7 +458,7 @@ def publication_plots():
     files = glob(prefix + 'tod/new/*.fits')
     files.sort()
     files = np.array(files)
-    files = files[:100]
+    #files = files[:100]
 
 
     fpa_mnems = np.loadtxt('gain_params/t_fpa_mnem.txt', dtype=str,\
@@ -503,16 +504,16 @@ def publication_plots():
     #    plt.plot(ts, T_RXBs[i])
 
     plt.figure()
-    plt.plot(ts.datetime, GsK)
-    plt.axhline(-0.97)
+    plt.plot(ts.datetime, GsK, '.', ms=1)
+    #plt.axhline(-0.97)
     plt.gcf().autofmt_xdate()
     plt.title('K113')
     plt.ylim([-1.04, -0.9])
 
     #V113
     plt.figure()
-    plt.plot(ts.datetime, GsV)
-    plt.axhline(0.4986)
+    plt.plot(ts.datetime, GsV, '.', ms=1)
+    #plt.axhline(0.4986)
     plt.gcf().autofmt_xdate()
     plt.title('V113')
     plt.ylim([0.4, 0.5])
@@ -520,8 +521,8 @@ def publication_plots():
     # V223
     #plt.xlim([-100, 1300]) # days
     plt.figure()
-    plt.plot(ts.datetime, GsV223)
-    plt.axhline(0.4096)
+    plt.plot(ts.datetime, GsV223, '.', ms=1)
+    #plt.axhline(0.4096)
     plt.gcf().autofmt_xdate()
     plt.title('V223')
     plt.ylim([0.365, 0.395])
@@ -538,9 +539,3 @@ if __name__ == '__main__':
     #rxb_tests()
 
     #fullgain_tests()
-
-
-    # For the purposes of just getting the damn answer, which measurement most
-    # affects the gain model?
-    # I would guess rfb and fpa are most important, but fpa seems to be missing
-    # some stuff.
