@@ -147,14 +147,14 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         label = band_labels[j]
         if label[:-2] == band.upper():
             TOD = TODs[j]
-            gain = gain_guesses[j]
-            sigma_0 = TOD.std()
-            scalars = np.array([gain, sigma_0, fknee, alpha])
+            gain = gain_guesses[j][i]
                     
             tod = np.zeros(TOD.size)
             for n in range(len(TOD[0])):
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
+            sigma_0 = todi.std()
+            scalars = np.array([gain, sigma_0, fknee, alpha])
 
             todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
             delta = np.diff(todInd)
@@ -220,16 +220,19 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         label = band_labels[j]
         if label[:-2] == band.upper():
             TOD = TODs[j]
-            gain = gain_guesses[j]
-            sigma_0 = TOD.std()
-            scalars = np.array([gain, sigma_0, fknee, alpha])
+            gain = gain_guesses[j][i]
 
 
             tod = np.zeros(TOD.size)
             for n in range(len(TOD[0])):
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
-            baseline = np.median(todi)
+            sigma_0 = todi.std()
+            scalars = np.array([gain, sigma_0, fknee, alpha])
+            if version == 15:
+                baseline = 0
+            else:
+                baseline = np.median(todi)
             todi = todi - baseline
 
             todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
@@ -342,7 +345,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             data=len(np.array_split(tod,n_per_day)[i]))
 
     if "/common/fsamp" not in f:
-        f.create_dataset('/common/fsamp', data=fsamp*len(TOD[0]))
+        f.create_dataset('/common/fsamp', data=fsamp)
         f.create_dataset('/common/nside', data=nside)
         f.create_dataset('/common/npsi', data=npsi)
         f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
@@ -721,6 +724,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
                  12678.23,  12934.65,  12730.91,  12692.85, 
                  11759.38,  13704.71,  11537.42,  13956.94  ]
 
+    Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 
 
     alpha = -1.7
@@ -737,10 +741,10 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     ntodsigma = 100
     npsi = 2048
     psiBins = np.linspace(0, 2*np.pi, npsi)
-    fsamp = 30/1.536 # A single TOD record contains 30 1.536 second major science frames
+    fsamp = 1.536 # A single TOD record contains 30 1.536 second major science frames
     chunk_size = 1875
     nsamp = chunk_size*fsamp
-    chunk_list = np.arange(25)
+    n_per_day = 25
     # WMAP data divides evenly into 25 chunks per day...
 
 
@@ -757,7 +761,12 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     band_labels = data[2].columns.names[1:-6]
 
     # Returns the gain model estimate at the start of each frame.
-    gain_guesses = np.array([get_gain(data, b)[1][0] for b in band_labels])
+    gain_guesses = []
+    for i in range(len(band_labels)):
+        t_jd, gain = get_gain(data, band_labels[i])
+        gain_split = np.array_split(gain, n_per_day)
+        gain_guesses.append([g.mean() for g in gain_split])
+    gain_guesses = np.array(gain_guesses)
     if version == 15:
         gain_guesses = gain_guesses*0 + 1
 
@@ -810,20 +819,18 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
         pix_A.append(ang2pix_multiprocessing(*args_A[i]))
         pix_B.append(ang2pix_multiprocessing(*args_B[i]))
 
-    n_per_day = 1
 
     obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
-    for band in bands:
+    for ind, band in enumerate(bands):
         args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses, baseline,
                     band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
                     alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
-                    fsamp, pos, vel, time, version, compress) for i in range(len(obs_inds))]
+                    fsamp*Nobs_array[ind], pos, vel, time, version, compress) for i in range(len(obs_inds))]
         for i in range(n_per_day):
             write_file_parallel(*args[i])
 
 
-    #print(f'\t{f_name} took {int(timer()-t0)} seconds')
 
     return
 
@@ -837,7 +844,6 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
 
     if version == 15:
         files = glob(prefix + 'tod_calibrated/*.fits')
-        print(files)
     else:
         files = glob(prefix + 'tod/new/*.fits')
     files.sort()
@@ -850,8 +856,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
-        x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot, version,
-            center]) for i, f in zip(inds, files)]
+        x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot, version, center]) for i, f in zip(inds, files)]
         for i in tqdm(range(len(x))):
             x[i].get()
             #res.wait()
@@ -859,11 +864,11 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
         pool.join()
     else:
         for i, f in zip(inds, files):
-            #print(i, f)
-            fits_to_h5(f,i,compress, plot)
+            fits_to_h5(f,i,compress, plot, version, center)
 
 if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=18, center=False)
     #main(par=True, plot=False, compress=True, version=19, center=True)
     main(par=True, plot=False, compress=True, version=15, center=True)
+    main(par=True, plot=False, compress=True, version=20, center=True)
     #test_flags()
