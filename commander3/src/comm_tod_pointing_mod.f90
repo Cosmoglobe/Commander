@@ -125,7 +125,15 @@ contains
                                           &  sgn*( &
                                           &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
                                           &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
-            tmask(j, i) = ior(pmask(pix(j, i, 1)), pmask(pix(j,i,2)))
+            ! Check the convention, is zero if 
+            ! accepted, one if not? Check this.
+            ! The default is 1 if accepted, zero if not.
+            if (flag(j, i) .ne. 0) then
+               tmask(j, i) = 0d0
+            else
+               tmask(j, i) = pmask(pix(j, i, 1))*pmask(pix(j,i,2))
+               !tmask(j, i) = 1d0
+            end if
          end do
       end do
 

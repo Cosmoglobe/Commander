@@ -84,7 +84,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 3
+      constructor%output_n_maps = 2
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -150,7 +150,7 @@ contains
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
-      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orbA, s_orbB, mask, mask2, s_bp
+      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orb_tot, s_orbA, s_orbB, mask, mask2, s_bp
       real(sp), allocatable, dimension(:, :)     :: s_mono, s_buf, s_tot, s_zodi
       real(sp), allocatable, dimension(:, :)     :: s_invN, s_lowres
       real(sp), allocatable, dimension(:, :, :)   :: s_sky_prop, s_bp_prop
@@ -177,7 +177,7 @@ contains
 
       ! conjugate gradient parameters
       integer(i4b) :: i_max
-      real(dp) :: delta_0, delta_old, delta_new, epsil
+      real(dp) :: delta_0, delta_old, delta_new, epsil=1d-2
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
       logical(lgt) :: write_cg_iter=.true.
@@ -210,6 +210,7 @@ contains
       allocate (map_sky(nmaps, self%nobs, 0:ndet, ndelta))
       allocate (chisq_S(ndet, ndelta))
       allocate (slist(self%nscan))
+      allocate(A_abscal(self%ndet), b_abscal(self%ndet))
       slist = ''
       allocate (outmaps(nout))
       do i = 1, nout
@@ -254,6 +255,7 @@ contains
       ! Perform main analysis loop
       naccept = 0; ntot = 0
       ! Using nmaps + 1 to include the spurious component
+      call update_status(status, "allocating global structures")
       allocate (M_diag(nout, nmaps, 0:npix-1))
       allocate (b_map(nout, nmaps, 0:npix-1))
       M_diag(:,:,:) = 0d0
@@ -264,10 +266,12 @@ contains
          ntod = self%scans(i)%ntod
          ndet = self%ndet
 
+         call update_status(status, "allocating local structures")
          ! Set up local data structure for current scan
          allocate (n_corr(ntod, ndet))                 ! Correlated noise in V
          allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
          allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
+         allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole in uKcmb
          allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A) in uKcmb
          allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B) in uKcmb
          allocate (s_buf(ntod, ndet))                  ! Buffer
@@ -299,30 +303,53 @@ contains
          call wall_time(t1)
          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
+         s_orb_tot = (1+self%x_im((j+1)/2))*s_orbA - &
+                   & (1-self%x_im((j+1)/2))*s_orbB
          call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
          ! Add orbital dipole to total signal
          s_buf = 0.d0
          do j = 1, ndet
-            s_tot(:, j) = s_sky(:, j) + (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
-                                      & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+            s_tot(:, j) = s_sky(:, j) + s_orb_tot(:, j)
             s_buf(:, j) = s_tot(:, j)
          end do
 
-         !! Fit gain
-         !if (.false.) then
-         !   call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
-         !end if
-         !estimate the correlated noise
-         !if (do_oper(samp_N)) then
-         do j = 1, ndet
-            if (.not. self%scans(i)%d(j)%accept) cycle
-            s_buf(:,j) = s_tot(:,j)
-         end do
-         call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
-         do j = 1, ndet
-            n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
-         end do
+         !call self%downsample_tod(s_orb_tot(:,1), ext)
+         !allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
+         !allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
+         !do j = 1, ndet
+         !   if (.not. self%scans(i)%d(j)%accept) cycle
+         !   s_buf(:,j) = s_tot(:,j)
+         !   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle)
+         !   call self%downsample_tod(s_buf(:,j), ext, &
+         !        & s_lowres(:,j))!, mask(:,j))
+         !end do
+         !s_invN = s_lowres
+         !call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
+         !call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
+
+         !!! Prepare for absolute calibration
+         !do j = 1, ndet
+         !   if (.not. self%scans(i)%d(j)%accept) cycle
+         !   s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb_tot(:, j)) + &
+         !        & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+         !end do
+         !call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
+
+         !call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
+         !do j = 1, ndet
+         !   if (.not. self%scans(i)%d(j)%accept) cycle
+         !   s_buf(:,j) = s_tot(:,j)
+         !end do
+         !! print out some timestreams
+         !call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
+         !do j = 1, ndet
+         !   n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
+         !end do
+
+         !! Compute noise spectrum
+         !call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
+         n_corr = 0d0
 
          !*******************
          ! Compute binned map
@@ -353,7 +380,7 @@ contains
          ! Bin the calibrated map
          call bin_differential_TOD(self, d_calib, pix,  &
                 & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
-         deallocate (n_corr, s_sky, s_orbA, s_orbB, s_tot, s_buf, s_sky_prop, d_calib)
+         deallocate (n_corr, s_sky, s_orb_tot, s_orbA, s_orbB, s_tot, s_buf, s_sky_prop, d_calib)
          deallocate (mask, mask2, pix, psi, flag)
          if (allocated(s_lowres)) deallocate (s_lowres)
          if (allocated(s_invN)) deallocate (s_invN)
@@ -379,6 +406,9 @@ contains
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       np0 = self%info%np
+      cg_sol = 0.0d0
+      i_max = int(npix**0.5)
+
       allocate (r(nout, nmaps, 0:npix-1))
       allocate (s(nout, nmaps, 0:npix-1))
       allocate (q(nout, nmaps, 0:npix-1))
@@ -386,11 +416,6 @@ contains
       allocate (cg_sol(nout, nmaps, 0:npix-1))
       allocate (cg_tot(nmaps, 0:np0 - 1))
 
-      cg_sol = 0.0d0
-      epsil = 1.0d-3
-      epsil = 1.0d-2
-
-      i_max = int(npix**0.5)
 
       allocate (r0(nout, nmaps, 0:npix-1))
       allocate (v(nout, nmaps, 0:npix-1))
@@ -398,6 +423,7 @@ contains
       allocate (phat(nout, nmaps, 0:npix-1))
       allocate (shat(nout, nmaps, 0:npix-1))
       do l=1, nout
+         ! If it's the n_corr map, then just set the processing mask to one.
          call update_status(status, "Starting bicg-stab")
          r(l, :, :)  = b_map(l, :, :)
          r0(l, :, :) = b_map(l, :, :)
@@ -523,8 +549,9 @@ contains
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
 
       ! Clean up temporary arrays
-      !deallocate(A_abscal, b_abscal, chisq_S)
+      deallocate(A_abscal, b_abscal, chisq_S)
       if (allocated(b_map)) deallocate (b_map)
+      if (allocated(M_diag)) deallocate (M_diag)
       if (sA_map%init) call dealloc_shared_2d_dp(sA_map)
       if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
       if (sb_mono%init) call dealloc_shared_3d_dp(sb_mono)
@@ -532,6 +559,7 @@ contains
       if (allocated(sys_mono)) deallocate (sys_mono)
       if (allocated(slist)) deallocate (slist)
       if (allocated(dipole_mod)) deallocate (dipole_mod)
+      deallocate (r, s, q, d, cg_sol, cg_tot, r0, v, p, phat, shat)
 
       if (allocated(outmaps)) then
          do i = 1, nout

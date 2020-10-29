@@ -21,7 +21,6 @@ import os
 from tqdm import tqdm
 
 
-prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
 
 # version 15 uses the pre-calibrated data, gain = 1
 # version 16 is an attempt to fix the quaternions
@@ -112,7 +111,8 @@ def test_flags(band=0):
     THe final product will be n_tod x n_bands, and each element will be a flag
     2**(i+1) where i is the planet index from 0 to nplanets - 1.
     '''
-    files = glob(prefix + 'tod/new/*.fits')
+    prefix = '/mn/stornext/d16/cmbco/ola/'
+    files = glob(prefix + 'uncalibrated/*.fits')
     file_input = np.random.choice(files)
 
     data = fits.open(file_input)
@@ -134,9 +134,8 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version, compress=False):
-    file_out = prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
-    if os.path.exists(file_out):
-        return
+    prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
+    file_out =  prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     dt0 = np.diff(time).mean()
     det_list = []
     # make huffman code tables
@@ -693,6 +692,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     f_name = file_input.split('/')[-1][:-8]
     # It takes about 30 seconds for the extraction from the fits files, which is
     # very CPU intensive. After that, it maxes out at 1 cpu/process.
+    prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v{version}.h5'
     if (os.path.exists(file_out) and file_ind != 1):
         return
@@ -822,6 +822,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
 
     obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
+    print(f_name, obsids)
     for ind, band in enumerate(bands):
         args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses, baseline,
                     band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
@@ -842,6 +843,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
     # happening right now.
     '''
 
+    prefix = '/mn/stornext/d16/cmbco/ola/'
     if version == 15:
         files = glob(prefix + 'tod_calibrated/*.fits')
     else:
@@ -856,6 +858,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
+        print('pool set up')
         x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot, version, center]) for i, f in zip(inds, files)]
         for i in tqdm(range(len(x))):
             x[i].get()
@@ -869,6 +872,6 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
 if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=18, center=False)
     #main(par=True, plot=False, compress=True, version=19, center=True)
-    main(par=True, plot=False, compress=True, version=15, center=True)
+    #main(par=True, plot=False, compress=True, version=15, center=True)
     main(par=True, plot=False, compress=True, version=20, center=True)
     #test_flags()
