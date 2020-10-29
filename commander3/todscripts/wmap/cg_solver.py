@@ -40,7 +40,7 @@ nside = 512
 #version = 14
 # using pre-calibrated data
 #version = 15
-version = 16
+version = 20
 
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
@@ -941,7 +941,7 @@ if __name__ == '__main__':
     for b in ['K1']:
         get_cg(band=b, nfiles=512, sparse_test=False, sparse_only=True, 
                 imbalance=True, mask=True, pol=True, imax=1000, nside=512)
-        plot_maps_pol(band=b, nside=512, version=16)
+        #plot_maps_pol(band=b, nside=512, version=16)
         #plot_maps_pol(band=b, nside=512, version=14)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
