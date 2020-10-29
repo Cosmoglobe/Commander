@@ -162,16 +162,15 @@ contains
           n_corr(:,i) = dt(1:ntod) 
        end if
 
-       if (mod(self%scanid(scan),100) == 1) then
-       !if (.true.) then
-          write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
-          open(65,file=trim(filename),status='REPLACE')
-          do j = 1, ntod
-             write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
-          end do
-          close(65)
-          !stop
-       end if
+       ! if (mod(self%scanid(scan),100) == 1) then
+       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
+       !    open(65,file=trim(filename),status='REPLACE')
+       !    do j = 1, ntod
+       !       write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+       !    end do
+       !    close(65)
+       !    !stop
+       ! end if
 
     end do
     !$OMP END DO                                                          
@@ -806,7 +805,8 @@ contains
        if (.not. self%scans(scan)%d(i)%accept) cycle
        s = 0.d0
        n = 0
-       do j = 1, ntod-1
+
+       do j = 1, self%scans(scan)%ntod-1
           if (any(mask(j:j+1,i) < 0.5)) cycle
           res = (self%scans(scan)%d(i)%tod(j) - &
                & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
@@ -817,13 +817,13 @@ contains
           s = s + res**2
           n = n + 1
        end do
-       if ((i == 1) .and. (scan == 1)) then
-          write(*,*) "sigma0: ", sqrt(s/(n-1))
-       end if
+       ! if ((i == 1) .and. (scan == 1)) then
+       !    write(*,*) "sigma0: ", sqrt(s/(n-1))
+       ! end if
        if (n > 100) self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
     end do
 
-    return
+    ! return
     ! if (trim(self%freq) == '044') return
     ! if (trim(self%freq) == '070') return
 
@@ -1402,7 +1402,7 @@ contains
     !!$OMP DO SCHEDULE(guided)
     j = 0
     do i = 1, ndet
-       sigma_0  = abs(real(tod%scans(scan)%d(i)%sigma0,sp))
+       sigma_0  = real(tod%scans(scan)%d(i)%sigma0,sp)
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
        j = j+1
        dt(1:ntod,j)           = buffer(:,i)
@@ -1413,7 +1413,7 @@ contains
 
     j = 0
     do i = 1, ndet
-       sigma_0  = abs(real(tod%scans(scan)%d(i)%sigma0,sp))
+       sigma_0  = real(tod%scans(scan)%d(i)%sigma0,sp)
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
        j = j+1
        samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
@@ -1440,7 +1440,7 @@ contains
 
     j = 0
     do i = 1, ndet
-       sigma_0  = abs(real(tod%scans(scan)%d(i)%sigma0,sp))
+       sigma_0  = real(tod%scans(scan)%d(i)%sigma0,sp)
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) then
           buffer(:,i)  = 0.d0
        else

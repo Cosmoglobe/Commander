@@ -42,12 +42,12 @@ from get_gain_model import get_gain
 
 file_num = 30
 
-prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
-files = glob(prefix + 'tod/new/*.fits')
+prefix = '/mn/stornext/d16/cmbco/ola/wmap/'
+files = glob(prefix + 'tods/uncalibrated/*.fits')
 files.sort()
 data = fits.open(files[file_num])
 
-version=16
+version=20
 
 allbands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
@@ -80,7 +80,7 @@ Ks = np.array(Ks)
 gains = np.array([get_gain(data, b)[1][0] for b in labels])
 baselines = np.array([32136.98, 31764.96, 31718.19, 32239.29])
 #cal = [(Ks[i] - baselines[i])/gains[i] for i in range(4)]
-cal = [(Ks[i] - np.median(Ks[i]))/gains[i] for i in range(4)]
+cal = np.array([(Ks[i] - np.median(Ks[i]))/gains[i] for i in range(4)])
 print(Ks.shape)
 
 time = data[2].data['time']
@@ -122,7 +122,7 @@ axes_test.set_ylabel('p')
 
 
 
-cg = hp.read_map(f'cg_v{version}_{band}_pol.fits', field=(0,1,2,3))
+#cg = hp.read_map(f'cg_v{version}_{band}_pol.fits', field=(0,1,2,3))
 
 
 
@@ -135,37 +135,58 @@ fnames.sort()
 fname = fnames[file_num]
 print(fname)
 f= h5py.File(fname, 'r')
-obsid = str(list(f.keys())[0])
-labels = [f'{band}13', f'{band}14',f'{band}23',f'{band}24']
-
-huffTree = f[obsid+'/common/hufftree']
-huffSymb = f[obsid+'/common/huffsymb']
-h = huffman.Huffman(tree=huffTree, symb=huffSymb)
-
-
-
-
 DAs = [[], [], [], []]
 sigmas = []
-npsi = 2048
-psiBins = np.linspace(0, 2*np.pi, npsi)
-gains = np.zeros(len(labels))
-for num, label in enumerate(labels):
-    TODs = np.array(f[obsid + '/' + label + '/tod'])
-    scalars = f[obsid + '/' + label + '/scalars']
-    gains[num] = scalars[0]
-    TODs = TODs - np.median(TODs)
-    DAs[num] = DAs[num] + TODs.tolist()
-    sigmas.append(TODs.std())
-    if label == f'{band}13':
-        pixA = h.Decoder(np.array(f[obsid + '/' + label + \
-            '/pixA'])).astype('int')
-        pixB = h.Decoder(np.array(f[obsid + '/' + label + \
-            '/pixB'])).astype('int')
-        psiA = psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
-            '/psiA'])).astype('int')]
-        psiB = psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
-            '/psiB'])).astype('int')]
+pixA = []
+pixB = []
+psiA = []
+psiB = []
+
+for i in range(len(list(f.keys()))-1):
+    obsid = str(list(f.keys())[i])
+    labels = [f'{band}13', f'{band}14',f'{band}23',f'{band}24']
+    
+    huffTree = f[obsid+'/common/hufftree']
+    huffSymb = f[obsid+'/common/huffsymb']
+    h = huffman.Huffman(tree=huffTree, symb=huffSymb)
+    
+    
+    
+    
+    npsi = 2048
+    psiBins = np.linspace(0, 2*np.pi, npsi)
+    gains = np.zeros(len(labels))
+    for num, label in enumerate(labels):
+        TODs = np.array(f[obsid + '/' + label + '/tod'])
+        scalars = f[obsid + '/' + label + '/scalars']
+        gains[num] = scalars[0]
+        TODs = TODs - np.median(TODs)
+        DAs[num] = DAs[num] + TODs.tolist()
+        sigmas.append(TODs.std())
+        if label == f'{band}13':
+            pixA.append(h.Decoder(np.array(f[obsid + '/' + label + \
+                '/pixA'])).astype('int').tolist())
+            pixB.append(h.Decoder(np.array(f[obsid + '/' + label + \
+                '/pixB'])).astype('int').tolist())
+            psiA.append(psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
+                '/psiA'])).astype('int')])
+            psiB.append(psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
+                '/psiB'])).astype('int')])
+
+pixA = np.array(pixA).flatten()
+pixB = np.array(pixB).flatten()
+psiA = np.array(psiA).flatten()
+psiB = np.array(psiB).flatten()
+print(pixA)
+
+time = np.arange(len(pixA))*max(time)/len(pixA)
+cal = cal[:,:len(time)]
+d1 = d1[:len(time)]
+d2 = d2[:len(time)]
+d = d[:len(time)]
+p = p[:len(time)]
+n_d = n_d[:len(time)]
+n_p = n_p[:len(time)]
 
 print(np.array(DAs).shape)
 Ntod = f[obsid + '/common/ntod'][...]
@@ -193,7 +214,7 @@ d_cg = np.zeros(len(pixA))
 p_sol = np.zeros(len(pixA))
 p_cg = np.zeros(len(pixA))
 i_sol,q_sol,u_sol,s_sol = sol
-i_cg, q_cg, u_cg, s_cg = cg
+#i_cg, q_cg, u_cg, s_cg = cg
 for t in range(len(pixA)):
     d_sol[t] = (1+xbar)*(i_sol[pixA[t]])- \
                (1-xbar)*(i_sol[pixB[t]])\
@@ -202,13 +223,13 @@ for t in range(len(pixA)):
                    u_sol[pixA[t]]*np.sin(2*psiA[t])+s_sol[pixA[t]])- \
                (q_sol[pixB[t]]*np.cos(2*psiB[t]) +\
                    u_sol[pixB[t]]*np.sin(2*psiB[t])+s_sol[pixB[t]]))
-    d_cg[t] =  (1+xbar)*(i_cg[pixA[t]])- \
-               (1-xbar)*(i_cg[pixB[t]])\
-               +dxbar*(\
-               (q_cg[pixA[t]]*np.cos(2*psiA[t]) +\
-                   u_cg[pixA[t]]*np.sin(2*psiA[t])+s_cg[pixA[t]])- \
-               (q_cg[pixB[t]]*np.cos(2*psiB[t]) +\
-                   u_cg[pixB[t]]*np.sin(2*psiB[t])+s_cg[pixB[t]]))
+    #d_cg[t] =  (1+xbar)*(i_cg[pixA[t]])- \
+    #           (1-xbar)*(i_cg[pixB[t]])\
+    #           +dxbar*(\
+    #           (q_cg[pixA[t]]*np.cos(2*psiA[t]) +\
+    #               u_cg[pixA[t]]*np.sin(2*psiA[t])+s_cg[pixA[t]])- \
+    #           (q_cg[pixB[t]]*np.cos(2*psiB[t]) +\
+    #               u_cg[pixB[t]]*np.sin(2*psiB[t])+s_cg[pixB[t]]))
     d_solA[t] = (1+xbar)*(i_sol[pixA[t]])\
                +dxbar*(\
                (q_sol[pixA[t]]*np.cos(2*psiA[t]) +\
@@ -221,25 +242,25 @@ for t in range(len(pixA)):
     p_sol[t] = (1+xbar)*(q_sol[pixA[t]]*np.cos(2*psiA[t]) + u_sol[pixA[t]]*np.sin(2*psiA[t]) + s_sol[pixA[t]])- \
                (1-xbar)*(q_sol[pixB[t]]*np.cos(2*psiB[t]) + u_sol[pixB[t]]*np.sin(2*psiB[t]) + s_sol[pixB[t]]) + \
                dxbar*(i_sol[pixA[t]] + i_sol[pixB[t]])
-    p_cg[t]  = (1+xbar)*(q_cg[pixA[t]]*np.cos(2*psiA[t]) + u_cg[pixA[t]]*np.sin(2*psiA[t]) + s_cg[pixA[t]])- \
-               (1-xbar)*(q_cg[pixB[t]]*np.cos(2*psiB[t]) + u_cg[pixB[t]]*np.sin(2*psiB[t]) + s_cg[pixB[t]]) + \
-               dxbar*(i_cg[pixA[t]] + i_cg[pixB[t]])
+    #p_cg[t]  = (1+xbar)*(q_cg[pixA[t]]*np.cos(2*psiA[t]) + u_cg[pixA[t]]*np.sin(2*psiA[t]) + s_cg[pixA[t]])- \
+    #           (1-xbar)*(q_cg[pixB[t]]*np.cos(2*psiB[t]) + u_cg[pixB[t]]*np.sin(2*psiB[t]) + s_cg[pixB[t]]) + \
+    #           dxbar*(i_cg[pixA[t]] + i_cg[pixB[t]])
 
 # It's tougher for polarization, because you really don't see any signal in the
 # polarized timestreams for a single sweep.
 axes_test.plot(time, p_sol, color='C0', zorder=1, label='WMAP sol')
-axes_test.plot(time, p_cg, color='C1', zorder=0, label='CG sol')
+#axes_test.plot(time, p_cg, color='C1', zorder=0, label='CG sol')
 plt.legend(loc='best')
 
 fig, axes = plt.subplots(nrows=2, sharex=True, sharey=True)
 axes[0].plot(time, cal[0], '.', ms=1, label='d13')
 axes[0].plot(time, cal[2], '.', ms=1, label='d23')
-axes[0].plot(time, d_cg, label='My sol')
+#axes[0].plot(time, d_cg, label='My sol')
 axes[0].plot(time, d_sol, label='WMAP sol')
 axes[0].legend(loc='best')
 axes[1].plot(time, cal[1], '.', ms=1, label='d14')
 axes[1].plot(time, cal[3], '.', ms=1, label='d24')
-axes[1].plot(time, d_cg, label='My sol')
+#axes[1].plot(time, d_cg, label='My sol')
 axes[1].plot(time, d_sol, label='WMAP sol')
 axes[1].legend(loc='best')
 axes[1].set_xlim([0,20])
@@ -294,7 +315,7 @@ t_max = 500
 t = np.arange(t_max)
 fig,axes= plt.subplots(nrows=1, sharex=True)
 axes.plot(time[:t_max], p_sol[:t_max], label=r'WMAP', color='C0', zorder=1)
-axes.plot(time[:t_max], p_cg[:t_max], label=r'CG', color='C1', zorder=0)
+#axes.plot(time[:t_max], p_cg[:t_max], label=r'CG', color='C1', zorder=0)
 axes.legend(bbox_to_anchor=(1,1,0,0))
 plt.savefig(f'tod_{t_max}.png', bbox_inches='tight')
 #plt.savefig(f'tod_{t_max}.pdf', bbox_inches='tight')
@@ -302,7 +323,7 @@ t_max = 5000
 t = np.arange(t_max)
 fig,axes= plt.subplots(nrows=1, sharex=True)
 axes.plot(time[:t_max], p_sol[:t_max], label=r'WMAP', color='C0', zorder=1)
-axes.plot(time[:t_max], p_cg[:t_max], label=r'CG', color='C1', zorder=0)
+#axes.plot(time[:t_max], p_cg[:t_max], label=r'CG', color='C1', zorder=0)
 axes.legend(bbox_to_anchor=(1,1,0,0))
 plt.savefig(f'tod_{t_max}.png', bbox_inches='tight')
 #plt.savefig(f'tod_{t_max}.pdf', bbox_inches='tight')
@@ -312,15 +333,15 @@ plt.savefig(f'tod_{t_max}.png', bbox_inches='tight')
 fig, axes = plt.subplots(nrows=2, sharex=True)
 t_max = 500
 axes[0].plot(time[:t_max], d_sol[:t_max], label=r'WMAP', color='C0', zorder=1)
-axes[0].plot(time[:t_max], d_cg[:t_max], label=r'CG', color='C1', zorder=0)
+#axes[0].plot(time[:t_max], d_cg[:t_max], label=r'CG', color='C1', zorder=0)
 axes[1].plot(time[:t_max], p_sol[:t_max], label=r'WMAP', color='C0', zorder=1)
-axes[1].plot(time[:t_max], p_cg[:t_max], label=r'CG', color='C1', zorder=0)
+#axes[1].plot(time[:t_max], p_cg[:t_max], label=r'CG', color='C1', zorder=0)
 fig, axes = plt.subplots(nrows=2, sharex=True)
 t_max = 5000
 axes[0].plot(time[:t_max], d_sol[:t_max], label=r'WMAP', color='C0', zorder=1)
-axes[0].plot(time[:t_max], d_cg[:t_max], label=r'CG', color='C1', zorder=0)
+#axes[0].plot(time[:t_max], d_cg[:t_max], label=r'CG', color='C1', zorder=0)
 axes[1].plot(time[:t_max], p_sol[:t_max], label=r'WMAP', color='C0', zorder=1)
-axes[1].plot(time[:t_max], p_cg[:t_max], label=r'CG', color='C1', zorder=0)
+#axes[1].plot(time[:t_max], p_cg[:t_max], label=r'CG', color='C1', zorder=0)
 
 plt.figure()
 
@@ -356,4 +377,4 @@ plt.plot(d23, label='d23')
 plt.plot(d24, label='d24')
 plt.legend(loc='best')
 
-#plt.show()
+plt.show()
