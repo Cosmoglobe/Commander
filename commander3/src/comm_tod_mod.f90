@@ -1013,7 +1013,10 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'fknee',  output(:,:,4))
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,5))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
+       write(*,*) 'About to write polang'
+       write(*,*) 'self%polang', self%polang
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
+       write(*,*) 'Wrote polang'
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)

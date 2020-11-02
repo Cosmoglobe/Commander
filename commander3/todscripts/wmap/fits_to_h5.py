@@ -27,7 +27,8 @@ from tqdm import tqdm
 # version 17 is using center = False
 # version 18 computes the planet exclusion flags according to Bennett et al.
 # version 19 uses the new planet exclusion flags, also uses center = True
-
+# version 20 splits up the data into 25 chunks
+# version 21 splits up the data into 24 chunks
 
 from time import sleep
 from time import time as timer
@@ -111,7 +112,7 @@ def test_flags(band=0):
     THe final product will be n_tod x n_bands, and each element will be a flag
     2**(i+1) where i is the planet index from 0 to nplanets - 1.
     '''
-    prefix = '/mn/stornext/d16/cmbco/ola/'
+    prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     files = glob(prefix + 'uncalibrated/*.fits')
     file_input = np.random.choice(files)
 
@@ -350,9 +351,9 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
         f.create_dataset('/common/datatype', data='WMAP')
         # fillers
-        #f.create_dataset('/common/mbang', data=0)
+        f.create_dataset('/common/mbang', data=0)
         f.create_dataset('/common/ntodsigma', data=100)
-        #f.create_dataset('/common/polang', data=0)
+        f.create_dataset('/common/polang', data=0)
     with open(prefix + f'data/filelist_{band}_v{version}.txt', 'a') as file_list: 
         file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
     return
@@ -744,8 +745,8 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     fsamp = 1.536 # A single TOD record contains 30 1.536 second major science frames
     chunk_size = 1875
     nsamp = chunk_size*fsamp
-    n_per_day = 25
-    # WMAP data divides evenly into 25 chunks per day...
+    n_per_day = 24
+    # WMAP data divides evenly into 25 chunks per day... or does it?
 
 
 
@@ -822,7 +823,6 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
 
     obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
-    print(f_name, obsids)
     for ind, band in enumerate(bands):
         args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses, baseline,
                     band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
@@ -843,18 +843,18 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
     # happening right now.
     '''
 
-    prefix = '/mn/stornext/d16/cmbco/ola/'
+    prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     if version == 15:
-        files = glob(prefix + 'tod_calibrated/*.fits')
+        files = glob(prefix + 'calibrated/*.fits')
     else:
-        files = glob(prefix + 'tod/new/*.fits')
+        files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     files = np.array(files)[:nfiles]
 
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 64
+        nprocs = 24
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -873,5 +873,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=18, center=False)
     #main(par=True, plot=False, compress=True, version=19, center=True)
     #main(par=True, plot=False, compress=True, version=15, center=True)
-    main(par=True, plot=False, compress=True, version=20, center=True)
+    #main(par=True, plot=False, compress=True, version=20, center=True)
+    main(par=True, plot=False, compress=True, version=21, center=False)
     #test_flags()
