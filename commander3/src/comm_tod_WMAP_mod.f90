@@ -150,7 +150,7 @@ contains
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
-      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orbA, s_orbB, mask, mask2, s_bp
+      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orbA, s_orbB, s_orb_tot, mask, mask2, s_bp
       real(sp), allocatable, dimension(:, :)     :: s_mono, s_buf, s_tot, s_zodi
       real(sp), allocatable, dimension(:, :)     :: s_invN, s_lowres
       real(sp), allocatable, dimension(:, :, :)   :: s_sky_prop, s_bp_prop
@@ -270,6 +270,7 @@ contains
          allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
          allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A) in uKcmb
          allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B) in uKcmb
+         allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both) in uKcmb
          allocate (s_buf(ntod, ndet))                  ! Buffer
          allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
          allocate (mask(ntod, ndet))                   ! Processing mask in time
@@ -299,13 +300,16 @@ contains
          call wall_time(t1)
          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
+         do j = 1, ndet
+            s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
+                            & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+         end do
          call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
          ! Add orbital dipole to total signal
          s_buf = 0.d0
          do j = 1, ndet
-            s_tot(:, j) = s_sky(:, j) + (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
-                                      & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+            s_tot(:, j) = s_sky(:, j) + s_orb_tot(:,j)
             s_buf(:, j) = s_tot(:, j)
          end do
 
