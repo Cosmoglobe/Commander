@@ -5,6 +5,8 @@
 *.gitignore
 *.pyc
 *.swp
+*.png
+*.fits
 *comm_like_sampler
 *comm_like_tools
 *comm_like_tools_mpi
