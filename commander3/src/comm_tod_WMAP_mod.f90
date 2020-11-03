@@ -208,11 +208,11 @@ contains
       chunk_size = npix/self%numprocs_shared
       if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size + 1
       allocate (map_sky(nmaps, self%nobs, 0:ndet, ndelta))
-      allocate (chisq_S(ndet, ndelta))
+      !allocate (chisq_S(ndet, ndelta))
       allocate (slist(self%nscan))
       slist = ''
-      allocate (outmaps(nout))
-      do i = 1, nout
+      allocate (outmaps(nout+1))
+      do i = 1, nout+1
          outmaps(i)%p => comm_map(map_out%info)
       end do
       call int2string(chain, ctext)
@@ -254,8 +254,8 @@ contains
       ! Perform main analysis loop
       naccept = 0; ntot = 0
       ! Using nmaps + 1 to include the spurious component
-      allocate (M_diag(nout, nmaps, 0:npix-1))
-      allocate (b_map(nout, nmaps, 0:npix-1))
+      allocate (M_diag(nout, nmaps+1, 0:npix-1))
+      allocate (b_map(nout, nmaps+1, 0:npix-1))
       M_diag(:,:,:) = 0d0
       do i = 1, self%nscan
 
@@ -328,6 +328,9 @@ contains
             n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
          end do
 
+         ! Compute noise spectrum
+         call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
+
          !*******************
          ! Compute binned map
          !*******************
@@ -357,7 +360,7 @@ contains
          ! Bin the calibrated map
          call bin_differential_TOD(self, d_calib, pix,  &
                 & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
-         deallocate (n_corr, s_sky, s_orbA, s_orbB, s_tot, s_buf, s_sky_prop, d_calib)
+         deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_sky_prop, d_calib)
          deallocate (mask, mask2, pix, psi, flag)
          if (allocated(s_lowres)) deallocate (s_lowres)
          if (allocated(s_invN)) deallocate (s_invN)
@@ -383,12 +386,12 @@ contains
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       np0 = self%info%np
-      allocate (r(nout, nmaps, 0:npix-1))
-      allocate (s(nout, nmaps, 0:npix-1))
-      allocate (q(nout, nmaps, 0:npix-1))
-      allocate (d(nout, nmaps, 0:npix-1))
-      allocate (cg_sol(nout, nmaps, 0:npix-1))
-      allocate (cg_tot(nmaps, 0:np0 - 1))
+      allocate (r(nout, nmaps+1, 0:npix-1))
+      allocate (s(nout, nmaps+1, 0:npix-1))
+      allocate (q(nout, nmaps+1, 0:npix-1))
+      allocate (d(nout, nmaps+1, 0:npix-1))
+      allocate (cg_sol(nout, nmaps+1, 0:npix-1))
+      allocate (cg_tot(nmaps+1, 0:np0 - 1))
 
       cg_sol = 0.0d0
       epsil = 1.0d-3
@@ -431,13 +434,16 @@ contains
             alpha = rho_new/sum(r0(l,:,:)*v(l,:,:))
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
             if (write_cg_iter) then
-               cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
+               cg_tot = cg_sol(l, 1:nmaps+1, self%info%pix)
                do m = 0, np0 - 1
                   do n = 1, nmaps
                      outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
                   end do
+                  !outmaps(2)%p%map(m, 1) = cg_tot(1, m)*1.d3 ! convert from mK to uK
                end do
+               ! Add a way to write the spurious component
                call outmaps(1)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_iter_'//trim(str(2*(i-1)))//trim(postfix))
+               !call outmaps(2)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_spur_iter_'//trim(str(2*(i-1)))//trim(postfix))
             end if
             s(l,:,:) = r(l,:,:) - alpha*v(l,:,:)
 
@@ -474,13 +480,15 @@ contains
             end if
 
             if (write_cg_iter) then
-               cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
+               cg_tot = cg_sol(l, 1:nmaps+1, self%info%pix)
                do m = 0, np0 - 1
                   do n = 1, nmaps
                      outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
                   end do
+                  !outmaps(2)%p%map(m, 1) = cg_tot(1, m)*1.d3 ! convert from mK to uK
                end do
                call outmaps(1)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_iter_'//trim(str(2*(i-1)+1))//trim(postfix))
+               !call outmaps(2)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_spur_iter_'//trim(str(2*(i-1)))//trim(postfix))
             end if
 
             delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))

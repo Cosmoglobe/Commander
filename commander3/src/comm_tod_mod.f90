@@ -405,6 +405,10 @@ contains
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
        ndet_tot = num_tokens(det_buf(1:n), ",")
        allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
+       polang_buf = 0
+       mbang_buf = 0
+       self%polang = 0
+       self%mbang = 0
        call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
@@ -1013,10 +1017,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'fknee',  output(:,:,4))
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,5))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
-       write(*,*) 'About to write polang'
-       write(*,*) 'self%polang', self%polang
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
-       write(*,*) 'Wrote polang'
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
