@@ -201,7 +201,7 @@ contains
       nhorn = self%nhorn
       ndelta = size(delta, 3)
       nside = map_out%info%nside
-      nmaps = map_out%info%nmaps
+      nmaps = map_out%info%nmaps + 1
       npix = 12*nside**2
       nout = self%output_n_maps
       nscan_tot = self%nscan_tot
@@ -254,9 +254,10 @@ contains
       ! Perform main analysis loop
       naccept = 0; ntot = 0
       ! Using nmaps + 1 to include the spurious component
-      allocate (M_diag(nout, nmaps+1, 0:npix-1))
-      allocate (b_map(nout, nmaps+1, 0:npix-1))
+      allocate (M_diag(nout, nmaps, 0:npix-1))
+      allocate (b_map(nout, nmaps, 0:npix-1))
       M_diag(:,:,:) = 0d0
+      b_map = 0d0
       do i = 1, self%nscan
 
          ! Short-cuts to local variables
@@ -386,12 +387,12 @@ contains
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       np0 = self%info%np
-      allocate (r(nout, nmaps+1, 0:npix-1))
-      allocate (s(nout, nmaps+1, 0:npix-1))
-      allocate (q(nout, nmaps+1, 0:npix-1))
-      allocate (d(nout, nmaps+1, 0:npix-1))
-      allocate (cg_sol(nout, nmaps+1, 0:npix-1))
-      allocate (cg_tot(nmaps+1, 0:np0 - 1))
+      allocate (r(nout, nmaps, 0:npix-1))
+      allocate (s(nout, nmaps, 0:npix-1))
+      allocate (q(nout, nmaps, 0:npix-1))
+      allocate (d(nout, nmaps, 0:npix-1))
+      allocate (cg_sol(nout, nmaps, 0:npix-1))
+      allocate (cg_tot(nmaps, 0:np0 - 1))
 
       cg_sol = 0.0d0
       epsil = 1.0d-3
@@ -434,7 +435,7 @@ contains
             alpha = rho_new/sum(r0(l,:,:)*v(l,:,:))
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
             if (write_cg_iter) then
-               cg_tot = cg_sol(l, 1:nmaps+1, self%info%pix)
+               cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
                do m = 0, np0 - 1
                   do n = 1, nmaps
                      outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
@@ -480,7 +481,7 @@ contains
             end if
 
             if (write_cg_iter) then
-               cg_tot = cg_sol(l, 1:nmaps+1, self%info%pix)
+               cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
                do m = 0, np0 - 1
                   do n = 1, nmaps
                      outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
