@@ -1,16 +1,30 @@
-# Project: LibSharp2
-# Link: https://gitlab.mpcdf.mpg.de/mtr/libsharp/-/tree/master
-# File which contains setup for the project 
-# Author: Maksym Brilenkov
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
+# Description: This script determines the location of Libsharp2 on the host system.
+# If it fails to do so, it will download, compile and install Libsharp2 from source.
+# Note: Starting from version 3.60, HEALPix comes bundled together with Libsharp2.
+# Therefore, this file is depricated and will be removed in future.
+#================================================================================
 
 message(STATUS "---------------------------------------------------------------")
-# define this variable here for easier reference in the future
-
-#message("MY CMAKE FLAGS ARE "${CMAKE_C_FLAGS})#"${${project}_configure_command}")
-# According to installation guidelines, we need to 
-# specify slightly different flags for different compilers
-#set(SHARP2_C_FLAGS "-DUSE_MPI -std=c99 -O3 -ffast-math")
-#set(SHARP2_CPP_COMPILER "${MPI_CXX_COMPILER} -E")
 
 find_package(SHARP2)
 if(NOT SHARP2_FOUND)
@@ -36,21 +50,13 @@ if(NOT SHARP2_FOUND)
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
-		#COMMAND CFLAGS="-DUSE_MPI" ${download_dir}/${project}/src/${project}/configure --prefix=<INSTALL_DIR>
-		#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${MPI_C_COMPILER} MPFC=${MPI_Fortran_COMPILER} MPCXX=${MPI_CXX_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
-		#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
-		#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${SHARP2_CPP_COMPILER} CC=${MPI_C_COMPILER} CFLAGS=${SHARP2_C_FLAGS} ./configure #--prefix=<INSTALL_DIR>
-		#BUILD_IN_SOURCE 1	
 		INSTALL_COMMAND ""
-		#DEPENDS mpi
 		# LibSharp doesn't have an install command, so we need to manually move files
 		# into installation folder and hope they will work :)
-		#COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/.libs" "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}" #"${out_install_dir}/lib" 
 		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${CMAKE_INSTALL_PREFIX}/${project}" #"${out_install_dir}/lib" 
 		)
 
 	# defining the variable which will show the path to the compiled libraries
-	#set(SHARP2_LIBRARIES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
 	set(SHARP2_LIBRARIES ${CMAKE_INSTALL_PREFIX}/${project}/.libs/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
 	message(STATUS "SHARP2 LIBRARIES will be: ${SHARP2_LIBRARIES}")
 else()
@@ -58,33 +64,3 @@ else()
 	message(STATUS "SHARP2 LIBRARIES are: ${SHARP2_LIBRARIES}")
 	message(STATUS "SHARP2 INCLUDE DIRS are: ${SHARP2_INCLUDE_DIR}")
 endif()
-
-# creating a library statis library:
-# addign standard cmake suffixes 
-# (cmake will figure stuff out depending on the platform)
-#add_library(sharp2_lib STATIC ${out_lib_dir}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
-#set_target_properties(sharp2_lib PROPERTIES LINKER_LANGUAGE Fortran)
-#message(STATUS "SHARP2 LIBS ARE: ${sharp2_lib}")
-
-#target_compile_options(${project} PUBLIC -DUSE_MPI)
-
-# linking libraries
-#add_library(${project}_lib STATIC IMPORTED)
-#set(${${project}_lib}_name ${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
-#set_target_properties(${${project}_lib} PROPERTIES IMPORTED_LOCATION "${out_install_dir}/lib/${${${project}_lib}_name}")
-
-#message("${${project}_lib}")
-#add_library(${project}_lib STATIC ${out_install_dir}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
-
-#target_link_libraries(${${project}_lib} MPI::MPI_Fortran)
-#message("THIS IS LIBSHARP TEST MUHAHAHAHAHAH ${project}_lib")
-#message(${out_install_dir}/lib/${${${project}_lib}_name})
-#########file(COPY "${download_dir}/${project}/src/${project}/auto"  DESTINATION "${out_install_dir}")
-
-# linking libraries to LAPACK etc.
-# Linking BLAS library
-#target_link_libraries(${${project}_lib} ${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES})
-# Linking LAPACK library
-#target_link_libraries(${${project}_lib} ${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES})
-# Linking MPI
-#target_link_libraries(${${project}_lib} ${MPI_Fortran_LINK_FLAGS} ${MPI_fortran_LINKER_FLAGS} ${MPI_Fortran_COMPILE_FLAGS} ${MPI_Fortran_LIBRARIES})
