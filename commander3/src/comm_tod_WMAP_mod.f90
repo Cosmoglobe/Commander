@@ -221,7 +221,7 @@ contains
       nhorn = self%nhorn
       ndelta = size(delta, 3)
       nside = map_out%info%nside
-      nmaps = map_out%info%nmaps + 1
+      nmaps = map_out%info%nmaps
       npix = 12*nside**2
       nout = self%output_n_maps
       nscan_tot = self%nscan_tot
@@ -276,7 +276,8 @@ contains
       ! Using nmaps + 1 to include the spurious component
       allocate (M_diag(nout, nmaps, 0:npix-1))
       allocate (b_map(nout, nmaps, 0:npix-1))
-      M_diag(:,:,:) = 0d0
+      !write(*,*) "shape(M_diag) = ", shape(M_diag)
+      M_diag = 0d0
       b_map = 0d0
       do i = 1, self%nscan
 
@@ -395,14 +396,23 @@ contains
       call update_status(status, "Running allreduce on b")
       call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
            & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-      ! Mean-subtracting b_map to remove fitting of spurious monopole
-      !do j=1, nmaps
-      !   b_map(l,j,:) = b_map(l,j,:) - sum(b_map(l,j,:))/size(b_map(l,j,:))
-      !end do
 
       where (M_diag .eq. 0d0)
          M_diag = 1d0
       end where
+
+      allocate (cg_tot(nmaps, 0:np0 - 1))
+
+      ! write out M_diag, b_map to fits.
+      cg_tot = b_map(1, 1:nmaps, self%info%pix)
+      do n = 1, nmaps
+         call write_fits_file(trim(prefix)//'b'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
+      end do
+      cg_tot = M_diag(1, 1:nmaps, self%info%pix)
+      do n = 1, nmaps
+         call write_fits_file(trim(prefix)//'M'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
+      end do
+
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
@@ -412,7 +422,7 @@ contains
       allocate (q(nout, nmaps, 0:npix-1))
       allocate (d(nout, nmaps, 0:npix-1))
       allocate (cg_sol(nout, nmaps, 0:npix-1))
-      allocate (cg_tot(nmaps, 0:np0 - 1))
+      !allocate (cg_tot(nmaps, 0:np0 - 1))
 
       cg_sol = 0.0d0
       epsil = 1.0d-3
@@ -456,15 +466,9 @@ contains
             cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
             if (write_cg_iter) then
                cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
-               do m = 0, np0 - 1
-                  do n = 1, nmaps
-                     outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
-                  end do
-                  !outmaps(2)%p%map(m, 1) = cg_tot(1, m)*1.d3 ! convert from mK to uK
+               do n = 1, nmaps
+                  call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//'_map'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
                end do
-               ! Add a way to write the spurious component
-               call outmaps(1)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_iter_'//trim(str(2*(i-1)))//trim(postfix))
-               !call outmaps(2)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_spur_iter_'//trim(str(2*(i-1)))//trim(postfix))
             end if
             s(l,:,:) = r(l,:,:) - alpha*v(l,:,:)
 
@@ -502,14 +506,9 @@ contains
 
             if (write_cg_iter) then
                cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
-               do m = 0, np0 - 1
-                  do n = 1, nmaps
-                     outmaps(1)%p%map(m, n) = cg_tot(n, m)*1.d3 ! convert from mK to uK
-                  end do
-                  !outmaps(2)%p%map(m, 1) = cg_tot(1, m)*1.d3 ! convert from mK to uK
+               do n = 1, nmaps
+                  call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//'_map'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
                end do
-               call outmaps(1)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_iter_'//trim(str(2*(i-1)+1))//trim(postfix))
-               !call outmaps(2)%p%writeFITS(trim(prefix)//'cg'//trim(str(l))//'_spur_iter_'//trim(str(2*(i-1)))//trim(postfix))
             end if
 
             delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
@@ -608,5 +607,25 @@ contains
      end do
      close(unit)
    end subroutine write_tod_chunk
+
+
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ! Subroutine to save map array to fits file 
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   subroutine write_fits_file(filename, array, outmaps)
+     implicit none
+     character(len=*),                   intent(in) :: filename
+     real(dp),         dimension(:),     intent(in) :: array
+     class(map_ptr),   dimension(:),     intent(in) :: outmaps
+
+     integer(i4b) :: np0, m
+
+     do m = 0, size(array) - 1
+        outmaps(1)%p%map(m, 1) = array(m)
+     end do
+
+     call outmaps(1)%p%writeFITS(filename)
+
+   end subroutine write_fits_file
 
 end module comm_tod_WMAP_mod
