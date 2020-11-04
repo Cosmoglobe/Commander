@@ -1,8 +1,29 @@
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
+
 # just a short message to signify start of configuration script
 message(STATUS "===============================================================")
 message(STATUS "Welcome to automatic Commander3 installer!")
-message(STATUS "Issued under: <LICENSE>")
-message(STATUS "Official repo: https://github.com/hke/Commander")
+message(STATUS "Issued under: GNU GPLv3 license")
+message(STATUS "Official repo: https://github.com/Cosmoglobe/Commander")
 message(STATUS "Documentation: https://docs.beyondplanck.science")
 message(STATUS "===============================================================")
 message(STATUS "Scanning your system. Please, wait a moment...")

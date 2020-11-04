@@ -1,3 +1,23 @@
+!================================================================================
+!
+! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+!
+! This file is part of Commander3.
+!
+! Commander3 is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! Commander3 is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+!
+!================================================================================
 program commander
   use comm_param_mod
   use comm_data_mod
@@ -8,28 +28,6 @@ program commander
   use comm_comp_mod
   use comm_nonlin_mod
   implicit none
-
-  ! *********************************************************************
-  ! *      Commander -- An MCMC code for global, exact CMB analysis     *
-  ! *                                                                   *
-  ! *                 Written by Hans Kristian Eriksen                  *
-  ! *                                                                   *
-  ! *                Copyright 2015, all rights reserved                *
-  ! *                                                                   *
-  ! *                                                                   *
-  ! *   NB! The code is provided as is, and *no* guarantees are given   *
-  ! *       as far as either accuracy or correctness goes. Even though  *
-  ! *       it is fairly well tested, there may be (and likely are)     *
-  ! *       bugs in this code.                                          *
-  ! *                                                                   *
-  ! *  If used for published results, please cite these papers:         *
-  ! *                                                                   *
-  ! *      - Jewell et al. 2004, ApJ, 609, 1                            *
-  ! *      - Wandelt et al. 2004, Phys. Rev. D, 70, 083511              *
-  ! *      - Eriksen et al. 2004, ApJS, 155, 227 (Commander)            *
-  ! *      - Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)        *
-  ! *                                                                   *
-  ! *********************************************************************
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
