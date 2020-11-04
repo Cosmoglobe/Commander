@@ -36,17 +36,6 @@ module comm_utils
   !include "mpif.h"
   include 'fftw3.f'
 
-  
-  ! *********************************************************************
-  ! *      Commander -- An MCMC code for global, exact CMB analysis     *
-  ! *                                                                   *
-  ! *                 Written by Hans Kristian Eriksen                  *
-  ! *                                                                   *
-  ! *                Copyright 2015, all rights reserved                *
-  ! *                                                                   *
-  ! *********************************************************************
-
-
 contains
 
   function median(array) result(res)
