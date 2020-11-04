@@ -1,12 +1,26 @@
-#==============================================================================
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
 # Module to find HEALPix on the system
 # It looks for HEALPix components, such as:
 # sharp, f90, cxx, c 
-# Author: Maksym Brilenkov
-#
-# This file is part of Commander. For  details, see <LINK>.  The
-# full copyright notice is contained in the file COPYRIGHT located at the root
-# of the distribution or at <LICENSE>.
 #
 # Usage:
 #   find_package(HEALPIX [version number] [REQUIRED] [QUIET] [COMPONENTS] [list of all components])
@@ -20,7 +34,7 @@
 #   HEALPIX_LIBRARIES           complete list (with all found components) of HEALPIX libs' directory paths;
 #   HEALPIX_[COMPONENT]_LIB     full path to one of the components;
 #   HEALPIX_INCLUDE_DIRS        HEALPIX include directory paths; 
-#==============================================================================
+#================================================================================
 # Reference to CMake docs:
 # https://cmake.org/cmake/help/v3.17/module/FindPackageHandleStandardArgs.html
 include(FindPackageHandleStandardArgs)

@@ -1,7 +1,25 @@
-#==============================================================================
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
 # This file contains general instructions how to
 # fetch and build the Commander dependencies
-# Author: Maksym Brilenkov
 #==============================================================================
 
 #==============================================================================
@@ -40,7 +58,7 @@ set(DOXYGEN_BUILD_DOCS OFF
 #------------------------------------------------------------------------------
 # If any problems with installation will occur, which cannot be fixed quickly,
 # these variables will force a fresh installation for every specified library.
-# If LIBSALL_FORCE_COMPILE is set tuo TRUE, all libraries will be recompiled,
+# If LIBSALL_FORCE_COMPILE is set to TRUE, all libraries will be recompiled,
 # whereas iof i set to FALSE, the libraries will first be searched on the
 # system and only if not found, compile dfrom source. If LIBSALL_FORCE_COMPILE
 # is set to FALSE but, e.g. HDF5_FORCE_COMPILE is set to TRUE, then HDF5 will
