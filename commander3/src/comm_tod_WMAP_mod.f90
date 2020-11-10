@@ -349,9 +349,10 @@ contains
          do j = 1, ndet
             n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
          end do
+         !n_corr = 0d0
 
          ! Compute noise spectrum
-         call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
+         !call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
 
          !*******************
          ! Compute binned map
@@ -361,6 +362,7 @@ contains
          allocate (d_calib(nout, ntod, ndet))
          do j = 1, ndet
             inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
+            !inv_gain = 1.0
             d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
                & inv_gain - s_tot(:, j) + s_sky(:, j)
 
@@ -401,6 +403,7 @@ contains
          M_diag = 1d0
       end where
 
+      np0 = self%info%np
       allocate (cg_tot(nmaps, 0:np0 - 1))
 
       ! write out M_diag, b_map to fits.
@@ -416,13 +419,11 @@ contains
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      np0 = self%info%np
       allocate (r(nout, nmaps, 0:npix-1))
       allocate (s(nout, nmaps, 0:npix-1))
       allocate (q(nout, nmaps, 0:npix-1))
       allocate (d(nout, nmaps, 0:npix-1))
       allocate (cg_sol(nout, nmaps, 0:npix-1))
-      !allocate (cg_tot(nmaps, 0:np0 - 1))
 
       cg_sol = 0.0d0
       epsil = 1.0d-3
@@ -615,7 +616,7 @@ contains
    subroutine write_fits_file(filename, array, outmaps)
      implicit none
      character(len=*),                   intent(in) :: filename
-     real(dp),         dimension(:),     intent(in) :: array
+     real(dp),         dimension(0:),    intent(in) :: array
      class(map_ptr),   dimension(:),     intent(in) :: outmaps
 
      integer(i4b) :: np0, m

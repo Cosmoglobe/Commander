@@ -41,7 +41,7 @@ module comm_tod_mod
      character(len=10) :: label                             ! Detector label
      real(dp)          :: gain, dgain, gain_invsigma           ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee              ! Noise parameters
-     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def, baseline  ! Default parameters
+     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def ! Default parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
@@ -669,7 +669,7 @@ contains
     character(len=*), dimension(:), intent(in)     :: detlabels
 
     integer(i4b)       :: i,j, n, m, ext(1)
-    real(dp)           :: t1, t2, t3, t4, t_tot(6), scalars(4), baseline
+    real(dp)           :: t1, t2, t3, t4, t_tot(6), scalars(4)
     character(len=6)   :: slabel
     character(len=128) :: field
     type(hdf_file)     :: file
@@ -740,13 +740,11 @@ contains
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
-       ! Currently, WMAP data includes the baseline. This is temporary.
-       call read_hdf(file, slabel // "/" // trim(field) // "/baseline", baseline)
        call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
        if (tod%halfring_split == 2 )then
-         self%d(i)%tod = buffer_sp(m+1:2*m) + baseline
+         self%d(i)%tod = buffer_sp(m+1:2*m)
        else
-         self%d(i)%tod = buffer_sp(1:m) + baseline
+         self%d(i)%tod = buffer_sp(1:m)
        end if
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1
@@ -1037,7 +1035,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'fknee',  output(:,:,4))
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,5))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
-       call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
+       !call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)

@@ -80,7 +80,10 @@ contains
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
        d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
 
-       sigma_0 = abs(self%scans(scan)%d(i)%sigma0)
+       sigma_0 = self%scans(scan)%d(i)%sigma0
+       if (sigma_0 == 0) then
+           sigma_0 = 1d6
+       end if
        !write(*,*) "rms:", scan, sigma_0, sqrt(sum(d_prime**2)/size(d_prime))
        ! Fill gaps in data 
        init_masked_region = .true.
