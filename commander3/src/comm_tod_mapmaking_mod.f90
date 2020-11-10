@@ -106,7 +106,7 @@ contains
       real(dp), dimension(1:, 1:, 0:), intent(inout), optional  :: b_mono
 
       integer(i4b) :: det, i, t, nout
-      real(dp)     :: inv_sigmasq, x_im, d
+      real(dp)     :: inv_sigmasq, x_im, d, sigma_0
 
       integer(i4b) :: lpix, rpix, lpsi, rpsi, sgn
 
@@ -115,8 +115,11 @@ contains
       nout = size(b, dim=1)
 
       do det = 1, tod%ndet
-         inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
-         !inv_sigmasq = 1d0
+         sigma_0 = tod%scans(scan)%d(det)%sigma0
+         if (sigma_0 == 0) then
+             sigma_0 = 1d6
+         end if
+         inv_sigmasq = (tod%scans(scan)%d(det)%gain/sigma_0)**2
          x_im = x_imarr((det+1)/2)
          do t = 1, tod%scans(scan)%ntod
             if (flag(t,det) .ne. 0) cycle
@@ -179,7 +182,7 @@ contains
 
       integer(i4b)              :: i, j, k, ntod, ndet, lpix, rpix, lpsi, rpsi
       integer(i4b)              :: nhorn, t, sgn, pA, pB, f_A, f_B
-      real(dp)                  :: inv_sigmasq, dA, dB, d, x_im
+      real(dp)                  :: inv_sigmasq, dA, dB, d, x_im, sigma_0
       nhorn = tod%nhorn
       ndet = tod%ndet
       do j = 1, tod%nscan
@@ -195,8 +198,11 @@ contains
                if (flag(t,k) .ne. 0) cycle
 
                ! sigma0 is in units of du, so need to convert back to mK
-               inv_sigmasq = (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
-               !inv_sigmasq = 1d0
+               sigma_0 = tod%scans(j)%d(k)%sigma0
+               if (sigma_0 == 0) then
+                   sigma_0 = 1d6
+               end if
+               inv_sigmasq = (tod%scans(j)%d(k)%gain/sigma_0)**2
                lpix = pix(t, k, 1)
                rpix = pix(t, k, 2)
                lpsi = psi(t, k, 1)

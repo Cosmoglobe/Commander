@@ -47,7 +47,7 @@ files = glob(prefix + 'tods/uncalibrated/*.fits')
 files.sort()
 data = fits.open(files[file_num])
 
-version=20
+version=21
 
 allbands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
@@ -283,16 +283,17 @@ axes[1].legend(loc='best')
 #axes[1].set_ylim([-25, 25])
 
 #plt.show()
+plt.close('all')
 
 
-plt.figure()
-plt.plot(d_solA, label='A')
-plt.plot(d_solB, label='B')
-plt.plot(d_sol, label='Tot')
-plt.legend(loc='best')
-#plt.ylim([-25, 25])
+plt.figure(figsize=(2, 4))
+plt.plot(d_solA[11000:13000], '--', label='A')
+plt.plot(d_solB[11000:13000], ':', label='B')
+plt.plot(d_sol[11000:13000], '-', zorder=-1,  label='Tot')
+plt.legend(loc='best', loc='upper cente4r', bbox_to_anchor=(0.5, 1.05), ncol=3)
+plt.ylim([-10, 10])
 plt.title('Only the model')
-#plt.show()
+plt.show()
 
 fig, axes = plt.subplots(nrows=2, sharex=True, sharey=True)
 axes[0].plot(time, cal[0], color='k', alpha=0.25, label='Single feedhorn')
@@ -377,4 +378,4 @@ plt.plot(d23, label='d23')
 plt.plot(d24, label='d24')
 plt.legend(loc='best')
 
-plt.show()
+#plt.show()
