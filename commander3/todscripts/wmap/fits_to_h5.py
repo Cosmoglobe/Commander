@@ -50,6 +50,7 @@ from tqdm import tqdm
 # version 19 uses the new planet exclusion flags, also uses center = True
 # version 20 splits up the data into 25 chunks
 # version 21 splits up the data into 24 chunks
+# version 22 splits up the data into 24 chunks and uses precalibrated data
 
 from time import sleep
 from time import time as timer
@@ -174,7 +175,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             for n in range(len(TOD[0])):
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
-            sigma_0 = todi.std()
+            sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
             scalars = np.array([gain, sigma_0, fknee, alpha])
 
             todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
@@ -248,13 +249,12 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             for n in range(len(TOD[0])):
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
-            sigma_0 = todi.std()
+            sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
             scalars = np.array([gain, sigma_0, fknee, alpha])
-            if version == 15:
+            if (version == 15) or (version == 22):
                 baseline = 0
             else:
                 baseline = np.median(todi)
-            todi = todi - baseline
 
             todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
             deltatod = np.diff(todInd)
@@ -329,7 +329,6 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/scalars',
                     data=scalars)
             f[obsid + '/' + label.replace('KA','Ka') + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
-            # Subtracting baseline
             f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/baseline',
                     data=np.array([baseline]))
             f[obsid + '/' + label.replace('KA','Ka') + '/baseline'].attrs['legend'] = 'baseline'
@@ -789,7 +788,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
         gain_split = np.array_split(gain, n_per_day)
         gain_guesses.append([g.mean() for g in gain_split])
     gain_guesses = np.array(gain_guesses)
-    if version == 15:
+    if (version == 15) or (version == 22):
         gain_guesses = gain_guesses*0 + 1
 
 
@@ -865,7 +864,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
     '''
 
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
-    if version == 15:
+    if (version == 15) or (version == 22):
         files = glob(prefix + 'calibrated/*.fits')
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
@@ -875,7 +874,7 @@ def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
     inds = np.arange(len(files))
 
     if par:
-        nprocs = 24
+        nprocs = 64
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -895,5 +894,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=19, center=True)
     #main(par=True, plot=False, compress=True, version=15, center=True)
     #main(par=True, plot=False, compress=True, version=20, center=True)
-    main(par=True, plot=False, compress=True, version=21, center=False)
+    #main(par=True, plot=False, compress=True, version=21, center=False)
+    main(par=True, plot=False, compress=True, version=22, center=False)
     #test_flags()
