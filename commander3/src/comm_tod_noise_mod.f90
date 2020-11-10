@@ -116,9 +116,9 @@ contains
           end if      
        end if
 
-       if (self%first_call) then
-          call find_d_prime_spikes(self, scan, i, d_prime, pix)
-       end if
+       !if (self%first_call) then
+       !   call find_d_prime_spikes(self, scan, i, d_prime, pix)
+       !end if
 
        samprate = self%samprate
        alpha    = self%scans(scan)%d(i)%alpha
@@ -412,14 +412,14 @@ contains
     ! call apply_fourier_mat(Ad, 1.d0 / invM, r, dt, dv, nfft, plan_fwd, plan_back)
     ! r(:) = r(:) - x(:) - b(:) 
 
-    if (.false. .and. .not. converged) then
-       write(filename, "(A, I0.3, A, I0.3, 3A)") 'ms_cg_tod_', scan, '_', det, '_',trim(band),'.dat' 
-       open(63,file=filename, status='REPLACE')
-       do i = 1, ntod
-          write(63, '(14(E21.11E3))') d_prime(i), b(i), x(i), r(i), d(i), Ad(i), Mr(i), r2, alp, bet, alpha, fknee, wn, mask(i)
-       end do
-       close(63)
-    end if
+    !if (.false. .and. .not. converged) then
+    !   write(filename, "(A, I0.3, A, I0.3, 3A)") 'ms_cg_tod_', scan, '_', det, '_',trim(band),'.dat' 
+    !   open(63,file=filename, status='REPLACE')
+    !   do i = 1, ntod
+    !      write(63, '(14(E21.11E3))') d_prime(i), b(i), x(i), r(i), d(i), Ad(i), Mr(i), r2, alp, bet, alpha, fknee, wn, mask(i)
+    !   end do
+    !   close(63)
+    !end if
     x(:) = Ad(:)
     ncorr(:) = x(:) * sqrt(wn)
     
