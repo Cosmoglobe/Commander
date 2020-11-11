@@ -1209,6 +1209,10 @@ contains
    integer(i4b)     :: i, n_unmasked
 
    n_unmasked = count(mask /= 0)
+   if(n_unmasked == 0) then
+     masked_variance = 9999999999999
+     return
+   end if
    currmean = sum(data * mask) / n_unmasked
    currvar = 0
    do i = 1, size(data)

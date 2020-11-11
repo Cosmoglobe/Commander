@@ -87,7 +87,7 @@ contains
           if (mask(j,i) == 1.) then
              if (end_masked_region) then
                 j_end = j - 1
-                call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod)
+                call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod, self%scans(scan)%chunk_num)
                 ! Add noise to masked region
                 if (trim(self%operation) == "sample") then
                    do k = j_start, j_end
@@ -108,7 +108,7 @@ contains
        ! if the data ends with a masked region
        if (end_masked_region) then
           j_end = ntod
-          call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod)
+          call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod, self%scans(scan)%chunk_num)
           if (trim(self%operation) == "sample") then
              do k = j_start, j_end
                 d_prime(k) = d_prime(k) + sigma_0 * rand_gauss(handle)
@@ -1269,7 +1269,7 @@ contains
        sigma_0 = tod%scans(scan)%d(i)%sigma0
 
        call wall_time(t1)       
-       call fill_all_masked(d_prime, mask(:,i), ntod, (trim(tod%operation) == "sample"), sigma_0, handle)
+       call fill_all_masked(d_prime, mask(:,i), ntod, (trim(tod%operation) == "sample"), sigma_0, handle, tod%scans(scan)%chunk_num)
        call wall_time(t2)
 !    if (tod%myid == 0) write(*,*) ' fft2 =', t2-t1 
 
