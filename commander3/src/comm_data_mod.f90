@@ -150,7 +150,6 @@ contains
           end if
 
        end if
-       
 
        ! Initialize beam structures
        allocate(data(n)%B(0:data(n)%ndet)) 
@@ -164,7 +163,8 @@ contains
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
        end select
        call update_status(status, "data_beam")
-       
+   
+ 
        ! Read default gain from instrument parameter file
        call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
             & 'gain', cpar%ds_label(i), 1.d0, data(n)%gain)
