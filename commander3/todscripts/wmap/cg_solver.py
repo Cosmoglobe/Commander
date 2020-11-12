@@ -60,7 +60,8 @@ nside = 512
 #version = 14
 # using pre-calibrated data
 #version = 15
-version = 20
+# using pre-calibrated data
+version = 21
 
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
