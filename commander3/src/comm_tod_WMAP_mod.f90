@@ -104,7 +104,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 3
+      constructor%output_n_maps = 1
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -217,6 +217,7 @@ contains
       ! Set up full-sky map structures
       call wall_time(t1)
       chisq_threshold = 100.d0
+      n_main_iter     = 4
       ndet = self%ndet
       nhorn = self%nhorn
       ndelta = size(delta, 3)
@@ -227,8 +228,10 @@ contains
       nscan_tot = self%nscan_tot
       chunk_size = npix/self%numprocs_shared
       if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size + 1
+      allocate(A_abscal(self%ndet), b_abscal(self%ndet))
       allocate (map_sky(nmaps, self%nobs, 0:ndet, ndelta))
-      !allocate (chisq_S(ndet, ndelta))
+      allocate (chisq_S(ndet, ndelta))
+      allocate(dipole_mod(nscan_tot, ndet))
       allocate (slist(self%nscan))
       slist = ''
       allocate (outmaps(nout+1))
@@ -270,127 +273,273 @@ contains
       call wall_time(t2); t_tot(9) = t2 - t1
 
       call update_status(status, "tod_init")
-
-      ! Perform main analysis loop
-      naccept = 0; ntot = 0
-      ! Using nmaps + 1 to include the spurious component
+      do_oper             = .true.
       allocate (M_diag(nout, nmaps, 0:npix-1))
       allocate (b_map(nout, nmaps, 0:npix-1))
-      !write(*,*) "shape(M_diag) = ", shape(M_diag)
       M_diag = 0d0
       b_map = 0d0
-      do i = 1, self%nscan
+      ! There are four main iterations, for absolute calibration, relative
+      ! calibration, time-variable calibratino, and correlated noise estimation.
+      main_it: do main_iter = 1, n_main_iter
+         call update_status(status, "tod_istart")
 
-         ! Short-cuts to local variables
-         call wall_time(t1)
-         ntod = self%scans(i)%ntod
-         ndet = self%ndet
+         if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
+         ! Select operations for current iteration
+         do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-3)
+         do_oper(samp_rcal)    = .false. !(main_iter == n_main_iter-2)
+         do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1)
+         do_oper(samp_N)       = (main_iter >= n_main_iter-0)
+         do_oper(samp_N_par)   = do_oper(samp_N)
+         do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
+         do_oper(prep_absbp)   = .false. ! ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
+         do_oper(samp_bp)      = ndelta > 1 .and. (main_iter == n_main_iter-0)
+         do_oper(samp_mono)    = .false.
+         do_oper(bin_map)      = (main_iter == n_main_iter  )
+         do_oper(sel_data)     = .false.
+         do_oper(calc_chisq)   = (main_iter == n_main_iter  )
+         do_oper(sub_zodi)     = self%subtract_zodi
+         do_oper(output_slist) = mod(iter, 1) == 0
 
-         ! Set up local data structure for current scan
-         allocate (n_corr(ntod, ndet))                 ! Correlated noise in V
-         allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
-         allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
-         allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A) in uKcmb
-         allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B) in uKcmb
-         allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both) in uKcmb
-         allocate (s_buf(ntod, ndet))                  ! Buffer
-         allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
-         allocate (mask(ntod, ndet))                   ! Processing mask in time
-         allocate (mask2(ntod, ndet))                  ! Processing mask in time
-         allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
-         allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
-         allocate (flag(ntod, ndet))                   ! Decompressed flags
+         dipole_mod = 0
 
-         ! --------------------
-         ! Analyze current scan
-         ! --------------------
+         if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
+            A_abscal = 0.d0; b_abscal = 0.d0
+         end if
 
-         ! Decompress pointing, psi and flags for current scan
-         call wall_time(t1)
-         do j = 1, ndet
-            call self%decompress_pointing_and_flags(i, j, pix(:, j, :), &
-                 & psi(:, j, :), flag(:, j))
-         end do
-         call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
+         ! Perform main analysis loop
+         naccept = 0; ntot = 0
+         ! Using nmaps + 1 to include the spurious component
+         do i = 1, self%nscan
 
-         ! Construct sky signal template
-         call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
-                  & self%x_im, sprocmask%a, i, s_sky, mask)
+            ! Short-cuts to local variables
+            call wall_time(t1)
+            ntod = self%scans(i)%ntod
+            ndet = self%ndet
 
+            ! Set up local data structure for current scan
+            allocate (n_corr(ntod, ndet))                 ! Correlated noise in V
+            allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
+            allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
+            allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A) in uKcmb
+            allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B) in uKcmb
+            allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both) in uKcmb
+            allocate (s_buf(ntod, ndet))                  ! Buffer
+            allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
+            allocate (mask(ntod, ndet))                   ! Processing mask in time
+            allocate (mask2(ntod, ndet))                  ! Processing mask in time
+            allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
+            allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
+            allocate (flag(ntod, ndet))                   ! Decompressed flags
 
-         ! Construct orbital dipole template
-         call wall_time(t1)
-         call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
-         call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
-         do j = 1, ndet
-            s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
-                            & (1-self%x_im((j+1)/2))*s_orbB(:,j)
-         end do
-         call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
+            ! --------------------
+            ! Analyze current scan
+            ! --------------------
 
-         ! Add orbital dipole to total signal
-         s_buf = 0.d0
-         do j = 1, ndet
-            s_tot(:, j) = s_sky(:, j) + s_orb_tot(:,j)
-            s_buf(:, j) = s_tot(:, j)
-         end do
+            ! Decompress pointing, psi and flags for current scan
+            call wall_time(t1)
+            do j = 1, ndet
+               call self%decompress_pointing_and_flags(i, j, pix(:, j, :), &
+                    & psi(:, j, :), flag(:, j))
+            end do
+            call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
-         !! Fit gain
-         !if (.false.) then
-         !   call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
-         !end if
-         !estimate the correlated noise
-         !if (do_oper(samp_N)) then
-         do j = 1, ndet
-            if (.not. self%scans(i)%d(j)%accept) cycle
-            s_buf(:,j) = s_tot(:,j)
-         end do
-         call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
-         do j = 1, ndet
-            n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
-         end do
-         !n_corr = 0d0
+            ! Construct sky signal template
+            call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
+                     & self%x_im, sprocmask%a, i, s_sky, mask)
 
-         ! Compute noise spectrum
-         !call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
+            if (main_iter == 1 .and. self%first_call) then
+               do j = 1, ndet
+                  self%scans(i)%d(j)%accept = .true.
+                  if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
+                  if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
+               end do
+            end if
+            do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
+            end do
 
-         !*******************
-         ! Compute binned map
-         !*******************
+            ! Construct orbital dipole template
+            call wall_time(t1)
+            s_orbA = 0d0
+            s_orbB = 0d0
+            call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
+            call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
+            s_orb_tot = 0d0
+            do j = 1, ndet
+               s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
+                               & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+            end do
+            call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
-         ! Get calibrated map
-         allocate (d_calib(nout, ntod, ndet))
-         do j = 1, ndet
-            inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
-            !inv_gain = 1.0
-            d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-               & inv_gain - s_tot(:, j) + s_sky(:, j)
+            ! Add orbital dipole to total signal
+            s_buf = 0.d0
+            do j = 1, ndet
+               s_tot(:, j) = s_sky(:, j) + s_orb_tot(:,j)
+               s_buf(:, j) = s_tot(:, j)
+            end do
 
-            if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
-            if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
-            if (i == 1) then
-               if (self%myid_shared == 0) then
-                  filename = trim(prefix)//'calib_'//trim(str(j))// '.dat'
-                  call write_tod_chunk(filename, d_calib(1,:,j))
-                  filename = trim(prefix)//'res'//trim(str(j))//'.dat'
-                  call write_tod_chunk(filename, d_calib(2,:,j))
-                  filename = trim(prefix)//'sky_sig'//trim(str(j))//'.dat'
-                  call write_tod_chunk(filename, s_sky(:,j))
-               end if
+            !!!!!!!!!!!!!!!!!!!
+            ! Gain calculations
+            !!!!!!!!!!!!!!!!!!!
+
+            ! Precompute filtered signal for calibration
+            if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
+               call update_status(status, "Precomputing filtered signal")
+               call self%downsample_tod(s_orb_tot(:,1), ext)
+               allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
+               allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
+                     s_buf(:,j) = s_tot(:,j)
+                     call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', abs(real(self%scans(i)%d(j)%sigma0, sp)), handle)
+                     call self%downsample_tod(s_buf(:,j), ext, &
+                          & s_lowres(:,j))!, mask(:,j))
+                  else
+                     call self%downsample_tod(s_orb_tot(:,j), ext, &
+                          & s_lowres(:,j))!, mask(:,j))
+                  end if
+               end do
+               s_invN = s_lowres
+               call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
+               call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
             end if
 
+            ! Prepare for absolute calibration
+            if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
+               call update_status(status, "Prepping for absolute calibration")
+               call wall_time(t1)
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  if (do_oper(samp_acal)) then
+                     if (self%orb_abscal) then
+                        s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb_tot(:, j)) + &
+                             & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                     else
+                        s_buf(:, j) = real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                     end if
+                  else
+!                     s_buf(:,j) =  s_tot(:,j) - s_orb(:,j) !s_sky(:,j) + s_sl(:,j) + s_mono(:,j)
+                     s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
+                  end if
+               end do
+               call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
+
+               if (.false.) then
+                  call int2string(self%scanid(i), scantext)
+                  open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
+                  write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
+                  do k = 1, ntod, 60
+                     write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - &
+                          & self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb_tot(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
+                  end do
+                  close(78)
+               end if
+               call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
+            end if
+
+            ! Fit gain
+            if (do_oper(samp_G)) then
+               call update_status(status, "Fitting gain")
+               call wall_time(t1)
+               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
+               call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
+            end if
+
+            ! Fit correlated noise
+            if (do_oper(samp_N)) then
+               call update_status(status, "Fitting correlated noise")
+               call wall_time(t1)
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  if (do_oper(samp_mono)) then
+                     s_buf(:,j) = s_tot(:,j)-s_mono(:,j)
+                  else
+                     s_buf(:,j) = s_tot(:,j)
+                  end if
+               end do
+               call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
+!!               do j = 1, ndet
+!!                  n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
+!!               end do
+               call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
+            else
+               n_corr = 0.
+            end if
+
+            ! Compute noise spectrum
+            if (do_oper(samp_N_par)) then
+               call update_status(status, "Computing noise power")
+               call wall_time(t1)
+               call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
+               call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
+            end if
+
+            !*******************
+            ! Compute binned map
+            !*******************
+
+            ! Get calibrated map
+            if (do_oper(bin_map)) then
+               call update_status(status, "Computing binned map")
+               allocate (d_calib(nout, ntod, ndet))
+               d_calib = 0
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
+                  d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
+                     & inv_gain - s_tot(:, j) + s_sky(:, j)
+
+                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
+                  if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
+                  if (i == 1) then
+                     if (self%myid_shared == 0) then
+                        filename = trim(prefix)//'calib_'//trim(str(j))// '.dat'
+                        call write_tod_chunk(filename, d_calib(1,:,j))
+                        filename = trim(prefix)//'res'//trim(str(j))//'.dat'
+                        call write_tod_chunk(filename, d_calib(2,:,j))
+                        filename = trim(prefix)//'sky_sig'//trim(str(j))//'.dat'
+                        call write_tod_chunk(filename, s_sky(:,j))
+                     end if
+                  end if
+
+               end do
+
+               ! Bin the calibrated map
+               call bin_differential_TOD(self, d_calib, pix,  &
+                      & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
+               deallocate(d_calib)
+               call wall_time(t8); t_tot(19) = t_tot(19) + t8
+            end if
+
+
+            deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_sky_prop)
+            deallocate (mask, mask2, pix, psi, flag)
+            if (allocated(s_lowres)) deallocate (s_lowres)
+            if (allocated(s_invN)) deallocate (s_invN)
          end do
 
-         ! Bin the calibrated map
-         call bin_differential_TOD(self, d_calib, pix,  &
-                & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
-         deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_sky_prop, d_calib)
-         deallocate (mask, mask2, pix, psi, flag)
-         if (allocated(s_lowres)) deallocate (s_lowres)
-         if (allocated(s_invN)) deallocate (s_invN)
-         call wall_time(t8); t_tot(19) = t_tot(19) + t8
 
-      end do
+         if (do_oper(samp_acal)) then
+            call wall_time(t1)
+            call sample_abscal_from_orbital(self, handle, A_abscal, b_abscal)
+            call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+         end if
+
+         if (do_oper(samp_rcal)) then
+            call wall_time(t1)
+            call sample_relcal(self, handle, A_abscal, b_abscal)
+            call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+         end if
+
+         if (do_oper(samp_G)) then
+            call wall_time(t1)
+            call sample_smooth_gain(self, handle, dipole_mod)
+            call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
+         end if
+         call update_status(status, "Finished main loop iteration") 
+      end do main_it
 
       call update_status(status, "Running allreduce on M_diag")
       call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
@@ -427,7 +576,7 @@ contains
 
       cg_sol = 0.0d0
       epsil = 1.0d-3
-      epsil = 1.0d-2
+      !epsil = 1.0d-2
 
       i_max = int(npix**0.5)
 
@@ -556,8 +705,10 @@ contains
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
 
       ! Clean up temporary arrays
-      !deallocate(A_abscal, b_abscal, chisq_S)
+      deallocate(A_abscal, b_abscal, chisq_S)
       if (allocated(b_map)) deallocate (b_map)
+      if (allocated(r_tot)) deallocate (r_tot)
+      if (allocated(corr_tot)) deallocate (corr_tot)
       if (sA_map%init) call dealloc_shared_2d_dp(sA_map)
       if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
       if (sb_mono%init) call dealloc_shared_3d_dp(sb_mono)
@@ -576,6 +727,7 @@ contains
       if (sprocmask%init) call dealloc_shared_1d_int(sprocmask)
       if (sprocmask2%init) call dealloc_shared_1d_int(sprocmask2)
       deallocate (map_sky)
+      deallocate (cg_sol, r, s, d, q, r0, shat, p, phat, v)
 
       call int2string(iter, ctext)
       call update_status(status, "tod_end"//ctext)

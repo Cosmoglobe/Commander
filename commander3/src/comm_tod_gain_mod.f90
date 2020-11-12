@@ -66,7 +66,7 @@ contains
        end if
        r_fill = tod%scans(scan_id)%d(j)%tod - (tod%gain0(0) + &
             & tod%gain0(j)) * s_tot(:,j)
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%sigma0, sp), handle)
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan_id)%d(j)%sigma0, sp)), handle)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
     call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
@@ -478,7 +478,7 @@ contains
           cycle
        end if
        r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j)
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan)%d(j)%sigma0, sp), handle)
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
 

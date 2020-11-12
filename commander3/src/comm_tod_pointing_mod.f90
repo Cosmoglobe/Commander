@@ -113,6 +113,7 @@ contains
       real(sp), dimension(:, :), intent(out), optional :: s_bp
 
       integer(i4b) :: i, j, lpoint, rpoint, sgn
+      tmask = 1d0
 
       do i = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(i)%accept) then
@@ -145,7 +146,11 @@ contains
                                           &  sgn*( &
                                           &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
                                           &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
-            tmask(j, i) = ior(pmask(pix(j, i, 1)), pmask(pix(j,i,2)))
+            if (flag(j, i) == 0) then
+                tmask(j, i) = pmask(pix(j, i, 1))*pmask(pix(j,i,2))
+            else
+                tmask(j, i) = 0
+            end if
          end do
       end do
 
