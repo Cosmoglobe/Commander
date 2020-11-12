@@ -115,10 +115,8 @@ contains
       nout = size(b, dim=1)
 
       do det = 1, tod%ndet
+         if (.not. tod%scans(scan)%d(det)%accept) cycle
          sigma_0 = tod%scans(scan)%d(det)%sigma0
-         if (sigma_0 == 0) then
-             sigma_0 = 1d6
-         end if
          inv_sigmasq = (tod%scans(scan)%d(det)%gain/sigma_0)**2
          x_im = x_imarr((det+1)/2)
          do t = 1, tod%scans(scan)%ntod
@@ -133,10 +131,14 @@ contains
             pB = pmask(rpix)
             ! This SHOULD make it so that if pA is 0 (high emission) and pB
             ! is 1 (low emission), pixA is updated and pixB isn't.
-            f_A = 1-pA*(1-pB)
-            f_B = 1-pB*(1-pA)
+            !f_A = 1-pA*(1-pB)
+            !f_B = 1-pB*(1-pA)
             !f_A = pB
             !f_B = pA
+            !f_A = pB
+            !f_B = pA
+            f_A = 1
+            f_B = 1
 
             do i = 1, nout
                d = data(i, t, det)
@@ -191,6 +193,7 @@ contains
          allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
          allocate (flag(ntod, ndet))                   ! Decompressed flags
          do k = 1, tod%ndet
+            if (.not. tod%scans(scan)%d(k)%accept) cycle
             call tod%decompress_pointing_and_flags(j, k, pix(:, k, :), &
                 & psi(:, k, :), flag(:, k))
             do t = 1, ntod
@@ -211,10 +214,12 @@ contains
                sgn = (-1)**((k + 1)/2 + 1)
                pA = pmask(lpix)
                pB = pmask(rpix)
-               f_A = 1-pA*(1-pB)
-               f_B = 1-pB*(1-pA)
-               !f_A = pB
-               !f_B = pA
+               !f_A = 1-pA*(1-pB)
+               !f_B = 1-pB*(1-pA)
+               f_A = pB
+               f_B = pA
+               f_A = 1
+               f_B = 1
                ! This is the model for each timestream
                ! The sgn parameter is +1 for timestreams 13 and 14, -1
                ! for timestreams 23 and 24, and also is used to switch
