@@ -1320,11 +1320,11 @@ contains
 
 
 ! Fills masked region with linear function between the mean of 20 points at each end
-  subroutine fill_masked_region(d_p, mask, i_start, i_end, ntod)
+  subroutine fill_masked_region(d_p, mask, i_start, i_end, ntod, chunk)
     implicit none
     real(sp), intent(inout)  :: d_p(:)
     real(sp), intent(in)     :: mask(:)
-    integer(i4b), intent(in) :: i_end, i_start, ntod
+    integer(i4b), intent(in) :: i_end, i_start, ntod, chunk
     real(dp)     :: mu1, mu2
     integer(i4b) :: i, n_mean, earliest, latest
     n_mean = 20
@@ -1335,7 +1335,9 @@ contains
           mu2 = sum(d_p(i_end:latest) * mask(i_end:latest)) / sum(mask(i_end:latest))
           d_p(i_start:i_end) = mu2
        else
-          write(*,*) "Entire scan masked, this should not happen (in comm_tod_mod.fill_masked_region)"
+          ! write(*,*) "Entirity of scan", chunk, "masked, this should not happen (in comm_tod_mod.fill_masked_region)"
+          d_p(:) = 0.d0
+          return
        end if
     else if (i_end == ntod) then  ! masked region at end of scan
        mu1 = sum(d_p(earliest:i_start) * mask(earliest:i_start)) / sum(mask(earliest:i_start))
@@ -1351,7 +1353,7 @@ contains
 
 
 ! Identifies and fills masked region
-  subroutine fill_all_masked(d_p, mask, ntod, sample, sigma_0, handle)
+  subroutine fill_all_masked(d_p, mask, ntod, sample, sigma_0, handle, chunk)
     implicit none
     real(sp),         intent(inout)  :: d_p(:)
     real(sp),         intent(in)     :: mask(:)
@@ -1359,6 +1361,7 @@ contains
     type(planck_rng), intent(inout), optional  :: handle
     integer(i4b),     intent(in) :: ntod
     logical(lgt),     intent(in) :: sample
+    integer(i4b),     intent(in) :: chunk
     integer(i4b) :: j_end, j_start, j, k
     logical(lgt) :: init_masked_region, end_masked_region
 
@@ -1369,7 +1372,7 @@ contains
        if (mask(j) == 1.) then
           if (end_masked_region) then
              j_end = j - 1
-             call fill_masked_region(d_p, mask, j_start, j_end, ntod)
+             call fill_masked_region(d_p, mask, j_start, j_end, ntod, chunk)
              ! Add noise to masked region
              if (sample) then
                 do k = j_start, j_end
@@ -1390,7 +1393,7 @@ contains
     ! if the data ends with a masked region
     if (end_masked_region) then
        j_end = ntod
-       call fill_masked_region(d_p, mask, j_start, j_end, ntod)
+       call fill_masked_region(d_p, mask, j_start, j_end, ntod, chunk)
        if (sample) then
           do k = j_start, j_end
              d_p(k) = d_p(k) + sigma_0 * rand_gauss(handle)
@@ -1425,7 +1428,7 @@ contains
        chisq = chisq + (d0 - g * s_sky(i))**2
     end do
 
-    if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
+    if (self%scans(scan)%d(det)%sigma0 <= 0.d0 .or. n == 0) then
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = 0.d0
        else
