@@ -478,11 +478,7 @@ contains
           cycle
        end if
        r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j)
-<<<<<<< HEAD
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle)
-=======
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan)%d(j)%sigma0, sp), handle, tod%scans(scan)%chunk_num)
->>>>>>> master
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
 
