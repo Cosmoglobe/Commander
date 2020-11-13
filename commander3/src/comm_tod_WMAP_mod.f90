@@ -285,9 +285,9 @@ contains
 
          if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-3)
-         do_oper(samp_rcal)    = .false. !(main_iter == n_main_iter-2)
-         do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1)
+         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !
+         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !
+         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !
          do_oper(samp_N)       = (main_iter >= n_main_iter-0)
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -385,7 +385,6 @@ contains
 
             ! Precompute filtered signal for calibration
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
-               call update_status(status, "Precomputing filtered signal")
                call self%downsample_tod(s_orb_tot(:,1), ext)
                allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
                allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
@@ -428,15 +427,20 @@ contains
 
                if (.false.) then
                   call int2string(self%scanid(i), scantext)
-                  open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
-                  write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
-                  do k = 1, ntod, 60
-                     write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - &
-                          & self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb_tot(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
-                  end do
-                  close(78)
+                  !open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
+                  !write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
+                  !do k = 1, ntod, 60
+                  !   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - &
+                  !        & self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb_tot(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
+                  !end do
+                  !close(78)
+                  write(*,*) 'Sample', k
+                  write(*,*) 'Data (V)', mean(1.d0*self%scans(i)%d(j)%tod(k:k+59))
+                  write(*,*) 'Res (V)',  mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j))
+                  write(*,*) 's_orb (K)', mean(1.d0*s_orb_tot(k:k+59,j))
+                  write(*,*) 's_sub (K)', mean(1.d0*s_buf(k:k+59,j))
+                  write(*,*) 'Mask', minval(mask(k:k+59,j))
                end if
-               call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
             end if
 
             ! Fit gain
@@ -513,13 +517,23 @@ contains
                call wall_time(t8); t_tot(19) = t_tot(19) + t8
             end if
 
+            do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               dipole_mod(self%scanid(i), j) = masked_variance(s_sky(:, j), mask(:, j))
+            end do
 
+            ! Clean up
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_sky_prop)
             deallocate (mask, mask2, pix, psi, flag)
             if (allocated(s_lowres)) deallocate (s_lowres)
             if (allocated(s_invN)) deallocate (s_invN)
          end do
 
+         call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+         if (self%myid == 0) then
+            write(*, *) "CHECKPOINT"
+            !write(*, *) dipole_mod
+         end if
 
          if (do_oper(samp_acal)) then
             call wall_time(t1)
@@ -538,6 +552,7 @@ contains
             call sample_smooth_gain(self, handle, dipole_mod)
             call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
          end if
+
          call update_status(status, "Finished main loop iteration") 
       end do main_it
 
@@ -575,10 +590,11 @@ contains
       allocate (cg_sol(nout, nmaps, 0:npix-1))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-3
-      !epsil = 1.0d-2
+      !epsil = 1.0d-3
+      epsil = 1.0d-2
 
       i_max = int(npix**0.5)
+      i_max = 10
 
       allocate (r0(nout, nmaps, 0:npix-1))
       allocate (v(nout, nmaps, 0:npix-1))
@@ -780,5 +796,6 @@ contains
      call outmaps(1)%p%writeFITS(filename)
 
    end subroutine write_fits_file
+
 
 end module comm_tod_WMAP_mod
