@@ -621,7 +621,7 @@ contains
                    all_fixed=.false. !not all poltypes are pixelregions
                 end if
              end do
-             if (all_fixed==.true.) then
+             if (all_fixed .eqv. .true.) then
                 write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
                      & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
                      & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
