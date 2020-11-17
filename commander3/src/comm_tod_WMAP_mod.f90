@@ -605,6 +605,8 @@ contains
       ! It would be nice to calculate epsilon on the fly, so that the numerical
       ! error per pixel needs to be smaller than the instrumental noise per
       ! pixel.
+      ! OK, the expected chi squared is satisfied very early on. To make things
+      ! really fast, we can make delta_0 equal to Npix.
 
 
       allocate (r0(nout, nmaps, 0:npix-1))
@@ -616,9 +618,13 @@ contains
          call update_status(status, "Starting bicg-stab")
          r(l, :, :)  = b_map(l, :, :)
          r0(l, :, :) = b_map(l, :, :)
-         delta_0 = sum(r(l,:,:)**2/M_diag(l,:,:))
-         delta_r = delta_0
-         delta_s = delta_0
+         !delta_0 = sum(r(l,:,:)**2/M_diag(l,:,:))
+         ! If r is just Gaussian white noise, then delta_0 is a chi-squared
+         ! random variable with 3 npix variables.
+         delta_0 = size(M_diag(l,:,:))
+         delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
+         delta_s = delta_s
+         write(*,*) 'Amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
 
          omega = 1
          alpha = 1
@@ -733,9 +739,7 @@ contains
 
       ! Clean up temporary arrays
       deallocate(A_abscal, b_abscal, chisq_S)
-      if (allocated(b_map)) deallocate (b_map)
-      if (allocated(r_tot)) deallocate (r_tot)
-      if (allocated(corr_tot)) deallocate (corr_tot)
+      deallocate(b_map, M_diag, r_tot, cg_tot, corr_tot)
       if (sA_map%init) call dealloc_shared_2d_dp(sA_map)
       if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
       if (sb_mono%init) call dealloc_shared_3d_dp(sb_mono)
