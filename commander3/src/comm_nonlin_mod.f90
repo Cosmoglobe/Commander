@@ -135,7 +135,7 @@ contains
                    else
                       if (cpar%almsamp_pixreg) then
                          if (cpar%almsamp_priorsamp_frozen .and. &
-                              & any(c%fix_pixreg(:c%npixreg(p,j),p,j)==.true.)) then
+                              & any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) then
                             samp_cg = .true.
                          end if
                       end if
@@ -707,7 +707,7 @@ contains
 
           if (cpar%almsamp_pixreg) then
              if (cpar%almsamp_priorsamp_frozen .and. &
-                  & any(c%fix_pixreg(:c%npixreg(pl,j),pl,j)==.true.)) then
+                  & any(c%fix_pixreg(:c%npixreg(pl,j),pl,j) .eqv. .true.)) then
                 !Sample frozen regions using component prior
                 if (info%myid == 0) then
                    ! Save old values
