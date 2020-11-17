@@ -296,32 +296,47 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
 
             f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                     data=np.int32(todi))
-            if compress:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
-                        data=np.void(bytes(h.byteCode(deltaflag))))
-                
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
-                        data=np.void(bytes(h.byteCode(deltapixA))))
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
-                        data=np.void(bytes(h.byteCode(deltapixB))))
+            # pix and psi are currently taking up four times as much data volume
+            # as necessary; K113, K114, K123, and K124 all have the same
+            # pixA/pixB/psiA/psiB values.
+            # Actually, I think all of these are the same... maybe for those
+            # ending in '13' write the actual dataset, and then make the
+            # following links?
+            if label[-2:] == '13':
+                if compress:
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',
+                            data=np.void(bytes(h.byteCode(deltaflag))))
+                    
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixA',
+                            data=np.void(bytes(h.byteCode(deltapixA))))
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixB',
+                            data=np.void(bytes(h.byteCode(deltapixB))))
 
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
-                        data=np.void(bytes(h.byteCode(deltapsiA))))
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
-                        data=np.void(bytes(h.byteCode(deltapsiB))))
-            else:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/flag',
-                        data=flags)
-                
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixA',
-                        data=pixA)
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/pixB',
-                        data=pixB)
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiA',
+                            data=np.void(bytes(h.byteCode(deltapsiA))))
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
+                            data=np.void(bytes(h.byteCode(deltapsiB))))
+                else:
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',
+                            data=flags)
+                    
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixA',
+                            data=pixA)
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixB',
+                            data=pixB)
 
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiA',
-                        data=psiA)
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/psiB',
-                        data=psiB)
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiA',
+                            data=psiA)
+                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
+                            data=psiB)
+            # Link to the pointing and flag information
+            f[obsid + '/' + label.replace('KA','Ka') + '/flag'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag')
+            
+            f[obsid + '/' + label.replace('KA','Ka') + '/pixA'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixA')
+            f[obsid + '/' + label.replace('KA','Ka') + '/pixB'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixB')
+            f[obsid + '/' + label.replace('KA','Ka') + '/psiA'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiA')
+            f[obsid + '/' + label.replace('KA','Ka') + '/psiB'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiB')
+
 
 
             det_list.append(label.replace('KA','Ka'))
@@ -895,5 +910,5 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=15, center=True)
     #main(par=True, plot=False, compress=True, version=20, center=True)
     #main(par=True, plot=False, compress=True, version=21, center=False)
-    main(par=True, plot=False, compress=True, version=22, center=False)
+    main(par=False, plot=False, compress=True, version=23, center=False)
     #test_flags()
