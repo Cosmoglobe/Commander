@@ -99,9 +99,11 @@ contains
 
    ! Sky signal template
    subroutine project_sky_differential(tod, map, pix, psi, flag, x_im, pmask, scan_id,&
-        & s_sky, tmask, s_bp)
+        & s_sky, tmask, simulate, s_bp)
       implicit none
-      class(comm_tod), intent(in)  :: tod
+      !class(comm_tod), intent(in)  :: tod
+      ! It is only inout for simulating data
+      class(comm_tod), intent(inout)  :: tod
       integer(i4b), dimension(0:), intent(in)  :: pmask
       real(sp), dimension(1:, 1:, 0:), intent(in)  :: map
       !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
@@ -110,6 +112,7 @@ contains
       integer(i4b), intent(in)  :: scan_id
       real(dp), dimension(:), intent(in)  :: x_im
       real(sp), dimension(:, :), intent(out) :: s_sky, tmask
+      logical(lgt), intent(in) :: simulate
       real(sp), dimension(:, :), intent(out), optional :: s_bp
 
       integer(i4b) :: i, j, lpoint, rpoint, sgn
@@ -146,6 +149,17 @@ contains
                                           &  sgn*( &
                                           &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
                                           &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            ! Setting TOD to the sky model. Should not be in use for actual
+            ! production runs!!!!
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            if (simulate) then
+               tod%scans(scan_id)%d(i)%tod(j) = s_sky(j,i)*tod%scans(scan_id)%d(i)%gain + &
+                   & + rand_normal(0d0, 1d0)*tod%scans(scan_id)%d(i)%sigma0
+            end if
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            ! Everything below this line is fine.
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             if (flag(j, i) == 0) then
                 tmask(j, i) = pmask(pix(j, i, 1))*pmask(pix(j,i,2))
             else
@@ -155,5 +169,17 @@ contains
       end do
 
    end subroutine project_sky_differential
+
+   function rand_normal(mean,stdev) result(c)
+         double precision :: mean,stdev,c,temp(2),theta,r
+         if (stdev <= 0.0d0) then
+            write(*,*) "Standard Deviation must be positive."
+         else
+            call RANDOM_NUMBER(temp)
+            r=(-2.0d0*log(temp(1)))**0.5
+            theta = 2.0d0*PI*temp(2)
+        c= mean+stdev*r*sin(theta)
+      end if
+   end function
 
 end module comm_tod_pointing_mod

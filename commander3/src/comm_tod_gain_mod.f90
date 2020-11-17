@@ -191,46 +191,46 @@ contains
 
         count = count+1
         write(*, *) "FREQ IS ", trim(tod%freq), count
-!       nbin = nscan_tot / binsize + 1
+       !nbin = nscan_tot / binsize + 1
 
-!!$       open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$          do k = 1, nscan_tot
-!!$             !if (g(k,j,2) /= 0) then
-!!$             if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
-!!$             if (g(k,j,2) > 0) then
-!!$                if (abs(g(k, j, 1)) > 1e10) then
-!!$                   write(*, *) 'G1'
-!!$                   write(*, *) g(k, j, 1)
-!!$                end if
-!!$                if (abs(g(k, j, 2)) > 1e10) then
-!!$                   write(*, *) 'G2'
-!!$                   write(*, *) g(k, j, 2)
-!!$                end if
-!!$                if (abs(dipole_mods(k, j) > 1e10)) then
-!!$                   write(*, *) 'DIPOLE_MODS'
-!!$                   write(*, *) dipole_mods(k, j)
-!!$                else
-!!$                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-!!$                end if
-!!$             else
-!!$                write(58,*) j, k, 0., 0.0, 0., 0.
-!!$             end if
-!!$          end do
-!!$          write(58,*)
-!!$       end do
-!!$       close(58)
+       !open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
+       !do j = 1, ndet
+       !   do k = 1, nscan_tot
+       !      !if (g(k,j,2) /= 0) then
+       !      if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
+       !      if (g(k,j,2) > 0) then
+       !         if (abs(g(k, j, 1)) > 1e10) then
+       !            write(*, *) 'G1'
+       !            write(*, *) g(k, j, 1)
+       !         end if
+       !         if (abs(g(k, j, 2)) > 1e10) then
+       !            write(*, *) 'G2'
+       !            write(*, *) g(k, j, 2)
+       !         end if
+       !         if (abs(dipole_mods(k, j) > 1e10)) then
+       !            write(*, *) 'DIPOLE_MODS'
+       !            write(*, *) dipole_mods(k, j)
+       !         else
+       !            write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+       !         end if
+       !      else
+       !         write(58,*) j, k, 0., 0.0, 0., 0.
+       !      end if
+       !   end do
+       !   write(58,*)
+       !end do
+       !close(58)
 
        allocate(window_sizes(tod%ndet, tod%nscan_tot))
        call get_smoothing_windows(tod, window_sizes, dipole_mods)
-!!$       open(58, file='smoothing_windows' // trim(tod%freq) // '.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$         do k = 1, size(window_sizes(j, :))
-!!$            if (window_sizes(j, k) == 0) cycle
-!!$            write(58, *) j, k, window_sizes(j, k)
-!!$         end do
-!!$       end do
-!!$       close(58)
+       open(58, file='smoothing_windows' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+         do k = 1, size(window_sizes(j, :))
+            if (window_sizes(j, k) == 0) cycle
+            write(58, *) j, k, window_sizes(j, k)
+         end do
+       end do
+       close(58)
 
        allocate(pidrange_gainarr(nscan_tot, ndet))
        pidrange_gainarr = 0.d0
@@ -244,21 +244,21 @@ contains
 !       call get_pid_ranges(pid_ranges, tod, pidrange_gainarr, dipole_mods, window_sizes)
        call get_pid_ranges_tabulated(pid_ranges, tod)
        deallocate(pidrange_gainarr)
-!!$       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$         do k = 1, size(pid_ranges(j, :))
-!!$            if (pid_ranges(j, k) == 0) exit
-!!$            write(58, *) j, k, pid_ranges(j, k)
-!!$         end do
-!!$       end do
-!!$       close(58)
+       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+         do k = 1, size(pid_ranges(j, :))
+            if (pid_ranges(j, k) == 0) exit
+            write(58, *) j, k, pid_ranges(j, k)
+         end do
+       end do
+       close(58)
 
        do j = 1, ndet
          lhs = 0.d0
          rhs = 0.d0
          pid_id = 1
          k = 0
-!         write(*,*) "PIDRANGE: ", pid_ranges(j, :)
+         write(*,*) "PIDRANGE: ", pid_ranges(j, :)
          do while (pid_id < size(pid_ranges(j, :)))
             if (pid_ranges(j, pid_id) == 0) exit
             currstart = pid_ranges(j, pid_id)
@@ -307,8 +307,8 @@ contains
                write(*, *) 'temp_invsigsquared', temp_invsigsquared
                stop
             end if
-!            write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
-!            write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
+            write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
+            write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
             do k = currstart, currend
                g(k, j, 1) = smoothed_gain(k - currstart + 1)
 !               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then
@@ -395,35 +395,35 @@ contains
          mu = mu / denom
 
          ! Make sure fluctuations sum up to zero
-         !write(*,*) 'mu = ', mu
+         write(*,*) 'mu = ', mu
          g(:,j,1) = g(:,j,1) - mu
        end do
-!!$       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$          do k = 1, nscan_tot
-!!$             !if (g(k,j,2) /= 0) then
-!!$             if (g(k,j,2) > 0) then
-!!$                if (abs(g(k, j, 1)) > 1e10) then
-!!$                   write(*, *) 'G1_postsmooth'
-!!$                   write(*, *) g(k, j, 1)
-!!$                end if
-!!$                if (abs(g(k, j, 2)) > 1e10) then
-!!$                   write(*, *) 'G2_postsmooth'
-!!$                   write(*, *) g(k, j, 2)
-!!$                end if
-!!$                if (abs(dipole_mods(k, j) > 1e10)) then
-!!$                   write(*, *) 'DIPOLE_MODS'
-!!$                   write(*, *) dipole_mods(k, j)
-!!$                else
-!!$                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-!!$                end if
-!!$             else
-!!$                write(58,*) j, k, 0., 0.0, 0., 0.
-!!$             end if
-!!$          end do
-!!$          write(58,*)
-!!$       end do
-!!$       close(58)
+       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+          do k = 1, nscan_tot
+             !if (g(k,j,2) /= 0) then
+             if (g(k,j,2) > 0) then
+                if (abs(g(k, j, 1)) > 1e10) then
+                   write(*, *) 'G1_postsmooth'
+                   write(*, *) g(k, j, 1)
+                end if
+                if (abs(g(k, j, 2)) > 1e10) then
+                   write(*, *) 'G2_postsmooth'
+                   write(*, *) g(k, j, 2)
+                end if
+                if (abs(dipole_mods(k, j) > 1e10)) then
+                   write(*, *) 'DIPOLE_MODS'
+                   write(*, *) dipole_mods(k, j)
+                else
+                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+                end if
+             else
+                write(58,*) j, k, 0., 0.0, 0., 0.
+             end if
+          end do
+          write(58,*)
+       end do
+       close(58)
 
        deallocate(window_sizes, pid_ranges)
     end if
@@ -849,8 +849,11 @@ contains
             window_size_dipole_minimum = 1500
             window_size_dipole_maximum = 300
          case ('070')
-            window_size_dipole_minimum = 1800
+            window_size_dipole_minimum = 1880
             window_size_dipole_maximum = 400
+         case ('023-WMAP_K')
+             window_size_dipole_minimum = 1200
+             window_size_dipole_maximum = 400
          ! Currently, the 70-GHz ds
          case default
             window_size_dipole_minimum = 1800

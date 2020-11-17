@@ -43,7 +43,7 @@ module comm_tod_WMAP_mod
    private
    public comm_WMAP_tod
 
-   integer(i4b), parameter :: N_test = 19
+   integer(i4b), parameter :: N_test = 20
    integer(i4b), parameter :: samp_N = 1
    integer(i4b), parameter :: prep_G = 15
    integer(i4b), parameter :: samp_G = 2
@@ -62,6 +62,7 @@ module comm_tod_WMAP_mod
    integer(i4b), parameter :: output_slist = 12
    integer(i4b), parameter :: samp_mono = 13
    integer(i4b), parameter :: sub_zodi = 17
+   integer(i4b), parameter :: sim_map = 20
    logical(lgt), dimension(N_test) :: do_oper
 
    type, extends(comm_tod) :: comm_WMAP_tod
@@ -104,7 +105,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 1
+      constructor%output_n_maps = 3
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -196,7 +197,7 @@ contains
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
       ! conjugate gradient parameters
-      integer(i4b) :: i_max
+      integer(i4b) :: i_max=10
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
@@ -285,10 +286,10 @@ contains
 
          if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !
-         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !
-         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !
-         do_oper(samp_N)       = (main_iter >= n_main_iter-0)
+         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. ! 
+         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. ! 
+         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. ! 
+         do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
          do_oper(prep_absbp)   = .false. ! ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
@@ -299,6 +300,7 @@ contains
          do_oper(calc_chisq)   = (main_iter == n_main_iter  )
          do_oper(sub_zodi)     = self%subtract_zodi
          do_oper(output_slist) = mod(iter, 1) == 0
+         do_oper(sim_map)      = (main_iter == 1)
 
          dipole_mod = 0
 
@@ -344,8 +346,13 @@ contains
             call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
             ! Construct sky signal template
-            call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
-                     & self%x_im, sprocmask%a, i, s_sky, mask)
+            if (do_oper(sim_map)) then
+               call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
+                      & self%x_im, sprocmask%a, i, s_sky, mask, .true.)
+            else 
+               call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
+                      & self%x_im, sprocmask%a, i, s_sky, mask, .false.)
+            end if
 
             if (main_iter == 1 .and. self%first_call) then
                do j = 1, ndet
@@ -370,6 +377,12 @@ contains
                s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
                                & (1-self%x_im((j+1)/2))*s_orbB(:,j)
             end do
+            if (do_oper(sim_map)) then
+                do j = 1, ndet
+                   inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
+                   self%scans(i)%d(j)%tod = self%scans(i)%d(j)%tod + s_orb_tot(:,j)/inv_gain
+                end do
+            end if
             call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
             ! Add orbital dipole to total signal
@@ -425,22 +438,6 @@ contains
                end do
                call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
 
-               if (.false.) then
-                  call int2string(self%scanid(i), scantext)
-                  !open(78,file='tod_'//trim(self%label(j))//'_pid'//scantext//'_k'//samptext//'.dat', recl=1024)
-                  !write(78,*) "# Sample     Data (V)    Res (V)    s_sub (K)   s_orb (K)   mask"
-                  !do k = 1, ntod, 60
-                  !   write(78,*) k, mean(1.d0*self%scans(i)%d(j)%tod(k:k+59)), mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - &
-                  !        & self%scans(i)%d(j)%gain*s_buf(k:k+59,j)), mean(1.d0*s_orb_tot(k:k+59,j)),  mean(1.d0*s_buf(k:k+59,j)),  minval(mask(k:k+59,j))
-                  !end do
-                  !close(78)
-                  write(*,*) 'Sample', k
-                  write(*,*) 'Data (V)', mean(1.d0*self%scans(i)%d(j)%tod(k:k+59))
-                  write(*,*) 'Res (V)',  mean(1.d0*self%scans(i)%d(j)%tod(k:k+59) - self%scans(i)%d(j)%gain*s_buf(k:k+59,j))
-                  write(*,*) 's_orb (K)', mean(1.d0*s_orb_tot(k:k+59,j))
-                  write(*,*) 's_sub (K)', mean(1.d0*s_buf(k:k+59,j))
-                  write(*,*) 'Mask', minval(mask(k:k+59,j))
-               end if
             end if
 
             ! Fit gain
@@ -510,6 +507,19 @@ contains
 
                end do
 
+               if (.false. .and. do_oper(bin_map) ) then
+                  call int2string(self%scanid(i), scantext)
+                  do k = 1, self%ndet
+                     open(78,file='tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
+                     write(78,*) "# Sample     Data (V)     Mask    cal_TOD (K)   res (K)"// &
+                          & "   n_corr (K)   s_corr (K)   s_mono (K)   s_orb  (K)   s_sl (K)"
+                     do j = 1, ntod
+                        write(78,*) j, self%scans(i)%d(k)%tod(j), mask(j,1), d_calib(:,j,k)
+                     end do
+                     close(78)
+                  end do
+               end if
+
                ! Bin the calibrated map
                call bin_differential_TOD(self, d_calib, pix,  &
                       & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
@@ -563,9 +573,6 @@ contains
       call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
            & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
 
-      where (M_diag .eq. 0d0)
-         M_diag = 1d0
-      end where
 
       np0 = self%info%np
       allocate (cg_tot(nmaps, 0:np0 - 1))
@@ -580,6 +587,9 @@ contains
          call write_fits_file(trim(prefix)//'M'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
       end do
 
+      where (M_diag .eq. 0d0)
+         M_diag = 1d0
+      end where
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
@@ -592,9 +602,10 @@ contains
       cg_sol = 0.0d0
       !epsil = 1.0d-3
       epsil = 1.0d-2
+      ! It would be nice to calculate epsilon on the fly, so that the numerical
+      ! error per pixel needs to be smaller than the instrumental noise per
+      ! pixel.
 
-      i_max = int(npix**0.5)
-      i_max = 10
 
       allocate (r0(nout, nmaps, 0:npix-1))
       allocate (v(nout, nmaps, 0:npix-1))

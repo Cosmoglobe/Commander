@@ -737,6 +737,7 @@ contains
        self%d(i)%sigma0     = self%d(i)%sigma0_def
        self%d(i)%fknee      = self%d(i)%fknee_def
        self%d(i)%alpha      = self%d(i)%alpha_def
+
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
