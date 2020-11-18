@@ -258,7 +258,7 @@ contains
          rhs = 0.d0
          pid_id = 1
          k = 0
-         write(*,*) "PIDRANGE: ", pid_ranges(j, :)
+         !write(*,*) "PIDRANGE: ", pid_ranges(j, :)
          do while (pid_id < size(pid_ranges(j, :)))
             if (pid_ranges(j, pid_id) == 0) exit
             currstart = pid_ranges(j, pid_id)
@@ -307,8 +307,8 @@ contains
                write(*, *) 'temp_invsigsquared', temp_invsigsquared
                stop
             end if
-            write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
-            write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
+            !write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
+            !write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
             do k = currstart, currend
                g(k, j, 1) = smoothed_gain(k - currstart + 1)
 !               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then

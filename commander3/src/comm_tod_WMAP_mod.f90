@@ -286,9 +286,9 @@ contains
 
          if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. ! 
-         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. ! 
-         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. ! 
+         do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-3) !  
+         do_oper(samp_rcal)    = .false. !(main_iter == n_main_iter-2) !  
+         do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) !  
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -624,7 +624,9 @@ contains
          delta_0 = size(M_diag(l,:,:))
          delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
          delta_s = delta_s
-         write(*,*) 'Amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
+         if (self%myid_shared==0) then 
+            write(*,*) 'Amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
+         end if
 
          omega = 1
          alpha = 1
