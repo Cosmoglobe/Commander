@@ -213,7 +213,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-			"-Ofast"# -fno-strict-aliasing -march=native -flto -fopenmp -fbacktrace -fexternal-blas -ffpe-trap=zero -fPIC" 
+			"-O3"# -fno-strict-aliasing -march=native -flto -fopenmp -fbacktrace -fexternal-blas -ffpe-trap=zero -fPIC" 
 			"-fno-strict-aliasing"
 			"-march=native" 
 			"-flto" 
@@ -222,6 +222,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 			"-fexternal-blas"
 			"-ffpe-trap=zero"
 			"-fPIC"
+			"-C"
 			)
 	endif()
 	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
@@ -265,7 +266,6 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 			"-ffpe-trap=invalid,zero,overflow,underflow" 
 			"-ffunction-sections" 
 			"-pipe"
-			"-fexternal-blas"
 			"-ffpe-trap=zero"
 			"-fPIC"
 			)

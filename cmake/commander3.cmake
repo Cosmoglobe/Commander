@@ -162,7 +162,7 @@ set(sources
 set(commander3 commander3)
 add_executable(${commander3} "")
 # make sure that commander executable will be built last
-add_dependencies(${commander3} ${projects}) #fftw_ fftw_f)
+add_dependencies(${commander3} ${projects} fftw_float fftw_double)
 target_sources(${commander3}
 	PUBLIC	
 	${sources}
