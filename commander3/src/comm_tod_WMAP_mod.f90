@@ -286,9 +286,9 @@ contains
 
          if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-3) !  
-         do_oper(samp_rcal)    = .false. !(main_iter == n_main_iter-2) !  
-         do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) !  
+         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !  
+         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !  
+         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !  
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -300,7 +300,7 @@ contains
          do_oper(calc_chisq)   = (main_iter == n_main_iter  )
          do_oper(sub_zodi)     = self%subtract_zodi
          do_oper(output_slist) = mod(iter, 1) == 0
-         do_oper(sim_map)      = (main_iter == 1)
+         do_oper(sim_map)      = (main_iter == 1) ! .false. ! 
 
          dipole_mod = 0
 
@@ -380,7 +380,11 @@ contains
             if (do_oper(sim_map)) then
                 do j = 1, ndet
                    inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
-                   self%scans(i)%d(j)%tod = self%scans(i)%d(j)%tod + s_orb_tot(:,j)/inv_gain
+                   self%scans(i)%d(j)%tod = floor(self%scans(i)%d(j)%tod + s_orb_tot(:,j)/inv_gain)
+                   if (inv_gain < 0) then
+                      self%scans(i)%d(j)%tod = -self%scans(i)%d(j)%tod
+                      self%scans(i)%d(j)%gain = - self%scans(i)%d(j)%gain
+                   end if
                 end do
             end if
             call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
