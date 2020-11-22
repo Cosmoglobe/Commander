@@ -37,7 +37,7 @@ import huffman
 
 from scipy.interpolate import interp1d
 from joblib import Parallel, delayed
-import os
+import os, sys
 
 from tqdm import tqdm
 
@@ -51,6 +51,7 @@ from tqdm import tqdm
 # version 20 splits up the data into 25 chunks
 # version 21 splits up the data into 24 chunks
 # version 22 splits up the data into 24 chunks and uses precalibrated data
+# version 24 uses a more accurate gain model
 
 from time import sleep
 from time import time as timer
@@ -870,7 +871,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
 
     return
 
-def main(par=True, plot=False, compress=False, nfiles=-1, version=18,
+def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         center=False):
     '''
     Make 1 hdf5 file for every 10 fits files
@@ -910,5 +911,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=15, center=True)
     #main(par=True, plot=False, compress=True, version=20, center=True)
     #main(par=True, plot=False, compress=True, version=21, center=False)
-    main(par=False, plot=False, compress=True, version=23, center=False)
+    #main(par=False, plot=False, compress=True, version=23, center=False)
+    main(par=True, plot=False, compress=True, version=24, center=False)
     #test_flags()
