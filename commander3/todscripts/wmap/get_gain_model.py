@@ -28,7 +28,7 @@ from scipy.interpolate import BSpline, interp1d
 import matplotlib.pyplot as plt
 
 from glob import glob
-prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
+prefix = '/mn/stornext/d16/cmbco/ola/wmap/'
 from tqdm import tqdm
 
 '''
@@ -57,7 +57,7 @@ read in a TOD and just have that data available to me.
 
 
 in the wmap pro file, execute
-file = '/mn/stornext/d16/cmbco/bp/wmap/tod/wmap_tod_20052022356_20052032356_uncalibrated_v5.fits'
+file = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20052022356_20052032356_uncalibrated_v5.fits'
 fits_read_tod, file, arch
 .r aihk_arch2mnemonic
 rf_bias = AIHK_Arch2Mnemonic(arch, 'DRV113RFBI32', 0)
@@ -69,20 +69,54 @@ T_FPA = AIHK_Arch2Mnemonic(arch, 'DFV11FPATEET', 0)
 Check
 aihk_mnem2serial
 get_prt_temp
+
+
+Comparing against the ExSupp values, it seems like decent approximations to the
+reported temperature FPA are
+DFQ1AFEEDT
+DFW3BFEEDT
+DFV22FPATEET
+DFW3AOMTT
+(although they are all scattering around the full range...)
+
+while the RXB good approximations are...
+DRW221RXBAMPT
+DRQ2RXBRIBT
+
+
+I suspect that I have some residual issues here, since when I run the IDL
+scripts, all of the values are within roughly 1 degree of each other.
 '''
 
 
 
 mnem_list = np.loadtxt('gain_params/mnem_indices.txt', delimiter=',', dtype=str)
 
-time_rxb, Temp_RXB = np.loadtxt('gain_params/extracted_rxb.txt', delimiter=',').T
-time_fpa, Temp_FPA = np.loadtxt('gain_params/extracted_fpa.txt', delimiter=',').T
+Temp_FPA = np.loadtxt('gain_params/fpa_temps.txt').mean(axis=1)
+Temp_RXB = np.loadtxt('gain_params/rxb_temps.txt').mean(axis=1)
 
-time_rxb = Time(time_rxb + 222/365, format='jyear')
-time_fpa = Time(time_fpa + 222/365, format='jyear')
+fnames = glob('/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/*.fits')
+fnames.sort()
+t1s = []
+t2s = []
+for f in fnames:
+    t1 = f.split('_')[2]
+    t2 = f.split('_')[3]
+    t1 = t1[:4] + ':' + t1[4:7] + ':' + t1[7:9] + ':' + t1[9:11]
+    t2 = t2[:4] + ':' + t2[4:7] + ':' + t2[7:9] + ':' + t2[9:11]
+    t1 = Time(t1, format='yday')
+    t2 = Time(t2, format='yday')
+    t1s.append(t1.jd)
+    t2s.append(t2.jd)
 
-fpa_func = interp1d(time_fpa.jd, Temp_FPA, fill_value='extrapolate')
-rxb_func = interp1d(time_rxb.jd, Temp_RXB, fill_value='extrapolate')
+t1s = np.array(t1s)
+t2s = np.array(t2s)
+times = (t1s + t2s)/2
+
+inds = (Temp_FPA > 50)
+
+fpa_func = interp1d(times[inds], Temp_FPA[inds], fill_value='extrapolate')
+rxb_func = interp1d(times[inds], Temp_RXB[inds], fill_value='extrapolate')
 
 
 
@@ -231,10 +265,10 @@ def get_val_from_mnem(data, mnem):
 
 def gain_tests():
     # to convert to JD, add 2.4500e06
-    files = glob(prefix + 'tod/new/*.fits')
+    files = glob(prefix + 'tods/uncalibrated/*.fits')
     files.sort()
     files = np.array(files)
-    data = fits.open(files[0])
+    data = fits.open('/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20052022356_20052032356_uncalibrated_v5.fits')
 
 
     # The only published gain model I've seen in the WMAP paper is Figure 2 of
@@ -333,7 +367,7 @@ def gain_tests():
     T_RXB = 290
     G_V113 = G(RF_bias, T_RXB, T_FPA, t, pars)
     plt.figure()
-    plt.plot(t, G_V113)
+    plt.plot(t, G_V113, '.')
 
 
 
@@ -342,7 +376,7 @@ def gain_tests():
 
 
 def rfb_tests():
-    files = glob(prefix + 'tod/new/*.fits')
+    files = glob(prefix + 'tods/uncalibrated/*.fits')
     files.sort()
     files = np.array(files)
     data = fits.open(files[0])
@@ -353,49 +387,56 @@ def rfb_tests():
 
     rf_mnems = np.loadtxt('gain_params/rfbias_mnem.txt', dtype=str)
     i = 0
+    fig, axes = plt.subplots(nrows=8, ncols=5, sharex=True)
+    axs = axes.flatten()
     for b in bands:
-        i += 1
         ind = (b == rf_mnems[:,0])
         mnem = rf_mnems[ind][0][1]
         rf_bias = get_val_from_mnem(data, mnem)
-        plt.subplot(8,5,i)
-        plt.plot(rf_bias)
-        plt.title(b)
+        axs[i].plot(rf_bias, 'k.', ms=0.5, alpha=0.5)
+        axs[i].set_title(b)
+        i += 1
 
     plt.suptitle('RF Bias')
     plt.show()
 
 
 def fpa_tests():
-    files = glob(prefix + 'tod/new/*.fits')
+    files = glob(prefix + 'tods/uncalibrated/*.fits')
     files.sort()
     files = np.array(files)
-    data = fits.open(files[100])
+    data = fits.open('/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20052022356_20052032356_uncalibrated_v5.fits')
 
     fpa_mnems = np.loadtxt('gain_params/t_fpa_mnem.txt', dtype=str,\
         delimiter=',')
-    fig, axes = plt.subplots(sharex=True, sharey=True, nrows=4, ncols=5)
+    fig, axes = plt.subplots(sharex=True, sharey=False, nrows=4, ncols=5)
+    fig2, ax2 = plt.subplots()
     axs = axes.flatten()
     for i, mnem in enumerate(fpa_mnems[:,0]):
         T_FPA = get_val_from_mnem(data, mnem)
-        axs[i].plot(T_FPA)
+        axs[i].plot(T_FPA, '.', ms=1)
         axs[i].set_title(mnem)
+        axs[i].set_ylim([88,92])
+        ax2.plot(T_FPA, '.', ms=1)
     plt.show()
 
 def rxb_tests():
-    files = glob(prefix + 'tod/new/*.fits')
+    files = glob(prefix + 'tods/uncalibrated/*.fits')
     files.sort()
     files = np.array(files)
     data = fits.open(files[0])
 
     rxb_mnems = np.loadtxt('gain_params/t_rxb.txt', dtype=str,\
             delimiter=',')
-    fig, axes = plt.subplots(sharex=True, sharey=True, nrows=3, ncols=5)
+    fig, axes = plt.subplots(sharex=True, sharey=False, nrows=3, ncols=5)
+    fig2, ax2 = plt.subplots()
     axs = axes.flatten()
     for i, mnem in enumerate(rxb_mnems[:,0]):
         T_RXB = get_val_from_mnem(data, mnem)
-        axs[i].plot(T_RXB)
+        axs[i].plot(T_RXB, '.', ms=1)
         axs[i].set_title(mnem)
+        axs[i].set_ylim([286, 290])
+        ax2.plot(T_RXB, '.', ms=1)
     plt.show()
 
 
@@ -449,7 +490,7 @@ def get_gain(data, band):
     return t_JD, G_band
 
 def fullgain_tests():
-    files = glob(prefix + 'tod/new/*.fits')
+    files = glob(prefix + 'tods/uncalibrated/*.fits')
     files.sort()
     files = np.array(files)
     data = fits.open(files[100])
@@ -476,10 +517,10 @@ def publication_plots():
     '''
     Trying to reproduce the figures from Hinshaw 2003 and Jarosik 2007
     '''
-    files = glob(prefix + 'tod/new/*.fits')
+    files = glob(prefix + 'tods/uncalibrated/*.fits')
     files.sort()
     files = np.array(files)
-    #files = files[:100]
+    #files = files[:500]
 
 
     fpa_mnems = np.loadtxt('gain_params/t_fpa_mnem.txt', dtype=str,\
@@ -540,7 +581,6 @@ def publication_plots():
     plt.ylim([0.4, 0.5])
 
     # V223
-    #plt.xlim([-100, 1300]) # days
     plt.figure()
     plt.plot(ts.datetime, GsV223, '.', ms=1)
     #plt.axhline(0.4096)
@@ -554,7 +594,7 @@ def publication_plots():
 
 if __name__ == '__main__':
     publication_plots()
-    #gain_tests()
+    gain_tests()
     #rfb_tests()
     #fpa_tests()
     #rxb_tests()
