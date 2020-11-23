@@ -58,8 +58,8 @@ $ pip install jupyter
 Environment sanity check
 We can check that everything works as it should by importing the packages in Python:
 ```
-$ python -c "import scipi" 
-$ python -c "import corner»
+$ python -c "import scipy" 
+$ python -c "import corner"
 ```
 If you are able to run these commands without anything failing horribly (warnings are OK!) you are all set up.
 Note that whether or not this setup runs smoothly depends heavily on what already exists on your OS. T
