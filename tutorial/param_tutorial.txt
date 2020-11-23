@@ -28,7 +28,7 @@ ENABLE_TOD_ANALYSIS           = .true.
 TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 10
 TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER = 10
 TOD_INCLUDE_ZODI              = .false.
-FFTW3_MAGIC_NUMBERS           = '/mn/stornext/u3/hke/xsan/commander3/v2/data_BP8/fft3_magic_numbers_230810.txt'
+FFTW3_MAGIC_NUMBERS           = '/mn/stornext/d16/cmbco/eirikgje/data/bp_tutorial/input/auxcmd3/fft3_magic_numbers_230810.txt'
 
 # Options for CMB resampling (for constrained realization production)
 RESAMPLE_CMB                  = .false.
