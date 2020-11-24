@@ -197,7 +197,6 @@ contains
             do t = 1, ntod
 
                if (flag(t,k) .ne. 0) cycle
-
                ! sigma0 is in units of du, so need to convert back to mK
                sigma_0 = tod%scans(j)%d(k)%sigma0
                if (sigma_0 == 0) then

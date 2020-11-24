@@ -912,5 +912,5 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=20, center=True)
     #main(par=True, plot=False, compress=True, version=21, center=False)
     #main(par=False, plot=False, compress=True, version=23, center=False)
-    main(par=True, plot=False, compress=True, version=24, center=False)
+    main(par=True, plot=False, compress=True, version=24, center=True)
     #test_flags()
