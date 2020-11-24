@@ -36,6 +36,10 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
 	CACHE STRING
 	"Directory where to install all the libraries."
 	)
+set(CMAKE_LIBRARY64_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib64"
+	CACHE STRING
+	"Directory where to install all the libraries for 64."
+	)
 # Where to output executable(s)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/bin"
 	CACHE STRING

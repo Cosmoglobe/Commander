@@ -44,23 +44,6 @@ add_library(zlib_lib SHARED IMPORTED GLOBAL)
 set_target_properties(zlib_lib PROPERTIES IMPORTED_LOCATION ${ZLIB_LIBRARIES})
 
 message(STATUS "---------------------------------------------------------------")
-# require BLAS and LAPACK
-# From docs: Note C, CXX or Fortran must be enabled
-# to detect a BLAS/LAPACK library. C or CXX must be
-# enabled to use Intel Math Kernel Library (MKL).
-#set(BLA_VENDOR Intel10_64lp)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-
-# to avoid cmake errors we create and empty target
-add_custom_target(blas ALL "")
-set(blas_lib ${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES} ${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES})
-message(STATUS "BLAS LINKER FLAGS:   ${BLAS_LINKER_FLAGS}")
-message(STATUS "BLAS LIBRARIES:      ${BLAS_LIBRARIES}")
-message(STATUS "LAPACK LINKER FLAGS: ${LAPACK_LINKER_FLAGS}")
-message(STATUS "LAPACK LIBRARIES:    ${LAPACK_LIBRARIES}")
-
-message(STATUS "---------------------------------------------------------------")
 find_package(MPI REQUIRED COMPONENTS Fortran C CXX)
 find_package(Threads)
 # printing out status of the search
@@ -103,6 +86,6 @@ add_custom_target(required_libraries ALL ""
 	DEPENDS tempita 
 					mpi
 					openmp
-					blas
+					#blas
 					zlib
 					)
