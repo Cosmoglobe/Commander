@@ -65,6 +65,7 @@ version = 21
 
 version = 23
 
+version = 24
 def make_dipole(amp, lon, lat, nside):
     vec = hp.ang2vec(lon, lat, lonlat=True)
     x,y,z = hp.pix2vec(nside, np.arange(hp.nside2npix(nside)))
@@ -502,6 +503,8 @@ def get_cg(band='K1', nside=256, nfiles=200, sparse_test=False,
             else:
                 M_i, b_i, pixA_i, pixB_i, sigma_i, flagsA_i, flagsB_i = result
             M_diag += M_i
+            hp.mollview(M_i, norm='hist')
+            plt.show()
             b += b_i
             pixA += pixA_i.tolist()
             pixB += pixB_i.tolist()

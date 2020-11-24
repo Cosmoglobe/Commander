@@ -197,7 +197,7 @@ contains
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
       ! conjugate gradient parameters
-      integer(i4b) :: i_max=10
+      integer(i4b) :: i_max=100
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
@@ -286,9 +286,9 @@ contains
 
          if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !  
-         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !  
-         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !  
+         do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-3) !   
+         do_oper(samp_rcal)    = .false. !(main_iter == n_main_iter-2) !   
+         do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) !   
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -300,7 +300,7 @@ contains
          do_oper(calc_chisq)   = (main_iter == n_main_iter  )
          do_oper(sub_zodi)     = self%subtract_zodi
          do_oper(output_slist) = mod(iter, 1) == 0
-         do_oper(sim_map)      = (main_iter == 1) ! .false. ! 
+         do_oper(sim_map)      = .false. ! (main_iter == 1) !  
 
          dipole_mod = 0
 
@@ -544,10 +544,10 @@ contains
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-         if (self%myid == 0) then
-            write(*, *) "CHECKPOINT"
+         !if (self%myid == 0) then
+            !write(*, *) "CHECKPOINT"
             !write(*, *) dipole_mod
-         end if
+         !end if
 
          if (do_oper(samp_acal)) then
             call wall_time(t1)
@@ -595,6 +595,9 @@ contains
          M_diag = 1d0
       end where
 
+      if (self%myid_shared==0) then 
+         write(*,*) '    Beginning BiCG-stab iteration'
+      end if
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       allocate (r(nout, nmaps, 0:npix-1))
@@ -604,8 +607,8 @@ contains
       allocate (cg_sol(nout, nmaps, 0:npix-1))
 
       cg_sol = 0.0d0
-      !epsil = 1.0d-3
-      epsil = 1.0d-2
+      epsil = 1.0d-3
+      !epsil = 1.0d-2
       ! It would be nice to calculate epsilon on the fly, so that the numerical
       ! error per pixel needs to be smaller than the instrumental noise per
       ! pixel.
@@ -629,7 +632,7 @@ contains
          delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
          delta_s = delta_s
          if (self%myid_shared==0) then 
-            write(*,*) 'Amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
+            write(*,*) '    CG amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
          end if
 
          omega = 1
@@ -666,7 +669,7 @@ contains
             delta_s = sum(s(l,:,:)*shat(l,:,:))
             if (self%myid_shared==0) then 
                 write(*,101) i, delta_s/delta_0
-                101 format (I3, ':   delta_s/delta_0:',  2X, ES9.2)
+                101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
             if (delta_s .le. (delta_0*epsil**2)) then
                 if (self%myid_shared==0) then 
@@ -703,7 +706,7 @@ contains
             delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
             if (self%myid_shared==0) then 
                 write(*,102) i, delta_r/delta_0
-                102 format (I3, ':   delta_r/delta_0:',  2X, ES9.2)
+                102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
             if ((delta_r .le. (delta_0*epsil**2))) then
                 if (self%myid_shared==0) then 
