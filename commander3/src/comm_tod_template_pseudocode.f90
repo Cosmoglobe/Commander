@@ -48,15 +48,6 @@ module comm_tod_TEMPLATE_mod
             call project_sky(self, map_sky(:, :, :, 1), pix, psi, flag, &
                    & i, s_sky, mask)
 
-            ! Determine which data chunks are "bad"
-            if (main_iter == 1 .and. self%first_call) then
-               do j = 1, ndet
-                  self%scans(i)%d(j)%accept = .true.
-                  if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
-                  if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
-               end do
-            end if
-
             ! Construct orbital dipole template
             call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orb)
 
@@ -67,6 +58,15 @@ module comm_tod_TEMPLATE_mod
                s_buf(:, j) = s_tot(:, j)
             end do
 
+            ! Determine which data chunks are "bad"
+            if (main_iter == 1 .and. self%first_call) then
+               do j = 1, ndet
+                  self%scans(i)%d(j)%accept = .true.
+                  if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
+                  if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
+               end do
+            end if
+
             ! Precompute filtered signal for calibration
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
                call self%downsample_tod(s_orb(:,1), ext)
@@ -76,10 +76,10 @@ module comm_tod_TEMPLATE_mod
                      s_buf(:,j) = s_tot(:,j)
                      call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
                      call self%downsample_tod(s_buf(:,j), ext, &
-                          & s_lowres(:,j))!, mask(:,j))
+                          & s_lowres(:,j))
                   else
                      call self%downsample_tod(s_orb(:,j), ext, &
-                          & s_lowres(:,j))!, mask(:,j))
+                          & s_lowres(:,j))
                   end if
                end do
                s_invN = s_lowres
