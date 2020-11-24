@@ -54,11 +54,11 @@ unset(projects)
 list(APPEND projects 
 	#tempita
 	required_libraries
-	#blas # blas-lapack module 
-	#mpi
-	#openmp
+	blas # blas-lapack module 
+	##mpi
+	##openmp
 	curl
-	#zlib
+	##zlib
 	##sharp2
 	fftw
 	cfitsio
@@ -73,6 +73,10 @@ list(APPEND projects
 # cURL - needed by CFitsio and HEALPix
 # need to specify command separately, othewise it won't work
 set(curl_url "https://github.com/curl/curl/releases/download/curl-7_69_0/curl-7.69.0.zip")#"https://github.com/curl/curl/releases/download/curl-7_69_1/curl-7.69.1.tar.gz")
+#------------------------------------------------------------------------------
+# OpenBLAS -  Open Source Implementation of BLAS and LAPACK
+set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
+set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
 #------------------------------------------------------------------------------
 # FFTW
 set(fftw_url "http://fftw.org/fftw-3.3.8.tar.gz")

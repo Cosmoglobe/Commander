@@ -32,7 +32,7 @@ message(STATUS "Scanning your system. Please, wait a moment...")
 cmake_minimum_required(VERSION 3.17 FATAL_ERROR)
 project(CommanderSuperbuild
 	DESCRIPTION "Complete installer for Commander 3"
-	VERSION 1.0.0	
+	VERSION 1.1.0	
 	LANGUAGES Fortran CXX C #Python
 	)
 
