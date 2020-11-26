@@ -178,8 +178,8 @@ contains
       real(sp), allocatable, dimension(:, :, :)   :: d_calib
       real(dp), allocatable, dimension(:)       :: A_abscal, b_abscal
       real(dp), allocatable, dimension(:, :)     :: chisq_S, m_buf
-      real(dp), allocatable, dimension(:, :)     :: A_map, dipole_mod
-      real(dp), allocatable, dimension(:, :, :)   :: b_map, b_mono, sys_mono, M_diag
+      real(dp), allocatable, dimension(:, :)     :: A_map, dipole_mod, M_diag
+      real(dp), allocatable, dimension(:, :, :)   :: b_map, b_mono, sys_mono
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
       integer(i4b), allocatable, dimension(:, :)     :: flag
       real(dp), allocatable, dimension(:, :, :)   :: b_tot, M_diag_tot
@@ -200,13 +200,14 @@ contains
       integer(i4b) :: i_max=100
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
-      real(dp), allocatable, dimension(:, :, :) :: cg_sol, r, s, d, q
+      real(dp), allocatable, dimension(:, :, :) :: cg_sol
+      real(dp), allocatable, dimension(:, :)    :: r, s, d, q
       logical(lgt) :: write_cg_iter=.true.
 
       ! biconjugate gradient parameters
       real(dp) :: rho_old, rho_new
       real(dp) :: omega, delta_r, delta_s
-      real(dp), allocatable, dimension(:, :, :) :: r0, shat, p, phat, v
+      real(dp), allocatable, dimension(:, :) :: r0, shat, p, phat, v
 
       if (iter > 1) self%first_call = .false.
       call int2string(iter, ctext)
@@ -275,7 +276,7 @@ contains
 
       call update_status(status, "tod_init")
       do_oper             = .true.
-      allocate (M_diag(nout, nmaps, 0:npix-1))
+      allocate (M_diag(nmaps, 0:npix-1))
       allocate (b_map(nout, nmaps, 0:npix-1))
       M_diag = 0d0
       b_map = 0d0
@@ -586,7 +587,7 @@ contains
       do n = 1, nmaps
          call write_fits_file(trim(prefix)//'b'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
       end do
-      cg_tot = M_diag(1, 1:nmaps, self%info%pix)
+      cg_tot = M_diag(1:nmaps, self%info%pix)
       do n = 1, nmaps
          call write_fits_file(trim(prefix)//'M'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
       end do
@@ -600,15 +601,15 @@ contains
       end if
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      allocate (r(nout, nmaps, 0:npix-1))
-      allocate (s(nout, nmaps, 0:npix-1))
-      allocate (q(nout, nmaps, 0:npix-1))
-      allocate (d(nout, nmaps, 0:npix-1))
+      allocate (r(nmaps, 0:npix-1))
+      allocate (s(nmaps, 0:npix-1))
+      allocate (q(nmaps, 0:npix-1))
+      allocate (d(nmaps, 0:npix-1))
       allocate (cg_sol(nout, nmaps, 0:npix-1))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-3
-      !epsil = 1.0d-2
+      !epsil = 1.0d-3
+      epsil = 1.0d-2
       ! It would be nice to calculate epsilon on the fly, so that the numerical
       ! error per pixel needs to be smaller than the instrumental noise per
       ! pixel.
@@ -616,20 +617,20 @@ contains
       ! really fast, we can make delta_0 equal to Npix.
 
 
-      allocate (r0(nout, nmaps, 0:npix-1))
-      allocate (v(nout, nmaps, 0:npix-1))
-      allocate (p(nout, nmaps, 0:npix-1))
-      allocate (phat(nout, nmaps, 0:npix-1))
-      allocate (shat(nout, nmaps, 0:npix-1))
+      allocate (r0(nmaps, 0:npix-1))
+      allocate (v(nmaps, 0:npix-1))
+      allocate (p(nmaps, 0:npix-1))
+      allocate (phat(nmaps, 0:npix-1))
+      allocate (shat(nmaps, 0:npix-1))
       do l=1, nout
          call update_status(status, "Starting bicg-stab")
-         r(l, :, :)  = b_map(l, :, :)
-         r0(l, :, :) = b_map(l, :, :)
+         r  = b_map(l, :, :)
+         r0 = b_map(l, :, :)
          !delta_0 = sum(r(l,:,:)**2/M_diag(l,:,:))
          ! If r is just Gaussian white noise, then delta_0 is a chi-squared
          ! random variable with 3 npix variables.
-         delta_0 = size(M_diag(l,:,:))
-         delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
+         delta_0 = size(M_diag)
+         delta_r = sum(r**2/M_diag)
          delta_s = delta_s
          if (self%myid_shared==0) then 
             write(*,*) '    CG amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
@@ -638,35 +639,35 @@ contains
          omega = 1
          alpha = 1
 
-         rho_new = sum(r0(l,:,:)*r(l,:,:))
+         rho_new = sum(r0*r)
          bicg: do i = 1, i_max
             rho_old = rho_new
-            rho_new = sum(r0(l,:,:)*r(l,:,:))
+            rho_new = sum(r0*r)
             if (i==1) then
-                p(l,:,:) = r(l,:,:)
+                p = r
             else
                 beta = (rho_new/rho_old)/(alpha/omega)
-                p(l,:,:) = r(l,:,:) + beta*(p(l,:,:) - omega*v(l,:,:))
+                p = r + beta*(p - omega*v)
             end if
-            phat(l,:,:) = p(l,:,:)/M_diag(l,:,:)
-            v(l,:,:) = 0d0
+            phat = p/M_diag
+            v = 0d0
             call update_status(status, "Calling p=Av")
-            call compute_Ax(self, phat, v, self%x_im, sprocmask%a, i, l)
-            call mpi_allreduce(MPI_IN_PLACE, v(l,:,:), size(v(l,:,:)), &
+            call compute_Ax(self, phat, v, self%x_im, sprocmask%a, i)
+            call mpi_allreduce(MPI_IN_PLACE, v, size(v), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            alpha = rho_new/sum(r0(l,:,:)*v(l,:,:))
-            cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat(l,:,:)
+            alpha = rho_new/sum(r0*v)
+            cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat
             if (write_cg_iter) then
                cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
                do n = 1, nmaps
                   call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//'_map'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
                end do
             end if
-            s(l,:,:) = r(l,:,:) - alpha*v(l,:,:)
+            s = r - alpha*v
 
-            shat(l,:,:) = s(l,:,:)/M_diag(l,:,:)
+            shat = s/M_diag
 
-            delta_s = sum(s(l,:,:)*shat(l,:,:))
+            delta_s = sum(s*shat)
             if (self%myid_shared==0) then 
                 write(*,101) i, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
@@ -677,23 +678,23 @@ contains
                 end if
                 exit bicg
             end if
-            q(l,:,:) = 0d0
-            call update_status(status, "Calling  t= A shat")
-            call compute_Ax(self, shat, q, self%x_im, sprocmask%a, i, l)
-            call mpi_allreduce(MPI_IN_PLACE, q(l,:,:), size(q(l,:,:)), &
+            q = 0d0
+            call update_status(status, "Calling  q= A shat")
+            call compute_Ax(self, shat, q, self%x_im, sprocmask%a, i)
+            call mpi_allreduce(MPI_IN_PLACE, q, size(q), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-            omega = sum(q(l,:,:)*s(l,:,:))/sum(q(l,:,:)**2)
-            cg_sol(l,:,:) = cg_sol(l,:,:) + omega*shat(l,:,:)
+            omega = sum(q*s)/sum(q**2)
+            cg_sol(l,:,:) = cg_sol(l,:,:) + omega*shat
             if (mod(i, 50) == 1) then
                call update_status(status, 'r = b - Ax')
-               r(l,:,:) = 0d0
-               call compute_Ax(self, cg_sol, r, self%x_im, sprocmask%a, i, l)
-               call mpi_allreduce(MPI_IN_PLACE, r(l,:,:), size(r(l,:,:)), &
+               r = 0d0
+               call compute_Ax(self, cg_sol(l,:,:), r, self%x_im, sprocmask%a, i)
+               call mpi_allreduce(MPI_IN_PLACE, r, size(r), &
                                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-               r(l, :, :) = b_map(l, :, :) - r(l, :, :)
+               r = b_map(l, :, :) - r
             else
                call update_status(status, 'r = s - omega*t')
-               r(l,:,:) = s(l,:,:) - omega*q(l,:,:)
+               r = s - omega*q
             end if
 
             if (write_cg_iter) then
@@ -703,7 +704,7 @@ contains
                end do
             end if
 
-            delta_r = sum(r(l,:,:)**2/M_diag(l,:,:))
+            delta_r = sum(r**2/M_diag)
             if (self%myid_shared==0) then 
                 write(*,102) i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
