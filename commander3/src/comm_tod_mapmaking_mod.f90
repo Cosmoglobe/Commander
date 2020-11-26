@@ -102,7 +102,8 @@ contains
       integer(i4b), dimension(0:), intent(in)                   :: pmask
       integer(i4b), dimension(1:, 1:, 1:), intent(in)           :: pix, psi
       real(dp), dimension(1:), intent(in)                       :: x_imarr
-      real(dp), dimension(1:, 1:, 0:), intent(inout)            :: b, M_diag
+      real(dp), dimension(1:, 1:, 0:), intent(inout)            :: b
+      real(dp), dimension(1:, 0:), intent(inout)                :: M_diag
       real(dp), dimension(1:, 1:, 0:), intent(inout), optional  :: b_mono
 
       integer(i4b) :: det, i, t, nout
@@ -148,37 +149,37 @@ contains
                b(i, 3, rpix) = b(i, 3, rpix) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
                !b(i, 4, lpix) = b(i, 4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
                !b(i, 4, rpix) = b(i, 4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
-
-               M_diag(i, 1, lpix) = M_diag(i, 1, lpix) + f_A
-               M_diag(i, 1, rpix) = M_diag(i, 1, rpix) + f_B
-               M_diag(i, 2, lpix) = M_diag(i, 2, lpix) + f_A*tod%cos2psi(lpsi)**2
-               M_diag(i, 2, rpix) = M_diag(i, 2, rpix) + f_B*tod%cos2psi(rpsi)**2
-               M_diag(i, 3, lpix) = M_diag(i, 3, lpix) + f_A*tod%sin2psi(lpsi)**2
-               M_diag(i, 3, rpix) = M_diag(i, 3, rpix) + f_B*tod%sin2psi(rpsi)**2
-               !M_diag(i, 4, lpix) = M_diag(i, 4, lpix) + f_A
-               !M_diag(i, 4, rpix) = M_diag(i, 4, rpix) + f_B
             end do
+
+            M_diag(1, lpix) = M_diag(1, lpix) + f_A
+            M_diag(1, rpix) = M_diag(1, rpix) + f_B
+            M_diag(2, lpix) = M_diag(2, lpix) + f_A*tod%cos2psi(lpsi)**2
+            M_diag(2, rpix) = M_diag(2, rpix) + f_B*tod%cos2psi(rpsi)**2
+            M_diag(3, lpix) = M_diag(3, lpix) + f_A*tod%sin2psi(lpsi)**2
+            M_diag(3, rpix) = M_diag(3, rpix) + f_B*tod%sin2psi(rpsi)**2
+            !M_diag(4, lpix) = M_diag(4, lpix) + f_A
+            !M_diag(4, rpix) = M_diag(4, rpix) + f_B
 
          end do
       end do
 
    end subroutine bin_differential_TOD
 
-   subroutine compute_Ax(tod, x, y, x_imarr, pmask, scan, n)
+   subroutine compute_Ax(tod, x, y, x_imarr, pmask, scan)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Code to compute matrix product P^T N^-1 P m
       ! y = Ax
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       implicit none
       class(comm_tod), intent(in)                        :: tod
-      integer(i4b), intent(in)                           :: scan, n
-      real(dp), dimension(1:, 1:, 0:), intent(in)        :: x
+      integer(i4b), intent(in)                           :: scan
+      real(dp), dimension(1:, 0:), intent(in)        :: x
       real(dp), dimension(1:), intent(in)                :: x_imarr
       integer(i4b), dimension(0:), intent(in)            :: pmask
       integer(i4b), allocatable, dimension(:, :)       :: flag
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
 
-      real(dp), dimension(1:, 1:, 0:), intent(inout)           :: y
+      real(dp), dimension(1:, 0:), intent(inout)           :: y
 
       integer(i4b)              :: i, j, k, ntod, ndet, lpix, rpix, lpsi, rpsi
       integer(i4b)              :: nhorn, t, sgn, pA, pB, f_A, f_B
@@ -222,21 +223,21 @@ contains
                ! for timestreams 23 and 24, and also is used to switch
                ! the sign of the polarization sensitive parts of the
                ! model
-               dA = x(n, 1, lpix) + sgn*(x(n, 2, lpix)*tod%cos2psi(lpsi) + x(n, 3, lpix)*tod%sin2psi(lpsi))
-               dB = x(n, 1, rpix) + sgn*(x(n, 2, rpix)*tod%cos2psi(rpsi) + x(n, 3, rpix)*tod%sin2psi(rpsi))
+               dA = x(1, lpix) + sgn*(x(2, lpix)*tod%cos2psi(lpsi) + x(3, lpix)*tod%sin2psi(lpsi))
+               dB = x(1, rpix) + sgn*(x(2, rpix)*tod%cos2psi(rpsi) + x(3, rpix)*tod%sin2psi(rpsi))
                d = (1 + x_im)*dA - (1 - x_im)*dB
                ! Temperature
-               y(n, 1, lpix) = y(n, 1, lpix) + f_A*(1 + x_im)*d                      *inv_sigmasq
-               y(n, 1, rpix) = y(n, 1, rpix) - f_B*(1 - x_im)*d                      *inv_sigmasq
+               y(1, lpix) = y(1, lpix) + f_A*(1 + x_im)*d                      *inv_sigmasq
+               y(1, rpix) = y(1, rpix) - f_B*(1 - x_im)*d                      *inv_sigmasq
                ! Q
-               y(n, 2, lpix) = y(n, 2, lpix) + f_A*(1 + x_im)*d*tod%cos2psi(lpsi)*sgn*inv_sigmasq
-               y(n, 2, rpix) = y(n, 2, rpix) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+               y(2, lpix) = y(2, lpix) + f_A*(1 + x_im)*d*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+               y(2, rpix) = y(2, rpix) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
                ! U
-               y(n, 3, lpix) = y(n, 3, lpix) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
-               y(n, 3, rpix) = y(n, 3, rpix) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+               y(3, lpix) = y(3, lpix) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+               y(3, rpix) = y(3, rpix) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
                !S
-               !y(n, 4, lpix) = y(n, 4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
-               !y(n, 4, rpix) = y(n, 4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
+               !y(4, lpix) = y(4, lpix) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
+               !y(4, rpix) = y(4, rpix) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
             end do
          end do
          deallocate (pix, psi, flag)

@@ -207,6 +207,12 @@ sol = hp.ud_grade(sol, nside)
 sol[0] += dipole
 
 
+data = fits.open('/mn/stornext/u3/hke/xsan/commander3/v2/data_BP8/cmb_init_md_tempdiponly.fits')
+i_sol = hp.ud_grade(data[1].data['TEMPERATURE'].flatten(), 512)
+q_sol = hp.ud_grade(data[1].data['Q_POLARISATION'].flatten(), 512)
+u_sol = hp.ud_grade(data[1].data['U_POLARISATION'].flatten(), 512)
+sol = np.array([i_sol, q_sol, u_sol, 0*u_sol])
+
 d_sol = np.zeros(len(pixA))
 d_solA = np.zeros(len(pixA))
 d_solB = np.zeros(len(pixA))
@@ -246,17 +252,28 @@ for t in range(len(pixA)):
     #           (1-xbar)*(q_cg[pixB[t]]*np.cos(2*psiB[t]) + u_cg[pixB[t]]*np.sin(2*psiB[t]) + s_cg[pixB[t]]) + \
     #           dxbar*(i_cg[pixA[t]] + i_cg[pixB[t]])
 
+
+
+
 # It's tougher for polarization, because you really don't see any signal in the
 # polarized timestreams for a single sweep.
 axes_test.plot(time, p_sol, color='C0', zorder=1, label='WMAP sol')
 #axes_test.plot(time, p_cg, color='C1', zorder=0, label='CG sol')
 plt.legend(loc='best')
 
+plt.figure()
+plt.plot(time, d_solA, label='Horn A')
+plt.plot(time, d_solB, label='Horn B')
+
+plt.show()
+
 fig, axes = plt.subplots(nrows=2, sharex=True, sharey=True)
 axes[0].plot(time, cal[0], '.', ms=1, label='d13')
 axes[0].plot(time, cal[2], '.', ms=1, label='d23')
 #axes[0].plot(time, d_cg, label='My sol')
 axes[0].plot(time, d_sol, label='WMAP sol')
+axes[0].plot(time, d_solA, label='WMAP sol')
+axes[0].plot(time, d_solB, label='WMAP sol')
 axes[0].legend(loc='best')
 axes[1].plot(time, cal[1], '.', ms=1, label='d14')
 axes[1].plot(time, cal[3], '.', ms=1, label='d24')
@@ -264,7 +281,7 @@ axes[1].plot(time, cal[3], '.', ms=1, label='d24')
 axes[1].plot(time, d_sol, label='WMAP sol')
 axes[1].legend(loc='best')
 axes[1].set_xlim([0,20])
-axes[1].set_ylim([-25, 25])
+#axes[1].set_ylim([-25, 25])
 
 
 
@@ -282,16 +299,16 @@ axes[1].legend(loc='best')
 #axes[1].set_xlim([0,20])
 #axes[1].set_ylim([-25, 25])
 
-#plt.show()
-plt.close('all')
+plt.show()
+#plt.close('all')
 
 
 plt.figure(figsize=(2, 4))
 plt.plot(d_solA[11000:13000], '--', label='A')
 plt.plot(d_solB[11000:13000], ':', label='B')
 plt.plot(d_sol[11000:13000], '-', zorder=-1,  label='Tot')
-plt.legend(loc='best', loc='upper cente4r', bbox_to_anchor=(0.5, 1.05), ncol=3)
-plt.ylim([-10, 10])
+plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=3)
+#plt.ylim([-10, 10])
 plt.title('Only the model')
 plt.show()
 
