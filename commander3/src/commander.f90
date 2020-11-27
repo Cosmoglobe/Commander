@@ -39,6 +39,31 @@ program commander
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
 
+  ! Command line arguments
+  character(len=*), parameter :: version = '1.0.0'
+  character(len=32)           :: arg
+  integer                     :: myint
+
+  do myint = 1, command_argument_count()
+    call get_command_argument(myint, arg)
+
+    select case (arg)
+      case ('-v', '--version')
+        print '(2a)', 'Commander3 version ', version
+        print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
+        print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
+        print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+        call exit(0)
+      case ('-h', '--help')
+        call print_help()
+        call exit(0)
+      case default
+        print '(2a, /)', 'Unrecognised command-line option: ', arg
+        call print_help()
+        call exit(0)
+    end select
+  end do
+
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
@@ -372,5 +397,11 @@ contains
     end do
 
   end subroutine process_TOD
+
+  subroutine print_help()
+    print '(a, /)', 'command-line options:'
+    print '(a)',    '  -v, --version     print version information and exit'
+    print '(a)',    '  -h, --help        print usage information and exit'
+  end subroutine print_help
 
 end program commander
