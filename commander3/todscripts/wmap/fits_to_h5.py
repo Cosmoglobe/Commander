@@ -52,6 +52,7 @@ from tqdm import tqdm
 # version 21 splits up the data into 24 chunks
 # version 22 splits up the data into 24 chunks and uses precalibrated data
 # version 24 uses a more accurate gain model
+# version 25 is same as version 24, but uses precalibrated data.
 
 from time import sleep
 from time import time as timer
@@ -880,7 +881,7 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
     '''
 
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
-    if (version == 15) or (version == 22):
+    if (version == 15) or (version == 22) or (version == 25):
         files = glob(prefix + 'calibrated/*.fits')
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
@@ -912,5 +913,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=20, center=True)
     #main(par=True, plot=False, compress=True, version=21, center=False)
     #main(par=False, plot=False, compress=True, version=23, center=False)
-    main(par=True, plot=False, compress=True, version=24, center=True)
+    #main(par=True, plot=False, compress=True, version=24, center=True)
+    main(par=True, plot=False, compress=True, version=25, center=True)
     #test_flags()

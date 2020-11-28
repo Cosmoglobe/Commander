@@ -47,7 +47,7 @@ files = glob(prefix + 'tods/uncalibrated/*.fits')
 files.sort()
 data = fits.open(files[file_num])
 
-version=21
+version=24
 
 allbands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
@@ -207,11 +207,11 @@ sol = hp.ud_grade(sol, nside)
 sol[0] += dipole
 
 
-data = fits.open('/mn/stornext/u3/hke/xsan/commander3/v2/data_BP8/cmb_init_md_tempdiponly.fits')
-i_sol = hp.ud_grade(data[1].data['TEMPERATURE'].flatten(), 512)
-q_sol = hp.ud_grade(data[1].data['Q_POLARISATION'].flatten(), 512)
-u_sol = hp.ud_grade(data[1].data['U_POLARISATION'].flatten(), 512)
-sol = np.array([i_sol, q_sol, u_sol, 0*u_sol])
+#data = fits.open('/mn/stornext/u3/hke/xsan/commander3/v2/data_BP8/cmb_init_md_tempdiponly.fits')
+#i_sol = hp.ud_grade(data[1].data['TEMPERATURE'].flatten(), 512)
+#q_sol = hp.ud_grade(data[1].data['Q_POLARISATION'].flatten(), 512)
+#u_sol = hp.ud_grade(data[1].data['U_POLARISATION'].flatten(), 512)
+#sol = np.array([i_sol, q_sol, u_sol, 0*u_sol])
 
 d_sol = np.zeros(len(pixA))
 d_solA = np.zeros(len(pixA))
