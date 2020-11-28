@@ -287,9 +287,9 @@ contains
 
          if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-3) !   
-         do_oper(samp_rcal)    = .false. !(main_iter == n_main_iter-2) !   
-         do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) !   
+         do_oper(samp_acal)    = .false. ! (main_iter == n_main_iter-3) !   
+         do_oper(samp_rcal)    = .false. ! (main_iter == n_main_iter-2) !   
+         do_oper(samp_G)       = .false. ! (main_iter == n_main_iter-1) !   
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -301,7 +301,7 @@ contains
          do_oper(calc_chisq)   = (main_iter == n_main_iter  )
          do_oper(sub_zodi)     = self%subtract_zodi
          do_oper(output_slist) = mod(iter, 1) == 0
-         do_oper(sim_map)      = .false. ! (main_iter == 1) !  
+         do_oper(sim_map)      = .false. ! (main_iter == 1) !   
 
          dipole_mod = 0
 
@@ -545,10 +545,6 @@ contains
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-         !if (self%myid == 0) then
-            !write(*, *) "CHECKPOINT"
-            !write(*, *) dipole_mod
-         !end if
 
          if (do_oper(samp_acal)) then
             call wall_time(t1)
@@ -602,13 +598,16 @@ contains
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       allocate (r(nmaps, 0:npix-1))
-      allocate (s(nmaps, 0:npix-1))
+      allocate (r0(nmaps, 0:npix-1))
       allocate (q(nmaps, 0:npix-1))
-      allocate (d(nmaps, 0:npix-1))
+      allocate (v(nmaps, 0:npix-1))
+      allocate (p(nmaps, 0:npix-1))
+      allocate (s(nmaps, 0:npix-1))
+      allocate (phat(nmaps, 0:npix-1))
+      allocate (shat(nmaps, 0:npix-1))
       allocate (cg_sol(nout, nmaps, 0:npix-1))
 
       cg_sol = 0.0d0
-      !epsil = 1.0d-3
       epsil = 1.0d-2
       ! It would be nice to calculate epsilon on the fly, so that the numerical
       ! error per pixel needs to be smaller than the instrumental noise per
@@ -617,11 +616,6 @@ contains
       ! really fast, we can make delta_0 equal to Npix.
 
 
-      allocate (r0(nmaps, 0:npix-1))
-      allocate (v(nmaps, 0:npix-1))
-      allocate (p(nmaps, 0:npix-1))
-      allocate (phat(nmaps, 0:npix-1))
-      allocate (shat(nmaps, 0:npix-1))
       do l=1, nout
          call update_status(status, "Starting bicg-stab")
          r  = b_map(l, :, :)
@@ -685,7 +679,7 @@ contains
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             omega = sum(q*s)/sum(q**2)
             cg_sol(l,:,:) = cg_sol(l,:,:) + omega*shat
-            if (mod(i, 50) == 1) then
+            if (mod(i, 10) == 1) then
                call update_status(status, 'r = b - Ax')
                r = 0d0
                call compute_Ax(self, cg_sol(l,:,:), r, self%x_im, sprocmask%a, i)
@@ -768,7 +762,7 @@ contains
       if (sprocmask%init) call dealloc_shared_1d_int(sprocmask)
       if (sprocmask2%init) call dealloc_shared_1d_int(sprocmask2)
       deallocate (map_sky)
-      deallocate (cg_sol, r, s, d, q, r0, shat, p, phat, v)
+      deallocate (cg_sol, r, s, q, r0, shat, p, phat, v)
 
       call int2string(iter, ctext)
       call update_status(status, "tod_end"//ctext)
