@@ -276,8 +276,8 @@ contains
 
       call update_status(status, "tod_init")
       do_oper             = .true.
-      allocate (M_diag(nmaps, 0:npix-1))
-      allocate (b_map(nout, nmaps, 0:npix-1))
+      allocate (M_diag(0:npix-1, nmaps))
+      allocate (b_map(0:npix-1, nout, nmaps))
       M_diag = 0d0
       b_map = 0d0
       ! There are four main iterations, for absolute calibration, relative
@@ -575,16 +575,16 @@ contains
 
 
       np0 = self%info%np
-      allocate (cg_tot(nmaps, 0:np0 - 1))
+      allocate (cg_tot(0:np0 - 1, nmaps))
 
       ! write out M_diag, b_map to fits.
-      cg_tot = b_map(1, 1:nmaps, self%info%pix)
+      cg_tot = b_map(self%info%pix, 1, 1:nmaps)
       do n = 1, nmaps
-         call write_fits_file(trim(prefix)//'b'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
+         call write_fits_file(trim(prefix)//'b'//trim(str(n))//trim(postfix), cg_tot(:,n), outmaps)
       end do
-      cg_tot = M_diag(1:nmaps, self%info%pix)
+      cg_tot = M_diag(self%info%pix, 1:nmaps)
       do n = 1, nmaps
-         call write_fits_file(trim(prefix)//'M'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
+         call write_fits_file(trim(prefix)//'M'//trim(str(n))//trim(postfix), cg_tot(:,n), outmaps)
       end do
 
       where (M_diag .eq. 0d0)
@@ -596,15 +596,15 @@ contains
       end if
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      allocate (r(nmaps, 0:npix-1))
-      allocate (r0(nmaps, 0:npix-1))
-      allocate (q(nmaps, 0:npix-1))
-      allocate (v(nmaps, 0:npix-1))
-      allocate (p(nmaps, 0:npix-1))
-      allocate (s(nmaps, 0:npix-1))
-      allocate (phat(nmaps, 0:npix-1))
-      allocate (shat(nmaps, 0:npix-1))
-      allocate (cg_sol(nout, nmaps, 0:npix-1))
+      allocate (r     (0:npix-1, nmaps))
+      allocate (r0    (0:npix-1, nmaps))
+      allocate (q     (0:npix-1, nmaps))
+      allocate (v     (0:npix-1, nmaps))
+      allocate (p     (0:npix-1, nmaps))
+      allocate (s     (0:npix-1, nmaps))
+      allocate (phat  (0:npix-1, nmaps))
+      allocate (shat  (0:npix-1, nmaps))
+      allocate (cg_sol(0:npix-1, nout, nmaps))
 
       cg_sol = 0.0d0
       epsil = 1.0d-2
@@ -617,8 +617,8 @@ contains
 
       do l=1, nout
          call update_status(status, "Starting bicg-stab")
-         r  = b_map(l, :, :)
-         r0 = b_map(l, :, :)
+         r  = b_map(:, l, :)
+         r0 = b_map(:, l, :)
          !delta_0 = sum(r(l,:,:)**2/M_diag(l,:,:))
          ! If r is just Gaussian white noise, then delta_0 is a chi-squared
          ! random variable with 3 npix variables.
@@ -649,11 +649,11 @@ contains
             call mpi_allreduce(MPI_IN_PLACE, v, size(v), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             alpha = rho_new/sum(r0*v)
-            cg_sol(l,:,:) = cg_sol(l,:,:) + alpha*phat
+            cg_sol(:,l,:) = cg_sol(:,l,:) + alpha*phat
             if (write_cg_iter) then
-               cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
+               cg_tot = cg_sol(self%info%pix, l, 1:nmaps)
                do n = 1, nmaps
-                  call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//'_map'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
+                  call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//'_map'//trim(str(n))//trim(postfix), cg_tot(:,n), outmaps)
                end do
             end if
             s = r - alpha*v
@@ -677,21 +677,21 @@ contains
             call mpi_allreduce(MPI_IN_PLACE, q, size(q), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             omega = sum(q*s)/sum(q**2)
-            cg_sol(l,:,:) = cg_sol(l,:,:) + omega*shat
+            cg_sol(:,l,:) = cg_sol(:,l,:) + omega*shat
             if (mod(i, 10) == 1) then
                call update_status(status, 'r = b - Ax')
                r = 0d0
-               call compute_Ax(self, cg_sol(l,:,:), r, self%x_im, sprocmask%a, i)
+               call compute_Ax(self, cg_sol(:,l,:), r, self%x_im, sprocmask%a, i)
                call mpi_allreduce(MPI_IN_PLACE, r, size(r), &
                                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-               r = b_map(l, :, :) - r
+               r = b_map(:, l, :) - r
             else
                call update_status(status, 'r = s - omega*t')
                r = s - omega*q
             end if
 
             if (write_cg_iter) then
-               cg_tot = cg_sol(l, 1:nmaps, self%info%pix)
+               cg_tot = cg_sol(self%info%pix, l, 1:nmaps)
                do n = 1, nmaps
                   call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//'_map'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
                end do
@@ -711,17 +711,17 @@ contains
          end do bicg
       end do
 
-      allocate (r_tot(nmaps, 0:np0 - 1))
-      allocate (corr_tot(nmaps, 0:np0 - 1))
-      cg_tot = cg_sol(1, 1:nmaps, self%info%pix)
-      r_tot = cg_sol(2, 1:nmaps, self%info%pix)
-      corr_tot = cg_sol(3, 1:nmaps, self%info%pix)
+      allocate (r_tot(0:np0 - 1, nmaps))
+      allocate (corr_tot(0:np0 - 1, nmaps))
+      cg_tot = cg_sol(self%info%pix, 1, 1:nmaps)
+      r_tot = cg_sol(self%info%pix, 2, 1:nmaps)
+      corr_tot = cg_sol(self%info%pix, 3, 1:nmaps)
       call update_status(status, "Got total map arrays")
       do i = 0, np0 - 1
          do j = 1, nmaps
-            outmaps(1)%p%map(i, j) = cg_tot(j, i)*1.d6 ! convert from K to uK
-            if (nout > 1) outmaps(2)%p%map(i, j) = r_tot(j, i)*1.d6 ! convert from K to uK
-            if (nout > 2) outmaps(3)%p%map(i, j) = corr_tot(j, i)*1.d6 ! convert from K to uK
+            outmaps(1)%p%map(i, j) = cg_tot(i, j)*1.d6 ! convert from K to uK
+            if (nout > 1) outmaps(2)%p%map(i, j) = r_tot(i, j)*1.d6 ! convert from K to uK
+            if (nout > 2) outmaps(3)%p%map(i, j) = corr_tot(i, j)*1.d6 ! convert from K to uK
          end do
       end do
 
