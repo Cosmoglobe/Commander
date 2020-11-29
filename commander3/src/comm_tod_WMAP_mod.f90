@@ -105,7 +105,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 3
+      constructor%output_n_maps = 2
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -715,8 +715,8 @@ contains
       allocate (r_tot(nmaps, 0:np0 - 1))
       allocate (corr_tot(nmaps, 0:np0 - 1))
       cg_tot = cg_sol(1, 1:nmaps, self%info%pix)
-      r_tot = cg_sol(2, 1:nmaps, self%info%pix)
-      corr_tot = cg_sol(3, 1:nmaps, self%info%pix)
+      if (nout > 1) r_tot = cg_sol(2, 1:nmaps, self%info%pix)
+      if (nout > 2) corr_tot = cg_sol(3, 1:nmaps, self%info%pix)
       call update_status(status, "Got total map arrays")
       do i = 0, np0 - 1
          do j = 1, nmaps
