@@ -44,25 +44,25 @@ program commander
   character(len=32)           :: arg
   integer                     :: myint
 
-  do myint = 1, command_argument_count()
-    call get_command_argument(myint, arg)
+  !do myint = 1, command_argument_count()
+  !  call get_command_argument(myint, arg)
 
-    select case (arg)
-      case ('-v', '--version')
-        print '(2a)', 'Commander3 version ', version
-        print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
-        print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
-        print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
-        call exit(0)
-      case ('-h', '--help')
-        call print_help()
-        call exit(0)
-      case default
-        print '(2a, /)', 'Unrecognised command-line option: ', arg
-        call print_help()
-        call exit(0)
-    end select
-  end do
+  !  select case (arg)
+  !    case ('-v', '--version')
+  !      print '(2a)', 'Commander3 version ', version
+  !      print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
+  !      print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
+  !      print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  !      call exit(0)
+  !    case ('-h', '--help')
+  !      call print_help()
+  !      call exit(0)
+  !    case default
+  !      print '(2a, /)', 'Unrecognised command-line option: ', arg
+  !      call print_help()
+  !      call exit(0)
+  !  end select
+  !end do
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
