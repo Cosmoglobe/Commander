@@ -165,13 +165,14 @@ contains
       class(comm_map), intent(inout) :: map_out      ! Combined output map
       class(comm_map), intent(inout) :: rms_out      ! Combined output rms
 
-      integer(i4b) :: i, j, k, l, m, n, t, start_chunk, end_chunk, chunk_size, ntod, ndet
+      integer(i4b) :: i, j, k, l, m, n, t, ntod, ndet
       integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
       integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0, nout = 1
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
-      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orbA, s_orbB, s_orb_tot, mask, mask2, s_bp
+      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orbA, s_orbB, s_orb_tot
+      real(sp), allocatable, dimension(:, :)     :: mask, mask2, s_bp,   s_solA, s_solB, s_sol_tot
       real(sp), allocatable, dimension(:, :)     :: s_mono, s_buf, s_tot, s_zodi
       real(sp), allocatable, dimension(:, :)     :: s_invN, s_lowres
       real(sp), allocatable, dimension(:, :, :)   :: s_sky_prop, s_bp_prop
@@ -183,16 +184,15 @@ contains
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
       integer(i4b), allocatable, dimension(:, :)     :: flag
       real(dp), allocatable, dimension(:, :, :)   :: b_tot, M_diag_tot
-      real(dp), allocatable, dimension(:, :)   :: cg_tot, r_tot, corr_tot
+      real(dp), allocatable, dimension(:, :)   :: cg_tot
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
       character(len=4)   :: ctext, myid_text
       character(len=6)   :: samptext, scantext
       character(len=512), allocatable, dimension(:) :: slist
-      type(shared_1d_int) :: sprocmask, sprocmask2
+      type(shared_1d_int) :: sprocmask
+      integer(i4b), allocatable, dimension(:)     :: procmask
       real(sp), allocatable, dimension(:, :, :, :) :: map_sky
-      type(shared_2d_dp) :: sA_map, scg_sol
-      type(shared_3d_dp) :: sb_map, sb_mono, sM_diag
       class(comm_map), pointer :: condmap
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
@@ -202,7 +202,7 @@ contains
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
-      logical(lgt) :: write_cg_iter=.true.
+      logical(lgt) :: write_cg_iter=.false.
 
       ! biconjugate gradient parameters
       real(dp) :: rho_old, rho_new
@@ -228,16 +228,14 @@ contains
       npix = 12*nside**2
       nout = self%output_n_maps
       nscan_tot = self%nscan_tot
-      chunk_size = npix/self%numprocs_shared
-      if (chunk_size*self%numprocs_shared /= npix) chunk_size = chunk_size + 1
       allocate(A_abscal(self%ndet), b_abscal(self%ndet))
       allocate (map_sky(nmaps, self%nobs, 0:ndet, ndelta))
       allocate (chisq_S(ndet, ndelta))
       allocate(dipole_mod(nscan_tot, ndet))
       allocate (slist(self%nscan))
       slist = ''
-      allocate (outmaps(nout+1))
-      do i = 1, nout+1
+      allocate (outmaps(nout))
+      do i = 1, nout
          outmaps(i)%p => comm_map(map_out%info)
       end do
       call int2string(chain, ctext)
@@ -268,16 +266,18 @@ contains
            & self%myid_inter, self%comm_inter, [npix], sprocmask)
       call sync_shared_1d_int_map(sprocmask, self%procmask%info%pix, &
            & nint(self%procmask%map(:, 1)))
-      call init_shared_1d_int(self%myid_shared, self%comm_shared, &
-           & self%myid_inter, self%comm_inter, [npix], sprocmask2)
-      call sync_shared_1d_int_map(sprocmask2, self%procmask2%info%pix, &
-           & nint(self%procmask2%map(:, 1)))
+
+      allocate(procmask(0:npix-1))
+      !procmask(self%procmask%info%pix) = nint(self%procmask%map(:, 1))
+      !call mpi_allreduce(mpi_in_place, procmask, size(procmask), &
+      !    & MPI_INTEGER, MPI_SUM, self%info%comm, ierr)
+      procmask = sprocmask%a
       call wall_time(t2); t_tot(9) = t2 - t1
 
       call update_status(status, "tod_init")
       do_oper             = .true.
       allocate (M_diag(0:npix-1, nmaps))
-      allocate (b_map(0:npix-1, nout, nmaps))
+      allocate ( b_map(0:npix-1, nmaps, nout))
       M_diag = 0d0
       b_map = 0d0
       ! There are four main iterations, for absolute calibration, relative
@@ -323,9 +323,12 @@ contains
             allocate (n_corr(ntod, ndet))                 ! Correlated noise in V
             allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
             allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
-            allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A) in uKcmb
-            allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B) in uKcmb
-            allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both) in uKcmb
+            allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A)
+            allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B)
+            allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both)
+            allocate (s_solA(ntod, ndet))                 ! Solar dipole (beam A)
+            allocate (s_solB(ntod, ndet))                 ! Solar dipole (beam B)
+            allocate (s_sol_tot(ntod, ndet))              ! Solar dipole (both)
             allocate (s_buf(ntod, ndet))                  ! Buffer
             allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
             allocate (mask(ntod, ndet))                   ! Processing mask in time
@@ -349,10 +352,10 @@ contains
             ! Construct sky signal template
             if (do_oper(sim_map)) then
                call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
-                      & self%x_im, sprocmask%a, i, s_sky, mask, .true.)
+                      & self%x_im, procmask, i, s_sky, mask, .true.)
             else 
                call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
-                      & self%x_im, sprocmask%a, i, s_sky, mask, .false.)
+                      & self%x_im, procmask, i, s_sky, mask, .false.)
             end if
 
             if (main_iter == 1 .and. self%first_call) then
@@ -373,11 +376,20 @@ contains
             s_orbB = 0d0
             call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
             call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
+            s_solA = 0d0
+            s_solB = 0d0
+            call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_solA)
+            call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_solB)
             s_orb_tot = 0d0
             do j = 1, ndet
-               s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
-                               & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+               s_sol_tot(:, j) = (1+self%x_im((j+1)/2))*s_solA(:,j) - &
+                               & (1-self%x_im((j+1)/2))*s_solB(:,j)
             end do
+
+            if (self%myid_shared == 0) .and. (i == 1) .and. (main_iter == 4) then
+                write(*,*) maxval(s_orbA), 's_orbA'
+                write(*,*) maxval(s_solA), 's_solA'
+            end if
             if (do_oper(sim_map)) then
                 do j = 1, ndet
                    inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
@@ -510,6 +522,9 @@ contains
                   end if
 
                end do
+               if (self%myid_shared == 0) .and. (i == 1) then
+                   write(*,*) maxval(d_calib), 'd_calib'
+               end if
 
                if (.false. .and. do_oper(bin_map) ) then
                   call int2string(self%scanid(i), scantext)
@@ -526,7 +541,7 @@ contains
 
                ! Bin the calibrated map
                call bin_differential_TOD(self, d_calib, pix,  &
-                      & psi, flag, self%x_im, sprocmask%a, b_map, M_diag, i)
+                      & psi, flag, self%x_im, procmask, b_map, M_diag, i)
                deallocate(d_calib)
                call wall_time(t8); t_tot(19) = t_tot(19) + t8
             end if
@@ -538,7 +553,7 @@ contains
 
             ! Clean up
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_sky_prop)
-            deallocate (mask, mask2, pix, psi, flag)
+            deallocate (mask, mask2, pix, psi, flag, s_solA, s_solB, s_sol_tot)
             if (allocated(s_lowres)) deallocate (s_lowres)
             if (allocated(s_invN)) deallocate (s_invN)
          end do
@@ -578,7 +593,7 @@ contains
       allocate (cg_tot(0:np0 - 1, nmaps))
 
       ! write out M_diag, b_map to fits.
-      cg_tot = b_map(self%info%pix, 1, 1:nmaps)
+      cg_tot = b_map(self%info%pix, 1:nmaps, 1)
       call write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
       cg_tot = M_diag(self%info%pix, 1:nmaps)
       call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
@@ -600,10 +615,10 @@ contains
       allocate (s     (0:npix-1, nmaps))
       allocate (phat  (0:npix-1, nmaps))
       allocate (shat  (0:npix-1, nmaps))
-      allocate (cg_sol(0:npix-1, nout, nmaps))
+      allocate (cg_sol(0:npix-1, nmaps, nout))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-2
+      epsil = 1.0d-1
       ! It would be nice to calculate epsilon on the fly, so that the numerical
       ! error per pixel needs to be smaller than the instrumental noise per
       ! pixel.
@@ -613,8 +628,8 @@ contains
 
       do l=1, nout
          call update_status(status, "Starting bicg-stab")
-         r  = b_map(:, l, :)
-         r0 = b_map(:, l, :)
+         r  = b_map(:, :, l)
+         r0 = b_map(:, :, l)
          !delta_0 = sum(r(l,:,:)**2/M_diag(l,:,:))
          ! If r is just Gaussian white noise, then delta_0 is a chi-squared
          ! random variable with 3 npix variables.
@@ -641,13 +656,13 @@ contains
             phat = p/M_diag
             v = 0d0
             call update_status(status, "Calling p=Av")
-            call compute_Ax(self, phat, v, self%x_im, sprocmask%a, i)
+            call compute_Ax(self, phat, v, self%x_im, procmask, i)
             call mpi_allreduce(MPI_IN_PLACE, v, size(v), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             alpha = rho_new/sum(r0*v)
-            cg_sol(:,l,:) = cg_sol(:,l,:) + alpha*phat
+            cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
             if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, l, 1:nmaps)
+               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
                call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//trim(postfix), cg_tot, outmaps)
             end if
             s = r - alpha*v
@@ -661,32 +676,32 @@ contains
             end if
             if (delta_s .le. (delta_0*epsil**2)) then
                 if (self%myid_shared==0) then 
-                    write(*,*) 'Converged'
+                    write(*,*) '    Converged'
                 end if
                 exit bicg
             end if
             q = 0d0
             call update_status(status, "Calling  q= A shat")
-            call compute_Ax(self, shat, q, self%x_im, sprocmask%a, i)
+            call compute_Ax(self, shat, q, self%x_im, procmask, i)
             call mpi_allreduce(MPI_IN_PLACE, q, size(q), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
             omega = sum(q*s)/sum(q**2)
-            cg_sol(:,l,:) = cg_sol(:,l,:) + omega*shat
+            cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
             if (mod(i, 10) == 1) then
                call update_status(status, 'r = b - Ax')
                r = 0d0
-               call compute_Ax(self, cg_sol(:,l,:), r, self%x_im, sprocmask%a, i)
+               call compute_Ax(self, cg_sol(:,:,l), r, self%x_im, procmask, i)
                call mpi_allreduce(MPI_IN_PLACE, r, size(r), &
                                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
-               r = b_map(:, l, :) - r
+               r = b_map(:, :, l) - r
             else
                call update_status(status, 'r = s - omega*t')
                r = s - omega*q
             end if
 
             if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, l, 1:nmaps)
-               call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//trim(postfix), cg_tot, outmaps)
+               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
+               call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//trim(postfix), cg_tot, outmaps)
             end if
 
             delta_r = sum(r**2/M_diag)
@@ -696,31 +711,26 @@ contains
             end if
             if ((delta_r .le. (delta_0*epsil**2))) then
                 if (self%myid_shared==0) then 
-                    write(*,*) 'Converged'
+                    write(*,*) '    Converged'
                 end if
                 exit bicg
             end if
          end do bicg
       end do
 
-      allocate (r_tot(0:np0 - 1, nmaps))
-      allocate (corr_tot(0:np0 - 1, nmaps))
-      cg_tot = cg_sol(self%info%pix, 1, 1:nmaps)
-      r_tot = cg_sol(self%info%pix, 2, 1:nmaps)
-      corr_tot = cg_sol(self%info%pix, 3, 1:nmaps)
-      call update_status(status, "Got total map arrays")
-      do i = 0, np0 - 1
-         do j = 1, nmaps
-            outmaps(1)%p%map(i, j) = cg_tot(i, j)*1.d6 ! convert from K to uK
-            if (nout > 1) outmaps(2)%p%map(i, j) = r_tot(i, j)*1.d6 ! convert from K to uK
-            if (nout > 2) outmaps(3)%p%map(i, j) = corr_tot(i, j)*1.d6 ! convert from K to uK
-         end do
-      end do
-
       map_out%map = outmaps(1)%p%map
+      rms_out%map = 0d0
       call outmaps(1)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
-      if (nout > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'resid'//trim(postfix))
-      if (nout > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+      call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
+      call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+
+      if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
+      if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+      if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
+      if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
+      if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
+      if (self%output_n_maps > 6) call outmaps(7)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+      if (self%output_n_maps > 7) call outmaps(8)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
@@ -734,10 +744,7 @@ contains
 
       ! Clean up temporary arrays
       deallocate(A_abscal, b_abscal, chisq_S)
-      deallocate(b_map, M_diag, r_tot, cg_tot, corr_tot)
-      if (sA_map%init) call dealloc_shared_2d_dp(sA_map)
-      if (sb_map%init) call dealloc_shared_3d_dp(sb_map)
-      if (sb_mono%init) call dealloc_shared_3d_dp(sb_mono)
+      deallocate(b_map, M_diag, cg_tot)
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
       if (allocated(slist)) deallocate (slist)
@@ -751,7 +758,6 @@ contains
       end if
 
       if (sprocmask%init) call dealloc_shared_1d_int(sprocmask)
-      if (sprocmask2%init) call dealloc_shared_1d_int(sprocmask2)
       deallocate (map_sky)
       deallocate (cg_sol, r, s, q, r0, shat, p, phat, v)
 

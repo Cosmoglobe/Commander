@@ -141,12 +141,12 @@ contains
 
             do i = 1, nout
                d = data(i, t, det)
-               b(lpix, i, 1) = b(lpix, i, 1) + f_A*(1 + x_im)*d                      *inv_sigmasq
-               b(rpix, i, 1) = b(rpix, i, 1) - f_B*(1 - x_im)*d                      *inv_sigmasq
-               b(lpix, i, 2) = b(lpix, i, 2) + f_A*(1 + x_im)*d*tod%cos2psi(lpsi)*sgn*inv_sigmasq
-               b(rpix, i, 2) = b(rpix, i, 2) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
-               b(lpix, i, 3) = b(lpix, i, 3) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
-               b(rpix, i, 3) = b(rpix, i, 3) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
+               b(lpix, 1, i) = b(lpix, 1, i) + f_A*(1 + x_im)*d                      *inv_sigmasq
+               b(rpix, 1, i) = b(rpix, 1, i) - f_B*(1 - x_im)*d                      *inv_sigmasq
+               b(lpix, 2, i) = b(lpix, 2, i) + f_A*(1 + x_im)*d*tod%cos2psi(lpsi)*sgn*inv_sigmasq
+               b(rpix, 2, i) = b(rpix, 2, i) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
+               b(lpix, 3, i) = b(lpix, 3, i) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
+               b(rpix, 3, i) = b(rpix, 3, i) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
                !b(lpix, i, 4) = b(lpix, i, 4) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
                !b(rpix, i, 4) = b(rpix, i, 4) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
             end do
