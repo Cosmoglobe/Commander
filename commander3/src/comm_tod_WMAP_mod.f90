@@ -693,7 +693,7 @@ contains
             if (write_cg_iter) then
                cg_tot = cg_sol(self%info%pix, l, 1:nmaps)
                do n = 1, nmaps
-                  call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//'_map'//trim(str(n))//trim(postfix), cg_tot(n,:), outmaps)
+                  call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//'_map'//trim(str(n))//trim(postfix), cg_tot(:,n), outmaps)
                end do
             end if
 
