@@ -225,16 +225,15 @@ contains
     real(dp),              intent(in) :: q
     real(dp)                          :: prod
 
-    real(dp) :: theta, psi_d, phi, amp
+    real(dp) :: theta, psi_d, phi
     real(dp), dimension(3,3) :: rot_mat
     real(dp), dimension(3)   :: vnorm
     real(dp), dimension(3)  :: T_dip
 
-    amp = 3359.5d-6 ! kelvin
-    amp = 0
     phi   = 4.607145626489432  ! 263.97*pi/180
     theta = 0.7278022980816355 ! (90-48.3)*pi/180
-    vnorm = (/ amp*sin(theta)*cos(phi), amp*sin(theta)*sin(phi), amp*cos(theta) /)
+    vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
+    vnorm = vnorm*T_CMB_DIP
 
     theta = self%tod%ind2ang(1,p)
     phi   = self%tod%ind2ang(2,p)

@@ -25,10 +25,11 @@ module comm_defs
   !**************************************************
   !               Global variables
   !**************************************************
-  real(dp), parameter :: k_B      = 1.3806503d-23
-  real(dp), parameter :: h        = 1.0545726691251021d-34 * 2.d0*pi 
-  real(dp), parameter :: c        = 2.99792458d8
-  real(dp)            :: T_CMB    = 2.72548d0
+  real(dp), parameter :: k_B       = 1.3806503d-23
+  real(dp), parameter :: h         = 1.0545726691251021d-34 * 2.d0*pi 
+  real(dp), parameter :: c         = 2.99792458d8
+  real(dp)            :: T_CMB     = 2.72548d0
+  real(dp)            :: T_CMB_DIP = 3359.5d-6
 
   !**************************************************
   !               Counters
