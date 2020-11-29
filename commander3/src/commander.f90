@@ -57,10 +57,10 @@ program commander
       case ('-h', '--help')
         call print_help()
         call exit(0)
-      case default
-        print '(2a, /)', 'Unrecognised command-line option: ', arg
-        call print_help()
-        call exit(0)
+!!$      case default
+!!$        print '(2a, /)', 'Unrecognised command-line option: ', arg
+!!$        call print_help()
+!!$        call exit(0)
     end select
   end do
 
