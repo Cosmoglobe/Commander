@@ -579,13 +579,9 @@ contains
 
       ! write out M_diag, b_map to fits.
       cg_tot = b_map(self%info%pix, 1, 1:nmaps)
-      do n = 1, nmaps
-         call write_fits_file(trim(prefix)//'b'//trim(str(n))//trim(postfix), cg_tot(:,n), outmaps)
-      end do
+      call write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
       cg_tot = M_diag(self%info%pix, 1:nmaps)
-      do n = 1, nmaps
-         call write_fits_file(trim(prefix)//'M'//trim(str(n))//trim(postfix), cg_tot(:,n), outmaps)
-      end do
+      call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
 
       where (M_diag .eq. 0d0)
          M_diag = 1d0
@@ -652,9 +648,7 @@ contains
             cg_sol(:,l,:) = cg_sol(:,l,:) + alpha*phat
             if (write_cg_iter) then
                cg_tot = cg_sol(self%info%pix, l, 1:nmaps)
-               do n = 1, nmaps
-                  call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//'_map'//trim(str(n))//trim(postfix), cg_tot(:,n), outmaps)
-               end do
+               call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//trim(postfix), cg_tot, outmaps)
             end if
             s = r - alpha*v
 
@@ -692,9 +686,7 @@ contains
 
             if (write_cg_iter) then
                cg_tot = cg_sol(self%info%pix, l, 1:nmaps)
-               do n = 1, nmaps
-                  call write_fits_file(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//'_map'//trim(str(n))//trim(postfix), cg_tot(:,n), outmaps)
-               end do
+               call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//trim(postfix), cg_tot, outmaps)
             end if
 
             delta_r = sum(r**2/M_diag)
@@ -815,5 +807,27 @@ contains
 
    end subroutine write_fits_file
 
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ! Subroutine to save map array to fits file 
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   subroutine write_fits_file_iqu(filename, array, outmaps)
+     implicit none
+     character(len=*),                    intent(in) :: filename
+     real(dp),         dimension(0:, 1:), intent(in) :: array
+     class(map_ptr),   dimension(:),      intent(in) :: outmaps
+
+     integer(i4b) :: np0, m, n
+
+     np0 = size(array, dim=1)
+
+     do n = 1, 3
+        do m = 0, np0 - 1
+           outmaps(1)%p%map(m, n) = array(m, n)
+        end do
+     end do
+
+     call outmaps(1)%p%writeFITS(filename)
+
+   end subroutine write_fits_file_iqu
 
 end module comm_tod_WMAP_mod
