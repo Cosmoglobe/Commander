@@ -105,7 +105,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 2
+      constructor%output_n_maps = 3
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -376,17 +376,24 @@ contains
             s_orbB = 0d0
             call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
             call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
+            !s_orbA = s_orbA * 1d6
+            !s_orbB = s_orbB * 1d6
             s_solA = 0d0
             s_solB = 0d0
             call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_solA)
             call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_solB)
+            !s_solA = s_solA * 1d3
+            !s_solB = s_solB * 1d3
             s_orb_tot = 0d0
+            s_sol_tot = 0d0
             do j = 1, ndet
+               s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
+                               & (1-self%x_im((j+1)/2))*s_orbB(:,j)
                s_sol_tot(:, j) = (1+self%x_im((j+1)/2))*s_solA(:,j) - &
                                & (1-self%x_im((j+1)/2))*s_solB(:,j)
             end do
 
-            if (self%myid_shared == 0) .and. (i == 1) .and. (main_iter == 4) then
+            if (self%myid_shared == 0 .and. i == 1 .and. main_iter == 4) then
                 write(*,*) maxval(s_orbA), 's_orbA'
                 write(*,*) maxval(s_solA), 's_solA'
             end if
@@ -506,7 +513,7 @@ contains
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
                   d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-                     & inv_gain - s_tot(:, j) + s_sky(:, j)
+                     & inv_gain - s_tot(:, j) + s_sky(:, j) - s_sol_tot(:, j)
 
                   if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
@@ -522,7 +529,7 @@ contains
                   end if
 
                end do
-               if (self%myid_shared == 0) .and. (i == 1) then
+               if (self%myid_shared == 0 .and. i == 1) then
                    write(*,*) maxval(d_calib), 'd_calib'
                end if
 
@@ -718,12 +725,18 @@ contains
          end do bicg
       end do
 
+
+      do k = 1, self%output_n_maps
+         do j = 1, nmaps
+            outmaps(k)%p%map(:, j) = cg_sol(self%info%pix, j, k)*1.d3 ! mK
+         end do
+      end do
+
       map_out%map = outmaps(1)%p%map
-      rms_out%map = 0d0
+      rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
       call outmaps(1)%p%writeFITS(trim(prefix)//'cg_sol'//trim(postfix))
       call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-
       if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
       if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
       if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
@@ -822,15 +835,7 @@ contains
      real(dp),         dimension(0:, 1:), intent(in) :: array
      class(map_ptr),   dimension(:),      intent(in) :: outmaps
 
-     integer(i4b) :: np0, m, n
-
-     np0 = size(array, dim=1)
-
-     do n = 1, 3
-        do m = 0, np0 - 1
-           outmaps(1)%p%map(m, n) = array(m, n)
-        end do
-     end do
+     outmaps(1)%p%map = array
 
      call outmaps(1)%p%writeFITS(filename)
 
