@@ -28,7 +28,6 @@ module comm_tod_WMAP_mod
    use comm_huffman_mod
    use comm_hdf_mod
    use comm_fft_mod
-   use comm_shared_arr_mod
    use spline_1D_mod
    use comm_4D_map_mod
    use comm_zodi_mod
@@ -190,7 +189,6 @@ contains
       character(len=4)   :: ctext, myid_text
       character(len=6)   :: samptext, scantext
       character(len=512), allocatable, dimension(:) :: slist
-      type(shared_1d_int) :: sprocmask
       integer(i4b), allocatable, dimension(:)     :: procmask
       real(sp), allocatable, dimension(:, :, :, :) :: map_sky
       class(comm_map), pointer :: condmap
@@ -261,17 +259,17 @@ contains
       end do
       deallocate (m_buf)
 
-      ! Set up shared processing mask
-      call init_shared_1d_int(self%myid_shared, self%comm_shared, &
-           & self%myid_inter, self%comm_inter, [npix], sprocmask)
-      call sync_shared_1d_int_map(sprocmask, self%procmask%info%pix, &
-           & nint(self%procmask%map(:, 1)))
-
       allocate(procmask(0:npix-1))
-      !procmask(self%procmask%info%pix) = nint(self%procmask%map(:, 1))
-      !call mpi_allreduce(mpi_in_place, procmask, size(procmask), &
-      !    & MPI_INTEGER, MPI_SUM, self%info%comm, ierr)
-      procmask = sprocmask%a
+      do i = 1, size(self%procmask%map(:,1))
+         procmask(self%procmask%info%pix(i)) = nint(self%procmask%map(i-1,1))
+      end do
+      call mpi_allreduce(mpi_in_place, procmask, size(procmask), MPI_INTEGER, MPI_SUM, self%info%comm, ierr)
+      where (procmask .ge. 1)
+          procmask = 1
+      end where
+
+
+
       call wall_time(t2); t_tot(9) = t2 - t1
 
       call update_status(status, "tod_init")
@@ -281,7 +279,7 @@ contains
       M_diag = 0d0
       b_map = 0d0
       ! There are four main iterations, for absolute calibration, relative
-      ! calibration, time-variable calibratino, and correlated noise estimation.
+      ! calibration, time-variable calibration, and correlated noise estimation.
       main_it: do main_iter = 1, n_main_iter
          call update_status(status, "tod_istart")
 
@@ -529,9 +527,9 @@ contains
                   end if
 
                end do
-               if (self%myid_shared == 0 .and. i == 1) then
-                   write(*,*) maxval(d_calib), 'd_calib'
-               end if
+               !if (self%myid_shared == 0 .and. i == 1) then
+               !    write(*,*) maxval(d_calib), 'd_calib'
+               !end if
 
                if (.false. .and. do_oper(bin_map) ) then
                   call int2string(self%scanid(i), scantext)
@@ -769,7 +767,6 @@ contains
          deallocate (outmaps)
       end if
 
-      if (sprocmask%init) call dealloc_shared_1d_int(sprocmask)
       deallocate (map_sky)
       deallocate (cg_sol, r, s, q, r0, shat, p, phat, v)
 
