@@ -233,7 +233,6 @@ contains
     phi   = 4.607145626489432  ! 263.97*pi/180
     theta = 0.7278022980816355 ! (90-48.3)*pi/180
     vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
-    vnorm = vnorm*T_CMB_DIP
 
     theta = self%tod%ind2ang(1,p)
     phi   = self%tod%ind2ang(2,p)
@@ -247,6 +246,8 @@ contains
             &self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
             &vnorm(2)*vnorm(3)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
             &self%orb_dp_s(i,9))
+
+    prod = T_CMB_DIP*prod/self%orb_dp_s(i,10)
 
   end function compute_4pi_product_sol
 
