@@ -338,7 +338,7 @@ contains
           !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
-                call data(i)%bp(j)%p%update_tau(delta(j,:,k))
+                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
           !end if
@@ -379,7 +379,7 @@ contains
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
-          call data(i)%bp(j)%p%update_tau(delta(j,:,1))
+          call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
        end do
        call update_mixing_matrices(i, update_F_int=.true.)       
 
