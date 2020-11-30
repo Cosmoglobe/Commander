@@ -134,8 +134,8 @@ contains
             ! is 1 (low emission), pixA is updated and pixB isn't.
             f_A = 1-pA*(1-pB)
             f_B = 1-pB*(1-pA)
-            f_A = 1
-            f_B = 1
+            !f_A = 1
+            !f_B = 1
 
             do i = 1, nout
                d = data(i, t, det)
@@ -212,8 +212,8 @@ contains
                pB = pmask(rpix)
                f_A = 1-pA*(1-pB)
                f_B = 1-pB*(1-pA)
-               f_A = 1
-               f_B = 1
+               !f_A = 1
+               !f_B = 1
                ! This is the model for each timestream
                ! The sgn parameter is +1 for timestreams 13 and 14, -1
                ! for timestreams 23 and 24, and also is used to switch
