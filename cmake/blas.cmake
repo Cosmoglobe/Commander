@@ -101,21 +101,25 @@ if(NOT (BLAS_FOUND OR LAPACK_FOUND))
 			-DCMAKE_Fortran_COMPILER=${COMMANDER3_Fortran_COMPILER}
 			-DCMAKE_CXX_COMPILER=${COMMANDER3_CXX_COMPILER}
 			-DCMAKE_C_COMPILER=${COMMANDER3_C_COMPILER}
+			-DCMAKE_INSTALL_LIBDIR=lib
 			#-DCMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
 			#-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
 		)
 	#message(${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-	# In case of static linking, we do not need to specify linker flags
-	# OpenBLAS will be either at lib or at lib64 depending on the system
-	# so we just cover these two cases and that is it.
+	# In case of static linking, we do not need to specify linker flags.
+	# NOTE: If OpenBLAS 0.3.12 is installed with CMake, there is a special
+        # variable, which controls the installation of libraries and it is 
+        # CMAKE_INSTALL_LIBDIR. We need to set it manually as above to "lib"
+        # otehrwise on some platforms the dir will be named "lib" and on others
+        # "lib64".
 	set(BLAS_LINKER_FLAGS "")
 	set(BLAS_LIBRARIES
-		"${CMAKE_LIBRARY64_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		#"${CMAKE_LIBRARY64_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
 	set(LAPACK_LINKER_FLAGS "")
 	set(LAPACK_LIBRARIES
-		"${CMAKE_LIBRARY64_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		#"${CMAKE_LIBRARY64_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
 	#message(${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX})
