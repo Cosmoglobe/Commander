@@ -121,7 +121,11 @@ contains
          inv_sigmasq = (tod%scans(scan)%d(det)%gain/sigma_0)**2
          x_im = x_imarr((det+1)/2)
          do t = 1, tod%scans(scan)%ntod
-            if (flag(t,det) .ne. 0) cycle
+            if (flag(t,det) .ne. 0) then
+                !d = data(1, t, det)
+                !write(*,*) d, 'flagged data'
+                cycle
+            end if
 
             lpix = pix(t, det, 1)
             rpix = pix(t, det, 2)

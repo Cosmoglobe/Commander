@@ -309,7 +309,6 @@ contains
 
          ! Perform main analysis loop
          naccept = 0; ntot = 0
-         ! Using nmaps + 1 to include the spurious component
          do i = 1, self%nscan
 
             ! Short-cuts to local variables
@@ -391,10 +390,10 @@ contains
                                & (1-self%x_im((j+1)/2))*s_solB(:,j)
             end do
 
-            !if (self%myid_shared == 0 .and. i == 1 .and. main_iter == 4) then
-            !    write(*,*) maxval(s_orbA), 's_orbA'
-            !    write(*,*) maxval(s_solA), 's_solA'
-            !end if
+            if (self%myid_shared == 0 .and. main_iter == 4) then
+                write(*,*) maxval(s_orbA), 's_orbA'
+                write(*,*) maxval(s_solA), 's_solA'
+            end if
             if (do_oper(sim_map)) then
                 do j = 1, ndet
                    inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
@@ -527,9 +526,9 @@ contains
                   end if
 
                end do
-               !if (self%myid_shared == 0 .and. i == 1) then
-               !    write(*,*) maxval(d_calib), 'd_calib'
-               !end if
+               if (self%myid_shared == 0) then
+                   write(*,*) maxval(d_calib), 'd_calib'
+               end if
 
                if (.false. .and. do_oper(bin_map) ) then
                   call int2string(self%scanid(i), scantext)
