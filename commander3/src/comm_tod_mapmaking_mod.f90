@@ -121,9 +121,8 @@ contains
          inv_sigmasq = (tod%scans(scan)%d(det)%gain/sigma_0)**2
          x_im = x_imarr((det+1)/2)
          do t = 1, tod%scans(scan)%ntod
-            if (flag(t,det) .ne. 0) then
-                !d = data(1, t, det)
-                !write(*,*) d, 'flagged data'
+            if (iand(flag(t, det), tod%flag0) .ne. 0) then
+                !write(*,*) data(1,t,det), 'flagged data', flag(t, det), 'flag(t,det)', tod%flag0
                 cycle
             end if
 
@@ -199,7 +198,7 @@ contains
                 & psi(:, k, :), flag(:, k))
             do t = 1, ntod
 
-               if (flag(t,k) .ne. 0) cycle
+               if (iand(flag(t, k), tod%flag0) .ne. 0) cycle
                ! sigma0 is in units of du, so need to convert back to mK
                sigma_0 = tod%scans(j)%d(k)%sigma0
                if (sigma_0 == 0) then
