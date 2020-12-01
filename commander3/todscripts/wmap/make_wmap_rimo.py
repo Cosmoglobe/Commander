@@ -93,7 +93,7 @@ with h5py.File(fname_out, 'a') as f:
     for fname in fnames:
         theta, B = np.loadtxt(fname).T
 
-        fwhm_deg = 2*np.sqrt(2*np.log(2))*theta[B <= B.max()/2][0]
+        fwhm_deg = 2*theta[B <= B.max()/2][0]
         fwhm = 60*fwhm_deg
     
         DA = fname.split('_')[4]
