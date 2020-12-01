@@ -120,6 +120,7 @@ contains
       constructor%x_im(:) = 0.0d0
       ! For K-band
       constructor%x_im = [-0.00067, 0.00536]
+      ! constructor%x_im = [-0.05, 0.05]
 
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -133,7 +134,6 @@ contains
       end do
 
       ! Read the actual TOD
-      ! TODO: this probabl needs a seperate fucntion/ modifications for wmap
       call constructor%read_tod_WMAP(constructor%label)
 
       call constructor%precompute_lookups()
@@ -268,8 +268,6 @@ contains
           procmask = 1
       end where
 
-
-
       call wall_time(t2); t_tot(9) = t2 - t1
 
       call update_status(status, "tod_init")
@@ -390,10 +388,10 @@ contains
                                & (1-self%x_im((j+1)/2))*s_solB(:,j)
             end do
 
-            if (self%myid_shared == 0 .and. main_iter == 4) then
-                write(*,*) maxval(s_orbA), 's_orbA'
-                write(*,*) maxval(s_solA), 's_solA'
-            end if
+            !if (self%myid_shared == 0 .and. main_iter == 4) then
+            !    write(*,*) maxval(s_orbA), 's_orbA'
+            !    write(*,*) maxval(s_solA), 's_solA'
+            !end if
             if (do_oper(sim_map)) then
                 do j = 1, ndet
                    inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
@@ -526,9 +524,9 @@ contains
                   end if
 
                end do
-               if (self%myid_shared == 0) then
-                   write(*,*) maxval(d_calib), 'd_calib'
-               end if
+               !if (self%myid_shared == 0) then
+               !    write(*,*) maxval(d_calib), 'd_calib'
+               !end if
 
                if (.false. .and. do_oper(bin_map) ) then
                   call int2string(self%scanid(i), scantext)
