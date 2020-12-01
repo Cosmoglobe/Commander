@@ -53,6 +53,7 @@ from tqdm import tqdm
 # version 22 splits up the data into 24 chunks and uses precalibrated data
 # version 24 uses a more accurate gain model
 # version 25 is same as version 24, but uses precalibrated data.
+# version 26 is same as version 24, but does not recompute planet flags
 
 from time import sleep
 from time import time as timer
@@ -840,7 +841,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     quat = data[1].data['QUATERN']
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center)
 
-    daflags = get_flags(data)
+    #daflags = get_flags(data)
 
     data.close()
 
@@ -886,9 +887,12 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
-    files = np.array(files)[:nfiles]
-
     inds = np.arange(len(files))
+    #inds = inds[:len(files)//2]
+    #files = np.array(files)[:len(files)//2]
+    inds = inds[len(files)//2:]
+    files = np.array(files)[len(files)//2:]
+
 
     if par:
         nprocs = 64
@@ -914,5 +918,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=21, center=False)
     #main(par=False, plot=False, compress=True, version=23, center=False)
     #main(par=True, plot=False, compress=True, version=24, center=True)
-    main(par=True, plot=False, compress=True, version=25, center=True)
+    #main(par=True, plot=False, compress=True, version=25, center=True)
+    main(par=True, plot=False, compress=True, version=26, center=True)
     #test_flags()
