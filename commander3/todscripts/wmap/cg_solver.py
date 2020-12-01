@@ -193,134 +193,137 @@ def get_data(fname, band, xbar, dxbar, nside=256, pol=False, mask=True):
         b_s = np.zeros(npix)
     labels = [f'{band}13', f'{band}14',f'{band}23',f'{band}24']
     f= h5py.File(fname, 'r')
+    obsids = list(f.keys())
     obsid = str(list(f.keys())[0])
-    huffTree = f[obsid+'/common/hufftree']
-    huffSymb = f[obsid+'/common/huffsymb']
-    h = huffman.Huffman(tree=huffTree, symb=huffSymb)
+    for obsind in range(len(obsids)):
+        obsid = str(obsids[obsind])
+        huffTree = f[obsid+'/common/hufftree']
+        huffSymb = f[obsid+'/common/huffsymb']
+        h = huffman.Huffman(tree=huffTree, symb=huffSymb)
 
 
 
-    DAs = [[], [], [], []]
-    flags = [[], [], [], []]
-    sigmas = []
-    gains = np.zeros(len(labels))
-    npsi = 2048
-    psiBins = np.linspace(0, 2*np.pi, npsi)
-    for num, label in enumerate(labels):
-        TODs = np.array(f[obsid + '/' + label + '/tod'])
-        scalars = f[obsid + '/' + label + '/scalars']
-        gains[num] = scalars[0]
-        flag = h.Decoder(np.array(f[obsid + '/' + label + '/flag']))
-        flags[num] = flags[num] + flag.tolist()
-        DAs[num] = DAs[num] + TODs.tolist()
-        sigmas.append(TODs.std())
-        if label == f'{band}13':
-            pixA = h.Decoder(np.array(f[obsid + '/' + label + \
-                '/pixA'])).astype('int')
-            pixB = h.Decoder(np.array(f[obsid + '/' + label + \
-                '/pixB'])).astype('int')
-            if pol:
-                psiA = psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
-                    '/psiA'])).astype('int')]
-                psiB = psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
-                    '/psiB'])).astype('int')]
-    # bit array; bit 0 means data is suspect, bit 12 means Mars in AB, etc. til
-    # 10. I think I'll just try to get rid of all data where there are any
-    # planets in the beam, although i think the official release tried to use as
-    # much data as possible, i.e., only cutting out the center.
-    flags = np.array(flags).sum(axis=0)
-    #flags *= 0
-    inds = (flags == 0)
-    #inds = np.isfinite(flags)
+        DAs = [[], [], [], []]
+        flags = [[], [], [], []]
+        sigmas = []
+        gains = np.zeros(len(labels))
+        npsi = 2048
+        psiBins = np.linspace(0, 2*np.pi, npsi)
+        for num, label in enumerate(labels):
+            TODs = np.array(f[obsid + '/' + label + '/tod'])
+            scalars = f[obsid + '/' + label + '/scalars']
+            gains[num] = scalars[0]
+            flag = h.Decoder(np.array(f[obsid + '/' + label + '/flag']))
+            flags[num] = flags[num] + flag.tolist()
+            DAs[num] = DAs[num] + TODs.tolist()
+            sigmas.append(TODs.std())
+            if label == f'{band}13':
+                pixA = h.Decoder(np.array(f[obsid + '/' + label + \
+                    '/pixA'])).astype('int')
+                pixB = h.Decoder(np.array(f[obsid + '/' + label + \
+                    '/pixB'])).astype('int')
+                if pol:
+                    psiA = psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
+                        '/psiA'])).astype('int')]
+                    psiB = psiBins[h.Decoder(np.array(f[obsid + '/' + label + \
+                        '/psiB'])).astype('int')]
+        # bit array; bit 0 means data is suspect, bit 12 means Mars in AB, etc. til
+        # 10. I think I'll just try to get rid of all data where there are any
+        # planets in the beam, although i think the official release tried to use as
+        # much data as possible, i.e., only cutting out the center.
+        flags = np.array(flags).sum(axis=0)
+        #flags *= 0
+        inds = (flags == 0)
+        #inds = np.isfinite(flags)
 
-    DAs = np.array(DAs)/gains.reshape(4,1)
-    #sigma0 = np.mean(np.array(sigmas)**2)**0.5
-
-
-    
-    d1 = 0.5*(DAs[0] + DAs[1])
-    d2 = 0.5*(DAs[2] + DAs[3])
-
-    n1 = 0.5*(DAs[0] - DAs[1])
-    n2 = 0.5*(DAs[2] - DAs[3])
-
-    n = 0.5*(n1+n2)
-    sigma0 = n.std()
-    
-    d = 0.5*(d1 + d2) # = i_A - i_B
-    p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
-
-    N_tod = len(d)
-    for i in range(25):
-        d[i*N_tod:(i+1)*N_tod] -= np.median(d[i*N_tod:(i+1)*N_tod])
-        p[i*N_tod:(i+1)*N_tod] -= np.median(p[i*N_tod:(i+1)*N_tod])
+        DAs = np.array(DAs)/gains.reshape(4,1)
+        #sigma0 = np.mean(np.array(sigmas)**2)**0.5
 
 
-    # subtract dipole solution from d
-    #   d = d - ((1+xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
+        
+        d1 = 0.5*(DAs[0] + DAs[1])
+        d2 = 0.5*(DAs[2] + DAs[3])
 
-    #   p = p - dxbar*(dipole[pixA] + dipole[pixB])
+        n1 = 0.5*(DAs[0] - DAs[1])
+        n2 = 0.5*(DAs[2] - DAs[3])
 
-    # subtract orbital dipole
-    vsun = f[obsid + '/common/vsun'][:] # km/s
-    c = 299792.458
-    beta = vsun/c
-    vecs = np.array(hp.pix2vec(nside, np.arange(hp.nside2npix(nside))))
-    gamma = 1/np.sqrt(1-sum(beta**2))
-    # in mK
-    orb_dip = 2.7275e3*(1/(1-beta.dot(vecs))/gamma-1)
+        n = 0.5*(n1+n2)
+        sigma0 = n.std()
+        
+        d = 0.5*(d1 + d2) # = i_A - i_B
+        p = 0.5*(d1 - d2) # = q_A*cos(2*g_A) + u_A*sin(2*g_A) - q_B*cos(2*g_B) - u_B*sin(2*g_B)
 
-    d = d - ((1+xbar)*orb_dip[pixA] - (1-xbar)*orb_dip[pixB])
-    p = p - dxbar*(orb_dip[pixA] + orb_dip[pixB])
-    
-
-    # most aggressive mask
-    if mask:
-        pm = hp.read_map('analysis_masks/wmap_processing_mask_K_yr2_r9_9yr_v5.fits',
-                verbose=False, dtype=None)
-        pm = hp.ud_grade(pm, nside)
-    else:
-        pm = np.ones(npix)
-
-    pA = pm[pixA]
-    pB = pm[pixB]
-    # This SHOULD make it so that if pA is 0 (high emission) and pB is 1 (low
-    # emission), pixA is updated and pixB isn't.
-    f_A = (1 - pA*(1-pB))*inds
-    f_B = (1 - pB*(1-pA))*inds
-
-    # Let's make it a bit easier, if horn A is in a high-emission region, horn B
-    # isn't updated.
-    #f_A = pB*inds
-    #f_B = pA*inds
+        N_tod = len(d)
+        for i in range(25):
+            d[i*N_tod:(i+1)*N_tod] -= np.median(d[i*N_tod:(i+1)*N_tod])
+            p[i*N_tod:(i+1)*N_tod] -= np.median(p[i*N_tod:(i+1)*N_tod])
 
 
-    sigmas = np.ones(len(d))*sigma0
-    for t in range(len(d)):
-        '''
-        Asymmetric masking means that when one beam is in a high Galactic
-        emission region (as determined by a processing mask; Limon et al. 2010)
-        and the other beam is in a low Galactic emission region, only the pixel
-        in the high emission region is iteratively updated.
-        # pm == 0 means it is in a high emission region
-        '''
-        b[pixA[t]]   += f_A[t]*((1+xbar)*d[t] + dxbar*p[t])/sigma0**2
-        b[pixB[t]]   -= f_B[t]*((1-xbar)*d[t] - dxbar*p[t])/sigma0**2
-        b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma0**2
-        b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma0**2
-        b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma0**2
-        b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma0**2
-        b_s[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])/sigma0**2
-        b_s[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])/sigma0**2
+        # subtract dipole solution from d
+        #   d = d - ((1+xbar)*dipole[pixA] - (1-xbar)*dipole[pixB])
 
-        M[pixA[t]]   += f_A[t]*(1+xbar+dxbar)**2
-        M[pixB[t]]   += f_B[t]*(1-xbar-dxbar)**2
-        M_q[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.cos(2*psiA[t]))**2
-        M_q[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.cos(2*psiB[t]))**2
-        M_u[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.sin(2*psiA[t]))**2
-        M_u[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.sin(2*psiB[t]))**2
-        M_s[pixA[t]] += f_A[t]*(1+xbar+dxbar)**2
-        M_s[pixB[t]] += f_B[t]*(1-xbar-dxbar)**2
+        #   p = p - dxbar*(dipole[pixA] + dipole[pixB])
+
+        # subtract orbital dipole
+        vsun = f[obsid + '/common/vsun'][:] # km/s
+        c = 299792.458
+        beta = vsun/c
+        vecs = np.array(hp.pix2vec(nside, np.arange(hp.nside2npix(nside))))
+        gamma = 1/np.sqrt(1-sum(beta**2))
+        # in mK
+        orb_dip = 2.7275e3*(1/(1-beta.dot(vecs))/gamma-1)
+
+        d = d - ((1+xbar)*orb_dip[pixA] - (1-xbar)*orb_dip[pixB])
+        p = p - dxbar*(orb_dip[pixA] + orb_dip[pixB])
+        
+
+        # most aggressive mask
+        if mask:
+            pm = hp.read_map('analysis_masks/wmap_processing_mask_K_yr2_r9_9yr_v5.fits',
+                    verbose=False, dtype=None)
+            pm = hp.ud_grade(pm, nside)
+        else:
+            pm = np.ones(npix)
+
+        pA = pm[pixA]
+        pB = pm[pixB]
+        # This SHOULD make it so that if pA is 0 (high emission) and pB is 1 (low
+        # emission), pixA is updated and pixB isn't.
+        f_A = (1 - pA*(1-pB))*inds
+        f_B = (1 - pB*(1-pA))*inds
+
+        # Let's make it a bit easier, if horn A is in a high-emission region, horn B
+        # isn't updated.
+        #f_A = pB*inds
+        #f_B = pA*inds
+
+
+        sigmas = np.ones(len(d))*sigma0
+        for t in range(len(d)):
+            '''
+            Asymmetric masking means that when one beam is in a high Galactic
+            emission region (as determined by a processing mask; Limon et al. 2010)
+            and the other beam is in a low Galactic emission region, only the pixel
+            in the high emission region is iteratively updated.
+            # pm == 0 means it is in a high emission region
+            '''
+            b[pixA[t]]   += f_A[t]*((1+xbar)*d[t] + dxbar*p[t])/sigma0**2
+            b[pixB[t]]   -= f_B[t]*((1-xbar)*d[t] - dxbar*p[t])/sigma0**2
+            b_q[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.cos(2*psiA[t])/sigma0**2
+            b_q[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.cos(2*psiB[t])/sigma0**2
+            b_u[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])*np.sin(2*psiA[t])/sigma0**2
+            b_u[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])*np.sin(2*psiB[t])/sigma0**2
+            b_s[pixA[t]] += f_A[t]*((1+xbar)*p[t] + dxbar*d[t])/sigma0**2
+            b_s[pixB[t]] -= f_B[t]*((1-xbar)*p[t] - dxbar*d[t])/sigma0**2
+
+            M[pixA[t]]   += f_A[t]*(1+xbar+dxbar)**2
+            M[pixB[t]]   += f_B[t]*(1-xbar-dxbar)**2
+            M_q[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.cos(2*psiA[t]))**2
+            M_q[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.cos(2*psiB[t]))**2
+            M_u[pixA[t]] += f_A[t]*((1+xbar+dxbar)*np.sin(2*psiA[t]))**2
+            M_u[pixB[t]] += f_B[t]*((1-xbar-dxbar)*np.sin(2*psiB[t]))**2
+            M_s[pixA[t]] += f_A[t]*(1+xbar+dxbar)**2
+            M_s[pixB[t]] += f_B[t]*(1-xbar-dxbar)**2
 
     b_p = np.concatenate((b_q, b_u, b_s))
     M_p = np.concatenate((M_q, M_u, M_s))
@@ -967,12 +970,11 @@ if __name__ == '__main__':
     for b in ['K1']:
         get_cg(band=b, nfiles=512, sparse_test=False, sparse_only=True, 
                 imbalance=True, mask=True, pol=True, imax=1000, nside=512)
-        #plot_maps_pol(band=b, nside=512, version=16)
-        #plot_maps_pol(band=b, nside=512, version=14)
+    #    #plot_maps_pol(band=b, nside=512, version=16)
+    #    #plot_maps_pol(band=b, nside=512, version=14)
     #get_cg(band='Ka1', nfiles=400, sparse_test=False, sparse_only=True,
     #        processing_mask=False)
     #get_cg(band='Q1', nfiles=100, sparse_test=False, sparse_only=True)
     #for band in bands:
     #    get_cg(band=band, nfiles=200, sparse_test=False, sparse_only=True)
     #get_cg(band='V1')
-    #check_hdf5(version=11)
