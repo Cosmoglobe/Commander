@@ -528,14 +528,14 @@ contains
                !    write(*,*) maxval(d_calib), 'd_calib'
                !end if
 
-               if (.false. .and. do_oper(bin_map) ) then
+               if (.true. .and. do_oper(bin_map) .and. mod(self%scanid(i),1000) == 0) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
-                     open(78,file='tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
-                     write(78,*) "# Sample     Data (V)     Mask    cal_TOD (K)   res (K)"// &
-                          & "   n_corr (K)   s_corr (K)   s_mono (K)   s_orb  (K)   s_sl (K)"
+                     open(78,file='chains_WMAP/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
+                     !write(78,*) "# Sample     Data (V)     Mask    cal_TOD (K)   res (K)"// &
+                          !& "   n_corr (K)   s_corr (K)   s_mono (K)   s_orb  (K)   s_sl (K)"
                      do j = 1, ntod
-                        write(78,*) j, self%scans(i)%d(k)%tod(j), mask(j,1), d_calib(:,j,k)
+                        write(78,*) j, s_solA(j,k),  s_solB(j,k), s_sol_tot(j,k), s_orbA(j,k), s_orbB(j, k), s_orb_tot(j,k)
                      end do
                      close(78)
                   end do
@@ -585,10 +585,10 @@ contains
 
       call update_status(status, "Running allreduce on M_diag")
       call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
-           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+           & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
       call update_status(status, "Running allreduce on b")
       call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
-           & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+           & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
 
 
       np0 = self%info%np
@@ -660,7 +660,7 @@ contains
             call update_status(status, "Calling p=Av")
             call compute_Ax(self, phat, v, self%x_im, procmask, i)
             call mpi_allreduce(MPI_IN_PLACE, v, size(v), &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
             alpha = rho_new/sum(r0*v)
             cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
             if (write_cg_iter) then
@@ -686,7 +686,7 @@ contains
             call update_status(status, "Calling  q= A shat")
             call compute_Ax(self, shat, q, self%x_im, procmask, i)
             call mpi_allreduce(MPI_IN_PLACE, q, size(q), &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
             omega = sum(q*s)/sum(q**2)
             cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
             if (mod(i, 10) == 1) then
@@ -694,7 +694,7 @@ contains
                r = 0d0
                call compute_Ax(self, cg_sol(:,:,l), r, self%x_im, procmask, i)
                call mpi_allreduce(MPI_IN_PLACE, r, size(r), &
-                                 & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm_shared, ierr)
+                                 & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
                r = b_map(:, :, l) - r
             else
                call update_status(status, 'r = s - omega*t')

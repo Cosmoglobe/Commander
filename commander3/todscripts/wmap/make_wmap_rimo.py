@@ -30,6 +30,12 @@ Mathew points out that beam and sl are both alm representations of the beam and 
 
 mbeam_eff is main beam efficiency, assume it is one.
 '''
+
+def gauss(x, sigma):
+    return np.exp(-x**2/(2*sigma**2))
+
+from scipy.optimize import curve_fit
+
 import numpy as np
 from glob import glob
 import matplotlib.pyplot as plt
@@ -46,8 +52,8 @@ import reproject
 
 
 
-fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v2.h5'
-#fname_out = 'data/test.h5'
+fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v3.h5'
+fname_out = 'test.h5'
 labels = ['K', 'Ka', 'Q', 'V', 'W']
 
 
@@ -88,21 +94,33 @@ with h5py.File(fname_out, 'a') as f:
     # FWHMs
     ## From radial beam profiles
     DAs = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+    fwhms = [0.93, 0.68, 0.53, 0.53, 0.35, 0.35, 0.23, 0.23, 0.23, 0.23]
     fnames = glob('data/wmap_symm_beam_profile_*_9yr_v5.txt')
     fnames.sort()
-    for fname in fnames:
+    for ind, fname in enumerate(fnames):
         theta, B = np.loadtxt(fname).T
 
-        fwhm_deg = 2*theta[B <= B.max()/2][0]
-        fwhm = 60*fwhm_deg
+        #B = B[1:]
+        #theta = theta[1:]
+
+        hwhm_deg = theta[B <= B[5:].max()/2][0]
+        fwhm_deg = 2*hwhm_deg
+        fwhm_arcmin= 60*fwhm_deg
+        plt.figure()
+        plt.semilogx(theta, B/B.max())
+        cdf = np.cumsum(B)/sum(B)
+        theta_sigma = cdf[cdf >= 0.34][0]
+        plt.axvline(hwhm_deg)
+        sigma = fwhm_deg/np.sqrt(8*np.log2(2))
+        plt.plot(theta, np.exp(-theta**2/(2*theta_sigma**2)))
     
         DA = fname.split('_')[4]
-        print(DA, fwhm)
+        print(DA, fwhm_arcmin)
         print('\n')
-        f.create_dataset(DA + '13/fwhm', data=[fwhm])
-        f.create_dataset(DA + '14/fwhm', data=[fwhm])
-        f.create_dataset(DA + '23/fwhm', data=[fwhm])
-        f.create_dataset(DA + '24/fwhm', data=[fwhm])
+        f.create_dataset(DA + '13/fwhm', data=[fwhm_arcmin])
+        f.create_dataset(DA + '14/fwhm', data=[fwhm_arcmin])
+        f.create_dataset(DA + '23/fwhm', data=[fwhm_arcmin])
+        f.create_dataset(DA + '24/fwhm', data=[fwhm_arcmin])
         """
         Beam ellipticity: WMAP doesn't report the ellipticity directly. They describe
         the beam-symmetrization map-making process in http://arxiv.org/abs/1212.5225.
@@ -282,3 +300,4 @@ with h5py.File(fname_out, 'a') as f:
         # NB; these are in nest format
         T = m[1].data['TEMPERATURE'][inds]
     """
+plt.show()
