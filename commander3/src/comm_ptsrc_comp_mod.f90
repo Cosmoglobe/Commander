@@ -134,7 +134,7 @@ contains
     constructor%nside           = cpar%cs_nside(id_abs)
     constructor%nside_febecop   = 1024
     constructor%outprefix       = trim(cpar%cs_label(id_abs))
-    constructor%cg_scale        = cpar%cs_cg_scale(id_abs)
+    constructor%cg_scale        = cpar%cs_cg_scale(1,id_abs)
     allocate(constructor%poltype(1))
     constructor%poltype         = cpar%cs_poltype(1,id_abs)
     constructor%myid            = cpar%myid_chain
