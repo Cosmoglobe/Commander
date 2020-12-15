@@ -197,8 +197,13 @@ program commander
         end if
      end if
      ! Process TOD structures
-     if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 2 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
+     end if
+
+     ! Sample non-linear parameters
+     if (iter > 1 .and. cpar%sample_specind) then
+        call sample_nonlin_params(cpar, iter, handle, handle_noise)
      end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
@@ -230,11 +235,6 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-
-     ! Sample non-linear parameters
-     if (cpar%sample_specind) then
-        call sample_nonlin_params(cpar, iter, handle, handle_noise)
-     end if
     
      call wall_time(t2)
      if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart

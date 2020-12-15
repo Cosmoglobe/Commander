@@ -158,7 +158,7 @@ contains
     integer(i4b),      intent(in)    :: samp_group
     type(planck_rng),  intent(inout) :: handle, handle_noise
 
-    integer(i4b) :: stat, i
+    integer(i4b) :: stat, i, l, m
     real(dp)     :: Nscale = 1.d-4
     class(comm_comp), pointer :: c => null()
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
@@ -189,6 +189,26 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior
+       end select
+       c => c%next()
+    end do
+
+    ! If mono-/dipole components have been sampled, check if any are to be marginalized/sampled from prior
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_md_comp)
+          if (c%active_samp_group(samp_group)) then
+             if (c%mono_from_prior) then
+                do i = 0, c%x%info%nalm-1
+                   call c%x%info%i2lm(i,l,m)
+                   if (l == 0) then ! Monopole
+                      !monopole in alm_uKRJ = mu_in_alm_uK_RJ + rms_in_alm_uKRJ * rand_gauss
+                      c%x%alm(i,1)  = c%mu%alm(i,1) + sqrt(c%Cl%Dl(0,1))*rand_gauss(handle) 
+                   end if
+                end do
+             end if
+          end if
        end select
        c => c%next()
     end do

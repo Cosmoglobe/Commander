@@ -121,17 +121,18 @@ contains
 
                 !check if any poltype has been sampled with ridge/marginal lnL
                 samp_cg = .false.
+                if (cpar%myid == cpar%root) write(*,*) 'Nmaps:',c%nmaps, ' poltypes:',c%poltype(j)
                 do p = 1,c%poltype(j)
                    if (p > c%nmaps) cycle
-                   if (c%lmax_ind_pol(p,j) < 0 .and. &
-                        & trim(c%pol_lnLtype(p,j)) /= 'chisq') then
-                      if (trim(c%pol_lnLtype(p,j)) == 'pixreg') then
-                         if (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.)) samp_cg = .true.
-                      else if (trim(c%pol_lnLtype(p,j)) == 'prior') then
-                         if (c%theta_prior(2,p,j) /= 0.d0) samp_cg = .true.
-                      else
-                         samp_cg = .true.
+                   if (c%lmax_ind_pol(p,j) < 0) then
+                      if (trim(c%pol_lnLtype(p,j)) == 'chisq') cycle
+                      if (c%pol_pixreg_type(p,j) == 3) then !pixel regions
+                         if (all(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) cycle
                       end if
+                      if (trim(c%pol_lnLtype(p,j)) == 'prior') then
+                         if (c%theta_prior(2,p,j) == 0.d0) cycle
+                      end if
+                      samp_cg = .true.
                    else
                       if (cpar%almsamp_pixreg) then
                          if (cpar%almsamp_priorsamp_frozen .and. &
@@ -1516,11 +1517,11 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta
                       mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                    end if
                    all_thetas(id)=new_theta
                    mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                    !compute chisq for pixel 'pix' of the associated band
                    if (first_sample) then
@@ -1546,11 +1547,11 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta
                       mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                    end if
                    all_thetas(id)=new_theta
                    mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                    data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
                    invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
@@ -1902,7 +1903,7 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta
                       mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                       all_thetas(id)=new_theta
 
                       res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_old* &
@@ -1911,7 +1912,7 @@ contains
 
                    end if
                    mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                    res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                         & c_lnL%x_smooth%map(pix,pol_j(k))
@@ -1944,11 +1945,11 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta
                       mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                       all_thetas(id)=new_theta
                    end if
                    mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                    pix_count = pix_count + 1
                    data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
                    invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
@@ -2272,23 +2273,37 @@ contains
     theta_min = c_lnL%p_uni(1,id)
     theta_max = c_lnL%p_uni(2,id)
 
-    if (c_lnL%pol_pixreg_type(p,id) < 0) then !Prior sample
-       if (myid_pix == 0) then
-          new_theta = c_lnL%theta_prior(1,p,id) + c_lnL%theta_prior(2,p,id)*rand_gauss(handle)
-          new_theta = min(theta_max,max(theta_min,new_theta))
-       end if
 
-       !broadcast new_theta
-       call mpi_bcast(new_theta, 1, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
-       buffer_lnL(:,p_min:p_max) = new_theta
-       if (myid_pix == 0) then
-          write(*,*) 'Sampled new value using Gaussian prior'
-          write(*,fmt='(a,f7.3)') '  Prior mean = ',c_lnL%theta_prior(1,p,id)
-          write(*,fmt='(a,f10.6)') '  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
-          write(*,fmt='(a,f10.6)') '  Old value  = ',c_lnL%theta_pixreg(1,p,id)
-          write(*,fmt='(a,f10.6)') '  New value  = ',new_theta
-       end if
-       c_lnL%theta_pixreg(1:npixreg,p,id) = new_theta
+    if (trim(c_lnL%pol_lnLtype(p,id)) == 'prior') then !Prior sample
+       allocate(new_thetas(0:npixreg))
+       new_thetas = c_lnL%theta_pixreg(:npixreg,p,id)
+       do pr = 1,npixreg
+          if (c_lnL%pol_pixreg_type(p,id) == 3) then
+             if (c_lnL%fix_pixreg(pr,p,id)) cycle
+          end if
+          if (myid_pix == 0) then
+             new_theta = c_lnL%theta_prior(1,p,id) + c_lnL%theta_prior(2,p,id)*rand_gauss(handle)
+             new_theta = min(theta_max,max(theta_min,new_theta))
+          end if
+          
+          !broadcast new_theta
+          call mpi_bcast(new_theta, 1, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
+          if (myid_pix == 0) then
+             write(*,*) 'Sampled new value using Gaussian prior'
+             write(*,fmt='(a,i6)') '  Pixel region = ',pr
+             write(*,fmt='(a,f7.3)') '  Prior mean = ',c_lnL%theta_prior(1,p,id)
+             write(*,fmt='(a,f10.6)') '  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
+             write(*,fmt='(a,f10.6)') '  Old value  = ',c_lnL%theta_pixreg(pr,p,id)
+             write(*,fmt='(a,f10.6)') '  New value  = ',new_theta
+          end if
+          c_lnL%theta_pixreg(pr,p,id) = new_theta
+          new_thetas(pr) = new_theta
+
+       end do
+       do pix=0,np_fr-1
+          buffer_lnL(pix,1)=new_thetas(c_lnL%ind_pixreg_arr(pix,p,id))
+       end do
+       deallocate(new_thetas)
        return
     end if
 
@@ -2560,7 +2575,7 @@ contains
                          if (first_sample) then
                             all_thetas(id)=old_theta_smooth(pix)
                             mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                                 & data(band_i(k))%gain * c_lnL%cg_scale
+                                 & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                             all_thetas(id)=new_theta_smooth(pix)
 
                             res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_old* &
@@ -2570,7 +2585,7 @@ contains
                          end if
 
                          mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                              & data(band_i(k))%gain * c_lnL%cg_scale
+                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                          res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                               & c_lnL%x_smooth%map(pix,pol_j(k))
@@ -2598,7 +2613,7 @@ contains
                             all_thetas(id)=old_theta_smooth(pix)
 
                             mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                                 & data(band_i(k))%gain * c_lnL%cg_scale
+                                 & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                             res_map%map(pix,pol_j(k)) = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_old* &
                               & c_lnL%x_smooth%map(pix,pol_j(k))
@@ -2635,7 +2650,7 @@ contains
                          all_thetas(id)=new_theta_smooth(pix)
 
                          mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                              & data(band_i(k))%gain * c_lnL%cg_scale
+                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                          res_map%map(pix,pol_j(k)) = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                               & c_lnL%x_smooth%map(pix,pol_j(k))
@@ -2687,11 +2702,11 @@ contains
                       if (first_sample) then
                          all_thetas(id)=old_theta_smooth(pix)
                          mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                              & data(band_i(k))%gain * c_lnL%cg_scale
+                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                          all_thetas(id)=new_theta_smooth(pix)
                       end if
                       mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                       pix_count = pix_count + 1
                       data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
                       if (data(band_i(k))%N%type == "rms") then !normal diagonal noise
