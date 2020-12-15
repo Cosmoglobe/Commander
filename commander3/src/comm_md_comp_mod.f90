@@ -35,6 +35,7 @@ module comm_md_comp_mod
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_md_comp
      !integer(i4b)                            :: ref_band
+     logical(lgt) :: mono_from_prior
    contains
      procedure :: S    => evalSED
   end type comm_md_comp
@@ -251,6 +252,16 @@ contains
        end do
     end do
 
+    ! Set up sampling from prior
+    constructor%mono_from_prior=.false.
+    call get_tokens(cpar%cs_samp_mono_from_prior(id_abs), ",", comp_label, n)
+    do j = 1, n
+       if (trim(constructor%label) == trim(comp_label(j))) then
+          constructor%mono_from_prior=.true.
+          exit
+       end if
+    end do
+    
   end function constructor
 
   ! Definition:
@@ -312,6 +323,5 @@ contains
     end if
   
   end function initialize_md_comps
-
   
 end module comm_md_comp_mod
