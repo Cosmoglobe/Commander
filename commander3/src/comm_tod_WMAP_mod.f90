@@ -620,7 +620,7 @@ contains
       allocate (cg_sol(0:npix-1, nmaps, nout))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-2
+      epsil = 1.0d-1
       ! OK, the expected chi squared is satisfied very early on. To make things
       ! really fast, we can make delta_0 equal to Npix.
 
@@ -629,7 +629,7 @@ contains
          call update_status(status, "Starting bicg-stab")
          r  = b_map(:, :, l)
          r0 = b_map(:, :, l)
-         !delta_0 = sum(r(l,:,:)**2/M_diag(l,:,:))
+         ! delta = sum(r(l,:,:)**2/M_diag(l,:,:))
          ! If r is just Gaussian white noise, then delta_0 is a chi-squared
          ! random variable with 3 npix variables.
          delta_0 = size(M_diag)
