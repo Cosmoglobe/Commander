@@ -207,12 +207,16 @@ contains
     call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
     vnorm = matmul(rot_mat, self%tod%scans(chunkInd)%v_sun)
     vnorm = vnorm / c
-    prod = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+&
-    &vnorm(3)*self%orb_dp_s(i,3)+q*(vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
-            &vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
-            &self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
-            &vnorm(2)*vnorm(3)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
-            &self%orb_dp_s(i,9))
+    ! Equation C.5 in NPIPE paper
+    prod = vnorm(1)*self%orb_dp_s(i,1)+ &
+          &vnorm(2)*self%orb_dp_s(i,2)+ &
+          &vnorm(3)*self%orb_dp_s(i,3)+ &
+          & q*(vnorm(1)*vnorm(1)*self%orb_dp_s(i,4) + &
+          &    vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + &
+          &    vnorm(1)*vnorm(3)*self%orb_dp_s(i,6) + &
+          &    vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
+          &    vnorm(2)*vnorm(3)*self%orb_dp_s(i,8) + &
+          &    vnorm(3)*vnorm(3)*self%orb_dp_s(i,9))
 
     prod = T_CMB*prod/self%orb_dp_s(i,10)
 
@@ -228,7 +232,7 @@ contains
     real(dp) :: theta, psi_d, phi
     real(dp), dimension(3,3) :: rot_mat
     real(dp), dimension(3)   :: vnorm
-    real(dp), dimension(3)  :: T_dip
+    real(dp), dimension(3)   :: T_dip
 
     phi   = 4.607145626489432  ! 263.97*pi/180
     theta = 0.7278022980816355 ! (90-48.3)*pi/180
