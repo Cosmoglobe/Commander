@@ -620,10 +620,7 @@ contains
       allocate (cg_sol(0:npix-1, nmaps, nout))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-1
-      ! It would be nice to calculate epsilon on the fly, so that the numerical
-      ! error per pixel needs to be smaller than the instrumental noise per
-      ! pixel.
+      epsil = 1.0d-2
       ! OK, the expected chi squared is satisfied very early on. To make things
       ! really fast, we can make delta_0 equal to Npix.
 
