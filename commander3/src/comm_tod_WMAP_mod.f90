@@ -202,6 +202,15 @@ contains
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
       logical(lgt) :: write_cg_iter=.false.
 
+
+      logical(lgt) :: remove_solar_dipole=.false.
+      real(dp) :: phi, theta
+      real(dp), dimension(3) :: vnorm
+      integer(i4b) :: pixind
+
+
+
+
       ! biconjugate gradient parameters
       real(dp) :: rho_old, rho_new
       real(dp) :: omega, delta_r, delta_s
@@ -309,6 +318,9 @@ contains
          naccept = 0; ntot = 0
          do i = 1, self%nscan
 
+
+            if (.not. any(self%scans(i)%d%accept)) cycle
+
             ! Short-cuts to local variables
             call wall_time(t1)
             ntod = self%scans(i)%ntod
@@ -369,18 +381,16 @@ contains
             call wall_time(t1)
             s_orbA = 0d0
             s_orbB = 0d0
-            call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
-            call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            s_orbA = s_orbA * 1d6 ! MK? -> K -> mK
-            s_orbB = s_orbB * 1d6 ! MK? -> K -> mK
+            !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA)
+            !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
+            !s_orbA = s_orbA * 1d6 ! MK -> mK
+            !s_orbB = s_orbB * 1d6 ! MK -> mK
             s_solA = 0d0
             s_solB = 0d0
-            call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_solA)
-            call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_solB)
-            !s_solA = s_solA * 1d3 ! MK? -> K-> mK
-            !s_solB = s_solB * 1d3 ! MK? -> K-> mK
-            s_orb_tot = 0d0
-            s_sol_tot = 0d0
+            call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)
+            call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_solB)
+            s_solA = s_solA * 1d3 ! K -> mK
+            s_solB = s_solB * 1d3 ! K -> mK
             do j = 1, ndet
                s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
                                & (1-self%x_im((j+1)/2))*s_orbB(:,j)
@@ -507,10 +517,16 @@ contains
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
-                  d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-                     & inv_gain - s_tot(:, j) + s_sky(:, j)
+                  if (remove_solar_dipole) then
+                     d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
+                        & inv_gain - s_tot(:, j) + s_sky(:, j) - s_sol_tot(:, j)
+                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - (s_sky(:, j) - s_sol_tot(:, j)) ! Residual
+                  else
+                     d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
+                        & inv_gain - s_tot(:, j) + s_sky(:, j)
+                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
+                  end if
 
-                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
                   if (i == 1) then
                      if (self%myid_shared == 0) then
@@ -717,10 +733,27 @@ contains
          end do bicg
       end do
 
+      if (remove_solar_dipole) then
+        ! Need to add solar dipole that was removed in timestream back in
+        write(*,*) 'You have not yet added the signal you removed back in.'
+        ! 
+        ! In the tod_orb module, we were looping over detector i and tod index
+        ! j. Here, I want to loop over pixel indices.
+        ! b_dot = dot_product(vnorm, self%tod%pix2vec(:,pix(j,i)))
+        ! s_orb(j,i) = T_CMB_DIP * b_dot
+        phi=4.607145626489432
+        theta=0.7278022980816355
+        vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
+        do i=0, self%info%np
+          cg_sol(self%info%pix(i), 1, 1) = cg_sol(self%info%pix(i), 1, 1) +  dot_product(vnorm, self%pix2vec(:,self%info%pix(i)))
+        end do
+      end if
+
+
 
       do k = 1, self%output_n_maps
          do j = 1, nmaps
-            outmaps(k)%p%map(:, j) = cg_sol(self%info%pix, j, k)!*1d-3 ! mK->K
+            outmaps(k)%p%map(:, j) = cg_sol(self%info%pix, j, k)
          end do
       end do
 
