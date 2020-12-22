@@ -113,7 +113,7 @@ contains
 
       integer(i4b) :: pA, pB, f_A, f_B
 
-      nout = size(b, dim=2)
+      nout = size(b, dim=3)
 
       do det = 1, tod%ndet
          if (.not. tod%scans(scan)%d(det)%accept) cycle
@@ -148,8 +148,8 @@ contains
                b(rpix, 2, i) = b(rpix, 2, i) - f_B*(1 - x_im)*d*tod%cos2psi(rpsi)*sgn*inv_sigmasq
                b(lpix, 3, i) = b(lpix, 3, i) + f_A*(1 + x_im)*d*tod%sin2psi(lpsi)*sgn*inv_sigmasq
                b(rpix, 3, i) = b(rpix, 3, i) - f_B*(1 - x_im)*d*tod%sin2psi(rpsi)*sgn*inv_sigmasq
-               !b(lpix, i, 4) = b(lpix, i, 4) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
-               !b(rpix, i, 4) = b(rpix, i, 4) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
+               !b(lpix, 4, i) = b(lpix, 4, i) + f_A*(1 + x_im)*d                  *sgn*inv_sigmasq
+               !b(rpix, 4, i) = b(rpix, 4, i) - f_B*(1 - x_im)*d                  *sgn*inv_sigmasq
             end do
 
             M_diag(lpix, 1) = M_diag(lpix, 1) + f_A*inv_sigmasq

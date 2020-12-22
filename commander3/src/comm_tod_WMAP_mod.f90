@@ -374,6 +374,7 @@ contains
             end if
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
+               if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
                if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
             end do
 
@@ -398,10 +399,6 @@ contains
                                & (1-self%x_im((j+1)/2))*s_solB(:,j)
             end do
 
-            !if (self%myid_shared == 0 .and. main_iter == 4) then
-            !    write(*,*) maxval(s_orbA), 's_orbA'
-            !    write(*,*) maxval(s_solA), 's_solA'
-            !end if
             if (do_oper(sim_map)) then
                 do j = 1, ndet
                    inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
@@ -528,30 +525,18 @@ contains
                   end if
 
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
-                  if (i == 1) then
-                     if (self%myid_shared == 0) then
-                        filename = trim(prefix)//'calib_'//trim(str(j))// '.dat'
-                        call write_tod_chunk(filename, d_calib(1,:,j))
-                        filename = trim(prefix)//'res'//trim(str(j))//'.dat'
-                        call write_tod_chunk(filename, d_calib(2,:,j))
-                        filename = trim(prefix)//'sky_sig'//trim(str(j))//'.dat'
-                        call write_tod_chunk(filename, s_sky(:,j))
-                     end if
-                  end if
 
                end do
-               !if (self%myid_shared == 0) then
-               !    write(*,*) maxval(d_calib), 'd_calib'
-               !end if
 
-               if (.true. .and. do_oper(bin_map) .and. mod(self%scanid(i),1000) == 0) then
+               if (.false. .and. do_oper(bin_map) .and. i == 1 .and. self%myid_shared == 0) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
                      open(78,file='chains_WMAP/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
-                     !write(78,*) "# Sample     Data (V)     Mask    cal_TOD (K)   res (K)"// &
-                          !& "   n_corr (K)   s_corr (K)   s_mono (K)   s_orb  (K)   s_sl (K)"
+                     write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   res (mK)"// &
+                          & "    sig (mK)    s_sol_dip  (mK)   s_orb_dip (mK)"
                      do j = 1, ntod
-                        write(78,*) j, s_solA(j,k),  s_solB(j,k), s_sol_tot(j,k), s_orbA(j,k), s_orbB(j, k), s_orb_tot(j,k)
+                        inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
+                        write(78,*) j, self%scans(i)%d(k)%tod*inv_gain, n_corr(j, k)*inv_gain, d_calib(1,j,k), d_calib(2,j,k),  s_sky(j,k), s_sol_tot(j,k), s_orb_tot(j,k)
                      end do
                      close(78)
                   end do
@@ -577,6 +562,8 @@ contains
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+         !call mpi_reduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+         !call mpi_bcast(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
          if (do_oper(samp_acal)) then
             call wall_time(t1)
@@ -741,12 +728,12 @@ contains
         ! j. Here, I want to loop over pixel indices.
         ! b_dot = dot_product(vnorm, self%tod%pix2vec(:,pix(j,i)))
         ! s_orb(j,i) = T_CMB_DIP * b_dot
-        phi=4.607145626489432
-        theta=0.7278022980816355
-        vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
-        do i=0, self%info%np
-          cg_sol(self%info%pix(i), 1, 1) = cg_sol(self%info%pix(i), 1, 1) +  dot_product(vnorm, self%pix2vec(:,self%info%pix(i)))
-        end do
+        !phi=4.607145626489432
+        !theta=0.7278022980816355
+        !vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
+        !do i=0, self%info%np
+        !  cg_sol(self%info%pix(i), 1, 1) = cg_sol(self%info%pix(i), 1, 1) +  dot_product(vnorm, self%pix2vec(:,self%info%pix(i)))
+        !end do
       end if
 
 
