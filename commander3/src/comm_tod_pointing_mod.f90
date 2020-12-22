@@ -149,17 +149,14 @@ contains
                                           &  sgn*( &
                                           &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
                                           &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ! Setting TOD to the sky model. Should not be in use for actual
-            ! production runs!!!!
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          
+         
             if (simulate) then
                tod%scans(scan_id)%d(i)%tod(j) = s_sky(j,i)*tod%scans(scan_id)%d(i)%gain + &
                    & + rand_normal(0d0, 1d0)*tod%scans(scan_id)%d(i)%sigma0
             end if
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ! Everything below this line is fine.
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            
+           
             if (flag(j, i) == 0) then
                 tmask(j, i) = pmask(pix(j, i, 1))*pmask(pix(j,i,2))
             else
