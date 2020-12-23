@@ -281,8 +281,8 @@ contains
 
       call update_status(status, "tod_init")
       do_oper             = .true.
-      allocate (M_diag(0:npix-1, nmaps))
-      allocate ( b_map(0:npix-1, nmaps, nout))
+      allocate (M_diag(0:npix-1, nmaps+1))
+      allocate ( b_map(0:npix-1, nmaps+1, nout))
       M_diag = 0d0
       b_map = 0d0
       ! There are four main iterations, for absolute calibration, relative
@@ -382,10 +382,10 @@ contains
             call wall_time(t1)
             s_orbA = 0d0
             s_orbB = 0d0
-            !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA)
-            !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            !s_orbA = s_orbA * 1d6 ! MK -> mK
-            !s_orbB = s_orbB * 1d6 ! MK -> mK
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA)
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
+            s_orbA = s_orbA * 1d6 ! MK -> mK
+            s_orbB = s_orbB * 1d6 ! MK -> mK
             s_solA = 0d0
             s_solB = 0d0
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)
@@ -595,7 +595,7 @@ contains
 
 
       np0 = self%info%np
-      allocate (cg_tot(0:np0 - 1, nmaps))
+      allocate (cg_tot(0:np0 - 1, nmaps+1))
 
       ! write out M_diag, b_map to fits.
       cg_tot = b_map(self%info%pix, 1:nmaps, 1)
@@ -612,18 +612,18 @@ contains
       end if
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      allocate (r     (0:npix-1, nmaps))
-      allocate (r0    (0:npix-1, nmaps))
-      allocate (q     (0:npix-1, nmaps))
-      allocate (v     (0:npix-1, nmaps))
-      allocate (p     (0:npix-1, nmaps))
-      allocate (s     (0:npix-1, nmaps))
-      allocate (phat  (0:npix-1, nmaps))
-      allocate (shat  (0:npix-1, nmaps))
-      allocate (cg_sol(0:npix-1, nmaps, nout))
+      allocate (r     (0:npix-1, nmaps+1))
+      allocate (r0    (0:npix-1, nmaps+1))
+      allocate (q     (0:npix-1, nmaps+1))
+      allocate (v     (0:npix-1, nmaps+1))
+      allocate (p     (0:npix-1, nmaps+1))
+      allocate (s     (0:npix-1, nmaps+1))
+      allocate (phat  (0:npix-1, nmaps+1))
+      allocate (shat  (0:npix-1, nmaps+1))
+      allocate (cg_sol(0:npix-1, nmaps+1, nout))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-1
+      epsil = 1.0d-2
       ! OK, the expected chi squared is satisfied very early on. To make things
       ! really fast, we can make delta_0 equal to Npix.
 
@@ -635,7 +635,7 @@ contains
          ! delta = sum(r(l,:,:)**2/M_diag(l,:,:))
          ! If r is just Gaussian white noise, then delta_0 is a chi-squared
          ! random variable with 3 npix variables.
-         delta_0 = size(M_diag)
+         delta_0 = size(M_diag(:,:nmaps))
          delta_r = sum(r**2/M_diag)
          delta_s = delta_s
          if (self%myid_shared==0) then 
@@ -664,7 +664,7 @@ contains
             alpha = rho_new/sum(r0*v)
             cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
             if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
+               cg_tot = cg_sol(self%info%pix, 1:nmaps+1, l)
                call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//trim(postfix), cg_tot, outmaps)
             end if
             s = r - alpha*v
@@ -676,7 +676,7 @@ contains
                 write(*,101) i, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
-            if (delta_s .le. (delta_0*epsil**2)) then
+            if (delta_s .le. (delta_0*epsil)) then
                 if (self%myid_shared==0) then 
                     write(*,*) '    Converged'
                 end if
@@ -702,7 +702,7 @@ contains
             end if
 
             if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
+               cg_tot = cg_sol(self%info%pix, 1:nmaps+1, l)
                call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//trim(postfix), cg_tot, outmaps)
             end if
 
@@ -711,7 +711,7 @@ contains
                 write(*,102) i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
-            if ((delta_r .le. (delta_0*epsil**2))) then
+            if ((delta_r .le. (delta_0*epsil))) then
                 if (self%myid_shared==0) then 
                     write(*,*) '    Converged'
                 end if
@@ -743,6 +743,9 @@ contains
             outmaps(k)%p%map(:, j) = cg_sol(self%info%pix, j, k)
          end do
       end do
+
+      cg_tot = cg_sol(self%info%pix, 1:nmaps+1, 1)
+      call write_fits_file(trim(prefix)//'S'//trim(postfix), cg_tot(:,nmaps+1), outmaps)
 
       map_out%map = outmaps(1)%p%map
       rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
