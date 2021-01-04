@@ -1207,7 +1207,7 @@ contains
     class(comm_tod),                     intent(in)    :: self
     class(comm_conviqt),                 intent(in)    :: slconv
     integer(i4b),        dimension(:),   intent(in)    :: pix, psi
-    real(dp),                            intent(in)   :: polangle
+    real(dp),                            intent(in)    :: polangle
     real(sp),            dimension(:),   intent(out)   :: s_sl
 
     integer(i4b) :: j, pix_, pix_prev, psi_prev
