@@ -550,7 +550,7 @@ contains
 
           ! Set up local data structure for current scan
           allocate(n_corr(ntod, ndet))                 ! Correlated noise in V
-          allocate(s_sl(ntod, ndet))                   ! Sidelobe in uKcm
+          allocate(s_sl(ntod, ndet))                   ! Sidelobe in uKcmb
           allocate(s_sky(ntod, ndet))                  ! Sky signal in uKcmb
           allocate(s_sky_prop(ntod, ndet,2:ndelta))    ! Sky signal in uKcmb
           allocate(s_bp(ntod, ndet))                   ! Signal minus mean

@@ -60,6 +60,7 @@ module comm_tod_WMAP_mod
    integer(i4b), parameter :: calc_chisq = 10
    integer(i4b), parameter :: output_slist = 12
    integer(i4b), parameter :: samp_mono = 13
+   integer(i4b), parameter :: sub_sl      = 14
    integer(i4b), parameter :: sub_zodi = 17
    integer(i4b), parameter :: sim_map = 20
    logical(lgt), dimension(N_test) :: do_oper
@@ -92,11 +93,11 @@ contains
    !**************************************************
    function constructor(cpar, id_abs, info, tod_type)
       implicit none
-      type(comm_params), intent(in) :: cpar
-      integer(i4b), intent(in) :: id_abs
-      class(comm_mapinfo), target     :: info
-      character(len=128), intent(in) :: tod_type
-      class(comm_WMAP_tod), pointer    :: constructor
+      type(comm_params),      intent(in) :: cpar
+      integer(i4b),           intent(in) :: id_abs
+      class(comm_mapinfo),    target     :: info
+      character(len=128),     intent(in) :: tod_type
+      class(comm_WMAP_tod),   pointer    :: constructor
 
       integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ndelta
       character(len=512) :: datadir
@@ -104,7 +105,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 3
+      constructor%output_n_maps = 3 ! map, res, ncorr, orb_dp, sl
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -113,6 +114,8 @@ contains
       nmaps_beam = 3
       pol_beam = .true.
       constructor%nside_beam = nside_beam
+
+
 
       !initialize the common tod stuff
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
@@ -124,14 +127,6 @@ contains
 
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
-      do i = 1, constructor%ndet
-         if (mod(i, 2) == 1) then
-            constructor%partner(i) = i + 1
-         else
-            constructor%partner(i) = i - 1
-         end if
-         constructor%horn_id(i) = (i + 1)/2
-      end do
 
       ! Read the actual TOD
       call constructor%read_tod_WMAP(constructor%label)
@@ -146,6 +141,7 @@ contains
       !load the instrument file
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
+      allocate(constructor%slconv(constructor%ndet))
       allocate (constructor%orb_dp)
       constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
    end function constructor
@@ -170,20 +166,24 @@ contains
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
-      real(sp), allocatable, dimension(:, :)     :: n_corr, s_sl, s_sky, s_orbA, s_orbB, s_orb_tot
-      real(sp), allocatable, dimension(:, :)     :: mask, mask2, s_bp,   s_solA, s_solB, s_sol_tot
-      real(sp), allocatable, dimension(:, :)     :: s_mono, s_buf, s_tot, s_zodi
-      real(sp), allocatable, dimension(:, :)     :: s_invN, s_lowres
-      real(sp), allocatable, dimension(:, :, :)   :: s_sky_prop, s_bp_prop
-      real(sp), allocatable, dimension(:, :, :)   :: d_calib
-      real(dp), allocatable, dimension(:)       :: A_abscal, b_abscal
-      real(dp), allocatable, dimension(:, :)     :: chisq_S, m_buf
-      real(dp), allocatable, dimension(:, :)     :: A_map, dipole_mod, M_diag
-      real(dp), allocatable, dimension(:, :, :)   :: b_map, b_mono, sys_mono
+      real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky
+      real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
+      real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
+      real(sp), allocatable, dimension(:, :)          :: s_solA, s_solB, s_sol_tot
+      real(sp), allocatable, dimension(:, :)          :: mask, mask2, s_bp
+      real(sp), allocatable, dimension(:, :)          :: s_mono, s_buf, s_tot, s_zodi
+      real(sp), allocatable, dimension(:, :)          :: s_invN, s_lowres
+      real(sp), allocatable, dimension(:, :, :)       :: s_sky_prop, s_bp_prop
+      real(sp), allocatable, dimension(:, :, :)       :: d_calib
+      real(dp), allocatable, dimension(:)             :: A_abscal, b_abscal
+      real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
+      real(dp), allocatable, dimension(:, :)          :: A_map, dipole_mod, M_diag
+      real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono
       integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
-      integer(i4b), allocatable, dimension(:, :)     :: flag
-      real(dp), allocatable, dimension(:, :, :)   :: b_tot, M_diag_tot
-      real(dp), allocatable, dimension(:, :)   :: cg_tot
+      integer(i4b), allocatable, dimension(:, :)      :: flag
+      real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
+      real(dp), allocatable, dimension(:, :)          :: cg_tot
+      logical(lgt)       :: correct_sl
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
       character(len=4)   :: ctext, myid_text
@@ -225,6 +225,7 @@ contains
 
       ! Set up full-sky map structures
       call wall_time(t1)
+      correct_sl = .true.
       chisq_threshold = 100.d0
       n_main_iter     = 4
       ndet = self%ndet
@@ -279,6 +280,25 @@ contains
 
       call wall_time(t2); t_tot(9) = t2 - t1
 
+
+      ! Compute far sidelobe Conviqt structures
+      call wall_time(t1)
+      if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
+      do i = 1, self%ndet
+         if (.not. correct_sl) exit
+
+         !TODO: figure out why this is rotated
+         call map_in(i,1)%p%YtW()  ! Compute sky a_lms
+         self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+              & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
+              & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
+!         write(*,*) i, 'b', sum(abs(self%slconv(i)%p%c%a))
+      end do
+      call wall_time(t2); t_tot(13) = t2-t1
+
+
+
+
       call update_status(status, "tod_init")
       do_oper             = .true.
       allocate (M_diag(0:npix-1, nmaps+1))
@@ -304,6 +324,7 @@ contains
          do_oper(bin_map)      = (main_iter == n_main_iter  )
          do_oper(sel_data)     = .false.
          do_oper(calc_chisq)   = (main_iter == n_main_iter  )
+         do_oper(sub_sl)       = correct_sl
          do_oper(sub_zodi)     = self%subtract_zodi
          do_oper(output_slist) = mod(iter, 1) == 0
          do_oper(sim_map)      = .false. ! (main_iter == 1) !   
@@ -328,6 +349,9 @@ contains
 
             ! Set up local data structure for current scan
             allocate (n_corr(ntod, ndet))                 ! Correlated noise in V
+            allocate (s_sl(ntod, ndet))                   ! Sidelobe in uKcmb 
+            allocate (s_slA(ntod, ndet))                  ! Sidelobe in uKcmb (beam A)
+            allocate (s_slB(ntod, ndet))                  ! Sidelobe in uKcmb (beam B)
             allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
             allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
             allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A)
@@ -411,12 +435,36 @@ contains
             end if
             call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
-            ! Add orbital dipole to total signal
+
+            ! Construct sidelobe template
+            call wall_time(t1)
+            if (do_oper(sub_sl)) then
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  call self%construct_sl_template(self%slconv(j)%p, &
+                       & pix(:,j,1), psi(:,j,1), s_slA(:,j), 0d0)
+                  call self%construct_sl_template(self%slconv(j)%p, &
+                       & pix(:,j,2), psi(:,j,2), s_slB(:,j), 0d0)
+                  s_sl(:,j) = (1+self%x_im((j+1)/2))*s_slA(:,j) - &
+                            & (1-self%x_im((j+1)/2))*s_slB(:,j)
+                  s_sl(:,j) = 2 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
+               end do
+            else
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  s_sl(:,j) = 0.
+               end do
+            end if
+            call wall_time(t2); t_tot(12) = t_tot(12) + t2-t1
+
+
+            ! Add orbital dipole and sidelobes to total signal
             s_buf = 0.d0
             do j = 1, ndet
-               s_tot(:, j) = s_sky(:, j) + s_orb_tot(:,j)
+               s_tot(:, j) = s_sky(:, j) + s_sl(:, j) + s_orb_tot(:,j)
                s_buf(:, j) = s_tot(:, j)
             end do
+
 
             !!!!!!!!!!!!!!!!!!!
             ! Gain calculations
@@ -525,6 +573,8 @@ contains
                   end if
 
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
+                  if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_orb_tot(:,j)
+                  if (do_oper(bin_map) .and. nout > 4) d_calib(5,:,j) = s_sl(:,j)
 
                end do
 
@@ -555,7 +605,8 @@ contains
             end do
 
             ! Clean up
-            deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_sky_prop)
+            deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
+            deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
             deallocate (mask, mask2, pix, psi, flag, s_solA, s_solB, s_sol_tot)
             if (allocated(s_lowres)) deallocate (s_lowres)
             if (allocated(s_invN)) deallocate (s_invN)
@@ -623,7 +674,7 @@ contains
       allocate (cg_sol(0:npix-1, nmaps+1, nout))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-2
+      epsil = 1.0d-1
       ! OK, the expected chi squared is satisfied very early on. To make things
       ! really fast, we can make delta_0 equal to Npix.
 
@@ -745,19 +796,16 @@ contains
       end do
 
       cg_tot = cg_sol(self%info%pix, 1:nmaps+1, 1)
-      call write_fits_file(trim(prefix)//'S'//trim(postfix), cg_tot(:,nmaps+1), outmaps)
+      !call write_fits_file(trim(prefix)//'S'//trim(postfix), cg_tot(:,nmaps+1), outmaps)
 
       map_out%map = outmaps(1)%p%map
       rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
-      call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
+      call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
       if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
       if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-      if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
-      if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'mono'//trim(postfix))
-      if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-      if (self%output_n_maps > 6) call outmaps(7)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-      if (self%output_n_maps > 7) call outmaps(8)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+      if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
+      if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
@@ -786,6 +834,12 @@ contains
 
       deallocate (map_sky)
       deallocate (cg_sol, r, s, q, r0, shat, p, phat, v)
+
+      if (correct_sl) then
+         do i = 1, self%ndet
+            call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
+         end do
+      end if
 
       call int2string(iter, ctext)
       call update_status(status, "tod_end"//ctext)
