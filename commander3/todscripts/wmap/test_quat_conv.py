@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 
 from fits_to_h5 import quat_to_sky_coords
 
-fname = '/mn/stornext/d16/cmbco/bp/wmap/tod/new/wmap_tod_20060252355_20060262355_uncalibrated_v5.fits'
+fname = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20060252355_20060262355_uncalibrated_v5.fits'
 
 data = fits.open(fname)
 quat = data[1].data['QUATERN']
-# Returna pointing and pol angles for each DA
+# Return pointing and pol angles for each DA
 gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, lonlat=True, center=False)
 
 gal_A = gal_A[0]
@@ -20,7 +20,7 @@ np.savetxt('pyth_quot.txt', gal1)
 
 
 
-gal2 = np.loadtxt('idl_quat.txt')
+gal2 = np.loadtxt('wmap_routines/pro/idl_quat.txt')
 gal2[:,0] = ((gal2[:,0] + 360) % 360)
 gal2[:,2] = ((gal2[:,2] + 360) % 360)
 
@@ -48,6 +48,7 @@ plt.plot(t, gal1[:len(t),0], '.', ms=1, label='Python')
 plt.plot(t, gal2[:len(t),0], '.', ms=1, label='IDL')
 plt.xlabel('t (ms)')
 plt.ylabel(r'$\mathrm{lon}$ (deg)')
+plt.legend(loc='best')
 plt.savefig('lon.png', bbox_inches='tight')
 
 
@@ -56,6 +57,7 @@ plt.plot(t, gal1[:len(t),1], '.', ms=1, label='Python')
 plt.plot(t, gal2[:len(t),1], '.', ms=1, label='IDL')
 plt.xlabel('t (ms)')
 plt.ylabel(r'$\mathrm{lon}$ (deg)')
+plt.legend(loc='best')
 plt.savefig('lat.png', bbox_inches='tight')
 
 

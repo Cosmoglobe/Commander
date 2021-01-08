@@ -26,7 +26,7 @@ sllmax                   Dataset {1}
 slmmax                   Dataset {1}
 
 
-Mathew points out that beam and sl are both alm representations of the beam and sidelobes.
+beam and sl are both alm representations of the beam and sidelobes.
 
 mbeam_eff is main beam efficiency, assume it is one.
 '''
@@ -74,8 +74,9 @@ dir_B_los = np.array([
             [  0.00768184749607, -0.94540702221088, -0.32580139897397],
             [  0.00751408106677, -0.93889226303920, -0.34412912836731  ]])
 
-fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v3.h5'
-fname_out = 'test.h5'
+fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v4.h5'
+fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v5.h5'
+#fname_out = 'test.h5'
 labels = ['K', 'Ka', 'Q', 'V', 'W']
 
 
@@ -271,16 +272,6 @@ with h5py.File(fname_out, 'a') as f:
             f.create_dataset(DA + '24/psi_ell', data=[0])
     
     
-    """
-    # far sidelobes
-    fnames = glob('data/wmap_sidelobe_map_*_9yr_v5.fits')
-    nside = 2**7
-    inds = hp.nest2ring(nside, np.arange(12*nside**2))
-    for fname in fnames:
-        m = fits.open(fname)
-        # NB; these are in nest format
-        T = m[1].data['TEMPERATURE'][inds]
-    """
     nside = 2**7
     sllmax = lmax
     slmmax = 100
@@ -296,11 +287,14 @@ with h5py.File(fname_out, 'a') as f:
    
       # Beam is normalized such that \int B(\Omega)\,d\Omega = 4\pi, Commander
       # expects \int B\,d\Omega = 1.
+      # Not sure if this factor is needed...
       beamtot = hp.reorder(data, n2r=True)
       
       beam_A = hp.reorder(data, n2r=True)/(4*np.pi)
+      #beam_A = hp.reorder(data, n2r=True)
       beam_A[beam_A < 0] = 0
       beam_B = hp.reorder(data, n2r=True)/(4*np.pi)
+      #beam_B = hp.reorder(data, n2r=True)
       beam_B[beam_B > 0] = 0
       beam_B = -beam_B
 
@@ -317,7 +311,8 @@ with h5py.File(fname_out, 'a') as f:
 
       for j in range(len(alm_A)):
           li, mi = hp.sphtfunc.Alm.getlm(sllmax,i=j)
-          if (li <= lmax) & (mi <= slmmax):
+          #if (li <= lmax) & (mi <= slmmax):
+          if (li <= lmax) & (mi <= slmmax) & (mi == 0):
               ind_real = li**2 + li + mi
               ind_imag = li**2 + li - mi
               s_lm_A[ind_real] = alm_A[j].real
@@ -336,7 +331,8 @@ with h5py.File(fname_out, 'a') as f:
 
       for j in range(len(alm_B)):
           li, mi = hp.sphtfunc.Alm.getlm(sllmax,i=j)
-          if (li <= lmax) & (mi <= slmmax):
+          #if (li <= lmax) & (mi <= slmmax):
+          if (li <= lmax) & (mi <= slmmax) & (mi == 0):
               ind_real = li**2 + li + mi
               ind_imag = li**2 + li - mi
               s_lm_B[ind_real] = alm_B[j].real
