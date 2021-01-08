@@ -54,6 +54,7 @@ from tqdm import tqdm
 # version 24 uses a more accurate gain model
 # version 25 is same as version 24, but uses precalibrated data.
 # version 26 is same as version 24, but does not recompute planet flags
+# version 27 is same as version 26, center = False
 
 from time import sleep
 from time import time as timer
@@ -888,14 +889,30 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     inds = np.arange(len(files))
-    #inds = inds[:len(files)//2]
-    #files = np.array(files)[:len(files)//2]
-    inds = inds[len(files)//2:]
-    files = np.array(files)[len(files)//2:]
+    #inds = inds[:len(files)//10]
+    #files = np.array(files)[:len(files)//10]
+    #inds = inds[len(files)//10:2*len(files)//10]
+    #files = np.array(files)[len(files)//10:2*len(files)//10]
+    #inds = inds[2*len(files)//10:3*len(files)//10]
+    #files = np.array(files)[2*len(files)//10:3*len(files)//10]
+    #inds = inds[3*len(files)//10:4*len(files)//10]
+    #files = np.array(files)[3*len(files)//10:4*len(files)//10]
+    #inds = inds[4*len(files)//10:5*len(files)//10]
+    #files = np.array(files)[4*len(files)//10:5*len(files)//10]
+    #inds = inds[5*len(files)//10:6*len(files)//10]
+    #files = np.array(files)[5*len(files)//10:6*len(files)//10]
+    #inds = inds[6*len(files)//10:7*len(files)//10]
+    #files = np.array(files)[6*len(files)//10:7*len(files)//10]
+    #inds = inds[7*len(files)//10:8*len(files)//10]
+    #files = np.array(files)[7*len(files)//10:8*len(files)//10]
+    #inds = inds[8*len(files)//10:9*len(files)//10]
+    #files = np.array(files)[8*len(files)//10:9*len(files)//10]
+    inds = inds[9*len(files)//10:]
+    files = np.array(files)[9*len(files)//10:]
 
 
     if par:
-        nprocs = 64
+        nprocs = 16
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -919,5 +936,6 @@ if __name__ == '__main__':
     #main(par=False, plot=False, compress=True, version=23, center=False)
     #main(par=True, plot=False, compress=True, version=24, center=True)
     #main(par=True, plot=False, compress=True, version=25, center=True)
-    main(par=True, plot=False, compress=True, version=26, center=True)
+    #main(par=True, plot=False, compress=True, version=26, center=True)
+    main(par=True, plot=False, compress=True, version=27, center=False)
     #test_flags()
