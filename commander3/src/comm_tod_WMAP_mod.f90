@@ -105,7 +105,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 3 ! map, res, ncorr, orb_dp, sl
+      constructor%output_n_maps = 1 ! map, res, ncorr, orb_dp, sl
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -225,7 +225,7 @@ contains
 
       ! Set up full-sky map structures
       call wall_time(t1)
-      correct_sl = .true.
+      correct_sl = .false.
       chisq_threshold = 100.d0
       n_main_iter     = 4
       ndet = self%ndet
@@ -408,12 +408,16 @@ contains
             s_orbB = 0d0
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA)
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
+            !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
+            !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
             s_orbA = s_orbA * 1d6 ! MK -> mK
             s_orbB = s_orbB * 1d6 ! MK -> mK
             s_solA = 0d0
             s_solB = 0d0
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_solB)
+            !call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_solA)
+            !call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_solB)
             s_solA = s_solA * 1d3 ! K -> mK
             s_solB = s_solB * 1d3 ! K -> mK
             do j = 1, ndet
@@ -447,7 +451,8 @@ contains
                        & pix(:,j,2), psi(:,j,2), s_slB(:,j), 0d0)
                   s_sl(:,j) = (1+self%x_im((j+1)/2))*s_slA(:,j) - &
                             & (1-self%x_im((j+1)/2))*s_slB(:,j)
-                  s_sl(:,j) = 2 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
+                  !s_sl(:,j) = 0.5 * s_sl(:,j) ! Scaling by a factor of 1/2, following Barnes notation
+                  s_sl(:,j) = 2 * s_sl(:,j)   ! Scaling by a factor of 2, need to understand why
                end do
             else
                do j = 1, ndet
@@ -683,6 +688,7 @@ contains
          call update_status(status, "Starting bicg-stab")
          r  = b_map(:, :, l)
          r0 = b_map(:, :, l)
+         if (maxval(r) == 0) cycle
          ! delta = sum(r(l,:,:)**2/M_diag(l,:,:))
          ! If r is just Gaussian white noise, then delta_0 is a chi-squared
          ! random variable with 3 npix variables.
