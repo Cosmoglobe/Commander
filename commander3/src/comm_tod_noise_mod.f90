@@ -906,6 +906,9 @@ contains
        else if (trim(self%freq) == '023-WMAP_K') then
           prior(1) = 0.01
           prior(2) = 0.45
+       else if (trim(self%freq) == '060-WMAP_V1') then
+          prior(1) = 0.01
+          prior(2) = 0.45
        else 
           write(*,*) trim(self%freq)
           write(*,*) "invalid band label in sample_noise_psd"
@@ -934,6 +937,9 @@ contains
           prior(1) = -3.0
           prior(2) = -0.4
        else if (trim(self%freq) == '023-WMAP_K') then
+          prior(1) = -2.5
+          prior(2) = -0.4
+       else if (trim(self%freq) == '060-WMAP_V1') then
           prior(1) = -2.5
           prior(2) = -0.4
        else 
