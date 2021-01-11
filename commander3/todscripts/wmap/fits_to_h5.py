@@ -730,8 +730,8 @@ def ang2pix_multiprocessing(nside, theta, phi):
 
 def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     f_name = file_input.split('/')[-1][:-8]
-    # It takes about 30 seconds for the extraction from the fits files, which is
-    # very CPU intensive. After that, it maxes out at 1 cpu/process.
+
+
     prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v{version}.h5'
     if (os.path.exists(file_out) and file_ind != 1):
@@ -785,10 +785,6 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     chunk_size = 1875
     nsamp = chunk_size*fsamp
     n_per_day = 24
-    # WMAP data divides evenly into 25 chunks per day... or does it?
-
-
-
 
 
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']

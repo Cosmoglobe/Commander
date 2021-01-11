@@ -92,8 +92,18 @@ scripts, all of the values are within roughly 1 degree of each other.
 
 mnem_list = np.loadtxt('gain_params/mnem_indices.txt', delimiter=',', dtype=str)
 
-Temp_FPA = np.loadtxt('gain_params/fpa_temps.txt').mean(axis=1)
-Temp_RXB = np.loadtxt('gain_params/rxb_temps.txt').mean(axis=1)
+#Temp_FPA = np.loadtxt('gain_params/fpa_temps.txt')[:,8]
+#Temp_RXB = np.loadtxt('gain_params/rxb_temps.txt')[:,1] # Compare to the ExSupp
+Temp_FPAs = np.loadtxt('gain_params/fpa_temps.txt')
+Temp_RXBs = np.loadtxt('gain_params/rxb_temps.txt')
+rng = np.random.default_rng()
+
+Temp_FPA = Temp_FPAs.mean(axis=1)
+Temp_RXB = Temp_RXBs.mean(axis=1)
+#Temp_FPA = Temp_FPAs[:,6]
+#Temp_RXB = Temp_RXBs[:,0]
+#Temp_FPA = rng.choice(Temp_FPAs, axis=1)
+#Temp_RXB = rng.choice(Temp_RXBs, axis=1)
 
 fnames = glob('/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/*.fits')
 fnames.sort()
@@ -416,7 +426,7 @@ def fpa_tests():
         T_FPA = get_val_from_mnem(data, mnem)
         axs[i].plot(T_FPA, '.', ms=1)
         axs[i].set_title(mnem)
-        axs[i].set_ylim([88,92])
+        #axs[i].set_ylim([88,92])
         ax2.plot(T_FPA, '.', ms=1)
     plt.show()
 
@@ -435,7 +445,7 @@ def rxb_tests():
         T_RXB = get_val_from_mnem(data, mnem)
         axs[i].plot(T_RXB, '.', ms=1)
         axs[i].set_title(mnem)
-        axs[i].set_ylim([286, 290])
+        #axs[i].set_ylim([286, 290])
         ax2.plot(T_RXB, '.', ms=1)
     plt.show()
 
@@ -469,13 +479,11 @@ def get_gain(data, band):
 
     RF_bias = get_val_from_mnem(data, mnems[0])
     #T_FPA = get_val_from_mnem(data, 'DFV11FPATEET')
-    #T_RXB = get_val_from_mnem(data, mnems[2])
+    T_FPA = get_val_from_mnem(data, 'DFK1BOMTT')
+    T_RXB = get_val_from_mnem(data, 'DRK12RXBRIBT')
 
-    T_FPA = 90
-    T_RXB = 290
-
-    T_FPA = fpa_func(t_JD)
-    T_RXB = rxb_func(t_JD)
+    #T_FPA = fpa_func(t_JD)
+    #T_RXB = rxb_func(t_JD)
 
 
     par_array = np.char.upper(np.loadtxt('gain_params/T0_sols.txt', dtype=str))
@@ -513,14 +521,14 @@ def fullgain_tests():
     return
 
 
-def publication_plots():
+def publication_plots(nfiles=100):
     '''
     Trying to reproduce the figures from Hinshaw 2003 and Jarosik 2007
     '''
     files = glob(prefix + 'tods/uncalibrated/*.fits')
     files.sort()
     files = np.array(files)
-    #files = files[:500]
+    files = files[:nfiles]
 
 
     fpa_mnems = np.loadtxt('gain_params/t_fpa_mnem.txt', dtype=str,\
@@ -592,11 +600,74 @@ def publication_plots():
     #'''
     return
 
+def temp_tests(nfiles=100, band='V113'):
+    par_array = np.char.upper(np.loadtxt('gain_params/T0_sols.txt', dtype=str))
+    horn_inds = np.array(['13', '14', '23', '24'])
+
+    ind = np.where(par_array[:,0] == band[:-2])[0][0] 
+    da_ind = np.where(band[-2:] == horn_inds)[0][0]
+    pars = par_array[ind,1+da_ind::4].astype('float')
+
+    files = glob(prefix + 'tods/uncalibrated/*.fits')
+    files.sort()
+    files = np.array(files)
+    files = files[:nfiles]
+
+    Temp_FPAs = np.loadtxt('gain_params/fpa_temps.txt')
+    Temp_RXBs = np.loadtxt('gain_params/rxb_temps.txt')
+
+    rng = np.random.default_rng()
+
+    Temp_FPA = rng.choice(Temp_FPAs, axis=1)
+    Temp_RXB = rng.choice(Temp_RXBs, axis=1)
+
+    fnames = glob('/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/*.fits')
+    fnames.sort()
+    t1s = []
+    t2s = []
+    for f in fnames:
+        t1 = f.split('_')[2]
+        t2 = f.split('_')[3]
+        t1 = t1[:4] + ':' + t1[4:7] + ':' + t1[7:9] + ':' + t1[9:11]
+        t2 = t2[:4] + ':' + t2[4:7] + ':' + t2[7:9] + ':' + t2[9:11]
+        t1 = Time(t1, format='yday')
+        t2 = Time(t2, format='yday')
+        t1s.append(t1.jd)
+        t2s.append(t2.jd)
+    
+    t1s = np.array(t1s)
+    t2s = np.array(t2s)
+    times = (t1s + t2s)/2
+    
+    inds = (Temp_FPA > 50)
+    
+    fpa_func = interp1d(times[inds], Temp_FPA[inds], fill_value='extrapolate')
+    rxb_func = interp1d(times[inds], Temp_RXB[inds], fill_value='extrapolate')
+
+    mnems = get_mnems(band)
+    print(mnems)
+    for j in range(len(files)):
+        data = fits.open(files[j])
+        RF_bias = get_val_from_mnem(data, mnems[0])
+        t_JD = data[3].data['TIME'] + 2.45e6
+        # 2452131.5 is 0:00 of day 222 of 2001 (August 10)
+        t = t_JD - 2452131.50000 
+
+        G_V223 = G(RF_bias, rxb_func(t), fpa_func(t), t, pars)
+        plt.plot(t, G_V223, 'k.', ms=1)
+
+
+
+    return
+
 if __name__ == '__main__':
-    publication_plots()
-    gain_tests()
+    publication_plots(nfiles=400)
+    #gain_tests()
     #rfb_tests()
     #fpa_tests()
     #rxb_tests()
 
     #fullgain_tests()
+    #for i in range(10):
+    #  temp_tests(band='K113')
+    #plt.show()
