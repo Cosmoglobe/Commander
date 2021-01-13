@@ -1,34 +1,63 @@
-# Project: Curl 
-# Project link: https://github.com/curl/curl
-# Curl is a command-line tool for transferring data specified with URL syntax
-# Required by: CFitsio
-# Author: Maksym Brilenkov
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
+# Description: This script determines the location of cURL on the host system.
+# If it fails to do so, it will download, compile and install cURL from source.
+# Together with CFitsio, cURL is required to successfully compile HEALPix.
+#================================================================================
 
 message(STATUS "---------------------------------------------------------------")
 # looking for curl in the system and download it if it is not present
-if(NOT CURL_FORCE_COMPILE)
+if(NOT (CURL_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 	find_package(CURL)
 endif()
 
 if(NOT CURL_FOUND)
-	#message(STATUS "Haven't found curl on the system. Will download and compile it from source:
-	#https://github.com/curl/curl")
+	# Creating configure command for cURL
+	set(curl_configure_command 
+		"${CMAKE_COMMAND}" "-E" "env" 
+		"FC=${COMMANDER3_Fortran_COMPILER}" 
+		"CXX=${COMMANDER3_CXX_COMPILER}" 
+		"CC=${COMMANDER3_C_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
+		#"CPPFLAGS=-I${OPENSSL_INCLUDE_DIR}"
+		#"LDFLAGS=-L${OPENSSL_LIBRARIES}"
+		"./configure" 
+		"--prefix=<INSTALL_DIR>"
+		)
+	#------------------------------------------------------------------------------
+	# Getting cURL from source
+	#------------------------------------------------------------------------------
 	ExternalProject_Add(${project}
 		URL "${${project}_url}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		#INSTALL_DIR "${CMAKE_INSTALL_OUTPUT_DIRECTORY}" #"${out_install_dir}"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
-		#PATCH_COMMAND ./buildconf
+		LOG_DIR "${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD ON
+		LOG_CONFIGURE ON
+		LOG_BUILD ON
+		LOG_INSTALL ON
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		BUILD_ALWAYS FALSE
-		#LOG_DOWNLOAD ON
-		#LOG_UPDATE ON
-		#LOG_CONFIGURE ON
-		#LOG_BUILD ON
-		#LOG_TEST ON
-		#LOG_INSTALL ON
 		)
 	# getting curl directories
 	ExternalProject_Get_Property(${project} source_dir)
