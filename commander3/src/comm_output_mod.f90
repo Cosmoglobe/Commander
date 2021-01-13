@@ -121,7 +121,8 @@ contains
        if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
        !write(*,*) 'group ', trim(adjustl(itext))
        call create_hdf_group(file, trim(adjustl(itext)))
-       if (.not. cpar%resamp_CMB) call create_hdf_group(file, trim(adjustl(itext))//'/md')
+       !if (.not. cpar%resamp_CMB) call create_hdf_group(file, trim(adjustl(itext))//'/md')
+       call create_hdf_group(file, trim(adjustl(itext))//'/md')
     end if
     call update_status(status, "output_chain")
 
@@ -147,7 +148,8 @@ contains
     c => compList
     call wall_time(t1)
     do while (associated(c))
-       if (.not. c%output .or. (cpar%resamp_CMB .and. trim(c%type) /= 'cmb')) then
+!       if (.not. c%output .or. (cpar%resamp_CMB .and. trim(c%type) /= 'cmb')) then
+       if (.not. c%output) then
           c => c%next()
           cycle
        end if
@@ -337,7 +339,7 @@ contains
              select type (N)
              class is (comm_N_rms)
                 call data(i)%tod%dumpToHDF(file, iter, &
-                     & data(i)%map, N%rms0)
+                     & data(i)%map0, N%rms0)
              end select
           end if
        end do

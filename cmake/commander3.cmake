@@ -1,26 +1,10 @@
-#================================================================================
-#
-# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
-#
-# This file is part of Commander3.
-#
-# Commander3 is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Commander3 is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
-#
-#================================================================================
-# Description: This script compiles/installs Commander3 on host system and it also 
-# links Commander3 to external dependencies (such as HDF5, CFitsio, HEALPix etc.)
-#================================================================================
+#=============================================================================
+# Project: Commander3 
+# Link: https://github.com/Cosmoglobe/Commander
+# This file contains instructions on how to install commander3
+# on your machine.
+# Author: Maksym Brilenkov
+#==============================================================================
 
 message(STATUS "---------------------------------------------------------------")
 
@@ -55,6 +39,8 @@ install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_D
 #	${COMMANDER3_CXX_LINKER_FLAGS}
 #	)
 
+# setting the directory where to output all .mod and .o files
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/mod)
 # TODO: add all sources manually instead of this command, as 
 # there seems to be a problem with tempita language
 #file(GLOB_RECURSE sources *.f90 *.cpp *.f)
@@ -66,7 +52,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_4D_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_F_int_0D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_N_rms_mod.f90
-	# TOD processing modules
+	# TOD processing/simulations modules
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_LFI_mod.f90
@@ -75,9 +61,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_WMAP_mod.f90
-	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
-	#${COMMANDER3_SOURCE_DIR}/sims_io.f90
 	#
 	${COMMANDER3_SOURCE_DIR}/comm_F_int_1D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_output_mod.f90
@@ -130,9 +114,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_task_mod.f90
 	${COMMANDER3_SOURCE_DIR}/sharp.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_utils.f90
-	# MPI (sub)modules
 	${COMMANDER3_SOURCE_DIR}/comm_mpi_mod.f90
-	# 
 	${COMMANDER3_SOURCE_DIR}/comm_template_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/sort_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_data_mod.f90
@@ -164,7 +146,7 @@ set(sources
 set(commander3 commander3)
 add_executable(${commander3} "")
 # make sure that commander executable will be built last
-add_dependencies(${commander3} ${projects} fftw_float fftw_double)
+add_dependencies(${commander3} ${projects}) #fftw_ fftw_f)
 target_sources(${commander3}
 	PUBLIC	
 	${sources}
@@ -241,5 +223,4 @@ target_link_libraries(${commander3}
 	)
 
 # installing commander into appropriate folder
-#install(TARGETS ${commander3} RUNTIME DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${commander3} DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+install(TARGETS ${commander3} RUNTIME DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})

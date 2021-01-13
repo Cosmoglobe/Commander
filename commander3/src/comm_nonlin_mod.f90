@@ -104,7 +104,22 @@ contains
                 do p = 1,c%poltype(j)
                    if (p > c%nmaps) cycle
                    if (c%lmax_ind_pol(p,j) < 0 .and. &
-                        & trim(c%pol_lnLtype(p,j)) /= 'chisq') samp_cg = .true.
+                        & trim(c%pol_lnLtype(p,j)) /= 'chisq') then
+                      if (trim(c%pol_lnLtype(p,j)) == 'pixreg') then
+                         if (any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .false.)) samp_cg = .true.
+                      else if (trim(c%pol_lnLtype(p,j)) == 'prior') then
+                         if (c%theta_prior(2,p,j) /= 0.d0) samp_cg = .true.
+                      else
+                         samp_cg = .true.
+                      end if
+                   else
+                      if (cpar%almsamp_pixreg) then
+                         if (cpar%almsamp_priorsamp_frozen .and. &
+                              & any(c%fix_pixreg(:c%npixreg(p,j),p,j)==.true.)) then
+                            samp_cg = .true.
+                         end if
+                      end if
+                   end if
                 end do
 
                 if (samp_cg) then !need to resample amplitude
@@ -166,11 +181,12 @@ contains
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind, nalm_tot_reg
     integer(i4b) :: p_min, p_max, nalm_tot, pix, region
     real(dp)     :: t1, t2, ts, dalm, thresh, steplen
-    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys
+    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys, chisq_temp
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
     character(len=2) :: itext
     character(len=3) :: tag
+    character(len=15) :: regfmt
     character(len=9) :: ar_tag
     character(len=1000) :: outmessage
     character(len=512) :: filename
@@ -185,7 +201,7 @@ contains
 
     real(dp),          allocatable, dimension(:,:,:)  :: alms, regs, buffer3
     real(dp),          allocatable, dimension(:,:)    :: m
-    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop
+    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop, theta_delta_prop
     integer(c_int),    allocatable, dimension(:)      :: maxit
 
 
@@ -218,7 +234,7 @@ contains
             & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
 
        info_theta  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
-            & 2*c%x%info%nside, 1, .false.)
+            & 3*c%x%info%nside, 1, .false.)
        theta => comm_map(info_theta)
 
        ! Params
@@ -282,9 +298,16 @@ contains
           ! p to be sampled with a local sampler 
           if (c%lmax_ind_pol(pl,j) < 0) cycle
 
+
           if (cpar%almsamp_pixreg) then
              allocate(theta_pixreg_prop(0:c%npixreg(pl,j))) 
-             allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vector
+             allocate(theta_delta_prop(0:c%npixreg(pl,j))) 
+             allocate(rgs(0:c%npixreg(pl,j))) ! Allocate random vecto
+             
+             ! Formatter for region output
+             write(regfmt,'(I0)') size(c%theta_pixreg(1:,pl,j))
+             regfmt = '(a,'//adjustl(trim(regfmt))//'(f7.3))'
+             if (cpar%myid_chain == 0) write(*,regfmt) ' using region priors', c%pixreg_priors(:c%npixreg(pl,j),pl,j)
           else 
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
           end if
@@ -340,15 +363,18 @@ contains
                    chisq_prior = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
-                      chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
+                      !chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
+                      chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%pixreg_priors(p,pl,j))/c%p_gauss(2,j))**2)
                    end do
                 end if
 
                 ! Output init sample
                 write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
-                !if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
-                if (cpar%almsamp_pixreg) write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
-                chisq(0) = chisq(0) + chisq_prior
+                if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
+
+                chisq(0) = chisq(0) + chisq_prior 
+                !chisq(0) = chisq_prior ! test2
+
              else 
                 write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
              end if
@@ -380,26 +406,40 @@ contains
                    end do
                    alms(i,:,pl) = alms(i-1,:,pl) + matmul(c%L(:,:,pl,j), rgs)
                 end if
+
+                ! Broadcast proposed alms from root
+                allocate(buffer(c%nalm_tot))
+                buffer = alms(i,:,pl)
+                call mpi_bcast(buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)                   
+                alms(i,:,pl) = buffer
+                deallocate(buffer)
+
              else
                 ! --------- region sampling start
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
+                   ! Save old values
+                   theta_pixreg_prop = c%theta_pixreg(:c%npixreg(pl,j),pl,j)
+                   
                    rgs = 0.d0
                    do p = 1, c%npixreg(pl,j)
                       rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
-                      ! Fix specified pixel regions
-                      if (c%fix_pixreg(p,pl,j)) rgs(p) = 0.d0
                    end do
-
-                   ! Propose new pixel regions
-                   theta_pixreg_prop = c%theta_pixreg(:,pl,j) + matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
+                   
+                   ! Only propose change to regions not frozen
+                   theta_delta_prop = matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
+                   do p = 1, c%npixreg(pl,j)
+                      if (.not. c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = theta_pixreg_prop(p) + theta_delta_prop(p)
+                   end do
                 end if
 
                 call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
 
+                if (.not. (any(c%ind_pixreg_arr(:,pl,j) > 1) ) .and. (c%npixreg(pl,j)>1) ) write(*,*) "Bug in pixreg init"
                 ! Loop over pixels in region
+                !if (info%myid==0) write(*,*) size(c%ind_pixreg_arr(1,:,j)), size(c%ind_pixreg_arr(1,pl,:)), pl, j
                 do pix = 0, theta%info%np-1
-                   ! Else, use calculated change
+                   !if (info%myid==0) write(*,*) c%ind_pixreg_arr(pix,pl,j), theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j)), theta%map(pix,1), info%myid, pl, pix
                    theta%map(pix,1) = theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j))
                 end do
 
@@ -419,11 +459,13 @@ contains
                    theta_smooth%map=theta%map
                 end if
 
-                
+                !threshold theta map on uniform priors (in case of ringing; done after smoothing)
+                theta_smooth%map = min(c%p_uni(2,j),max(c%p_uni(1,j),theta_smooth%map)) 
+
                 call theta_smooth%YtW_scalar
                 call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
                 allocate(buffer3(0:1, 0:nalm_tot_reg-1, 2)) ! Denne er nalm for 1! trenger alle
-
+                
                 call gather_alms(theta_smooth%alm, buffer3, theta_smooth%info%nalm, theta_smooth%info%lm, 0, 1, 1)
                 call mpi_allreduce(MPI_IN_PLACE, buffer3, nalm_tot_reg, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
                 alms(i,:,pl) = buffer3(0,:c%nalm_tot,1)
@@ -432,13 +474,6 @@ contains
                 call theta_smooth%dealloc(); deallocate(theta_smooth)
                 ! ------- region sampling end
              end if
-
-             ! Broadcast proposed alms from root
-             allocate(buffer(c%nalm_tot))
-             buffer = alms(i,:,pl)
-             call mpi_bcast(buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)                   
-             alms(i,:,pl) = buffer
-             deallocate(buffer)
 
              ! Save to correct poltypes
              if (c%poltype(j) == 1) then      ! {T+E+B}
@@ -452,7 +487,7 @@ contains
                 else
                    do q = 2, c%theta(j)%p%info%nmaps
                       alms(i,:,q) = alms(i,:,pl)
-                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)                            
+                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
                    end do
                 end if
              else if (c%poltype(j) == 3) then ! {T,E,B}
@@ -469,10 +504,12 @@ contains
 
              ! Calculate proposed chisq
              if (allocated(c%indmask)) then
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq_temp, mask=c%indmask, lowres_eval=.true., evalpol=.true.)
              else
-                call compute_chisq(c%comm, chisq_fullsky=chisq(i), lowres_eval=.true., evalpol=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq_temp, lowres_eval=.true., evalpol=.true.)
              end if
+
+             chisq(i) = chisq_temp
 
              ! Accept/reject test
              ! Reset accepted bool
@@ -496,12 +533,14 @@ contains
                       ! Apply a prior per region
                       chisq_prior = 0.d0
                       do p = 1, c%npixreg(pl,j)
-                         chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
+                         !chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
+                         chisq_prior = chisq_prior + (((theta_pixreg_prop(p) - c%pixreg_priors(p,pl,j))/c%p_gauss(2,j))**2)
                       end do
                       !write(*,*) "prior ", chisq_prior
                    end if
 
                    chisq(i) = chisq(i) + chisq_prior
+                   !chisq(i) = chisq_prior !test2
                 end if
 
                 diff = chisq(i-1)-chisq(i)
@@ -515,6 +554,12 @@ contains
                    accepted = .true.
                 end if
 
+                ! Reject if proposed values are outside of range
+                if (any(theta_pixreg_prop(1:) > c%p_uni(2,j)) .or. any(theta_pixreg_prop(1:) < c%p_uni(1,j))) then
+                   accepted = .false.
+                   write(*,fmt='(a, f7.3, f7.3, a)') "Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
+                end if
+
                 ! Count accepted and assign chisq values
                 if (accepted) then
                    num_accepted = num_accepted + 1
@@ -524,12 +569,15 @@ contains
                    chisq(i) = chisq(i-1)
                    ar_tag = achar(27)//'[91m'
                 end if
-                if (cpar%almsamp_pixreg) regs(i,:,pl) = c%theta_pixreg(:,pl,j)
+                
+                ! Output chisq and diff and mean alm
                 write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+
+                ! Output region information
                 if (cpar%almsamp_pixreg) then
-                   !write(outmessage, fmt='(a, *(f7.3))') "regs:", theta_pixreg_prop(1:) ! Max space
-                   write(outmessage, *) "regs:", real(theta_pixreg_prop(1:),sp) ! Max space
+                   regs(i,:,pl) = c%theta_pixreg(:,pl,j)
+                   write(outmessage,fmt=regfmt) " regs:", theta_pixreg_prop(1:)
                    write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 end if
              end if
@@ -560,6 +608,7 @@ contains
                    call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, pl)
                 end if
 
+                ! Revert results
                 call c%updateMixmat                                   
              end if
 
@@ -573,8 +622,9 @@ contains
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
                    write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                   !if (cpar%almsamp_pixreg) write(*,fmt='(a,*(f7.3))') " regs:", c%theta_pixreg(1:,pl,j)
-                   if (cpar%almsamp_pixreg) write(*,*) " regs:", real(c%theta_pixreg(1:,pl,j),sp)
+
+                   ! Format region info
+                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
@@ -634,8 +684,94 @@ contains
              end if
 
           end do ! End samples
+
+          if (cpar%almsamp_pixreg) then
+             if (cpar%almsamp_priorsamp_frozen .and. &
+                  & any(c%fix_pixreg(:c%npixreg(pl,j),pl,j)==.true.)) then
+                !Sample frozen regions using component prior
+                if (info%myid == 0) then
+                   ! Save old values
+                   theta_pixreg_prop = c%theta_pixreg(:,pl,j)
+
+                   do p = 1, c%npixreg(pl,j)
+                      !if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%p_gauss(1,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                      if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%pixreg_priors(p,pl,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                   end do
+                end if
+
+                call mpi_bcast(theta_pixreg_prop, c%npixreg(pl,j)+1, MPI_DOUBLE_PRECISION, 0, c%comm, ierr)
+
+                !assign new thetas to frozen
+                c%theta_pixreg(:c%npixreg(pl,j),pl,j) = theta_pixreg_prop
+
+                ! Loop over pixels in region
+                !if (info%myid==0) write(*,*) size(c%ind_pixreg_arr(1,:,j)), size(c%ind_pixreg_arr(1,pl,:)), pl, j
+                do pix = 0, theta%info%np-1
+                   !if (info%myid==0) write(*,*) c%ind_pixreg_arr(pix,pl,j), theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j)), theta%map(pix,1), info%myid, pl, pix
+                   theta%map(pix,1) = theta_pixreg_prop(c%ind_pixreg_arr(pix,pl,j))
+                end do
+
+                ! Smooth after regions are set, if smoothing scale > 0 and beam FWHM > 0.0
+                smooth_scale = c%smooth_scale(j)
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                   if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+                      call smooth_map(info_theta, .false., &
+                           & c%B_pp_fr(j)%p%b_l*0.d0+1.d0, theta, &  
+                           & c%B_pp_fr(j)%p%b_l, theta_smooth)
+                   else
+                      theta_smooth => comm_map(info_theta)
+                      theta_smooth%map=theta%map
+                   end if
+                else
+                   theta_smooth => comm_map(info_theta)
+                   theta_smooth%map=theta%map
+                end if
+
+                !threshold theta map on uniform priors (in case of ringing; done after smoothing)
+                theta_smooth%map = min(c%p_uni(2,j),max(c%p_uni(1,j),theta_smooth%map)) 
+
+                call theta_smooth%YtW_scalar
+                call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
+                allocate(buffer3(0:1, 0:nalm_tot_reg-1, 2)) ! Denne er nalm for 1! trenger alle
+
+                call gather_alms(theta_smooth%alm, buffer3, theta_smooth%info%nalm, theta_smooth%info%lm, 0, 1, 1)
+                call mpi_allreduce(MPI_IN_PLACE, buffer3, nalm_tot_reg, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+                alms(i,:,pl) = buffer3(0,:c%nalm_tot,1)
+                deallocate(buffer3)
+
+                call theta_smooth%dealloc(); deallocate(theta_smooth)
+             
+                ! Save to correct poltypes
+                if (c%poltype(j) == 1) then      ! {T+E+B}
+                   do q = 1, c%theta(j)%p%info%nmaps
+                      alms(i,:,q) = alms(i,:,pl) ! Save to all maps
+                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
+                   end do
+                else if (c%poltype(j) == 2) then ! {T,E+B}
+                   if (pl == 1) then
+                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+                   else
+                      do q = 2, c%theta(j)%p%info%nmaps
+                         alms(i,:,q) = alms(i,:,pl)
+                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
+                      end do
+                   end if
+                else if (c%poltype(j) == 3) then ! {T,E,B}
+                   call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+                end if
+
+                ! Update mixing matrix with new alms
+                if (c%apply_jeffreys) then
+                   call c%updateMixmat(df=df, par=j)
+                   call compute_jeffreys_prior(c, df, pl, j, chisq_jeffreys)
+                else
+                   call c%updateMixmat
+                end if
+             end if !almsamp_priorsamp_frozen .and. any frozen pixregs
+          end if !almsamp_pixreg
+
           deallocate(rgs)
-          if (cpar%almsamp_pixreg) deallocate(theta_pixreg_prop) 
+          if (cpar%almsamp_pixreg) deallocate(theta_pixreg_prop, theta_delta_prop) 
        end do ! End pl
 
 
@@ -922,7 +1058,7 @@ contains
              !so that the evaluation/sampling can be done at an arbitrary nside (given by smoothing scale),
              !then be smoothed with a post processing beam at the components full resolution
              info  => comm_mapinfo(c%theta(par_id)%p%info%comm, c%theta(par_id)%p%info%nside, &
-                  & 2*c%theta(par_id)%p%info%nside, 1, c%theta(par_id)%p%info%pol) !only want 1 map
+                  & 3*c%theta(par_id)%p%info%nside, 1, c%theta(par_id)%p%info%pol) !only want 1 map
 
              !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
              theta_single_pol => comm_map(info)
@@ -952,6 +1088,9 @@ contains
                         & c%B_pp_fr(par_id)%p%b_l*0.d0+1.d0, theta_single_pol, &  
                         & c%B_pp_fr(par_id)%p%b_l, c%theta_smooth(par_id)%p)
 
+                   c%theta_smooth(par_id)%p%map = min(c%p_uni(2,par_id),max(c%p_uni(1,par_id), &
+                        & c%theta_smooth(par_id)%p%map)) ! threshold smoothed map on uniform limits
+                   
                    do p = p_min,p_max
                       ! assign smoothed theta map to relevant polarizations
                       c%theta(par_id)%p%map(:,p) = c%theta_smooth(par_id)%p%map(:,1)
@@ -967,9 +1106,13 @@ contains
        end if
 
        call update_status(status, "nonlin stop " // trim(c%label)// ' ' // trim(c%indlabel(par_id)))
+       if (c%theta(par_id)%p%info%myid == 0 .and. cpar%verbosity > 2) &
+            & write(*,*) 'Updating Mixing matrix after sampling '// &
+            & trim(c%label)// ' ' // trim(c%indlabel(par_id))
 
     end select
 
+    ! Update mixing matrix 
     call c%updateMixmat 
 
 
@@ -1136,56 +1279,45 @@ contains
        theta_min = c_lnL%p_uni(1,id)
        theta_max = c_lnL%p_uni(2,id)
 
-       !needs rewriting to only sample polarizations covered by polt_id
-       if (trim(cpar%operation) == 'optimize') then
-          call c_lnL%sampleSpecInd(cpar, handle, par_id, iter) !use code in diffuse_comp_mod
 
-       else if (trim(cpar%operation) == 'sample') then
-
-          allocate(buffer_lnL(0:c_lnL%theta(id)%p%info%np-1,c_lnL%theta(id)%p%info%nmaps))
-          buffer_lnL=max(min(c_lnL%theta(id)%p%map,theta_max),theta_min) 
-          
-
-          do p = 1,c_lnL%poltype(id)
-             if (c_lnL%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
-             if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
-             if (p > c_lnL%nmaps) cycle ! poltype > number of maps
+       allocate(buffer_lnL(0:c_lnL%theta(id)%p%info%np-1,c_lnL%theta(id)%p%info%nmaps))
+       buffer_lnL=max(min(c_lnL%theta(id)%p%map,theta_max),theta_min) 
+       
+       
+       do p = 1,c_lnL%poltype(id)
+          if (c_lnL%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
+          if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
+          if (p > c_lnL%nmaps) cycle ! poltype > number of maps
 
 
 
-             call wall_time(t1)
-             if (c_lnL%pol_pixreg_type(p,id) > 0) then
-                if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
-                     & 'of ', c_lnL%poltype(id) !Needed?
-                call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
-                call wall_time(t2)
-                if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
-                     & p,'CPU time specind = ', real(t2-t1,sp)
-             else
-                write(*,*) 'Undefined spectral index sample region'
-                write(*,*) 'Component:',trim(c_lnL%label),'ind:',trim(c_lnL%indlabel(id))
-                stop
-             end if
+          call wall_time(t1)
+          if (c_lnL%pol_pixreg_type(p,id) /= 0) then
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
+                  & 'of ', c_lnL%poltype(id) !Needed?
+             call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
+             call wall_time(t2)
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
+                  & p,'CPU time specind = ', real(t2-t1,sp)
+          else
+             write(*,*) 'Undefined spectral index sample region'
+             write(*,*) 'Component: ',trim(c_lnL%label),', ind: ',trim(c_lnL%indlabel(id))
+             stop
+          end if
 
 
 
-          end do
+       end do
 
-          !after sampling is done we assign the spectral index its new value(s)
-          c_lnL%theta(id)%p%map = buffer_lnL
-          
-          if (info%myid == 0 .and. cpar%verbosity > 2) write(*,*) 'Updating Mixing matrix'
-          ! Update mixing matrix
-          call c_lnL%updateMixmat
+       !after sampling is done we assign the spectral index its new value(s)
+       c_lnL%theta(id)%p%map = buffer_lnL !unsmoothed map (not post_proc smoothed)
 
-          ! Ask for CG preconditioner update
-          if (c_lnL%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
+       ! Ask for CG preconditioner update
+       if (c_lnL%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
 
-          ! deallocate
+       ! deallocate
 
-          deallocate(buffer_lnL)
-
-       end if !operation
+       deallocate(buffer_lnL)
 
     end select
 
@@ -2078,18 +2210,7 @@ contains
     info_lr_single  => comm_mapinfo(c_lnL%x_smooth%info%comm, c_lnL%x_smooth%info%nside, &
          & c_lnL%x_smooth%info%lmax, 1, c_lnL%x_smooth%info%pol)
                 
-    theta_single_fr => comm_map(info_fr_single)
-    theta_fr => comm_map(info_fr_single)
-
     myid_pix = info_fr%myid ! using this proc id and info_fr%comm in all mpi calls to ensure that values are properly dispersed between processors 
-
-    !ud_grade mask
-    mask_lr => comm_map(info_lr)
-    call c_lnL%pol_ind_mask(id)%p%udgrade(mask_lr)
-
-    !init lowres residual map
-    res_map => comm_map(info_lr)
-
 
     delta_lnL_threshold = 25.d0
     n                   = 101
@@ -2130,6 +2251,37 @@ contains
 
     theta_min = c_lnL%p_uni(1,id)
     theta_max = c_lnL%p_uni(2,id)
+
+    if (c_lnL%pol_pixreg_type(p,id) < 0) then !Prior sample
+       if (myid_pix == 0) then
+          new_theta = c_lnL%theta_prior(1,p,id) + c_lnL%theta_prior(2,p,id)*rand_gauss(handle)
+          new_theta = min(theta_max,max(theta_min,new_theta))
+       end if
+
+       !broadcast new_theta
+       call mpi_bcast(new_theta, 1, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
+       buffer_lnL(:,p_min:p_max) = new_theta
+       if (myid_pix == 0) then
+          write(*,*) 'Sampled new value using Gaussian prior'
+          write(*,fmt='(a,f7.3)') '  Prior mean = ',c_lnL%theta_prior(1,p,id)
+          write(*,fmt='(a,f10.6)') '  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
+          write(*,fmt='(a,f10.6)') '  Old value  = ',c_lnL%theta_pixreg(1,p,id)
+          write(*,fmt='(a,f10.6)') '  New value  = ',new_theta
+       end if
+       c_lnL%theta_pixreg(1:npixreg,p,id) = new_theta
+       return
+    end if
+
+    ! init full resolution theta maps for smoothing
+    theta_single_fr => comm_map(info_fr_single)
+    theta_fr => comm_map(info_fr_single)
+
+    !ud_grade mask
+    mask_lr => comm_map(info_lr)
+    call c_lnL%pol_ind_mask(id)%p%udgrade(mask_lr)
+
+    !init lowres residual map
+    res_map => comm_map(info_lr)
 
 
     !set up which bands and polarizations to include
@@ -2193,7 +2345,7 @@ contains
     if (c_lnL%pol_sample_nprop(p,id)) sampled_nprop = .true.
     if (c_lnL%pol_sample_proplen(p,id)) sampled_proplen = .true.
 
-    old_thetas = c_lnL%theta_pixreg(:,p,id)
+    old_thetas = c_lnL%theta_pixreg(:npixreg,p,id)
     old_thetas = min(max(old_thetas,theta_min),theta_max)
     new_thetas = old_thetas
     ! that the root processor operates on
@@ -2231,6 +2383,8 @@ contains
        dlnL_arr(:)=0.d0
        running_dlnL=1.d3
        running_accept=0.d0
+
+       old_theta = old_thetas(pr)
 
        theta_fr%map = old_thetas(0) !prior value
        theta_single_fr%map = 0.d0
@@ -2299,7 +2453,7 @@ contains
 
        call wall_time(t1)
        lnl_init=0.d0
-
+       
        do j = 1,pixreg_nprop !propose new sample n times (for faster mixing in total)
 
           nsamp = nsamp + 1
@@ -2355,9 +2509,14 @@ contains
              if (first_sample) then
                 !set up the old theta map
                 old_theta_smooth(:)=theta_lr_hole%map(:,1)+ old_theta*theta_single_lr%map(:,1)
+                ! threshold smoothed map on uniform limits
+                old_theta_smooth(:) =min(theta_max,max(theta_min, old_theta_smooth(:))) 
+
              end if
              !set up the new theta map
              new_theta_smooth(:)=theta_lr_hole%map(:,1)+ new_theta*theta_single_lr%map(:,1)
+             ! threshold smoothed map on uniform limits
+             new_theta_smooth(:) =min(theta_max,max(theta_min, new_theta_smooth(:))) 
 
              !lnL type should split here
              if (trim(c_lnL%pol_lnLtype(p,id))=='chisq') then
@@ -2590,16 +2749,21 @@ contains
                 !if delta_lnL is more negative than -25.d0, limit to -25.d0
                 if (abs(delta_lnL) > delta_lnL_threshold) delta_lnL = -delta_lnL_threshold 
 
-                !draw random uniform number
-                a = rand_uni(handle) !draw uniform number from 0 to 1
-                if (exp(delta_lnL) > a) then
-                   !accept
-                   old_theta = new_theta
-                   lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
-                   n_accept = n_accept + 1
-                   accept_arr(arr_ind) = 1 !accept
+
+                if (trim(cpar%operation) == 'sample') then
+                   !draw random uniform number
+                   a = rand_uni(handle) !draw uniform number from 0 to 1
+                   if (exp(delta_lnL) > a) then
+                      !accept
+                      old_theta = new_theta
+                      lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
+                      n_accept = n_accept + 1
+                      accept_arr(arr_ind) = 1 !accept
+                   else
+                      accept_arr(arr_ind) = 0 !reject
+                   end if
                 else
-                   accept_arr(arr_ind) = 0 !reject
+                   accept_arr(arr_ind) = 0 !reject if running optimize
                 end if
              else
                 !accept new sample, higher likelihood

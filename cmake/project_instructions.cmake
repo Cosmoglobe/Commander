@@ -1,34 +1,16 @@
-#================================================================================
-#
-# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
-#
-# This file is part of Commander3.
-#
-# Commander3 is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Commander3 is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
-#
-#================================================================================
-# Description: This script contains general instructions on how to fetch and build 
-# Commander3 and all its dependencies. It is split into three parts, each containing 
-# its set of instaructions/variables. It is done for easier maintenance. 
-#================================================================================
+#==============================================================================
+# This file contains general instructions how to
+# fetch and build the Commander dependencies
+# Author: Maksym Brilenkov
+#==============================================================================
 
 # TODO:
 # [x] Split this file into several different files, containing corresponding instructions (versions, variables, toolchains etc.);
 # [ ] Change URL_MD5 to URL_HASH of every project;
-# [x] Change compiler variables from list to string (but leave APPEND); <= doesn't work this way
+# [x] Change compiler variables from list to string (but leave APPEND);
 # [ ] Remove include_directory() and use target_include_directory() instead (for commander3 target);
 # [ ] Add one variable which will force all libraries to be recompiled;
+# [x] Add ExternalProject_Add_Step() to copy files instead of COMMAND (and make it ALWAYS OFF);
 
 #------------------------------------------------------------------------------
 # including compiler definitions
@@ -44,6 +26,8 @@ message(STATUS "---------------------------------------------------------------"
 message(STATUS "Looking for packages...")
 # use this to write your own find_package
 find_package(PkgConfig)
+# We will be using Git to download some dependencies, so we need to check if git available
+find_package(Git REQUIRED)
 # finding math library
 message(STATUS "math (m) libraries are: ${LIBM_LIBRARIES}")
 # printing out the dl libs, which are also required on some unix systems
@@ -52,13 +36,12 @@ message(STATUS "dl libs are: ${CMAKE_DL_LIBS}")
 unset(projects)
 # project names
 list(APPEND projects 
-	#tempita
-	required_libraries
+	tempita
 	blas # blas-lapack module 
-	##mpi
-	##openmp
+	mpi
+	openmp
 	curl
-	##zlib
+	zlib
 	##sharp2
 	fftw
 	cfitsio
@@ -73,10 +56,6 @@ list(APPEND projects
 # cURL - needed by CFitsio and HEALPix
 # need to specify command separately, othewise it won't work
 set(curl_url "https://github.com/curl/curl/releases/download/curl-7_69_0/curl-7.69.0.zip")#"https://github.com/curl/curl/releases/download/curl-7_69_1/curl-7.69.1.tar.gz")
-#------------------------------------------------------------------------------
-# OpenBLAS -  Open Source Implementation of BLAS and LAPACK
-set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
-set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
 #------------------------------------------------------------------------------
 # FFTW
 set(fftw_url "http://fftw.org/fftw-3.3.8.tar.gz")

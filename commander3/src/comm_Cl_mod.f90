@@ -22,7 +22,7 @@ module comm_Cl_mod
      integer(i4b)     :: lmin, lmax, spec, nsub, ntot, p1, p2
      real(dp)         :: sigma
      character(len=1) :: stat
-     type(Cl_bin), allocatable, dimension(:)   :: sub
+     type(Cl_bin), pointer, dimension(:)   :: sub
      real(dp),     allocatable, dimension(:,:) :: M_prop
   end type Cl_bin
   
@@ -71,6 +71,7 @@ module comm_Cl_mod
      procedure :: writeFITS
      procedure :: initHDF
      procedure :: updatePowlaw
+     procedure :: updatePowlawGauss
      procedure :: updateExponential
      procedure :: updateGaussian
      procedure :: updateS
@@ -168,6 +169,12 @@ contains
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
        call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
+    else if (trim(constructor%type) == 'power_law_gauss') then
+       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
+       constructor%lpiv          = cpar%cs_lpivot(id_abs)
+       constructor%prior         = cpar%cs_cl_prior(id_abs,:)
+       constructor%poltype       = cpar%cs_cl_poltype(id_abs)
+       call constructor%updatePowlawGauss(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
     else if (trim(constructor%type) == 'exp') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
@@ -218,6 +225,28 @@ contains
 
   end subroutine updatePowlaw
 
+  subroutine updatePowlawGauss(self, amp, beta)
+    implicit none
+    class(comm_Cl),                intent(inout)        :: self
+    real(dp),       dimension(1:), intent(in), optional :: amp, beta
+
+    integer(i4b) :: i, j, l, i_min
+    
+    if (present(amp))  self%amp   = amp
+    if (present(beta)) self%beta  = beta
+    self%Dl    = 0.d0
+    i_min      = 1; if (self%only_pol) i_min = 2
+    do i = i_min, self%nmaps
+       j = i*(1-i)/2 + (i-1)*self%nmaps + i
+       do l = max(self%lmin,1), self%lmax
+          if (i > 1 .and. l < 2) cycle
+          self%Dl(l,j) = self%amp(i) * (real(l,dp)/real(self%lpiv,dp))**self%beta(i) * max(exp(-l*(l+1)*(90.d0*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2),1d-10)
+       end do
+       self%Dl(0,j) = self%Dl(1,j)
+    end do
+
+  end subroutine updatePowlawGauss
+
   subroutine updateExponential(self, amp, beta)
     implicit none
     class(comm_Cl),                intent(inout) :: self
@@ -255,7 +284,7 @@ contains
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = max(self%lmin,0), self%lmax
           if (i > 1 .and. l < 2) cycle
-          self%Dl(l,j) = self%amp(i) * exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2)
+          self%Dl(l,j) = self%amp(i) * max(exp(-l*(l+1)*(self%beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2),1d-10)
 !          if (self%info%myid == 0) then
 !             write(*,*) l, j, amp(i), beta(i), exp(-l*(l+1)*(beta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2), self%Dl(l,j)
 !          end if
@@ -803,6 +832,8 @@ contains
        call sample_Cls_inverse_wishart2(self, map, handle, ok)
     case ('power_law')
        call sample_Cls_powlaw(self, map, ok)
+    case ('power_law_gauss')
+       call sample_Cls_powlaw_gauss(self, map, ok)
     case ('exp')
        call sample_Cls_powlaw(self, map, ok)
     end select
@@ -1205,6 +1236,14 @@ contains
     
   end subroutine sample_Cls_powlaw
 
+  subroutine sample_Cls_powlaw_gauss(self, map, ok)
+    implicit none
+    class(comm_Cl),  intent(inout) :: self
+    class(comm_map), intent(in)    :: map
+    logical(lgt),     intent(inout) :: ok    
+    
+  end subroutine sample_Cls_powlaw_gauss
+
   subroutine writeFITS(self, chain, iter, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(inout) :: self
@@ -1227,6 +1266,9 @@ contains
     case ('binned')
        call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext, hdffile=hdffile, hdfpath=hdfpath)
     case ('power_law')
+       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
+       call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
+    case ('power_law_gauss')
        call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
        call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
     case ('exp')
@@ -1330,6 +1372,10 @@ contains
     case ('binned')
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl', self%Dl)
     case ('power_law')
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+       call self%updatePowLaw()
+    case ('power_law_gauss')
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
        call self%updatePowLaw()

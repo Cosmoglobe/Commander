@@ -1,25 +1,7 @@
-#================================================================================
-#
-# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
-#
-# This file is part of Commander3.
-#
-# Commander3 is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Commander3 is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
-#
-#================================================================================
+#==============================================================================
 # This file contains general instructions how to
 # fetch and build the Commander dependencies
+# Author: Maksym Brilenkov
 #==============================================================================
 
 #==============================================================================
@@ -31,29 +13,15 @@ set(CMAKE_DOWNLOAD_DIRECTORY "${CMAKE_SOURCE_DIR}/build/downloads"
 	CACHE STRING
 	"Directory where to download commander dependencies' source files"
 	)
-# Where to output shared libraries
+# Where to output libraries
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
 	CACHE STRING
 	"Directory where to install all the libraries."
-	)
-# Where to output static libraries
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
-	CACHE STRING
-	"Directory where to install all the libraries."
-	)
-set(CMAKE_LIBRARY64_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib64"
-	CACHE STRING
-	"Directory where to install all the libraries for 64."
 	)
 # Where to output executable(s)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/bin"
 	CACHE STRING
 	"Directory where to install all the executables."
-	)
-# setting the directory where to output all .mod and .o files
-set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_INSTALL_PREFIX}/mod"
-	CACHE STRING
-	"Directory where to install all .mod/.o files."
 	)
 # HEALPix install (root) dir - by default we will install it in "healpix" dir
 set(HEALPIX_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/healpix"
@@ -72,19 +40,15 @@ set(DOXYGEN_BUILD_DOCS OFF
 #------------------------------------------------------------------------------
 # If any problems with installation will occur, which cannot be fixed quickly,
 # these variables will force a fresh installation for every specified library.
-# If LIBSALL_FORCE_COMPILE is set to TRUE, all libraries will be recompiled,
-# whereas if set to FALSE, the libraries will first be searched on the
-# system and only if not found, compiled from source. If LIBSALL_FORCE_COMPILE
+# If LIBSALL_FORCE_COMPILE is set tuo TRUE, all libraries will be recompiled,
+# whereas iof i set to FALSE, the libraries will first be searched on the
+# system and only if not found, compile dfrom source. If LIBSALL_FORCE_COMPILE
 # is set to FALSE but, e.g. HDF5_FORCE_COMPILE is set to TRUE, then HDF5 will
-# be compiled from source (it will be given the advantage).
+# be compile dfrom source (it will be given the advantage).
 #------------------------------------------------------------------------------
-set(ALL_FORCE_COMPILE FALSE
+set(LIBSALL_FORCE_COMPILE FALSE
   CACHE BOOL
-	"Forces fresh installation of all Commander3 dependencies."
-  )
-set(BLAS_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of OpenBLAS."
+	"Forces fresh installation of Commander3 dependencies."
   )
 set(HDF5_FORCE_COMPILE FALSE
   CACHE BOOL

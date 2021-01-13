@@ -694,10 +694,10 @@ contains
                 call c%Cl%sqrtInvS(map=mu)
                 do j = 1, c%x%info%nmaps
                    do i = 0, c%x%info%nalm-1
-                      if (mu%info%lm(1,i) <= c%lmax_prior) then
+                      !if (mu%info%lm(1,i) <= c%lmax_prior) then
                          !write(*,*) j, i, mu%info%lm(i,1), c%lmax_prior
                          eta(i,j) = eta(i,j) + mu%alm(i,j)
-                      end if
+                      !end if
                    end do
                 end do
                 !eta = eta + mu%alm

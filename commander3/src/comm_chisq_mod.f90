@@ -53,20 +53,21 @@ contains
           end if
           
           if (trim(data(i)%N%type) == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
-             lowres = .true.
-             info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
+             if (lowres_eval) then
+                lowres = .true.
+                info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
 
-             res_lowres => comm_map(info_lowres)
-             res_lowres_temp => comm_map(info_lowres)
+                res_lowres => comm_map(info_lowres)
+                res_lowres_temp => comm_map(info_lowres)
 
-             call res%udgrade(res_lowres)
-             res_lowres_temp%map = res_lowres%map ! Save temporarily
+                call res%udgrade(res_lowres)
+                res_lowres_temp%map = res_lowres%map ! Save temporarily
 
-             call data(i)%N%invN_lowres(res_lowres) ! invN*res
-             res_lowres%map = res_lowres_temp%map*res_lowres%map ! res*(invN*res)
+                call data(i)%N%invN_lowres(res_lowres) ! invN*res
+                res_lowres%map = res_lowres_temp%map*res_lowres%map ! res*(invN*res)
 
-             call res_lowres_temp%dealloc(); deallocate(res_lowres_temp)
-
+                call res_lowres_temp%dealloc(); deallocate(res_lowres_temp)
+             end if
           else
              lowres=.false.
              call data(i)%N%sqrtInvN(res) 

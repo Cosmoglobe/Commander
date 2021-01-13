@@ -1,0 +1,86 @@
+# Example config file showing all possible options
+# Unspecified options will be assigned a default
+# which will not necessarily work for your system!
+
+
+# =============== Installation ===================
+
+# Final install location.  This defaults to a
+# subdirectory of the top-level directory called
+# install_$COMMANDER.
+#export INSTALL := /usr/local
+
+
+# =============== System Tools ===================
+
+# The defaults should be fine for any normal
+# GNU/Linux operating system...
+
+# Here you can override the make version to use
+#export MAKE := gmake
+
+# How to make a tar.gz file
+#export CTAR := tar czvf
+
+# The archive command
+#export AR := ar
+
+# Archive options to create a library
+#export ARFLAGS := crv
+
+# The ranlib command
+#export RANLIB := ranlib
+
+
+# ================= Compilers ====================
+
+# Serial Fortran 90 compiler.  Default is "f90".
+export F90 := $(shell cmbconfig --comp --lang MPIF90)
+
+# MPI Fortran 90 compiler.  Default is "mpif90".
+export MPF90 := $(shell cmbconfig --comp --lang MPIF90)
+
+# MPI Fortran 77 compiler.  Default is "mpif77".
+export MPF77 := mpif77
+
+# MPI C compiler.  Default is "mpicc".
+export MPCC := $(shell cmbconfig --comp --lang MPIC)
+
+
+# =========== Compiler Optimizations =============
+
+# Fortran 90 compiler flags
+export F90FLAGS := -O3
+
+# Fortran 77 compiler flags
+export FFLAGS := -O3
+
+# C compiler flags.
+export CFLAGS := -O3
+
+# Extra flags used for linking
+export LDFLAGS :=
+
+
+# ============== Fortran Features ================
+
+# Set this variable to 1 if the fortran compiler
+# produces module files with capitalization (*.MOD)
+# instead of lowercase (*.mod).
+#export FORTRAN_UPPER := 1
+
+
+# =============== CFITSIO Linking ================
+
+# The include and linking commands for cfitsio.
+export CFITSIO_INCLUDE := $(shell cmbconfig --lang MPIF90 --incl cfitsio)
+export CFITSIO_LINK := $(shell cmbconfig --lang MPIF90 --lflags --libs cfitsio)
+
+
+# =============== LAPACK Linking =================
+
+# The include and linking commands for LAPACK.
+export LAPACK_INCLUDE := $(shell cmbconfig --incl lapack)
+export LAPACK_LINK := $(shell cmbconfig --libs lapack)
+   
+

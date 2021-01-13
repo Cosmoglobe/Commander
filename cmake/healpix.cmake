@@ -1,29 +1,11 @@
-#================================================================================
-#
-# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
-#
-# This file is part of Commander3.
-#
-# Commander3 is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Commander3 is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
-#
-#================================================================================
-# Description: This script determines the location of HEALPix on the host system.
-# If it fails to do so, it will download, compile and install HEALPix from source.
-#================================================================================
+#==============================================================================
+# Project: HEALPix 
+# File which contains setup for current project 
+# Author: Maksym Brilenkov
+#==============================================================================
 
 message(STATUS "---------------------------------------------------------------")
-if(NOT (HEALPIX_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+if(NOT HEALPIX_FORCE_COMPILE)
 	find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
 endif()
 
@@ -69,8 +51,7 @@ if(NOT HEALPIX_FOUND)
 		LOG_CONFIGURE ON
 		LOG_BUILD ON
 		LOG_INSTALL ON
-		#BUILD_ALWAYS FALSE
-		BUILD_ALWAYS TRUE 
+		BUILD_ALWAYS FALSE
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		# making healpix to be installed the last before commander3

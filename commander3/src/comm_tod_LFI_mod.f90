@@ -95,7 +95,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
-    constructor%first_call    = .false. !.true.
+    constructor%first_call    = .true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
@@ -110,6 +110,7 @@ contains
 
     !----------------------------------------------------------------------------------
     ! Simulation Routine
+    !----------------------------------------------------------------------------------
     constructor%sims_output_dir = cpar%sims_output_dir
     constructor%enable_tod_simulations = cpar%enable_tod_simulations
     !----------------------------------------------------------------------------------
@@ -452,7 +453,7 @@ contains
        do_oper(samp_bp)      = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false. !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
-       do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
+       do_oper(sel_data)     = .false. !(main_iter == n_main_iter  ) .and.       self%first_call
        do_oper(calc_chisq)   = (main_iter == n_main_iter  )
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
@@ -648,7 +649,6 @@ contains
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
-
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
              call self%downsample_tod(s_orb(:,1), ext)
@@ -722,7 +722,7 @@ contains
                    s_buf(:,j) = s_tot(:,j)
                 end if
              end do
-             call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
+             call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix)
 !!$             do j = 1, ndet
 !!$                n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
 !!$             end do
@@ -884,7 +884,7 @@ contains
           !----------------------------------------------------------------------------------
           ! Calling Simulation Routine
           !write(*,*) "Debug Message before simulation routine."
-          if (self%enable_tod_simulations) then !.and. (main_iter == 1)) then 
+          if (self%enable_tod_simulations) then !.and. (main_iter == 1)) then
             call self%simulate_LFI_tod(i, s_tot, handle)
             !call MPI_Finalize(ierr)
             !stop
@@ -1089,8 +1089,8 @@ contains
        write(*,*) '  Time scanlist   = ', t_tot(20)
        write(*,*) '  Time final      = ', t_tot(10)
        if (self%first_call) then
-          write(*,*) '  Time total      = ', t6-t5, &
-               & ', accept rate = ', real(naccept,sp) / ntot
+!!$          write(*,*) '  Time total      = ', t6-t5, &
+!!$               & ', accept rate = ', real(naccept,sp) / ntot
        else
           write(*,*) '  Time total      = ', t6-t5, sum(t_tot(1:18))
        end if
@@ -1168,7 +1168,7 @@ contains
     ! HDF5 variables
     character(len=512) :: mystring, mysubstring !< dummy values for string manipulation
     integer(i4b)       :: myindex     !< dummy value for string manipulation
-    character(len=512) :: currentHDFFile !< hdf5 file which stores simulation output 
+    character(len=512) :: currentHDFFile !< hdf5 file which stores simulation output
     character(len=6)   :: pidLabel
     character(len=3)   :: detectorLabel
     type(hdf_file)     :: hdf5_file   !< hdf5 file to work with
@@ -1180,12 +1180,12 @@ contains
     integer(i4b)                          :: i, j, k !< loop variables
     integer(i4b)       :: mpi_err !< MPI error status
     integer(i4b)       :: nomp !< Number of threads available
-    integer(i4b)       :: omp_err !< OpenMP error status 
+    integer(i4b)       :: omp_err !< OpenMP error status
     integer(i4b) :: omp_get_max_threads
     integer(i4b) :: n, nfft
     integer*8    :: plan_back
     real(sp) :: nu
-    real(sp), allocatable, dimension(:,:) :: n_corr 
+    real(sp), allocatable, dimension(:,:) :: n_corr
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
 
@@ -1224,10 +1224,12 @@ contains
       ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
       fft_norm = sqrt(1.d0 * nfft)
       !
-      dv(0) = dv(0) + fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+      !dv(0) = dv(0) + fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+      dv(0) = fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
       do k = 1, (n - 1)
         nu = k * (samprate / 2) / (n - 1)
-        dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * (1 + (nu / nu_knee)**alpha) /sqrt(2.0)
+        !dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(1 + (nu / nu_knee)**alpha) /sqrt(2     .0)
+        dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt((nu / nu_knee)**alpha) /sqrt(2.0)
       end do
       ! Executing Backward FFT
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
@@ -1256,13 +1258,15 @@ contains
         sigma0 = self%scans(scan_id)%d(j)%sigma0
         !write(*,*) "sigma0 ", sigma0
         ! Simulating tods
-        tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) !+ sigma0 * rand_gauss(handle)
+        tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)
+        !tod_per_detector(i,j) = 0
       end do
     end do
 
     !----------------------------------------------------------------------------------
     ! Saving stuff to hdf file
     ! Getting the full path and name of the current hdf file to overwrite
+    !----------------------------------------------------------------------------------
     mystring = trim(self%hdfname(scan_id))
     mysubstring = 'LFI_0'
     myindex = index(trim(mystring), trim(mysubstring))
@@ -1295,10 +1299,11 @@ contains
     ! Close FORTRAN interface.
     call h5close_f(hdf5_error)
 
+    !write(*,*) "hdf5_error",  hdf5_error
     ! freeing memory up
     deallocate(n_corr, tod_per_detector)
 
-    ! lastly, we need to copy an existing filelist.txt into simulation folder 
+    ! lastly, we need to copy an existing filelist.txt into simulation folder
     ! and change the pointers to new files
     !if (self%myid == 0) then
     !  call system("cp "//trim(filelist)//" "//trim(simsdir))

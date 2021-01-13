@@ -461,11 +461,13 @@ contains
           if (i == 0) then
             write(unit,*) val
           else
-            write(unit,*) pid_array(i), trim(output_array(i)), column3(i), column4(i), column5(i)
+            write(unit,*) pid_array(i), '"'//trim(output_array(i))//'"', column3(i), column4(i), column5(i)
           end if
         end do
         close(unit)
         write(*,*) "--------------------------------------------------------------"
+        deallocate(input_array, pid_array, output_array)
+        deallocate(column3, column4, column5)
       end if
     end do
 

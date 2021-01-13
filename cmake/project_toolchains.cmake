@@ -1,25 +1,7 @@
-#================================================================================
-#
-# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
-#
-# This file is part of Commander3.
-#
-# Commander3 is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Commander3 is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
-#
-#================================================================================
+#==============================================================================
 # This file contains general instructions how to
 # fetch and build the Commander dependencies
+# Author: Maksym Brilenkov
 #==============================================================================
 
 
@@ -213,7 +195,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-			"-O3"# -fno-strict-aliasing -march=native -flto -fopenmp -fbacktrace -fexternal-blas -ffpe-trap=zero -fPIC" 
+			"-Ofast"# -fno-strict-aliasing -march=native -flto -fopenmp -fbacktrace -fexternal-blas -ffpe-trap=zero -fPIC" 
 			"-fno-strict-aliasing"
 			"-march=native" 
 			"-flto" 
@@ -222,7 +204,6 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 			"-fexternal-blas"
 			"-ffpe-trap=zero"
 			"-fPIC"
-			"-C"
 			)
 	endif()
 	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
@@ -266,6 +247,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 			"-ffpe-trap=invalid,zero,overflow,underflow" 
 			"-ffunction-sections" 
 			"-pipe"
+			"-fexternal-blas"
 			"-ffpe-trap=zero"
 			"-fPIC"
 			)
@@ -285,17 +267,9 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	endif()
 	# adding different flags depending on the compiler version
 	if (${CMAKE_Fortran_COMPILER_VERSION} VERSION_GREATER_EQUAL "10")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
-			"-ffree-line-length-none" 
-			"-fallow-argument-mismatch"
-			"-fno-range-check"
-			)
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS "-ffree-line-length-none -fallow-argument-mismatch")
 	else()
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
-			"-ffree-line-length-none" 
-			"-Wno-argument-mismatch"
-			"-fno-range-check"
-			)
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS "-ffree-line-length-none -Wno-argument-mismatch")
 	endif()
 
 	# Linker flags
@@ -418,7 +392,6 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 endif()
 #------------------------------------------------------------------------------
 # Making a summary of compiler location and compile flags
-#------------------------------------------------------------------------------
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "SUMMARY ON COMPILERS:")
 message(STATUS "---------------------------------------------------------------")
@@ -436,35 +409,12 @@ elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel")
 	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 endif()
-#------------------------------------------------------------------------------
-# Making a summary of Host System 
-#------------------------------------------------------------------------------
-# CMake reference:
-# https://cmake.org/cmake/help/v3.17/module/ProcessorCount.html 
-# https://cmake.org/cmake/help/v3.17/command/cmake_host_system_information.html
-include(ProcessorCount)
-ProcessorCount(N_CORES)
 
-cmake_host_system_information(RESULT N_LOGICAL_CORES  QUERY NUMBER_OF_LOGICAL_CORES)
-cmake_host_system_information(RESULT N_PHYSICAL_CORES QUERY NUMBER_OF_PHYSICAL_CORES)
-cmake_host_system_information(RESULT HOST_NAME QUERY HOSTNAME)
-# Processor
-cmake_host_system_information(RESULT PROC_NAME QUERY PROCESSOR_NAME)
-cmake_host_system_information(RESULT PROC_DESCRIPTION QUERY PROCESSOR_DESCRIPTION)
-# OS information
-cmake_host_system_information(RESULT HOST_OS_NAME QUERY OS_NAME)
-cmake_host_system_information(RESULT HOST_OS_RELEASE QUERY OS_RELEASE)
-cmake_host_system_information(RESULT HOST_OS_VERSION QUERY OS_VERSION)
-cmake_host_system_information(RESULT HOST_OS_PLATFORM QUERY OS_PLATFORM)
-
-message(STATUS ${HOST_NAME})
-message(STATUS "${HOST_OS_NAME} ${HOST_OS_PLATFORM} ${HOST_OS_RELEASE} ${HOST_OS_VERSION}")
-message(STATUS "${PROC_NAME} | ${PROC_DESCRIPTION}")
-
-
-
-
-
-
-
-
+# defining the compilation procedure depending on the system
+# TODO: do I really need this?
+# link to the wiki: https://gitlab.kitware.com/cmake/community/-/wikis/doc/tutorials/How-To-Write-Platform-Checks
+#if(${CMAKE_SYSTEM_NAME} MATCHES Linux)
+#	message(STATUS "You seem to be running Linux!!")
+#endif()
+#message(STATUS "${CMAKE_SYSTEM}")
+#message(STATUS "${CMAKE_SYSTEM_NAME}")

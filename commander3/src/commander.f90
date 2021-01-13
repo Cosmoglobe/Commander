@@ -194,19 +194,11 @@ program commander
        call copy_LFI_tod(cpar, ierr)
        call write_filelists_to_disk(cpar, ierr)
      end if
+     !----------------------------------------------------------------------------------
      ! Process TOD structures
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
-     !----------------------------------------------------------------------------------
-     ! Part of Simulation routine
-     !----------------------------------------------------------------------------------
-     ! Will make only one full gibbs loop to produce simulations
-     !if ((iter == 1) .and. cpar%enable_tod_simulations) then
-     !  MPI_Finalize(ierr)
-     !  stop
-     !end if 
-     !----------------------------------------------------------------------------------
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
@@ -376,6 +368,8 @@ contains
           call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
        end if
        if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
+       !copy data map without regnoise, to write to chain file
+       data(i)%map0%map = data(i)%map%map
        data(i)%map%map = data(i)%map%map + regnoise         ! Add regularization noise
        data(i)%map%map = data(i)%map%map * data(i)%mask%map ! Apply mask
        deallocate(regnoise)

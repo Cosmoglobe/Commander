@@ -129,6 +129,15 @@ contains
 
     if (.not. constructor%apply_pos_prior) recompute_ptsrc_precond = .true.
 
+    call get_tokens(cpar%output_comps, ",", comp_label, n)
+    constructor%output = .false.
+    do i = 1, n
+       if (trim(comp_label(i)) == trim(constructor%label) .or. trim(comp_label(i)) == 'all') then
+          constructor%output = .true.
+          exit
+       end if
+    end do
+
     ! Initialize frequency scaling parameters
     constructor%ndet = maxval(data%ndet)
     allocate(constructor%F_int(3,numband,0:constructor%ndet))
@@ -612,7 +621,6 @@ contains
        do j = 1, npar
           beta(j,:) = max(self%p_uni(1,j),min(self%p_uni(2,j),beta(j,:)))
        end do
-       if (trim(cpar%cs_type(id_abs)) == 'fir') amp = 0.d0
        ! Check for too close neighbours
        skip_src = .false.
        call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
@@ -651,10 +659,8 @@ contains
                 self%src(i)%T(j)%nside_febecop = data(j)%info%nside
              end if
           end do
-          !self%src(i)%P_x(:,1) = 0.d0
-          !self%src(i)%P_x(:,2) = 0.d0 !1.d12
 
-          ! Checkl for processing mask; disable source if within mask
+          ! Check for processing mask; disable source if within mask
           call ang2pix_ring(data(1)%info%nside, 0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, pix)
           p = locate(data(1)%info%pix, pix)
           if (associated(data(1)%procmask)) then
@@ -673,19 +679,42 @@ contains
     end do 
 2   close(unit)
 
-    ! Check for processing mask; disable source if within mask
-    call mpi_allreduce(mask, mask2, size(mask), MPI_INTEGER, MPI_MIN, comm_pre, ierr)
-    do i = 1, self%nsrc
-       do j = 1, self%nmaps
-          if (mask2(i,j) == 0) then
-!!$             if (self%myid == 0) write(*,*) 'Disabling source ', i, j
-!!$             self%src(i)%P_x(j,1) = 1d-6   ! Prior mean; mJy
-!!$             self%src(i)%P_x(j,2) = 1d-6   ! Prior RMS
-!!$             self%x(i,j)          = 1d-6   ! Prior RMS
+
+    ! Initialize parameter values on existing catalog if requested
+    if (trim(cpar%cs_init_catalog(id_abs)) /= 'none') then
+       open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_init_catalog(id_abs)),recl=1024)
+       i    = 0
+       do while (.true.)
+          read(unit,'(a)',end=4) line
+          !write(*,*) trim(line)
+          line = trim(adjustl(line))
+          if (line(1:1) == '#' .or. trim(line) == '') cycle
+          read(line,*) glon, glat, amp, amp_rms, beta, beta_rms, chisq, id_ptsrc
+          amp_rms = amp_rms * self%amp_rms_scale ! Adjust listed RMS by given value
+          do j = 1, npar
+             beta(j,:) = max(self%p_uni(1,j),min(self%p_uni(2,j),beta(j,:)))
+          end do
+          ! Check for too close neighbours
+          skip_src = .false.
+          call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
+          do j = 1, i
+             call angdist(vec, self%src(j)%vec, dist)
+             if (dist*RAD2DEG*60.d0 < cpar%cs_min_src_dist(id_abs)) then
+                skip_src = .true.
+                exit
+             end if
+          end do
+          if (skip_src) then
+             self%nsrc = self%nsrc-1
+          else
+             i                    = i+1
+             self%x(i,:)          = amp / self%cg_scale
+             self%src(i)%theta    = beta
           end if
        end do
-    end do
-    deallocate(mask, mask2)
+4      close(unit)
+    end if
+
 
     ! Initialize beam templates
     tempfile = trim(cpar%datadir)//'/'//trim(cpar%cs_ptsrc_template(id_abs))

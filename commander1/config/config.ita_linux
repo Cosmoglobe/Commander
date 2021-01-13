@@ -1,0 +1,90 @@
+# Config file for a generic GCC based compile,
+# Using the reference LAPACK/Blas and assuming
+# both LAPACK and CFITSIO are in /usr/local.
+
+
+# =============== Installation ===================
+
+# Final install location.  This defaults to a
+# subdirectory of the top-level directory called
+# install_$COMMANDER.
+#export INSTALL := /usr/local
+
+
+# =============== System Tools ===================
+
+# The defaults should be fine for any normal
+# GNU/Linux operating system...
+
+# Here you can override the make version to use
+#export MAKE := gmake
+
+# How to make a tar.gz file
+#export CTAR := tar czvf
+
+# The archive command
+#export AR := ar
+
+# Archive options to create a library
+#export ARFLAGS := crv
+
+# The ranlib command
+#export RANLIB := ranlib
+
+
+# ================= Compilers ====================
+
+# Serial Fortran 90 compiler.  Default is "f90".
+export F90 := ifort
+
+# MPI Fortran 90 compiler.  Default is "mpif90".
+export MPF90 := mpif90
+
+# MPI Fortran 77 compiler.  Default is "mpif77".
+export MPF77 := mpif77
+
+# MPI C++ compiler.  Default is "mpicxx".
+export MPCC := mpicxx
+
+
+# =========== Compiler Optimizations =============
+
+# Fortran 90 compiler flags
+export F90FLAGS := -O3 -vec_report0 -openmp
+
+# Fortran 77 compiler flags
+export FFLAGS := -O3 
+
+# C compiler flags.
+export CFLAGS := -O3 
+
+# Extra flags used for linking
+export LDFLAGS := -lm -openmp
+
+
+# ============== Language Mixing =================
+
+export MPFCLIBS := -lmpi_f90 -lmpi_f77 -lifcore -limf
+
+
+# ============== Fortran Features ================
+
+# Set this variable to 1 if the fortran compiler
+# produces module files with capitalization (*.MOD)
+# instead of lowercase (*.mod).
+#export FORTRAN_UPPER := 1
+
+
+# =============== CFITSIO Linking ================
+
+# The include and linking commands for cfitsio.
+export CFITSIO_INCLUDE := 
+export CFITSIO_LINK := -L/mn/vega/u1/hke/nekkar/lib -lcfitsio
+
+
+# =============== LAPACK Linking =================
+
+# The include and linking commands for LAPACK.
+export LAPACK_INCLUDE := 
+export LAPACK_LINK := -llapack
+
