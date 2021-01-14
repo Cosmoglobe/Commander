@@ -451,6 +451,8 @@ contains
   ! Haavard: Remove current monopole fit, and replace inv_sigmasq with a proper invN(alpha,fknee) multiplication
 !  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
 !       & s_orb, A_abs, b_abs)
+   ! This is implementing equation 16, adding up all the terms over all the sums
+   ! the sum i is over the detector.
    subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
@@ -478,7 +480,7 @@ contains
           cycle
        end if
        r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j)
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan)%d(j)%sigma0, sp), handle, tod%scans(scan)%chunk_num)
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
 
@@ -605,7 +607,6 @@ contains
        coeff_matrix(tod%ndet+1, tod%ndet+1) = 0.d0
        rhs(tod%ndet+1) = 0.d0
        call solve_system_real(coeff_matrix, x, rhs)
-       
        write(*,*) 'relcal = ', real(x,sp)
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &

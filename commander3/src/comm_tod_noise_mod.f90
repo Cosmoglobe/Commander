@@ -1447,7 +1447,7 @@ contains
 
     j = 0
     do i = 1, ndet
-       sigma_0  = real(tod%scans(scan)%d(i)%sigma0,sp)
+       sigma_0  = abs(real(tod%scans(scan)%d(i)%sigma0,sp))
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
        j = j+1
        samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)

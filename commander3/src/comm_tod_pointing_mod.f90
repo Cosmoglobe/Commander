@@ -99,7 +99,7 @@ contains
 
    ! Sky signal template
    subroutine project_sky_differential(tod, map, pix, psi, flag, x_im, pmask, scan_id,&
-        & s_sky, tmask, simulate, s_bp)
+        & s_sky, tmask, sim_map, s_bp)
       implicit none
       !class(comm_tod), intent(in)  :: tod
       ! It is only inout for simulating data
@@ -112,7 +112,7 @@ contains
       integer(i4b), intent(in)  :: scan_id
       real(dp), dimension(:), intent(in)  :: x_im
       real(sp), dimension(:, :), intent(out) :: s_sky, tmask
-      logical(lgt), intent(in) :: simulate
+      logical(lgt), intent(in) :: sim_map
       real(sp), dimension(:, :), intent(out), optional :: s_bp
 
       integer(i4b) :: i, j, lpoint, rpoint, sgn
@@ -151,13 +151,17 @@ contains
                                           &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
           
          
-            if (simulate) then
+            if (sim_map) then
                tod%scans(scan_id)%d(i)%tod(j) = s_sky(j,i)*tod%scans(scan_id)%d(i)%gain + &
                    & + rand_normal(0d0, 1d0)*tod%scans(scan_id)%d(i)%sigma0
+               !tod%scans(scan_id)%d(i)%tod(j) = s_sky(j,i) + &
+               !    & + rand_normal(0d0, 1d0)*tod%scans(scan_id)%d(i)%sigma0/tod%scans(scan_id)%d(i)%gain
+               !tod%scans(scan_id)%d(i)%sigma0 = tod%scans(scan_id)%d(i)%sigma0/tod%scans(scan_id)%d(i)%gain
+               !tod%scans(scan_id)%d(i)%gain = 1d0
             end if
             
            
-            if (flag(j, i) == 0) then
+            if (flag(j, i) .le. 1) then
                 tmask(j, i) = pmask(pix(j, i, 1))*pmask(pix(j,i,2))
             else
                 tmask(j, i) = 0

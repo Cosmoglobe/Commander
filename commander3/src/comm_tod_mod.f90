@@ -557,16 +557,9 @@ contains
 
        !TODO: figure out how to make this work
        call read_hdf_string2(file, "/common/det",    det_buf, n)
-       !call read_hdf(file, "/common/det",    det_buf)
-       !write(det_buf, *) "27M, 27S, 28M, 28S"
-       !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
        ndet_tot = num_tokens(det_buf(1:n), ",")
        allocate(dets(ndet_tot))
        call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
-!!$       do i = 1, ndet_tot
-!!$          write(*,*) i, trim(adjustl(dets(i)))
-!!$       end do
-       !write(*,*) ndet_tot
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
@@ -575,10 +568,6 @@ contains
        call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
 
-
-!!$          do j = 1, ndet_tot
-!!$             write(*,*) j, trim(dets(j))
-!!$          end do
 
        do i = 1, self%ndet
           do j = 1, ndet_tot
@@ -620,6 +609,10 @@ contains
     ns         = 0
     do i = 1, self%nscan
        do j = 1, self%ndet
+          if (self%scans(i)%d(j)%gain < 0) then
+            self%scans(i)%d(j)%gain = -self%scans(i)%d(j)%gain
+            self%scans(i)%d(j)%tod  = -self%scans(i)%d(j)%tod
+          end if
           if (.not. self%scans(i)%d(j)%accept) cycle
           self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
           ns(j)         = ns(j) + 1
@@ -1336,7 +1329,7 @@ contains
           mu2 = sum(d_p(i_end:latest) * mask(i_end:latest)) / sum(mask(i_end:latest))
           d_p(i_start:i_end) = mu2
        else
-          ! write(*,*) "Entirity of scan", chunk, "masked, this should not happen (in comm_tod_mod.fill_masked_region)"
+          write(*,*) "Entirety of scan", chunk, "masked, this should not happen (in comm_tod_mod.fill_masked_region)"
           d_p(:) = 0.d0
           return
        end if
