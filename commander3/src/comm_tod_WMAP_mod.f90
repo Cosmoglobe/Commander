@@ -105,7 +105,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 1 ! map, res, ncorr, orb_dp, sl
+      constructor%output_n_maps = 2 ! map, res, ncorr, orb_dp, sl
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -283,7 +283,6 @@ contains
 
       ! Compute far sidelobe Conviqt structures
       call wall_time(t1)
-      if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
       do i = 1, self%ndet
          if (.not. correct_sl) exit
 
@@ -312,9 +311,9 @@ contains
 
          if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_acal)    = .false. ! (main_iter == n_main_iter-3) !   
-         do_oper(samp_rcal)    = .false. ! (main_iter == n_main_iter-2) !   
-         do_oper(samp_G)       = .false. ! (main_iter == n_main_iter-1) !   
+         do_oper(samp_acal)    = (main_iter == n_main_iter-3) !.false. !      
+         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) !.false. !      
+         do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) !      
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -344,8 +343,8 @@ contains
 
             ! Short-cuts to local variables
             call wall_time(t1)
-            ntod = self%scans(i)%ntod
             ndet = self%ndet
+            ntod = self%scans(i)%ntod
 
             ! Set up local data structure for current scan
             allocate (n_corr(ntod, ndet))                 ! Correlated noise in V
@@ -381,26 +380,16 @@ contains
             call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
             ! Construct sky signal template
-            if (do_oper(sim_map)) then
-               call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
-                      & self%x_im, procmask, i, s_sky, mask, .true.)
-            else 
-               call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
-                      & self%x_im, procmask, i, s_sky, mask, .false.)
-            end if
+            call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
+                              & self%x_im, procmask, i, s_sky, mask, do_oper(sim_map))
 
             if (main_iter == 1 .and. self%first_call) then
                do j = 1, ndet
                   self%scans(i)%d(j)%accept = .true.
-                  if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
-                  if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
+                  !if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
+                  !if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
                end do
             end if
-            do j = 1, ndet
-               if (.not. self%scans(i)%d(j)%accept) cycle
-               if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
-               if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
-            end do
 
             ! Construct orbital dipole template
             call wall_time(t1)
@@ -478,13 +467,16 @@ contains
             ! Precompute filtered signal for calibration
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
-               allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
+               allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
                allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                      s_buf(:,j) = s_tot(:,j)
-                     call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
+                     call fill_all_masked(s_buf(:,j), mask(:,j), ntod, &
+                     &  trim(self%operation)=='sample', &
+                     &  real(self%scans(i)%d(j)%sigma0, sp), &
+                     &  handle, self%scans(i)%chunk_num)
                      call self%downsample_tod(s_buf(:,j), ext, &
                           & s_lowres(:,j))!, mask(:,j))
                   else
@@ -583,7 +575,7 @@ contains
 
                end do
 
-               if (.false. .and. do_oper(bin_map) .and. i == 1 .and. self%myid_shared == 0) then
+               if (.true. .and. do_oper(bin_map) .and. self%scans(i)%chunk_num == 6878) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
                      open(78,file='chains_WMAP/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
@@ -591,7 +583,8 @@ contains
                           & "    sig (mK)    s_sol_dip  (mK)   s_orb_dip (mK)"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
-                        write(78,*) j, self%scans(i)%d(k)%tod*inv_gain, n_corr(j, k)*inv_gain, d_calib(1,j,k), d_calib(2,j,k),  s_sky(j,k), s_sol_tot(j,k), s_orb_tot(j,k)
+                        !write(78,*) j, self%scans(i)%d(k)%tod*inv_gain, n_corr(j, k)*inv_gain, d_calib(1,j,k), d_calib(2,j,k),  s_sky(j,k), s_sol_tot(j,k), s_orb_tot(j,k)
+                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), s_sky(j,k), s_orb_tot(j,k), s_sol_tot(j,k), mask(j, k), inv_gain
                      end do
                      close(78)
                   end do
@@ -618,8 +611,6 @@ contains
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-         !call mpi_reduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-         !call mpi_bcast(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
          if (do_oper(samp_acal)) then
             call wall_time(t1)
@@ -696,6 +687,8 @@ contains
          delta_r = sum(r**2/M_diag)
          delta_s = delta_s
          if (self%myid_shared==0) then 
+            write(*,*) '    delta_0 = ', delta_0
+            write(*,*) '    delta_r = ', delta_r
             write(*,*) '    CG amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
          end if
 
