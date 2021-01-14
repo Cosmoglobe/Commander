@@ -1,13 +1,31 @@
-#==============================================================================
-# Project: FFTW
-# File which contains setup for current project 
-# Author: Maksym Brilenkov
-#==============================================================================
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
+# Description: This script determines the location of FFTW on the host system.
+# If it fails to do so, it will download, compile and install FFTW from source.
+#================================================================================
 
 message(STATUS "---------------------------------------------------------------")
 # TODO: make it so components will matter because now it install everything because 
 # I gave the command to add appropriate configure suboptions to configure command
-if(NOT FFTW_FORCE_COMPILE)
+if(NOT (FFTW_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 	find_package(FFTW 
 		COMPONENTS 
 		DOUBLE 

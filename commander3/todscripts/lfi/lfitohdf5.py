@@ -1,3 +1,24 @@
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
+
 from commander_tools.tod_tools.lfi import lfi
 from commander_tools.tod_tools import commander_tod as tod
 import argparse
@@ -60,7 +81,7 @@ def main():
     manager = mp.Manager()
     dicts = {30:manager.dict(), 44:manager.dict(), 70:manager.dict()}
 
-    comm_tod = tod.commander_tod(in_args.out_dir, in_args.version, dicts, not args.restart)
+    comm_tod = tod.commander_tod(in_args.out_dir, in_args.version, dicts, not in_args.restart)
 
     x = [[pool.apply_async(make_od, args=[comm_tod, freq, od, in_args]) for freq in in_args.freqs] for od in ods]
 
@@ -71,7 +92,7 @@ def main():
     pool.close()
     pool.join()
 
-    if ((in_args.ods[0] is 91 and in_args.ods[1] is 1604) or in_args.produce_filelist) :
+    if ((in_args.ods[0] == 91 and in_args.ods[1] == 1604) or in_args.produce_filelist) :
         comm_tod.make_filelists()
         #write file lists 
 
@@ -150,7 +171,7 @@ def make_od(comm_tod, freq, od, args):
             pid_start = startIndex[0][0]
         else:#catch days with no pids
             continue
-        if len(endIndex[0]) is not 0:
+        if len(endIndex[0]) != 0:
             pid_end = endIndex[0][0]
         else:#catch final pid per od
             pid_end = len(exFile['Time/OBT'])

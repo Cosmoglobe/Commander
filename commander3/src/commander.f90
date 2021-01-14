@@ -1,3 +1,23 @@
+!================================================================================
+!
+! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+!
+! This file is part of Commander3.
+!
+! Commander3 is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! Commander3 is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+!
+!================================================================================
 program commander
   use comm_param_mod
   use comm_data_mod
@@ -10,28 +30,6 @@ program commander
   use comm_tod_simulations_mod
   implicit none
 
-  ! *********************************************************************
-  ! *      Commander -- An MCMC code for global, exact CMB analysis     *
-  ! *                                                                   *
-  ! *                 Written by Hans Kristian Eriksen                  *
-  ! *                                                                   *
-  ! *                Copyright 2015, all rights reserved                *
-  ! *                                                                   *
-  ! *                                                                   *
-  ! *   NB! The code is provided as is, and *no* guarantees are given   *
-  ! *       as far as either accuracy or correctness goes. Even though  *
-  ! *       it is fairly well tested, there may be (and likely are)     *
-  ! *       bugs in this code.                                          *
-  ! *                                                                   *
-  ! *  If used for published results, please cite these papers:         *
-  ! *                                                                   *
-  ! *      - Jewell et al. 2004, ApJ, 609, 1                            *
-  ! *      - Wandelt et al. 2004, Phys. Rev. D, 70, 083511              *
-  ! *      - Eriksen et al. 2004, ApJS, 155, 227 (Commander)            *
-  ! *      - Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)        *
-  ! *                                                                   *
-  ! *********************************************************************
-
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
   logical(lgt)        :: ok, first
@@ -41,6 +39,31 @@ program commander
   type(comm_mapinfo), pointer :: info => null()
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
+
+  ! Command line arguments
+  !character(len=*), parameter :: version = '1.0.0'
+  !character(len=32)           :: arg
+  !integer                     :: myint
+
+  !do myint = 1, command_argument_count()
+  !  call get_command_argument(myint, arg)
+
+  !  select case (arg)
+  !    case ('-v', '--version')
+  !      print '(2a)', 'Commander3 version ', version
+  !      print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
+  !      print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
+  !      print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+  !      call exit(0)
+  !    case ('-h', '--help')
+  !      call print_help()
+  !      call exit(0)
+  !    case default
+  !      print '(2a, /)', 'Unrecognised command-line option: ', arg
+  !      call print_help()
+  !      call exit(0)
+  !  end select
+  !end do
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
@@ -196,8 +219,13 @@ program commander
      end if
      !----------------------------------------------------------------------------------
      ! Process TOD structures
-     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 2 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
+     end if
+
+     ! Sample non-linear parameters
+     if (iter > 1 .and. cpar%sample_specind) then
+        call sample_nonlin_params(cpar, iter, handle, handle_noise)
      end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
@@ -229,11 +257,6 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-
-     ! Sample non-linear parameters
-     if (cpar%sample_specind) then
-        call sample_nonlin_params(cpar, iter, handle, handle_noise)
-     end if
     
      call wall_time(t2)
      if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
@@ -396,5 +419,11 @@ contains
     end do
 
   end subroutine process_TOD
+
+  subroutine print_help()
+    print '(a, /)', 'command-line options:'
+    print '(a)',    '  -v, --version     print version information and exit'
+    print '(a)',    '  -h, --help        print usage information and exit'
+  end subroutine print_help
 
 end program commander

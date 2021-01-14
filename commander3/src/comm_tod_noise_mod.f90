@@ -1,3 +1,23 @@
+!================================================================================
+!
+! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+!
+! This file is part of Commander3.
+!
+! Commander3 is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! Commander3 is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+!
+!================================================================================
 module comm_tod_noise_mod
   use comm_tod_mod
   use comm_utils
@@ -67,7 +87,7 @@ contains
           if (mask(j,i) == 1.) then
              if (end_masked_region) then
                 j_end = j - 1
-                call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod)
+                call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod, self%scans(scan)%chunk_num)
                 ! Add noise to masked region
                 if (trim(self%operation) == "sample") then
                    do k = j_start, j_end
@@ -88,7 +108,7 @@ contains
        ! if the data ends with a masked region
        if (end_masked_region) then
           j_end = ntod
-          call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod)
+          call fill_masked_region(d_prime, mask(:,i), j_start, j_end, ntod, self%scans(scan)%chunk_num)
           if (trim(self%operation) == "sample") then
              do k = j_start, j_end
                 d_prime(k) = d_prime(k) + sigma_0 * rand_gauss(handle)
@@ -96,9 +116,9 @@ contains
           end if      
        end if
 
-       if (self%first_call) then
-          call find_d_prime_spikes(self, scan, i, d_prime, pix)
-       end if
+       !if (self%first_call) then
+       !   call find_d_prime_spikes(self, scan, i, d_prime, pix)
+       !end if
 
        samprate = self%samprate
        alpha    = self%scans(scan)%d(i)%alpha
@@ -392,14 +412,14 @@ contains
     ! call apply_fourier_mat(Ad, 1.d0 / invM, r, dt, dv, nfft, plan_fwd, plan_back)
     ! r(:) = r(:) - x(:) - b(:) 
 
-    if (.not. converged) then
-       write(filename, "(A, I0.3, A, I0.3, 3A)") 'ms_cg_tod_', scan, '_', det, '_',trim(band),'.dat' 
-       open(63,file=filename, status='REPLACE')
-       do i = 1, ntod
-          write(63, '(14(E21.11E3))') d_prime(i), b(i), x(i), r(i), d(i), Ad(i), Mr(i), r2, alp, bet, alpha, fknee, wn, mask(i)
-       end do
-       close(63)
-    end if
+    !if (.false. .and. .not. converged) then
+    !   write(filename, "(A, I0.3, A, I0.3, 3A)") 'ms_cg_tod_', scan, '_', det, '_',trim(band),'.dat' 
+    !   open(63,file=filename, status='REPLACE')
+    !   do i = 1, ntod
+    !      write(63, '(14(E21.11E3))') d_prime(i), b(i), x(i), r(i), d(i), Ad(i), Mr(i), r2, alp, bet, alpha, fknee, wn, mask(i)
+    !   end do
+    !   close(63)
+    !end if
     x(:) = Ad(:)
     ncorr(:) = x(:) * sqrt(wn)
     
@@ -743,7 +763,7 @@ contains
     rms = sqrt(variance(d_downsamp(:)))
     n_sigma = 10
     do i = 1, n_short
-       if (d_downsamp(i) > n_sigma * rms) then
+       if (.false. .and. d_downsamp(i) > n_sigma * rms) then
           if (.not. found_spike) then
              write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_pix_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
              open(62,file=filename, status='REPLACE')
@@ -1249,7 +1269,7 @@ contains
        sigma_0 = tod%scans(scan)%d(i)%sigma0
 
        call wall_time(t1)       
-       call fill_all_masked(d_prime, mask(:,i), ntod, (trim(tod%operation) == "sample"), sigma_0, handle)
+       call fill_all_masked(d_prime, mask(:,i), ntod, (trim(tod%operation) == "sample"), sigma_0, handle, tod%scans(scan)%chunk_num)
        call wall_time(t2)
 !    if (tod%myid == 0) write(*,*) ' fft2 =', t2-t1 
 

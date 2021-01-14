@@ -1,3 +1,24 @@
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
+
 import h5py
 import commander_tools.tod_tools.huffman as huffman
 import healpy as hp
@@ -94,7 +115,7 @@ class commander_tod:
                 else:
                     raise ValueError('Compression type ' + compArr[0] + ' is not a recognized compression')
             self.add_attribute(fieldName, 'compression', compInfo)
-            print("adding " + compInfo + ' to ' + fieldName)
+            #print("adding " + compInfo + ' to ' + fieldName)
 
         if writeField:
             try:
@@ -127,7 +148,8 @@ class commander_tod:
 
         if(not self.exists):
             for encoding in self.encodings.keys():
-                self.add_field(encoding, self.encodings[encoding])
+                self.add_field(encoding, [self.encodings[encoding]])
+                print('adding ' + encoding + ' to file ' + self.outPath)
 
             self.add_field('/common/version', self.version)
             self.add_field('/common/pids', list(self.pids.keys()))
@@ -151,11 +173,11 @@ class commander_tod:
 
             self.add_field('/' + str(pid).zfill(6) + '/common/hufftree' + numStr, huffArray)
             self.add_field('/' + str(pid).zfill(6) + '/common/huffsymb' + numStr, h.symbols)
-            with np.printoptions(threshold=np.inf):
-                print(huffArray, len(huffArray), len(h.symbols))
+            #with np.printoptions(threshold=np.inf):
+            #    print(huffArray, len(huffArray), len(h.symbols))
             for field in self.huffDict[key].keys():
                 self.add_field(field, np.void(bytes(h.byteCode(self.huffDict[key][field]))))
-                print(self.huffDict[key][field], bin(int.from_bytes(h.byteCode(self.huffDict[key][field]), byteorder=sys.byteorder)))
+                #print(self.huffDict[key][field], bin(int.from_bytes(h.byteCode(self.huffDict[key][field]), byteorder=sys.byteorder)))
 
         self.huffDict = {}
         self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)

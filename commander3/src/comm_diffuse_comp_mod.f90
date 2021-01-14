@@ -1,3 +1,23 @@
+!================================================================================
+!
+! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+!
+! This file is part of Commander3.
+!
+! Commander3 is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! Commander3 is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+!
+!================================================================================
 module comm_diffuse_comp_mod
   use comm_param_mod
   use comm_comp_mod
@@ -24,7 +44,7 @@ module comm_diffuse_comp_mod
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
-     logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg
+     logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg, priorsamp_local
      integer(i4b)       :: lmin_amp, lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
@@ -33,10 +53,11 @@ module comm_diffuse_comp_mod
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
      logical(lgt),    dimension(:), allocatable :: L_read, L_calculated
 
-     real(dp)           :: cg_scale, latmask, fwhm_def, test
+     real(dp)           :: cg_scale(1:3)                                  ! make the cg_scale vary between T and P
+     real(dp)           :: latmask, fwhm_def, test
      real(dp),           allocatable, dimension(:,:)   :: cls
      real(dp),           allocatable, dimension(:,:,:) :: F_mean
-     character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'ridge', 'marginal'}
+     character(len=128), allocatable, dimension(:,:)   :: pol_lnLtype     ! {'chisq', 'ridge', 'marginal', 'prior'}
      integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_pol    ! lmax per poltype per spec. ind  
      integer(i4b),       allocatable, dimension(:,:)   :: lmax_ind_mix    ! equal to lmax_ind_pol, but 0 where lmax=-1 and fullsky pixreg
      integer(i4b),       allocatable, dimension(:,:)   :: pol_pixreg_type ! {1=fullsky, 2=single_pix, 3=pixel_regions}
@@ -44,6 +65,7 @@ module comm_diffuse_comp_mod
      integer(i4b),       allocatable, dimension(:,:)   :: npixreg          ! number of pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
+     real(dp),           allocatable, dimension(:,:,:) :: prior_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
      real(dp),           allocatable, dimension(:,:,:) :: pixreg_priors   ! individual priors for pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: nprop_pixreg    ! number of proposals for pixregs
@@ -165,7 +187,7 @@ contains
     end if
 
     self%cltype        = cpar%cs_cltype(id_abs)
-    self%cg_scale      = cpar%cs_cg_scale(id_abs)
+    self%cg_scale(1:3) = cpar%cs_cg_scale(1:3,id_abs)
     self%nmaps         = 1; if (self%pol) self%nmaps = 3
     self%output_mixmat = cpar%output_mixmat
     self%latmask       = cpar%cs_latmask(id_abs)
@@ -209,7 +231,7 @@ contains
        ! Read map from FITS file, and convert to alms
        self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
        do i = 1, self%x%info%nmaps
-          self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale)
+          self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale(i))
        end do
        call self%x%YtW
 
@@ -455,7 +477,7 @@ contains
     ! Set up smoothing scale information
     allocate(self%smooth_scale(self%npar))
     self%smooth_scale = cpar%cs_smooth_scale(id_abs,1:self%npar)
-
+    
 
     !!! (local) sampling specific parameters!!!
 
@@ -472,7 +494,7 @@ contains
 
     self%npixreg = 0
     self%pol_pixreg_type = 0
-
+    self%priorsamp_local=.false.
     do i = 1,self%npar
        
        do j = 1,self%poltype(i)
@@ -492,9 +514,6 @@ contains
              else if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='pixreg') then
                 self%pol_pixreg_type(j,i) = 3
                 self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
-             else if (trim(cpar%cs_spec_pixreg(j,i,id_abs))=='prior') then
-                self%pol_pixreg_type(j,i) = -1
-                self%npixreg(j,i) = 1 !fullsky gaussian prior
              else
                 write(*,*) 'Unspecified pixel region type for poltype',j,'of spectral index',i,'in component',id_abs
                 stop
@@ -527,11 +546,17 @@ contains
              if (self%pol_pixreg_type(j,i) == 3) then
                 if (self%npixreg(j,i) > m) m = self%npixreg(j,i)
              end if
-             if (self%lmax_ind_pol(j,i) >= 0 .or. self%pol_pixreg_type(j,i) == -1) cycle
+             if (self%lmax_ind_pol(j,i) >= 0) cycle
              self%pol_lnLtype(j,i)  = cpar%cs_spec_lnLtype(j,i,id_abs)
-             self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
-             self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
-          end do
+             if (trim(self%pol_lnLtype(j,i)) == 'prior') then
+                self%priorsamp_local=.true.
+                self%pol_sample_nprop(j,i) = .false.
+                self%pol_sample_proplen(j,i) = .false.
+             else
+                self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
+                self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
+             end if
+          enddo
           if (all(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) >= 0)) cycle
           self%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
        end do
@@ -540,6 +565,7 @@ contains
        allocate(self%proplen_pixreg(k,3,self%npar))
        allocate(self%B_pp_fr(self%npar))
        allocate(self%theta_pixreg(0:k,3,self%npar))
+       allocate(self%prior_pixreg(k,3,self%npar))
        self%theta_pixreg = 1.d0 !just some default values, is set later in the code
        self%nprop_pixreg = 0    ! default values, is set later in the code
        self%proplen_pixreg = 1.d0 ! default values, is set later in the code
@@ -599,7 +625,7 @@ contains
                    all_fixed=.false. !not all poltypes are pixelregions
                 end if
              end do
-             if (all_fixed==.true.) then
+             if (all_fixed .eqv. .true.) then
                 write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
                      & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
                      & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
@@ -628,7 +654,7 @@ contains
        self%ind_pixreg_arr = 0 !all pixels assigned to pixelregion 0 (not to be sampled), will read in pixreg later
     end if
 
-    if (any(self%pol_pixreg_type(:,:) < 0)) allocate(self%theta_prior(2,3,self%npar))
+    if (self%priorsamp_local) allocate(self%theta_prior(2,3,self%npar))
 
     do i = 1,self%npar
        if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
@@ -681,7 +707,7 @@ contains
 
           ! replace proplen of input map for given poltype with user specified value, if given
           do j = 1,self%poltype(i)
-             if (j > self%nmaps) cycle
+             if (j > self%nmaps .or. trim(self%pol_lnLtype(j,i)) == 'prior') cycle
              if (cpar%cs_spec_proplen_init(j,i,id_abs) > 0.d0) then
                 self%pol_proplen(i)%p%map(:,j)=cpar%cs_spec_proplen_init(j,i,id_abs)
              end if
@@ -711,7 +737,7 @@ contains
           end if
           ! replace nprop of input map for given poltype with user specified value, if given       
           do j = 1,self%poltype(i)
-             if (j > self%nmaps) cycle
+             if (j > self%nmaps .or. trim(self%pol_lnLtype(j,i)) == 'prior') cycle
              if (cpar%cs_spec_nprop_init(j,i,id_abs) > 0) then
                 self%pol_nprop(i)%p%map(:,j)=cpar%cs_spec_nprop_init(j,i,id_abs)*1.d0
              end if
@@ -825,14 +851,6 @@ contains
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
              
-             if (self%pol_pixreg_type(j,i)== -1) then
-                self%theta_prior(:,j,i) = cpar%cs_theta_prior(:,j,i,id_abs)
-                self%theta_pixreg(:,j,i) = self%theta_prior(1,j,i)
-                self%nprop_pixreg(:,j,i) = 1
-                self%proplen_pixreg(:,j,i) = 1.d0
-                self%ind_pixreg_arr(:,j,i) = 1
-                cycle
-             end if
              self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
              if (self%pol_pixreg_type(j,i) < 1) cycle
 
@@ -889,6 +907,15 @@ contains
              self%theta_pixreg(0,j,i)=self%p_gauss(1,i) !all pixels in region 0 has the prior as theta
 
              deallocate(sum_pix,sum_theta,sum_proplen,sum_nprop)
+
+             if (trim(self%pol_lnLtype(j,i)) == 'prior') then
+                self%theta_prior(:,j,i) = cpar%cs_theta_prior(:,j,i,id_abs)
+                self%nprop_pixreg(:,j,i) = 1
+                self%pol_nprop(i)%p%map(:,j) = 1
+                self%proplen_pixreg(:,j,i) = 1.d0
+                self%pol_proplen(i)%p%map(:,j) = 1.d0
+             end if
+
           end do !poltype
           call tp%dealloc(); deallocate(tp)
 
@@ -1002,6 +1029,8 @@ contains
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
           else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
              self%lmax_ind_mix(p_min:p_max,i) = 0
+          else
+             self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i)
           end if
        end do
 
@@ -1895,13 +1924,13 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                       stop
                    end if
-                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale
+                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
                 end if
              else
                 if (mixmatnull) then 
                    self%F(i,l)%p%map(j,1) = 0.0
                 else
-                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
                 end if
              end if
              
@@ -1917,9 +1946,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval(theta_p(j,2,:)) * data(i)%gain * self%cg_scale(2)
                    else
-                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                      self%F(i,l)%p%map(j,2) = self%F_int(2,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(2)
                    end if
                 end if
                 
@@ -1933,9 +1962,9 @@ contains
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval(theta_p(j,3,:)) * data(i)%gain * self%cg_scale(3)
                    else
-                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale
+                      self%F(i,l)%p%map(j,3) = self%F_int(3,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(3)
                    end if
                 end if
              end if
@@ -1945,7 +1974,7 @@ contains
                 if (self%npar > 0) then
                    do k = 1, nmaps
                       if (k <= self%poltype(par)) then
-                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale
+                         df(i)%p%map(j,k) = self%F_int(k,i,l)%p%eval_deriv(theta_p(j,k,:),par) * data(i)%gain * self%cg_scale(k)
                       end if
                    end do
                 else
@@ -2429,7 +2458,7 @@ contains
        ! Write amplitude
        map => comm_map(self%x)
        do i = 1, map%info%nmaps
-          map%alm(:,i) = map%alm(:,i) * self%RJ2unit_(i) * self%cg_scale  ! Output in requested units
+          map%alm(:,i) = map%alm(:,i) * self%RJ2unit_(i) * self%cg_scale(i)  ! Output in requested units
        end do
 
        !call update_status(status, "writeFITS_2")
@@ -2447,7 +2476,7 @@ contains
        call self%B_out%conv(trans=.false., map=map)
        call map%Y
        do i = 1, map%info%nmaps
-          map%alm(:,i) = self%x%alm(:,i) * self%RJ2unit_(i) * self%cg_scale  ! Replace convolved with original alms
+          map%alm(:,i) = self%x%alm(:,i) * self%RJ2unit_(i) * self%cg_scale(i)  ! Replace convolved with original alms
        end do
        !call update_status(status, "writeFITS_4")
 
@@ -2467,7 +2496,7 @@ contains
           map => comm_map(self%x)
 
           do i = 1, map%info%nmaps
-             map%alm(:,i) = map%alm(:,i) * self%RJ2unit_(i) * self%cg_scale  ! Output in requested units
+             map%alm(:,i) = map%alm(:,i) * self%RJ2unit_(i) * self%cg_scale(i)  ! Output in requested units
           end do
           
           filename = trim(self%label) // '_' // trim(postfix) // '_TEB.fits'
@@ -2691,7 +2720,7 @@ contains
        call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_alm', .false.)
        !call self%x%readHDF(hdffile, trim(adjustl(path))//'/amp_map', .true.)    ! Read amplitudes
        do i = 1, self%x%info%nmaps
-         self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale)
+         self%x%alm(:,i) = self%x%alm(:,i) / (self%RJ2unit_(i) * self%cg_scale(i))
        end do
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
@@ -3202,11 +3231,11 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta
                       mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                    end if
                    all_thetas(id)=new_theta
                    mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                    !compute chisq for pixel 'pix' of the associated band
                    if (first_sample) then
@@ -3232,11 +3261,11 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta
                       mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                    end if
                    all_thetas(id)=new_theta
                    mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                    data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
                    invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
@@ -3571,7 +3600,7 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta
                       mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                       all_thetas(id)=new_theta
 
                       res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_old* &
@@ -3580,7 +3609,7 @@ contains
 
                    end if
                    mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                    res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                         & self%x_smooth%map(pix,pol_j(k))
@@ -3613,11 +3642,11 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta
                       mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                       all_thetas(id)=new_theta
                    end if
                    mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                    pix_count = pix_count + 1
                    data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
                    invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
@@ -4183,7 +4212,7 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta_smooth(pix)
                       mixing_old = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                       all_thetas(id)=new_theta_smooth(pix)
 
                       res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_old* &
@@ -4192,7 +4221,7 @@ contains
 
                    end if
                    mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                    res_lnL = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                         & self%x_smooth%map(pix,pol_j(k))
@@ -4226,11 +4255,11 @@ contains
                    if (first_sample) then
                       all_thetas(id)=old_theta_smooth(pix)
                       mixing_old_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                       all_thetas(id)=new_theta_smooth(pix)
                    end if
                    mixing_new_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                        & data(band_i(k))%gain * c_lnL%cg_scale
+                        & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                    pix_count = pix_count + 1
                    data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
                    invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
@@ -4700,7 +4729,7 @@ contains
           end do
 
           mixing_arr(k) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-               & data(band_i(k))%gain * c_lnL%cg_scale
+               & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
           data_arr(k)=res_smooth(band_i(k))%p%map(pix,pol_j(k))
           invN_arr(k)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
@@ -4784,7 +4813,7 @@ contains
           if (k > data(l)%info%nmaps) cycle
           
        ! Compute predicted source amplitude for current band
-          s = a_lnL(k) * c_lnL%F_int(k,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+          s = a_lnL(k) * c_lnL%F_int(k,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale(k)
           
           ! Compute likelihood 
           lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
@@ -4792,7 +4821,7 @@ contains
 !          if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(1.d0/rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
 
 !!$       if (c_lnL%x%info%pix(k_lnL) == 10000) then
-!!$          write(*,fmt='(5f10.3,f16.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,k), s, res_smooth(l)%p%map(k_lnL,k)-a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale, rms_smooth(l)%p%siN%map(k_lnL,k), (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
+!!$          write(*,fmt='(5f10.3,f16.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,k), s, res_smooth(l)%p%map(k_lnL,k)-a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale(k), rms_smooth(l)%p%siN%map(k_lnL,k), (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
 !!$       end if
 
        end do
@@ -4971,7 +5000,7 @@ contains
 !!$    !do l = 1, numband
 !!$       
 !!$       ! Compute mixing matrix
-!!$       s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+!!$       s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale(p_lnL) 
 !!$       
 !!$       ! Compute predicted source amplitude for current band
 !!$       a = s * amps_lnL(k_lnL,p_lnL,l)

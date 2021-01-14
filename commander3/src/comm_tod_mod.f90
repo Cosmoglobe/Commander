@@ -1,3 +1,23 @@
+!================================================================================
+!
+! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+!
+! This file is part of Commander3.
+!
+! Commander3 is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! Commander3 is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+!
+!================================================================================
 module comm_tod_mod
   use comm_utils
   use comm_param_mod
@@ -15,7 +35,7 @@ module comm_tod_mod
 
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
-     real(dp)          :: gain, dgain, gain_sigma           ! Gain; assumed constant over scan
+     real(dp)          :: gain, dgain, gain_invsigma           ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee              ! Noise parameters
      real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def  ! Default parameters
      real(dp)          :: chisq
@@ -78,7 +98,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: nu_c                                        ! Center frequency
      real(dp), allocatable, dimension(:,:,:) :: prop_bp         ! proposal matrix, L(ndet,ndet,ndelta),  for bandpass sampler
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
-     integer(i4b)      :: nside                           ! Nside for pixelized pointing
+     integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
@@ -203,6 +223,7 @@ contains
     self%subtract_zodi = cpar%include_TOD_zodi
     self%central_freq  = cpar%ds_nu_c(id_abs)
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
+    self%nside_param   = cpar%ds_nside(id_abs)
 
     call mpi_comm_size(cpar%comm_shared, self%numprocs_shared, ierr)
 
@@ -397,6 +418,10 @@ contains
 !!$       end do
        !write(*,*) ndet_tot
        call read_hdf(file, "common/nside",  self%nside)
+       if(self%nside /= self%nside_param) then
+         write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
+         stop
+       end if
        call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf)
@@ -1145,11 +1170,11 @@ contains
 
 
 ! Fills masked region with linear function between the mean of 20 points at each end
-  subroutine fill_masked_region(d_p, mask, i_start, i_end, ntod)
+  subroutine fill_masked_region(d_p, mask, i_start, i_end, ntod, chunk)
     implicit none
     real(sp), intent(inout)  :: d_p(:)
     real(sp), intent(in)     :: mask(:)
-    integer(i4b), intent(in) :: i_end, i_start, ntod
+    integer(i4b), intent(in) :: i_end, i_start, ntod, chunk
     real(dp)     :: mu1, mu2
     integer(i4b) :: i, n_mean, earliest, latest
     n_mean = 20
@@ -1160,7 +1185,9 @@ contains
           mu2 = sum(d_p(i_end:latest) * mask(i_end:latest)) / sum(mask(i_end:latest))
           d_p(i_start:i_end) = mu2
        else
-          write(*,*) "Entire scan masked, this should not happen (in comm_tod_mod.fill_masked_region)"
+          ! write(*,*) "Entirity of scan", chunk, "masked, this should not happen (in comm_tod_mod.fill_masked_region)"
+          d_p(:) = 0.d0
+          return
        end if
     else if (i_end == ntod) then  ! masked region at end of scan
        mu1 = sum(d_p(earliest:i_start) * mask(earliest:i_start)) / sum(mask(earliest:i_start))
@@ -1176,7 +1203,7 @@ contains
 
 
 ! Identifies and fills masked region
-  subroutine fill_all_masked(d_p, mask, ntod, sample, sigma_0, handle)
+  subroutine fill_all_masked(d_p, mask, ntod, sample, sigma_0, handle, chunk)
     implicit none
     real(sp),         intent(inout)  :: d_p(:)
     real(sp),         intent(in)     :: mask(:)
@@ -1184,6 +1211,7 @@ contains
     type(planck_rng), intent(inout), optional  :: handle
     integer(i4b),     intent(in) :: ntod
     logical(lgt),     intent(in) :: sample
+    integer(i4b),     intent(in) :: chunk
     integer(i4b) :: j_end, j_start, j, k
     logical(lgt) :: init_masked_region, end_masked_region
 
@@ -1194,7 +1222,7 @@ contains
        if (mask(j) == 1.) then
           if (end_masked_region) then
              j_end = j - 1
-             call fill_masked_region(d_p, mask, j_start, j_end, ntod)
+             call fill_masked_region(d_p, mask, j_start, j_end, ntod, chunk)
              ! Add noise to masked region
              if (sample) then
                 do k = j_start, j_end
@@ -1215,7 +1243,7 @@ contains
     ! if the data ends with a masked region
     if (end_masked_region) then
        j_end = ntod
-       call fill_masked_region(d_p, mask, j_start, j_end, ntod)
+       call fill_masked_region(d_p, mask, j_start, j_end, ntod, chunk)
        if (sample) then
           do k = j_start, j_end
              d_p(k) = d_p(k) + sigma_0 * rand_gauss(handle)
@@ -1250,7 +1278,7 @@ contains
        chisq = chisq + (d0 - g * s_sky(i))**2
     end do
 
-    if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
+    if (self%scans(scan)%d(det)%sigma0 <= 0.d0 .or. n == 0) then
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = 0.d0
        else

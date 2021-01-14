@@ -14,7 +14,7 @@ for f in $freq; do
     rms1=$(sed -n 17p stats/stats_${f}.txt | gawk -F ' ' '{print $3}')
     rms2=$(sed -n 25p stats/stats_${f}.txt | gawk -F ' ' '{print $3}')
     rms=$(echo $rms1 + $rms2 | bc) #dosent work with E-002!
-#    echo $rms
+    echo $rms
 #    rms=$(python -c "print ($rms1+$rms2)/2.")
     echo $f,$rms1,$rms2, $rms
 

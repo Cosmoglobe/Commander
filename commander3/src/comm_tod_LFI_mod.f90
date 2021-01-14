@@ -1,3 +1,23 @@
+!================================================================================
+!
+! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+!
+! This file is part of Commander3.
+!
+! Commander3 is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! Commander3 is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+!
+!================================================================================
 module comm_tod_LFI_mod
   use comm_tod_mod
   use comm_param_mod
@@ -107,6 +127,7 @@ contains
     constructor%central_freq  = cpar%ds_nu_c(id_abs)
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%halfring_split = cpar%ds_tod_halfring(id_abs)
+    constructor%nside_param   = cpar%ds_nside(id_abs)
 
     !----------------------------------------------------------------------------------
     ! Simulation Routine
@@ -449,7 +470,7 @@ contains
        do_oper(samp_N)       = (main_iter >= n_main_iter-0)
        do_oper(samp_N_par)   = do_oper(samp_N)
        do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call !.and. mod(iter,2) == 0
-       do_oper(prep_absbp)   = .false. ! ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
+       do_oper(prep_absbp)   = .false. !ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call .and. mod(iter,2) == 1
        do_oper(samp_bp)      = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false. !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
@@ -567,7 +588,7 @@ contains
           call self%symmetrize_flags(flag)
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
-          call update_status(status, "tod_decomp")
+          !call update_status(status, "tod_decomp")
 
           ! Construct sky signal template
           call wall_time(t1)
@@ -600,13 +621,13 @@ contains
              if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
-          call update_status(status, "tod_project")
+          !call update_status(status, "tod_project")
 
           ! Construct orbital dipole template
           call wall_time(t1)
           call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
-          call update_status(status, "tod_orb")
+          !call update_status(status, "tod_orb")
 
          !  call wall_time(t9)
           ! Construct zodical light template
@@ -658,7 +679,7 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
-                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle)
+                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
                    call self%downsample_tod(s_buf(:,j), ext, &
                         & s_lowres(:,j))!, mask(:,j))
                 else
@@ -1086,7 +1107,7 @@ contains
        write(*,*) '  Time samp bp    = ', t_tot(17)
        write(*,*) '  Time chisq      = ', t_tot(7)
        write(*,*) '  Time bin        = ', t_tot(8)
-       if (self%enable_tod_simulations) write(*,*) '  Time tod sims   = ', t_tot(23) 
+       if (self%enable_tod_simulations) write(*,*) '  Time tod sims   = ', t_tot(23)
        write(*,*) '  Time scanlist   = ', t_tot(20)
        write(*,*) '  Time final      = ', t_tot(10)
        if (self%first_call) then
@@ -1230,7 +1251,7 @@ contains
       dv(0) = fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
       do k = 1, (n - 1)
         nu = k * (samprate / 2) / (n - 1)
-        !dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(1 + (nu / nu_knee)**alpha) /sqrt(2     .0)
+        !dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(1 + (nu / nu_knee)**alpha) /sqrt(2          .0)
         dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt((nu / nu_knee)**alpha) /sqrt(2.0)
       end do
       ! Executing Backward FFT

@@ -1,3 +1,23 @@
+!================================================================================
+!
+! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+!
+! This file is part of Commander3.
+!
+! Commander3 is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by
+! the Free Software Foundation, either version 3 of the License, or
+! (at your option) any later version.
+!
+! Commander3 is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+! GNU General Public License for more details.
+!
+! You should have received a copy of the GNU General Public License
+! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+!
+!================================================================================
 module comm_md_comp_mod
   use comm_param_mod
   use comm_comp_mod
@@ -15,6 +35,7 @@ module comm_md_comp_mod
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_md_comp
      !integer(i4b)                            :: ref_band
+     logical(lgt) :: mono_from_prior
    contains
      procedure :: S    => evalSED
   end type comm_md_comp
@@ -231,6 +252,16 @@ contains
        end do
     end do
 
+    ! Set up sampling from prior
+    constructor%mono_from_prior=.false.
+    call get_tokens(cpar%cs_samp_mono_from_prior(id_abs), ",", comp_label, n)
+    do j = 1, n
+       if (trim(constructor%label) == trim(comp_label(j))) then
+          constructor%mono_from_prior=.true.
+          exit
+       end if
+    end do
+    
   end function constructor
 
   ! Definition:
@@ -292,6 +323,5 @@ contains
     end if
   
   end function initialize_md_comps
-
   
 end module comm_md_comp_mod
