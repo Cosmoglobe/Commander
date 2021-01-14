@@ -296,7 +296,7 @@ contains
     integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
-    real(dp)     :: t_tot(22)
+    real(dp)     :: t_tot(23)
     real(sp)     :: inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
     real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
@@ -885,9 +885,9 @@ contains
           ! Calling Simulation Routine
           !write(*,*) "Debug Message before simulation routine."
           if (self%enable_tod_simulations) then !.and. (main_iter == 1)) then
+            call wall_time(t1)
             call self%simulate_LFI_tod(i, s_tot, handle)
-            !call MPI_Finalize(ierr)
-            !stop
+            call wall_time(t2); t_tot(23) = t_tot(23) + t2-t1
           end if
           !----------------------------------------------------------------------------------
 
@@ -1086,6 +1086,7 @@ contains
        write(*,*) '  Time samp bp    = ', t_tot(17)
        write(*,*) '  Time chisq      = ', t_tot(7)
        write(*,*) '  Time bin        = ', t_tot(8)
+       if (self%enable_tod_simulations) write(*,*) '  Time tod sims   = ', t_tot(23) 
        write(*,*) '  Time scanlist   = ', t_tot(20)
        write(*,*) '  Time final      = ', t_tot(10)
        if (self%first_call) then
@@ -1188,6 +1189,7 @@ contains
     real(sp), allocatable, dimension(:,:) :: n_corr
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
+    character(len=10) :: processor_label   !< to have a nice output to screen
 
     ! shortcuts
     ntod = self%scans(scan_id)%ntod
@@ -1275,7 +1277,9 @@ contains
     !write(*,*) "currentHDFFile "//trim(currentHDFFile)
     ! Converting PID number into string value
     call int2string(self%scanid(scan_id), pidLabel)
-    write(*,*) "Writing PID, "//trim(pidLabel)//", into "//trim(currentHDFFile)
+    call int2string(self%myid, processor_label)
+    write(*,*) "Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
+    write(*,*) trim(currentHDFFile)
     ! For debugging
     !call MPI_Finalize(mpi_err)
     !stop
@@ -1302,6 +1306,7 @@ contains
     !write(*,*) "hdf5_error",  hdf5_error
     ! freeing memory up
     deallocate(n_corr, tod_per_detector)
+    write(*,*) "Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
     ! lastly, we need to copy an existing filelist.txt into simulation folder
     ! and change the pointers to new files

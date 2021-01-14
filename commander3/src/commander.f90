@@ -166,7 +166,7 @@ program commander
   ! Part of Simulation routine
   !----------------------------------------------------------------------------------
   ! Will make only one full gibbs loop to produce simulations
-  if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
+  !if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
   !----------------------------------------------------------------------------------
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
