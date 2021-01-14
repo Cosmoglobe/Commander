@@ -604,9 +604,9 @@ contains
                if (.not. self%scans(i)%d(j)%accept) cycle
                masked_var = masked_variance(s_sky(:, j), mask(:, j))
                if (masked_var == 9999999999999) then
-                 dipole_mod(self%scanid(i), j) = masked_var
-               else
                  dipole_mod(self%scanid(i), j) = 0
+               else
+                 dipole_mod(self%scanid(i), j) = masked_var
                  !write(*,*) 'span completely masked'
                end if
             end do

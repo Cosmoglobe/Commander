@@ -1337,7 +1337,7 @@ contains
           mu2 = sum(d_p(i_end:latest) * mask(i_end:latest)) / sum(mask(i_end:latest))
           d_p(i_start:i_end) = mu2
        else
-          write(*,*) "Entirety of scan", chunk, "masked, this should not happen (in comm_tod_mod.fill_masked_region)"
+          !write(*,*) "Entirety of scan", chunk, "masked, this should not happen (in comm_tod_mod.fill_masked_region)"
           d_p(:) = 0.d0
           return
        end if
