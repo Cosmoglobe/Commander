@@ -209,6 +209,9 @@ contains
       integer(i4b) :: pixind
 
 
+      real(dp) :: masked_var
+
+
 
 
       ! biconjugate gradient parameters
@@ -313,7 +316,7 @@ contains
          ! Select operations for current iteration
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) !.false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) !.false. !      
-         do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) !      
+         do_oper(samp_G)       = (main_iter == n_main_iter-1) !.false. !      
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -599,7 +602,13 @@ contains
 
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               dipole_mod(self%scanid(i), j) = masked_variance(s_sky(:, j), mask(:, j))
+               masked_var = masked_variance(s_sky(:, j), mask(:, j))
+               if (masked_var == 9999999999999) then
+                 dipole_mod(self%scanid(i), j) = masked_var
+               else
+                 dipole_mod(self%scanid(i), j) = 0
+                 !write(*,*) 'span completely masked'
+               end if
             end do
 
             ! Clean up
