@@ -1971,8 +1971,14 @@ contains
     type(hdf_file) :: file
     character(len=*), intent(in) :: setname
     character(len=*) , intent(in) :: val
-    call create_hdf_set(file, setname, shape(val), H5T_C_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, int(shape(val),hsize_t), file%status)
+    integer(hid_t) :: str_dtype
+    integer :: hdferr
+
+    call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+    call H5Tset_size_f(str_dtype, int(len_trim(val), size_t), hdferr)
+
+    call create_hdf_set(file, setname, shape(val), str_dtype)
+    call h5dwrite_f(file%sethandle, str_dtype, trim(val), int(shape(val), hsize_t), file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
   end subroutine
 
