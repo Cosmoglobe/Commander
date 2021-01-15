@@ -190,7 +190,7 @@ contains
 !!$       close(58)
 
         count = count+1
-        write(*, *) "FREQ IS ", trim(tod%freq), count
+        !write(*, *) "FREQ IS ", trim(tod%freq), count
        !nbin = nscan_tot / binsize + 1
 
        !open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
@@ -395,7 +395,7 @@ contains
          mu = mu / denom
 
          ! Make sure fluctuations sum up to zero
-         write(*,*) 'mu = ', mu
+         !write(*,*) 'mu = ', mu
          g(:,j,1) = g(:,j,1) - mu
        end do
        open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
@@ -556,7 +556,7 @@ contains
           ! Add fluctuation term if requested
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
-       write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A), tod%myid_inter
+       !write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A), tod%myid_inter
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
          & tod%info%comm, ierr)
@@ -607,7 +607,7 @@ contains
        coeff_matrix(tod%ndet+1, tod%ndet+1) = 0.d0
        rhs(tod%ndet+1) = 0.d0
        call solve_system_real(coeff_matrix, x, rhs)
-       write(*,*) 'relcal = ', real(x,sp)
+       !write(*,*) 'relcal = ', real(x,sp)
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
        & tod%info%comm, ierr)
@@ -853,8 +853,10 @@ contains
             window_size_dipole_minimum = 1880
             window_size_dipole_maximum = 400
          case ('023-WMAP_K')
-             window_size_dipole_minimum = 1200
-             window_size_dipole_maximum = 400
+             ! I think this is the width of the number of scans to smooth the
+             ! gain estimate over. Could be worth experimenting on this one.
+             window_size_dipole_minimum = 120
+             window_size_dipole_maximum = 40
          ! Currently, the 70-GHz ds
          case default
             window_size_dipole_minimum = 1800
