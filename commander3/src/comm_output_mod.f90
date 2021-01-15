@@ -53,10 +53,8 @@ contains
           if (exist) call rm(trim(chainfile))
           call open_hdf_file(chainfile, file, 'w')
 
-          ! ========== testing hdf parameter output ==========
-          print *, '=========== test ============'
+          ! testing hdf parameter output
           call write_params_to_hdf(cpar, file)
-          !===================================================
 
           call close_hdf_file(file)
           iter = -1
