@@ -550,6 +550,19 @@ contains
                call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
             end if
 
+            !! Compute chisquare
+            !if (do_oper(calc_chisq)) then
+            !   call wall_time(t1)
+            !   do j = 1, ndet
+            !      if (.not. self%scans(i)%d(j)%accept) cycle
+            !      s_buf(:,j) =  s_sl(:,j) + s_orb_tot(:,j)
+            !      if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
+            !      call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
+            !           & s_buf(:,j), n_corr(:,j))
+            !   end do
+            !   call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
+            !end if
+
             !*******************
             ! Compute binned map
             !*******************
@@ -604,10 +617,10 @@ contains
                if (.not. self%scans(i)%d(j)%accept) cycle
                masked_var = masked_variance(s_sky(:, j), mask(:, j))
                if (masked_var == 9999999999999) then
-                 dipole_mod(self%scanid(i), j) = 0
+                 self%scans(i)%d(j)%accept = .false.
+                 cycle
                else
                  dipole_mod(self%scanid(i), j) = masked_var
-                 !write(*,*) 'span completely masked'
                end if
             end do
 
@@ -696,8 +709,8 @@ contains
          delta_r = sum(r**2/M_diag)
          delta_s = delta_s
          if (self%myid_shared==0) then 
-            write(*,*) '    delta_0 = ', delta_0
             write(*,*) '    delta_r = ', delta_r
+            write(*,*) '    minmax(r) = ', minval(r), maxval(r)
             write(*,*) '    CG amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
          end if
 
