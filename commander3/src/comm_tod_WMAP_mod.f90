@@ -855,14 +855,13 @@ contains
       call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
       do n = 2, self%output_n_maps
-        call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))/trim(postfix))
+        call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
       end do
       !if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
       !if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
       !if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
       !if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
       !if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
-      end do
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
