@@ -1408,13 +1408,13 @@ contains
 
   ! Compute chisquare
   subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
-       & n_corr, absbp)
+       & n_corr, absbp, verbose)
     implicit none
     class(comm_tod),                 intent(inout)  :: self
     integer(i4b),                    intent(in)     :: scan, det
     real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
     real(sp),          dimension(:), intent(in)     :: n_corr
-    logical(lgt),                    intent(in), optional :: absbp
+    logical(lgt),                    intent(in), optional :: absbp, verbose
 
     real(dp)     :: chisq, d0, g
     integer(i4b) :: i, n
@@ -1444,11 +1444,13 @@ contains
           self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
        end if
     end if
-     write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
-          & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
+    if (present(verbose)) then
+      if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
+         & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
     !if(self%scans(scan)%d(det)%chisq > 2000.d0 .or. isNaN(self%scans(scan)%d(det)%chisq)) then
       !write(*,*) "chisq", scan, det, sum(mask), sum(s_sky), sum(s_sl), sum(s_orb), sum(n_corr)
     !end if
+    end if
 
   end subroutine compute_chisq
 
