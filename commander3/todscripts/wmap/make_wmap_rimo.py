@@ -76,6 +76,7 @@ dir_B_los = np.array([
 
 fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v4.h5'
 fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v5.h5'
+fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v6.h5'
 #fname_out = 'test.h5'
 labels = ['K', 'Ka', 'Q', 'V', 'W']
 
@@ -123,9 +124,9 @@ with h5py.File(fname_out, 'a') as f:
         #B = B[1:]
         #theta = theta[1:]
 
-        hwhm_deg = theta[B <= B[5:].max()/2][0]
-        fwhm_deg = 2*hwhm_deg
-        fwhm_deg = fwhms[i]
+        #hwhm_deg = theta[B <= B[5:].max()/2][0]
+        #fwhm_deg = 2*hwhm_deg
+        fwhm_deg = fwhms[ind]
         fwhm_arcmin= 60*fwhm_deg
         #plt.figure()
         #plt.semilogx(theta, B/B.max())
