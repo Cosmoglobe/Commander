@@ -214,7 +214,7 @@ contains
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
-      logical(lgt) :: write_cg_iter=.false.
+      logical(lgt) :: write_cg_iter=.false., verbose=.true.
 
 
       logical(lgt) :: remove_solar_dipole=.false.
@@ -326,7 +326,7 @@ contains
       main_it: do main_iter = 1, n_main_iter
          call update_status(status, "tod_istart")
 
-         if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
+         if (self%myid == 0 .and. verbose) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) !.false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) !.false. !      
@@ -585,17 +585,17 @@ contains
             end if
 
             !! Compute chisquare
-            !if (do_oper(calc_chisq)) then
-            !   call wall_time(t1)
-            !   do j = 1, ndet
-            !      if (.not. self%scans(i)%d(j)%accept) cycle
-            !      s_buf(:,j) =  s_sl(:,j) + s_orb_tot(:,j)
-            !      if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
-            !      call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
-            !           & s_buf(:,j), n_corr(:,j))
-            !   end do
-            !   call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
-            !end if
+            if (do_oper(calc_chisq)) then
+               call wall_time(t1)
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  s_buf(:,j) =  s_sl(:,j) + s_orb_tot(:,j)
+                  if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
+                  call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
+                       & s_buf(:,j), n_corr(:,j), verbose=verbose)
+               end do
+               call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
+            end if
 
             !*******************
             ! Compute binned map
@@ -739,7 +739,7 @@ contains
 
 
       do l=1, nout
-         if (self%myid_shared==0) then 
+         if (self%myid_shared==0 .and. verbose) then 
             write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          end if
          call update_status(status, "Starting bicg-stab")
@@ -785,7 +785,7 @@ contains
             shat = s/M_diag
 
             delta_s = sum(s*shat)
-            if (self%myid_shared==0) then 
+            if (self%myid_shared==0 .and. verbose) then 
                 write(*,101) 2*i-1, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
@@ -815,7 +815,7 @@ contains
             end if
 
             delta_r = sum(r**2/M_diag)
-            if (self%myid_shared==0) then 
+            if (self%myid_shared==0 .and. verbose) then 
                 write(*,102) 2*i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
@@ -854,11 +854,15 @@ contains
       rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
       call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-      if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-      if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-      if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-      if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-      if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
+      do n = 2, self%output_n_maps
+        call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))/trim(postfix))
+      end do
+      !if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
+      !if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+      !if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
+      !if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+      !if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
+      end do
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
