@@ -68,6 +68,7 @@ module comm_tod_WMAP_mod
    type, extends(comm_tod) :: comm_WMAP_tod
       class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
+      character(len=20), allocatable, dimension(:) :: labels ! names of fields
    contains
       procedure     :: process_tod => process_WMAP_tod
    end type comm_WMAP_tod
@@ -105,9 +106,19 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 2 ! map, res, ncorr, orb_dp, sl
+      constructor%output_n_maps = 6 ! map, res, ncorr, orb_dp, sl
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
+
+
+      ! Iniitialize TOD labels
+      allocate (constructor%labels(6))
+      constructor%labels(1) = 'map'
+      constructor%labels(2) = 'res'
+      constructor%labels(3) = 'ncorr'
+      constructor%labels(4) = 'orb_dp'
+      constructor%labels(5) = 'sl'
+      constructor%labels(6) = 'bpcorr'
 
       ! Initialize beams
       nside_beam = 512
@@ -125,8 +136,11 @@ contains
       constructor%x_im = [-0.00067, 0.00536]
       ! constructor%x_im = [-0.05, 0.05]
 
+
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+
+
 
       ! Read the actual TOD
       call constructor%read_tod_WMAP(constructor%label)
@@ -356,6 +370,8 @@ contains
             allocate (s_slB(ntod, ndet))                  ! Sidelobe in uKcmb (beam B)
             allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
             allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
+            allocate (s_bp(ntod, ndet))                   ! Signal minus mean
+            allocate (s_bp_prop(ntod, ndet, 2:ndelta))    ! Signal minus mean
             allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A)
             allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B)
             allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both)
@@ -383,8 +399,26 @@ contains
             call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
             ! Construct sky signal template
-            call project_sky_differential(self, map_sky(:, :, :, 1), pix, psi, flag, &
-                              & self%x_im, procmask, i, s_sky, mask, do_oper(sim_map))
+            call wall_time(t1)
+            if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+                 & self%x_im, procmask, i, s_sky, mask, do_oper(sim_map), s_bp=s_bp)
+            else
+               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+                    & self%x_im, procmask, i, s_sky, mask, do_oper(sim_map))
+            end if
+            if (do_oper(prep_relbp)) then
+               do j = 2, ndelta
+                  call project_sky_differential(self, map_sky(:,:,:,j), pix, psi, flag, &
+                       & self%x_im, procmask, i, s_sky_prop(:,:,j), mask, do_oper(sim_map), s_bp=s_bp_prop(:,:,j))
+               end do
+            else if (do_oper(prep_absbp)) then
+               do j = 2, ndelta
+                  call project_sky_differential(self, map_sky(:,:,:,j), pix, psi, flag, &
+                       & self%x_im, procmask, i, s_sky_prop(:,:,j), mask, do_oper(sim_map))
+               end do
+            end if
+
 
             if (main_iter == 1 .and. self%first_call) then
                do j = 1, ndet
@@ -578,16 +612,24 @@ contains
                   if (remove_solar_dipole) then
                      d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
                         & inv_gain - s_tot(:, j) + s_sky(:, j) - s_sol_tot(:, j)
-                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - (s_sky(:, j) - s_sol_tot(:, j)) ! Residual
+                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - (s_sky(:, j) - s_sol_tot(:, j)) - s_bp(:, j) ! Residual
                   else
                      d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-                        & inv_gain - s_tot(:, j) + s_sky(:, j)
-                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) ! Residual
+                        & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
+                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) + s_bp(:, j) ! Residual
                   end if
 
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
                   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_orb_tot(:,j)
                   if (do_oper(bin_map) .and. nout > 4) d_calib(5,:,j) = s_sl(:,j)
+                  if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_bp(:,j)
+
+
+                  if (do_oper(prep_relbp)) then
+                     do k = 2, ndelta
+                        d_calib(self%output_n_maps+k-1,:,j) = d_calib(1,:,j) + s_bp(:,j) - s_bp_prop(:,j,k)
+                     end do
+                  end if
 
                end do
 
@@ -608,7 +650,8 @@ contains
 
                ! Bin the calibrated map
                call bin_differential_TOD(self, d_calib, pix,  &
-                      & psi, flag, self%x_im, procmask, b_map, M_diag, i)
+                 & psi, flag, self%x_im, procmask, b_map, M_diag, i, &
+                 & do_oper(prep_relbp))
                deallocate(d_calib)
                call wall_time(t8); t_tot(19) = t_tot(19) + t8
             end if
@@ -630,6 +673,7 @@ contains
             deallocate (mask, mask2, pix, psi, flag, s_solA, s_solB, s_sol_tot)
             if (allocated(s_lowres)) deallocate (s_lowres)
             if (allocated(s_invN)) deallocate (s_invN)
+            deallocate(s_bp, s_bp_prop)
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
@@ -676,9 +720,6 @@ contains
          M_diag = 1d0
       end where
 
-      if (self%myid_shared==0) then 
-         write(*,*) '    Beginning BiCG-stab iteration'
-      end if
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       allocate (r     (0:npix-1, nmaps+1))
@@ -692,12 +733,15 @@ contains
       allocate (cg_sol(0:npix-1, nmaps+1, nout))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-1
+      epsil = 1.0d-2
       ! OK, the expected chi squared is satisfied very early on. To make things
       ! really fast, we can make delta_0 equal to Npix.
 
 
       do l=1, nout
+         if (self%myid_shared==0) then 
+            write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+         end if
          call update_status(status, "Starting bicg-stab")
          r  = b_map(:, :, l)
          r0 = b_map(:, :, l)
@@ -707,10 +751,12 @@ contains
          ! random variable with 3 npix variables.
          delta_0 = size(M_diag(:,:nmaps))
          delta_r = sum(r**2/M_diag)
+         ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
+         delta_0 = delta_r
          delta_s = delta_s
          if (self%myid_shared==0) then 
-            write(*,*) '    delta_r = ', delta_r
-            write(*,*) '    minmax(r) = ', minval(r), maxval(r)
+            !write(*,*) '    delta_r = ', delta_r
+            !write(*,*) '    minmax(r) = ', minval(r), maxval(r)
             write(*,*) '    CG amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
          end if
 
@@ -745,7 +791,7 @@ contains
 
             delta_s = sum(s*shat)
             if (self%myid_shared==0) then 
-                write(*,101) i, delta_s/delta_0
+                write(*,101) 2*i-1, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
             if (delta_s .le. (delta_0*epsil)) then
@@ -780,7 +826,7 @@ contains
 
             delta_r = sum(r**2/M_diag)
             if (self%myid_shared==0) then 
-                write(*,102) i, delta_r/delta_0
+                write(*,102) 2*i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
             if ((delta_r .le. (delta_0*epsil))) then
@@ -827,6 +873,7 @@ contains
       if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
       if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
       if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+      if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &

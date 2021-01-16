@@ -93,7 +93,7 @@ contains
    end subroutine bin_TOD
 
    ! differential TOD computation, written with WMAP in mind.
-   subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_imarr, pmask, b, M_diag, scan, b_mono)
+   subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_imarr, pmask, b, M_diag, scan, comp_S, b_mono)
       implicit none
       class(comm_tod), intent(in)                               :: tod
       integer(i4b), intent(in)                                  :: scan
@@ -105,6 +105,7 @@ contains
       real(dp), dimension(0:, 1:, 1:), intent(inout)            :: b
       real(dp), dimension(0:, 1:), intent(inout)                :: M_diag
       real(dp), dimension(0:, 1:, 1:), intent(inout), optional  :: b_mono
+      logical(lgt), intent(in)                                  :: comp_S
 
       integer(i4b) :: det, i, t, nout
       real(dp)     :: inv_sigmasq, x_im, d, p, sigma_0
