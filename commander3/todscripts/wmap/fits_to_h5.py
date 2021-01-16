@@ -55,6 +55,7 @@ from tqdm import tqdm
 # version 25 is same as version 24, but uses precalibrated data.
 # version 26 is same as version 24, but does not recompute planet flags
 # version 27 is same as version 26, center = False
+# version 28 converts the velocity vector to Galactic coordinates
 
 from time import sleep
 from time import time as timer
@@ -823,6 +824,10 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     # position (and velocity) in km(/s) in Sun-centered coordinates
     pos = data[1].data['POSITION']
     vel = data[1].data['VELOCITY']
+
+
+    pos = coord_trans(pos, 'C', 'G', lonlat=False)
+    vel = coord_trans(vel, 'C', 'G', lonlat=False)
     # time2jd = 2.45e6, converts table time (modified reduced Julian day) to Julian day, for both...
     time_aihk = data[1].data['TIME'] + t2jd
 
@@ -903,12 +908,12 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
     #files = np.array(files)[7*len(files)//10:8*len(files)//10]
     #inds = inds[8*len(files)//10:9*len(files)//10]
     #files = np.array(files)[8*len(files)//10:9*len(files)//10]
-    inds = inds[9*len(files)//10:]
-    files = np.array(files)[9*len(files)//10:]
+    #inds = inds[9*len(files)//10:]
+    #files = np.array(files)[9*len(files)//10:]
 
 
     if par:
-        nprocs = 16
+        nprocs = 64
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -933,5 +938,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=24, center=True)
     #main(par=True, plot=False, compress=True, version=25, center=True)
     #main(par=True, plot=False, compress=True, version=26, center=True)
-    main(par=True, plot=False, compress=True, version=27, center=False)
+    #main(par=True, plot=False, compress=True, version=27, center=False)
+    main(par=True, plot=False, compress=True, version=28, center=False)
     #test_flags()
