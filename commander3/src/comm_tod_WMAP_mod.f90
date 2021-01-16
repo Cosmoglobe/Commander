@@ -242,7 +242,7 @@ contains
 
       ! Set up full-sky map structures
       call wall_time(t1)
-      correct_sl = .false.
+      correct_sl = .true.
       chisq_threshold = 100.d0
       n_main_iter     = 4
       ndet = self%ndet
@@ -754,11 +754,6 @@ contains
          ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
          delta_0 = delta_r
          delta_s = delta_s
-         if (self%myid_shared==0) then 
-            !write(*,*) '    delta_r = ', delta_r
-            !write(*,*) '    minmax(r) = ', minval(r), maxval(r)
-            write(*,*) '    CG amplitude begins at delta_r/delta_0 = ', delta_r/delta_0
-         end if
 
          omega = 1
          alpha = 1
@@ -794,12 +789,7 @@ contains
                 write(*,101) 2*i-1, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
-            if (delta_s .le. (delta_0*epsil)) then
-                if (self%myid_shared==0) then 
-                    write(*,*) '    Converged'
-                end if
-                exit bicg
-            end if
+            if (delta_s .le. (delta_0*epsil)) exit bicg
             q = 0d0
             call update_status(status, "Calling  q= A shat")
             call compute_Ax(self, shat, q, self%x_im, procmask, i)
@@ -829,12 +819,7 @@ contains
                 write(*,102) 2*i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
-            if ((delta_r .le. (delta_0*epsil))) then
-                if (self%myid_shared==0) then 
-                    write(*,*) '    Converged'
-                end if
-                exit bicg
-            end if
+            if ((delta_r .le. (delta_0*epsil))) exit bicg
          end do bicg
       end do
 
