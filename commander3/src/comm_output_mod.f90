@@ -52,6 +52,10 @@ contains
        if (trim(cpar%chain_status) == 'new' .or. .not. exist) then
           if (exist) call rm(trim(chainfile))
           call open_hdf_file(chainfile, file, 'w')
+
+          ! testing hdf parameter output
+          call write_params_to_hdf(cpar, file)
+
           call close_hdf_file(file)
           iter = -1
        else if (trim(cpar%chain_status) == 'append') then
@@ -408,4 +412,37 @@ contains
 
   end subroutine output_inst_params
 
+  ! =============== testing hdf parameter output ===============
+  subroutine write_params_to_hdf(cpar, chainfile)
+      implicit none 
+      type(comm_params), intent(in) :: cpar
+      type(hdf_file),    intent(in) :: chainfile
+      integer(i4b) :: n, i
+      character(len=512) :: hdf_path, polarization
+
+      call create_hdf_group(chainfile, 'parameters')
+      n = size(cpar%cs_label)
+
+      do i = 1, n
+         hdf_path = 'parameters/'//trim(adjustl(cpar%cs_label(i)))
+         call create_hdf_group(chainfile, trim(hdf_path))
+
+         if (cpar%cs_polarization(i)) then
+            polarization = "True"
+         else
+            polarization = "False"
+         endif
+
+         ! Model parameters required by cosmoglobe not included in the gibbs iter part tof h5 file
+         call write_hdf_0d_char(chainfile, trim(adjustl(hdf_path))//'/type', trim(cpar%cs_type(i)))
+         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/class', trim(cpar%cs_class(i)))
+         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/nside', cpar%cs_nside(i))
+         call write_hdf_0d_char(chainfile, trim(adjustl(hdf_path))//'/polarization', trim(polarization))
+         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/unit', trim(cpar%cs_unit(i)))
+         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/nu_ref', cpar%cs_nu_ref(i,:))
+         call write_hdf(chainfile, trim(adjustl(hdf_path))//'/fwhm', cpar%cs_fwhm(i))
+      end do 
+
+  end subroutine write_params_to_hdf
+  ! ============================================================
 end module comm_output_mod
