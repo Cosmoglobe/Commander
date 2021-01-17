@@ -164,9 +164,11 @@ contains
 
              N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
 
+             if (N_c == 0) N_c = 1
              if (abs(nu-1.d0/60.d0)*60.d0 < 0.05d0) then
                 dv(l) = fft_norm * sqrt(N_c) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) ! Dont include scan frequency; replace with better solution
              end if
+
 
              if (trim(self%operation) == "sample") then
                 dv(l) = (dv(l) + fft_norm * ( &
@@ -904,8 +906,8 @@ contains
           prior(1) = 0.001
           prior(2) = 0.25
        else if (trim(self%freq) == '023-WMAP_K') then
-          prior(1) = 0.01
-          prior(2) = 0.45
+          prior(1) = 0.00
+          prior(2) = 10.
        else if (trim(self%freq) == '060-WMAP_V1') then
           prior(1) = 0.01
           prior(2) = 0.45
@@ -937,8 +939,8 @@ contains
           prior(1) = -3.0
           prior(2) = -0.4
        else if (trim(self%freq) == '023-WMAP_K') then
-          prior(1) = -2.5
-          prior(2) = -0.4
+          prior(1) = -10
+          prior(2) = -0.1
        else if (trim(self%freq) == '060-WMAP_V1') then
           prior(1) = -2.5
           prior(2) = -0.4
