@@ -214,7 +214,7 @@ contains
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
-      logical(lgt) :: write_cg_iter=.false., verbose=.true.
+      logical(lgt) :: write_cg_iter=.false., verbose=.false.
 
 
       logical(lgt) :: remove_solar_dipole=.false.
@@ -326,11 +326,11 @@ contains
       main_it: do main_iter = 1, n_main_iter
          call update_status(status, "tod_istart")
 
-         if (self%myid == 0 .and. verbose) write(*,*) '  Performing main iteration = ', main_iter
+         if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_acal)    = (main_iter == n_main_iter-3) !.false. !      
-         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) !.false. !      
-         do_oper(samp_G)       = (main_iter == n_main_iter-1) !.false. !      
+         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
+         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
+         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !      
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -737,11 +737,10 @@ contains
       ! OK, the expected chi squared is satisfied very early on. To make things
       ! really fast, we can make delta_0 equal to Npix.
 
+      if (self%myid_shared ==0) write(*,*) '  Running BiCG'
 
       do l=1, nout
-         if (self%myid_shared==0 .and. verbose) then 
-            write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
-         end if
+         if (self%myid_shared==0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          call update_status(status, "Starting bicg-stab")
          r  = b_map(:, :, l)
          r0 = b_map(:, :, l)
