@@ -106,7 +106,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 6 ! map, res, ncorr, orb_dp, sl
+      constructor%output_n_maps = 5
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -176,7 +176,7 @@ contains
 
       integer(i4b) :: i, j, k, l, m, n, t, ntod, ndet
       integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
-      integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0, nout = 1
+      integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0, nout
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
@@ -243,7 +243,7 @@ contains
       ! Set up full-sky map structures
       call wall_time(t1)
       correct_sl = .true.
-      chisq_threshold = 100.d0
+      chisq_threshold = 6d0
       n_main_iter     = 4
       ndet = self%ndet
       nhorn = self%nhorn
@@ -661,7 +661,8 @@ contains
                masked_var = masked_variance(s_sky(:, j), mask(:, j))
                if (masked_var == 9999999999999) then
                  self%scans(i)%d(j)%accept = .false.
-                 cycle
+                 dipole_mod(self%scanid(i), j) = 0
+                 !cycle
                else
                  dipole_mod(self%scanid(i), j) = masked_var
                end if
@@ -716,7 +717,7 @@ contains
       cg_tot = M_diag(self%info%pix, 1:nmaps)
       call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
 
-      where (M_diag .eq. 0d0)
+      where (M_diag == 0d0)
          M_diag = 1d0
       end where
 
@@ -734,8 +735,6 @@ contains
 
       cg_sol = 0.0d0
       epsil = 1.0d-2
-      ! OK, the expected chi squared is satisfied very early on. To make things
-      ! really fast, we can make delta_0 equal to Npix.
 
       if (self%myid_shared ==0) write(*,*) '  Running BiCG'
 
@@ -745,10 +744,6 @@ contains
          r  = b_map(:, :, l)
          r0 = b_map(:, :, l)
          if (maxval(r) == 0) cycle
-         ! delta = sum(r(l,:,:)**2/M_diag(l,:,:))
-         ! If r is just Gaussian white noise, then delta_0 is a chi-squared
-         ! random variable with 3 npix variables.
-         delta_0 = size(M_diag(:,:nmaps))
          delta_r = sum(r**2/M_diag)
          ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
          delta_0 = delta_r
@@ -856,11 +851,6 @@ contains
       do n = 2, self%output_n_maps
         call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
       end do
-      !if (self%output_n_maps > 1) call outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-      !if (self%output_n_maps > 2) call outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-      !if (self%output_n_maps > 3) call outmaps(4)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-      !if (self%output_n_maps > 4) call outmaps(5)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
-      !if (self%output_n_maps > 5) call outmaps(6)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
 
       if (self%first_call) then
          call mpi_reduce(ntot, i, 1, MPI_INTEGER, MPI_SUM, &
