@@ -301,12 +301,6 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
 
             f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                     data=np.int32(todi))
-            # pix and psi are currently taking up four times as much data volume
-            # as necessary; K113, K114, K123, and K124 all have the same
-            # pixA/pixB/psiA/psiB values.
-            # Actually, I think all of these are the same... maybe for those
-            # ending in '13' write the actual dataset, and then make the
-            # following links?
             if label[-2:] == '13':
                 if compress:
                     f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',
