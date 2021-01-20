@@ -106,7 +106,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 2
+      constructor%output_n_maps = 4
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -436,8 +436,8 @@ contains
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
             !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
             !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            s_orbA = s_orbA * 1d6 ! MK -> mK
-            s_orbB = s_orbB * 1d6 ! MK -> mK
+            s_orbA = s_orbA * 1d3 ! K -> mK
+            s_orbB = s_orbB * 1d3 ! K -> mK
             s_solA = 0d0
             s_solB = 0d0
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)
@@ -633,15 +633,14 @@ contains
 
                end do
 
-               if (.true. .and. do_oper(bin_map) .and. self%scans(i)%chunk_num == 6878) then
+               if (.true. .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
                      open(78,file='chains_WMAP/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
-                     write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   res (mK)"// &
-                          & "    sig (mK)    s_sol_dip  (mK)   s_orb_dip (mK)"
+                     write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   sky (mK)"// &
+                          & " s_orb_dip (mK)  s_sol_dip  (mK)  mask  inv_gain"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
-                        !write(78,*) j, self%scans(i)%d(k)%tod*inv_gain, n_corr(j, k)*inv_gain, d_calib(1,j,k), d_calib(2,j,k),  s_sky(j,k), s_sol_tot(j,k), s_orb_tot(j,k)
                         write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), s_sky(j,k), s_orb_tot(j,k), s_sol_tot(j,k), mask(j, k), inv_gain
                      end do
                      close(78)
