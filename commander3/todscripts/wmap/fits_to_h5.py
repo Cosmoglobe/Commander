@@ -388,7 +388,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         # fillers
         f.create_dataset('/common/mbang', data=np.array([0,0,0,0]))
         f.create_dataset('/common/ntodsigma', data=100)
-        f.create_dataset('/common/polang', data=np.array([0,0,0,0])
+        f.create_dataset('/common/polang', data=np.array([0,0,0,0]))
     with open(prefix + f'data/filelist_{band}_v{version}.txt', 'a') as file_list: 
         file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
     return
