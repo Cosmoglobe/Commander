@@ -106,7 +106,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 5
+      constructor%output_n_maps = 2
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
 
@@ -133,7 +133,7 @@ contains
       allocate (constructor%x_im(constructor%ndet/2))
       constructor%x_im(:) = 0.0d0
       ! For K-band
-      constructor%x_im = [-0.00067, 0.00536]
+      ! constructor%x_im = [-0.00067, 0.00536]
       ! constructor%x_im = [-0.05, 0.05]
 
 
@@ -845,7 +845,8 @@ contains
       !call write_fits_file(trim(prefix)//'S'//trim(postfix), cg_tot(:,nmaps+1), outmaps)
 
       map_out%map = outmaps(1)%p%map
-      rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
+      ! Sometimes get a float invalid error here...
+      rms_out%map = M_diag(self%info%pix, 1:nmaps)!**-0.5
       call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
       do n = 2, self%output_n_maps
