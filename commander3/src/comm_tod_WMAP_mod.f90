@@ -612,11 +612,11 @@ contains
                   if (remove_solar_dipole) then
                      d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
                         & inv_gain - s_tot(:, j) + s_sky(:, j) - s_sol_tot(:, j)
-                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - (s_sky(:, j) - s_sol_tot(:, j)) - s_bp(:, j) ! Residual
+                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - (s_sky(:, j) - s_sol_tot(:, j))! - s_bp(:, j) ! Residual
                   else
                      d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-                        & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
-                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) + s_bp(:, j) ! Residual
+                        & inv_gain - s_tot(:, j) + s_sky(:, j)! - s_bp(:, j)
+                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j)! + s_bp(:, j) ! Residual
                   end if
 
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
