@@ -56,6 +56,7 @@ from tqdm import tqdm
 # version 26 is same as version 24, but does not recompute planet flags
 # version 27 is same as version 26, center = False
 # version 28 converts the velocity vector to Galactic coordinates
+# version 29 converts the velocity to meters, corrects format of mbang, polang.
 
 from time import sleep
 from time import time as timer
@@ -385,9 +386,9 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
         f.create_dataset('/common/datatype', data='WMAP')
         # fillers
-        f.create_dataset('/common/mbang', data=0)
+        f.create_dataset('/common/mbang', data=np.array([0,0,0,0]))
         f.create_dataset('/common/ntodsigma', data=100)
-        f.create_dataset('/common/polang', data=0)
+        f.create_dataset('/common/polang', data=np.array([0,0,0,0])
     with open(prefix + f'data/filelist_{band}_v{version}.txt', 'a') as file_list: 
         file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
     return
@@ -816,8 +817,8 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     
    
     # position (and velocity) in km(/s) in Sun-centered coordinates
-    pos = data[1].data['POSITION']
-    vel = data[1].data['VELOCITY']
+    pos = data[1].data['POSITION']*1e3
+    vel = data[1].data['VELOCITY']*1e3
 
 
     pos = coord_trans(pos, 'C', 'G', lonlat=False)
@@ -933,5 +934,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=25, center=True)
     #main(par=True, plot=False, compress=True, version=26, center=True)
     #main(par=True, plot=False, compress=True, version=27, center=False)
-    main(par=True, plot=False, compress=True, version=28, center=False)
+    #main(par=True, plot=False, compress=True, version=28, center=False)
+    main(par=True, plot=False, compress=True, version=29, center=False)
     #test_flags()
