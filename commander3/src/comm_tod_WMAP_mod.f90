@@ -660,9 +660,7 @@ contains
                if (.not. self%scans(i)%d(j)%accept) cycle
                masked_var = masked_variance(s_sky(:, j), mask(:, j))
                if (masked_var == 9999999999999) then
-                 self%scans(i)%d(j)%accept = .false.
                  dipole_mod(self%scanid(i), j) = 0
-                 !cycle
                else
                  dipole_mod(self%scanid(i), j) = masked_var
                end if
