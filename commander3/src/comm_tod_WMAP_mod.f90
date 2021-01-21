@@ -69,7 +69,6 @@ module comm_tod_WMAP_mod
       class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
-      logical(lgt) :: verbosity ! verbosity of output
    contains
       procedure     :: process_tod => process_WMAP_tod
    end type comm_WMAP_tod

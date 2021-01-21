@@ -134,6 +134,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:)   :: ind2ang
      character(len=128)                                :: tod_type
      integer(i4b)                                      :: nside_beam
+     logical(lgt)                                      :: verbosity ! verbosity of output
    contains
      procedure                        :: read_tod
      procedure                        :: read_tod_WMAP
