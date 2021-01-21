@@ -934,7 +934,7 @@ contains
           if (do_oper(samp_N) .and. (iter==1) .and. .false.) then
             do j = 1, ndet
                ! call tod2file(trim(dir_name)//'res_test_'//trim(it_text)//'.txt', tod_gapfill(:,j)-s_sky(:,j))
-               call jump_scan_test( &
+               call jump_scan_stage2( &
                   & n_corr(:,j),    &
                   & flag(:,j),      &
                   & jumps(:,j),     &

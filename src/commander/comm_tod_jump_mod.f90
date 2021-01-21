@@ -605,7 +605,7 @@ contains
   end subroutine jump_scan
 
 
-  subroutine jump_scan_test(tod, flag, jumps, offset_range, offset_level, handle, jumpflag_range, it_text, dir_name)
+  subroutine jump_scan_stage2(tod, flag, jumps, offset_range, offset_level, handle, jumpflag_range, it_text, dir_name)
    implicit none
    real(sp),     dimension(:),                   intent(in)    :: tod
    integer(i4b), dimension(:),                   intent(inout) :: flag
@@ -755,7 +755,7 @@ contains
    end if
 
 
- end subroutine jump_scan_test
+ end subroutine jump_scan_stage2
 
 
   subroutine expand_offset_list(offset_range,offset_level,s_jump)
