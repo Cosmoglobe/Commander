@@ -69,6 +69,7 @@ module comm_tod_WMAP_mod
       class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
+      logical(lgt) :: verbosity ! verbosity of output
    contains
       procedure     :: process_tod => process_WMAP_tod
    end type comm_WMAP_tod
@@ -109,6 +110,8 @@ contains
       constructor%output_n_maps = 4
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
+
+      constructor%verbosity = cpar%verbosity
 
 
       ! Iniitialize TOD labels
@@ -197,7 +200,7 @@ contains
       integer(i4b), allocatable, dimension(:, :)      :: flag
       real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
       real(dp), allocatable, dimension(:, :)          :: cg_tot
-      logical(lgt)       :: correct_sl
+      logical(lgt)       :: correct_sl, verbose
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
       character(len=4)   :: ctext, myid_text
@@ -214,7 +217,7 @@ contains
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
-      logical(lgt) :: write_cg_iter=.false., verbose=.false.
+      logical(lgt) :: write_cg_iter=.false.
 
 
       logical(lgt) :: remove_solar_dipole=.false.
@@ -434,11 +437,11 @@ contains
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
             !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
             !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            s_orbA = s_orbA * 1d6 ! K -> mK, also km/s instead of m/s
-            s_orbB = s_orbB * 1d6 ! K -> mK
+            !s_orbA = s_orbA * 1d6 ! K -> mK, also km/s instead of m/s
+            !s_orbB = s_orbB * 1d6 ! K -> mK
             ! switch to this when we get to version 29 files
-            !s_orbA = s_orbA * 1d3 ! K -> mK
-            !s_orbB = s_orbB * 1d3 ! K -> mK
+            s_orbA = s_orbA * 1d3 ! K -> mK
+            s_orbB = s_orbB * 1d3 ! K -> mK
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_solB)
             !call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_solA)
@@ -584,6 +587,7 @@ contains
             end if
 
             !! Compute chisquare
+            verbose = (self%verbosity > 2)
             if (do_oper(calc_chisq)) then
                call wall_time(t1)
                do j = 1, ndet
@@ -775,7 +779,7 @@ contains
             shat = s/M_diag
 
             delta_s = sum(s*shat)
-            if (self%myid_shared==0 .and. verbose) then 
+            if (self%myid_shared==0 .and. self%verbosity > 0) then 
                 write(*,101) 2*i-1, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
@@ -805,7 +809,7 @@ contains
             end if
 
             delta_r = sum(r**2/M_diag)
-            if (self%myid_shared==0 .and. verbose) then 
+            if (self%myid_shared==0 .and. self%verbosity > 0) then 
                 write(*,102) 2*i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
