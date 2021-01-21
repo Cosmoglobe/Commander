@@ -11,12 +11,13 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, initialize_tod_mod, fill_all_masked
+  public comm_tod, initialize_tod_mod, fill_all_masked, fill_masked_region
 
   type :: comm_detscan
      character(len=10) :: label                           ! Detector label
      real(dp)          :: gain, dgain, gain_sigma         ! Gain; assumed constant over scan
      real(dp)          :: sigma0, alpha, fknee            ! Noise parameters
+     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def  ! Default parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked

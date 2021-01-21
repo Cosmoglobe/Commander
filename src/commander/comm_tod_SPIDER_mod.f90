@@ -90,7 +90,7 @@ contains
     constructor%freq          = cpar%ds_label(id_abs)
     constructor%operation     = cpar%operation
     constructor%outdir        = cpar%outdir
-    constructor%first_call    = .false.  !.true.
+    constructor%first_call    = .true.
     constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     constructor%flag0         = cpar%ds_tod_flag(id_abs)
@@ -134,7 +134,8 @@ contains
 
 
     constructor%nmaps    = info%nmaps
-    constructor%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+   !  constructor%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",") ! Harald
+    constructor%ndet     = count_lines(cpar%ds_tod_dets(id_abs),datadir)
     constructor%nhorn    = 1
     allocate(constructor%stokes(constructor%nmaps))
     allocate(constructor%w(constructor%nmaps,constructor%nhorn,constructor%ndet))
@@ -143,7 +144,8 @@ contains
     allocate(constructor%horn_id(constructor%ndet))
     constructor%stokes = [1,2,3]
     constructor%w      = 1.d0
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+    !call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label) ! Harald
+    call get_det_labels(cpar%ds_tod_dets(id_abs),datadir,constructor%label)
     do i = 1, constructor%ndet
        if (mod(i,2) == 1) then
           constructor%partner(i) = i+1
@@ -335,6 +337,17 @@ contains
     class(comm_map), pointer :: condmap 
     class(map_ptr), allocatable, dimension(:) :: outmaps
 
+    real(sp),     allocatable, dimension(:,:)     :: tod_gapfill, s_jump
+    integer(i4b), allocatable, dimension(:,:)     :: jumps, offset_range
+    real(sp),     allocatable, dimension(:)       :: offset_level
+    character(len=100)                            :: dir_name, run_label
+    integer(i4b)                                  :: i_det
+    integer(i4b), allocatable, dimension(:,:)     :: jumpflag_range
+    real(dp)  :: time_start, time_end, time_tot, chisq_threshold_negative
+    character(len=2)                              :: it_text
+
+    call int2string(iter, it_text)
+
     if (iter > 1) self%first_call = .false.
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -346,9 +359,10 @@ contains
     ! Set up full-sky map structures
     call wall_time(t1)
     correct_sl      = .false.
-    chisq_threshold = 7.d0
+    chisq_threshold = 0.d0 !1E10 ! 0.d0 !100.d0 !7.d0
+    chisq_threshold_negative = -10.d0 !-1E10 !-10.d0 !50.d0
     n_main_iter     = 4
-    chisq_threshold = 9.d0  !3000.d0
+   !  chisq_threshold = 9.d0  !3000.d0
     !this ^ should be 7.d0, is currently 2000 to debug sidelobes
     ndet            = self%ndet
     ndelta          = size(delta,3)
@@ -442,8 +456,8 @@ contains
        if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
           
        ! Select operations for current iteration
-       do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
+       do_oper(samp_acal)    = .false. !(main_iter == n_main_iter-3) .and. .not. self%first_call
+       do_oper(samp_rcal)    = .false. !(main_iter == n_main_iter-2) .and. .not. self%first_call
        do_oper(samp_G)       = .false. !(main_iter == n_main_iter-1) .and. .not. self%first_call
        do_oper(samp_N)       = (main_iter >= n_main_iter-0)
        do_oper(samp_N_par)   = do_oper(samp_N)
@@ -452,7 +466,7 @@ contains
        do_oper(samp_bp)      = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call
        do_oper(samp_mono)    = .false.  !do_oper(bin_map)             !.and. .not. self%first_call
        do_oper(bin_map)      = (main_iter == n_main_iter  )
-       do_oper(sel_data)     = (main_iter == n_main_iter  ) .and.       self%first_call
+       do_oper(sel_data)     = (main_iter == n_main_iter  ) .and. (iter==4) !(iter==2)
        do_oper(calc_chisq)   = (main_iter == n_main_iter  ) 
        do_oper(sub_sl)       = correct_sl
        do_oper(sub_zodi)     = self%subtract_zodi
@@ -546,6 +560,11 @@ contains
           allocate(pix(ntod, ndet))                    ! Decompressed pointing
           allocate(psi(ntod, ndet))                    ! Decompressed pol angle
           allocate(flag(ntod, ndet))                   ! Decompressed flags
+
+          ! Harald's stuff
+          allocate(tod_gapfill(ntod,ndet))
+          allocate(s_jump(ntod,ndet))
+          allocate(jumps(ntod,ndet))
           
           ! Initializing arrays to zero
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
@@ -561,11 +580,10 @@ contains
              call self%decompress_pointing_and_flags(i, j, pix(:,j), &
                   & psi(:,j), flag(:,j))
           end do
-          call self%symmetrize_flags(flag)
+         !  call self%symmetrize_flags(flag)
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
           !call update_status(status, "tod_decomp")
-          
           ! Construct sky signal template
           call wall_time(t1)
           if (do_oper(bin_map) .or. do_oper(prep_relbp)) then 
@@ -599,6 +617,187 @@ contains
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
           
+
+
+
+
+
+
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          ! Harald
+          dir_name = 'chains10_all/'
+          run_label = 'cut'
+          do j=1, ndet
+            call wall_time(time_start)
+            if ((sum(flag(:,j)) > 0.8*ntod) .or. (.not. self%scans(i)%d(j)%accept)) then
+               self%scans(i)%d(j)%accept = .false.
+               cycle
+            end if
+            
+            ! Retrieve offsets from previous run, if they exist
+            if (allocated(self%scans(i)%d(j)%offset_range)) then
+               call expand_offset_list(              &
+                  & self%scans(i)%d(j)%offset_range, &
+                  & self%scans(i)%d(j)%offset_level, &
+                  & s_jump(:,j))
+            else
+               s_jump(:,j) = 0
+            end if
+
+            ! Retrieve jump flags from previous run, if they exist
+            if (allocated(self%scans(i)%d(j)%jumpflag_range)) then
+               call add_jumpflags(                      &
+                  & self%scans(i)%d(j)%jumpflag_range,  &
+                  & flag(:,j))
+            end if
+
+            ! Scanning for jumps
+            if (main_iter==1) then
+               call jump_scan(                                         &
+                  & self%scans(i)%d(j)%tod - s_sky(:,j) - s_jump(:,j), &
+                  & flag(:,j),                                         & 
+                  & jumps(:,j),                                        &
+                  & offset_range,                                      &
+                  & offset_level,                                      &
+                  & handle,                                            &
+                  & jumpflag_range)
+
+               ! Add offsets to persistent list
+               if (.not. allocated(self%scans(i)%d(j)%offset_range)) then
+                  allocate(self%scans(i)%d(j)%offset_range(size(offset_level),2))
+                  allocate(self%scans(i)%d(j)%offset_level(size(offset_level)))
+               
+                  self%scans(i)%d(j)%offset_range = offset_range
+                  self%scans(i)%d(j)%offset_level = offset_level
+               else
+                  call update_offset_list(              &
+                     & offset_range,                    &
+                     & offset_level,                    &
+                     & self%scans(i)%d(j)%offset_range, &
+                     & self%scans(i)%d(j)%offset_level)
+               end if
+
+               ! Add jump flags to persistent list
+               if (allocated(jumpflag_range)) then
+                  if (.not. allocated(self%scans(i)%d(j)%jumpflag_range)) then
+                     allocate(self%scans(i)%d(j)%jumpflag_range(size(jumpflag_range)/2,2))
+                     self%scans(i)%d(j)%jumpflag_range = jumpflag_range
+                  else
+                     call update_jumpflag(jumpflag_range, self%scans(i)%d(j)%jumpflag_range)
+                  end if
+               end if
+            
+               call expand_offset_list(               &
+                  & self%scans(i)%d(j)%offset_range,  &
+                  & self%scans(i)%d(j)%offset_level,  & 
+                  & s_jump(:,j))
+            end if
+
+
+               
+            call gap_fill_linear(                      &
+               & self%scans(i)%d(j)%tod - s_jump(:,j), &
+               & flag(:,j),                            &
+               & tod_gapfill(:,j),                     &
+               & handle,                               &
+               & .true.)
+
+
+            ! call wall_time(time_end)
+            ! time_tot = time_end - time_start
+            ! write(*,*) "time", time_tot
+
+            ! Output tods
+            ! if (main_iter==n_main_iter) then
+            if (.false.) then
+               call tod2file(                                                           &
+                  & trim(dir_name)//'raw_tod_'//trim(self%scans(i)%d(j)%label)//'_'//trim(run_label)//'_'//trim(it_text)//'.txt', &
+                  & self%scans(i)%d(j)%tod)
+                  
+               call tod2file(                                                          &
+                  & trim(dir_name)//'s_jump_'//trim(self%scans(i)%d(j)%label)//'_'//trim(run_label)//'_'//trim(it_text)//'.txt', &
+                  & s_jump(:,j))
+
+               call tod2file(                                                               &
+                  & trim(dir_name)//'tod_gapfill_'//trim(self%scans(i)%d(j)%label)//'_'//trim(run_label)//'_'//trim(it_text)//'.txt', &
+                  & tod_gapfill(:,j))
+ 
+               call tod2file(                                                             &
+                  & trim(dir_name)//'jump_flag_'//trim(self%scans(i)%d(j)%label)//'_'//trim(run_label)//'_'//trim(it_text)//'.txt', &
+                  & jumps(:,j))
+
+               call tod2file(                                                        &
+                  & trim(dir_name)//'flag_'//trim(self%scans(i)%d(j)%label)//'_'//trim(run_label)//'_'//trim(it_text)//'.txt', &
+                  & flag(:,j))  
+
+               call tod2file(                                                         &
+                  & trim(dir_name)//'s_sky_'//trim(self%scans(i)%d(j)%label)//'_'//trim(run_label)//'_'//trim(it_text)//'.txt', &
+                  & s_sky(:,j))
+
+               call tod2file(                                                         &
+                  & trim(dir_name)//'jumps_'//trim(self%scans(i)%d(j)%label)//'_'//trim(run_label)//'_'//trim(it_text)//'.txt', &
+                  & jumps(:,j))
+            end if
+
+            if (allocated(jumpflag_range)) deallocate(jumpflag_range)
+            if (allocated(offset_level))   deallocate(offset_level)
+            if (allocated(offset_range))   deallocate(offset_range)
+            !if (main_iter==n_main_iter) then
+            !   deallocate(self%scans(i)%d(j)%offset_range)
+            !   deallocate(self%scans(i)%d(j)%offset_level)
+            !   if (allocated(self%scans(i)%d(j)%jumpflag_range)) deallocate(self%scans(i)%d(j)%jumpflag_range)
+            !end if
+          end do
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           ! Construct orbital dipole template
           call wall_time(t1)
           call compute_orbital_dipole(self, i, pix, psi, s_orb)
@@ -705,39 +904,134 @@ contains
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
+
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Harald
+          if (self%first_call) then
+            do j = 1, ndet
+               self%scans(i)%d(j)%sigma0 = 0.0018
+            end do
+          end if
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          
           ! Fit correlated noise
           if (do_oper(samp_N)) then
-             call wall_time(t1)
-             do j = 1, ndet
-                if (.not. self%scans(i)%d(j)%accept) cycle
-                if (do_oper(samp_mono)) then
-                   s_buf(:,j) = s_tot(:,j)-s_mono(:,j)
-                else
-                   s_buf(:,j) = s_tot(:,j)
-                end if
-             end do
-             call sample_n_corr(self, handle, i, mask, s_buf, n_corr)
-             call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
+            call wall_time(t1)
+            do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               if (do_oper(samp_mono)) then
+                  s_buf(:,j) = s_tot(:,j)-s_mono(:,j)
+               else
+                  s_buf(:,j) = s_tot(:,j)
+               end if
+            end do
+            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, tod_gapfill, iter, dir_name, run_label)
+            call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
-             n_corr = 0.
+            n_corr = 0.
           end if
-             
-          ! Compute noise spectrum
-          if (do_oper(samp_N_par)) then
-             call wall_time(t1)
-             call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
-             call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
-          end if
-          
-          ! Compute chisquare
-          if (do_oper(calc_chisq)) then
-             call wall_time(t1)
-             do j = 1, ndet
-                if (.not. self%scans(i)%d(j)%accept) cycle
-                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) 
+
+          ! Use n_corr to find jumps (Harald)
+          if (do_oper(samp_N) .and. (iter==1) .and. .false.) then
+            do j = 1, ndet
+               ! call tod2file(trim(dir_name)//'res_test_'//trim(it_text)//'.txt', tod_gapfill(:,j)-s_sky(:,j))
+               call jump_scan_test( &
+                  & n_corr(:,j),    &
+                  & flag(:,j),      &
+                  & jumps(:,j),     &
+                  & offset_range,   &
+                  & offset_level,   & 
+                  & handle,         & 
+                  & jumpflag_range, &
+                  & it_text,        &
+                  & dir_name)
+
+               call expand_offset_list( &
+                  & offset_range,       &
+                  & offset_level,       &
+                  & s_jump(:,j))
+
+               ! call tod2file(trim(dir_name)//'s_jump_test_'//trim(it_text)//'.txt', s_jump(:,j))
+               ! call tod2file(trim(dir_name)//'flag_after_test_'//trim(it_text)//'.txt', flag(:,j))
+
+               ! Add offsets to persistent list
+               if (.not. allocated(self%scans(i)%d(j)%offset_range)) then
+                  allocate(self%scans(i)%d(j)%offset_range(size(offset_level),2))
+                  allocate(self%scans(i)%d(j)%offset_level(size(offset_level)))
+               
+                  self%scans(i)%d(j)%offset_range = offset_range
+                  self%scans(i)%d(j)%offset_level = offset_level
+               else
+                  call update_offset_list(              &
+                     & offset_range,                    &
+                     & offset_level,                    &
+                     & self%scans(i)%d(j)%offset_range, &
+                     & self%scans(i)%d(j)%offset_level)
+               end if
+
+               call expand_offset_list(              &
+                  & self%scans(i)%d(j)%offset_range, &
+                  & self%scans(i)%d(j)%offset_level, &
+                  & s_jump(:,j))
+
+               ! Add jump flags to persistent list
+               if (allocated(jumpflag_range)) then
+                  if (.not. allocated(self%scans(i)%d(j)%jumpflag_range)) then
+                     allocate(self%scans(i)%d(j)%jumpflag_range(size(jumpflag_range)/2,2))
+                     self%scans(i)%d(j)%jumpflag_range = jumpflag_range
+                  else
+                     call update_jumpflag( &
+                        & jumpflag_range,  &
+                        & self%scans(i)%d(j)%jumpflag_range)
+                  end if
+               end if
+
+               
+               if (allocated(jumpflag_range)) deallocate(jumpflag_range)
+               if (allocated(offset_level))   deallocate(offset_level)
+               if (allocated(offset_range))   deallocate(offset_range)
+               
+            end do
+
+
+
+         end if
+         
+         
+         ! Compute noise spectrum
+         if (do_oper(samp_N_par)) then
+            call wall_time(t1)
+            call sample_noise_psd_new(self, handle, i, mask, s_tot, n_corr, tod_gapfill, iter, dir_name, run_label)
+            call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
+         end if
+
+
+         
+         ! Harald
+         ! if (main_iter==n_main_iter) then
+         if (.false.) then
+            do j=1, ndet
+               call tod2file(                                                          &
+                  & trim(dir_name)//'n_corr_'//trim(self%scans(i)%d(j)%label)//'_'//trim(run_label)//'_'//trim(it_text)//'.txt', &
+                  & n_corr(:,j))
+            end do
+         end if
+
+         ! Compute chisquare
+         if (do_oper(calc_chisq)) then
+            call wall_time(t1)
+            do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) 
                 if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
-                call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
-                     & s_buf(:,j), n_corr(:,j))      
+                call self%compute_chisq(i, j, 1.0-flag(:,j), s_sky(:,j), &
+                     & s_buf(:,j), n_corr(:,j), s_jump(:,j))
+
+                call write2file(trim(chaindir)//'/chisq_'//trim(run_label)//'.txt',  iter, self%scans(i)%d(j)%chisq) 
+               !  call write2file(trim(dir_name)//'sigma0_'//trim(run_label)//'.txt', iter, self%scans(i)%d(j)%sigma0) 
+               !  call write2file(trim(dir_name)//'fknee_'//trim(run_label)//'.txt',  iter, self%scans(i)%d(j)%fknee) 
+               !  call write2file(trim(dir_name)//'alpha_'//trim(run_label)//'.txt',  iter, self%scans(i)%d(j)%alpha) 
+
+                
              end do
              call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
           end if
@@ -748,25 +1042,29 @@ contains
              do j = 1, ndet
                 ntot= ntot + 1
                 if (.not. self%scans(i)%d(j)%accept) cycle
-                if (count(iand(flag(:,j),self%flag0) .ne. 0) > 0.1*ntod) then
+               !  if (count(iand(flag(:,j),self%flag0) .ne. 0) > 0.1*ntod) then  ! Harald
+                if (sum(flag(:,j)) > 0.8*ntod) then
                    self%scans(i)%d(j)%accept = .false.
-                else if (abs(self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
-                & isNaN(self%scans(i)%d(j)%chisq)) then
+                else if ((self%scans(i)%d(j)%chisq) > chisq_threshold .or. &
+                & isNaN(self%scans(i)%d(j)%chisq) .or. (self%scans(i)%d(j)%chisq) < chisq_threshold_negative) then
                    write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
                         & self%scanid(i), j, ', chisq = ', &
                         & self%scans(i)%d(j)%chisq
                    self%scans(i)%d(j)%accept = .false.
                    cycle
-                else
-                   naccept = naccept + 1
+                !else
+                   !write(*,fmt='(a,i8,i5,a,f12.1)') 'Accept scan, det = ', &
+                   !   & self%scanid(i), j, ', chisq = ', &
+                   !   & self%scans(i)%d(j)%chisq
+                   !naccept = naccept + 1
                 end if
              end do
-             if (any(.not. self%scans(i)%d%accept)) self%scans(i)%d%accept = .false.
-             do j = 1, ndet
-                if (.not. self%scans(i)%d(j)%accept) then
-                   self%scans(i)%d(self%partner(j))%accept = .false.
-                end if
-             end do
+            !  if (any(.not. self%scans(i)%d%accept)) self%scans(i)%d%accept = .false. ! Harald
+            !  do j = 1, ndet
+            !     if (.not. self%scans(i)%d(j)%accept) then
+            !        self%scans(i)%d(self%partner(j))%accept = .false.
+            !     end if
+            !  end do
              call wall_time(t2); t_tot(15) = t_tot(15) + t2-t1
           end if
 
@@ -797,7 +1095,7 @@ contains
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 inv_gain = 1.0 / real(self%scans(i)%d(j)%gain,sp)
-                d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j)) * &
+                d_calib(1,:,j) = (self%scans(i)%d(j)%tod - n_corr(:,j) - s_jump(:,j)) * &
                      & inv_gain - s_tot(:,j) + s_sky(:,j) - s_bp(:,j)
                 if (do_oper(bin_map) .and. nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - s_sky(:,j) + s_bp(:,j) ! Residual
                 if (do_oper(bin_map) .and. nout > 2) d_calib(3,:,j) = (n_corr(:,j) - sum(n_corr(:,j)/ntod)) * inv_gain
@@ -812,6 +1110,8 @@ contains
                 end if
              end do
             
+
+             
              if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
@@ -855,14 +1155,16 @@ contains
           end if
 
           do j = 1, ndet
-             dipole_mod(self%scanid(i), j) = dipole_modulation(self, s_sky(:, j), mask(:, j))
+             if (self%scans(i)%d(j)%accept==.true.) dipole_mod(self%scanid(i), j) = dipole_modulation(self, s_sky(:, j), mask(:, j)) ! Harald
           end do
+
 
           ! Clean up
           call wall_time(t1)
           deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_buf)
           deallocate(s_bp, s_sky_prop, s_bp_prop)
           deallocate(mask, mask2, pix, psi, flag)
+          deallocate(tod_gapfill, s_jump, jumps)
           if (allocated(s_lowres)) deallocate(s_lowres)
           if (allocated(s_invN)) deallocate(s_invN)
           if (do_oper(sub_zodi)) deallocate(s_zodi)
@@ -1018,7 +1320,10 @@ contains
 
     end if
 
-    if (self%first_call) then
+
+
+   !  if (self%first_call) then ! Harald
+     if (do_oper(sel_data)) then 
        call mpi_reduce(ntot,    i, 1, MPI_INTEGER, MPI_SUM, &
             & self%numprocs/2, self%info%comm, ierr)
        ntot = i
@@ -1049,12 +1354,16 @@ contains
        write(*,*) '  Time bin        = ', t_tot(8)
        write(*,*) '  Time scanlist   = ', t_tot(20)
        write(*,*) '  Time final      = ', t_tot(10)
-       if (self%first_call) then
+      !  if (self%first_call) then ! Harald
+       if (do_oper(sel_data)) then
           write(*,*) '  Time total      = ', t6-t5, &
-               & ', accept rate = ', real(naccept,sp) / ntot
+               & ', accept rate = ', real(naccept,sp) / ntot 
+          write(*,*) 'naccept', naccept
+          write(*,*) 'real(naccept,sp)', real(naccept,sp)
+          write(*,*) 'ntot', ntot
        else
           write(*,*) '  Time total      = ', t6-t5, sum(t_tot(1:18))
-       end if
+       end if      
     end if
 
 
@@ -1092,6 +1401,96 @@ contains
     self%first_call = .false.
 
   end subroutine process_SPIDER_tod
+
+
+  integer(i4b) function count_lines(filename,datadir)
+   implicit none
+   character(len=*), intent(in) :: filename, datadir
+
+   character(len=500)           :: detlist_file
+   integer(i4b)                 :: unit,io_error,counter
+   logical                      :: counting
+   character(len=8)             :: line
+
+   unit = 20
+   detlist_file = trim(datadir)//trim(filename)
+
+   open(unit,file=trim(detlist_file),status='old',action='read',iostat=io_error)
+   if (io_error == 0) then
+      ! Do nothing
+   else
+      stop 'Could not open file.'
+   end if
+
+   counting = .true.
+   counter = 0
+   do while(counting)
+      read(unit,'(a)',end=1) line
+      if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+         cycle
+      else
+         counter = counter + 1
+      end if
+   end do
+1  close(unit)
+
+   count_lines = counter
+  end function count_lines
+
+  subroutine get_det_labels(filename,datadir,labels)
+   implicit none
+   character(len=*), intent(in)    :: filename, datadir
+   character(len=*), intent(inout) :: labels(:)
+
+   character(len=500)           :: detlist_file
+   integer(i4b)                 :: unit,io_error,counter, ndet, i
+   character(len=8)             :: line
+
+   ndet = size(labels)
+   unit = 20
+   detlist_file = trim(datadir)//trim(filename)
+
+   open(unit,file=trim(detlist_file),status='old',action='read',iostat=io_error)
+   if (io_error == 0) then
+      ! Do nothing
+   else
+      stop 'Could not open file.'
+   end if
+
+   do i=1, ndet
+      read(unit,'(a)') line
+      if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+         cycle
+      else
+         labels(i) = line
+      end if
+   end do
+end subroutine get_det_labels
+
+
+subroutine write2file(filename, iter, param)
+   implicit none
+
+   character(len=*), intent(in)         :: filename
+   real(dp), intent(in)                 :: param
+   integer(i4b), intent(in)             :: iter
+
+   integer(i4b)                           :: unit, io_error
+   logical                                :: existing
+
+   unit = 22
+
+   inquire(file=trim(filename),exist=existing)
+   if (existing) then
+      open(unit,file=trim(filename),status='old',position='append',action='write',iostat=io_error)
+   else
+      open(unit,file=trim(filename),status='replace',action='write',iostat=io_error)
+   end if
+
+   write(unit,*), iter, param
+
+   close(unit)
+ end subroutine write2file
 
 
 

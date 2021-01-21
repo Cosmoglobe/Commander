@@ -320,7 +320,7 @@ contains
     character(len=*), intent(out) :: val
     integer(i4b),     intent(out) :: n
 
-    integer(i4b), parameter :: mlen=10000
+    integer(i4b), parameter :: mlen=100000
     integer(hid_t)  :: filetype, space
     INTEGER(SIZE_T) :: size
     !integer(size_t), dimension(1)  :: len
