@@ -424,7 +424,7 @@ contains
                do j = 1, ndet
                   !self%scans(i)%d(j)%accept = .true.
                   if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
-                  if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
+                  if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(:)%accept = .false.
                end do
             end if
 
@@ -436,6 +436,7 @@ contains
             !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
             s_orbA = s_orbA * 1d6 ! K -> mK, also km/s instead of m/s
             s_orbB = s_orbB * 1d6 ! K -> mK
+            ! switch to this when we get to version 29 files
             !s_orbA = s_orbA * 1d3 ! K -> mK
             !s_orbB = s_orbB * 1d3 ! K -> mK
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)

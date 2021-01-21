@@ -216,11 +216,7 @@ contains
                if (flag(t, 1) .ne. 0) cycle
                var = 0
                do k = 1, 4
-                 if (tod%scans(j)%d(k)%sigma0 == 0) then
-                     var = var + 1d6
-                 else
-                     var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2
-                 end if
+                  var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2
                end do
                inv_sigmasq = 1/var
                lpix = pix(t, 1, 1)
@@ -283,7 +279,7 @@ contains
       real(dp), dimension(0:, 1:, 1:), intent(inout), optional  :: b_mono
 
       integer(i4b) :: det, i, t, nout
-      real(dp)     :: inv_sigmasq, x_im, d, p, sigma_0
+      real(dp)     :: inv_sigmasq, x_im, d, p
 
       integer(i4b) :: lpix, rpix, lpsi, rpsi, sgn
 
@@ -293,8 +289,7 @@ contains
 
       do det = 1, tod%ndet
          if (.not. tod%scans(scan)%d(det)%accept) cycle
-         sigma_0 = tod%scans(scan)%d(det)%sigma0
-         inv_sigmasq = (tod%scans(scan)%d(det)%gain/sigma_0)**2
+         inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
          x_im = x_imarr((det+1)/2)
          do t = 1, tod%scans(scan)%ntod
             !if (iand(flag(t, det), tod%flag0) .ne. 0) then
@@ -361,7 +356,7 @@ contains
 
       integer(i4b)              :: i, j, k, ntod, ndet, lpix, rpix, lpsi, rpsi
       integer(i4b)              :: nhorn, t, sgn, pA, pB, f_A, f_B
-      real(dp)                  :: inv_sigmasq, dA, dB, d, x_im, sigma_0
+      real(dp)                  :: inv_sigmasq, dA, dB, d, x_im
       nhorn = tod%nhorn
       ndet = tod%ndet
       do j = 1, tod%nscan
@@ -378,11 +373,7 @@ contains
                !if (iand(flag(t, k), tod%flag0) .ne. 0) cycle
                if (flag(t, k) .ne. 0) cycle
                ! sigma0 is in units of du, so need to convert back to mK
-               sigma_0 = tod%scans(j)%d(k)%sigma0
-               if (sigma_0 == 0) then
-                   sigma_0 = 1d6
-               end if
-               inv_sigmasq = (tod%scans(j)%d(k)%gain/sigma_0)**2
+               inv_sigmasq = (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
                lpix = pix(t, k, 1)
                rpix = pix(t, k, 2)
                lpsi = psi(t, k, 1)
