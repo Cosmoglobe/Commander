@@ -442,10 +442,15 @@ contains
     implicit none
     type(hdf_file) :: file
     character(len=*), intent(in) :: setname
+    integer(hsize_t), allocatable, dimension(:) :: i
+    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
     {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
+    allocate(ext_hdf(size(shape(val))))
+    ext_hdf =  int(shape(val), hsize_t)
     call create_hdf_set(file, setname, shape(val), {{t[3]}})
-    call h5dwrite_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
+    call h5dwrite_f(file%sethandle, {{t[4]}}, val, ext_hdf, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+    deallocate(ext_hdf)
   end subroutine
 
   {{endfor}}
@@ -509,10 +514,13 @@ contains
     integer(i4b),     dimension(:),   intent(in) :: ext
     integer(hid_t)                               :: type_id
     integer(hid_t) :: space
+    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
     if (trim(file%setname) /= trim(setname)) call close_hdf_set(file)
     !write(*,*) trim(file%setname), trim(setname)
     file%setname = setname
-    call h5screate_simple_f(size(ext), int(ext,hsize_t), space, file%status)
+    allocate(ext_hdf(size(shape(ext))))
+    ext_hdf =  int(ext, hsize_t)
+    call h5screate_simple_f(size(ext), ext_hdf, space, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot create data space, "//trim(file%filename)//', '//trim(setname))
     !write(*,*) trim(file%setname), type_id, space, file%sethandle, file%status, ext
     call h5dcreate_f(file%filehandle, file%setname, type_id, space, file%sethandle, file%status)
@@ -521,6 +529,7 @@ contains
     call assert(file%status>=0, "comm_hdf_mod: Cannot create data set "//trim(file%filename)//', '//trim(setname))
     call h5sclose_f(space, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot close data space")
+    deallocate(ext_hdf)
   end subroutine create_hdf_set
 
   ! Group creation. Once created, they can be used by specifying "group/dset" instead
