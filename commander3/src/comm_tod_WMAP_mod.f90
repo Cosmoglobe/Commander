@@ -242,7 +242,7 @@ contains
 
       ! Set up full-sky map structures
       call wall_time(t1)
-      correct_sl = .true.
+      correct_sl = .false.
       chisq_threshold = 6d0
       n_main_iter     = 4
       ndet = self%ndet
@@ -430,16 +430,14 @@ contains
 
             ! Construct orbital dipole template
             call wall_time(t1)
-            s_orbA = 0d0
-            s_orbB = 0d0
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA)
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
             !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
             !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            s_orbA = s_orbA * 1d3 ! K -> mK
-            s_orbB = s_orbB * 1d3 ! K -> mK
-            s_solA = 0d0
-            s_solB = 0d0
+            s_orbA = s_orbA * 1d6 ! K -> mK, also km/s instead of m/s
+            s_orbB = s_orbB * 1d6 ! K -> mK
+            !s_orbA = s_orbA * 1d3 ! K -> mK
+            !s_orbB = s_orbB * 1d3 ! K -> mK
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_solB)
             !call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_solA)
@@ -636,7 +634,7 @@ contains
                if (.true. .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
-                     open(78,file='chains_WMAP/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
+                     open(78,file=trim(chaindir)//'tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   sky (mK)"// &
                           & " s_orb_dip (mK)  s_sol_dip  (mK)  mask  inv_gain"
                      do j = 1, ntod
