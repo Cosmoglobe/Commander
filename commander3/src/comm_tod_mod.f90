@@ -549,7 +549,7 @@ contains
 
 
     ! Read common fields
-    allocate(self%mono(self%ndet), self%gain0(0:self%ndet))
+    allocate(self%mono(self%ndet), self%gain0(0:self%ndet), self%polang(self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
@@ -1037,7 +1037,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'fknee',  output(:,:,4))
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,5))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
-       !call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
+       call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
