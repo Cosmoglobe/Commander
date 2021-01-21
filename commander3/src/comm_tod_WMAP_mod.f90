@@ -527,6 +527,12 @@ contains
                call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
             end if
 
+            !if (self%myid_shared == 0) then
+            !  write(*,*) 'Before abscal prep'
+            !  write(*,*) self%gain0(0)
+            !  write(*,*) sum(abs(self%scans(i)%d(:)%dgain))
+            !  write(*,*) minval(s_tot), maxval(s_tot)
+            !end if
             ! Prepare for absolute calibration
             if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
                call update_status(status, "Prepping for absolute calibration")
@@ -547,6 +553,12 @@ contains
                call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
 
             end if
+            !if (self%myid_shared == 0) then
+            !  write(*,*) 'After abscal prep'
+            !  write(*,*) self%gain0(0)
+            !  write(*,*) sum(abs(self%scans(i)%d(:)%dgain))
+            !  write(*,*) minval(s_tot), maxval(s_tot)
+            !end if
 
             ! Fit gain
             if (do_oper(samp_G)) then

@@ -134,7 +134,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:)   :: ind2ang
      character(len=128)                                :: tod_type
      integer(i4b)                                      :: nside_beam
-     logical(lgt)                                      :: verbosity ! verbosity of output
+     integer(i4b)                                      :: verbosity ! verbosity of output
    contains
      procedure                        :: read_tod
      procedure                        :: read_tod_WMAP
@@ -1448,9 +1448,11 @@ contains
     if (present(verbose)) then
       if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
          & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
-    !if(self%scans(scan)%d(det)%chisq > 2000.d0 .or. isNaN(self%scans(scan)%d(det)%chisq)) then
-      !write(*,*) "chisq", scan, det, sum(mask), sum(s_sky), sum(s_sl), sum(s_orb), sum(n_corr)
-    !end if
+    end if
+    if (abs(self%scans(scan)%d(det)%chisq) > 2000.d0 .or. &
+      & isNaN(self%scans(scan)%d(det)%chisq)) then
+        write(*,*) "chisq", scan, det, sum(mask), sum(s_sky),  &
+                 &        sum(n_corr)
     end if
 
   end subroutine compute_chisq
