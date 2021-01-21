@@ -422,9 +422,9 @@ contains
 
             if (main_iter == 1 .and. self%first_call) then
                do j = 1, ndet
-                  self%scans(i)%d(j)%accept = .true.
-                  !if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
-                  !if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
+                  !self%scans(i)%d(j)%accept = .true.
+                  if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
+                  if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
                end do
             end if
 
