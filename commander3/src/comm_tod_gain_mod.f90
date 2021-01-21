@@ -395,7 +395,7 @@ contains
          mu = mu / denom
 
          ! Make sure fluctuations sum up to zero
-         if (tod%verbosity > 2) then
+         if (tod%verbosity > 1) then
            write(*,*) 'mu = ', mu
          end if
          g(:,j,1) = g(:,j,1) - mu
@@ -558,7 +558,7 @@ contains
           ! Add fluctuation term if requested
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
-       if (tod%verbosity > 2) then
+       if (tod%verbosity > 1) then
          write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A), tod%myid_inter
        end if
     end if
@@ -611,7 +611,7 @@ contains
        coeff_matrix(tod%ndet+1, tod%ndet+1) = 0.d0
        rhs(tod%ndet+1) = 0.d0
        call solve_system_real(coeff_matrix, x, rhs)
-       if (tod%verbosity > 2) then
+       if (tod%verbosity > 1) then
          write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
@@ -890,5 +890,89 @@ contains
       end do
 
   end subroutine get_smoothing_windows
+
+
+   subroutine accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
+    implicit none
+    class(comm_tod),                   intent(in)     :: tod
+    integer(i4b),                      intent(in)     :: scan
+    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
+    real(sp),          dimension(:,:), intent(in)     :: s_invN
+    real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
+    type(planck_rng),                  intent(inout)  :: handle
+
+    real(sp), allocatable, dimension(:,:)     :: residual
+    real(sp), allocatable, dimension(:)       :: r_fill
+    real(dp)     :: A, b
+    integer(i4b) :: i, j, ext(2), ndet, ntod
+    character(len=5) :: itext
+
+    !ndet = tod%ndet
+    !ntod = size(s_sub,1)
+    !call tod%downsample_tod(s_sub(:,1), ext)    
+    !allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
+    !do j = 1, ndet
+    !   if (.not. tod%scans(scan)%d(j)%accept) then
+    !      residual(:,j) = 0.
+    !      cycle
+    !   end if
+    !   r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j)
+    !   call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
+    !   call tod%downsample_tod(r_fill, ext, residual(:,j))
+    !end do
+
+    !call multiply_inv_N(tod, scan, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+
+    !do j = 1, ndet
+    !   if (.not. tod%scans(scan)%d(j)%accept) cycle
+    !   A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
+    !   b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+    !end do
+
+    !deallocate(residual, r_fill)
+
+  end subroutine accumulate_imbal_cal
+
+  ! Sample absolute gain from orbital dipole alone 
+  subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
+    implicit none
+    class(comm_tod),                   intent(inout)  :: tod
+    type(planck_rng),                  intent(inout)  :: handle
+    real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
+
+    integer(i4b) :: i, j, ierr
+    real(dp), allocatable, dimension(:) :: A, b
+
+    ! Collect contributions from all cores
+    !allocate(A(tod%ndet), b(tod%ndet))
+    call mpi_reduce(A_abs, A, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & tod%info%comm, ierr)
+    call mpi_reduce(b_abs, b, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & tod%info%comm, ierr)
+
+    ! Compute gain update and distribute to all cores
+    ! if (tod%myid == 0) then
+    !    tod%gain0(0) = sum(b)/sum(A)
+    !    if (trim(tod%operation) == 'sample') then
+    !       ! Add fluctuation term if requested
+    !       tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
+    !    end if
+    !    if (tod%verbosity > 1) then
+    !      write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A), tod%myid_inter
+    !    end if
+    ! end if
+    ! call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
+    !      & tod%info%comm, ierr)
+
+    ! do j = 1, tod%nscan
+    !    do i = 1, tod%ndet
+    !       tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain 
+    !    end do
+    ! end do
+
+
+    !deallocate(A, b)
+
+  end subroutine sample_imbal_cal
 
 end module comm_tod_gain_mod

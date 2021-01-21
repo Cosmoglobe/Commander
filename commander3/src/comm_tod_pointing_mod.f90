@@ -148,7 +148,8 @@ contains
             end if
             
            
-            if (flag(j, i) .le. 1) then
+            if (flag(j, i) == 0 .or. flag(j,i) == 1) then
+            !if (flag(j, i) == 0) then
                 tmask(j, i) = pmask(pix(j, i, 1))*pmask(pix(j,i,2))
             else
                 tmask(j, i) = 0
