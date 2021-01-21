@@ -176,7 +176,10 @@ contains
 
 
     do i = 1,self%tod%ndet
-       if (.not. self%tod%scans(ind)%d(i)%accept) cycle
+       if (.not. self%tod%scans(ind)%d(i)%accept) then
+         s_orb(:,i) = 0
+         cycle
+       end if
        do j=1,self%tod%scans(ind)%ntod !length of the tod
           b_dot = dot_product(self%tod%scans(ind)%v_sun, self%tod%pix2vec(:,pix(j,i)))/c
           !s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%tod%mb_eff(i) !only dipole,
@@ -190,12 +193,12 @@ contains
 
   end subroutine compute_orbital_dipole_pencil
 
-  subroutine compute_solar_dipole_pencil(self, ind, pix, psi, s_orb)
+  subroutine compute_solar_dipole_pencil(self, ind, pix, psi, s_sol)
     implicit none
     class(comm_orbdipole),               intent(in)  :: self
     integer(i4b),                        intent(in)  :: ind !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
-    real(sp),            dimension(:,:), intent(out) :: s_orb
+    real(sp),            dimension(:,:), intent(out) :: s_sol
     real(dp) :: b, x, q, b_dot, phi, theta
     real(dp), dimension(3) :: vnorm
     integer(i4b) :: i, j
@@ -205,10 +208,13 @@ contains
     vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
 
     do i = 1,self%tod%ndet
-       if (.not. self%tod%scans(ind)%d(i)%accept) cycle
+       if (.not. self%tod%scans(ind)%d(i)%accept) then
+         s_sol(:,i) = 0
+         cycle
+       end if
        do j=1,self%tod%scans(ind)%ntod !length of the tod
           b_dot = dot_product(vnorm, self%tod%pix2vec(:,pix(j,i)))
-          s_orb(j,i) = T_CMB_DIP * b_dot
+          s_sol(j,i) = T_CMB_DIP * b_dot
         end do
     end do
 
