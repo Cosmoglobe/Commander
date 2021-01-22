@@ -57,6 +57,7 @@ from tqdm import tqdm
 # version 27 is same as version 26, center = False
 # version 28 converts the velocity vector to Galactic coordinates
 # version 29 converts the velocity to meters, corrects format of mbang, polang.
+# version 30 adds the genflags to the daflags
 
 from time import sleep
 from time import time as timer
@@ -803,11 +804,6 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
         gain_guesses = gain_guesses*0 + 1
 
 
-    # If genflags == 1, there is an issue with the spacecraft attitude. This
-    # appears to be the quaternion problem.
-    # v14: add genflags somehow.
-    genflags = data[2].data['genflags']
-    daflags = data[2].data['daflags']
 
     TODs = []
     for key in band_labels:
@@ -839,6 +835,13 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center)
 
     #daflags = get_flags(data)
+    # If genflags == 1, there is an issue with the spacecraft attitude. This
+    # appears to be the quaternion problem.
+    # v14: add genflags somehow.
+    genflags = data[2].data['genflags']*2**11
+    daflags = data[2].data['daflags']
+    for i in range(4):
+        daflags[:,i] += genflags
 
     data.close()
 
@@ -885,30 +888,18 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     inds = np.arange(len(files))
-    #inds = inds[:len(files)//10]
-    #files = np.array(files)[:len(files)//10]
-    #inds = inds[len(files)//10:2*len(files)//10]
-    #files = np.array(files)[len(files)//10:2*len(files)//10]
-    #inds = inds[2*len(files)//10:3*len(files)//10]
-    #files = np.array(files)[2*len(files)//10:3*len(files)//10]
-    #inds = inds[3*len(files)//10:4*len(files)//10]
-    #files = np.array(files)[3*len(files)//10:4*len(files)//10]
-    #inds = inds[4*len(files)//10:5*len(files)//10]
-    #files = np.array(files)[4*len(files)//10:5*len(files)//10]
-    #inds = inds[5*len(files)//10:6*len(files)//10]
-    #files = np.array(files)[5*len(files)//10:6*len(files)//10]
-    #inds = inds[6*len(files)//10:7*len(files)//10]
-    #files = np.array(files)[6*len(files)//10:7*len(files)//10]
-    #inds = inds[7*len(files)//10:8*len(files)//10]
-    #files = np.array(files)[7*len(files)//10:8*len(files)//10]
-    #inds = inds[8*len(files)//10:9*len(files)//10]
-    #files = np.array(files)[8*len(files)//10:9*len(files)//10]
-    #inds = inds[9*len(files)//10:]
-    #files = np.array(files)[9*len(files)//10:]
+    #inds = inds[:len(files)//4]
+    #files = np.array(files)[:len(files)//4]
+    #inds = inds[len(files)//4:2*len(files)//4]
+    #files = np.array(files)[len(files)//4:2*len(files)//4]
+    #inds = inds[2*len(files)//4:3*len(files)//4]
+    #files = np.array(files)[2*len(files)//4:3*len(files)//4]
+    inds = inds[3*len(files)//4:]
+    files = np.array(files)[3*len(files)//4:]
 
 
     if par:
-        nprocs = 64
+        nprocs = 36
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -924,16 +915,5 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
             fits_to_h5(f,i,compress, plot, version, center)
 
 if __name__ == '__main__':
-    #main(par=True, plot=False, compress=True, version=18, center=False)
-    #main(par=True, plot=False, compress=True, version=19, center=True)
-    #main(par=True, plot=False, compress=True, version=15, center=True)
-    #main(par=True, plot=False, compress=True, version=20, center=True)
-    #main(par=True, plot=False, compress=True, version=21, center=False)
-    #main(par=False, plot=False, compress=True, version=23, center=False)
-    #main(par=True, plot=False, compress=True, version=24, center=True)
-    #main(par=True, plot=False, compress=True, version=25, center=True)
-    #main(par=True, plot=False, compress=True, version=26, center=True)
-    #main(par=True, plot=False, compress=True, version=27, center=False)
-    #main(par=True, plot=False, compress=True, version=28, center=False)
-    main(par=True, plot=False, compress=True, version=29, center=False)
+    main(par=True, plot=False, compress=True, version=30, center=False)
     #test_flags()
