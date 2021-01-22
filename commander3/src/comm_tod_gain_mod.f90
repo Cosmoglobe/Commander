@@ -493,38 +493,31 @@ contains
        A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
        b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
     end do
-    !write(*,*) sum(abs(s_sub)), sum(abs(tod%scans(scan)%d(det)%tod))
 
-!!$    if (trim(tod%freq) == '070') then
-!!$       write(*,*) tod%scanid(scan), real(b/A,sp), real(1/sqrt(A),sp), '  # abs70', det
-!!$    end if
-!!$
-
-!!$    if (mod(tod%scanid(scan),100) == 0) then
-!!$       call int2string(tod%scanid(scan), itext)
-!!$       !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
-!!$       open(58,file='gainfit3_'//itext//'.dat')
-!!$       do i = 1, size(s_ref,1)
-!!$          write(58,*) i, residual(i,1)
-!!$       end do
-!!$       write(58,*)
-!!$       do i = 1, size(s_ref,1)
-!!$          write(58,*) i, s_ref(i,1)
-!!$       end do
-!!$       write(58,*)
-!!$       do i = 1, size(s_ref,1)
-!!$          write(58,*) i, s_invN(i,1)
-!!$       end do
-!!$       write(58,*)
-!!$       do i = 1, size(s_sub,1)
-!!$          write(58,*) i, s_sub(i,1)
-!!$       end do
-!!$       write(58,*)
-!!$       do i = 1, size(s_sub,1)
-!!$          write(58,*) i, tod%scans(scan)%d(1)%tod(i)
-!!$       end do
-!!$       close(58)
-!!$    end if
+    !if (mod(tod%scanid(scan),5000) == 0) then
+    !   call int2string(tod%scanid(scan), itext)
+    !   open(58,file='gainfit3_'//itext//'.dat')
+    !   do i = 1, size(s_ref,1)
+    !      write(58,*) i, residual(i,1)
+    !   end do
+    !   write(58,*)
+    !   do i = 1, size(s_ref,1)
+    !      write(58,*) i, s_ref(i,1)
+    !   end do
+    !   write(58,*)
+    !   do i = 1, size(s_ref,1)
+    !      write(58,*) i, s_invN(i,1)
+    !   end do
+    !   write(58,*)
+    !   do i = 1, size(s_sub,1)
+    !      write(58,*) i, s_sub(i,1)
+    !   end do
+    !   write(58,*)
+    !   do i = 1, size(s_sub,1)
+    !      write(58,*) i, tod%scans(scan)%d(1)%tod(i)
+    !   end do
+    !   close(58)
+    !end if
 
 
 

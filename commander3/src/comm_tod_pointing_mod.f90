@@ -147,9 +147,9 @@ contains
                    & + rand_normal(0d0, 1d0)*tod%scans(scan_id)%d(i)%sigma0
             end if
             
-           
-            if (flag(j, i) == 0 .or. flag(j,i) == 1) then
-            !if (flag(j, i) == 0) then
+          
+            ! second flag should be "moon visible over sun shield" 
+            if (flag(j, i) == 0 .or. flag(j, i) == 2**(11+7)) then
                 tmask(j, i) = pmask(pix(j, i, 1))*pmask(pix(j,i,2))
             else
                 tmask(j, i) = 0

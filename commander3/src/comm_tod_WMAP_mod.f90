@@ -289,13 +289,14 @@ contains
       deallocate (m_buf)
 
       allocate(procmask(0:npix-1))
+      procmask = 0
       do i = 1, size(self%procmask%map(:,1))
          procmask(self%procmask%info%pix(i)) = nint(self%procmask%map(i-1,1))
       end do
       call mpi_allreduce(mpi_in_place, procmask, size(procmask), MPI_INTEGER, MPI_SUM, self%info%comm, ierr)
-      where (procmask .ge. 1)
-          procmask = 1
-      end where
+      !where (procmask .ge. 1)
+      !    procmask = 1
+      !end where
 
       call wall_time(t2); t_tot(9) = t2 - t1
 
@@ -328,7 +329,7 @@ contains
       main_it: do main_iter = 1, n_main_iter
          call update_status(status, "tod_istart")
 
-         if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
+         if (self%myid_shared == 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
@@ -875,7 +876,7 @@ contains
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
 
       ! Clean up temporary arrays
-      deallocate(A_abscal, b_abscal, chisq_S)
+      deallocate(A_abscal, b_abscal, chisq_S, procmask)
       deallocate(b_map, M_diag, cg_tot)
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
