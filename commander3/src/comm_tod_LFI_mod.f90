@@ -705,7 +705,7 @@ contains
                    s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
              end do
-             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
+             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, .false.)
 
              if (.false.) then
                 call int2string(self%scanid(i), scantext)
