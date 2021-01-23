@@ -729,6 +729,7 @@ contains
       allocate (phat  (0:npix-1, nmaps))
       allocate (shat  (0:npix-1, nmaps))
       allocate (cg_sol(0:npix-1, nmaps, nout))
+      allocate (m_buf (0:npix-1, nmaps))
 
       cg_sol = 0.0d0
       epsil = 1.0d-2
@@ -761,12 +762,14 @@ contains
                 p = r + beta*(p - omega*v)
             end if
             phat = p/M_diag
-            v = 0d0
-            call update_status(status, "Calling p=Av")
-            call compute_Ax(self, phat, v, self%x_im, procmask, i)
+            call update_status(status, "Calling v=Ap")
+            m_buf = 0
+            call compute_Ax(self, phat, m_buf, self%x_im, procmask, i)
+
             call wall_time(t1)
-            call mpi_allreduce(MPI_IN_PLACE, v, size(v), &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+            call mpi_reduce(m_buf, v, size(m_buf), MPI_DOUBLE_PRECISION, MPI_SUM, &
+                 & 0, self%info%comm, ierr)
+            call mpi_bcast(v, size(v),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
             call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
             alpha = rho_new/sum(r0*v)
             cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
@@ -785,20 +788,25 @@ contains
             end if
             num_cg_iters = num_cg_iters + 1
             if (delta_s .le. (delta_0*epsil)) exit bicg
-            q = 0d0
             call update_status(status, "Calling  q= A shat")
-            call compute_Ax(self, shat, q, self%x_im, procmask, i)
-            call mpi_allreduce(MPI_IN_PLACE, q, size(q), &
-                              & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+            m_buf = 0
+            call compute_Ax(self, shat, m_buf, self%x_im, procmask, i)
+            call wall_time(t1)
+
+            call mpi_reduce(m_buf, q, size(m_buf), MPI_DOUBLE_PRECISION, MPI_SUM, &
+                 & 0, self%info%comm, ierr)
+            call mpi_bcast(q, size(q),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
             call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
             omega = sum(q*s)/sum(q**2)
             cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
             if (mod(i, 10) == 1) then
                call update_status(status, 'r = b - Ax')
-               r = 0d0
-               call compute_Ax(self, cg_sol(:,:,l), r, self%x_im, procmask, i)
-               call mpi_allreduce(MPI_IN_PLACE, r, size(r), &
-                                 & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+               m_buf = 0d0
+               call compute_Ax(self, cg_sol(:,:,l), m_buf, self%x_im, procmask, i)
+               call wall_time(t1)
+               call mpi_reduce(m_buf, r, size(m_buf), MPI_DOUBLE_PRECISION, MPI_SUM, &
+                    & 0, self%info%comm, ierr)
+               call mpi_bcast(r, size(r),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
                call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
                r = b_map(:, :, l) - r
             else
@@ -898,7 +906,7 @@ contains
       end if
 
       deallocate (map_sky)
-      deallocate (cg_sol, r, s, q, r0, shat, p, phat, v)
+      deallocate (cg_sol, r, s, q, r0, shat, p, phat, v, m_buf)
 
       if (correct_sl) then
          do i = 1, self%ndet
