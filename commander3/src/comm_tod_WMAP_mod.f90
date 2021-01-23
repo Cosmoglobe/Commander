@@ -69,6 +69,8 @@ module comm_tod_WMAP_mod
       class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
+      real(dp)                    :: cg_tol
+      integer(i4b)                :: cg_maxiter, cg_miniter
    contains
       procedure     :: process_tod => process_WMAP_tod
    end type comm_WMAP_tod
@@ -137,6 +139,10 @@ contains
       ! For K-band
        constructor%x_im = [-0.00067, 0.00536]
       ! constructor%x_im = [-0.05, 0.05]
+
+      constructor%cg_tol      = cpar%cg_tol
+      constructor%cg_miniter  = cpar%cg_miniter
+      constructor%cg_maxiter  = cpar%cg_maxiter
 
 
       !TODO: this is LFI specific, write something here for wmap
@@ -210,7 +216,7 @@ contains
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
       ! conjugate gradient parameters
-      integer(i4b) :: i_max=100, num_cg_iters=0
+      integer(i4b) :: i_max, i_min, num_cg_iters=0
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
@@ -498,7 +504,7 @@ contains
                   if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                      s_buf(:,j) = s_tot(:,j)
                      call fill_all_masked(s_buf(:,j), mask(:,j), ntod, &
-                     &  trim(self%operation)=='sample', &
+                     &  .false., &
                      &  real(self%scans(i)%d(j)%sigma0, sp), &
                      &  handle, self%scans(i)%chunk_num)
                      call self%downsample_tod(s_buf(:,j), ext, &
@@ -732,7 +738,9 @@ contains
       allocate (m_buf (0:npix-1, nmaps))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-2
+      epsil = self%cg_tol
+      i_max = self%cg_maxiter
+      i_min = self%cg_miniter
 
       if (self%myid_shared ==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
 
@@ -787,7 +795,7 @@ contains
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
             num_cg_iters = num_cg_iters + 1
-            if (delta_s .le. (delta_0*epsil)) exit bicg
+            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) exit bicg
             call update_status(status, "Calling  q= A shat")
             m_buf = 0
             call compute_Ax(self, shat, m_buf, self%x_im, procmask, i)
@@ -825,11 +833,11 @@ contains
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
             num_cg_iters = num_cg_iters + 1
-            if ((delta_r .le. (delta_0*epsil))) exit bicg
+            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) exit bicg
          end do bicg
       end do
 
-      call wall_time(t10); t_tot(21) = (t10 - t9)/num_cg_iters
+      call wall_time(t10); t_tot(21) = (t10 - t9)
 
 
 
@@ -860,28 +868,29 @@ contains
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
       call wall_time(t6)
       if (self%myid == self%numprocs/2 .and. self%verbosity > 0) then
-         write(*,*) '  Time dist sky   = ', int(t_tot(9))
-         write(*,*) '  Time sl precomp = ', int(t_tot(13))
-         write(*,*) '  Time decompress = ', int(t_tot(11))
-         write(*,*) '  Time alloc      = ', int(t_tot(18))
-         write(*,*) '  Time project    = ', int(t_tot(1))
-         write(*,*) '  Time orbital    = ', int(t_tot(2))
-         write(*,*) '  Time sl interp  = ', int(t_tot(12))
-         write(*,*) '  Time ncorr      = ', int(t_tot(3))
-         write(*,*) '  Time gain       = ', int(t_tot(4))
-         write(*,*) '  Time absgain    = ', int(t_tot(14))
-         write(*,*) '  Time sel data   = ', int(t_tot(15))
-         write(*,*) '  Time clean      = ', int(t_tot(5))
-         write(*,*) '  Time noise      = ', int(t_tot(6))
-         write(*,*) '  Time samp abs   = ', int(t_tot(16))
-         write(*,*) '  Time samp bp    = ', int(t_tot(17))
-         write(*,*) '  Time chisq      = ', int(t_tot(7))
-         write(*,*) '  Time bin        = ', int(t_tot(8))
-         write(*,*) '  Time per cg iter= ', int(t_tot(21))
+         write(*,*) '  Time dist sky   = ', nint(t_tot(9))
+         write(*,*) '  Time sl precomp = ', nint(t_tot(13))
+         write(*,*) '  Time decompress = ', nint(t_tot(11))
+         write(*,*) '  Time alloc      = ', nint(t_tot(18))
+         write(*,*) '  Time project    = ', nint(t_tot(1))
+         write(*,*) '  Time orbital    = ', nint(t_tot(2))
+         write(*,*) '  Time sl interp  = ', nint(t_tot(12))
+         write(*,*) '  Time ncorr      = ', nint(t_tot(3))
+         write(*,*) '  Time gain       = ', nint(t_tot(4))
+         write(*,*) '  Time absgain    = ', nint(t_tot(14))
+         write(*,*) '  Time sel data   = ', nint(t_tot(15))
+         write(*,*) '  Time clean      = ', nint(t_tot(5))
+         write(*,*) '  Time noise      = ', nint(t_tot(6))
+         write(*,*) '  Time samp abs   = ', nint(t_tot(16))
+         write(*,*) '  Time samp bp    = ', nint(t_tot(17))
+         write(*,*) '  Time chisq      = ', nint(t_tot(7))
+         write(*,*) '  Time bin        = ', nint(t_tot(8))
+         write(*,*) '  Time solving cg = ', nint(t_tot(21))
+         write(*,*) '  Time per cg iter= ', nint(t_tot(21)/num_cg_iters)
          write(*,*) '  Number of cg iters', num_cg_iters
-         write(*,*) '  Time allreduce  = ', int(t_tot(22))
-         write(*,*) '  Time scanlist   = ', int(t_tot(20))
-         write(*,*) '  Time final      = ', int(t_tot(10))
+         write(*,*) '  Time allreduce  = ', nint(t_tot(22))
+         write(*,*) '  Time scanlist   = ', nint(t_tot(20))
+         write(*,*) '  Time final      = ', nint(t_tot(10))
          if (self%first_call) then
             write(*,*) '  Time total      = ', int(t6-t5), &
                  & ', accept rate = ', real(naccept,sp) / ntot
