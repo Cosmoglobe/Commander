@@ -210,7 +210,7 @@ contains
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
       ! conjugate gradient parameters
-      integer(i4b) :: i_max=100
+      integer(i4b) :: i_max=100, num_cg_iters=0
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
@@ -218,7 +218,6 @@ contains
       logical(lgt) :: write_cg_iter=.false.
 
 
-      logical(lgt) :: remove_solar_dipole=.false.
       real(dp) :: phi, theta
       real(dp), dimension(3) :: vnorm
       integer(i4b) :: pixind
@@ -330,7 +329,7 @@ contains
          call wall_time(t7)
          call update_status(status, "tod_istart")
 
-         if (self%myid_shared == 0) write(*,*) '  Performing main iteration = ', main_iter
+         if (self%myid_shared == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
@@ -479,7 +478,6 @@ contains
 
 
             ! Add orbital dipole and sidelobes to total signal
-            s_buf = 0.d0
             do j = 1, ndet
                s_tot(:, j) = s_sky(:, j) + s_sl(:, j) + s_orb_tot(:,j)
             end do
@@ -489,6 +487,7 @@ contains
             ! Gain calculations
             !!!!!!!!!!!!!!!!!!!
 
+            s_buf = 0.d0
             ! Precompute filtered signal for calibration
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
@@ -516,7 +515,6 @@ contains
 
             ! Prepare for absolute calibration
             if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
-               call update_status(status, "Prepping for absolute calibration")
                call wall_time(t1)
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
@@ -539,7 +537,6 @@ contains
 
             ! Fit gain
             if (do_oper(samp_G)) then
-               call update_status(status, "Fitting gain")
                call wall_time(t1)
                call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
                call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
@@ -547,7 +544,6 @@ contains
 
             ! Fit correlated noise
             if (do_oper(samp_N)) then
-               call update_status(status, "Fitting correlated noise")
                call wall_time(t1)
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
@@ -568,7 +564,6 @@ contains
 
             ! Compute noise spectrum
             if (do_oper(samp_N_par)) then
-               call update_status(status, "Computing noise power")
                call wall_time(t1)
                call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
                call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
@@ -595,7 +590,6 @@ contains
             ! Get calibrated map
             if (do_oper(bin_map)) then
                call wall_time(t1)
-               call update_status(status, "Computing binned map")
                allocate (d_calib(nout, ntod, ndet))
                d_calib = 0
                do j = 1, ndet
@@ -689,7 +683,6 @@ contains
             call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
          end if
 
-         call update_status(status, "Finished main loop iteration") 
       end do main_it
       call wall_time(t4)
 
@@ -739,10 +732,11 @@ contains
       cg_sol = 0.0d0
       epsil = 1.0d-2
 
-      if (self%myid_shared ==0) write(*,*) '  Running BiCG'
+      if (self%myid_shared ==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
 
+      call wall_time(t9)
       do l=1, nout
-         if (self%myid_shared==0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+         if (self%myid_shared==0 .and. self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          call update_status(status, "Starting bicg-stab")
          r  = b_map(:, :, l)
          r0 = b_map(:, :, l)
@@ -769,8 +763,10 @@ contains
             v = 0d0
             call update_status(status, "Calling p=Av")
             call compute_Ax(self, phat, v, self%x_im, procmask, i)
+            call wall_time(t1)
             call mpi_allreduce(MPI_IN_PLACE, v, size(v), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+            call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
             alpha = rho_new/sum(r0*v)
             cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
             if (write_cg_iter) then
@@ -782,16 +778,18 @@ contains
             shat = s/M_diag
 
             delta_s = sum(s*shat)
-            if (self%myid_shared==0 .and. self%verbosity > 0) then 
+            if (self%myid_shared==0 .and. self%verbosity > 1) then 
                 write(*,101) 2*i-1, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
+            num_cg_iters = num_cg_iters + 1
             if (delta_s .le. (delta_0*epsil)) exit bicg
             q = 0d0
             call update_status(status, "Calling  q= A shat")
             call compute_Ax(self, shat, q, self%x_im, procmask, i)
             call mpi_allreduce(MPI_IN_PLACE, q, size(q), &
                               & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+            call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
             omega = sum(q*s)/sum(q**2)
             cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
             if (mod(i, 10) == 1) then
@@ -800,6 +798,7 @@ contains
                call compute_Ax(self, cg_sol(:,:,l), r, self%x_im, procmask, i)
                call mpi_allreduce(MPI_IN_PLACE, r, size(r), &
                                  & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+               call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
                r = b_map(:, :, l) - r
             else
                call update_status(status, 'r = s - omega*t')
@@ -812,29 +811,16 @@ contains
             end if
 
             delta_r = sum(r**2/M_diag)
-            if (self%myid_shared==0 .and. self%verbosity > 0) then 
+            if (self%myid_shared==0 .and. self%verbosity > 1) then 
                 write(*,102) 2*i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
+            num_cg_iters = num_cg_iters + 1
             if ((delta_r .le. (delta_0*epsil))) exit bicg
          end do bicg
       end do
 
-      if (remove_solar_dipole) then
-        ! Need to add solar dipole that was removed in timestream back in
-        write(*,*) 'You have not yet added the signal you removed back in.'
-        ! 
-        ! In the tod_orb module, we were looping over detector i and tod index
-        ! j. Here, I want to loop over pixel indices.
-        ! b_dot = dot_product(vnorm, self%tod%pix2vec(:,pix(j,i)))
-        ! s_orb(j,i) = T_CMB_DIP * b_dot
-        !phi=4.607145626489432
-        !theta=0.7278022980816355
-        !vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
-        !do i=0, self%info%np
-        !  cg_sol(self%info%pix(i), 1, 1) = cg_sol(self%info%pix(i), 1, 1) +  dot_product(vnorm, self%pix2vec(:,self%info%pix(i)))
-        !end do
-      end if
+      call wall_time(t10); t_tot(21) = (t10 - t9)/num_cg_iters
 
 
 
@@ -864,31 +850,34 @@ contains
       end if
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
       call wall_time(t6)
-      if (self%myid == self%numprocs/2) then
-         write(*,*) '  Time dist sky   = ', t_tot(9)
-         write(*,*) '  Time sl precomp = ', t_tot(13)
-         write(*,*) '  Time decompress = ', t_tot(11)
-         write(*,*) '  Time alloc      = ', t_tot(18)
-         write(*,*) '  Time project    = ', t_tot(1)
-         write(*,*) '  Time orbital    = ', t_tot(2)
-         write(*,*) '  Time sl interp  = ', t_tot(12)
-         write(*,*) '  Time ncorr      = ', t_tot(3)
-         write(*,*) '  Time gain       = ', t_tot(4)
-         write(*,*) '  Time absgain    = ', t_tot(14)
-         write(*,*) '  Time sel data   = ', t_tot(15)
-         write(*,*) '  Time clean      = ', t_tot(5)
-         write(*,*) '  Time noise      = ', t_tot(6)
-         write(*,*) '  Time samp abs   = ', t_tot(16)
-         write(*,*) '  Time samp bp    = ', t_tot(17)
-         write(*,*) '  Time chisq      = ', t_tot(7)
-         write(*,*) '  Time bin        = ', t_tot(8)
-         write(*,*) '  Time scanlist   = ', t_tot(20)
-         write(*,*) '  Time final      = ', t_tot(10)
+      if (self%myid == self%numprocs/2 .and. self%verbosity > 0) then
+         write(*,*) '  Time dist sky   = ', int(t_tot(9))
+         write(*,*) '  Time sl precomp = ', int(t_tot(13))
+         write(*,*) '  Time decompress = ', int(t_tot(11))
+         write(*,*) '  Time alloc      = ', int(t_tot(18))
+         write(*,*) '  Time project    = ', int(t_tot(1))
+         write(*,*) '  Time orbital    = ', int(t_tot(2))
+         write(*,*) '  Time sl interp  = ', int(t_tot(12))
+         write(*,*) '  Time ncorr      = ', int(t_tot(3))
+         write(*,*) '  Time gain       = ', int(t_tot(4))
+         write(*,*) '  Time absgain    = ', int(t_tot(14))
+         write(*,*) '  Time sel data   = ', int(t_tot(15))
+         write(*,*) '  Time clean      = ', int(t_tot(5))
+         write(*,*) '  Time noise      = ', int(t_tot(6))
+         write(*,*) '  Time samp abs   = ', int(t_tot(16))
+         write(*,*) '  Time samp bp    = ', int(t_tot(17))
+         write(*,*) '  Time chisq      = ', int(t_tot(7))
+         write(*,*) '  Time bin        = ', int(t_tot(8))
+         write(*,*) '  Time per cg iter= ', int(t_tot(21))
+         write(*,*) '  Number of cg iters', num_cg_iters
+         write(*,*) '  Time allreduce  = ', int(t_tot(22))
+         write(*,*) '  Time scanlist   = ', int(t_tot(20))
+         write(*,*) '  Time final      = ', int(t_tot(10))
          if (self%first_call) then
-            write(*,*) '  Time total      = ', t6-t5, &
+            write(*,*) '  Time total      = ', int(t6-t5), &
                  & ', accept rate = ', real(naccept,sp) / ntot
          else
-            write(*,*) '  Time total      = ', t6-t5, sum(t_tot(1:18))
+            write(*,*) '  Time total      = ', int(t6-t5), int(sum(t_tot(1:18)))
          end if
       end if
 
