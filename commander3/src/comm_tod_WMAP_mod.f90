@@ -133,9 +133,9 @@ contains
       !initialize the common tod stuff
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
       allocate (constructor%x_im(constructor%ndet/2))
-      constructor%x_im(:) = 0.0d0
+      !constructor%x_im(:) = 0.0d0
       ! For K-band
-      ! constructor%x_im = [-0.00067, 0.00536]
+       constructor%x_im = [-0.00067, 0.00536]
       ! constructor%x_im = [-0.05, 0.05]
 
 
@@ -545,13 +545,14 @@ contains
                         s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb_tot(:, j)) + &
                              & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                      else
+                        if (self%scanid(i)==2114) write(*,*) j, self%gain0(j), self%scans(i)%d(j)%dgain, mean(abs(1.d0*s_tot(:, j)))
                         s_buf(:, j) = real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                      end if
                   else
                      s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                   end if
                end do
-               call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
+               call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal))
 
             end if
             !if (self%myid_shared == 0) then
