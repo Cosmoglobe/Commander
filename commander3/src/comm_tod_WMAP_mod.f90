@@ -669,12 +669,13 @@ contains
                   end do
                end if
 
+               call wall_time(t1)
                ! Bin the calibrated map
                call bin_differential_TOD(self, d_calib, pix,  &
                  & psi, flag, self%x_im, procmask, b_map, M_diag, i, &
                  & do_oper(prep_relbp))
                deallocate(d_calib)
-               call wall_time(t8); t_tot(19) = t_tot(19) + t8
+               call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
             end if
 
             do j = 1, ndet
