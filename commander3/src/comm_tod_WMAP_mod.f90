@@ -850,7 +850,7 @@ contains
 
       map_out%map = outmaps(1)%p%map
       ! Sometimes get a float invalid error here...
-      rms_out%map = M_diag(self%info%pix, 1:nmaps)!**-0.5
+      rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
       call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
       do n = 2, self%output_n_maps
