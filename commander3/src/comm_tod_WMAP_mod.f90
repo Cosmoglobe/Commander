@@ -319,6 +319,7 @@ contains
 
 
       call update_status(status, "tod_init")
+      call wall_time(t3)
       do_oper             = .true.
       allocate (M_diag(0:npix-1, nmaps+1))
       allocate ( b_map(0:npix-1, nmaps+1, nout))
@@ -327,6 +328,7 @@ contains
       ! There are four main iterations, for absolute calibration, relative
       ! calibration, time-variable calibration, and correlated noise estimation.
       main_it: do main_iter = 1, n_main_iter
+         call wall_time(t7)
          call update_status(status, "tod_istart")
 
          if (self%myid_shared == 0) write(*,*) '  Performing main iteration = ', main_iter
@@ -354,9 +356,11 @@ contains
             A_abscal = 0.d0; b_abscal = 0.d0
          end if
 
+         call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
          ! Perform main analysis loop
          naccept = 0; ntot = 0
          do i = 1, self%nscan
+            call wall_time(t7)
 
 
             if (.not. any(self%scans(i)%d%accept)) cycle
@@ -388,6 +392,8 @@ contains
             allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
             allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
             allocate (flag(ntod, ndet))                   ! Decompressed flags
+
+            call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
             ! --------------------
             ! Analyze current scan
@@ -425,11 +431,11 @@ contains
 
             if (main_iter == 1 .and. self%first_call) then
                do j = 1, ndet
-                  !self%scans(i)%d(j)%accept = .true.
                   if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
                   if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(:)%accept = .false.
                end do
             end if
+            call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
             ! Construct orbital dipole template
             call wall_time(t1)
@@ -454,6 +460,7 @@ contains
                s_sol_tot(:, j) = (1+self%x_im((j+1)/2))*s_solA(:,j) - &
                                & (1-self%x_im((j+1)/2))*s_solB(:,j)
             end do
+            call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
             if (do_oper(sim_map)) then
                 do j = 1, ndet
@@ -554,12 +561,8 @@ contains
                call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
 
             end if
-            !if (self%myid_shared == 0) then
-            !  write(*,*) 'After abscal prep'
-            !  write(*,*) self%gain0(0)
-            !  write(*,*) sum(abs(self%scans(i)%d(:)%dgain))
-            !  write(*,*) minval(s_tot), maxval(s_tot)
-            !end if
+            call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
+
 
             ! Fit gain
             if (do_oper(samp_G)) then
@@ -618,6 +621,7 @@ contains
 
             ! Get calibrated map
             if (do_oper(bin_map)) then
+               call wall_time(t1)
                call update_status(status, "Computing binned map")
                allocate (d_calib(nout, ntod, ndet))
                d_calib = 0
@@ -647,6 +651,9 @@ contains
                   end if
 
                end do
+
+
+               call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
                if (.true. .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
@@ -681,12 +688,17 @@ contains
             end do
 
             ! Clean up
+            call wall_time(t1)
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
             deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
             deallocate (mask, mask2, pix, psi, flag, s_solA, s_solB, s_sol_tot)
             if (allocated(s_lowres)) deallocate (s_lowres)
             if (allocated(s_invN)) deallocate (s_invN)
             deallocate(s_bp, s_bp_prop)
+            call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
+
+
+            call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
@@ -711,6 +723,17 @@ contains
 
          call update_status(status, "Finished main loop iteration") 
       end do main_it
+      call wall_time(t4)
+
+
+      ! Output latest scan list with new timing information
+      if (do_oper(output_slist)) then
+         call update_status(status, "scanlist1")
+         call wall_time(t1)
+         call self%output_scan_list(slist)
+         call wall_time(t2); t_tot(20) = t_tot(20) + t2-t1
+         call update_status(status, "scanlist2")
+      end if
 
       call update_status(status, "Running allreduce on M_diag")
       call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
@@ -874,6 +897,34 @@ contains
          naccept = i
       end if
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
+      call wall_time(t6)
+      if (self%myid == self%numprocs/2) then
+         write(*,*) '  Time dist sky   = ', t_tot(9)
+         write(*,*) '  Time sl precomp = ', t_tot(13)
+         write(*,*) '  Time decompress = ', t_tot(11)
+         write(*,*) '  Time alloc      = ', t_tot(18)
+         write(*,*) '  Time project    = ', t_tot(1)
+         write(*,*) '  Time orbital    = ', t_tot(2)
+         write(*,*) '  Time sl interp  = ', t_tot(12)
+         write(*,*) '  Time ncorr      = ', t_tot(3)
+         write(*,*) '  Time gain       = ', t_tot(4)
+         write(*,*) '  Time absgain    = ', t_tot(14)
+         write(*,*) '  Time sel data   = ', t_tot(15)
+         write(*,*) '  Time clean      = ', t_tot(5)
+         write(*,*) '  Time noise      = ', t_tot(6)
+         write(*,*) '  Time samp abs   = ', t_tot(16)
+         write(*,*) '  Time samp bp    = ', t_tot(17)
+         write(*,*) '  Time chisq      = ', t_tot(7)
+         write(*,*) '  Time bin        = ', t_tot(8)
+         write(*,*) '  Time scanlist   = ', t_tot(20)
+         write(*,*) '  Time final      = ', t_tot(10)
+         if (self%first_call) then
+            write(*,*) '  Time total      = ', t6-t5, &
+                 & ', accept rate = ', real(naccept,sp) / ntot
+         else
+            write(*,*) '  Time total      = ', t6-t5, sum(t_tot(1:18))
+         end if
+      end if
 
       ! Clean up temporary arrays
       deallocate(A_abscal, b_abscal, chisq_S, procmask)

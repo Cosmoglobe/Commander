@@ -1451,6 +1451,7 @@ contains
     end if
     if (abs(self%scans(scan)%d(det)%chisq) > 2000.d0 .or. &
       & isNaN(self%scans(scan)%d(det)%chisq)) then
+        write(*,*) "        scan, det, sum(mask), sum(s_sky),   sum(n_corr)"
         write(*,*) "chisq", scan, det, sum(mask), sum(s_sky),  &
                  &        sum(n_corr)
     end if
