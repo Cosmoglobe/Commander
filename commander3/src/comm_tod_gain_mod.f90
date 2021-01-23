@@ -193,44 +193,44 @@ contains
         !write(*, *) "FREQ IS ", trim(tod%freq), count
        !nbin = nscan_tot / binsize + 1
 
-       !open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
-       !do j = 1, ndet
-       !   do k = 1, nscan_tot
-       !      !if (g(k,j,2) /= 0) then
-       !      if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
-       !      if (g(k,j,2) > 0) then
-       !         if (abs(g(k, j, 1)) > 1e10) then
-       !            write(*, *) 'G1'
-       !            write(*, *) g(k, j, 1)
-       !         end if
-       !         if (abs(g(k, j, 2)) > 1e10) then
-       !            write(*, *) 'G2'
-       !            write(*, *) g(k, j, 2)
-       !         end if
-       !         if (abs(dipole_mods(k, j) > 1e10)) then
-       !            write(*, *) 'DIPOLE_MODS'
-       !            write(*, *) dipole_mods(k, j)
-       !         else
-       !            write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-       !         end if
-       !      else
-       !         write(58,*) j, k, 0., 0.0, 0., 0.
-       !      end if
-       !   end do
-       !   write(58,*)
-       !end do
+        !open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
+       do j = 1, ndet
+          do k = 1, nscan_tot
+             !if (g(k,j,2) /= 0) then
+             !if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
+             if (g(k,j,2) > 0) then
+                if (abs(g(k, j, 1)) > 1e10) then
+                   write(*, *) 'G1'
+                   write(*, *) g(k, j, 1)
+                end if
+                if (abs(g(k, j, 2)) > 1e10) then
+                   write(*, *) 'G2'
+                   write(*, *) g(k, j, 2)
+                end if
+                !if (abs(dipole_mods(k, j) > 1e10)) then
+                !   write(*, *) 'DIPOLE_MODS'
+                !   write(*, *) dipole_mods(k, j)
+                !else
+                  ! write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+                !end if
+             else
+                !write(58,*) j, k, 0., 0.0, 0., 0.
+             end if
+          end do
+          !write(58,*)
+       end do
        !close(58)
 
        allocate(window_sizes(tod%ndet, tod%nscan_tot))
        call get_smoothing_windows(tod, window_sizes, dipole_mods)
-       open(58, file='smoothing_windows' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
-         do k = 1, size(window_sizes(j, :))
-            if (window_sizes(j, k) == 0) cycle
-            write(58, *) j, k, window_sizes(j, k)
-         end do
-       end do
-       close(58)
+!!$       open(58, file='smoothing_windows' // trim(tod%freq) // '.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$         do k = 1, size(window_sizes(j, :))
+!!$            if (window_sizes(j, k) == 0) cycle
+!!$            write(58, *) j, k, window_sizes(j, k)
+!!$         end do
+!!$       end do
+!!$       close(58)
 
        allocate(pidrange_gainarr(nscan_tot, ndet))
        pidrange_gainarr = 0.d0
@@ -244,14 +244,14 @@ contains
 !       call get_pid_ranges(pid_ranges, tod, pidrange_gainarr, dipole_mods, window_sizes)
        call get_pid_ranges_tabulated(pid_ranges, tod)
        deallocate(pidrange_gainarr)
-       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
-         do k = 1, size(pid_ranges(j, :))
-            if (pid_ranges(j, k) == 0) exit
-            write(58, *) j, k, pid_ranges(j, k)
-         end do
-       end do
-       close(58)
+!!$       open(58, file='pid_ranges_' // trim(tod%freq) // '.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$         do k = 1, size(pid_ranges(j, :))
+!!$            if (pid_ranges(j, k) == 0) exit
+!!$            write(58, *) j, k, pid_ranges(j, k)
+!!$         end do
+!!$       end do
+!!$       close(58)
 
        do j = 1, ndet
          lhs = 0.d0
@@ -400,7 +400,7 @@ contains
          end if
          g(:,j,1) = g(:,j,1) - mu
        end do
-       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
+!       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
        do j = 1, ndet
           do k = 1, nscan_tot
              !if (g(k,j,2) /= 0) then
@@ -417,13 +417,13 @@ contains
                    write(*, *) 'DIPOLE_MODS'
                    write(*, *) dipole_mods(k, j)
                 else
-                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+!                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
                 end if
              else
-                write(58,*) j, k, 0., 0.0, 0., 0.
+!                write(58,*) j, k, 0., 0.0, 0., 0.
              end if
           end do
-          write(58,*)
+!          write(58,*)
        end do
        close(58)
 
@@ -455,7 +455,7 @@ contains
 !       & s_orb, A_abs, b_abs)
    ! This is implementing equation 16, adding up all the terms over all the sums
    ! the sum i is over the detector.
-   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
+   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
@@ -463,10 +463,11 @@ contains
     real(sp),          dimension(:,:), intent(in)     :: s_invN
     real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
     type(planck_rng),                  intent(inout)  :: handle
-
+    logical(lgt), intent(in) :: out
+ 
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
-    real(dp)     :: A, b
+    real(dp)     :: A, b, scale
     integer(i4b) :: i, j, ext(2), ndet, ntod
     character(len=5) :: itext
 
@@ -492,32 +493,47 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
        b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+       !if (out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
     end do
 
-    !if (mod(tod%scanid(scan),5000) == 0) then
-    !   call int2string(tod%scanid(scan), itext)
-    !   open(58,file='gainfit3_'//itext//'.dat')
-    !   do i = 1, size(s_ref,1)
-    !      write(58,*) i, residual(i,1)
-    !   end do
-    !   write(58,*)
-    !   do i = 1, size(s_ref,1)
-    !      write(58,*) i, s_ref(i,1)
-    !   end do
-    !   write(58,*)
-    !   do i = 1, size(s_ref,1)
-    !      write(58,*) i, s_invN(i,1)
-    !   end do
-    !   write(58,*)
-    !   do i = 1, size(s_sub,1)
-    !      write(58,*) i, s_sub(i,1)
-    !   end do
-    !   write(58,*)
-    !   do i = 1, size(s_sub,1)
-    !      write(58,*) i, tod%scans(scan)%d(1)%tod(i)
-    !   end do
-    !   close(58)
-    !end if
+!    if (trim(tod%freq) == '070') then
+!       write(*,*) tod%scanid(scan), real(b/A,sp), real(1/sqrt(A),sp), '  # absK', det
+ !   end if
+
+
+    if (.false. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
+       call int2string(tod%scanid(scan), itext)
+       !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
+       open(58,file='gainfit3_'//itext//'.dat')
+       do i = ext(1), ext(2)
+          write(58,*) i-ext(1)+1, residual(i,1)
+       end do
+       write(58,*)
+       do i = 1, size(s_ref,1)
+          write(58,*) i, s_ref(i,1)
+       end do
+       write(58,*)
+       scale = sum(s_invN(:,1) * residual(:,1)) / sum(s_invN(:,1) * s_ref(:,1))
+       residual(:,1) = residual(:,1) - scale * s_ref(:,1)
+       do i = 1, size(s_ref,1)
+          write(58,*) i-ext(1)+1, residual(i,1) 
+       end do
+       close(58)
+
+       open(58,file='gainfit4_'//itext//'.dat')       
+       do i = 1, size(s_sub,1)
+          write(58,*) i, tod%scans(scan)%d(1)%tod(i)
+       end do
+       write(58,*)
+       do i = 1, size(s_sub,1)
+          write(58,*) i, s_sub(i,1)
+       end do
+       write(58,*)
+       do i = 1, size(s_sub,1)
+          write(58,*) i, mask(i,1)
+       end do
+       close(58)
+    end if
 
 
 
