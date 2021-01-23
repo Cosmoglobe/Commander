@@ -441,17 +441,10 @@ contains
             call wall_time(t1)
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA)
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
-            !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            !s_orbA = s_orbA * 1d6 ! K -> mK, also km/s instead of m/s
-            !s_orbB = s_orbB * 1d6 ! K -> mK
-            ! switch to this when we get to version 29 files
             s_orbA = s_orbA * 1d3 ! K -> mK
             s_orbB = s_orbB * 1d3 ! K -> mK
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)
             call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_solB)
-            !call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_solA)
-            !call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_solB)
             s_solA = s_solA * 1d3 ! K -> mK
             s_solB = s_solB * 1d3 ! K -> mK
             do j = 1, ndet
@@ -472,7 +465,6 @@ contains
                    end if
                 end do
             end if
-            call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
 
             ! Construct sidelobe template
@@ -535,12 +527,6 @@ contains
                call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
             end if
 
-            !if (self%myid_shared == 0) then
-            !  write(*,*) 'Before abscal prep'
-            !  write(*,*) self%gain0(0)
-            !  write(*,*) sum(abs(self%scans(i)%d(:)%dgain))
-            !  write(*,*) minval(s_tot), maxval(s_tot)
-            !end if
             ! Prepare for absolute calibration
             if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
                call update_status(status, "Prepping for absolute calibration")
