@@ -161,14 +161,21 @@ contains
 
   end subroutine precompute_orb_dp_s
 
-  subroutine compute_orbital_dipole_pencil(self, ind, pix, psi, s_orb)
+  subroutine compute_orbital_dipole_pencil(self, ind, pix, psi, s_orb, factor)
     implicit none
     class(comm_orbdipole),               intent(in)  :: self
     integer(i4b),                        intent(in)  :: ind !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
     real(sp),            dimension(:,:), intent(out) :: s_orb
-    real(dp) :: b, x, q, b_dot
+    real(dp),               intent(in), optional     :: factor
+    real(dp) :: b, x, q, b_dot, f
     integer(i4b) :: i, j
+
+    if (present(factor)) then 
+      f = factor
+    else
+      f = 1
+    end if
 
     b = sqrt(sum(self%tod%scans(ind)%v_sun**2))/c   ! beta for the given scan
     x = h * self%tod%central_freq/(k_B * T_CMB)
@@ -182,12 +189,7 @@ contains
        end if
        do j=1,self%tod%scans(ind)%ntod !length of the tod
           b_dot = dot_product(self%tod%scans(ind)%v_sun, self%tod%pix2vec(:,pix(j,i)))/c
-          !s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%tod%mb_eff(i) !only dipole,
-          !1.d6 to make it uK, as [T_CMB] = K
-          !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK,
-          !as [T_CMB] = K
-          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
-          s_orb(j,i) = T_CMB * (b_dot + q*(b_dot**2 - b**2/3.)) ! net zero monopole
+          s_orb(j,i) = f*T_CMB * (b_dot + q*(b_dot**2 - b**2/3.))
         end do
     end do
 
