@@ -435,10 +435,8 @@ contains
 
             ! Construct orbital dipole template
             call wall_time(t1)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            s_orbA = s_orbA * 1d3 ! K -> mK
-            s_orbB = s_orbB * 1d3 ! K -> mK
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA, 1d3)
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB, 1d3)
             do j = 1, ndet
                s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
                                & (1-self%x_im((j+1)/2))*s_orbB(:,j)
@@ -484,7 +482,6 @@ contains
             s_buf = 0.d0
             do j = 1, ndet
                s_tot(:, j) = s_sky(:, j) + s_sl(:, j) + s_orb_tot(:,j)
-               s_buf(:, j) = s_tot(:, j)
             end do
 
 
