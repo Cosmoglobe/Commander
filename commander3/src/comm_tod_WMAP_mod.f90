@@ -185,7 +185,6 @@ contains
       real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky
       real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
-      real(sp), allocatable, dimension(:, :)          :: s_solA, s_solB, s_sol_tot
       real(sp), allocatable, dimension(:, :)          :: mask, mask2, s_bp
       real(sp), allocatable, dimension(:, :)          :: s_mono, s_buf, s_tot, s_zodi
       real(sp), allocatable, dimension(:, :)          :: s_invN, s_lowres
@@ -319,14 +318,16 @@ contains
 
 
       call update_status(status, "tod_init")
+      call wall_time(t3)
       do_oper             = .true.
-      allocate (M_diag(0:npix-1, nmaps+1))
-      allocate ( b_map(0:npix-1, nmaps+1, nout))
+      allocate (M_diag(0:npix-1, nmaps))
+      allocate ( b_map(0:npix-1, nmaps, nout))
       M_diag = 0d0
       b_map = 0d0
       ! There are four main iterations, for absolute calibration, relative
       ! calibration, time-variable calibration, and correlated noise estimation.
       main_it: do main_iter = 1, n_main_iter
+         call wall_time(t7)
          call update_status(status, "tod_istart")
 
          if (self%myid_shared == 0) write(*,*) '  Performing main iteration = ', main_iter
@@ -354,9 +355,11 @@ contains
             A_abscal = 0.d0; b_abscal = 0.d0
          end if
 
+         call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
          ! Perform main analysis loop
          naccept = 0; ntot = 0
          do i = 1, self%nscan
+            call wall_time(t7)
 
 
             if (.not. any(self%scans(i)%d%accept)) cycle
@@ -378,9 +381,6 @@ contains
             allocate (s_orbA(ntod, ndet))                 ! Orbital dipole (beam A)
             allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B)
             allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both)
-            allocate (s_solA(ntod, ndet))                 ! Solar dipole (beam A)
-            allocate (s_solB(ntod, ndet))                 ! Solar dipole (beam B)
-            allocate (s_sol_tot(ntod, ndet))              ! Solar dipole (both)
             allocate (s_buf(ntod, ndet))                  ! Buffer
             allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
             allocate (mask(ntod, ndet))                   ! Processing mask in time
@@ -388,6 +388,8 @@ contains
             allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
             allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
             allocate (flag(ntod, ndet))                   ! Decompressed flags
+
+            call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
             ! --------------------
             ! Analyze current scan
@@ -425,35 +427,21 @@ contains
 
             if (main_iter == 1 .and. self%first_call) then
                do j = 1, ndet
-                  !self%scans(i)%d(j)%accept = .true.
                   if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
                   if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(:)%accept = .false.
                end do
             end if
+            call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
             ! Construct orbital dipole template
             call wall_time(t1)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_orbA)
-            !call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_orbB)
-            !s_orbA = s_orbA * 1d6 ! K -> mK, also km/s instead of m/s
-            !s_orbB = s_orbB * 1d6 ! K -> mK
-            ! switch to this when we get to version 29 files
-            s_orbA = s_orbA * 1d3 ! K -> mK
-            s_orbB = s_orbB * 1d3 ! K -> mK
-            call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_solA)
-            call self%orb_dp%p%compute_solar_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_solB)
-            !call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,1), psi(:,:,1), s_solA)
-            !call self%orb_dp%p%compute_solar_dipole_4pi(i, pix(:,:,2), psi(:,:,2), s_solB)
-            s_solA = s_solA * 1d3 ! K -> mK
-            s_solB = s_solB * 1d3 ! K -> mK
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA, 1d3)
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB, 1d3)
             do j = 1, ndet
                s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
                                & (1-self%x_im((j+1)/2))*s_orbB(:,j)
-               s_sol_tot(:, j) = (1+self%x_im((j+1)/2))*s_solA(:,j) - &
-                               & (1-self%x_im((j+1)/2))*s_solB(:,j)
             end do
+            call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
             if (do_oper(sim_map)) then
                 do j = 1, ndet
@@ -465,7 +453,6 @@ contains
                    end if
                 end do
             end if
-            call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
 
             ! Construct sidelobe template
@@ -495,7 +482,6 @@ contains
             s_buf = 0.d0
             do j = 1, ndet
                s_tot(:, j) = s_sky(:, j) + s_sl(:, j) + s_orb_tot(:,j)
-               s_buf(:, j) = s_tot(:, j)
             end do
 
 
@@ -528,12 +514,6 @@ contains
                call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
             end if
 
-            !if (self%myid_shared == 0) then
-            !  write(*,*) 'Before abscal prep'
-            !  write(*,*) self%gain0(0)
-            !  write(*,*) sum(abs(self%scans(i)%d(:)%dgain))
-            !  write(*,*) minval(s_tot), maxval(s_tot)
-            !end if
             ! Prepare for absolute calibration
             if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
                call update_status(status, "Prepping for absolute calibration")
@@ -555,12 +535,8 @@ contains
                call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal))
 
             end if
-            !if (self%myid_shared == 0) then
-            !  write(*,*) 'After abscal prep'
-            !  write(*,*) self%gain0(0)
-            !  write(*,*) sum(abs(self%scans(i)%d(:)%dgain))
-            !  write(*,*) minval(s_tot), maxval(s_tot)
-            !end if
+            call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
+
 
             ! Fit gain
             if (do_oper(samp_G)) then
@@ -619,21 +595,16 @@ contains
 
             ! Get calibrated map
             if (do_oper(bin_map)) then
+               call wall_time(t1)
                call update_status(status, "Computing binned map")
                allocate (d_calib(nout, ntod, ndet))
                d_calib = 0
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
-                  if (remove_solar_dipole) then
-                     d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-                        & inv_gain - s_tot(:, j) + s_sky(:, j) - s_sol_tot(:, j)
-                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - (s_sky(:, j) - s_sol_tot(:, j))! - s_bp(:, j) ! Residual
-                  else
-                     d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-                        & inv_gain - s_tot(:, j) + s_sky(:, j)! - s_bp(:, j)
-                     if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j)! + s_bp(:, j) ! Residual
-                  end if
+                  d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
+                     & inv_gain - s_tot(:, j) + s_sky(:, j)! - s_bp(:, j)
+                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j)! + s_bp(:, j) ! Residual
 
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
                   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_orb_tot(:,j)
@@ -649,26 +620,30 @@ contains
 
                end do
 
+
+               call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
+
                if (.true. .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
                      open(78,file=trim(chaindir)//'tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   sky (mK)"// &
-                          & " s_orb_dip (mK)  s_sol_dip  (mK)  mask  inv_gain"
+                          & " s_orb_dip (mK)  mask  inv_gain"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
-                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), s_sky(j,k), s_orb_tot(j,k), s_sol_tot(j,k), mask(j, k), inv_gain
+                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), s_sky(j,k), s_orb_tot(j,k), mask(j, k), inv_gain
                      end do
                      close(78)
                   end do
                end if
 
+               call wall_time(t1)
                ! Bin the calibrated map
                call bin_differential_TOD(self, d_calib, pix,  &
                  & psi, flag, self%x_im, procmask, b_map, M_diag, i, &
                  & do_oper(prep_relbp))
                deallocate(d_calib)
-               call wall_time(t8); t_tot(19) = t_tot(19) + t8
+               call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
             end if
 
             do j = 1, ndet
@@ -682,12 +657,17 @@ contains
             end do
 
             ! Clean up
+            call wall_time(t1)
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
             deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
-            deallocate (mask, mask2, pix, psi, flag, s_solA, s_solB, s_sol_tot)
+            deallocate (mask, mask2, pix, psi, flag)
             if (allocated(s_lowres)) deallocate (s_lowres)
             if (allocated(s_invN)) deallocate (s_invN)
             deallocate(s_bp, s_bp_prop)
+            call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
+
+
+            call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
@@ -712,6 +692,17 @@ contains
 
          call update_status(status, "Finished main loop iteration") 
       end do main_it
+      call wall_time(t4)
+
+
+      ! Output latest scan list with new timing information
+      if (do_oper(output_slist)) then
+         call update_status(status, "scanlist1")
+         call wall_time(t1)
+         call self%output_scan_list(slist)
+         call wall_time(t2); t_tot(20) = t_tot(20) + t2-t1
+         call update_status(status, "scanlist2")
+      end if
 
       call update_status(status, "Running allreduce on M_diag")
       call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
@@ -722,7 +713,7 @@ contains
 
 
       np0 = self%info%np
-      allocate (cg_tot(0:np0 - 1, nmaps+1))
+      allocate (cg_tot(0:np0 - 1, nmaps))
 
       ! write out M_diag, b_map to fits.
       cg_tot = b_map(self%info%pix, 1:nmaps, 1)
@@ -736,15 +727,15 @@ contains
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      allocate (r     (0:npix-1, nmaps+1))
-      allocate (r0    (0:npix-1, nmaps+1))
-      allocate (q     (0:npix-1, nmaps+1))
-      allocate (v     (0:npix-1, nmaps+1))
-      allocate (p     (0:npix-1, nmaps+1))
-      allocate (s     (0:npix-1, nmaps+1))
-      allocate (phat  (0:npix-1, nmaps+1))
-      allocate (shat  (0:npix-1, nmaps+1))
-      allocate (cg_sol(0:npix-1, nmaps+1, nout))
+      allocate (r     (0:npix-1, nmaps))
+      allocate (r0    (0:npix-1, nmaps))
+      allocate (q     (0:npix-1, nmaps))
+      allocate (v     (0:npix-1, nmaps))
+      allocate (p     (0:npix-1, nmaps))
+      allocate (s     (0:npix-1, nmaps))
+      allocate (phat  (0:npix-1, nmaps))
+      allocate (shat  (0:npix-1, nmaps))
+      allocate (cg_sol(0:npix-1, nmaps, nout))
 
       cg_sol = 0.0d0
       epsil = 1.0d-2
@@ -784,7 +775,7 @@ contains
             alpha = rho_new/sum(r0*v)
             cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
             if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, 1:nmaps+1, l)
+               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
                call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//trim(postfix), cg_tot, outmaps)
             end if
             s = r - alpha*v
@@ -817,7 +808,7 @@ contains
             end if
 
             if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, 1:nmaps+1, l)
+               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
                call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//trim(postfix), cg_tot, outmaps)
             end if
 
@@ -854,8 +845,6 @@ contains
          end do
       end do
 
-      cg_tot = cg_sol(self%info%pix, 1:nmaps+1, 1)
-      !call write_fits_file(trim(prefix)//'S'//trim(postfix), cg_tot(:,nmaps+1), outmaps)
 
       map_out%map = outmaps(1)%p%map
       ! Sometimes get a float invalid error here...
@@ -875,6 +864,34 @@ contains
          naccept = i
       end if
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
+      call wall_time(t6)
+      if (self%myid == self%numprocs/2) then
+         write(*,*) '  Time dist sky   = ', t_tot(9)
+         write(*,*) '  Time sl precomp = ', t_tot(13)
+         write(*,*) '  Time decompress = ', t_tot(11)
+         write(*,*) '  Time alloc      = ', t_tot(18)
+         write(*,*) '  Time project    = ', t_tot(1)
+         write(*,*) '  Time orbital    = ', t_tot(2)
+         write(*,*) '  Time sl interp  = ', t_tot(12)
+         write(*,*) '  Time ncorr      = ', t_tot(3)
+         write(*,*) '  Time gain       = ', t_tot(4)
+         write(*,*) '  Time absgain    = ', t_tot(14)
+         write(*,*) '  Time sel data   = ', t_tot(15)
+         write(*,*) '  Time clean      = ', t_tot(5)
+         write(*,*) '  Time noise      = ', t_tot(6)
+         write(*,*) '  Time samp abs   = ', t_tot(16)
+         write(*,*) '  Time samp bp    = ', t_tot(17)
+         write(*,*) '  Time chisq      = ', t_tot(7)
+         write(*,*) '  Time bin        = ', t_tot(8)
+         write(*,*) '  Time scanlist   = ', t_tot(20)
+         write(*,*) '  Time final      = ', t_tot(10)
+         if (self%first_call) then
+            write(*,*) '  Time total      = ', t6-t5, &
+                 & ', accept rate = ', real(naccept,sp) / ntot
+         else
+            write(*,*) '  Time total      = ', t6-t5, sum(t_tot(1:18))
+         end if
+      end if
 
       ! Clean up temporary arrays
       deallocate(A_abscal, b_abscal, chisq_S, procmask)
