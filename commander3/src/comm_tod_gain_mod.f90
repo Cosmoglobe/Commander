@@ -493,7 +493,7 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
        b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
-       if (out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+       !if (out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
     end do
 
 !    if (trim(tod%freq) == '070') then
@@ -501,7 +501,7 @@ contains
  !   end if
 
 
-    if (mod(tod%scanid(scan),1000) == 0 .and. out) then
+    if (.false. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
        call int2string(tod%scanid(scan), itext)
        !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
        open(58,file='gainfit3_'//itext//'.dat')
