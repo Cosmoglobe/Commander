@@ -110,7 +110,7 @@ contains
       constructor%output_n_maps = 4
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
-
+      constructor%first_call = .true.
       constructor%verbosity = cpar%verbosity
 
 
@@ -234,7 +234,6 @@ contains
       real(dp) :: omega, delta_r, delta_s
       real(dp), allocatable, dimension(:, :) :: r0, shat, p, phat, v
 
-      if (iter > 3) self%first_call = .false.
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
 
@@ -441,6 +440,7 @@ contains
             end if
             call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
+
             ! Construct orbital dipole template
             call wall_time(t1)
             call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
@@ -484,7 +484,10 @@ contains
 
 
             ! Add orbital dipole and sidelobes to total signal
-            s_tot = s_sky + s_sl + s_orb_tot
+            do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               s_tot(:, j) = s_sky(:, j) + s_sl(:, j) + s_orb_tot(:,j)
+            end do
 
 
             !!!!!!!!!!!!!!!!!!!
@@ -911,8 +914,8 @@ contains
          write(*,*) '  Time scanlist   = ', nint(t_tot(20))
          write(*,*) '  Time final      = ', nint(t_tot(10))
          if (self%first_call) then
-            write(*,*) '  Time total      = ', int(t6-t5), &
-                 & ', accept rate = ', real(naccept,sp) / ntot
+!            write(*,*) '  Time total      = ', int(t6-t5), &
+!                 & ', accept rate = ', real(naccept,sp) / ntot
          else
             write(*,*) '  Time total      = ', int(t6-t5), int(sum(t_tot(1:18)))
          end if
