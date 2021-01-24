@@ -101,19 +101,18 @@ contains
       integer(i4b), dimension(:), intent(in)  :: flag
       integer(i4b), intent(in)  :: scan_id
       real(dp), dimension(:), intent(in)  :: x_im
-      real(sp), dimension(:, :), intent(out) :: s_sky, tmask
-      real(sp), dimension(:), intent(out) :: s_sky_diff
+      real(sp), dimension(:, :), intent(out) :: s_sky, tmask, s_sky_diff
       logical(lgt), intent(in) :: sim_map
       real(sp), dimension(:, :), intent(out), optional :: s_bp
 
       integer(i4b) :: i, j, lpoint, rpoint, sgn, det
       real(sp)                                          :: s
       tmask = 1d0
-      s_sky_diff = 0
 
       do i = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(i)%accept) then
             s_sky(:, i) = 0.d0
+            s_sky_diff(:, i) = 0.d0
             tmask(:, i) = 0.d0
             cycle
          end if
@@ -144,7 +143,7 @@ contains
                                           &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2))))
           
             if (i == 1) then
-              s_sky_diff(j) = map(1, lpoint, i) - map(1, rpoint, i)
+              s_sky_diff(j, i) = map(1, lpoint, i) - map(1, rpoint, i)
             end if
             if (sim_map) then
                tod%scans(scan_id)%d(i)%tod(j) = s_sky(j,i)*tod%scans(scan_id)%d(i)%gain + &

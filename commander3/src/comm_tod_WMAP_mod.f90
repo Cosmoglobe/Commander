@@ -133,7 +133,7 @@ contains
 
       !initialize the common tod stuff
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
-      allocate (constructor%x_im(constructor%ndet/2))
+      allocate (constructor%x_im(2))
       !constructor%x_im(:) = 0.0d0
       ! For K-band
        constructor%x_im = [-0.00067, 0.00536]
@@ -183,8 +183,7 @@ contains
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
-      real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky
-      real(sp), allocatable, dimension(:)             :: s_sky_diff
+      real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky, s_sky_diff
       real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
       real(sp), allocatable, dimension(:, :)          :: mask, mask2, s_bp
@@ -334,7 +333,7 @@ contains
 
          if (self%myid == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_imbal)   = .false. ! (main_iter == n_main_iter-4)
+         do_oper(samp_imbal)   = (main_iter == n_main_iter-4) ! .false. !
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
          do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !      
@@ -378,7 +377,7 @@ contains
             allocate (s_slA(ntod, ndet))                  ! Sidelobe in uKcmb (beam A)
             allocate (s_slB(ntod, ndet))                  ! Sidelobe in uKcmb (beam B)
             allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
-            allocate (s_sky_diff(ntod))                   ! Differential signal, sA - sB
+            allocate (s_sky_diff(ntod, ndet))             ! Differential signal, sA - sB
             allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
             allocate (s_bp(ntod, ndet))                   ! Signal minus mean
             allocate (s_bp_prop(ntod, ndet, 2:ndelta))    ! Signal minus mean
@@ -538,7 +537,7 @@ contains
             else if (do_oper(samp_imbal)) then
               do j = 1, 4
                  s_buf(:,j) = real(self%gain0(0) + self%gain0(j) + &
-                     & self%scans(i)%d(j)%dgain,sp) * s_sky_diff(j)
+                     & self%scans(i)%d(j)%dgain,sp) * s_sky_diff(:, j)
                      ! Calibrating only to the common-mode orbital dipole
                      !& (s_tot(:,j) - self%x_im((j+1)/2)*(s_orbA(:,j)+s_orbB(:,j)))
                end do
@@ -1020,7 +1019,6 @@ contains
 
     integer(i4b) :: i, j, ierr
     real(dp), allocatable, dimension(:) :: A, b
-    real(dp), dimension(2) :: x_im
 
     ! Collect contributions from all cores
     allocate(A(tod%ndet), b(tod%ndet))
@@ -1034,7 +1032,7 @@ contains
        tod%x_im(1) = sum(b(1:2))/sum(A(1:2))
        tod%x_im(2) = sum(b(3:4))/sum(A(3:4))
        if (tod%verbosity > 1) then
-         write(*,*) 'imbal ML =', x_im
+         write(*,*) 'imbal ML =', tod%x_im
        end if
        if (trim(tod%operation) == 'sample') then
           ! Add fluctuation term if requested
@@ -1042,7 +1040,7 @@ contains
           tod%x_im(2) = tod%x_im(2) + 1.d0/sqrt(sum(A(3:4))) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,*) 'imbal sample =', x_im, sum(b(1:2)), sum(b(3:4)), sum(A(1:2)), sum(A(3:4))
+         write(*,*) 'imbal sample =', tod%x_im, sum(b(1:2)), sum(b(3:4)), sum(A(1:2)), sum(A(3:4))
        end if
     end if
     call mpi_bcast(tod%x_im, 2,  MPI_DOUBLE_PRECISION, 0, &
