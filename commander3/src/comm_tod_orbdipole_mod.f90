@@ -165,7 +165,7 @@ contains
     implicit none
     class(comm_orbdipole),               intent(in)  :: self
     integer(i4b),                        intent(in)  :: ind !scan nr/index
-    integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
+    integer(i4b),        dimension(:),   intent(in)  :: pix, psi
     real(sp),            dimension(:,:), intent(out) :: s_orb
     real(dp),               intent(in), optional     :: factor
     real(dp) :: b, x, q, b_dot, f
@@ -188,7 +188,7 @@ contains
          cycle
        end if
        do j=1,self%tod%scans(ind)%ntod !length of the tod
-          b_dot = dot_product(self%tod%scans(ind)%v_sun, self%tod%pix2vec(:,pix(j,i)))/c
+          b_dot = dot_product(self%tod%scans(ind)%v_sun, self%tod%pix2vec(:,pix(j)))/c
           s_orb(j,i) = f*T_CMB * (b_dot + q*(b_dot**2 - b**2/3.))
         end do
     end do
