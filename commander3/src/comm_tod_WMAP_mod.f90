@@ -200,8 +200,8 @@ contains
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: A_map, dipole_mod, M_diag
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono
-      integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
-      integer(i4b), allocatable, dimension(:, :)      :: flag
+      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
+      integer(i4b), allocatable, dimension(:)         :: flag
       real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
       real(dp), allocatable, dimension(:, :)          :: cg_tot
       logical(lgt)       :: correct_sl, verbose
@@ -390,9 +390,9 @@ contains
             allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
             allocate (mask(ntod, ndet))                   ! Processing mask in time
             allocate (mask2(ntod, ndet))                  ! Processing mask in time
-            allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
-            allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
-            allocate (flag(ntod, ndet))                   ! Decompressed flags
+            allocate (pix(ntod, nhorn))             ! Decompressed pointing
+            allocate (psi(ntod, nhorn))             ! Decompressed pol angle
+            allocate (flag(ntod))                   ! Decompressed flags
 
             call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
@@ -402,10 +402,13 @@ contains
 
             ! Decompress pointing, psi and flags for current scan
             call wall_time(t1)
-            do j = 1, ndet
-               call self%decompress_pointing_and_flags(i, j, pix(:, j, :), &
-                    & psi(:, j, :), flag(:, j))
-            end do
+            !do j = 1, ndet
+            !   call self%decompress_pointing_and_flags(i, j, pix(:, j, :), &
+            !        & psi(:, j, :), flag(:, j))
+            !end do
+            call self%decompress_pointing_and_flags(i, 1, pix, &
+                 & psi, flag)
+
             call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
             ! Construct sky signal template
@@ -440,8 +443,8 @@ contains
 
             ! Construct orbital dipole template
             call wall_time(t1)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA, 1d3)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB, 1d3)
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
             do j = 1, ndet
                s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
                                & (1-self%x_im((j+1)/2))*s_orbB(:,j)
@@ -466,9 +469,9 @@ contains
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   call self%construct_sl_template(self%slconv(j)%p, &
-                       & pix(:,j,1), psi(:,j,1), s_slA(:,j), 0d0)
+                       & pix(:,1), psi(:,1), s_slA(:,j), 0d0)
                   call self%construct_sl_template(self%slconv(j)%p, &
-                       & pix(:,j,2), psi(:,j,2), s_slB(:,j), 0d0)
+                       & pix(:,2), psi(:,2), s_slB(:,j), 0d0)
                   s_sl(:,j) = (1+self%x_im((j+1)/2))*s_slA(:,j) - &
                             & (1-self%x_im((j+1)/2))*s_slB(:,j)
                   !s_sl(:,j) = 0.5 * s_sl(:,j) ! Scaling by a factor of 1/2, following Barnes notation
@@ -557,7 +560,7 @@ contains
                      s_buf(:,j) = s_tot(:,j)
                   end if
                end do
-               call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
+               call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, .false.)
 !!               do j = 1, ndet
 !!                  n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
 !!               end do
