@@ -69,8 +69,6 @@ module comm_tod_WMAP_mod
       class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
-      real(dp)                    :: cg_tol
-      integer(i4b)                :: cg_maxiter, cg_miniter
    contains
       procedure     :: process_tod => process_WMAP_tod
    end type comm_WMAP_tod
@@ -139,10 +137,6 @@ contains
       ! For K-band
        constructor%x_im = [-0.00067, 0.00536]
       ! constructor%x_im = [-0.05, 0.05]
-
-      constructor%cg_tol      = cpar%cg_tol
-      constructor%cg_miniter  = cpar%cg_miniter
-      constructor%cg_maxiter  = cpar%cg_maxiter
 
 
       !TODO: this is LFI specific, write something here for wmap
@@ -739,9 +733,9 @@ contains
       allocate (m_buf (0:npix-1, nmaps))
 
       cg_sol = 0.0d0
-      epsil = self%cg_tol
-      i_max = self%cg_maxiter
-      i_min = self%cg_miniter
+      epsil = 1d-3
+      i_max = 100
+      i_min = 5
 
       if (self%myid_shared ==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
 
