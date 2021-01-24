@@ -69,6 +69,8 @@ module comm_tod_WMAP_mod
       class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
+      real(dp)                    :: cg_tol
+      integer(i4b)                :: cg_maxiter, cg_miniter
    contains
       procedure     :: process_tod => process_WMAP_tod
    end type comm_WMAP_tod
@@ -138,6 +140,10 @@ contains
        constructor%x_im = [-0.00067, 0.00536]
       ! constructor%x_im = [-0.05, 0.05]
 
+      constructor%cg_tol      = cpar%cg_tol
+      constructor%cg_miniter  = cpar%cg_miniter
+      constructor%cg_maxiter  = cpar%cg_maxiter
+
 
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -194,8 +200,8 @@ contains
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: A_map, dipole_mod, M_diag
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono
-      integer(i4b), allocatable, dimension(:, :, :)   :: pix, psi
-      integer(i4b), allocatable, dimension(:, :)      :: flag
+      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
+      integer(i4b), allocatable, dimension(:)         :: flag
       real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
       real(dp), allocatable, dimension(:, :)          :: cg_tot
       logical(lgt)       :: correct_sl, verbose
@@ -210,7 +216,7 @@ contains
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
       ! conjugate gradient parameters
-      integer(i4b) :: i_max=100, num_cg_iters=0
+      integer(i4b) :: i_max, i_min, num_cg_iters=0
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
@@ -385,9 +391,9 @@ contains
             allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
             allocate (mask(ntod, ndet))                   ! Processing mask in time
             allocate (mask2(ntod, ndet))                  ! Processing mask in time
-            allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
-            allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
-            allocate (flag(ntod, ndet))                   ! Decompressed flags
+            allocate (pix(ntod, nhorn))             ! Decompressed pointing
+            allocate (psi(ntod, nhorn))             ! Decompressed pol angle
+            allocate (flag(ntod))                   ! Decompressed flags
 
             call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
@@ -397,10 +403,13 @@ contains
 
             ! Decompress pointing, psi and flags for current scan
             call wall_time(t1)
-            do j = 1, ndet
-               call self%decompress_pointing_and_flags(i, j, pix(:, j, :), &
-                    & psi(:, j, :), flag(:, j))
-            end do
+            !do j = 1, ndet
+            !   call self%decompress_pointing_and_flags(i, j, pix(:, j, :), &
+            !        & psi(:, j, :), flag(:, j))
+            !end do
+            call self%decompress_pointing_and_flags(i, 1, pix, &
+                 & psi, flag)
+
             call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
             ! Construct sky signal template
@@ -435,8 +444,8 @@ contains
 
             ! Construct orbital dipole template
             call wall_time(t1)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,1), psi(:,:,1), s_orbA, 1d3)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,:,2), psi(:,:,2), s_orbB, 1d3)
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
+            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
             do j = 1, ndet
                s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
                                & (1-self%x_im((j+1)/2))*s_orbB(:,j)
@@ -461,9 +470,9 @@ contains
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   call self%construct_sl_template(self%slconv(j)%p, &
-                       & pix(:,j,1), psi(:,j,1), s_slA(:,j), 0d0)
+                       & pix(:,1), psi(:,1), s_slA(:,j), 0d0)
                   call self%construct_sl_template(self%slconv(j)%p, &
-                       & pix(:,j,2), psi(:,j,2), s_slB(:,j), 0d0)
+                       & pix(:,2), psi(:,2), s_slB(:,j), 0d0)
                   s_sl(:,j) = (1+self%x_im((j+1)/2))*s_slA(:,j) - &
                             & (1-self%x_im((j+1)/2))*s_slB(:,j)
                   !s_sl(:,j) = 0.5 * s_sl(:,j) ! Scaling by a factor of 1/2, following Barnes notation
@@ -493,7 +502,6 @@ contains
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
                allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
-               allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
@@ -503,16 +511,14 @@ contains
                      &  real(self%scans(i)%d(j)%sigma0, sp), &
                      &  handle, self%scans(i)%chunk_num)
                      call self%downsample_tod(s_buf(:,j), ext, &
-                          & s_lowres(:,j))!, mask(:,j))
+                          & s_invN(:,j))!, mask(:,j))
                   else
                      call self%downsample_tod(s_orb_tot(:,j), ext, &
-                          & s_lowres(:,j))!, mask(:,j))
+                          & s_invN(:,j))!, mask(:,j))
                   end if
                end do
                s_buf2 = s_buf
-               s_invN = s_lowres
                call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
-               call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
             end if
 
             ! Prepare for absolute calibration
@@ -532,8 +538,8 @@ contains
                      s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                   end if
                end do
-               call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), s_buf2)
 
+               call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), s_buf2)
             end if
             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
 
@@ -541,7 +547,7 @@ contains
             ! Fit gain
             if (do_oper(samp_G)) then
                call wall_time(t1)
-               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
+               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle)
                call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
             end if
 
@@ -556,7 +562,7 @@ contains
                      s_buf(:,j) = s_tot(:,j)
                   end if
                end do
-               call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .false.)
+               call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, .false.)
 !!               do j = 1, ndet
 !!                  n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
 !!               end do
@@ -657,7 +663,6 @@ contains
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_buf2)
             deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
             deallocate (mask, mask2, pix, psi, flag)
-            if (allocated(s_lowres)) deallocate (s_lowres)
             if (allocated(s_invN)) deallocate (s_invN)
             deallocate(s_bp, s_bp_prop)
             call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
@@ -734,7 +739,9 @@ contains
       allocate (m_buf (0:npix-1, nmaps))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-3
+      epsil = self%cg_tol
+      i_max = self%cg_maxiter
+      i_min = self%cg_miniter
 
       if (self%myid_shared ==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
 
@@ -789,7 +796,7 @@ contains
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
             num_cg_iters = num_cg_iters + 1
-            if (delta_s .le. (delta_0*epsil)) exit bicg
+            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) exit bicg
             call update_status(status, "Calling  q= A shat")
             m_buf = 0
             call compute_Ax(self, shat, m_buf, self%x_im, procmask, i)
@@ -827,11 +834,11 @@ contains
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
             num_cg_iters = num_cg_iters + 1
-            if ((delta_r .le. (delta_0*epsil))) exit bicg
+            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) exit bicg
          end do bicg
       end do
 
-      call wall_time(t10); t_tot(21) = (t10 - t9)/num_cg_iters
+      call wall_time(t10); t_tot(21) = (t10 - t9)
 
 
 
@@ -844,7 +851,7 @@ contains
 
       map_out%map = outmaps(1)%p%map
       ! Sometimes get a float invalid error here...
-      rms_out%map = M_diag(self%info%pix, 1:nmaps)!**-0.5
+      rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
       call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
       do n = 2, self%output_n_maps
@@ -862,28 +869,29 @@ contains
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
       call wall_time(t6)
       if (self%myid == self%numprocs/2 .and. self%verbosity > 0) then
-         write(*,*) '  Time dist sky   = ', int(t_tot(9))
-         write(*,*) '  Time sl precomp = ', int(t_tot(13))
-         write(*,*) '  Time decompress = ', int(t_tot(11))
-         write(*,*) '  Time alloc      = ', int(t_tot(18))
-         write(*,*) '  Time project    = ', int(t_tot(1))
-         write(*,*) '  Time orbital    = ', int(t_tot(2))
-         write(*,*) '  Time sl interp  = ', int(t_tot(12))
-         write(*,*) '  Time ncorr      = ', int(t_tot(3))
-         write(*,*) '  Time gain       = ', int(t_tot(4))
-         write(*,*) '  Time absgain    = ', int(t_tot(14))
-         write(*,*) '  Time sel data   = ', int(t_tot(15))
-         write(*,*) '  Time clean      = ', int(t_tot(5))
-         write(*,*) '  Time noise      = ', int(t_tot(6))
-         write(*,*) '  Time samp abs   = ', int(t_tot(16))
-         write(*,*) '  Time samp bp    = ', int(t_tot(17))
-         write(*,*) '  Time chisq      = ', int(t_tot(7))
-         write(*,*) '  Time bin        = ', int(t_tot(8))
-         write(*,*) '  Time per cg iter= ', int(t_tot(21))
+         write(*,*) '  Time dist sky   = ', nint(t_tot(9))
+         write(*,*) '  Time sl precomp = ', nint(t_tot(13))
+         write(*,*) '  Time decompress = ', nint(t_tot(11))
+         write(*,*) '  Time alloc      = ', nint(t_tot(18))
+         write(*,*) '  Time project    = ', nint(t_tot(1))
+         write(*,*) '  Time orbital    = ', nint(t_tot(2))
+         write(*,*) '  Time sl interp  = ', nint(t_tot(12))
+         write(*,*) '  Time ncorr      = ', nint(t_tot(3))
+         write(*,*) '  Time gain       = ', nint(t_tot(4))
+         write(*,*) '  Time absgain    = ', nint(t_tot(14))
+         write(*,*) '  Time sel data   = ', nint(t_tot(15))
+         write(*,*) '  Time clean      = ', nint(t_tot(5))
+         write(*,*) '  Time noise      = ', nint(t_tot(6))
+         write(*,*) '  Time samp abs   = ', nint(t_tot(16))
+         write(*,*) '  Time samp bp    = ', nint(t_tot(17))
+         write(*,*) '  Time chisq      = ', nint(t_tot(7))
+         write(*,*) '  Time bin        = ', nint(t_tot(8))
+         write(*,*) '  Time solving cg = ', nint(t_tot(21))
+         write(*,*) '  Time per cg iter= ', nint(t_tot(21)/num_cg_iters)
          write(*,*) '  Number of cg iters', num_cg_iters
-         write(*,*) '  Time allreduce  = ', int(t_tot(22))
-         write(*,*) '  Time scanlist   = ', int(t_tot(20))
-         write(*,*) '  Time final      = ', int(t_tot(10))
+         write(*,*) '  Time allreduce  = ', nint(t_tot(22))
+         write(*,*) '  Time scanlist   = ', nint(t_tot(20))
+         write(*,*) '  Time final      = ', nint(t_tot(10))
          if (self%first_call) then
             write(*,*) '  Time total      = ', int(t6-t5), &
                  & ', accept rate = ', real(naccept,sp) / ntot

@@ -98,9 +98,9 @@ contains
       class(comm_tod), intent(in)                               :: tod
       integer(i4b), intent(in)                                  :: scan
       real(sp), dimension(1:, 1:, 1:), intent(in)               :: data
-      integer(i4b), dimension(1:, 1:), intent(in)               :: flag
+      integer(i4b), dimension(1:), intent(in)                   :: flag
       integer(i4b), dimension(0:), intent(in)                   :: pmask
-      integer(i4b), dimension(1:, 1:, 1:), intent(in)           :: pix, psi
+      integer(i4b), dimension(1:, 1:), intent(in)               :: pix, psi
       real(dp), dimension(1:), intent(in)                       :: x_imarr
       real(dp), dimension(0:, 1:, 1:), intent(inout)            :: b
       real(dp), dimension(0:, 1:), intent(inout)                :: M_diag
@@ -125,14 +125,14 @@ contains
          end do
          inv_sigmasq = 1/var
          do t = 1, tod%scans(scan)%ntod
-            if (flag(t, 1) .ne. 0) then
+            if (flag(t) .ne. 0) then
                 cycle
             end if
 
-            lpix = pix(t, 1, 1)
-            rpix = pix(t, 1, 2)
-            lpsi = psi(t, 1, 1)
-            rpsi = psi(t, 1, 2)
+            lpix = pix(t, 1)
+            rpix = pix(t, 2)
+            lpsi = psi(t, 1)
+            rpsi = psi(t, 2)
             pA = pmask(lpix)
             pB = pmask(rpix)
             ! This SHOULD make it so that if pA is 0 (high emission) and pB
@@ -189,8 +189,8 @@ contains
       real(dp), dimension(0:, 1:), intent(in)            :: x
       real(dp), dimension(1:), intent(in)                :: x_imarr
       integer(i4b), dimension(0:), intent(in)            :: pmask
-      integer(i4b), allocatable, dimension(:, :)         :: flag
-      integer(i4b), allocatable, dimension(:, :, :)      :: pix, psi
+      integer(i4b), allocatable, dimension(:)         :: flag
+      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
 
       real(dp), dimension(0:, 1:), intent(inout)           :: y
 
@@ -204,25 +204,25 @@ contains
       dx_im = 0.5*(x_imarr(1) - x_imarr(2))
       do j = 1, tod%nscan
          ntod = tod%scans(j)%ntod
-         allocate (pix(ntod, ndet, nhorn))             ! Decompressed pointing
-         allocate (psi(ntod, ndet, nhorn))             ! Decompressed pol angle
-         allocate (flag(ntod, ndet))                   ! Decompressed flags
+         allocate (pix(ntod, nhorn))             ! Decompressed pointing
+         allocate (psi(ntod, nhorn))             ! Decompressed pol angle
+         allocate (flag(ntod))                   ! Decompressed flags
          !do k = 1, tod%ndet
          if (tod%scans(scan)%d(1)%accept) then
-            call tod%decompress_pointing_and_flags(j, 1, pix(:, 1, :), &
-                & psi(:, 1, :), flag(:, 1))
+            call tod%decompress_pointing_and_flags(j, 1, pix, &
+                & psi, flag)
             do t = 1, ntod
 
-               if (flag(t, 1) .ne. 0) cycle
+               if (flag(t) .ne. 0) cycle
                var = 0
                do k = 1, 4
                   var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2
                end do
                inv_sigmasq = 1/var
-               lpix = pix(t, 1, 1)
-               rpix = pix(t, 1, 2)
-               lpsi = psi(t, 1, 1)
-               rpsi = psi(t, 1, 2)
+               lpix = pix(t, 1)
+               rpix = pix(t, 2)
+               lpsi = psi(t, 1)
+               rpsi = psi(t, 2)
 
                pA = pmask(lpix)
                pB = pmask(rpix)
