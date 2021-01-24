@@ -89,7 +89,7 @@ contains
 
    ! Sky signal template
    subroutine project_sky_differential(tod, map, pix, psi, flag, x_im, pmask, scan_id,&
-        & s_sky, tmask, sim_map, s_bp)
+        & s_sky, s_sky_diff, tmask, sim_map, s_bp)
       implicit none
       !class(comm_tod), intent(in)  :: tod
       ! It is only inout for simulating data
@@ -102,12 +102,14 @@ contains
       integer(i4b), intent(in)  :: scan_id
       real(dp), dimension(:), intent(in)  :: x_im
       real(sp), dimension(:, :), intent(out) :: s_sky, tmask
+      real(sp), dimension(:), intent(out) :: s_sky_diff
       logical(lgt), intent(in) :: sim_map
       real(sp), dimension(:, :), intent(out), optional :: s_bp
 
       integer(i4b) :: i, j, lpoint, rpoint, sgn, det
       real(sp)                                          :: s
       tmask = 1d0
+      s_sky_diff = 0
 
       do i = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(i)%accept) then
@@ -141,7 +143,9 @@ contains
                                           &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                                           &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2))))
           
-         
+            if (i == 1) then
+              s_sky_diff(j) = map(1, lpoint, i) - map(1, rpoint, i)
+            end if
             if (sim_map) then
                tod%scans(scan_id)%d(i)%tod(j) = s_sky(j,i)*tod%scans(scan_id)%d(i)%gain + &
                    & + rand_normal(0d0, 1d0)*tod%scans(scan_id)%d(i)%sigma0

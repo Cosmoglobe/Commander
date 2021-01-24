@@ -184,6 +184,7 @@ contains
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
       real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky
+      real(sp), allocatable, dimension(:)             :: s_sky_diff
       real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
       real(sp), allocatable, dimension(:, :)          :: mask, mask2, s_bp
@@ -245,7 +246,7 @@ contains
       call wall_time(t1)
       correct_sl = .false.
       chisq_threshold = 6d0
-      n_main_iter     = 4
+      n_main_iter     = 5
       ndet = self%ndet
       nhorn = self%nhorn
       ndelta = size(delta, 3)
@@ -324,16 +325,16 @@ contains
       allocate ( b_map(0:npix-1, nmaps, nout))
       M_diag = 0d0
       b_map = 0d0
-      ! There are four main iterations, for absolute calibration, relative
-      ! calibration, time-variable calibration, and correlated noise estimation.
-      ! Will need to add an iteration for sampling the imbalance parameter.
+      ! There are five main iterations, for imbalance, absolute calibration, 
+      ! relative calibration, time-variable calibration, and 
+      ! correlated noise estimation.
       main_it: do main_iter = 1, n_main_iter
          call wall_time(t7)
          call update_status(status, "tod_istart")
 
          if (self%myid == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_imbal)   = .false. 
+         do_oper(samp_imbal)   = .false. ! (main_iter == n_main_iter-4)
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
          do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !      
@@ -377,6 +378,7 @@ contains
             allocate (s_slA(ntod, ndet))                  ! Sidelobe in uKcmb (beam A)
             allocate (s_slB(ntod, ndet))                  ! Sidelobe in uKcmb (beam B)
             allocate (s_sky(ntod, ndet))                  ! Sky signal in uKcmb
+            allocate (s_sky_diff(ntod))                   ! Differential signal, sA - sB
             allocate (s_sky_prop(ntod, ndet, 2:ndelta))   ! Sky signal in uKcmb
             allocate (s_bp(ntod, ndet))                   ! Signal minus mean
             allocate (s_bp_prop(ntod, ndet, 2:ndelta))    ! Signal minus mean
@@ -411,22 +413,23 @@ contains
 
             ! Construct sky signal template
             call wall_time(t1)
+            ! Maybe add s_sky_diff to project_sky_differential, before mask
             if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
                call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
-                 & self%x_im, procmask, i, s_sky, mask, do_oper(sim_map), s_bp=s_bp)
+                 & self%x_im, procmask, i, s_sky, s_sky_diff, mask, do_oper(sim_map), s_bp=s_bp)
             else
                call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
-                    & self%x_im, procmask, i, s_sky, mask, do_oper(sim_map))
+                    & self%x_im, procmask, i, s_sky, s_sky_diff, mask, do_oper(sim_map))
             end if
             if (do_oper(prep_relbp)) then
                do j = 2, ndelta
                   call project_sky_differential(self, map_sky(:,:,:,j), pix, psi, flag, &
-                       & self%x_im, procmask, i, s_sky_prop(:,:,j), mask, do_oper(sim_map), s_bp=s_bp_prop(:,:,j))
+                       & self%x_im, procmask, i, s_sky_prop(:,:,j), s_sky_diff, mask, do_oper(sim_map), s_bp=s_bp_prop(:,:,j))
                end do
             else if (do_oper(prep_absbp)) then
                do j = 2, ndelta
                   call project_sky_differential(self, map_sky(:,:,:,j), pix, psi, flag, &
-                       & self%x_im, procmask, i, s_sky_prop(:,:,j), mask, do_oper(sim_map))
+                       & self%x_im, procmask, i, s_sky_prop(:,:,j), s_sky_diff, mask, do_oper(sim_map))
                end do
             end if
 
@@ -533,12 +536,14 @@ contains
 
                call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), s_buf2)
             else if (do_oper(samp_imbal)) then
-              ! Calibrating only to the common-mode orbital dipole
               do j = 1, 4
                  s_buf(:,j) = real(self%gain0(0) + self%gain0(j) + &
-                     & self%scans(i)%d(j)%dgain,sp)  * &
-                     & (s_tot(:,j) - self%x_im((j+1)/2)*(s_orbA(:,j)+s_orbB(:,j)))
+                     & self%scans(i)%d(j)%dgain,sp) * s_sky_diff(j)
+                     ! Calibrating only to the common-mode orbital dipole
+                     !& (s_tot(:,j) - self%x_im((j+1)/2)*(s_orbA(:,j)+s_orbB(:,j)))
                end do
+
+               call accumulate_imbal_cal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle)
             end if
             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
 
@@ -660,7 +665,7 @@ contains
             ! Clean up
             call wall_time(t1)
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_buf2)
-            deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
+            deallocate ( s_sl, s_slA, s_slB, s_sky_prop, s_sky_diff)
             deallocate (mask, mask2, pix, psi, flag)
             if (allocated(s_invN)) deallocate (s_invN)
             deallocate(s_bp, s_bp_prop)
@@ -680,6 +685,12 @@ contains
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+
+         if (do_oper(samp_imbal)) then
+            call wall_time(t1)
+            call sample_imbal_cal(self, handle, A_abscal, b_abscal)
+            call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
+         end if
 
          if (do_oper(samp_acal)) then
             call wall_time(t1)
@@ -749,7 +760,7 @@ contains
       cg_sol = 0.0d0
       epsil = 1d-3
       i_max = 100
-      i_min = 5
+      i_min = 0
 
       if (self%myid==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
 
@@ -998,5 +1009,48 @@ contains
      call outmaps(1)%p%writeFITS(filename)
 
    end subroutine write_fits_file_iqu
+
+
+  ! Sample absolute gain from orbital dipole alone 
+  subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
+    implicit none
+    class(comm_WMAP_tod),              intent(inout)  :: tod
+    type(planck_rng),                  intent(inout)  :: handle
+    real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
+
+    integer(i4b) :: i, j, ierr
+    real(dp), allocatable, dimension(:) :: A, b
+    real(dp), dimension(2) :: x_im
+
+    ! Collect contributions from all cores
+    allocate(A(tod%ndet), b(tod%ndet))
+    call mpi_reduce(A_abs, A, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & tod%info%comm, ierr)
+    call mpi_reduce(b_abs, b, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & tod%info%comm, ierr)
+
+    ! Compute gain update and distribute to all cores
+    if (tod%myid == 0) then
+       tod%x_im(1) = sum(b(1:2))/sum(A(1:2))
+       tod%x_im(2) = sum(b(3:4))/sum(A(3:4))
+       if (tod%verbosity > 1) then
+         write(*,*) 'imbal ML =', x_im
+       end if
+       if (trim(tod%operation) == 'sample') then
+          ! Add fluctuation term if requested
+          tod%x_im(1) = tod%x_im(1) + 1.d0/sqrt(sum(A(1:2))) * rand_gauss(handle)
+          tod%x_im(2) = tod%x_im(2) + 1.d0/sqrt(sum(A(3:4))) * rand_gauss(handle)
+       end if
+       if (tod%verbosity > 1) then
+         write(*,*) 'imbal sample =', x_im, sum(b(1:2)), sum(b(3:4)), sum(A(1:2)), sum(A(3:4))
+       end if
+    end if
+    call mpi_bcast(tod%x_im, 2,  MPI_DOUBLE_PRECISION, 0, &
+         & tod%info%comm, ierr)
+
+
+    deallocate(A, b)
+
+  end subroutine sample_imbal_cal
 
 end module comm_tod_WMAP_mod
