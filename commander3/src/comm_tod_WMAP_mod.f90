@@ -186,7 +186,7 @@ contains
       real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
       real(sp), allocatable, dimension(:, :)          :: mask, mask2, s_bp
-      real(sp), allocatable, dimension(:, :)          :: s_mono, s_buf, s_tot, s_zodi
+      real(sp), allocatable, dimension(:, :)          :: s_mono, s_buf, s_buf2, s_tot, s_zodi
       real(sp), allocatable, dimension(:, :)          :: s_invN, s_lowres
       real(sp), allocatable, dimension(:, :, :)       :: s_sky_prop, s_bp_prop
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
@@ -381,6 +381,7 @@ contains
             allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B)
             allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both)
             allocate (s_buf(ntod, ndet))                  ! Buffer
+            allocate (s_buf2(ntod, ndet))                 ! Buffer
             allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
             allocate (mask(ntod, ndet))                   ! Processing mask in time
             allocate (mask2(ntod, ndet))                  ! Processing mask in time
@@ -498,7 +499,7 @@ contains
                   if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                      s_buf(:,j) = s_tot(:,j)
                      call fill_all_masked(s_buf(:,j), mask(:,j), ntod, &
-                     &  trim(self%operation)=='sample', &
+                     &  .false., &   !trim(self%operation)=='sample', &
                      &  real(self%scans(i)%d(j)%sigma0, sp), &
                      &  handle, self%scans(i)%chunk_num)
                      call self%downsample_tod(s_buf(:,j), ext, &
@@ -508,6 +509,7 @@ contains
                           & s_lowres(:,j))!, mask(:,j))
                   end if
                end do
+               s_buf2 = s_buf
                s_invN = s_lowres
                call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
                call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
@@ -530,7 +532,7 @@ contains
                      s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                   end if
                end do
-               call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal))
+               call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), s_buf2)
 
             end if
             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
@@ -652,7 +654,7 @@ contains
 
             ! Clean up
             call wall_time(t1)
-            deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
+            deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_buf2)
             deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
             deallocate (mask, mask2, pix, psi, flag)
             if (allocated(s_lowres)) deallocate (s_lowres)
@@ -732,7 +734,7 @@ contains
       allocate (m_buf (0:npix-1, nmaps))
 
       cg_sol = 0.0d0
-      epsil = 1.0d-2
+      epsil = 1.0d-3
 
       if (self%myid_shared ==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
 

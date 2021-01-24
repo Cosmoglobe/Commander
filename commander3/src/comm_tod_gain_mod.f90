@@ -455,7 +455,7 @@ contains
 !       & s_orb, A_abs, b_abs)
    ! This is implementing equation 16, adding up all the terms over all the sums
    ! the sum i is over the detector.
-   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out)
+   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
@@ -464,6 +464,7 @@ contains
     real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
     type(planck_rng),                  intent(inout)  :: handle
     logical(lgt), intent(in) :: out
+    real(sp),          dimension(:,:), intent(in), optional :: s_highres
  
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
@@ -493,7 +494,7 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
        b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
-       !if (out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+!       if (out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
     end do
 
 !    if (trim(tod%freq) == '070') then
@@ -522,15 +523,23 @@ contains
 
        open(58,file='gainfit4_'//itext//'.dat')       
        do i = 1, size(s_sub,1)
-          write(58,*) i, tod%scans(scan)%d(1)%tod(i)
+          write(58,*) i, tod%scans(scan)%d(4)%tod(i)
        end do
        write(58,*)
        do i = 1, size(s_sub,1)
-          write(58,*) i, s_sub(i,1)
+          write(58,*) i, r_fill(i)
        end do
        write(58,*)
        do i = 1, size(s_sub,1)
-          write(58,*) i, mask(i,1)
+          write(58,*) i, s_highres(i,4)
+       end do
+       write(58,*)
+       do i = 1, size(s_sub,1)
+          write(58,*) i, s_sub(i,4)
+       end do
+       write(58,*)
+       do i = 1, size(s_sub,1)
+          write(58,*) i, mask(i,4)*10
        end do
        close(58)
     end if
