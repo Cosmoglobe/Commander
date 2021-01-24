@@ -193,7 +193,7 @@ contains
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
       real(sp), allocatable, dimension(:, :)          :: mask, mask2, s_bp
       real(sp), allocatable, dimension(:, :)          :: s_mono, s_buf, s_tot, s_zodi
-      real(sp), allocatable, dimension(:, :)          :: s_invN, s_lowres
+      real(sp), allocatable, dimension(:, :)          :: s_invN
       real(sp), allocatable, dimension(:, :, :)       :: s_sky_prop, s_bp_prop
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:)             :: A_abscal, b_abscal
@@ -498,7 +498,6 @@ contains
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
                allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
-               allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
@@ -508,15 +507,13 @@ contains
                      &  real(self%scans(i)%d(j)%sigma0, sp), &
                      &  handle, self%scans(i)%chunk_num)
                      call self%downsample_tod(s_buf(:,j), ext, &
-                          & s_lowres(:,j))!, mask(:,j))
+                          & s_invN(:,j))!, mask(:,j))
                   else
                      call self%downsample_tod(s_orb_tot(:,j), ext, &
-                          & s_lowres(:,j))!, mask(:,j))
+                          & s_invN(:,j))!, mask(:,j))
                   end if
                end do
-               s_invN = s_lowres
                call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
-               call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
             end if
 
             ! Prepare for absolute calibration
@@ -536,7 +533,7 @@ contains
                      s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                   end if
                end do
-               call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal))
+               call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal))
 
             end if
             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
@@ -545,7 +542,7 @@ contains
             ! Fit gain
             if (do_oper(samp_G)) then
                call wall_time(t1)
-               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
+               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle)
                call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
             end if
 
@@ -661,7 +658,6 @@ contains
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
             deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
             deallocate (mask, mask2, pix, psi, flag)
-            if (allocated(s_lowres)) deallocate (s_lowres)
             if (allocated(s_invN)) deallocate (s_invN)
             deallocate(s_bp, s_bp_prop)
             call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
