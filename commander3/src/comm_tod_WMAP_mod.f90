@@ -306,7 +306,7 @@ contains
 
          !TODO: figure out why this is rotated
          call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-         self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+         self%slconv(i)%p => comm_conviqt(self%myid, self%comm_shared, &
               & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
               & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
 !         write(*,*) i, 'b', sum(abs(self%slconv(i)%p%c%a))
@@ -325,11 +325,12 @@ contains
       b_map = 0d0
       ! There are four main iterations, for absolute calibration, relative
       ! calibration, time-variable calibration, and correlated noise estimation.
+      ! Will need to add an iteration for sampling the imbalance parameter.
       main_it: do main_iter = 1, n_main_iter
          call wall_time(t7)
          call update_status(status, "tod_istart")
 
-         if (self%myid_shared == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
+         if (self%myid == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
@@ -737,11 +738,11 @@ contains
       i_max = 100
       i_min = 5
 
-      if (self%myid_shared ==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
+      if (self%myid==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
 
       call wall_time(t9)
       do l=1, nout
-         if (self%myid_shared==0 .and. self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+         if (self%myid==0 .and. self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          call update_status(status, "Starting bicg-stab")
          r  = b_map(:, :, l)
          r0 = b_map(:, :, l)
@@ -785,7 +786,7 @@ contains
             shat = s/M_diag
 
             delta_s = sum(s*shat)
-            if (self%myid_shared==0 .and. self%verbosity > 1) then 
+            if (self%myid==0 .and. self%verbosity > 1) then 
                 write(*,101) 2*i-1, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
@@ -823,7 +824,7 @@ contains
             end if
 
             delta_r = sum(r**2/M_diag)
-            if (self%myid_shared==0 .and. self%verbosity > 1) then 
+            if (self%myid==0 .and. self%verbosity > 1) then 
                 write(*,102) 2*i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
@@ -862,7 +863,7 @@ contains
       end if
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
       call wall_time(t6)
-      if (self%myid == self%numprocs/2 .and. self%verbosity > 0) then
+      if (self%myid == 0 .and. self%verbosity > 0) then
          write(*,*) '  Time dist sky   = ', nint(t_tot(9))
          write(*,*) '  Time sl precomp = ', nint(t_tot(13))
          write(*,*) '  Time decompress = ', nint(t_tot(11))
