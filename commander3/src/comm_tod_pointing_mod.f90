@@ -97,8 +97,8 @@ contains
       integer(i4b), dimension(0:), intent(in)  :: pmask
       real(sp), dimension(1:, 1:, 0:), intent(in)  :: map
       !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
-      integer(i4b), dimension(:, :, :), intent(in)  :: pix, psi
-      integer(i4b), dimension(:, :), intent(in)  :: flag
+      integer(i4b), dimension(:, :), intent(in)  :: pix, psi
+      integer(i4b), dimension(:), intent(in)  :: flag
       integer(i4b), intent(in)  :: scan_id
       real(dp), dimension(:), intent(in)  :: x_im
       real(sp), dimension(:, :), intent(out) :: s_sky, tmask
@@ -118,8 +118,8 @@ contains
          sgn = (-1)**((i + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
 
          do j = 1, tod%scans(scan_id)%ntod
-            lpoint = tod%pix2ind(pix(j, i, 1))
-            rpoint = tod%pix2ind(pix(j, i, 2))
+            lpoint = tod%pix2ind(pix(j, 1))
+            rpoint = tod%pix2ind(pix(j, 2))
             ! The gain imbalance parameters x are different for each radiometer.
             ! d13 = (1+x1)*[T(pA) + P(pA,gA) + S(pA)]
             !      -(1-x1)*[T(pB) + P(pB,gB) + S(pB)]
@@ -134,12 +134,12 @@ contains
 
             s_sky(j, i) = (1 + x_im((i + 1)/2))*(map(1, lpoint, i) + &
                                           &  sgn*( &
-                                          &  map(2, lpoint, i)*tod%cos2psi(psi(j, i, 1)) + &
-                                          &  map(3, lpoint, i)*tod%sin2psi(psi(j, i, 1)))) - &
+                                          &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
+                                          &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1)))) - &
                        &  (1 - x_im((i + 1)/2))*(map(1, rpoint, i) + &
                                           &  sgn*( &
-                                          &  map(2, rpoint, i)*tod%cos2psi(psi(j, i, 2)) + &
-                                          &  map(3, rpoint, i)*tod%sin2psi(psi(j, i, 2))))
+                                          &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
+                                          &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2))))
           
          
             if (sim_map) then
@@ -149,8 +149,8 @@ contains
             
           
             ! second flag should be "moon visible over sun shield" 
-            if (flag(j, i) == 0 .or. flag(j, i) == 2**(11+7)) then
-                tmask(j, i) = pmask(pix(j, i, 1))*pmask(pix(j,i,2))
+            if (flag(j) == 0 .or. flag(j) == 2**(11+7)) then
+                tmask(j, i) = pmask(pix(j, 1))*pmask(pix(j,2))
             else
                 tmask(j, i) = 0
             end if
@@ -166,16 +166,16 @@ contains
                cycle
             end if
             do i = 1, tod%scans(scan_id)%ntod
-               lpoint = tod%pix2ind(pix(i, det, 1))
-               rpoint = tod%pix2ind(pix(i, det, 2))
+               lpoint = tod%pix2ind(pix(i, 1))
+               rpoint = tod%pix2ind(pix(i, 2))
                s = (1 + x_im((det + 1)/2))*(map(1, lpoint, 0) + &
                                    &  sgn*( &
-                                   &  map(2, lpoint, 0)*tod%cos2psi(psi(i, det, 1)) + &
-                                   &  map(3, lpoint, 0)*tod%sin2psi(psi(i, det, 1)))) - &
+                                   &  map(2, lpoint, 0)*tod%cos2psi(psi(i, 1)) + &
+                                   &  map(3, lpoint, 0)*tod%sin2psi(psi(i, 1)))) - &
                  & (1 - x_im((det + 1)/2))*(map(1, rpoint, 0) + &
                                    &  sgn*( &
-                                   &  map(2, rpoint, 0)*tod%cos2psi(psi(i, det, 2)) + &
-                                   &  map(3, rpoint, 0)*tod%sin2psi(psi(i, det, 2))))
+                                   &  map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
+                                   &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2))))
                s_bp(i, det) = s_sky(i, det) - s
             end do
          end do
