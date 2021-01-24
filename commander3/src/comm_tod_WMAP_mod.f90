@@ -42,7 +42,7 @@ module comm_tod_WMAP_mod
    private
    public comm_WMAP_tod
 
-   integer(i4b), parameter :: N_test = 20
+   integer(i4b), parameter :: N_test = 21
    integer(i4b), parameter :: samp_N = 1
    integer(i4b), parameter :: prep_G = 15
    integer(i4b), parameter :: samp_G = 2
@@ -63,6 +63,7 @@ module comm_tod_WMAP_mod
    integer(i4b), parameter :: sub_sl      = 14
    integer(i4b), parameter :: sub_zodi = 17
    integer(i4b), parameter :: sim_map = 20
+   integer(i4b), parameter :: samp_imbal = 21
    logical(lgt), dimension(N_test) :: do_oper
 
    type, extends(comm_tod) :: comm_WMAP_tod
@@ -233,7 +234,7 @@ contains
       real(dp) :: omega, delta_r, delta_s
       real(dp), allocatable, dimension(:, :) :: r0, shat, p, phat, v
 
-      if (iter > 1) self%first_call = .false.
+      if (iter > 3) self%first_call = .false.
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
 
@@ -332,6 +333,7 @@ contains
 
          if (self%myid == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
+         do_oper(samp_imbal)   = .false. 
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
          do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !      
@@ -346,12 +348,12 @@ contains
          do_oper(calc_chisq)   = (main_iter == n_main_iter  )
          do_oper(sub_sl)       = correct_sl
          do_oper(sub_zodi)     = self%subtract_zodi
-         do_oper(output_slist) = mod(iter, 1) == 0
+         do_oper(output_slist) = mod(iter, 3) == 0
          do_oper(sim_map)      = .false. ! (main_iter == 1) !   
 
          dipole_mod = 0
 
-         if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
+         if (do_oper(samp_acal) .or. do_oper(samp_rcal) .or. do_oper(samp_imbal)) then
             A_abscal = 0.d0; b_abscal = 0.d0
          end if
 
@@ -474,18 +476,13 @@ contains
                   s_sl(:,j) = 2 * s_sl(:,j)   ! Scaling by a factor of 2, need to understand why
                end do
             else
-               do j = 1, ndet
-                  if (.not. self%scans(i)%d(j)%accept) cycle
-                  s_sl(:,j) = 0.
-               end do
+               s_sl = 0.
             end if
             call wall_time(t2); t_tot(12) = t_tot(12) + t2-t1
 
 
             ! Add orbital dipole and sidelobes to total signal
-            do j = 1, ndet
-               s_tot(:, j) = s_sky(:, j) + s_sl(:, j) + s_orb_tot(:,j)
-            end do
+            s_tot = s_sky + s_sl + s_orb_tot
 
 
             !!!!!!!!!!!!!!!!!!!
@@ -494,7 +491,7 @@ contains
 
             s_buf = 0.d0
             ! Precompute filtered signal for calibration
-            if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
+            if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal) .or. do_oper(samp_imbal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
                allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
                do j = 1, ndet
@@ -517,8 +514,8 @@ contains
             end if
 
             ! Prepare for absolute calibration
+            call wall_time(t1)
             if (do_oper(samp_acal) .or. do_oper(samp_rcal)) then
-               call wall_time(t1)
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   if (do_oper(samp_acal)) then
@@ -535,6 +532,13 @@ contains
                end do
 
                call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), s_buf2)
+            else if (do_oper(samp_imbal)) then
+              ! Calibrating only to the common-mode orbital dipole
+              do j = 1, 4
+                 s_buf(:,j) = real(self%gain0(0) + self%gain0(j) + &
+                     & self%scans(i)%d(j)%dgain,sp)  * &
+                     & (s_tot(:,j) - self%x_im((j+1)/2)*(s_orbA(:,j)+s_orbB(:,j)))
+               end do
             end if
             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
 
@@ -620,10 +624,10 @@ contains
 
                call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
-               if (.true. .and. do_oper(bin_map) .and. self%first_call) then
+               if (.false. .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
-                     open(78,file=trim(chaindir)//'tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
+                     open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   sky (mK)"// &
                           & " s_orb_dip (mK)  mask  inv_gain"
                      do j = 1, ntod
@@ -663,7 +667,16 @@ contains
             call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
 
+
             call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
+            if (do_oper(output_slist)) then
+               self%scans(i)%proctime   = self%scans(i)%proctime   + t8-t7
+               self%scans(i)%n_proctime = self%scans(i)%n_proctime + 1
+               if (main_iter == n_main_iter) then
+                  write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
+                       & '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp),real(self%spinaxis(i,:),sp)
+               end if
+            end if
          end do
 
          call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
