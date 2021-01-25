@@ -107,7 +107,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 4
+      constructor%output_n_maps = 5
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
       constructor%first_call = .true.
@@ -133,7 +133,7 @@ contains
 
       !initialize the common tod stuff
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
-      allocate (constructor%x_im(constructor%ndet/2))
+      allocate (constructor%x_im(2))
       constructor%x_im(:) = 0.0d0
 
 
@@ -244,7 +244,7 @@ contains
 
       ! Set up full-sky map structures
       call wall_time(t1)
-      correct_sl = .false.
+      correct_sl = .true.
       chisq_threshold = 6d0
       n_main_iter     = 5
       ndet = self%ndet
@@ -455,7 +455,12 @@ contains
             call wall_time(t1)
             if (do_oper(sub_sl)) then
                do j = 1, ndet
-                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  if (.not. self%scans(i)%d(j)%accept) then
+                    s_sl(:,j) = 0
+                    s_slA(:,j) = 0
+                    s_slB(:,j) = 0
+                    cycle
+                  end if
                   call self%construct_sl_template(self%slconv(j)%p, &
                        & pix(:,1), psi(:,1), s_slA(:,j), 0d0)
                   call self%construct_sl_template(self%slconv(j)%p, &
