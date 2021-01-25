@@ -1,3 +1,23 @@
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
 # Commander Makefile for use with EITHER the planck
 # module build system OR a set of stand-alone
 # config files.  Default make target prints help.
@@ -15,7 +35,7 @@ export TOPDIR
 
 
 ifdef COMMANDER
-	include $(TOPDIR)/config/config.$(COMMANDER)
+	include $(TOPDIR)/commander3/config/config.$(COMMANDER)
 	ifndef INSTALL
 		INSTALL := $(TOPDIR)/install_$(COMMANDER)
 	endif
@@ -83,20 +103,14 @@ export F90COMP := $(F90FLAGS) $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INC
 export FCOMP := $(FFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
 export CCOMP := $(CFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
 export LINK := -L. -lcommander $(SHARP_LINK) $(HEALPIX_LINK) $(CFITSIO_LINK) $(LAPACK_LINK) $(HDF_LINK) $(LDFLAGS) $(F90OMPFLAGS) 
-export TEMPITA := "$(TOPDIR)/src/python/tempita_proc.py"
+export TEMPITA := "$(TOPDIR)/commander3/python/tempita_proc.py"
 
 
 all : commander 
 
 commander : 
-	@cd src/commander; $(MAKE)
-
-camb : 
-	@cd src/camb; $(MAKE)
-
-messcomm : 
-	@cd src/messcomm; $(MAKE) 
+	@cd commander3/src; $(MAKE)
 
 clean :
-	@cd src/commander; $(MAKE) clean
+	@cd commander3/src; $(MAKE) clean
 
