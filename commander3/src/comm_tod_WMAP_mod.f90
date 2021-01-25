@@ -134,10 +134,11 @@ contains
       !initialize the common tod stuff
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
       allocate (constructor%x_im(constructor%ndet/2))
-      !constructor%x_im(:) = 0.0d0
+      constructor%x_im(:) = 0.0d0
+
+
       ! For K-band
-       constructor%x_im = [-0.00067, 0.00536]
-      ! constructor%x_im = [-0.05, 0.05]
+      !constructor%x_im = [-0.00067, 0.00536]
 
 
       !TODO: this is LFI specific, write something here for wmap
@@ -212,7 +213,7 @@ contains
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
       ! conjugate gradient parameters
-      integer(i4b) :: i_max, i_min, num_cg_iters=0
+      integer(i4b) :: i_max, i_min, num_cg_iters
       real(dp) :: delta_0, delta_old, delta_new, epsil
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
@@ -333,7 +334,7 @@ contains
 
          if (self%myid == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_imbal)   = (main_iter == n_main_iter-4) ! .false. ! 
+         do_oper(samp_imbal)   = (main_iter == n_main_iter-4) ! .false. !  
          do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
          do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
          do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !      
@@ -773,6 +774,7 @@ contains
       epsil = 1d-3
       i_max = 100
       i_min = 0
+      num_cg_iters = 0
 
       if (self%myid==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
 
