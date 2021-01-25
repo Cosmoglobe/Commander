@@ -58,6 +58,7 @@ from tqdm import tqdm
 # version 28 converts the velocity vector to Galactic coordinates
 # version 29 converts the velocity to meters, corrects format of mbang, polang.
 # version 30 adds the genflags to the daflags
+# version 31 has center=True
 
 from time import sleep
 from time import time as timer
@@ -892,14 +893,20 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
     #files = np.array(files)[:len(files)//4]
     #inds = inds[len(files)//4:2*len(files)//4]
     #files = np.array(files)[len(files)//4:2*len(files)//4]
-    #inds = inds[2*len(files)//4:3*len(files)//4]
-    #files = np.array(files)[2*len(files)//4:3*len(files)//4]
-    inds = inds[3*len(files)//4:]
-    files = np.array(files)[3*len(files)//4:]
+    #inds = inds[4*len(files)//8:5*len(files)//8]
+    #files = np.array(files)[4*len(files)//8:5*len(files)//8]
+    #inds = inds[5*len(files)//8:6*len(files)//8]
+    #files = np.array(files)[5*len(files)//8:6*len(files)//8]
+    #inds = inds[6*len(files)//8:7*len(files)//8]
+    #files = np.array(files)[6*len(files)//8:7*len(files)//8]
+    #inds = inds[7*len(files)//8:]
+    #files = np.array(files)[7*len(files)//8:]
+    #inds = inds[3*len(files)//4:]
+    #files = np.array(files)[3*len(files)//4:]
 
 
     if par:
-        nprocs = 36
+        nprocs = 16
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -915,5 +922,5 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
             fits_to_h5(f,i,compress, plot, version, center)
 
 if __name__ == '__main__':
-    main(par=True, plot=False, compress=True, version=30, center=False)
+    main(par=True, plot=False, compress=True, version=31, center=True)
     #test_flags()
