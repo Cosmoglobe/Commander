@@ -9,7 +9,7 @@ fname = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20060252355_
 data = fits.open(fname)
 quat = data[1].data['QUATERN']
 # Return pointing and pol angles for each DA
-gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, lonlat=True, center=False)
+gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, lonlat=True, center=True)
 
 gal_A = gal_A[0]
 gal_B = gal_B[0]
@@ -20,7 +20,7 @@ np.savetxt('pyth_quot.txt', gal1)
 
 
 
-gal2 = np.loadtxt('wmap_routines/pro/idl_quat.txt')
+gal2 = np.loadtxt('wmap_routines/pro/idl_quat_cent.txt')
 gal2[:,0] = ((gal2[:,0] + 360) % 360)
 gal2[:,2] = ((gal2[:,2] + 360) % 360)
 
