@@ -88,8 +88,8 @@ contains
    end subroutine project_sky
 
    ! Sky signal template
-   subroutine project_sky_differential(tod, map, pix, psi, flag, x_im, pmask, scan_id,&
-        & s_sky, s_sky_diff, tmask, sim_map, s_bp)
+   subroutine project_sky_differential(tod, map, pix, psi, flag, pmask, scan_id,&
+        & s_skyA, s_skyB, tmask, s_bpA, s_bpB)
       implicit none
       !class(comm_tod), intent(in)  :: tod
       ! It is only inout for simulating data
@@ -100,20 +100,17 @@ contains
       integer(i4b), dimension(:, :), intent(in)  :: pix, psi
       integer(i4b), dimension(:), intent(in)  :: flag
       integer(i4b), intent(in)  :: scan_id
-      real(dp), dimension(:), intent(in)  :: x_im
-      real(sp), dimension(:, :), intent(out) :: s_sky, tmask
-      real(sp), dimension(:), intent(out) :: s_sky_diff
-      logical(lgt), intent(in) :: sim_map
-      real(sp), dimension(:, :), intent(out), optional :: s_bp
+      real(sp), dimension(:, :), intent(out) :: s_skyA, s_skyB, tmask
+      real(sp), dimension(:, :), intent(out), optional :: s_bpA, s_bpB
 
       integer(i4b) :: i, j, lpoint, rpoint, sgn, det
-      real(sp)                                          :: s
+      real(sp)                                          :: sA, sB
       tmask = 1d0
-      s_sky_diff = 0
 
       do i = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(i)%accept) then
-            s_sky(:, i) = 0.d0
+            s_skyA(:, i) = 0.d0
+            s_skyB(:, i) = 0.d0
             tmask(:, i) = 0.d0
             cycle
          end if
@@ -134,23 +131,15 @@ contains
             ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
             !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
 
-            s_sky(j, i) = (1 + x_im((i + 1)/2))*(map(1, lpoint, i) + &
-                                          &  sgn*( &
-                                          &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
-                                          &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1)))) - &
-                       &  (1 - x_im((i + 1)/2))*(map(1, rpoint, i) + &
-                                          &  sgn*( &
-                                          &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
-                                          &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2))))
+            s_skyA(j, i) = map(1, lpoint, i) + &
+                       &  sgn*( &
+                       &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
+                       &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1)))
+            s_skyB(j, i) = map(1, rpoint, i) + &
+                       &  sgn*( &
+                       &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
+                       &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
           
-            if (i == 1) then
-              s_sky_diff(j) = map(1, lpoint, i) - map(1, rpoint, i)
-            end if
-            if (sim_map) then
-               tod%scans(scan_id)%d(i)%tod(j) = s_sky(j,i)*tod%scans(scan_id)%d(i)%gain + &
-                   & + rand_normal(0d0, 1d0)*tod%scans(scan_id)%d(i)%sigma0
-            end if
-            
           
             ! second flag should be "moon visible over sun shield" 
             if (flag(j) == 0 .or. flag(j) == 2**(11+7)) then
@@ -163,24 +152,26 @@ contains
          end do
       end do
 
-      if (present(s_bp)) then
+      if (present(s_bpA) .and. present(s_bpB)) then
          do det = 1, tod%ndet
             if (.not. tod%scans(scan_id)%d(det)%accept) then
-               s_bp(:, det) = 0.d0
+               s_bpA(:, det) = 0.d0
+               s_bpB(:, det) = 0.d0
                cycle
             end if
             do i = 1, tod%scans(scan_id)%ntod
                lpoint = tod%pix2ind(pix(i, 1))
                rpoint = tod%pix2ind(pix(i, 2))
-               s = (1 + x_im((det + 1)/2))*(map(1, lpoint, 0) + &
-                                   &  sgn*( &
-                                   &  map(2, lpoint, 0)*tod%cos2psi(psi(i, 1)) + &
-                                   &  map(3, lpoint, 0)*tod%sin2psi(psi(i, 1)))) - &
-                 & (1 - x_im((det + 1)/2))*(map(1, rpoint, 0) + &
-                                   &  sgn*( &
-                                   &  map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
-                                   &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2))))
-               s_bp(i, det) = s_sky(i, det) - s
+               sA = map(1, lpoint, 0) + &
+                        &  sgn*( &
+                        &  map(2, lpoint, 0)*tod%cos2psi(psi(i, 1)) + &
+                        &  map(3, lpoint, 0)*tod%sin2psi(psi(i, 1)))
+               sB = map(1, rpoint, 0) + &
+                        &  sgn*( &
+                        &  map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
+                        &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2)))
+               s_bpA(i, det) = s_skyA(i, det) - sA
+               s_bpB(i, det) = s_skyA(i, det) - sB
             end do
          end do
       end if
