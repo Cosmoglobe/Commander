@@ -74,9 +74,11 @@ dir_B_los = np.array([
             [  0.00768184749607, -0.94540702221088, -0.32580139897397],
             [  0.00751408106677, -0.93889226303920, -0.34412912836731  ]])
 
+rot = 315
 fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v4.h5'
 fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v5.h5'
 fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v6.h5'
+fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
 #fname_out = 'test.h5'
 labels = ['K', 'Ka', 'Q', 'V', 'W']
 
@@ -303,7 +305,8 @@ with h5py.File(fname_out, 'a') as f:
       theta = np.arccos(dir_A[2])
       phi = np.arctan2(dir_A[1], dir_A[0])
       
-      r = hp.rotator.Rotator(rot=(phi, -theta, 0), deg=False, eulertype='ZYX')
+      r = hp.rotator.Rotator(rot=(phi, -theta, rot*np.pi/180), \
+          deg=False, eulertype='ZYX')
       beam_A = r.rotate_map_pixel(beam_A)
 
 
@@ -324,7 +327,8 @@ with h5py.File(fname_out, 'a') as f:
       theta = np.arccos(dir_B[2])
       phi = np.arctan2(dir_B[1], dir_B[0])
       
-      r = hp.rotator.Rotator(rot=(phi, -theta, 0), deg=False, eulertype='ZYX')
+      r = hp.rotator.Rotator(rot=(phi, -theta, rot*np.pi/180), 
+          deg=False, eulertype='ZYX')
       beam_B = r.rotate_map_pixel(beam_B)
 
       s_lm_B = np.zeros((lmax+1)**2)
