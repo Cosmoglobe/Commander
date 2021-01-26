@@ -467,7 +467,6 @@ contains
                        & pix(:,2), psi(:,2), s_slB(:,j), 0d0)
                   s_sl(:, j) = (1+self%x_im((j+1)/2))*s_slA(:,j) - &
                                (1-self%x_im((j+1)/2))*s_slB(:,j)
-
                end do
             else
                s_sl = 0.
