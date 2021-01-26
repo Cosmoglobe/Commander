@@ -120,6 +120,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: partner ! Partner detector; for symmetrizing flags
      integer(i4b),       allocatable, dimension(:)     :: horn_id  ! Internal horn number per detector
+     real(dp),           dimension(2)                  :: x_im    ! feedhorn imbalance parameters
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask => null() ! Mask for gain and n_corr
@@ -270,6 +271,7 @@ contains
     allocate(self%horn_id(self%ndet))
     self%stokes = [1,2,3]
     self%w      = 1.d0
+    self%x_im   = 0d0
 
     if (trim(cpar%ds_bpmodel(id_abs)) == 'additive_shift') then
        ndelta = 1
@@ -1040,6 +1042,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
+       call write_hdf(chainfile, trim(adjustl(path))//'x_im',   self%x_im)
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
     end if

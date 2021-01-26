@@ -68,7 +68,6 @@ module comm_tod_WMAP_mod
 
    type, extends(comm_tod) :: comm_WMAP_tod
       class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
-      real(dp), allocatable, dimension(:)  :: x_im    ! feedhorn imbalance parameters
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
    contains
       procedure     :: process_tod => process_WMAP_tod
@@ -133,9 +132,6 @@ contains
 
       !initialize the common tod stuff
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
-      allocate (constructor%x_im(2))
-      constructor%x_im(:) = 0.0d0
-
 
       ! For K-band
       !constructor%x_im = [-0.00067, 0.00536]
