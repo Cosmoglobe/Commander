@@ -911,9 +911,8 @@ contains
           prior(1) = 0.01
           prior(2) = 0.45
        else 
-          write(*,*) trim(self%freq)
-          write(*,*) "invalid band label in sample_noise_psd"
-          stop
+          prior(1) = 0.00
+          prior(2) = 10.
        end if
 
        x_in(1) = max(fknee - 0.5 * fknee, prior(1))
@@ -944,9 +943,8 @@ contains
           prior(1) = -2.5
           prior(2) = -0.4
        else 
-          write(*,*) trim(self%freq)
-          write(*,*) "invalid band label in sample_noise_psd"
-          stop
+          prior(1) = -10
+          prior(2) = -0.1
        end if
 
        x_in(1) = max(alpha - 0.2 * abs(alpha), prior(1))
