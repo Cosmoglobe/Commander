@@ -78,6 +78,7 @@ dir_B_los = np.array([
 rots = np.arange(0, 360, 45)
 for rot in rots:
   fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
+  #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v7.h5'
   
   
   with h5py.File(fname_out, 'a') as f:
@@ -253,24 +254,29 @@ for rot in rots:
         dir_A = dir_A_los[i]
         theta = np.arccos(dir_A[2])
         phi = np.arctan2(dir_A[1], dir_A[0])
-        
+
+       
+        hp.mollview(beam_A, min=0, max=0.3)
   
         r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
             deg=False, eulertype='ZYX')
         beam_A_temp = r.rotate_map_pixel(beam_A)
+
+        hp.mollview(beam_A_temp, min=0, max=0.3)
   
         r = hp.rotator.Rotator(rot=(rot*np.pi/180, 0, 0), \
             deg=False, eulertype='ZYX')
         beam_A = r.rotate_map_pixel(beam_A_temp)
   
+        hp.mollview(beam_A, min=0, max=0.3)
   
         s_lm_A = np.zeros((lmax+1)**2)
         alm_A = hp.map2alm(beam_A)
   
         for j in range(len(alm_A)):
             li, mi = hp.sphtfunc.Alm.getlm(sllmax,i=j)
-            #if (li <= lmax) & (mi <= slmmax):
-            if (li <= lmax) & (mi <= slmmax) & (mi == 0):
+            if (li <= lmax) & (mi <= slmmax):
+            #if (li <= lmax) & (mi <= slmmax) & (mi == 0):
                 ind_real = li**2 + li + mi
                 ind_imag = li**2 + li - mi
                 s_lm_A[ind_real] = alm_A[j].real
@@ -292,12 +298,11 @@ for rot in rots:
   
         s_lm_B = np.zeros((lmax+1)**2)
         alm_B = hp.map2alm(beam_B)
-        plt.show()
   
         for j in range(len(alm_B)):
             li, mi = hp.sphtfunc.Alm.getlm(sllmax,i=j)
-            #if (li <= lmax) & (mi <= slmmax):
-            if (li <= lmax) & (mi <= slmmax) & (mi == 0):
+            if (li <= lmax) & (mi <= slmmax):
+            #if (li <= lmax) & (mi <= slmmax) & (mi == 0):
                 ind_real = li**2 + li + mi
                 ind_imag = li**2 + li - mi
                 s_lm_B[ind_real] = alm_B[j].real
