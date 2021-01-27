@@ -47,6 +47,7 @@ module comm_tod_SPIDER_mod
 
 
   type, extends(comm_tod) :: comm_SPIDER_tod
+  class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
    contains
      procedure     :: process_tod        => process_SPIDER_tod
   end type comm_SPIDER_tod
@@ -800,7 +801,7 @@ contains
 
           ! Construct orbital dipole template
           call wall_time(t1)
-          call compute_orbital_dipole(self, i, pix, psi, s_orb)
+          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
 
@@ -924,7 +925,7 @@ contains
                   s_buf(:,j) = s_tot(:,j)
                end if
             end do
-            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, tod_gapfill, iter, dir_name, run_label)
+            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, tod_gapfill)
             call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
             n_corr = 0.
@@ -1000,7 +1001,7 @@ contains
          ! Compute noise spectrum
          if (do_oper(samp_N_par)) then
             call wall_time(t1)
-            call sample_noise_psd_new(self, handle, i, mask, s_tot, n_corr, tod_gapfill, iter, dir_name, run_label)
+            call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_gapfill)
             call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
          end if
 
@@ -1155,7 +1156,8 @@ contains
           end if
 
           do j = 1, ndet
-             if (self%scans(i)%d(j)%accept==.true.) dipole_mod(self%scanid(i), j) = dipole_modulation(self, s_sky(:, j), mask(:, j)) ! Harald
+             if (.not. self%scans(i)%d(j)%accept) cycle
+             dipole_mod(self%scanid(i), j) = masked_variance(s_sky(:, j), mask(:, j))
           end do
 
 

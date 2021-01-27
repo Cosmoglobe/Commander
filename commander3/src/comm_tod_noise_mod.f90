@@ -30,7 +30,7 @@ contains
 
  ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix)
+  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix, tod_input)
     implicit none
     class(comm_tod),               intent(in)     :: self
     type(planck_rng),                  intent(inout)  :: handle
@@ -38,6 +38,7 @@ contains
     integer(i4b),   dimension(1:,1:),  intent(in)     :: pix
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
     real(sp),          dimension(:,:), intent(out)    :: n_corr
+    real(sp),    dimension(:,:), intent(in), optional :: tod_input
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
     integer*8    :: plan_fwd, plan_back
@@ -77,7 +78,12 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
+
+       if (present(tod_input)) then
+         d_prime(:) = tod_input(:,i) - S_sub(:,i) * gain
+       else
+         d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
+       end if
 
        sigma_0 = self%scans(scan)%d(i)%sigma0
        ! Fill gaps in data 
@@ -797,12 +803,13 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
+  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr, tod_input)
     implicit none
     class(comm_tod),             intent(inout)  :: self
     type(planck_rng),                intent(inout)  :: handle
     integer(i4b),                    intent(in)     :: scan
     real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
+    real(sp), dimension(:,:), intent(in), optional  :: tod_input
     
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
@@ -827,12 +834,21 @@ contains
 
        do j = 1, self%scans(scan)%ntod-1
           if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = (self%scans(scan)%d(i)%tod(j) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
-               & n_corr(j,i)) - &
-               & (self%scans(scan)%d(i)%tod(j+1) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
-               & n_corr(j+1,i))))/sqrt(2.)
+          if (present(tod_input)) then
+            res = (tod_input(j,i) - &
+                  & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                  & n_corr(j,i)) - &
+                  & (self%scans(scan)%d(i)%tod(j+1) - &
+                  & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                  & n_corr(j+1,i))))/sqrt(2.)
+          else
+            res = (self%scans(scan)%d(i)%tod(j) - &
+                  & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                  & n_corr(j,i)) - &
+                  & (self%scans(scan)%d(i)%tod(j+1) - &
+                  & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                  & n_corr(j+1,i))))/sqrt(2.)
+          end if
           s = s + res**2
           n = n + 1
        end do
