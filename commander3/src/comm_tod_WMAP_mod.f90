@@ -494,8 +494,8 @@ contains
             s_tot = 0
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               s_totA(:, j) = s_skyA(:, j) + s_slA(:, j) + s_orbA(:,j)
-               s_totB(:, j) = s_skyB(:, j) + s_slB(:, j) + s_orbB(:,j)
+               s_totA(:, j) = s_skyA(:, j) + s_slA(:, j) + s_orbA(:,j) + s_bpA(:,j)
+               s_totB(:, j) = s_skyB(:, j) + s_slB(:, j) + s_orbB(:,j) + s_bpB(:,j)
                s_tot(:, j) = (1+self%x_im((j+1)/2))*s_totA(:,j) - &
                            & (1-self%x_im((j+1)/2))*s_totB(:,j)
             end do
