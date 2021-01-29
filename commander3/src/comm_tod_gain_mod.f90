@@ -577,7 +577,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A), tod%myid_inter
+         write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A)
        end if
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
