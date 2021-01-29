@@ -169,6 +169,7 @@ contains
                s_bp(:, det) = 0.d0
                cycle
             end if
+            sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
             do i = 1, tod%scans(scan_id)%ntod
                lpoint = tod%pix2ind(pix(i, 1))
                rpoint = tod%pix2ind(pix(i, 2))
