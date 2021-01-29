@@ -457,10 +457,15 @@ contains
                     s_slB(:,j) = 0
                     cycle
                   end if
-                  call self%construct_sl_template(self%slconv(j)%p, &
+                  ! K113/114 are horn A
+                  ! K123/124 are horn B
+                  ! Only for the sidelobe
+                  call self%construct_sl_template(self%slconv(1)%p, &
                        & pix(:,1), psi(:,1), s_slA(:,j), 0d0)
-                  call self%construct_sl_template(self%slconv(j)%p, &
+                  call self%construct_sl_template(self%slconv(3)%p, &
                        & pix(:,2), psi(:,2), s_slB(:,j), 0d0)
+                  s_slA(:,j) = 2 * s_slA(:,j) 
+                  s_slB(:,j) = 2 * s_slB(:,j) 
                   s_sl(:, j) = (1+self%x_im((j+1)/2))*s_slA(:,j) - &
                                (1-self%x_im((j+1)/2))*s_slB(:,j)
                end do
@@ -549,7 +554,7 @@ contains
 
                call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), s_buf2)
             else if (do_oper(samp_imbal)) then
-               do j = 1, 4
+               do j = 1, ndet
                  s_buf(:,j) = real(self%gain0(0) + self%gain0(j) + &
                      & self%scans(i)%d(j)%dgain,sp) * (s_totA(:,j) - s_totB(:,j))
                end do
@@ -752,6 +757,9 @@ contains
       call write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
       cg_tot = M_diag(self%info%pix, 1:nmaps)
       call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
+      cg_tot = b_map(self%info%pix, 1:nmaps, 5)
+      call write_fits_file_iqu(trim(prefix)//'b_sl'//trim(postfix), cg_tot, outmaps)
+
 
       where (M_diag == 0d0)
          M_diag = 1d0
