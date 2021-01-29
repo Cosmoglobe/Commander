@@ -178,16 +178,4 @@ contains
 
    end subroutine project_sky_differential
 
-   function rand_normal(mean,stdev) result(c)
-         double precision :: mean,stdev,c,temp(2),theta,r
-         if (stdev <= 0.0d0) then
-            write(*,*) "Standard Deviation must be positive."
-         else
-            call RANDOM_NUMBER(temp)
-            r=(-2.0d0*log(temp(1)))**0.5
-            theta = 2.0d0*PI*temp(2)
-        c= mean+stdev*r*sin(theta)
-      end if
-   end function
-
 end module comm_tod_pointing_mod
