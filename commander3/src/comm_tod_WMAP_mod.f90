@@ -428,8 +428,13 @@ contains
                     & procmask, i, s_skyA, s_skyB, mask)
             end if
             do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
                s_sky(:, j) = (1+self%x_im((j+1)/2))*s_skyA(:,j) - &
                            & (1-self%x_im((j+1)/2))*s_skyB(:,j)
+               if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+                  s_bp(:, j)  = (1+self%x_im((j+1)/2))*s_bpA(:,j) - &
+                           & (1-self%x_im((j+1)/2))*s_bpB(:,j)
+               end if
             end do
 
 
@@ -630,6 +635,11 @@ contains
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
+!!$                  write(*,*) 'a', j, inv_gain
+!!$                  write(*,*) 'b', j, sum(abs(n_corr(:,j)))
+!!$                  write(*,*) 'c', j, sum(abs(s_tot(:,j)))
+!!$                  write(*,*) 'd', j, sum(abs(s_sky(:,j)))
+!!$                  write(*,*) 'e', j, sum(abs(s_bp(:,j)))
                   d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
                      & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
                   if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) + s_bp(:, j) ! Residual

@@ -172,7 +172,7 @@ contains
                         &  map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
                         &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2)))
                s_bpA(i, det) = s_skyA(i, det) - sA
-               s_bpB(i, det) = s_skyA(i, det) - sB
+               s_bpB(i, det) = s_skyB(i, det) - sB
             end do
          end do
       end if
