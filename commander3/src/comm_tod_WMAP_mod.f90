@@ -106,7 +106,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 5
+      constructor%output_n_maps = 6
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
       constructor%first_call = .true.
@@ -272,6 +272,10 @@ contains
          do i = 1, self%ndet
             map_in(i, j)%p%map = map_in(i, j)%p%map
             call map_in(i, j)%p%bcast_fullsky_map(m_buf)
+            if (.false. .and. self%myid == 0) then
+               filename = trim(chaindir) // '/fg_' // trim(self%label(i)) // '_v1.fits'
+               call write_map2(filename, m_buf)
+            end if
             do k = 1, self%nobs
                map_sky(:, k, i, j) = m_buf(self%ind2pix(k), :)
             end do
@@ -283,6 +287,8 @@ contains
          end do
       end do
       deallocate (m_buf)
+!      call mpi_finalize(ierr)
+!      stop
 
       allocate(procmask(0:npix-1))
       procmask = 0
@@ -607,7 +613,7 @@ contains
                   s_buf(:,j) =  s_sl(:,j) + s_orb_tot(:,j)
                   if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
                   call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
-                       & s_buf(:,j), n_corr(:,j), verbose=verbose)
+                       & s_buf(:,j), n_corr(:,j), verbose=.false.)
                end do
                call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
             end if
@@ -625,8 +631,8 @@ contains
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
                   d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
-                     & inv_gain - s_tot(:, j) + s_sky(:, j)! - s_bp(:, j)
-                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j)! + s_bp(:, j) ! Residual
+                     & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
+                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) + s_bp(:, j) ! Residual
 
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
                   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_orb_tot(:,j)

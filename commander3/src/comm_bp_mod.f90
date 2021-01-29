@@ -171,7 +171,6 @@ contains
     call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
          & 'delta', cpar%ds_label(id_abs), 0.d0, constructor%delta(1))
 
-
     ! Initialize active bandpass 
     call constructor%update_tau(constructor%delta)
 
