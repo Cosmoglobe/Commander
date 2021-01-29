@@ -154,6 +154,7 @@ contains
 
       if (present(s_bpA) .and. present(s_bpB)) then
          do det = 1, tod%ndet
+            sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
             if (.not. tod%scans(scan_id)%d(det)%accept) then
                s_bpA(:, det) = 0.d0
                s_bpB(:, det) = 0.d0
