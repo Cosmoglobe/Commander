@@ -17,6 +17,7 @@ gal_B = gal_B[0]
 
 gal1 = np.hstack((gal_A, gal_B))
 np.savetxt('pyth_quot.txt', gal1)
+print(gal1.shape)
 
 
 
@@ -24,18 +25,18 @@ gal2 = np.loadtxt('wmap_routines/pro/idl_quat_cent.txt')
 gal2[:,0] = ((gal2[:,0] + 360) % 360)
 gal2[:,2] = ((gal2[:,2] + 360) % 360)
 
-t = np.arange(10000)*1.536
+t = np.arange(len(gal1))*1.536
 
-plt.plot(t, gal1[:len(t),0] - gal2[:len(t),0], '.', ms=1, label='A')
-#plt.plot(t, gal1[:len(t),2] - gal2[:len(t),2], '.', ms=1, label='B')
+#plt.plot(t, gal1[:len(t),0] - gal2[:len(t),0], '.', ms=1, label='A')
+plt.plot(t, gal1[:len(t),2] - gal2[:len(t),2], '.', ms=1, label='B')
 plt.xlabel('t (ms)')
 plt.ylabel(r'$\Delta(\mathrm{lon})$ (deg)')
 plt.ylim([-6e-3, 6e-3])
 plt.savefig('dlon.png', bbox_inches='tight')
 
 plt.figure()
-plt.plot(gal1[:len(t),1] - gal2[:len(t),1], '.', ms=1, label='A')
-#plt.plot(gal1[:len(t),3] - gal2[:len(t),3], '.', ms=1, label='B')
+#plt.plot(gal1[:len(t),1] - gal2[:len(t),1], '.', ms=1, label='A')
+plt.plot(gal1[:len(t),3] - gal2[:len(t),3], '.', ms=1, label='B')
 plt.xlabel('t (ms)')
 plt.ylabel(r'$\Delta(\mathrm{lat})$ (deg)')
 plt.ylim([-6e-3, 6e-3])

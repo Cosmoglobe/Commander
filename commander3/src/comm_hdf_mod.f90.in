@@ -27,7 +27,7 @@ types  = [
     [ "dp",   "real",      "dp",    "H5T_IEEE_F64LE", "H5T_NATIVE_DOUBLE"  ],
     [ "sp",   "real",      "sp",    "H5T_IEEE_F32LE", "H5T_NATIVE_REAL"    ],
     [ "int",  "integer",   "i4b",   "H5T_STD_I32LE",  "H5T_NATIVE_INTEGER" ],
-    [ "char", "character", "len=*", "H5T_C_S1",       "H5T_NATIVE_CHARACTER" ],
+    [ "char", "character", "len=*", "H5T_FORTRAN_S1", "H5T_NATIVE_CHARACTER" ],
 ]
 def desc(i):
     return "%dd" % i
@@ -445,8 +445,10 @@ contains
     integer(hsize_t), allocatable, dimension(:) :: i
     integer(hsize_t), allocatable, dimension(:) :: ext_hdf
     {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
+
     allocate(ext_hdf(size(shape(val))))
     ext_hdf =  int(shape(val), hsize_t)
+
     call create_hdf_set(file, setname, shape(val), {{t[3]}})
     call h5dwrite_f(file%sethandle, {{t[4]}}, val, ext_hdf, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
