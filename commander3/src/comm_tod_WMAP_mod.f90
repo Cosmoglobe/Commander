@@ -307,27 +307,13 @@ contains
       call wall_time(t1)
       do i = 1, self%ndet
          if (.not. correct_sl) exit
-
-!!$         map_in(i,1)%p%map  = 0.d0
-!!$         if (i == 1 .and. self%myid == 0) then
-!!$            map_in(i,1)%p%map(0,1) = 1.d0
-!!$         end if
-
          !TODO: figure out why this is rotated
          call map_in(i,1)%p%YtW()  ! Compute sky a_lms
          self%slconv(i)%p => comm_conviqt(self%myid, self%comm_shared, &
               & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
               & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
-!         write(*,*) i, 'b', sum(abs(self%slconv(i)%p%c%a))
       end do
       call wall_time(t2); t_tot(13) = t2-t1
-
-!!$      call self%slbeam(1)%p%Y
-!!$      call self%slbeam(1)%p%writeFITS("beam.fits")
-!!$
-!!$      call mpi_finalize(ierr)
-!!$      stop
-
 
       call update_status(status, "tod_init")
       call wall_time(t3)
@@ -501,6 +487,7 @@ contains
                s_slB = 0.
             end if
             call wall_time(t2); t_tot(12) = t_tot(12) + t2-t1
+
 
 
             ! Add orbital dipole and sidelobes to total signal
@@ -680,15 +667,15 @@ contains
 
                call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
-               if (.false. .and. do_oper(bin_map) .and. self%first_call) then
+               if (i==1 .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
                      open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   sky (mK)"// &
-                          & " s_orb_dip (mK)  mask  inv_gain"
+                          & " s_orb_dip (mK)  mask  s_slA s_slB"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
-                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), s_sky(j,k), s_orb_tot(j,k), mask(j, k), inv_gain
+                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), s_sky(j,k), s_orb_tot(j,k), mask(j, k), s_slA(j,k), s_slB(j,k)
                      end do
                      close(78)
                   end do
