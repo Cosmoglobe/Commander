@@ -308,10 +308,10 @@ contains
       do i = 1, self%ndet
          if (.not. correct_sl) exit
 
-         map_in(i,1)%p%map  = 0.d0
-         if (i == 1 .and. self%myid == 0) then
-            map_in(i,1)%p%map(0,1) = 1.d0
-         end if
+!!$         map_in(i,1)%p%map  = 0.d0
+!!$         if (i == 1 .and. self%myid == 0) then
+!!$            map_in(i,1)%p%map(0,1) = 1.d0
+!!$         end if
 
          !TODO: figure out why this is rotated
          call map_in(i,1)%p%YtW()  ! Compute sky a_lms
@@ -322,11 +322,11 @@ contains
       end do
       call wall_time(t2); t_tot(13) = t2-t1
 
-      call self%slbeam(1)%p%Y
-      call self%slbeam(1)%p%writeFITS("beam.fits")
-
-      call mpi_finalize(ierr)
-      stop
+!!$      call self%slbeam(1)%p%Y
+!!$      call self%slbeam(1)%p%writeFITS("beam.fits")
+!!$
+!!$      call mpi_finalize(ierr)
+!!$      stop
 
 
       call update_status(status, "tod_init")
