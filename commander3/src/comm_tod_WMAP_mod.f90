@@ -308,6 +308,11 @@ contains
       do i = 1, self%ndet
          if (.not. correct_sl) exit
 
+         map_in(i,1)%p%map  = 0.d0
+         if (i == 1 .and. self%myid == 0) then
+            map_in(i,1)%p%map(0,1) = 1.d0
+         end if
+
          !TODO: figure out why this is rotated
          call map_in(i,1)%p%YtW()  ! Compute sky a_lms
          self%slconv(i)%p => comm_conviqt(self%myid, self%comm_shared, &
@@ -317,7 +322,11 @@ contains
       end do
       call wall_time(t2); t_tot(13) = t2-t1
 
+      call self%slbeam(1)%p%Y
+      call self%slbeam(1)%p%writeFITS("beam.fits")
 
+      call mpi_finalize(ierr)
+      stop
 
 
       call update_status(status, "tod_init")
@@ -423,15 +432,24 @@ contains
             if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
                call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
                  & procmask, i, s_skyA, s_skyB, mask, s_bpA=s_bpA, s_bpB=s_bpB)
+               if (any(s_bpB /= s_bpB)) then
+                  write(*,*) 'nan', i, s_bpA(1:3,1:4)
+               end if
             else
                call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
                     & procmask, i, s_skyA, s_skyB, mask)
+               s_bpA = 0.
+               s_bpB = 0.
+               s_bp = 0.
             end if
             do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
                s_sky(:, j) = (1+self%x_im((j+1)/2))*s_skyA(:,j) - &
                            & (1-self%x_im((j+1)/2))*s_skyB(:,j)
-               s_bp(:, j)  = (1+self%x_im((j+1)/2))*s_bpA(:,j) - &
+               if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+                  s_bp(:, j)  = (1+self%x_im((j+1)/2))*s_bpA(:,j) - &
                            & (1-self%x_im((j+1)/2))*s_bpB(:,j)
+               end if
             end do
 
 
@@ -492,6 +510,10 @@ contains
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                s_totA(:, j) = s_skyA(:, j) + s_slA(:, j) + s_orbA(:,j) + s_bpA(:,j)
+               if (any(s_skyB(:,j)/=s_skyB(:,j))) write(*,*) 'a'
+               if (any(s_slB(:,j)/=s_slB(:,j))) write(*,*) 'b'
+               if (any(s_orbB(:,j)/=s_orbB(:,j))) write(*,*) 'c'
+               if (any(s_bpB(:,j)/=s_bpB(:,j))) write(*,*) 'd'
                s_totB(:, j) = s_skyB(:, j) + s_slB(:, j) + s_orbB(:,j) + s_bpB(:,j)
                s_tot(:, j) = (1+self%x_im((j+1)/2))*s_totA(:,j) - &
                            & (1-self%x_im((j+1)/2))*s_totB(:,j)
@@ -632,6 +654,11 @@ contains
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
+!!$                  write(*,*) 'a', j, inv_gain
+!!$                  write(*,*) 'b', j, sum(abs(n_corr(:,j)))
+!!$                  write(*,*) 'c', j, sum(abs(s_tot(:,j)))
+!!$                  write(*,*) 'd', j, sum(abs(s_sky(:,j)))
+!!$                  write(*,*) 'e', j, sum(abs(s_bp(:,j)))
                   d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
                      & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
                   if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) + s_bp(:, j) ! Residual
