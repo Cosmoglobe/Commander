@@ -40,7 +40,6 @@ def complex2realAlms(data, lmax, mmax):
         for m in range(0, mmax):
             if(m > l):
                 continue
-            #TODO: figure this out
             scaling = np.sqrt(2)
             if(m == 0):
                 scaling = 1
@@ -103,6 +102,7 @@ for rot in rots:
   fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v7.h5'
   fname_out = 'test.h5'
+  fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
   with h5py.File(fname_out, 'a') as f:
@@ -294,7 +294,7 @@ for rot in rots:
   
         hp.mollview(beam_A, min=0, max=0.3)
   
-        alm_A = hp.map2alm(beam_A)
+        alm_A = hp.map2alm(beam_A, lmax=sllmax, mmax=slmmax)
         s_lm_A = complex2realAlms(alm_A, sllmax, slmmax)
   
         dir_B = dir_B_los[i]
@@ -310,7 +310,7 @@ for rot in rots:
         beam_B = r.rotate_map_pixel(beam_B_temp)
   
   
-        alm_B = hp.map2alm(beam_B)
+        alm_B = hp.map2alm(beam_B, lmax=sllmax, mmax=slmmax)
         s_lm_B = complex2realAlms(alm_B, sllmax, slmmax)
   
         DA = labels[i]
@@ -320,6 +320,14 @@ for rot in rots:
             f.create_dataset(DA + '14/sl/T', data=s_lm_A)
             f.create_dataset(DA + '23/sl/T', data=s_lm_B)
             f.create_dataset(DA + '24/sl/T', data=s_lm_B)
+            f.create_dataset(DA + '13/sl/E', data=s_lm_A*0)
+            f.create_dataset(DA + '14/sl/E', data=s_lm_A*0)
+            f.create_dataset(DA + '23/sl/E', data=s_lm_B*0)
+            f.create_dataset(DA + '24/sl/E', data=s_lm_B*0)
+            f.create_dataset(DA + '13/sl/B', data=s_lm_A*0)
+            f.create_dataset(DA + '14/sl/B', data=s_lm_A*0)
+            f.create_dataset(DA + '23/sl/B', data=s_lm_B*0)
+            f.create_dataset(DA + '24/sl/B', data=s_lm_B*0)
             f.create_dataset(DA + '13/sllmax', data=[sllmax])
             f.create_dataset(DA + '14/sllmax', data=[sllmax])
             f.create_dataset(DA + '23/sllmax', data=[sllmax])
