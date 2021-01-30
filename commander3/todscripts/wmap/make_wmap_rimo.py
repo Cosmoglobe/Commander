@@ -97,12 +97,11 @@ dir_B_los = np.array([
 
 
 rots = np.arange(0, 360, 45)
-rots = [0]
 for rot in rots:
   fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v7.h5'
-  fname_out = 'test.h5'
-  fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
+  #fname_out = 'test.h5'
+  #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
   with h5py.File(fname_out, 'a') as f:
