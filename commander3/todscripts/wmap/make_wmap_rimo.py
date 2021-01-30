@@ -30,6 +30,27 @@ beam and sl are both alm representations of the beam and sidelobes.
 
 mbeam_eff is main beam efficiency, assume it is one.
 '''
+def getOutidx(l, m):
+    return l**2 + l + m
+
+def complex2realAlms(data, lmax, mmax):
+    outData = np.zeros((lmax+1)**2)
+
+    for l in range(0, lmax):
+        for m in range(0, mmax):
+            if(m > l):
+                continue
+            scaling = np.sqrt(2)
+            if(m == 0):
+                scaling = 1
+            healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
+            outI = getOutidx(l, m)
+            outJ = getOutidx(l, -1*m)
+            outData[outI] = np.real(data[healpixI]) * scaling
+            if(m != 0):
+                outData[outJ] = np.imag(data[healpixI]) * scaling
+
+    return outData
 
 def gauss(x, sigma):
     return np.exp(-x**2/(2*sigma**2))
@@ -76,9 +97,12 @@ dir_B_los = np.array([
 
 
 rots = np.arange(0, 360, 45)
+rots = [0]
 for rot in rots:
   fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v7.h5'
+  fname_out = 'test.h5'
+  fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
   with h5py.File(fname_out, 'a') as f:
@@ -226,7 +250,7 @@ for rot in rots:
       
       
       nside = 2**7
-      sllmax = lmax
+      sllmax = 512
       slmmax = 100
       labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
       fnames = glob('data/wmap_sidelobe*.fits')
@@ -270,18 +294,8 @@ for rot in rots:
   
         hp.mollview(beam_A, min=0, max=0.3)
   
-        s_lm_A = np.zeros((lmax+1)**2)
-        alm_A = hp.map2alm(beam_A)
-  
-        for j in range(len(alm_A)):
-            li, mi = hp.sphtfunc.Alm.getlm(sllmax,i=j)
-            if (li <= lmax) & (mi <= slmmax):
-            #if (li <= lmax) & (mi <= slmmax) & (mi == 0):
-                ind_real = li**2 + li + mi
-                ind_imag = li**2 + li - mi
-                s_lm_A[ind_real] = alm_A[j].real
-                if mi != 0:
-                    s_lm_A[ind_imag] = alm_A[j].imag
+        alm_A = hp.map2alm(beam_A, lmax=sllmax, mmax=slmmax)
+        s_lm_A = complex2realAlms(alm_A, sllmax, slmmax)
   
         dir_B = dir_B_los[i]
         theta = np.arccos(dir_B[2])
@@ -296,19 +310,8 @@ for rot in rots:
         beam_B = r.rotate_map_pixel(beam_B_temp)
   
   
-        s_lm_B = np.zeros((lmax+1)**2)
-        alm_B = hp.map2alm(beam_B)
-  
-        for j in range(len(alm_B)):
-            li, mi = hp.sphtfunc.Alm.getlm(sllmax,i=j)
-            if (li <= lmax) & (mi <= slmmax):
-            #if (li <= lmax) & (mi <= slmmax) & (mi == 0):
-                ind_real = li**2 + li + mi
-                ind_imag = li**2 + li - mi
-                s_lm_B[ind_real] = alm_B[j].real
-                if mi != 0:
-                    s_lm_B[ind_imag] = alm_B[j].imag
-  
+        alm_B = hp.map2alm(beam_B, lmax=sllmax, mmax=slmmax)
+        s_lm_B = complex2realAlms(alm_B, sllmax, slmmax)
   
         DA = labels[i]
       
@@ -317,6 +320,14 @@ for rot in rots:
             f.create_dataset(DA + '14/sl/T', data=s_lm_A)
             f.create_dataset(DA + '23/sl/T', data=s_lm_B)
             f.create_dataset(DA + '24/sl/T', data=s_lm_B)
+            f.create_dataset(DA + '13/sl/E', data=s_lm_A*0)
+            f.create_dataset(DA + '14/sl/E', data=s_lm_A*0)
+            f.create_dataset(DA + '23/sl/E', data=s_lm_B*0)
+            f.create_dataset(DA + '24/sl/E', data=s_lm_B*0)
+            f.create_dataset(DA + '13/sl/B', data=s_lm_A*0)
+            f.create_dataset(DA + '14/sl/B', data=s_lm_A*0)
+            f.create_dataset(DA + '23/sl/B', data=s_lm_B*0)
+            f.create_dataset(DA + '24/sl/B', data=s_lm_B*0)
             f.create_dataset(DA + '13/sllmax', data=[sllmax])
             f.create_dataset(DA + '14/sllmax', data=[sllmax])
             f.create_dataset(DA + '23/sllmax', data=[sllmax])
