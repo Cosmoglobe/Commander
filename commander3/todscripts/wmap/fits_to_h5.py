@@ -59,6 +59,7 @@ from tqdm import tqdm
 # version 29 converts the velocity to meters, corrects format of mbang, polang.
 # version 30 adds the genflags to the daflags
 # version 31 has center=True
+# version 'cal' uses the WMAP precalibrated data
 
 from time import sleep
 from time import time as timer
@@ -259,7 +260,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             todi = np.array_split(tod, n_per_day)[i]
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
             scalars = np.array([gain, sigma_0, fknee, alpha])
-            if (version == 15) or (version == 22):
+            if (version == 'cal'):
                 baseline = 0
             else:
                 baseline = np.median(todi)
@@ -801,7 +802,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
         gain_split = np.array_split(gain, n_per_day)
         gain_guesses.append([g.mean() for g in gain_split])
     gain_guesses = np.array(gain_guesses)
-    if (version == 15) or (version == 22):
+    if (version == 'cal'):
         gain_guesses = gain_guesses*0 + 1
 
 
@@ -883,12 +884,14 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
     '''
 
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
-    if (version == 15) or (version == 22) or (version == 25):
+    if (version == 'cal'):
         files = glob(prefix + 'calibrated/*.fits')
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     inds = np.arange(len(files))
+    #inds = inds[:12]
+    #files = np.array(files)[:12]
     #inds = inds[:len(files)//4]
     #files = np.array(files)[:len(files)//4]
     #inds = inds[len(files)//4:2*len(files)//4]
@@ -906,7 +909,7 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
 
 
     if par:
-        nprocs = 16
+        nprocs = 64
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -922,5 +925,6 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
             fits_to_h5(f,i,compress, plot, version, center)
 
 if __name__ == '__main__':
-    main(par=True, plot=False, compress=True, version=31, center=True)
+    #main(par=True, plot=False, compress=True, version=31, center=True)
+    main(par=True, plot=False, compress=True, version='cal', center=True)
     #test_flags()
