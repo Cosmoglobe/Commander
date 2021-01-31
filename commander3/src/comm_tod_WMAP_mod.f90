@@ -106,7 +106,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 6
+      constructor%output_n_maps = 3
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
       constructor%first_call = .true.
@@ -240,7 +240,7 @@ contains
 
       ! Set up full-sky map structures
       call wall_time(t1)
-      correct_sl = .true.
+      correct_sl = .false.
       chisq_threshold = 6d0
       n_main_iter     = 5
       ndet = self%ndet
