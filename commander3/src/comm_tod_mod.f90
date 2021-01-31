@@ -751,8 +751,8 @@ contains
 
 
        ! ONLY EXISTS FOR WMAP, need to fix this.
-       call read_hdf(file, slabel // "/" // trim(field) // "/baseline", baseline)
-       self%d(i)%tod = self%d(i)%tod - baseline
+       !call read_hdf(file, slabel // "/" // trim(field) // "/baseline", baseline)
+       !self%d(i)%tod = self%d(i)%tod - baseline
 
        ! Read Huffman coded data arrays
        call wall_time(t1)
