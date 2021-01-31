@@ -315,8 +315,6 @@ contains
       end do
       call wall_time(t2); t_tot(13) = t2-t1
 
-
-
       call update_status(status, "tod_init")
       call wall_time(t3)
       do_oper             = .true.
@@ -420,9 +418,6 @@ contains
             if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
                call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
                  & procmask, i, s_skyA, s_skyB, mask, s_bpA=s_bpA, s_bpB=s_bpB)
-               if (any(s_bpB /= s_bpB)) then
-                  write(*,*) 'nan', i, s_bpA(1:3,1:4)
-               end if
             else
                call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
                     & procmask, i, s_skyA, s_skyB, mask)
@@ -498,12 +493,8 @@ contains
             s_tot = 0
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               s_totA(:, j) = s_skyA(:, j) + s_slA(:, j) + s_orbA(:,j) + s_bpA(:,j)
-               if (any(s_skyB(:,j)/=s_skyB(:,j))) write(*,*) 'a'
-               if (any(s_slB(:,j)/=s_slB(:,j))) write(*,*) 'b'
-               if (any(s_orbB(:,j)/=s_orbB(:,j))) write(*,*) 'c'
-               if (any(s_bpB(:,j)/=s_bpB(:,j))) write(*,*) 'd'
-               s_totB(:, j) = s_skyB(:, j) + s_slB(:, j) + s_orbB(:,j) + s_bpB(:,j)
+               s_totA(:, j) = s_skyA(:, j) + s_slA(:, j) + s_orbA(:,j) 
+               s_totB(:, j) = s_skyB(:, j) + s_slB(:, j) + s_orbB(:,j) 
                s_tot(:, j) = (1+self%x_im((j+1)/2))*s_totA(:,j) - &
                            & (1-self%x_im((j+1)/2))*s_totB(:,j)
             end do
