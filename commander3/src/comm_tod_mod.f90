@@ -674,8 +674,6 @@ contains
     integer(i4b), allocatable, dimension(:)       :: htree
 
 
-    real(dp)   :: baseline
-
     call wall_time(t3)
     t_tot = 0.d0
 
@@ -749,10 +747,6 @@ contains
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1
 
-
-       ! ONLY EXISTS FOR WMAP, need to fix this.
-       call read_hdf(file, slabel // "/" // trim(field) // "/baseline", baseline)
-       self%d(i)%tod = self%d(i)%tod - baseline
 
        ! Read Huffman coded data arrays
        call wall_time(t1)

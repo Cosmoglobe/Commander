@@ -180,6 +180,7 @@ contains
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
+      real(sp), dimension(4) :: baseline
       real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky, s_skyA, s_skyB
       real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
@@ -396,6 +397,7 @@ contains
             allocate (psi(ntod, nhorn))             ! Decompressed pol angle
             allocate (flag(ntod))                   ! Decompressed flags
 
+
             call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
             ! --------------------
@@ -499,6 +501,27 @@ contains
                            & (1-self%x_im((j+1)/2))*s_totB(:,j)
             end do
 
+
+            !!!!!!!!!!!!!!!!!!!!!
+            ! Baseline estimation
+            !!!!!!!!!!!!!!!!!!!!!
+
+            ! n.b. this should be taken care of in the ncorr sampling. Still
+            ! working on why this is the case. For now, just estimating it using
+            ! Hinshaw et al. 2003 Eqn (21). If we are stuck with this, should
+            ! replace it with a sampling step.
+
+            do j = 1, ndet
+              ! Should sample this...
+              !if (do_oper(samp_imbal)) then
+                baseline(j)=sum((self%scans(i)%d(j)%tod -s_tot(:,j))*mask(:,j))/sum(mask(:,j))
+                if (.false.) then
+                  baseline(j) = baseline(j) + rand_gauss(handle)/sqrt(sum(mask(:,j)*self%scans(i)%d(j)%sigma0**2))
+                end if
+              !end if
+              self%scans(i)%d(j)%tod = self%scans(i)%d(j)%tod - baseline(j)
+            end do
+      
 
             !!!!!!!!!!!!!!!!!!!
             ! Gain calculations
@@ -657,6 +680,10 @@ contains
 
                end do
 
+               ! Returning tod to its raw state
+               do j = 1, ndet
+                 self%scans(i)%d(j)%tod = self%scans(i)%d(j)%tod + baseline(j)
+               end do
 
                call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
@@ -693,6 +720,7 @@ contains
                  dipole_mod(self%scanid(i), j) = masked_var
                end if
             end do
+
 
             ! Clean up
             call wall_time(t1)
@@ -1051,7 +1079,6 @@ contains
    end subroutine write_fits_file_iqu
 
 
-  ! Sample absolute gain from orbital dipole alone 
   subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
     implicit none
     class(comm_WMAP_tod),              intent(inout)  :: tod
