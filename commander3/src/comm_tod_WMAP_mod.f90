@@ -664,11 +664,12 @@ contains
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
                      open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
-                     write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   sky (mK)"// &
-                          & " s_orb_dip (mK)  mask  s_slA s_slB"
+                     write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
+                          & " s_orbA (mK)  s_orbB (mK)  mask"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
-                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), s_sky(j,k), s_orb_tot(j,k), mask(j, k), s_slA(j,k), s_slB(j,k)
+                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), &
+                         &  s_skyA(j,k), s_skyB(j,k), s_orbA(j,k), s_orbB(j,k), mask(j, k)
                      end do
                      close(78)
                   end do
@@ -772,8 +773,8 @@ contains
       call write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
       cg_tot = M_diag(self%info%pix, 1:nmaps)
       call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
-      cg_tot = b_map(self%info%pix, 1:nmaps, 5)
-      call write_fits_file_iqu(trim(prefix)//'b_sl'//trim(postfix), cg_tot, outmaps)
+      !cg_tot = b_map(self%info%pix, 1:nmaps, 5)
+      !call write_fits_file_iqu(trim(prefix)//'b_sl'//trim(postfix), cg_tot, outmaps)
 
 
       where (M_diag == 0d0)
@@ -827,31 +828,33 @@ contains
                 p = r + beta*(p - omega*v)
             end if
             phat = p/M_diag
+
             call update_status(status, "Calling v=Ap")
             m_buf = 0
             call compute_Ax(self, phat, m_buf, self%x_im, procmask, i)
 
             call wall_time(t1)
-            call mpi_reduce(m_buf, v, size(m_buf), MPI_DOUBLE_PRECISION, MPI_SUM, &
+            call mpi_reduce(m_buf, v, size(m_buf), MPI_DOUBLE_PRECISION,MPI_SUM,&
                  & 0, self%info%comm, ierr)
+
             call mpi_bcast(v, size(v),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
             call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
+            num_cg_iters = num_cg_iters + 1
+
             alpha = rho_new/sum(r0*v)
             cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
-            if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
-               call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//trim(postfix), cg_tot, outmaps)
-            end if
-            s = r - alpha*v
 
+            s = r - alpha*v
             shat = s/M_diag
 
+            alpha = rho_new/sum(r0*v)
             delta_s = sum(s*shat)
+
             if (self%myid==0 .and. self%verbosity > 1) then 
                 write(*,101) 2*i-1, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
-            num_cg_iters = num_cg_iters + 1
+
             if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) exit bicg
             call update_status(status, "Calling  q= A shat")
             m_buf = 0
@@ -862,8 +865,12 @@ contains
                  & 0, self%info%comm, ierr)
             call mpi_bcast(q, size(q),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
             call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
+
             omega = sum(q*s)/sum(q**2)
             cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
+
+            call mpi_bcast(cg_sol(:,:,l), size(cg_sol(:,:,l)),  &
+              & MPI_DOUBLE_PRECISION, 0,  self%info%comm, ierr)
             if (mod(i, 10) == 1) then
                call update_status(status, 'r = b - Ax')
                m_buf = 0d0
@@ -879,17 +886,13 @@ contains
                r = s - omega*q
             end if
 
-            if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
-               call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//trim(postfix), cg_tot, outmaps)
-            end if
-
             delta_r = sum(r**2/M_diag)
+            num_cg_iters = num_cg_iters + 1
+
             if (self%myid==0 .and. self%verbosity > 1) then 
                 write(*,102) 2*i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
-            num_cg_iters = num_cg_iters + 1
             if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) exit bicg
          end do bicg
       end do
