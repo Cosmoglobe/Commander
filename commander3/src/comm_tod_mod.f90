@@ -751,8 +751,8 @@ contains
 
 
        ! ONLY EXISTS FOR WMAP, need to fix this.
-       !call read_hdf(file, slabel // "/" // trim(field) // "/baseline", baseline)
-       !self%d(i)%tod = self%d(i)%tod - baseline
+       call read_hdf(file, slabel // "/" // trim(field) // "/baseline", baseline)
+       self%d(i)%tod = self%d(i)%tod - baseline
 
        ! Read Huffman coded data arrays
        call wall_time(t1)
@@ -1237,16 +1237,18 @@ contains
     class(comm_tod),                               intent(in)    :: self
     character(len=512), allocatable, dimension(:), intent(inout) :: slist
 
-    integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr, num_scan
+    integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr, num_scan, n_buff
     character(len=4) :: pid
 
+    n_buff = 0
+    do i = 1, self%nscan
+       if (trim(slist(i)) == '') cycle
+       n_buff = n_buff + 1
+    end do
+    call mpi_reduce(n_buff, num_scan,   1,  MPI_INTEGER,  MPI_SUM,  0, self%comm, ierr)
+    call mpi_bcast(num_scan,   1,     MPI_INTEGER,    0, self%comm, ierr)
     if (self%myid == 0) then
        call int2string(self%myid, pid)
-       num_scan = 0
-       do i = 1, self%nscan
-          if (trim(slist(i)) == '') cycle
-          num_scan = num_scan + 1
-       end do
        unit = getlun()
        open(unit,file=trim(self%outdir)//'/filelist_'//trim(self%freq)//'.txt', recl=512)
        write(unit,*) num_scan
