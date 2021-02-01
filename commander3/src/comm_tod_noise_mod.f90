@@ -78,7 +78,8 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
+       d_prime(:) = self%scans(scan)%d(i)%tod(:) - self%scans(scan)%d(i)%baseline &
+                &- S_sub(:,i) * gain
 
        sigma_0 = abs(self%scans(scan)%d(i)%sigma0)
        !write(*,*) "rms:", scan, sigma_0, sqrt(sum(d_prime**2)/size(d_prime))
@@ -1279,7 +1280,7 @@ contains
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        j       = j+1
        gain    = tod%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime = tod%scans(scan)%d(i)%tod - S_sub(:,i) * gain
+       d_prime = tod%scans(scan)%d(i)%tod - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
        sigma_0 = tod%scans(scan)%d(i)%sigma0
 
        call wall_time(t1)       

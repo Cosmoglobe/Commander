@@ -45,6 +45,7 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
+     real(sp)          :: baseline
      logical(lgt)      :: accept
      real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)
      byte,         allocatable, dimension(:)  :: flag       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
@@ -513,8 +514,7 @@ contains
     do i = 1, self%nscan
        do j = 1, self%ndet
           self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
-!          self%scans(i)%d(j)%dgain = 0.d0
-!          self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j)
+          self%scans(i)%d(j)%baseline = 0d0
        end do
     end do
 
@@ -963,7 +963,7 @@ contains
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
 
-    npar = 6
+    npar = 7
     allocate(output(self%nscan_tot,self%ndet,npar))
 
     ! Collect all parameters
@@ -977,6 +977,7 @@ contains
           output(k,j,4) = self%scans(i)%d(j)%fknee
           output(k,j,5) = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
           output(k,j,6) = self%scans(i)%d(j)%chisq
+          output(k,j,7) = self%scans(i)%d(j)%baseline
        end do
     end do
 
@@ -1034,6 +1035,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'fknee',  output(:,:,4))
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,5))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
+       call write_hdf(chainfile, trim(adjustl(path))//'baseline',output(:,:,7))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'x_im',   self%x_im)
@@ -1421,17 +1423,17 @@ contains
     real(sp),          dimension(:), intent(in)     :: n_corr
     logical(lgt),                    intent(in), optional :: absbp, verbose
 
-    real(dp)     :: chisq, d0, g
+    real(dp)     :: chisq, d0, g, b
     integer(i4b) :: i, n
 
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain
+    b           = self%scans(scan)%d(det)%baseline
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
-       d0    = self%scans(scan)%d(det)%tod(i) - &
-            & (g * s_spur(i) + n_corr(i))
+       d0    = self%scans(scan)%d(det)%tod(i) - (g * s_spur(i) + n_corr(i) + b)
        chisq = chisq + (d0 - g * s_sky(i))**2
     end do
 
@@ -1455,8 +1457,8 @@ contains
     end if
     if (abs(self%scans(scan)%d(det)%chisq) > 2000.d0 .or. &
       & isNaN(self%scans(scan)%d(det)%chisq)) then
-        write(*,*) "        scan, det, sum(mask), sum(s_sky),   sum(n_corr)"
-        write(*,*) "chisq", scan, det, sum(mask), sum(s_sky),  &
+        write(*,*) "chisq  scan, det, sum(mask), sum(s_sky),   sum(n_corr)"
+        write(*,*) self%scans(scan)%d(det)%chisq, scan, det, sum(mask), sum(s_sky),  &
                  &        sum(n_corr)
     end if
 
