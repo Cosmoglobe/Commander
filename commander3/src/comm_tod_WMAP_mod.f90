@@ -42,7 +42,7 @@ module comm_tod_WMAP_mod
    private
    public comm_WMAP_tod
 
-   integer(i4b), parameter :: N_test = 21
+   integer(i4b), parameter :: N_test = 22
    integer(i4b), parameter :: samp_N = 1
    integer(i4b), parameter :: prep_G = 15
    integer(i4b), parameter :: samp_G = 2
@@ -64,6 +64,7 @@ module comm_tod_WMAP_mod
    integer(i4b), parameter :: sub_zodi = 17
    integer(i4b), parameter :: sim_map = 20
    integer(i4b), parameter :: samp_imbal = 21
+   integer(i4b), parameter :: samp_bline = 22
    logical(lgt), dimension(N_test) :: do_oper
 
    type, extends(comm_tod) :: comm_WMAP_tod
@@ -180,7 +181,6 @@ contains
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
-      real(sp), dimension(4) :: baseline
       real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky, s_skyA, s_skyB
       real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
@@ -243,7 +243,7 @@ contains
       call wall_time(t1)
       correct_sl = .false.
       chisq_threshold = 6d0
-      n_main_iter     = 5
+      n_main_iter     = 6
       ndet = self%ndet
       nhorn = self%nhorn
       ndelta = size(delta, 3)
@@ -332,10 +332,11 @@ contains
 
          if (self%myid == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
          ! Select operations for current iteration
-         do_oper(samp_imbal)   = (main_iter == n_main_iter-4) ! .false. !  
-         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
-         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
-         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !      
+         do_oper(samp_bline)   = (main_iter == n_main_iter-5) ! .false. !  
+         do_oper(samp_acal)    = (main_iter == n_main_iter-4) ! .false. !      
+         do_oper(samp_rcal)    = (main_iter == n_main_iter-3) ! .false. !      
+         do_oper(samp_G)       = (main_iter == n_main_iter-2) ! .false. !      
+         do_oper(samp_imbal)   = (main_iter == n_main_iter-1) ! .false. !  
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -512,14 +513,14 @@ contains
             ! replace it with a sampling step.
 
             do j = 1, ndet
-              ! Should sample this...
-              !if (do_oper(samp_imbal)) then
-                baseline(j)=sum((self%scans(i)%d(j)%tod -s_tot(:,j))*mask(:,j))/sum(mask(:,j))
-                if (.false.) then
-                  baseline(j) = baseline(j) + rand_gauss(handle)/sqrt(sum(mask(:,j)*self%scans(i)%d(j)%sigma0**2))
+              if (do_oper(samp_bline)) then
+                self%scans(i)%d(j)%baseline =sum((self%scans(i)%d(j)%tod &
+                                           & -s_tot(:,j))*mask(:,j))/sum(mask(:,j))
+                if (trim(self%operation) == 'sample') then
+                  self%scans(i)%d(j)%baseline = self%scans(i)%d(j)%baseline &
+                   &  + rand_gauss(handle)/sqrt(sum(mask(:,j)*self%scans(i)%d(j)%sigma0**2))
                 end if
-              !end if
-              self%scans(i)%d(j)%tod = self%scans(i)%d(j)%tod - baseline(j)
+              end if
             end do
       
 
@@ -616,9 +617,9 @@ contains
                   end if
                end do
                call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, .false.)
-!!               do j = 1, ndet
-!!                  n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
-!!               end do
+               do j = 1, ndet
+                  n_corr(:,j) = n_corr(:, j) - sum(n_corr(:,j))/ size(n_corr,1)
+               end do
                call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
             else
                n_corr = 0.
@@ -662,9 +663,11 @@ contains
 !!$                  write(*,*) 'c', j, sum(abs(s_tot(:,j)))
 !!$                  write(*,*) 'd', j, sum(abs(s_sky(:,j)))
 !!$                  write(*,*) 'e', j, sum(abs(s_bp(:,j)))
-                  d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
+                  d_calib(1, :, j) = (self%scans(i)%d(j)%tod - &
+                  & self%scans(i)%d(j)%baseline - n_corr(:, j))* &
                      & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
-                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) + s_bp(:, j) ! Residual
+                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - &
+                    & s_sky(:, j) + s_bp(:, j) ! Residual
 
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
                   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_orb_tot(:,j)
@@ -680,11 +683,6 @@ contains
 
                end do
 
-               ! Returning tod to its raw state
-               do j = 1, ndet
-                 self%scans(i)%d(j)%tod = self%scans(i)%d(j)%tod + baseline(j)
-               end do
-
                call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
                if (i==1 .and. do_oper(bin_map) .and. self%first_call) then
@@ -692,11 +690,11 @@ contains
                   do k = 1, self%ndet
                      open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
-                          & " s_orbA (mK)  s_orbB (mK)  mask"
+                          & " s_orbA (mK)  s_orbB (mK)  mask, baseline, invgain"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
                         write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), &
-                         &  s_skyA(j,k), s_skyB(j,k), s_orbA(j,k), s_orbB(j,k), mask(j, k)
+                         &  s_skyA(j,k), s_skyB(j,k), s_orbA(j,k), s_orbB(j,k), mask(j, k), self%scans(i)%d(k)%baseline, inv_gain
                      end do
                      close(78)
                   end do

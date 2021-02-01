@@ -64,8 +64,8 @@ contains
           residual(:,j) = 0.d0
           cycle
        end if
-       r_fill = tod%scans(scan_id)%d(j)%tod - (tod%gain0(0) + &
-            & tod%gain0(j)) * s_tot(:,j)
+       r_fill = tod%scans(scan_id)%d(j)%tod - tod%scans(scan_id)%d(j)%baseline & 
+         & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
@@ -121,12 +121,12 @@ contains
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - (tod%gain0(0) + &
-            & tod%gain0(1)) * s_tot(i,1)
+          write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline &
+          & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          write(58,*) i, tod%scans(scan_id)%d(1)%tod(i)
+          write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline
        end do
        close(58)
     end if
@@ -483,7 +483,7 @@ contains
           residual(:,j) = 0.
           cycle
        end if
-       r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j)
+       r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
@@ -523,7 +523,7 @@ contains
 
        open(58,file='gainfit4_'//itext//'.dat')       
        do i = 1, size(s_sub,1)
-          write(58,*) i, tod%scans(scan)%d(4)%tod(i)
+          write(58,*) i, tod%scans(scan)%d(4)%tod(i) - tod%scans(scan)%d(4)%baseline
        end do
        write(58,*)
        do i = 1, size(s_sub,1)
@@ -934,7 +934,7 @@ contains
           residual(:,j) = 0.
           cycle
        end if
-       r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j)
+       r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
