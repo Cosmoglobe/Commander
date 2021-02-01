@@ -346,7 +346,7 @@ contains
          do_oper(calc_chisq)   = (main_iter == n_main_iter  )
          do_oper(sub_sl)       = correct_sl
          do_oper(sub_zodi)     = self%subtract_zodi
-         do_oper(output_slist) = mod(iter, 3) == 0
+         do_oper(output_slist) = self%first_call
          do_oper(sim_map)      = .false. ! (main_iter == 1) !   
 
          dipole_mod = 0
