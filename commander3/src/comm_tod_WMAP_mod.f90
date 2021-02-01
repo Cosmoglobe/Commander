@@ -515,7 +515,7 @@ contains
             do j = 1, ndet
               if (do_oper(samp_bline)) then
                 self%scans(i)%d(j)%baseline =sum((self%scans(i)%d(j)%tod &
-                                           & -s_tot(:,j))*mask(:,j))/sum(mask(:,j))
+              &- self%scans(i)%d(j)%gain*s_tot(:,j))*mask(:,j))/sum(mask(:,j))
                 if (trim(self%operation) == 'sample') then
                   self%scans(i)%d(j)%baseline = self%scans(i)%d(j)%baseline &
                    &  + rand_gauss(handle)/sqrt(sum(mask(:,j)*self%scans(i)%d(j)%sigma0**2))
