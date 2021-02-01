@@ -1237,14 +1237,19 @@ contains
     class(comm_tod),                               intent(in)    :: self
     character(len=512), allocatable, dimension(:), intent(inout) :: slist
 
-    integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr
+    integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr, num_scan
     character(len=4) :: pid
 
     if (self%myid == 0) then
        call int2string(self%myid, pid)
+       num_scan = 0
+       do i = 1, self%nscan
+          if (trim(slist(i)) == '') cycle
+          num_scan = num_scan + 1
+       end do
        unit = getlun()
        open(unit,file=trim(self%outdir)//'/filelist_'//trim(self%freq)//'.txt', recl=512)
-       write(unit,*) sum(self%nscanprproc)
+       write(unit,*) num_scan
        do i = 1, self%nscan
           if (trim(slist(i)) == '') cycle
           write(unit,*) trim(slist(i))
