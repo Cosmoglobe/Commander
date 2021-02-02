@@ -910,46 +910,6 @@ contains
   end subroutine get_smoothing_windows
 
 
-   subroutine accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
-    implicit none
-    class(comm_tod),                   intent(in)     :: tod
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
-    real(sp),          dimension(:,:), intent(in)     :: s_invN
-    real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
-    type(planck_rng),                  intent(inout)  :: handle
-
-    real(sp), allocatable, dimension(:,:)     :: residual
-    real(sp), allocatable, dimension(:)       :: r_fill
-    real(dp)     :: A, b
-    integer(i4b) :: i, j, ext(2), ndet, ntod
-    character(len=5) :: itext
-
-    ndet = tod%ndet
-    ntod = size(s_sub,1)
-    call tod%downsample_tod(s_sub(:,1), ext)    
-    allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
-    do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) then
-          residual(:,j) = 0.
-          cycle
-       end if
-       r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
-       call tod%downsample_tod(r_fill, ext, residual(:,j))
-    end do
-
-    call multiply_inv_N(tod, scan, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
-
-    do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) cycle
-       A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
-       b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
-    end do
-
-    deallocate(residual, r_fill)
-
-  end subroutine accumulate_imbal_cal
 
 
 end module comm_tod_gain_mod

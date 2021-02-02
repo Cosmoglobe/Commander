@@ -178,6 +178,7 @@ contains
       integer(i4b) :: i, j, k, l, m, n, t, ntod, ndet
       integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
       integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0, nout
+      character(len=20), allocatable, dimension(:) :: iter_labels ! names of iters 
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
@@ -326,11 +327,19 @@ contains
       ! There are five main iterations, for imbalance, absolute calibration, 
       ! relative calibration, time-variable calibration, and 
       ! correlated noise estimation.
+      allocate(iter_labels(n_main_iter))
+      iter_labels(1) = 'baseline'
+      iter_labels(2) = 'absolute calibration'
+      iter_labels(3) = 'relative calibration'
+      iter_labels(4) = 'time-varying gain'
+      iter_labels(5) = 'imbalance'
+      iter_labels(6) = 'correlated noise'
+
       main_it: do main_iter = 1, n_main_iter
          call wall_time(t7)
          call update_status(status, "tod_istart")
 
-         if (self%myid == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
+         if (self%myid == 0 .and. self%verbosity > 0) write(*,'(A, I, X, A)') '  Performing main iteration = ', main_iter, iter_labels(main_iter)
          ! Select operations for current iteration
          do_oper(samp_bline)   = (main_iter == n_main_iter-5) ! .false. !  
          do_oper(samp_acal)    = (main_iter == n_main_iter-4) ! .false. !      
@@ -513,6 +522,7 @@ contains
             ! replace it with a sampling step.
 
             do j = 1, ndet
+              if (.not. self%scans(i)%d(j)%accept) cycle
               if (do_oper(samp_bline)) then
                 self%scans(i)%d(j)%baseline =sum((self%scans(i)%d(j)%tod &
               &- self%scans(i)%d(j)%gain*s_tot(:,j))*mask(:,j))/sum(mask(:,j))
@@ -555,8 +565,7 @@ contains
                allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
-                   s_buf(:,j) = real(self%gain0(0) + self%gain0(j) + &
-                       & self%scans(i)%d(j)%dgain,sp) * s_tot(:,j)
+                   s_buf(:,j) = self%scans(i)%d(j)%gain*(s_totA(:,j)+s_totB(:,j))
                    call fill_all_masked(s_buf(:,j), mask(:,j), ntod, &
                    &  .false., &   !trim(self%operation)=='sample', &
                    &  real(self%scans(i)%d(j)%sigma0, sp), &
@@ -589,8 +598,9 @@ contains
                call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), s_buf2)
             else if (do_oper(samp_imbal)) then
                do j = 1, ndet
-                 s_buf(:,j) = real(self%gain0(0) + self%gain0(j) + &
-                     & self%scans(i)%d(j)%dgain,sp) * (s_totA(:,j) - s_totB(:,j))
+                 ! this is subtracted from the data, equivalent to the first
+                 ! equality in Eqn 17 of Gjerlow et al. 2021
+                 s_buf(:,j) = self%scans(i)%d(j)%gain * (s_totA(:,j) - s_totB(:,j))
                end do
 
                call accumulate_imbal_cal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle)
@@ -771,6 +781,7 @@ contains
          end if
 
       end do main_it
+      deallocate(iter_labels)
       call wall_time(t4)
 
 
@@ -1116,5 +1127,46 @@ contains
     deallocate(A, b)
 
   end subroutine sample_imbal_cal
+
+  subroutine accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
+    implicit none
+    class(comm_tod),                   intent(in)     :: tod
+    integer(i4b),                      intent(in)     :: scan
+    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
+    real(sp),          dimension(:,:), intent(in)     :: s_invN
+    real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
+    type(planck_rng),                  intent(inout)  :: handle
+
+    real(sp), allocatable, dimension(:,:)     :: residual
+    real(sp), allocatable, dimension(:)       :: r_fill
+    real(dp)     :: A, b
+    integer(i4b) :: i, j, ext(2), ndet, ntod
+    character(len=5) :: itext
+
+    ndet = tod%ndet
+    ntod = size(s_sub,1)
+    call tod%downsample_tod(s_sub(:,1), ext)    
+    allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
+    do j = 1, ndet
+       if (.not. tod%scans(scan)%d(j)%accept) then
+          residual(:,j) = 0.
+          cycle
+       end if
+       r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
+       call tod%downsample_tod(r_fill, ext, residual(:,j))
+    end do
+
+    call multiply_inv_N(tod, scan, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+
+    do j = 1, ndet
+       if (.not. tod%scans(scan)%d(j)%accept) cycle
+       A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
+       b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+    end do
+
+    deallocate(residual, r_fill)
+
+  end subroutine accumulate_imbal_cal
 
 end module comm_tod_WMAP_mod
