@@ -187,7 +187,10 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
             scalars = np.array([gain, sigma_0, fknee, alpha])
 
-            todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
+            if version == 'cal':
+              todInd = ntodsigma*todi/(sigma_0*gain)
+            else:
+              todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
             delta = np.diff(todInd)
             delta = np.insert(delta, 0, todInd[0])
             todArray.append(delta)
@@ -265,11 +268,6 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             else:
                 baseline = np.median(todi)
 
-            todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
-            deltatod = np.diff(todInd)
-            deltatod = np.insert(deltatod, 0, todInd[0])
-
-
             pixA = np.array_split(pix_A[j//4], n_per_day)[i]
             deltapixA = np.diff(pixA)
             deltapixA = np.insert(deltapixA, 0, pixA[0])
@@ -303,8 +301,10 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             deltaflag = np.insert(deltaflag, 0, flags[0])
 
 
+            if version != 'cal':
+              todi = np.int32(todi)
             f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                    data=np.int32(todi))
+                    data=todi)
             if label[-2:] == '13':
                 if compress:
                     f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',
