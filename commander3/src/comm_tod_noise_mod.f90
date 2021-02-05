@@ -913,7 +913,7 @@ contains
           prior(2) = 0.45
        else 
           prior(1) = 0.00
-          prior(2) = 10.
+          prior(2) = 1000.
        end if
 
        x_in(1) = max(fknee - 0.5 * fknee, prior(1))
