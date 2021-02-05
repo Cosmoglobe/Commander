@@ -2288,548 +2288,605 @@ contains
   ! *****************************************************
 
   subroutine write_hdf_0d_dp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(dp) , intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(dp) , intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_0d_sp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(sp) , intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(sp) , intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_0d_int(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    integer(i4b) , intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      integer(i4b) , intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_0d_char(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    character(len=*) , intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      character(len=*) , intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), H5T_FORTRAN_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
   end subroutine
 
   subroutine write_hdf_1d_dp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(dp) ,dimension(:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(dp) ,dimension(:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_1d_sp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(sp) ,dimension(:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(sp) ,dimension(:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_1d_int(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    integer(i4b) ,dimension(:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      integer(i4b) ,dimension(:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_1d_char(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    character(len=*) ,dimension(:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      character(len=*) ,dimension(:), intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), H5T_FORTRAN_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
   end subroutine
 
   subroutine write_hdf_2d_dp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(dp) ,dimension(:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(dp) ,dimension(:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_2d_sp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(sp) ,dimension(:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(sp) ,dimension(:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_2d_int(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    integer(i4b) ,dimension(:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      integer(i4b) ,dimension(:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_2d_char(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    character(len=*) ,dimension(:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      character(len=*) ,dimension(:,:), intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), H5T_FORTRAN_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
   end subroutine
 
   subroutine write_hdf_3d_dp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(dp) ,dimension(:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(dp) ,dimension(:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_3d_sp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(sp) ,dimension(:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(sp) ,dimension(:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_3d_int(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    integer(i4b) ,dimension(:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      integer(i4b) ,dimension(:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_3d_char(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    character(len=*) ,dimension(:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      character(len=*) ,dimension(:,:,:), intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), H5T_FORTRAN_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
   end subroutine
 
   subroutine write_hdf_4d_dp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(dp) ,dimension(:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(dp) ,dimension(:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_4d_sp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(sp) ,dimension(:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(sp) ,dimension(:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_4d_int(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    integer(i4b) ,dimension(:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      integer(i4b) ,dimension(:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_4d_char(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    character(len=*) ,dimension(:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      character(len=*) ,dimension(:,:,:,:), intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), H5T_FORTRAN_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
   end subroutine
 
   subroutine write_hdf_5d_dp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(dp) ,dimension(:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(dp) ,dimension(:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_5d_sp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(sp) ,dimension(:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(sp) ,dimension(:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_5d_int(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    integer(i4b) ,dimension(:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      integer(i4b) ,dimension(:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_5d_char(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    character(len=*) ,dimension(:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      character(len=*) ,dimension(:,:,:,:,:), intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), H5T_FORTRAN_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
   end subroutine
 
   subroutine write_hdf_6d_dp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(dp) ,dimension(:,:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(dp) ,dimension(:,:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_6d_sp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(sp) ,dimension(:,:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(sp) ,dimension(:,:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_6d_int(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    integer(i4b) ,dimension(:,:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      integer(i4b) ,dimension(:,:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_6d_char(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    character(len=*) ,dimension(:,:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      character(len=*) ,dimension(:,:,:,:,:,:), intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), H5T_FORTRAN_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
   end subroutine
 
   subroutine write_hdf_7d_dp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(dp) ,dimension(:,:,:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(dp) ,dimension(:,:,:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F64LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_DOUBLE, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_7d_sp(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    real(sp) ,dimension(:,:,:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      real(sp) ,dimension(:,:,:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_IEEE_F32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_REAL, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_7d_int(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    integer(i4b) ,dimension(:,:,:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      integer(i4b) ,dimension(:,:,:,:,:,:,:), intent(in) :: val
 
-    call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), H5T_STD_I32LE)
+      call h5dwrite_f(file%sethandle, H5T_NATIVE_INTEGER, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
   end subroutine
 
   subroutine write_hdf_7d_char(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    character(len=*) ,dimension(:,:,:,:,:,:,:), intent(in) :: val
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      character(len=*) ,dimension(:,:,:,:,:,:,:), intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), H5T_FORTRAN_S1)
-    call h5dwrite_f(file%sethandle, H5T_NATIVE_CHARACTER, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f(H5T_FORTRAN_S1, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
   end subroutine
+
 
 
   ! *****************************************************

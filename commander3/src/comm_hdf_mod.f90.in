@@ -439,24 +439,45 @@ contains
   {{for d in range(ndim)}}
   {{for t in types}}
   subroutine write_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val)
-    implicit none
-    type(hdf_file) :: file
-    character(len=*), intent(in) :: setname
-    integer(hsize_t), allocatable, dimension(:) :: i
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-    {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
+    {{if t[0] == "char"}}
 
-    allocate(ext_hdf(size(shape(val))))
-    ext_hdf =  int(shape(val), hsize_t)
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
+      integer(hid_t) :: str_dtype
+      integer :: hdferr
 
-    call create_hdf_set(file, setname, shape(val), {{t[3]}})
-    call h5dwrite_f(file%sethandle, {{t[4]}}, val, ext_hdf, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-    deallocate(ext_hdf)
+      call H5Tcopy_f({{t[3]}}, str_dtype, hdferr)
+      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
+
+      call create_hdf_set(file, setname, shape(val), str_dtype)
+      call h5dwrite_f(file%sethandle, str_dtype, val, int(shape(val), hsize_t), file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+
+    {{else}}
+
+      implicit none
+      type(hdf_file) :: file
+      character(len=*), intent(in) :: setname
+      integer(hsize_t), allocatable, dimension(:) :: i
+      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
+      {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
+
+      allocate(ext_hdf(size(shape(val))))
+      ext_hdf =  int(shape(val), hsize_t)
+
+      call create_hdf_set(file, setname, shape(val), {{t[3]}})
+      call h5dwrite_f(file%sethandle, {{t[4]}}, val, ext_hdf, file%status)
+      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
+      deallocate(ext_hdf)
+
+    {{endif}}
   end subroutine
 
   {{endfor}}
   {{endfor}}
+
 
   ! *****************************************************
   ! Sliced set operations.
