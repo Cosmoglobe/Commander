@@ -133,10 +133,12 @@ contains
             rpix = pix(t, 2)
             lpsi = psi(t, 1)
             rpsi = psi(t, 2)
-            pA = pmask(lpix)
-            pB = pmask(rpix)
-            f_A = 1-pA*(1-pB)
-            f_B = 1-pB*(1-pA)
+            !pA = pmask(lpix)
+            !pB = pmask(rpix)
+            !f_A = 1-pA*(1-pB)
+            !f_B = 1-pB*(1-pA)
+            f_A = 1-pmask(lpix)*(1-pmask(rpix))
+            f_B = 1-pmask(rpix)*(1-pmask(lpix))
             !f_A = pA
             !f_B = pB
 
@@ -144,9 +146,9 @@ contains
                d = 0
                p = 0
                do det = 1, 4
-                 sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
+                 !sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
                  d = d + data(i, t, det)/4
-                 p = p + data(i, t, det)*sgn/4
+                 p = p + data(i, t, det)/4*(-1)**((det + 1)/2 + 1)
                end do
                ! T
                b(lpix, 1, i) = b(lpix, 1, i) + f_A*((1+x_im)*d + dx_im*p)*inv_sigmasq
