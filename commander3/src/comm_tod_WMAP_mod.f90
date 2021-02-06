@@ -199,7 +199,7 @@ contains
       integer(i4b), allocatable, dimension(:)         :: flag
       real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
       real(dp), allocatable, dimension(:, :)          :: cg_tot
-      logical(lgt)       :: correct_sl, verbose
+      logical(lgt)       :: correct_sl, verbose, finished
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
       character(len=4)   :: ctext, myid_text
@@ -850,130 +850,125 @@ contains
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      allocate (r     (0:npix-1, nmaps))
-      allocate (r0    (0:npix-1, nmaps))
-      allocate (q     (0:npix-1, nmaps))
-      allocate (v     (0:npix-1, nmaps))
-      allocate (p     (0:npix-1, nmaps))
-      allocate (s     (0:npix-1, nmaps))
-      allocate (phat  (0:npix-1, nmaps))
-      allocate (shat  (0:npix-1, nmaps))
       allocate (cg_sol(0:npix-1, nmaps, nout))
-      allocate (m_buf (0:npix-1, nmaps))
+      if (self%myid == 0) then 
+         allocate (r     (0:npix-1, nmaps))
+         allocate (r0    (0:npix-1, nmaps))
+         allocate (q     (0:npix-1, nmaps))
+         allocate (p     (0:npix-1, nmaps))
+         allocate (s     (0:npix-1, nmaps))
+         allocate (shat  (0:npix-1, nmaps))
+         allocate (m_buf (0:npix-1, nmaps))
+         allocate (phat  (0:npix-1, nmaps))
+         allocate (v     (0:npix-1, nmaps))
 
-      cg_sol = 0.0d0
-      epsil = 1d-3
-      i_max = 100
-      i_min = 0
-      num_cg_iters = 0
+         cg_sol = 0.0d0
+         epsil = 1d-3
+         i_max = 100
+         i_min = 0
+         num_cg_iters = 0
 
-      if (self%myid==0 .and. self%verbosity > 0) write(*,*) '  Running BiCG'
+         if (self%verbosity > 0) write(*,*) '  Running BiCG'
+      end if
 
       call wall_time(t9)
       do l=1, nout
-         if (self%myid==0 .and. self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
-         call update_status(status, "Starting bicg-stab")
-         r  = b_map(:, :, l)
-         r0 = b_map(:, :, l)
-         if (maxval(r) == 0) cycle
-         delta_r = sum(r**2/M_diag)
-         ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
-         delta_0 = delta_r
-         delta_s = delta_s
-
-         omega = 1
-         alpha = 1
-
-         rho_new = sum(r0*r)
-         bicg: do i = 1, i_max
-            rho_old = rho_new
-            rho_new = sum(r0*r)
-            if (i==1) then
-                p = r
-            else
-                beta = (rho_new/rho_old)/(alpha/omega)
-                p = r + beta*(p - omega*v)
-            end if
-            phat = p/M_diag
-
-            call update_status(status, "Calling v=Ap")
-            m_buf = 0
-            call compute_Ax(self, phat, m_buf, self%x_im, procmask, i)
-
-            call wall_time(t1)
-            call mpi_reduce(m_buf, v, size(m_buf), MPI_DOUBLE_PRECISION,MPI_SUM,&
-                 & 0, self%info%comm, ierr)
-
-            call mpi_bcast(v, size(v),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-            call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
-            num_cg_iters = num_cg_iters + 1
-
-            alpha = rho_new/sum(r0*v)
-            cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
-
-            s = r - alpha*v
-            shat = s/M_diag
-
-            alpha = rho_new/sum(r0*v)
-            delta_s = sum(s*shat)
-
-            if (self%myid==0 .and. self%verbosity > 1) then 
-                write(*,101) 2*i-1, delta_s/delta_0
-                101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
-            end if
-
-            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) exit bicg
-            call update_status(status, "Calling  q= A shat")
-            m_buf = 0
-            call compute_Ax(self, shat, m_buf, self%x_im, procmask, i)
-            call wall_time(t1)
-
-            call mpi_reduce(m_buf, q, size(m_buf), MPI_DOUBLE_PRECISION, MPI_SUM, &
-                 & 0, self%info%comm, ierr)
-            call mpi_bcast(q, size(q),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-            call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
-
-            omega = sum(q*s)/sum(q**2)
-            cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
-
-            call mpi_bcast(cg_sol(:,:,l), size(cg_sol(:,:,l)),  &
-              & MPI_DOUBLE_PRECISION, 0,  self%info%comm, ierr)
-            if (mod(i, 10) == 1) then
-               call update_status(status, 'r = b - Ax')
-               m_buf = 0d0
-               call compute_Ax(self, cg_sol(:,:,l), m_buf, self%x_im, procmask, i)
-               call wall_time(t1)
-               call mpi_reduce(m_buf, r, size(m_buf), MPI_DOUBLE_PRECISION, MPI_SUM, &
-                    & 0, self%info%comm, ierr)
-               call mpi_bcast(r, size(r),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-               call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
-               r = b_map(:, :, l) - r
-            else
-               call update_status(status, 'r = s - omega*t')
-               r = s - omega*q
-            end if
-
+         if (self%myid==0) then
+            if (self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+            call update_status(status, "Starting bicg-stab")
+            r  = b_map(:, :, l)
+            r0 = b_map(:, :, l)
+            if (maxval(r) == 0) cycle
             delta_r = sum(r**2/M_diag)
-            num_cg_iters = num_cg_iters + 1
+            ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
+            delta_0 = delta_r
+            delta_s = delta_s
 
-            if (self%myid==0 .and. self%verbosity > 1) then 
-                write(*,102) 2*i, delta_r/delta_0
-                102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
-            end if
-            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) exit bicg
-         end do bicg
+            omega = 1
+            alpha = 1
+
+            rho_new = sum(r0*r)
+            bicg: do i = 1, i_max
+               rho_old = rho_new
+               rho_new = sum(r0*r)
+               if (i==1) then
+                  p = r
+               else
+                  beta = (rho_new/rho_old)/(alpha/omega)
+                  p = r + beta*(p - omega*v)
+               end if
+               phat = p/M_diag
+               
+               call update_status(status, "Calling v=Ap")
+               call compute_Ax(self, self%x_im, procmask, phat, v)
+               num_cg_iters = num_cg_iters + 1
+
+               alpha         = rho_new/sum(r0*v)
+               cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
+               s             = r - alpha*v
+               shat          = s/M_diag
+               alpha         = rho_new/sum(r0*v)
+               delta_s       = sum(s*shat)
+
+               if (self%myid==0 .and. self%verbosity > 1) then 
+                  write(*,101) 2*i-1, delta_s/delta_0
+101               format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
+               end if
+
+               if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
+                  finished = .true.
+                  call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
+                  exit bicg
+               end if
+
+               call update_status(status, "Calling  q= A shat")
+               call compute_Ax(self, self%x_im, procmask, shat, q)
+
+               omega         = sum(q*s)/sum(q**2)
+               cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
+
+               if (mod(i, 10) == 1) then
+                  call update_status(status, 'r = b - Ax')
+                  call compute_Ax(self, self%x_im, procmask, cg_sol(:,:,l), r)
+                  r = b_map(:, :, l) - r
+               else
+                  call update_status(status, 'r = s - omega*t')
+                  r = s - omega*q
+               end if
+
+               delta_r      = sum(r**2/M_diag)
+               num_cg_iters = num_cg_iters + 1
+
+               if (self%verbosity > 1) then 
+                  write(*,102) 2*i, delta_r/delta_0
+102               format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
+               end if
+               if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
+                  finished = .true.
+                  call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
+                  exit bicg
+               end if
+            end do bicg
+         else
+            loop: do while (.true.) 
+               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
+               if (.not. finished) then
+                  call compute_Ax(self, self%x_im, procmask)
+               else
+                  exit loop
+               end if
+            end do loop
+         end if
       end do
 
       call wall_time(t10); t_tot(21) = (t10 - t9)
 
-
-
+      call mpi_bcast(cg_sol, size(cg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       do k = 1, self%output_n_maps
          do j = 1, nmaps
             outmaps(k)%p%map(:, j) = cg_sol(self%info%pix, j, k)
          end do
       end do
-
 
       map_out%map = outmaps(1)%p%map
       ! Sometimes get a float invalid error here...
@@ -1041,8 +1036,8 @@ contains
          deallocate (outmaps)
       end if
 
-      deallocate (map_sky)
-      deallocate (cg_sol, r, s, q, r0, shat, p, phat, v, m_buf)
+      deallocate (map_sky, cg_sol)
+      if (self%myid == 0) deallocate (r, s, q, r0, shat, p, phat, v, m_buf)
 
       if (correct_sl) then
          do i = 1, self%ndet

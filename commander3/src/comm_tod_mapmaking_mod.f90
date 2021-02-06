@@ -178,37 +178,50 @@ contains
 
    end subroutine bin_differential_TOD
 
-   subroutine compute_Ax(tod, x, y, x_imarr, pmask, scan)
+   subroutine compute_Ax(tod, x_imarr, pmask, x_in, y_out)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Code to compute matrix product P^T N^-1 P m
       ! y = Ax
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       implicit none
-      class(comm_tod), intent(in)                        :: tod
-      integer(i4b), intent(in)                           :: scan
-      real(dp), dimension(0:, 1:), intent(in)            :: x
-      real(dp), dimension(1:), intent(in)                :: x_imarr
-      integer(i4b), dimension(0:), intent(in)            :: pmask
+      class(comm_tod),                 intent(in)              :: tod
+      real(dp),     dimension(1:),     intent(in)              :: x_imarr
+      integer(i4b), dimension(0:),     intent(in)              :: pmask
+      real(dp),     dimension(0:, 1:), intent(in),    optional :: x_in
+      real(dp),     dimension(0:, 1:), intent(inout), optional :: y_out
+
       integer(i4b), allocatable, dimension(:)         :: flag
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
 
-      real(dp), dimension(0:, 1:), intent(inout)           :: y
-
-      integer(i4b)              :: i, j, k, ntod, ndet, lpix, rpix, lpsi, rpsi
-      integer(i4b)              :: nhorn, t, sgn, pA, pB, f_A, f_B
-      real(dp)                  :: inv_sigmasq, var, dA, dB, iA, iB, sA, sB, d, p, x_im, dx_im
+      logical(lgt) :: finished
+      integer(i4b) :: i, j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
+      integer(i4b) :: nhorn, t, sgn, pA, pB, f_A, f_B, nside, npix, nmaps
+      real(dp)     :: inv_sigmasq, var, dA, dB, iA, iB, sA, sB, d, p, x_im, dx_im
+      real(dp), allocatable, dimension(:,:) :: x, y
       nhorn = tod%nhorn
-      ndet = tod%ndet
+      ndet  = tod%ndet
+      nside = tod%nside
+      nmaps = tod%nmaps
+      npix  = 12*nside**2
 
-      x_im = 0.5*(x_imarr(1) + x_imarr(2))
-      dx_im = 0.5*(x_imarr(1) - x_imarr(2))
+      allocate(x(0:npix-1,nmaps), y(0:npix-1,nmaps))
+      if (tod%myid == 0) then
+         finished = .false.
+         call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+         x = x_in
+      end if
+      call mpi_bcast(x, size(x),  MPI_DOUBLE_PRECISION, 0, tod%info%comm, ierr)
+
+      x_im   = 0.5*(x_imarr(1) + x_imarr(2))
+      dx_im  = 0.5*(x_imarr(1) - x_imarr(2))
+      y      = 0.d0
       do j = 1, tod%nscan
          ntod = tod%scans(j)%ntod
          allocate (pix(ntod, nhorn))             ! Decompressed pointing
          allocate (psi(ntod, nhorn))             ! Decompressed pol angle
          allocate (flag(ntod))                   ! Decompressed flags
          !do k = 1, tod%ndet
-         if (tod%scans(scan)%d(1)%accept) then
+         if (tod%scans(j)%d(1)%accept) then
             call tod%decompress_pointing_and_flags(j, 1, pix, &
                 & psi, flag)
             do t = 1, ntod
@@ -259,6 +272,16 @@ contains
          end if
          deallocate (pix, psi, flag)
       end do
+
+      if (tod%myid == 0) then
+         call mpi_reduce(y, y_out, size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
+              & 0, tod%info%comm, ierr)
+      else
+         call mpi_reduce(y, y,     size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
+              & 0, tod%info%comm, ierr)
+      end if
+
+      deallocate(x, y)
 
    end subroutine compute_Ax
 
