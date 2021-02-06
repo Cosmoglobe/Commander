@@ -185,8 +185,8 @@ contains
       real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky, s_skyA, s_skyB
       real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
-      real(sp), allocatable, dimension(:, :)          :: mask, mask2, s_bp, s_bpA, s_bpB
-      real(sp), allocatable, dimension(:, :)          :: s_mono, s_buf, s_buf2, s_tot, s_zodi
+      real(sp), allocatable, dimension(:, :)          :: mask, mask2, mask_lowres, s_bp, s_bpA, s_bpB
+      real(sp), allocatable, dimension(:, :)          :: s_mono, s_buf, s_tot, s_zodi
       real(sp), allocatable, dimension(:, :)          :: s_totA, s_totB
       real(sp), allocatable, dimension(:, :)          :: s_invN, s_lowres
       real(sp), allocatable, dimension(:, :, :)       :: s_sky_prop, s_bp_prop
@@ -397,7 +397,6 @@ contains
             allocate (s_orbB(ntod, ndet))                 ! Orbital dipole (beam B)
             allocate (s_orb_tot(ntod, ndet))              ! Orbital dipole (both)
             allocate (s_buf(ntod, ndet))                  ! Buffer
-            allocate (s_buf2(ntod, ndet))                 ! Buffer
             allocate (s_tot(ntod, ndet))                  ! Sum of all sky components
             allocate (s_totA(ntod, ndet))                  ! Sum of all sky components
             allocate (s_totB(ntod, ndet))                  ! Sum of all sky components
@@ -423,6 +422,17 @@ contains
             call self%decompress_pointing_and_flags(i, 1, pix, &
                  & psi, flag)
 
+!!$            if (any(pix == 2725501)) then
+!!$               call int2string(self%scanid(i), scantext)
+!!$               write(*,*) 'scan =', self%scanid(i)
+!!$               open(58,file='jupiter'//scantext//'.dat', recl=1024)
+!!$               write(58,*) '# scan = ', self%scanid(i)
+!!$               do j = 1, ntod
+!!$                  write(58,*) j, self%scans(i)%d(:)%tod(j), flag(j), pix(j,1), pix(j,2)
+!!$               end do
+!!$               close(58)
+!!$            end if
+
             call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
             ! Construct sky signal template
@@ -443,7 +453,7 @@ contains
                            & (1-self%x_im((j+1)/2))*s_skyB(:,j)
                if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
                   s_bp(:, j)  = (1+self%x_im((j+1)/2))*s_bpA(:,j) - &
-                           & (1-self%x_im((j+1)/2))*s_bpB(:,j)
+                              & (1-self%x_im((j+1)/2))*s_bpB(:,j)
                end if
             end do
 
@@ -459,12 +469,19 @@ contains
 
             ! Construct orbital dipole template
             call wall_time(t1)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
-            call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
-            do j = 1, ndet
-               s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
-                               & (1-self%x_im((j+1)/2))*s_orbB(:,j)
-            end do
+            if (.true.) then
+               call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
+               call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
+                                  & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+               end do
+            else
+               s_orbA    = 0.d0
+               s_orbB    = 0.d0
+               s_orb_tot = 0.d0
+            end if
             call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
 
@@ -543,8 +560,11 @@ contains
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
                allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
+               allocate(mask_lowres(ext(1):ext(2), ndet))
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
+                  call self%downsample_tod(mask(:,j), ext, &
+                       & mask_lowres(:,j), threshold=0.9)!, mask(:,j))
                   if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                      s_buf(:,j) = s_tot(:,j)
                      call fill_all_masked(s_buf(:,j), mask(:,j), ntod, &
@@ -558,8 +578,19 @@ contains
                           & s_invN(:,j))!, mask(:,j))
                   end if
                end do
-               s_buf2 = s_buf
                call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
+
+!!$                  write(*,*) 'hei',  self%myid
+!!$                  if (self%myid == 62) then
+!!$                     open(58,file='s_invN.dat')
+!!$                     do k = 1, size(s_invN,1)
+!!$                        write(58,*) k, s_invN(k,1)
+!!$                     end do
+!!$                     close(58)
+!!$                  end if
+!!$                  call mpi_finalize(ierr)
+!!$                  stop
+
             else if (do_oper(samp_imbal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
                allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
@@ -573,7 +604,6 @@ contains
                    call self%downsample_tod(s_buf(:,j), ext, &
                         & s_invN(:,j))!, mask(:,j))
                end do
-               s_buf2 = s_buf
                call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
             end if
 
@@ -595,7 +625,7 @@ contains
                   end if
                end do
 
-               call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), s_buf2)
+               call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), mask_lowres=mask_lowres)
             else if (do_oper(samp_imbal)) then
                do j = 1, ndet
                  ! this is subtracted from the data, equivalent to the first
@@ -611,7 +641,7 @@ contains
             ! Fit gain
             if (do_oper(samp_G)) then
                call wall_time(t1)
-               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle)
+               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle, mask_lowres=mask_lowres)
                call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
             end if
 
@@ -684,7 +714,6 @@ contains
                   if (do_oper(bin_map) .and. nout > 4) d_calib(5,:,j) = s_sl(:,j)
                   if (do_oper(bin_map) .and. nout > 5) d_calib(6,:,j) = s_bp(:,j)
 
-
                   if (do_oper(prep_relbp)) then
                      do k = 2, ndelta
                         d_calib(self%output_n_maps+k-1,:,j) = d_calib(1,:,j) + s_bp(:,j) - s_bp_prop(:,j,k)
@@ -708,6 +737,8 @@ contains
                      end do
                      close(78)
                   end do
+                  !call mpi_finalize(ierr)
+                  !stop
                end if
 
                call wall_time(t1)
@@ -732,16 +763,15 @@ contains
 
             ! Clean up
             call wall_time(t1)
-            deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf, s_buf2)
+            deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
             deallocate (s_totA, s_totB)
             deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
             deallocate ( s_skyA, s_skyB)
             deallocate (mask, mask2, pix, psi, flag)
             if (allocated(s_invN)) deallocate (s_invN)
+            if (allocated(mask_lowres)) deallocate (mask_lowres)
             deallocate(s_bp, s_bp_prop, s_bpA, s_bpB)
             call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
-
-
 
             call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
             if (do_oper(output_slist)) then
