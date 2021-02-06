@@ -166,6 +166,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version, compress=False):
+    Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
     prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out =  prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     dt0 = np.diff(time).mean()
@@ -223,11 +224,16 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             delta = np.insert(delta, 0, psiIndexes[0])
             pixArray[1].append(delta)
 
-            flags = np.array_split(daflags[:,j//4], n_per_day)[i]
-            t0 = np.arange(len(flags))
-            t = np.linspace(t0.min(), t0.max(), len(todi))
-            func = interp1d(t0, flags, kind='previous')
-            flags = func(t)
+
+            N = Nobs_array[j//4]
+            flags = daflags[:,j//4]
+            flags_new = np.zeros(len(flags)*N)
+            for n in range(N):
+              if len(flags_new[n::N]) == len(flags):
+                flags_new[n::N] = flags
+              else:
+                flags_new[n::N] = flags[:len(flags_new[n::N])-len(flags)]
+            flags = np.array_split(flags_new, n_per_day)[i]
             delta = np.diff(flags)
             delta = np.insert(delta, 0, flags[0])
             # just necessary to make the array have the correct shape. Redundant
@@ -292,11 +298,17 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             deltapsiB = np.diff(psiIndexesB)
             deltapsiB = np.insert(deltapsiB, 0, psiIndexesB[0])
 
-            flags = np.array_split(daflags[:,j//4], n_per_day)[i]
-            t0 = np.arange(len(flags))
-            t = np.linspace(t0.min(), t0.max(), len(todi))
-            func = interp1d(t0, flags, kind='previous')
-            flags = func(t)
+            N = Nobs_array[j//4]
+            flags = daflags[:,j//4]
+            flags_new = np.zeros(len(flags)*N)
+            for n in range(N):
+              if len(flags_new[n::N]) == len(flags):
+                flags_new[n::N] = flags
+              else:
+                flags_new[n::N] = flags[:len(flags_new[n::N])-len(flags)]
+            flags = np.array_split(flags_new, n_per_day)[i]
+
+
             deltaflag = np.diff(flags)
             deltaflag = np.insert(deltaflag, 0, flags[0])
 
@@ -890,20 +902,12 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     inds = np.arange(len(files))
-    #inds = inds[:12]
-    #files = np.array(files)[:12]
-    #inds = inds[:len(files)//4]
-    #files = np.array(files)[:len(files)//4]
+    inds = inds[:len(files)//4]
+    files = np.array(files)[:len(files)//4]
     #inds = inds[len(files)//4:2*len(files)//4]
     #files = np.array(files)[len(files)//4:2*len(files)//4]
-    #inds = inds[4*len(files)//8:5*len(files)//8]
-    #files = np.array(files)[4*len(files)//8:5*len(files)//8]
-    #inds = inds[5*len(files)//8:6*len(files)//8]
-    #files = np.array(files)[5*len(files)//8:6*len(files)//8]
-    #inds = inds[6*len(files)//8:7*len(files)//8]
-    #files = np.array(files)[6*len(files)//8:7*len(files)//8]
-    #inds = inds[7*len(files)//8:]
-    #files = np.array(files)[7*len(files)//8:]
+    #inds = inds[2*len(files)//4:3*len(files)//4]
+    #files = np.array(files)[2*len(files)//4:3*len(files)//4]
     #inds = inds[3*len(files)//4:]
     #files = np.array(files)[3*len(files)//4:]
 
@@ -926,5 +930,6 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
 
 if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=31, center=True)
-    main(par=True, plot=False, compress=True, version='cal', center=True)
+    #main(par=True, plot=False, compress=True, version='cal', center=True)
+    main(par=True, plot=False, compress=True, version=34, center=True)
     #test_flags()
