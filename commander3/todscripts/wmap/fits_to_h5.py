@@ -41,6 +41,7 @@ import os, sys
 
 from tqdm import tqdm
 
+Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 
 
 # version 15 uses the pre-calibrated data, gain = 1
@@ -166,7 +167,6 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version, compress=False):
-    Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
     prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out =  prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     dt0 = np.diff(time).mean()
@@ -902,8 +902,8 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     inds = np.arange(len(files))
-    inds = inds[:len(files)//4]
-    files = np.array(files)[:len(files)//4]
+    #inds = inds[:len(files)//4]
+    #files = np.array(files)[:len(files)//4]
     #inds = inds[len(files)//4:2*len(files)//4]
     #files = np.array(files)[len(files)//4:2*len(files)//4]
     #inds = inds[2*len(files)//4:3*len(files)//4]
