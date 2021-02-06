@@ -42,7 +42,7 @@ module comm_tod_WMAP_mod
    private
    public comm_WMAP_tod
 
-   integer(i4b), parameter :: N_test = 21
+   integer(i4b), parameter :: N_test = 22
    integer(i4b), parameter :: samp_N = 1
    integer(i4b), parameter :: prep_G = 15
    integer(i4b), parameter :: samp_G = 2
@@ -64,6 +64,7 @@ module comm_tod_WMAP_mod
    integer(i4b), parameter :: sub_zodi = 17
    integer(i4b), parameter :: sim_map = 20
    integer(i4b), parameter :: samp_imbal = 21
+   integer(i4b), parameter :: samp_bline = 22
    logical(lgt), dimension(N_test) :: do_oper
 
    type, extends(comm_tod) :: comm_WMAP_tod
@@ -106,7 +107,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 6
+      constructor%output_n_maps = 3
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
       constructor%first_call = .true.
@@ -177,6 +178,7 @@ contains
       integer(i4b) :: i, j, k, l, m, n, t, ntod, ndet
       integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
       integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0, nout
+      character(len=20), allocatable, dimension(:) :: iter_labels ! names of iters 
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
@@ -242,7 +244,7 @@ contains
       call wall_time(t1)
       correct_sl = .false.
       chisq_threshold = 6d0
-      n_main_iter     = 5
+      n_main_iter     = 6
       ndet = self%ndet
       nhorn = self%nhorn
       ndelta = size(delta, 3)
@@ -325,16 +327,25 @@ contains
       ! There are five main iterations, for imbalance, absolute calibration, 
       ! relative calibration, time-variable calibration, and 
       ! correlated noise estimation.
+      allocate(iter_labels(n_main_iter))
+      iter_labels(1) = 'baseline'
+      iter_labels(2) = 'absolute calibration'
+      iter_labels(3) = 'relative calibration'
+      iter_labels(4) = 'time-varying gain'
+      iter_labels(5) = 'imbalance'
+      iter_labels(6) = 'correlated noise'
+
       main_it: do main_iter = 1, n_main_iter
          call wall_time(t7)
          call update_status(status, "tod_istart")
 
-         if (self%myid == 0 .and. self%verbosity > 0) write(*,*) '  Performing main iteration = ', main_iter
+         if (self%myid == 0 .and. self%verbosity > 0) write(*,'(A, I, X, A)') '  Performing main iteration = ', main_iter, iter_labels(main_iter)
          ! Select operations for current iteration
-         do_oper(samp_imbal)   = (main_iter == n_main_iter-4) ! .false. !  
-         do_oper(samp_acal)    = (main_iter == n_main_iter-3) ! .false. !      
-         do_oper(samp_rcal)    = (main_iter == n_main_iter-2) ! .false. !      
-         do_oper(samp_G)       = (main_iter == n_main_iter-1) ! .false. !      
+         do_oper(samp_bline)   = (main_iter == n_main_iter-5) ! .false. !  
+         do_oper(samp_acal)    = (main_iter == n_main_iter-4) ! .false. !      
+         do_oper(samp_rcal)    = (main_iter == n_main_iter-3) ! .false. !      
+         do_oper(samp_G)       = (main_iter == n_main_iter-2) ! .false. !      
+         do_oper(samp_imbal)   = (main_iter == n_main_iter-1) ! .false. !  
          do_oper(samp_N)       = (main_iter >= n_main_iter-0) ! .false. ! 
          do_oper(samp_N_par)   = do_oper(samp_N)
          do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0)
@@ -394,6 +405,7 @@ contains
             allocate (pix(ntod, nhorn))             ! Decompressed pointing
             allocate (psi(ntod, nhorn))             ! Decompressed pol angle
             allocate (flag(ntod))                   ! Decompressed flags
+
 
             call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
@@ -517,6 +529,28 @@ contains
             end do
 
 
+            !!!!!!!!!!!!!!!!!!!!!
+            ! Baseline estimation
+            !!!!!!!!!!!!!!!!!!!!!
+
+            ! n.b. this should be taken care of in the ncorr sampling. Still
+            ! working on why this is the case. For now, just estimating it using
+            ! Hinshaw et al. 2003 Eqn (21). If we are stuck with this, should
+            ! replace it with a sampling step.
+
+            do j = 1, ndet
+              if (.not. self%scans(i)%d(j)%accept) cycle
+              if (do_oper(samp_bline)) then
+                self%scans(i)%d(j)%baseline =sum((self%scans(i)%d(j)%tod &
+              &- self%scans(i)%d(j)%gain*s_tot(:,j))*mask(:,j))/sum(mask(:,j))
+                if (trim(self%operation) == 'sample') then
+                  self%scans(i)%d(j)%baseline = self%scans(i)%d(j)%baseline &
+                   &  + rand_gauss(handle)/sqrt(sum(mask(:,j)*self%scans(i)%d(j)%sigma0**2))
+                end if
+              end if
+            end do
+      
+
             !!!!!!!!!!!!!!!!!!!
             ! Gain calculations
             !!!!!!!!!!!!!!!!!!!
@@ -562,8 +596,7 @@ contains
                allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
-                   s_buf(:,j) = real(self%gain0(0) + self%gain0(j) + &
-                       & self%scans(i)%d(j)%dgain,sp) * s_tot(:,j)
+                   s_buf(:,j) = self%scans(i)%d(j)%gain*(s_totA(:,j)+s_totB(:,j))
                    call fill_all_masked(s_buf(:,j), mask(:,j), ntod, &
                    &  .false., &   !trim(self%operation)=='sample', &
                    &  real(self%scans(i)%d(j)%sigma0, sp), &
@@ -595,8 +628,9 @@ contains
                call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), mask_lowres=mask_lowres)
             else if (do_oper(samp_imbal)) then
                do j = 1, ndet
-                 s_buf(:,j) = real(self%gain0(0) + self%gain0(j) + &
-                     & self%scans(i)%d(j)%dgain,sp) * (s_totA(:,j) - s_totB(:,j))
+                 ! this is subtracted from the data, equivalent to the first
+                 ! equality in Eqn 17 of Gjerlow et al. 2021
+                 s_buf(:,j) = self%scans(i)%d(j)%gain * (s_totA(:,j) - s_totB(:,j))
                end do
 
                call accumulate_imbal_cal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle)
@@ -623,9 +657,9 @@ contains
                   end if
                end do
                call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, .false.)
-!!               do j = 1, ndet
-!!                  n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
-!!               end do
+               do j = 1, ndet
+                  n_corr(:,j) = n_corr(:, j) - sum(n_corr(:,j))/ size(n_corr,1)
+               end do
                call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
             else
                n_corr = 0.
@@ -669,9 +703,11 @@ contains
 !!$                  write(*,*) 'c', j, sum(abs(s_tot(:,j)))
 !!$                  write(*,*) 'd', j, sum(abs(s_sky(:,j)))
 !!$                  write(*,*) 'e', j, sum(abs(s_bp(:,j)))
-                  d_calib(1, :, j) = (self%scans(i)%d(j)%tod - n_corr(:, j))* &
+                  d_calib(1, :, j) = (self%scans(i)%d(j)%tod - &
+                  & self%scans(i)%d(j)%baseline - n_corr(:, j))* &
                      & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
-                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - s_sky(:, j) + s_bp(:, j) ! Residual
+                  if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - &
+                    & s_sky(:, j) + s_bp(:, j) ! Residual
 
                   if (nout > 2) d_calib(3, :, j) = (n_corr(:, j) - sum(n_corr(:, j)/ntod))*inv_gain
                   if (do_oper(bin_map) .and. nout > 3) d_calib(4,:,j) = s_orb_tot(:,j)
@@ -686,18 +722,18 @@ contains
 
                end do
 
-
                call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
                if (i==1 .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
                      open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
-                     write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)   sky (mK)"// &
-                          & " s_orb_dip (mK)  mask  s_slA s_slB"
+                     write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
+                          & " s_orbA (mK)  s_orbB (mK)  mask, baseline, invgain, flag"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
-                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), s_sky(j,k), s_orb_tot(j,k), mask(j, k), s_slA(j,k), s_slB(j,k)
+                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), &
+                         &  s_skyA(j,k), s_skyB(j,k), s_orbA(j,k), s_orbB(j,k), mask(j, k), self%scans(i)%d(k)%baseline, inv_gain, flag(j)
                      end do
                      close(78)
                   end do
@@ -723,6 +759,7 @@ contains
                  dipole_mod(self%scanid(i), j) = masked_var
                end if
             end do
+
 
             ! Clean up
             call wall_time(t1)
@@ -774,6 +811,7 @@ contains
          end if
 
       end do main_it
+      deallocate(iter_labels)
       call wall_time(t4)
 
 
@@ -802,8 +840,8 @@ contains
       call write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
       cg_tot = M_diag(self%info%pix, 1:nmaps)
       call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
-      cg_tot = b_map(self%info%pix, 1:nmaps, 5)
-      call write_fits_file_iqu(trim(prefix)//'b_sl'//trim(postfix), cg_tot, outmaps)
+      !cg_tot = b_map(self%info%pix, 1:nmaps, 5)
+      !call write_fits_file_iqu(trim(prefix)//'b_sl'//trim(postfix), cg_tot, outmaps)
 
 
       where (M_diag == 0d0)
@@ -857,31 +895,33 @@ contains
                 p = r + beta*(p - omega*v)
             end if
             phat = p/M_diag
+
             call update_status(status, "Calling v=Ap")
             m_buf = 0
             call compute_Ax(self, phat, m_buf, self%x_im, procmask, i)
 
             call wall_time(t1)
-            call mpi_reduce(m_buf, v, size(m_buf), MPI_DOUBLE_PRECISION, MPI_SUM, &
+            call mpi_reduce(m_buf, v, size(m_buf), MPI_DOUBLE_PRECISION,MPI_SUM,&
                  & 0, self%info%comm, ierr)
+
             call mpi_bcast(v, size(v),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
             call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
+            num_cg_iters = num_cg_iters + 1
+
             alpha = rho_new/sum(r0*v)
             cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
-            if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
-               call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)))//trim(postfix), cg_tot, outmaps)
-            end if
-            s = r - alpha*v
 
+            s = r - alpha*v
             shat = s/M_diag
 
+            alpha = rho_new/sum(r0*v)
             delta_s = sum(s*shat)
+
             if (self%myid==0 .and. self%verbosity > 1) then 
                 write(*,101) 2*i-1, delta_s/delta_0
                 101 format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
             end if
-            num_cg_iters = num_cg_iters + 1
+
             if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) exit bicg
             call update_status(status, "Calling  q= A shat")
             m_buf = 0
@@ -892,8 +932,12 @@ contains
                  & 0, self%info%comm, ierr)
             call mpi_bcast(q, size(q),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
             call wall_time(t2); t_tot(22) = t_tot(22) + (t2 - t1)
+
             omega = sum(q*s)/sum(q**2)
             cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
+
+            call mpi_bcast(cg_sol(:,:,l), size(cg_sol(:,:,l)),  &
+              & MPI_DOUBLE_PRECISION, 0,  self%info%comm, ierr)
             if (mod(i, 10) == 1) then
                call update_status(status, 'r = b - Ax')
                m_buf = 0d0
@@ -909,17 +953,13 @@ contains
                r = s - omega*q
             end if
 
-            if (write_cg_iter) then
-               cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
-               call write_fits_file_iqu(trim(prefix)//'cg'//trim(str(l))//'_iter'//trim(str(2*(i-1)+1))//trim(postfix), cg_tot, outmaps)
-            end if
-
             delta_r = sum(r**2/M_diag)
+            num_cg_iters = num_cg_iters + 1
+
             if (self%myid==0 .and. self%verbosity > 1) then 
                 write(*,102) 2*i, delta_r/delta_0
                 102 format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
             end if
-            num_cg_iters = num_cg_iters + 1
             if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) exit bicg
          end do bicg
       end do
@@ -1078,7 +1118,6 @@ contains
    end subroutine write_fits_file_iqu
 
 
-  ! Sample absolute gain from orbital dipole alone 
   subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
     implicit none
     class(comm_WMAP_tod),              intent(inout)  :: tod
@@ -1118,5 +1157,46 @@ contains
     deallocate(A, b)
 
   end subroutine sample_imbal_cal
+
+  subroutine accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
+    implicit none
+    class(comm_tod),                   intent(in)     :: tod
+    integer(i4b),                      intent(in)     :: scan
+    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
+    real(sp),          dimension(:,:), intent(in)     :: s_invN
+    real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
+    type(planck_rng),                  intent(inout)  :: handle
+
+    real(sp), allocatable, dimension(:,:)     :: residual
+    real(sp), allocatable, dimension(:)       :: r_fill
+    real(dp)     :: A, b
+    integer(i4b) :: i, j, ext(2), ndet, ntod
+    character(len=5) :: itext
+
+    ndet = tod%ndet
+    ntod = size(s_sub,1)
+    call tod%downsample_tod(s_sub(:,1), ext)    
+    allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
+    do j = 1, ndet
+       if (.not. tod%scans(scan)%d(j)%accept) then
+          residual(:,j) = 0.
+          cycle
+       end if
+       r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
+       call tod%downsample_tod(r_fill, ext, residual(:,j))
+    end do
+
+    call multiply_inv_N(tod, scan, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+
+    do j = 1, ndet
+       if (.not. tod%scans(scan)%d(j)%accept) cycle
+       A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
+       b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+    end do
+
+    deallocate(residual, r_fill)
+
+  end subroutine accumulate_imbal_cal
 
 end module comm_tod_WMAP_mod
