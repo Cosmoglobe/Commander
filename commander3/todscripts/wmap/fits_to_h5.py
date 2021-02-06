@@ -61,6 +61,8 @@ Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 # version 30 adds the genflags to the daflags
 # version 31 has center=True
 # version 'cal' uses the WMAP precalibrated data
+# version 34 has fixed a bug in the flag timing
+# version 35 makes the time in MJD.
 
 from time import sleep
 from time import time as timer
@@ -841,7 +843,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
 
 
 
-    time = data[2].data['TIME'] + t2jd
+    time = data[2].data['TIME'] + t2jd - 24000000.5
 
     dt0 = np.median(np.diff(time))
 
