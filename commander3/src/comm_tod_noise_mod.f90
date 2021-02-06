@@ -779,7 +779,7 @@ contains
     
     
 
-    if (found_spike) then
+    if (.false. .and. found_spike) then
        close(62)
        write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_tod_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
        open(63,file=filename, status='REPLACE')
