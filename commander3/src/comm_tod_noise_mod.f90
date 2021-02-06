@@ -907,13 +907,13 @@ contains
           prior(2) = 0.25
        else if (trim(self%freq) == '023-WMAP_K') then
           prior(1) = 0.00
-          prior(2) = 10.
+          prior(2) = 1.
        else if (trim(self%freq) == '060-WMAP_V1') then
           prior(1) = 0.01
           prior(2) = 0.45
        else 
           prior(1) = 0.00
-          prior(2) = 1000.
+          prior(2) = 1.0
        end if
 
        x_in(1) = max(fknee - 0.5 * fknee, prior(1))
@@ -938,13 +938,13 @@ contains
           prior(1) = -3.0
           prior(2) = -0.4
        else if (trim(self%freq) == '023-WMAP_K') then
-          prior(1) = -10
+          prior(1) = -3
           prior(2) = -0.1
        else if (trim(self%freq) == '060-WMAP_V1') then
           prior(1) = -2.5
           prior(2) = -0.4
        else 
-          prior(1) = -10
+          prior(1) = -3
           prior(2) = -0.1
        end if
 
