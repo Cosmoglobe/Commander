@@ -700,11 +700,11 @@ contains
                   do k = 1, self%ndet
                      open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
-                          & " s_orbA (mK)  s_orbB (mK)  mask, baseline, invgain"
+                          & " s_orbA (mK)  s_orbB (mK)  mask, baseline, invgain, flag"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
                         write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), &
-                         &  s_skyA(j,k), s_skyB(j,k), s_orbA(j,k), s_orbB(j,k), mask(j, k), self%scans(i)%d(k)%baseline, inv_gain
+                         &  s_skyA(j,k), s_skyB(j,k), s_orbA(j,k), s_orbB(j,k), mask(j, k), self%scans(i)%d(k)%baseline, inv_gain, flag(j)
                      end do
                      close(78)
                   end do
