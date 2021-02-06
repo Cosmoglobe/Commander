@@ -195,31 +195,32 @@ contains
 
   end subroutine compute_orbital_dipole_pencil
 
-  subroutine compute_solar_dipole_pencil(self, ind, pix, psi, s_sol)
+  subroutine compute_solar_dipole_pencil(self, ind, pix, s_sol, factor)
     implicit none
     class(comm_orbdipole),               intent(in)  :: self
     integer(i4b),                        intent(in)  :: ind !scan nr/index
-    integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
-    real(sp),            dimension(:,:), intent(out) :: s_sol
+    integer(i4b),        dimension(:),   intent(in)  :: pix
+    real(sp),            dimension(:),   intent(out) :: s_sol
+    real(sp),                            intent(in), optional :: factor
     real(dp) :: b, x, q, b_dot, phi, theta
+    real(sp) :: f
     real(dp), dimension(3) :: vnorm
     integer(i4b) :: i, j
 
+    if (.not. self%tod%scans(ind)%d(i)%accept) then
+       s_sol = 0
+       return
+    end if
+
+    f = 1.; if (present(factor)) f = factor
     phi   = 4.607145626489432  ! 263.97*pi/180
     theta = 0.7278022980816355 ! (90-48.3)*pi/180
     vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
 
-    do i = 1,self%tod%ndet
-       if (.not. self%tod%scans(ind)%d(i)%accept) then
-         s_sol(:,i) = 0
-         cycle
-       end if
-       do j=1,self%tod%scans(ind)%ntod !length of the tod
-          b_dot = dot_product(vnorm, self%tod%pix2vec(:,pix(j,i)))
-          s_sol(j,i) = T_CMB_DIP * b_dot
-        end do
+    do j=1,self%tod%scans(ind)%ntod !length of the tod
+       b_dot = dot_product(vnorm, self%tod%pix2vec(:,pix(j)))
+       s_sol(j) = f * T_CMB_DIP * b_dot
     end do
-
   end subroutine compute_solar_dipole_pencil
 
   function compute_4pi_product(self, p, psiInd, chunkInd, i, q) result(prod)

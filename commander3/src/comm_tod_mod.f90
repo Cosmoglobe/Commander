@@ -543,12 +543,14 @@ contains
 
     integer(i4b) :: i, j, n, det, ierr, ndet_tot
     real(dp)     :: t1, t2
-    real(sp)     :: psi
+    real(sp)     :: psi, g, b
     type(hdf_file)     :: file
 
     integer(i4b), dimension(:), allocatable       :: ns
     character(len=1024)                           :: det_buf
     character(len=128), dimension(:), allocatable :: dets
+    
+    real(sp), allocatable, dimension(:,:) :: g_precomp, b_precomp
 
 
     ! Read common fields
@@ -606,16 +608,42 @@ contains
        end do
     end do
 
-    ! Initialize mean gain
-    allocate(ns(0:self%ndet))
-    self%gain0 = 0.d0
-    ns         = 0
+    ! Define all gains to be positive
     do i = 1, self%nscan
        do j = 1, self%ndet
           if (self%scans(i)%d(j)%gain < 0) then
             self%scans(i)%d(j)%gain = -self%scans(i)%d(j)%gain
             self%scans(i)%d(j)%tod  = -self%scans(i)%d(j)%tod
           end if
+       end do
+    end do
+
+
+!!$    ! Apply precomputed gains and baselines
+!!$    allocate(g_precomp(self%nscan_tot, self%ndet), b_precomp(self%nscan_tot, self%ndet))
+!!$    open(58,file='data_WMAP/wmap_K1_gain_offset.dat')
+!!$    do while (.true.)
+!!$       do j = 1, 4
+!!$          read(58,*,end=13) i, b, g
+!!$          g_precomp(i,j) = g
+!!$          b_precomp(i,j) = b
+!!$       end do
+!!$    end do
+!!$13  close(58)
+!!$    do i = 1, self%nscan
+!!$       do j = 1, self%ndet
+!!$          self%scans(i)%d(j)%gain = g_precomp(self%scanid(i),j)
+!!$          self%scans(i)%d(j)%tod  = self%scans(i)%d(j)%tod - b_precomp(self%scanid(i),j)
+!!$       end do
+!!$    end do
+!!$    deallocate(g_precomp, b_precomp)
+
+    ! Initialize mean gain
+    allocate(ns(0:self%ndet))
+    self%gain0 = 0.d0
+    ns         = 0
+    do i = 1, self%nscan
+       do j = 1, self%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
           self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
           ns(j)         = ns(j) + 1
@@ -712,6 +740,8 @@ contains
     call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
     call wall_time(t2)
     t_tot(1) = t2-t1
+
+    !write(*,*) self%t0(1), real(self%v_sun), "# v"
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -1272,15 +1302,16 @@ contains
 
 
 
-  subroutine downsample_tod(self, tod_in, ext, tod_out, mask)
+  subroutine downsample_tod(self, tod_in, ext, tod_out, mask, threshold)
     implicit none
     class(comm_tod),                    intent(in)     :: self
     real(sp), dimension(:),             intent(in)     :: tod_in
     integer(i4b),                       intent(inout)  :: ext(2)
     real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
     real(sp), dimension(:),             intent(in),  optional :: mask
+    real(sp),                           intent(in),  optional :: threshold
 
-    integer(i4b) :: i, j, k, n, ntod, w, npad
+    integer(i4b) :: i, j, k, m, n, ntod, w, npad
     real(dp) :: step
 
     ntod = size(tod_in)
@@ -1293,29 +1324,49 @@ contains
        return
     end if
 
-    do i = -npad, n+npad
+    do i = 1, n-1
       j = floor(max(i*step - w + 1, 1.d0))
       k = floor(min(i*step + w, real(ntod, dp)))
 
-       if (j > k) then
-          tod_out(i) = 0.
-       else
-          !write(*,*) i, shape(tod_in), j, k
-          if (present(mask)) then
-             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
-          else
-             tod_out(i) = sum(tod_in(j:k)) / (k - j + 1)
-          end if
-       end if
-       !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))
+      if (present(mask)) then
+         tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
+      else
+         tod_out(i) = sum(tod_in(j:k)) / (k - j + 1)
+      end if
+      if (present(threshold)) then
+         if (tod_out(i) <= threshold) then
+            tod_out(i) = 0.
+         else
+            tod_out(i) = 1.
+         end if
+      end if
+
+      !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))
     end do
+    if (present(threshold)) then
+       tod_out(-npad:0)  = 0.
+       tod_out(n:n+npad) = 0.
+
+       ! Expand mask by m samples
+       m = 1
+       do i = 1, n ! Expand right edges
+          if (tod_out(i) == 1 .and. tod_out(i+1) == 0) tod_out(i-m:i) = 0.
+       end do
+       do i = n, 1, -1 ! Expand left edges
+          if (tod_out(i) == 1 .and. tod_out(i-1) == 0) tod_out(i:i+m) = 0.
+       end do
+
+    else
+       tod_out(-npad:0)  = tod_out(1)
+       tod_out(n:n+npad) = tod_out(n-1)
+    end if
 
 !!$    if (self%myid == 0) then
 !!$       open(58, file='filter.dat')
-!!$!       do i = 1, ntod
-!!$!          write(58,*) i, tod_in(i)
-!!$!       end do
-!!$!       write(58,*)
+!!$       do i = 1, ntod
+!!$          write(58,*) i, tod_in(i)
+!!$       end do
+!!$       write(58,*)
 !!$       do i = -npad, n+npad
 !!$          write(58,*) i*step, tod_out(i)
 !!$       end do
