@@ -97,10 +97,11 @@ dir_B_los = np.array([
 
 
 rots = np.arange(0, 360, 45)
+rots = [0]
 for rot in rots:
   fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v7.h5'
-  #fname_out = 'test.h5'
+  fname_out = 'test.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
@@ -215,6 +216,22 @@ for rot in rots:
       #CUNIT2  = 'deg     '
       #COORDSYS= 'icrs    '
       #""", sep='\n')
+
+      X = np.arange(-11.98, 12, 0.04)*180/np.pi
+      Y = np.arange(-11.98, 12, 0.04)*180/np.pi
+      xx, yy = np.meshgrid(X,Y)
+      theta = 2*np.arcsin(np.sqrt(X**2+Y**2)/2)
+      phi = np.arctan2(yy, xx)
+
+      nside = 1024
+      m = np.zeros(12*nside**2)
+      N = np.zeros(12*nside**2)
+      for i in range(len(theta)):
+          for j in range(len(theta)):
+              pix = hp.ang2pix(nside, theta[i,j], phi[i,j])
+              m[pix] += beamA[i,j]
+              N[pix] += 1
+
       
       for fname in fnames:
           data = fits.open(fname)

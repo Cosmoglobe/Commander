@@ -114,7 +114,6 @@ contains
             tmask(:, i) = 0.d0
             cycle
          end if
-         sgn = (-1)**((i + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
 
          do j = 1, tod%scans(scan_id)%ntod
             lpoint = tod%pix2ind(pix(j, 1))
@@ -131,12 +130,13 @@ contains
             ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
             !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
 
+            ! sgn = (-1)**((i + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
             s_skyA(j, i) = map(1, lpoint, i) + &
-                       &  sgn*( &
+                       &  (-1)**((i + 1)/2 + 1)*( &
                        &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
                        &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1)))
             s_skyB(j, i) = map(1, rpoint, i) + &
-                       &  sgn*( &
+                       &  (-1)**((i + 1)/2 + 1) *( &
                        &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                        &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
           
