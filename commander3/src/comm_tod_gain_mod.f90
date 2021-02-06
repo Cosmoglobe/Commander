@@ -34,12 +34,13 @@ contains
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle)
+   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle, mask_lowres)
     implicit none
     class(comm_tod),                      intent(inout) :: tod
     real(sp),             dimension(:,:), intent(in)    :: s_invN, mask, s_ref, s_tot
     integer(i4b),                         intent(in)    :: scan_id
     type(planck_rng),                     intent(inout)  :: handle
+    real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
 
 
     real(sp), allocatable, dimension(:,:) :: residual
@@ -77,8 +78,13 @@ contains
           tod%scans(scan_id)%d(j)%gain  = 0.d0
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
-          tod%scans(scan_id)%d(j)%dgain      = sum(s_invN(:,j) * residual(:,j))
-          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j))
+          if (present(mask_lowres)) then
+             tod%scans(scan_id)%d(j)%dgain         = sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
+          else
+             tod%scans(scan_id)%d(j)%dgain         = sum(s_invN(:,j) * residual(:,j))
+             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j))
+          end if
           if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
              write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
           end if
@@ -455,7 +461,7 @@ contains
 !       & s_orb, A_abs, b_abs)
    ! This is implementing equation 16, adding up all the terms over all the sums
    ! the sum i is over the detector.
-   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres)
+   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres, mask_lowres)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
@@ -465,6 +471,7 @@ contains
     type(planck_rng),                  intent(inout)  :: handle
     logical(lgt), intent(in) :: out
     real(sp),          dimension(:,:), intent(in), optional :: s_highres
+    real(sp),          dimension(:,:), intent(in), optional :: mask_lowres
  
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
@@ -492,8 +499,13 @@ contains
 
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
-       b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+       if (present(mask_lowres)) then
+          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
+          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+       else
+          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
+          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+       end if
 !       if (out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
     end do
 
@@ -502,7 +514,7 @@ contains
  !   end if
 
 
-    if (.false. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
+    if (.true. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
        call int2string(tod%scanid(scan), itext)
        !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
        open(58,file='gainfit3_'//itext//'.dat')
@@ -519,6 +531,12 @@ contains
        do i = 1, size(s_ref,1)
           write(58,*) i-ext(1)+1, residual(i,1) 
        end do
+       if (present(mask_lowres)) then
+          write(58,*)
+          do i = 1, size(s_ref,1)
+             write(58,*) i-ext(1)+1, mask_lowres(i,1) 
+          end do
+       end if
        close(58)
 
        open(58,file='gainfit4_'//itext//'.dat')       
@@ -530,10 +548,12 @@ contains
           write(58,*) i, r_fill(i)
        end do
        write(58,*)
-       do i = 1, size(s_sub,1)
-          write(58,*) i, s_highres(i,4)
-       end do
-       write(58,*)
+       if (present(s_highres)) then
+          do i = 1, size(s_sub,1)
+             write(58,*) i, s_highres(i,4)
+          end do
+          write(58,*)
+       end if
        do i = 1, size(s_sub,1)
           write(58,*) i, s_sub(i,4)
        end do
@@ -879,8 +899,8 @@ contains
          case ('023-WMAP_K')
              ! I think this is the width of the number of scans to smooth the
              ! gain estimate over. Could be worth experimenting on this one.
-             window_size_dipole_minimum = 120
-             window_size_dipole_maximum = 40
+             window_size_dipole_minimum = 1200 !120
+             window_size_dipole_maximum =  400 ! 40
          ! Currently, the 70-GHz ds
          case default
             window_size_dipole_minimum = 1800
