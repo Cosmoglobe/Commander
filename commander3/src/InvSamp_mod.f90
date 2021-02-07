@@ -160,6 +160,13 @@ contains
           x_spline(1:n) = x_n(1:n)
           S_spline(1:n) = S_n(1:n)
           epsilon       = 0.d0
+!!$          if (.true. .or. any(S_spline(1:n) /= S_spline(1:n))) then
+!!$             open(78,file='S.dat')
+!!$             do i = 1, n
+!!$                write(78,*) x_spline(i), S_spline(i)
+!!$             end do
+!!$             close(78)
+!!$          end if
           call spline(x_spline(1:n), S_spline(1:n), 1.d30, 1.d30, S_n2(1:n))
           do i = m, 2, -1
              if (lnL_peak-S_n(i-1) < DELTA_LNL .or. lnL_peak-S_n(i) < DELTA_LNL) then
