@@ -919,7 +919,7 @@ contains
        ! FOr WMAP, they report the "optimal time-domain filters", i.e., noise
        ! autocorrelation functions, rather than PSDs. But Table 2 of Jarosik et
        ! al. (2003) (On-orbit radiometer characterization) they report in Table
-       ! 1 for each of the 20 radiometers fknee in mK;
+       ! 1 for each of the 20 radiometers fknee in mHz;
        ! K11    K12     Ka11    Ka12
        ! 0.40   0.51    0.71    0.32    
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
