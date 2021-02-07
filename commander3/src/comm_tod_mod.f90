@@ -758,7 +758,7 @@ contains
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%sigma0_def = scalars(2) * abs(self%d(i)%gain_def)  ! To get sigma0 in uncalibrated units
-       self%d(i)%fknee_def  = scalars(3)
+       self%d(i)%fknee_def  = 0.050d0 !scalars(3)
        self%d(i)%alpha_def  = scalars(4)
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%sigma0     = self%d(i)%sigma0_def

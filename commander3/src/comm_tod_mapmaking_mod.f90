@@ -119,15 +119,13 @@ contains
       x_im = 0.5*(x_imarr(1) + x_imarr(2))
 
       if (tod%scans(scan)%d(1)%accept) then
-         var = 0
+         var = 0.d0
          do det = 1, 4
            var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2
          end do
-         inv_sigmasq = 1/var
+         inv_sigmasq = 1.d0/var
          do t = 1, tod%scans(scan)%ntod
-            if (flag(t) .ne. 0) then
-                cycle
-            end if
+            if (flag(t) /= 0 .and. flag(t) /= 262144) cycle
 
             lpix = pix(t, 1)
             rpix = pix(t, 2)
@@ -224,21 +222,23 @@ contains
          if (tod%scans(j)%d(1)%accept) then
             call tod%decompress_pointing_and_flags(j, 1, pix, &
                 & psi, flag)
+
+            var = 0.d0
+            do k = 1, 4
+               var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2
+            end do
+            inv_sigmasq = 1.d0/var
+
             do t = 1, ntod
 
-               if (flag(t) .ne. 0) cycle
-               var = 0
-               do k = 1, 4
-                  var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2
-               end do
-               inv_sigmasq = 1/var
+               if (flag(t) /= 0 .and. flag(t) /= 262144) cycle
                lpix = pix(t, 1)
                rpix = pix(t, 2)
                lpsi = psi(t, 1)
                rpsi = psi(t, 2)
 
-               pA = pmask(lpix)
-               pB = pmask(rpix)
+               pA  = pmask(lpix)
+               pB  = pmask(rpix)
                f_A = 1-pA*(1-pB)
                f_B = 1-pB*(1-pA)
                !f_A = 1
@@ -254,8 +254,8 @@ contains
                iB = x(rpix, 1)
                sA = x(lpix, 2)*tod%cos2psi(lpsi) + x(lpix, 3)*tod%sin2psi(lpsi)
                sB = x(rpix, 2)*tod%cos2psi(rpsi) + x(rpix, 3)*tod%sin2psi(rpsi)
-               d = (1+x_im)*iA - (1-x_im)*iB + dx_im*(sA + sB)
-               p = (1+x_im)*sA - (1-x_im)*sB + dx_im*(iA + iB)
+               d  = (1+x_im)*iA - (1-x_im)*iB + dx_im*(sA + sB)
+               p  = (1+x_im)*sA - (1-x_im)*sB + dx_im*(iA + iB)
                ! Temperature
                y(lpix, 1) = y(lpix, 1) + f_A*((1 + x_im)*d + dx_im*p) * inv_sigmasq
                y(rpix, 1) = y(rpix, 1) - f_B*((1 - x_im)*d - dx_im*p) * inv_sigmasq

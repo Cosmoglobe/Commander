@@ -336,7 +336,6 @@ contains
       iter_labels(6) = 'correlated noise'
 
       main_it: do main_iter = 1, n_main_iter
-         call wall_time(t7)
          call update_status(status, "tod_istart")
 
          if (self%myid == 0 .and. self%verbosity > 0) write(*,'(A, I, X, A)') '  Performing main iteration = ', main_iter, iter_labels(main_iter)
@@ -366,7 +365,6 @@ contains
             A_abscal = 0.d0; b_abscal = 0.d0
          end if
 
-         call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
          ! Perform main analysis loop
          naccept = 0; ntot = 0
          do i = 1, self%nscan
@@ -376,7 +374,6 @@ contains
             if (.not. any(self%scans(i)%d%accept)) cycle
 
             ! Short-cuts to local variables
-            call wall_time(t1)
             ndet = self%ndet
             ntod = self%scans(i)%ntod
 
@@ -406,33 +403,13 @@ contains
             allocate (psi(ntod, nhorn))             ! Decompressed pol angle
             allocate (flag(ntod))                   ! Decompressed flags
 
-
-            call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
-
             ! --------------------
             ! Analyze current scan
             ! --------------------
 
             ! Decompress pointing, psi and flags for current scan
             call wall_time(t1)
-            !do j = 1, ndet
-            !   call self%decompress_pointing_and_flags(i, j, pix(:, j, :), &
-            !        & psi(:, j, :), flag(:, j))
-            !end do
-            call self%decompress_pointing_and_flags(i, 1, pix, &
-                 & psi, flag)
-
-!!$            if (any(pix == 2725501)) then
-!!$               call int2string(self%scanid(i), scantext)
-!!$               write(*,*) 'scan =', self%scanid(i)
-!!$               open(58,file='jupiter'//scantext//'.dat', recl=1024)
-!!$               write(58,*) '# scan = ', self%scanid(i)
-!!$               do j = 1, ntod
-!!$                  write(58,*) j, self%scans(i)%d(:)%tod(j), flag(j), pix(j,1), pix(j,2)
-!!$               end do
-!!$               close(58)
-!!$            end if
-
+            call self%decompress_pointing_and_flags(i, 1, pix, psi, flag)
             call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
             ! Construct sky signal template
@@ -445,7 +422,7 @@ contains
                     & procmask, i, s_skyA, s_skyB, mask)
                s_bpA = 0.
                s_bpB = 0.
-               s_bp = 0.
+               s_bp  = 0.
             end if
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
@@ -456,7 +433,6 @@ contains
                               & (1-self%x_im((j+1)/2))*s_bpB(:,j)
                end if
             end do
-
 
             if (main_iter == 1 .and. self%first_call) then
                do j = 1, ndet
@@ -762,7 +738,6 @@ contains
 
 
             ! Clean up
-            call wall_time(t1)
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
             deallocate (s_totA, s_totB)
             deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
@@ -771,7 +746,6 @@ contains
             if (allocated(s_invN)) deallocate (s_invN)
             if (allocated(mask_lowres)) deallocate (mask_lowres)
             deallocate(s_bp, s_bp_prop, s_bpA, s_bpB)
-            call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
 
             call wall_time(t8); t_tot(19) = t_tot(19) + t8-t7
             if (do_oper(output_slist)) then
@@ -824,6 +798,10 @@ contains
          call update_status(status, "scanlist2")
       end if
 
+      ! ************************
+      ! Finalize maps
+      ! ************************
+      call wall_time(t1)
       call update_status(status, "Running allreduce on M_diag")
       call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
            & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
@@ -993,7 +971,6 @@ contains
          write(*,*) '  Time dist sky   = ', nint(t_tot(9))
          write(*,*) '  Time sl precomp = ', nint(t_tot(13))
          write(*,*) '  Time decompress = ', nint(t_tot(11))
-         write(*,*) '  Time alloc      = ', nint(t_tot(18))
          write(*,*) '  Time project    = ', nint(t_tot(1))
          write(*,*) '  Time orbital    = ', nint(t_tot(2))
          write(*,*) '  Time sl interp  = ', nint(t_tot(12))
@@ -1007,18 +984,12 @@ contains
          write(*,*) '  Time samp bp    = ', nint(t_tot(17))
          write(*,*) '  Time chisq      = ', nint(t_tot(7))
          write(*,*) '  Time bin        = ', nint(t_tot(8))
-         write(*,*) '  Time solving cg = ', nint(t_tot(21))
-         write(*,*) '  Time per cg iter= ', nint(t_tot(21)/num_cg_iters)
-         write(*,*) '  Number of cg iters', num_cg_iters
-         write(*,*) '  Time allreduce  = ', nint(t_tot(22))
          write(*,*) '  Time scanlist   = ', nint(t_tot(20))
          write(*,*) '  Time final      = ', nint(t_tot(10))
-         if (self%first_call) then
-!            write(*,*) '  Time total      = ', int(t6-t5), &
-!                 & ', accept rate = ', real(naccept,sp) / ntot
-         else
-            write(*,*) '  Time total      = ', int(t6-t5), int(sum(t_tot(1:18)))
-         end if
+         write(*,*) '  Time solving cg      = ', nint(t_tot(21))
+         write(*,*) '  Time per cg iter     = ', nint(t_tot(21)/num_cg_iters)
+         write(*,*) '  Number of cg iters   = ', num_cg_iters
+         write(*,*) '  Time total      = ', int(t6-t5), int(sum(t_tot(1:18)))
       end if
 
       ! Clean up temporary arrays
