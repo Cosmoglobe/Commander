@@ -811,7 +811,7 @@ contains
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
     integer(i4b) :: ndet
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, f
-    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior(2), alpha_dpc, fknee_dpc
+    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
@@ -821,6 +821,26 @@ contains
     ntod = self%scans(scan)%ntod
     ndet = self%ndet
     nomp = omp_get_max_threads()
+
+    if (trim(self%freq) == '030') then
+       prior_fknee = [0.010d0, 0.45d0]
+       prior_alpha = [-2.5d0, -0.4d0]
+    else if (trim(self%freq) == '044') then
+       prior_fknee = [0.002d0, 0.40d0]
+       prior_alpha = [-2.5d0, -0.4d0]
+    else if (trim(self%freq) == '070') then
+       prior_fknee = [0.001d0, 0.25d0]
+       prior_alpha = [-3.0d0, -0.4d0]
+    else if (trim(self%freq) == '023-WMAP_K') then
+       prior_fknee = [0.01d0,1.0d0]
+       prior_alpha = [-3d0, -0.4d0]
+    else if (trim(self%freq) == '061-WMAP_V2') then
+       prior_fknee = [0.02d0,1.0d0]
+       prior_alpha = [-3d0, -0.4d0]
+    else 
+       prior_fknee = [0.02d0,1.0d0]
+       prior_alpha = [-3d0, -0.4d0]
+    end if
 
     ! compute sigma_0 the old way
     do i = 1, ndet
@@ -877,9 +897,9 @@ contains
        ps(:) = 0
        
        samprate = self%samprate
-       alpha = self%scans(scan)%d(i)%alpha
-       sigma0 = abs(self%scans(scan)%d(i)%sigma0)
-       fknee = self%scans(scan)%d(i)%fknee
+       alpha    = min(max(self%scans(scan)%d(i)%alpha,prior_alpha(1)), prior_alpha(2))
+       sigma0   = abs(self%scans(scan)%d(i)%sigma0)
+       fknee    = min(max(self%scans(scan)%d(i)%fknee,prior_fknee(1)), prior_fknee(2))
        
        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 
@@ -896,28 +916,6 @@ contains
        ! Sampling noise parameters given n_corr
        ! TODO: get prior parameters from parameter file
        ! Sampling fknee, in Hz
-       if (trim(self%freq) == '030') then
-          prior(1) = 0.01
-          prior(2) = 0.45
-       else if (trim(self%freq) == '044') then
-          prior(1) = 0.002
-          prior(2) = 0.40
-       else if (trim(self%freq) == '070') then
-          prior(1) = 0.001
-          prior(2) = 0.25
-       else if (trim(self%freq) == '023-WMAP_K') then
-          prior(1) = 0.005
-          prior(2) = 1.
-       else if (trim(self%freq) == '061-WMAP_V2') then
-          prior(1) = 0.005
-          prior(2) = 1.
-       else if (index('WMAP', self%freq) > 0) then
-          prior(1) = 0.001
-          prior(2) = 1.0
-       else 
-          prior(1) = 0.005
-          prior(2) = 1.
-       end if
        ! FOr WMAP, they report the "optimal time-domain filters", i.e., noise
        ! autocorrelation functions, rather than PSDs. But Table 2 of Jarosik et
        ! al. (2003) (On-orbit radiometer characterization) they report in Table
@@ -940,48 +938,24 @@ contains
        ! As far as I can tell, this is the only place where the fknees are
        ! reported...
 
-       x_in(1) = max(fknee - 0.5 * fknee, prior(1))
-       x_in(3) = min(fknee + 0.5 * fknee, prior(2))
+       x_in(1) = max(fknee - 0.5 * fknee, prior_fknee(1))
+       x_in(3) = min(fknee + 0.5 * fknee, prior_fknee(2))
        x_in(2) = 0.5 * (x_in(1) + x_in(3))
-
-
-       fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior)
-
-       if ((fknee < prior(1)) .or. (fknee > prior(2))) then
-          fknee = self%scans(scan)%d(i)%fknee
+       fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior_fknee)
+       if ((fknee < prior_fknee(1)) .or. (fknee > prior_fknee(2))) then
+          fknee = min(max(self%scans(scan)%d(i)%fknee,prior_fknee(1)), prior_fknee(2))
        end if
-       alpha_dpc = self%scans(scan)%d(i)%alpha_def
+
+
        ! Sampling alpha
-       if (trim(self%freq) == '030') then
-          prior(1) = -2.5
-          prior(2) = -0.4
-       else if (trim(self%freq) == '044') then
-          prior(1) = -2.5
-          prior(2) = -0.4
-       else if (trim(self%freq) == '070') then
-          prior(1) = -3.0
-          prior(2) = -0.4
-       else if (trim(self%freq) == '023-WMAP_K') then
-          prior(1) = -3
-          prior(2) = -0.1
-       else if (trim(self%freq) == '060-WMAP_V1') then
-          prior(1) = -2.5
-          prior(2) = -0.4
-       else 
-          prior(1) = -3
-          prior(2) = -0.1
+       alpha_dpc = self%scans(scan)%d(i)%alpha_def
+       x_in(1)   = max(alpha - 0.2 * abs(alpha), prior_alpha(1))
+       x_in(3)   = min(alpha + 0.2 * abs(alpha), prior_alpha(2))
+       x_in(2)   = 0.5 * (x_in(1) + x_in(3))
+       alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior_alpha)
+       if ((alpha < prior_alpha(1)) .or. (alpha > prior_alpha(2))) then
+          alpha = min(max(self%scans(scan)%d(i)%alpha,prior_alpha(1)), prior_alpha(2))
        end if
-
-       x_in(1) = max(alpha - 0.2 * abs(alpha), prior(1))
-       x_in(3) = min(alpha + 0.2 * abs(alpha), prior(2))
-       x_in(2) = 0.5 * (x_in(1) + x_in(3))
-
-       alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior)
-
-       if ((alpha < prior(1)) .or. (alpha > prior(2))) then
-          alpha = self%scans(scan)%d(i)%alpha
-       end if
-
 
        self%scans(scan)%d(i)%alpha = alpha
        self%scans(scan)%d(i)%fknee = fknee
