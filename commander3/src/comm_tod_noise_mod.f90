@@ -895,7 +895,7 @@ contains
 
        ! Sampling noise parameters given n_corr
        ! TODO: get prior parameters from parameter file
-       ! Sampling fknee
+       ! Sampling fknee, in Hz
        if (trim(self%freq) == '030') then
           prior(1) = 0.01
           prior(2) = 0.45
@@ -915,6 +915,27 @@ contains
           prior(1) = 0.005
           prior(2) = 1.
        end if
+       ! FOr WMAP, they report the "optimal time-domain filters", i.e., noise
+       ! autocorrelation functions, rather than PSDs. But Table 2 of Jarosik et
+       ! al. (2003) (On-orbit radiometer characterization) they report in Table
+       ! 1 for each of the 20 radiometers fknee in mK;
+       ! K11    K12     Ka11    Ka12
+       ! 0.40   0.51    0.71    0.32    
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! Q11    Q12     Q21     Q22
+       ! 1.09   0.35    5.76    8.62
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! V11    V12     V21     V22
+       ! 0.09   1.41    0.88    8.35    
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! W111   W112    W211    W212
+       ! 7.88   0.66    9.02    7.47
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! W311   W312    W411    W412
+       ! 0.93   0.28   46.5    26.0
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! As far as I can tell, this is the only place where the fknees are
+       ! reported...
 
        x_in(1) = max(fknee - 0.5 * fknee, prior(1))
        x_in(3) = min(fknee + 0.5 * fknee, prior(2))
@@ -938,13 +959,13 @@ contains
           prior(1) = -3.0
           prior(2) = -0.4
        else if (trim(self%freq) == '023-WMAP_K') then
-          prior(1) = -10
+          prior(1) = -3
           prior(2) = -0.1
        else if (trim(self%freq) == '060-WMAP_V1') then
           prior(1) = -2.5
           prior(2) = -0.4
        else 
-          prior(1) = -10
+          prior(1) = -3
           prior(2) = -0.1
        end if
 
