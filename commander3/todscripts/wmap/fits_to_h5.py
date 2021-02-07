@@ -797,7 +797,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     fsamp = 1.536 # A single TOD record contains 30 1.536 second major science frames
     chunk_size = 1875
     nsamp = chunk_size*fsamp
-    n_per_day = 24
+    n_per_day = 1
 
 
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
@@ -850,13 +850,13 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     quat = data[1].data['QUATERN']
     gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center)
 
-    #daflags = get_flags(data)
     # If genflags == 1, there is an issue with the spacecraft attitude. This
     # appears to be the quaternion problem.
     # v14: add genflags somehow.
     genflags = data[2].data['genflags']*2**11
     daflags = data[2].data['daflags']
-    for i in range(4):
+    daflags = get_flags(data)
+    for i in range(10):
         daflags[:,i] += genflags
 
     data.close()
@@ -933,5 +933,6 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
 if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=31, center=True)
     #main(par=True, plot=False, compress=True, version='cal', center=True)
-    main(par=True, plot=False, compress=True, version=34, center=True)
-    #test_flags()
+    #main(par=True, plot=False, compress=True, version=34, center=True)
+    main(par=True, plot=False, compress=True, version=35, center=True)
+    test_flags()
