@@ -967,7 +967,7 @@ contains
       end if
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
       call wall_time(t6)
-      if (self%myid == 0 .and. self%verbosity > 0) then
+      if (self%myid == self%numprocs/2 .and. self%verbosity > 0) then
          write(*,*) '  Time dist sky   = ', nint(t_tot(9))
          write(*,*) '  Time sl precomp = ', nint(t_tot(13))
          write(*,*) '  Time decompress = ', nint(t_tot(11))
