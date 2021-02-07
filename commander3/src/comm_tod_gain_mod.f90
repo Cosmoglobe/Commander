@@ -514,7 +514,7 @@ contains
  !   end if
 
 
-    if (.true. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
+    if (.false. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
        call int2string(tod%scanid(scan), itext)
        !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
        open(58,file='gainfit3_'//itext//'.dat')
@@ -704,7 +704,7 @@ contains
             jump_percentile = 0.995
          ! Currently, the 70-GHz ds
          case default
-            slow_smooth_window_size = 150
+            slow_smooth_window_size = 15
             jump_percentile = 0.995
       end select
 
@@ -810,6 +810,7 @@ contains
 
 !     n_jumps = 17 ! Npipe has 15 events + the beginning and end
      n_jumps = 26 ! Npipe has 15 events + the beginning and end (but two of them are too bunched up)
+     n_jumps = 2 ! WMAP has several maneuvers, but I'm ignoring that for now.
 
      allocate(pid_ranges(tod%ndet, n_jumps))
      pid_ranges(:, :) = 0
@@ -833,35 +834,72 @@ contains
 !!$     ! This last event is too close to the previous one
 !!$     pid_ranges(:, 16) = 0
 
-     pid_ranges(:, 1) = 1
-     pid_ranges(:, 2) = 3352
-     pid_ranges(:, 3) = 5030
-     pid_ranges(:, 4) = 5484
-     pid_ranges(:, 5) = 8309 ! 20K
-     pid_ranges(:, 6) = 8503 ! 20K
-     pid_ranges(:, 7) = 8606 ! 20K
-     pid_ranges(:, 8) = 9613 ! 20K
-     pid_ranges(:, 9) = 10117 ! 20K
-     pid_ranges(:, 10) = 10512 ! 20K
-     ! There's one more 20K at 10897 but that's very close to this one
-     pid_ranges(:, 11) = 10911
-     pid_ranges(:, 12) = 14061 ! 20K
-     pid_ranges(:, 13) = 15957
-     pid_ranges(:, 14) = 16204 ! 20K
-     pid_ranges(:, 15) = 16455
-     pid_ranges(:, 16) = 17024 ! 20K
-     pid_ranges(:, 17) = 18338 ! 20K
-     pid_ranges(:, 18) = 21484
-     pid_ranges(:, 19) = 25654
-     pid_ranges(:, 20) = 27110
-     pid_ranges(:, 21) = 27343
-     pid_ranges(:, 22) = 30387
-     pid_ranges(:, 23) = 32763
-     pid_ranges(:, 24) = 38591
-     pid_ranges(:, 25) = 43929
-     ! pid_ranges(:, 16) = 44063
-     ! This last event is too close to the previous one
-     pid_ranges(:, 26) = 0
+!     pid_ranges(:, 1) = 1
+!     pid_ranges(:, 2) = 3352
+!     pid_ranges(:, 3) = 5030
+!     pid_ranges(:, 4) = 5484
+!     pid_ranges(:, 5) = 8309 ! 20K
+!     pid_ranges(:, 6) = 8503 ! 20K
+!     pid_ranges(:, 7) = 8606 ! 20K
+!     pid_ranges(:, 8) = 9613 ! 20K
+!     pid_ranges(:, 9) = 10117 ! 20K
+!     pid_ranges(:, 10) = 10512 ! 20K
+!     ! There's one more 20K at 10897 but that's very close to this one
+!     pid_ranges(:, 11) = 10911
+!     pid_ranges(:, 12) = 14061 ! 20K
+!     pid_ranges(:, 13) = 15957
+!     pid_ranges(:, 14) = 16204 ! 20K
+!     pid_ranges(:, 15) = 16455
+!     pid_ranges(:, 16) = 17024 ! 20K
+!     pid_ranges(:, 17) = 18338 ! 20K
+!     pid_ranges(:, 18) = 21484
+!     pid_ranges(:, 19) = 25654
+!     pid_ranges(:, 20) = 27110
+!     pid_ranges(:, 21) = 27343
+!     pid_ranges(:, 22) = 30387
+!     pid_ranges(:, 23) = 32763
+!     pid_ranges(:, 24) = 38591
+!     pid_ranges(:, 25) = 43929
+!     ! pid_ranges(:, 16) = 44063
+!     ! This last event is too close to the previous one
+!     pid_ranges(:, 26) = 0
+
+
+
+     ! WMAP ExSupp Table 1.6 has a series of station keeping maneuvers.
+
+     pid_ranges(:, 1 ) =   1
+     !pid_ranges(:, 2 ) =  36  ! Mid-course correction 2: 2001-257
+     !pid_ranges(:, 3 ) = 159  ! Station keeping 1:       2002-016
+     !pid_ranges(:, 4) = 272! Station keeping 2:       2002-128
+     !pid_ranges(:, 5) = 355! Station keeping 3:       2002-211
+     !pid_ranges(:, 6) = 453! Station keeping 4:       2002-309
+     !pid_ranges(:, 7) = 580! Station keeping 5:       2003-071
+     !pid_ranges(:, 8) = 824! Station keeping 6:       2003-316
+     !pid_ranges(:, 9) = 942! Station keeping 7:       2004-069
+     !pid_ranges(:, 10) = 1097! Station keeping 8:       2004-224
+     !pid_ranges(:, 11) = 1222! Station keeping 9:       2004-349
+     !pid_ranges(:, 12) = 1333! Station keeping 10:      2005-094
+     !pid_ranges(:, 13) = 1447! Station keeping 11:      2005-208
+     !pid_ranges(:, 14) = 1553! Station keeping 12:      2005-314
+     !pid_ranges(:, 15) = 1670! Station keeping 13:      2006-066
+     !pid_ranges(:, 16) = 1769! Station keeping 14:      2006-165
+     !pid_ranges(:, 17) = 1917! Station keeping 15:      2006-313
+     !pid_ranges(:, 18) = 2036! Station keeping 16:      2007-067
+     !pid_ranges(:, 19) = 2147! Station keeping 17:      2007-178
+     !pid_ranges(:, 20) = 2217! Shadow avoidance:        2007-248
+     !pid_ranges(:, 21) = 2238! Shadow avoidence Corr    2007-269
+     !pid_ranges(:, 22) = 2357! Station keeping 18:      2008-023
+     !pid_ranges(:, 23) = 2490! Station keeping 19:      2008-156
+     !pid_ranges(:, 24) = 2616! Station keeping 20:      2008-282
+     !pid_ranges(:, 25) = 2742! Station keeping 21:      2009-042
+     !pid_ranges(:, 26) = 2897! Station keeping 22:      2009-197
+     !pid_ranges(:, 27) = 3085! Station keeping 23:      2010-020
+     !pid_ranges(:, 28) = 3198! Station keeping 24:      2010-133
+     pid_ranges(:, 2) =   0
+
+
+     ! Table 1.8 is the summary of all data cuts, except for the daflags.
      
   end subroutine get_pid_ranges_tabulated
 
