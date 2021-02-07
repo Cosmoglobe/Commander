@@ -906,19 +906,22 @@ contains
           prior(1) = 0.001
           prior(2) = 0.25
        else if (trim(self%freq) == '023-WMAP_K') then
-          prior(1) = 0.01
+          prior(1) = 0.001
           prior(2) = 1.
        else if (trim(self%freq) == '060-WMAP_V1') then
-          prior(1) = 0.01
+          prior(1) = 0.001
           prior(2) = 0.45
-       else 
-          prior(1) = 0.01
+       else if (index('WMAP', self%freq) > 0) then
+          prior(1) = 0.001
+          prior(2) = 1.0
+       else
+          prior(1) = 0.001
           prior(2) = 1.0
        end if
        ! FOr WMAP, they report the "optimal time-domain filters", i.e., noise
        ! autocorrelation functions, rather than PSDs. But Table 2 of Jarosik et
        ! al. (2003) (On-orbit radiometer characterization) they report in Table
-       ! 1 for each of the 20 radiometers fknee in mK;
+       ! 1 for each of the 20 radiometers fknee in mHz;
        ! K11    K12     Ka11    Ka12
        ! 0.40   0.51    0.71    0.32    
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
