@@ -903,8 +903,8 @@ contains
              window_size_dipole_maximum =  400 ! 40
          ! Currently, the 70-GHz ds
          case default
-            window_size_dipole_minimum = 1800
-            window_size_dipole_maximum = 400
+            window_size_dipole_minimum = 7 !1800
+            window_size_dipole_maximum = 7 !400
       end select
 
       do i = 1, tod%nscan_tot
