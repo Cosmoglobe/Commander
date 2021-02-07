@@ -906,21 +906,21 @@ contains
           prior(1) = 0.001
           prior(2) = 0.25
        else if (trim(self%freq) == '023-WMAP_K') then
-          prior(1) = 0.00
-          prior(2) = 10.
-       else if (trim(self%freq) == '060-WMAP_V1') then
-          prior(1) = 0.01
-          prior(2) = 0.45
+          prior(1) = 0.005
+          prior(2) = 1.
+       else if (trim(self%freq) == '061-WMAP_V2') then
+          prior(1) = 0.005
+          prior(2) = 1.
        else 
-          prior(1) = 0.00
-          prior(2) = 1000.
+          prior(1) = 0.005
+          prior(2) = 1.
        end if
 
        x_in(1) = max(fknee - 0.5 * fknee, prior(1))
        x_in(3) = min(fknee + 0.5 * fknee, prior(2))
        x_in(2) = 0.5 * (x_in(1) + x_in(3))
 
-       
+
        fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior)
 
        if ((fknee < prior(1)) .or. (fknee > prior(2))) then

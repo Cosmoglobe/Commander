@@ -142,7 +142,7 @@ contains
           
           
             ! second flag should be "moon visible over sun shield" 
-            if (flag(j) == 0 .or. flag(j) == 2**(11+7)) then
+            if (flag(j) == 0 .or. flag(j) == 262144) then
                 tmask(j, i) = pmask(pix(j, 1))*pmask(pix(j,2))
             else
                 tmask(j, i) = 0
