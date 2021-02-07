@@ -42,6 +42,14 @@ import os, sys
 from tqdm import tqdm
 
 Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
+fknees = np.array([0.40, 0.51, 0.71, 0.32,
+                   1.09, 0.35, 5.76, 8.62,
+                   0.09, 1.41, 0.88, 8.35,
+                   7.88, 0.66, 9.02, 7.47,
+                   0.93, 0.28, 46.5, 26.0]) # mHz
+fknees *= 1e-3
+# From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
+# characterization"
 
 
 # version 15 uses the pre-calibrated data, gain = 1
@@ -188,7 +196,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
-            scalars = np.array([gain, sigma_0, fknee, alpha])
+            scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
 
             if version == 'cal':
               todInd = ntodsigma*todi/(sigma_0*gain)
@@ -270,7 +278,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
-            scalars = np.array([gain, sigma_0, fknee, alpha])
+            scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
             if (version == 'cal'):
                 baseline = 0
             else:
@@ -780,15 +788,8 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 
 
-    alpha = -1.7
+    alpha = -0.5
     fknee = 0.1
-    fknees = np.array([0.40, 0.51, 0.71, 0.32,
-                       1.09, 0.35, 5.76, 8.62,
-                       0.09, 1.41, 0.88, 8.35,
-                       7.88, 0.66, 9.02, 7.47,
-                       0.93, 0.28, 46.5, 26.0]) # mHz
-    # From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
-    # characterization", alpha=-1.7 from Figure
 
     nside = 512
     ntodsigma = 100
