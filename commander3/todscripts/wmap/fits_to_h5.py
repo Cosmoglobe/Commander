@@ -42,14 +42,14 @@ import os, sys
 from tqdm import tqdm
 
 Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
-fknees = np.array([0.40, 0.51, 0.71, 0.32,
-                   1.09, 0.35, 5.76, 8.62,
-                   0.09, 1.41, 0.88, 8.35,
-                   7.88, 0.66, 9.02, 7.47,
-                   0.93, 0.28, 46.5, 26.0]) # mHz
+fknees = np.array([6.13, 5.37, 1.66, 1.29,
+                   3.21, 3.13, 5.76, 8.62,
+                   2.56, 4.49, 2.43, 8.35,
+                  16.17,15.05, 9.02, 7.47,
+                   1.84, 2.39, 46.5, 26.0]) # mHz
 fknees *= 1e-3
 # From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
-# characterization"
+# characterization", using the higher of the in-flight versus GSFC measurements.
 
 
 # version 15 uses the pre-calibrated data, gain = 1
@@ -71,6 +71,8 @@ fknees *= 1e-3
 # version 'cal' uses the WMAP precalibrated data
 # version 34 has fixed a bug in the flag timing
 # version 35 makes the time in MJD.
+# version 36 reverts to the original planet flagging, since events like solar
+# storms are also included in there (see Table 8 of the ExSupp)
 
 from time import sleep
 from time import time as timer
@@ -133,7 +135,7 @@ def get_flags(data, test=False):
             inds = (dists[i,:,band] < radii[band][i//2]*2)
             myflags[inds,band]= 2**(i+1)
 
-    myflags = np.where(daflags == 1, 1, myflags)
+    myflags = np.where(daflags % 2 == 1, 1, myflags)
 
     if test:
         return daflags, myflags
@@ -156,7 +158,10 @@ def test_flags(band=0):
     '''
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     files = glob(prefix + 'uncalibrated/*.fits')
-    file_input = np.random.choice(files)
+    #file_input = np.random.choice(files)
+    files.sort()
+    file_input = files[87]
+    print(file_input)
 
     data = fits.open(file_input)
     daflags, myflags = get_flags(data, test=True)
@@ -856,7 +861,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     # v14: add genflags somehow.
     genflags = data[2].data['genflags']*2**11
     daflags = data[2].data['daflags']
-    daflags = get_flags(data)
+    #daflags = get_flags(data)
     for i in range(10):
         daflags[:,i] += genflags
 
@@ -935,5 +940,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=31, center=True)
     #main(par=True, plot=False, compress=True, version='cal', center=True)
     #main(par=True, plot=False, compress=True, version=34, center=True)
-    main(par=True, plot=False, compress=True, version=35, center=True)
+    #main(par=True, plot=False, compress=True, version=35, center=True)
+    main(par=True, plot=False, compress=True, version=36, center=True)
     test_flags()
