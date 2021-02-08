@@ -304,7 +304,6 @@ contains
 
       call wall_time(t2); t_tot(9) = t2 - t1
 
-
       ! Compute far sidelobe Conviqt structures
       call wall_time(t1)
       do i = 1, self%ndet
@@ -442,7 +441,6 @@ contains
             end if
             call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
 
-
             ! Construct orbital dipole template
             call wall_time(t1)
             if (.true.) then
@@ -459,7 +457,6 @@ contains
                s_orb_tot = 0.d0
             end if
             call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
-
 
             ! Construct sidelobe template
             call wall_time(t1)
@@ -489,8 +486,6 @@ contains
                s_slB = 0.
             end if
             call wall_time(t2); t_tot(12) = t_tot(12) + t2-t1
-
-
 
             ! Add orbital dipole and sidelobes to total signal
             s_totA = 0
@@ -525,7 +520,6 @@ contains
                 end if
               end if
             end do
-      
 
             !!!!!!!!!!!!!!!!!!!
             ! Gain calculations
@@ -613,7 +607,6 @@ contains
             end if
             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
 
-
             ! Fit gain
             if (do_oper(samp_G)) then
                call wall_time(t1)
@@ -700,6 +693,7 @@ contains
 
                call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
+
                if (i==1 .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   do k = 1, self%ndet
@@ -735,7 +729,6 @@ contains
                  dipole_mod(self%scanid(i), j) = masked_var
                end if
             end do
-
 
             ! Clean up
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
@@ -841,7 +834,7 @@ contains
          allocate (v     (0:npix-1, nmaps))
 
          cg_sol = 0.0d0
-         epsil = 1d-3
+         epsil = 1d-2
          i_max = 100
          i_min = 0
          num_cg_iters = 0
@@ -987,7 +980,7 @@ contains
          write(*,*) '  Time scanlist   = ', nint(t_tot(20))
          write(*,*) '  Time final      = ', nint(t_tot(10))
          write(*,*) '  Time solving cg      = ', nint(t_tot(21))
-         write(*,*) '  Time per cg iter     = ', nint(t_tot(21)/num_cg_iters)
+         write(*,*) '  Time per cg iter     = '!, nint(t_tot(21)/num_cg_iters)
          write(*,*) '  Number of cg iters   = ', num_cg_iters
          write(*,*) '  Time total      = ', int(t6-t5), int(sum(t_tot(1:18)))
       end if
