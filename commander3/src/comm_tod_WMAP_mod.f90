@@ -332,7 +332,7 @@ contains
       iter_labels(3) = 'relative calibration'
       iter_labels(4) = 'time-varying gain'
       iter_labels(5) = 'imbalance'
-      iter_labels(6) = 'correlated noise'
+      iter_labels(6) = 'ncorr, npar, binmap, and chisq'
 
       main_it: do main_iter = 1, n_main_iter
          call update_status(status, "tod_istart")
@@ -529,7 +529,7 @@ contains
             ! Precompute filtered signal for calibration
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
-               allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
+               allocate(     s_invN(ext(1):ext(2), ndet))      ! s * invN
                allocate(mask_lowres(ext(1):ext(2), ndet))
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
@@ -694,8 +694,10 @@ contains
                call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
 
-               if (i==1 .and. do_oper(bin_map) .and. self%first_call) then
+               call wall_time(t1)
+               if (.false. .and. i==1 .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
+                  if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
                   do k = 1, self%ndet
                      open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
@@ -710,6 +712,7 @@ contains
                   !call mpi_finalize(ierr)
                   !stop
                end if
+               call wall_time(t2); t_tot(22) = t2 - t1
 
                call wall_time(t1)
                ! Bin the calibrated map
@@ -983,6 +986,7 @@ contains
          write(*,*) '  Time solving cg      = ', nint(t_tot(21))
          write(*,*) '  Time per cg iter     = ', nint(t_tot(21)/num_cg_iters)
          write(*,*) '  Number of cg iters   = ', num_cg_iters
+         write(*,*) '  Time writing to txt  = ', nint(t_tot(22))
          write(*,*) '  Time total      = ', int(t6-t5), int(sum(t_tot(1:18)))
       end if
 
