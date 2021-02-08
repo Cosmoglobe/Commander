@@ -835,7 +835,7 @@ contains
        prior_fknee = [0.01d0,1.0d0]
        prior_alpha = [-3d0, -0.4d0]
     else if (trim(self%freq) == '061-WMAP_V2') then
-       prior_fknee = [0.02d0,1.0d0]
+       prior_fknee = [0.0001d0,1.0d0]
        prior_alpha = [-3d0, -0.4d0]
     else 
        prior_fknee = [0.02d0,1.0d0]
@@ -975,6 +975,7 @@ contains
       implicit none
       real(dp), intent(in) :: x
       real(dp)             :: lnL_fknee, sconst, f, s
+
       if (x <= 1e-6 .or. x > 10.d0) then
          lnL_fknee = -1.d30
          return

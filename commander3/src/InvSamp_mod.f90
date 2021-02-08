@@ -56,7 +56,7 @@ contains
     integer(i4b) :: i, j, n, m, iter, stat, x_peak(1), a, b
     logical(lgt) :: optimize_, use_precomputed_grid_
     real(dp)     :: prior_(2), x_new, y_new, y_new_spline, lnL_peak, epsilon
-    real(dp)     :: dx, x_min, x_max, eta, tol
+    real(dp)     :: dx, x_min, x_max, eta, tol, lnL0, dpr
     real(dp), dimension(INVSAMP_MAX_NUM_EVALS) :: x_n, x_spline
     real(dp), dimension(INVSAMP_MAX_NUM_EVALS) :: S_n, S_n2, S_spline
     real(dp), dimension(N_SPLINE)      :: x, P, F
@@ -73,6 +73,7 @@ contains
     else
        prior_ = [-1d100, 1d100]
     end if
+    dpr = prior_(2)-prior_(1)
     use_precomputed_grid_ = .false.
     if (present(use_precomputed_grid)) use_precomputed_grid_ = use_precomputed_grid
     tol = TOLERANCE; if (present(tolerance_)) tol = tolerance_
@@ -97,24 +98,39 @@ contains
           end do
        end if
 
-       ! Check that peak is bounded; if not do a golden ratio search
-       do while (S_n(1) > S_n(2) .and. x_n(1) > prior_(1))
-          !x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), 0.5d0*(x_n(1)+prior_(1)))
-          x_new = 0.5d0*(x_n(1)+prior_(1))
-          y_new = lnL(x_new)
-          call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
-       end do
+       ! Check if priors are peak
+       lnL0  = lnL(prior_(1))
+       x_new = prior_(1) + 1d-6*dpr
+       y_new = lnL(x_new)
+       if (lnL0 > y_new) then
+          call update_InvSamp_sample_set(prior_(1), lnL0, x_n, S_n, n, stat)
+       end if
 
-       do while (S_n(n) > S_n(n-1) .and. x_n(n) < prior_(2))
-          x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
-          y_new = lnL(x_new)
-!          if (maxval(S_n)-y_new < 100.d0) then
-!             prior_(2) = x_new 
-!          else
-          !write(*,*) x_new, y_new
+       lnL0  = lnL(prior_(2))
+       x_new = prior_(1) - 1d-6*dpr
+       y_new = lnL(x_new)
+       if (lnL0 > y_new) then
+          call update_InvSamp_sample_set(prior_(2), lnL0, x_n, S_n, n, stat)
+       end if
+
+
+       ! Check that peak is bounded; if not do a golden ratio search
+       if (x_n(1) /= prior_(1)) then
+          do while (S_n(1) > S_n(2) .and. x_n(1) > prior_(1))
+             !x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), 0.5d0*(x_n(1)+prior_(1)))
+             x_new = 0.5d0*(x_n(1)+prior_(1))
+             y_new = lnL(x_new)
              call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
-!          end if
-       end do
+          end do
+       end if
+
+       if (x_n(n) /= prior_(2)) then
+          do while (S_n(n) > S_n(n-1) .and. x_n(n) < prior_(2))
+             x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
+             y_new = lnL(x_new)
+             call update_InvSamp_sample_set(x_new, y_new, x_n, S_n, n, stat)
+          end do
+       end if
        if (stat /= 0) then
           sample_InvSamp = 1.d30
           return
@@ -122,7 +138,7 @@ contains
 
        ! Check that we bound the 5-sigma range, ie., delta_chisq = 25 => delta lnL = 12.5
        lnL_peak = maxval(S_n(1:n))
-       do while (lnL_peak-S_n(1) < DELTA_LNL .and. x_n(1) > prior_(1))
+       do while (lnL_peak-S_n(1) < DELTA_LNL .and. x_n(1) > prior_(1) + 1d-6*dpr)
           x_new = 0.5d0*(x_n(1)+prior_(1))
 !          x_new = max(x_n(1) - 1.61803d0*(x_n(2)-x_n(1)), prior_(1))
           y_new = lnL(x_new)
@@ -133,7 +149,7 @@ contains
 !          end if
        end do
 
-       do while (lnL_peak-S_n(n) < DELTA_LNL .and. x_n(n) < prior_(2))
+       do while (lnL_peak-S_n(n) < DELTA_LNL .and. x_n(n) < prior_(2) - 1.d-6*dpr)
           x_new = min(x_n(n) + 1.61803d0*(x_n(n)-x_n(n-1)), prior_(2))
           y_new = lnL(x_new)
 !          if (maxval(S_n)-y_new < 100.d0) then
@@ -181,7 +197,6 @@ contains
              if (stat /= 0) exit
           end do
 !          write(*,*) iter, epsilon, n
-          
           if (iter > 100) then
              stat = stat+1
              open(69,file='p_inv.dat')
@@ -318,6 +333,7 @@ contains
     end if
 
     do i = 1, n
+       if (x_new == x(i)) return
        if (x_new < x(i)) exit
     end do
     x(i+1:n+1) = x(i:n); x(i) = x_new
