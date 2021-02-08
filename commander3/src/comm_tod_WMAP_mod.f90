@@ -935,6 +935,7 @@ contains
       call wall_time(t10); t_tot(21) = (t10 - t9)
 
       call mpi_bcast(cg_sol, size(cg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+      call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
       do k = 1, self%output_n_maps
          do j = 1, nmaps
             outmaps(k)%p%map(:, j) = cg_sol(self%info%pix, j, k)
@@ -980,7 +981,7 @@ contains
          write(*,*) '  Time scanlist   = ', nint(t_tot(20))
          write(*,*) '  Time final      = ', nint(t_tot(10))
          write(*,*) '  Time solving cg      = ', nint(t_tot(21))
-         write(*,*) '  Time per cg iter     = '!, nint(t_tot(21)/num_cg_iters)
+         write(*,*) '  Time per cg iter     = ', nint(t_tot(21)/num_cg_iters)
          write(*,*) '  Number of cg iters   = ', num_cg_iters
          write(*,*) '  Time total      = ', int(t6-t5), int(sum(t_tot(1:18)))
       end if
