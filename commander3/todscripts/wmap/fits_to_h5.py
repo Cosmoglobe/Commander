@@ -73,6 +73,8 @@ fknees *= 1e-3
 # version 35 makes the time in MJD.
 # version 36 reverts to the original planet flagging, since events like solar
 # storms are also included in there (see Table 8 of the ExSupp)
+# version 37 uses the planet flag based on radii
+# version 38 compresses the TODs
 
 from time import sleep
 from time import time as timer
@@ -187,8 +189,8 @@ def get_flags(data, test=False):
     myflags = np.zeros(daflags.shape, dtype=int)
     for i in range(2*len(planets)):
         for band in bands:
-            #inds = (dists[i,:,band] < radii[band][i//2]*2)
-            inds = (dists[i,:,band] < radii[band][i//2])
+            inds = (dists[i,:,band] < radii[band][i//2]*2)
+            #inds = (dists[i,:,band] < radii[band][i//2])
             #inds = (dists[i,:,band] < 7)
             myflags[inds,band]= 2**(i+1)
 
@@ -259,16 +261,12 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             tod = np.zeros(TOD.size)
             for n in range(len(TOD[0])):
                 tod[n::len(TOD[0])] = TOD[:,n]
-            todi = np.array_split(tod, n_per_day)[i]
+            todi = np.array_split(tod, n_per_day)[i].astype('int')
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
             scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
 
-            if version == 'cal':
-              todInd = ntodsigma*todi/(sigma_0*gain)
-            else:
-              todInd = np.int32(ntodsigma*todi/(sigma_0*gain))
-            delta = np.diff(todInd)
-            delta = np.insert(delta, 0, todInd[0])
+            delta = np.diff(todi)
+            delta = np.insert(delta, 0, todi[0])
             todArray.append(delta)
 
 
@@ -317,16 +315,13 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             pixArray[2].append(delta)
 
 
-    h = huffman.Huffman("", nside)
-    h.GenerateCode(pixArray)
-
-
     if compress:
+      h = huffman.Huffman("", nside)
+      h.GenerateCode(pixArray)
       h_Tod = huffman.Huffman("", nside)
       h_Tod.GenerateCode(todArray)
 
-    huffarray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
-    if compress:
+      huffarray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
       huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
 
 
@@ -343,7 +338,10 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             tod = np.zeros(TOD.size)
             for n in range(len(TOD[0])):
                 tod[n::len(TOD[0])] = TOD[:,n]
-            todi = np.array_split(tod, n_per_day)[i]
+            todi = np.array_split(tod, n_per_day)[i].astype('int')
+            deltatod = np.diff(todi)
+            deltatod = np.insert(deltatod, 0, todi[0])
+
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
             scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
             if (version == 'cal'):
@@ -391,9 +389,13 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
 
 
             if version != 'cal':
-              todi = np.int32(todi)
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                    data=todi)
+              f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                      data=np.void(bytes(h_Tod.byteCode(deltatod))))
+              #f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+              #        data=todi)
+            else:
+              f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                      data=todi)
             if label[-2:] == '13':
                 if compress:
                     f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',
@@ -973,16 +975,16 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     inds = np.arange(len(files))
-    #inds = inds[:64]
-    #files = np.array(files)[:64]
+    #inds = inds[:8]
+    #files = np.array(files)[:8]
     #inds = inds[:len(files)//4]
     #files = np.array(files)[:len(files)//4]
     #inds = inds[len(files)//4:2*len(files)//4]
     #files = np.array(files)[len(files)//4:2*len(files)//4]
     #inds = inds[2*len(files)//4:3*len(files)//4]
     #files = np.array(files)[2*len(files)//4:3*len(files)//4]
-    inds = inds[3*len(files)//4:]
-    files = np.array(files)[3*len(files)//4:]
+    #inds = inds[3*len(files)//4:]
+    #files = np.array(files)[3*len(files)//4:]
 
 
     if par:
@@ -1008,6 +1010,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=34, center=True)
     #main(par=True, plot=False, compress=True, version=35, center=True)
     #main(par=True, plot=False, compress=True, version=36, center=True)
-    #main(par=True, plot=False, compress=True, version='test', center=True)
-    main(par=True, plot=False, compress=True, version=37, center=True)
+    #main(par=True, plot=False, compress=True, version=37, center=True)
+    main(par=True, plot=False, compress=True, version=38, center=True)
     #test_flags()
