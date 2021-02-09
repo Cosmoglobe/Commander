@@ -212,7 +212,7 @@ contains
 
       ! conjugate gradient parameters
       integer(i4b) :: i_max, i_min, num_cg_iters
-      real(dp) :: delta_0, delta_old, delta_new, epsil
+      real(dp) :: delta_0, delta_old, delta_new, epsil(6)
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
@@ -673,7 +673,7 @@ contains
 !!$                  write(*,*) 'd', j, sum(abs(s_sky(:,j)))
 !!$                  write(*,*) 'e', j, sum(abs(s_bp(:,j)))
                   d_calib(1, :, j) = (self%scans(i)%d(j)%tod - &
-                  & self%scans(i)%d(j)%baseline - n_corr(:, j))* &
+                     & self%scans(i)%d(j)%baseline - n_corr(:, j))* &
                      & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
                   if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - &
                     & s_sky(:, j) + s_bp(:, j) ! Residual
@@ -834,7 +834,9 @@ contains
          allocate (v     (0:npix-1, nmaps))
 
          cg_sol = 0.0d0
-         epsil = 1d-2
+         cg_sol(:,:,1) = map_sky(:,:,0,1)
+         epsil(1)   = 1d-10
+         epsil(2:6) = 1.d-6
          i_max = 100
          i_min = 0
          num_cg_iters = 0
@@ -865,7 +867,7 @@ contains
                if (i==1) then
                   p = r
                else
-                  beta = (rho_new/rho_old)/(alpha/omega)
+                  beta = (rho_new/rho_old) * (omega/alpha)
                   p = r + beta*(p - omega*v)
                end if
                phat = p/M_diag
@@ -886,7 +888,7 @@ contains
 101               format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
                end if
 
-               if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
+               if (delta_s .le. (delta_0*epsil(l)) .and. 2*i-1 .ge. i_min) then
                   finished = .true.
                   call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
                   exit bicg
@@ -914,7 +916,7 @@ contains
                   write(*,102) 2*i, delta_r/delta_0
 102               format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
                end if
-               if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
+               if (delta_r .le. delta_0*epsil(l) .and. 2*i .ge. i_min) then
                   finished = .true.
                   call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
                   exit bicg
@@ -923,11 +925,8 @@ contains
          else
             loop: do while (.true.) 
                call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
-               if (.not. finished) then
-                  call compute_Ax(self, self%x_im, procmask)
-               else
-                  exit loop
-               end if
+               if (finished) exit loop
+               call compute_Ax(self, self%x_im, procmask)
             end do loop
          end if
       end do
