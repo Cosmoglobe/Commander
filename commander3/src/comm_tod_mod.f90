@@ -723,6 +723,10 @@ contains
       write(*,*) "Unknown halfring_split value in read_hdf_scan"
       stop
     end if
+    if (real(m-n,dp)/real(n,dp) > 0.001d0) then
+       write(*,*) 'Warning: More than 0.1% of scan', scan, ' removed by FFTW cut'
+    end if
+
     !m = n
 !!$    m         = get_closest_fft_magic_number(2*n)
 !!$    do while (mod(m,2) == 1)
@@ -1506,11 +1510,11 @@ contains
       if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
          & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
     end if
-    if (abs(self%scans(scan)%d(det)%chisq) > 2000.d0 .or. &
+    if (abs(self%scans(scan)%d(det)%chisq) > 20.d0 .or. &
       & isNaN(self%scans(scan)%d(det)%chisq)) then
         write(*,*) "chisq  scan, det, sum(mask), sum(s_sky),   sum(n_corr)"
-        write(*,*) self%scans(scan)%d(det)%chisq, scan, det, sum(mask), sum(s_sky),  &
-                 &        sum(n_corr)
+        write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
+             & ', chisq = ', self%scans(scan)%d(det)%chisq
     end if
 
   end subroutine compute_chisq
