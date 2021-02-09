@@ -184,13 +184,17 @@ def get_flags(data, test=False):
             dists[2*i  ,:,band] = d_A*180/np.pi
             dists[2*i+1,:,band] = d_B*180/np.pi
 
-    myflags = np.zeros(daflags.shape)
+    myflags = np.zeros(daflags.shape, dtype=int)
     for i in range(2*len(planets)):
         for band in bands:
-            inds = (dists[i,:,band] < radii[band][i//2]*2)
+            #inds = (dists[i,:,band] < radii[band][i//2]*2)
+            inds = (dists[i,:,band] < radii[band][i//2])
+            #inds = (dists[i,:,band] < 7)
             myflags[inds,band]= 2**(i+1)
 
-    myflags = np.where(daflags % 2 == 1, 1, myflags)
+
+    ind1 = (daflags % 2 == 1)
+    myflags = np.where(ind1, daflags, myflags)
 
     if test:
         return daflags, myflags
@@ -216,6 +220,7 @@ def test_flags(band=0):
     #file_input = np.random.choice(files)
     files.sort()
     file_input = files[87]
+    #file_input = files[3197]
     print(file_input)
 
     data = fits.open(file_input)
@@ -223,10 +228,10 @@ def test_flags(band=0):
 
     band = 0
     plt.figure()
-    plt.plot(daflags[:,band], '.', label='DAflags')
+    plt.plot(daflags[:,band], '.', label='DAflags', ms=10)
     plt.yscale('log')
 
-    plt.semilogy(myflags[:,band], '.', label='My flags')
+    plt.semilogy(myflags[:,band], '.', label='My flags', ms=7)
     plt.legend(loc='best')
 
     plt.show()
@@ -811,7 +816,7 @@ def get_psi_multiprocessing_2(i):
 def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
-@profile(sort_by='cumulative', strip_dirs=True)
+#@profile(sort_by='cumulative', strip_dirs=True)
 def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     f_name = file_input.split('/')[-1][:-8]
 
@@ -968,16 +973,16 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     inds = np.arange(len(files))
-    inds = inds[:64]
-    files = np.array(files)[:64]
+    #inds = inds[:64]
+    #files = np.array(files)[:64]
     #inds = inds[:len(files)//4]
     #files = np.array(files)[:len(files)//4]
     #inds = inds[len(files)//4:2*len(files)//4]
     #files = np.array(files)[len(files)//4:2*len(files)//4]
     #inds = inds[2*len(files)//4:3*len(files)//4]
     #files = np.array(files)[2*len(files)//4:3*len(files)//4]
-    #inds = inds[3*len(files)//4:]
-    #files = np.array(files)[3*len(files)//4:]
+    inds = inds[3*len(files)//4:]
+    files = np.array(files)[3*len(files)//4:]
 
 
     if par:
@@ -1003,5 +1008,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=34, center=True)
     #main(par=True, plot=False, compress=True, version=35, center=True)
     #main(par=True, plot=False, compress=True, version=36, center=True)
-    main(par=True, plot=False, compress=True, version='test', center=True)
+    #main(par=True, plot=False, compress=True, version='test', center=True)
+    main(par=True, plot=False, compress=True, version=37, center=True)
     #test_flags()
