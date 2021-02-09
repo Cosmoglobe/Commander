@@ -141,25 +141,22 @@ contains
             !f_B = pB
 
             do i = 1, nout
-               d = 0
-               p = 0
+               d = 0.d0
+               p = 0.d0
                do det = 1, 4
                  !sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
                  d = d + data(i, t, det)/4
                  p = p + data(i, t, det)/4*(-1)**((det + 1)/2 + 1)
                end do
                ! T
-               b(lpix, 1, i) = b(lpix, 1, i) + f_A*((1+x_im)*d + dx_im*p)*inv_sigmasq
-               b(rpix, 1, i) = b(rpix, 1, i) - f_B*((1-x_im)*d - dx_im*p)*inv_sigmasq
+               b(lpix, 1, i) = b(lpix, 1, i) + f_A*((1.d0+x_im)*d + dx_im*p)*inv_sigmasq
+               b(rpix, 1, i) = b(rpix, 1, i) - f_B*((1.d0-x_im)*d - dx_im*p)*inv_sigmasq
                ! Q
-               b(lpix, 2, i) = b(lpix, 2, i) + f_A*((1+x_im)*p + dx_im*d)*tod%cos2psi(lpsi)*inv_sigmasq
-               b(rpix, 2, i) = b(rpix, 2, i) - f_B*((1-x_im)*p - dx_im*d)*tod%cos2psi(rpsi)*inv_sigmasq
+               b(lpix, 2, i) = b(lpix, 2, i) + f_A*((1.d0+x_im)*p + dx_im*d)*tod%cos2psi(lpsi)*inv_sigmasq
+               b(rpix, 2, i) = b(rpix, 2, i) - f_B*((1.d0-x_im)*p - dx_im*d)*tod%cos2psi(rpsi)*inv_sigmasq
                ! U
-               b(lpix, 3, i) = b(lpix, 3, i) + f_A*((1+x_im)*p + dx_im*d)*tod%sin2psi(lpsi)*inv_sigmasq
-               b(rpix, 3, i) = b(rpix, 3, i) - f_B*((1-x_im)*p - dx_im*d)*tod%sin2psi(rpsi)*inv_sigmasq
-               ! S
-               !b(lpix, 4, i) = b(lpix, 4, i) + f_A*((1+x_im)*p + dx_im*d)*inv_sigmasq
-               !b(rpix, 4, i) = b(rpix, 4, i) - f_B*((1-x_im)*p + dx_im*d)*inv_sigmasq
+               b(lpix, 3, i) = b(lpix, 3, i) + f_A*((1.d0+x_im)*p + dx_im*d)*tod%sin2psi(lpsi)*inv_sigmasq
+               b(rpix, 3, i) = b(rpix, 3, i) - f_B*((1.d0-x_im)*p - dx_im*d)*tod%sin2psi(rpsi)*inv_sigmasq
             end do
 
             M_diag(lpix, 1) = M_diag(lpix, 1) + f_A*inv_sigmasq
@@ -168,8 +165,6 @@ contains
             M_diag(rpix, 2) = M_diag(rpix, 2) + f_B*inv_sigmasq*tod%cos2psi(rpsi)**2
             M_diag(lpix, 3) = M_diag(lpix, 3) + f_A*inv_sigmasq*tod%sin2psi(lpsi)**2
             M_diag(rpix, 3) = M_diag(rpix, 3) + f_B*inv_sigmasq*tod%sin2psi(rpsi)**2
-            !M_diag(lpix, 4) = M_diag(lpix, 4) + f_A*inv_sigmasq
-            !M_diag(rpix, 4) = M_diag(rpix, 4) + f_B*inv_sigmasq
 
          end do
        end if
@@ -254,20 +249,17 @@ contains
                iB = x(rpix, 1)
                sA = x(lpix, 2)*tod%cos2psi(lpsi) + x(lpix, 3)*tod%sin2psi(lpsi)
                sB = x(rpix, 2)*tod%cos2psi(rpsi) + x(rpix, 3)*tod%sin2psi(rpsi)
-               d  = (1+x_im)*iA - (1-x_im)*iB + dx_im*(sA + sB)
-               p  = (1+x_im)*sA - (1-x_im)*sB + dx_im*(iA + iB)
+               d  = (1.d0+x_im)*iA - (1.d0-x_im)*iB + dx_im*(sA + sB)
+               p  = (1.d0+x_im)*sA - (1.d0-x_im)*sB + dx_im*(iA + iB)
                ! Temperature
-               y(lpix, 1) = y(lpix, 1) + f_A*((1 + x_im)*d + dx_im*p) * inv_sigmasq
-               y(rpix, 1) = y(rpix, 1) - f_B*((1 - x_im)*d - dx_im*p) * inv_sigmasq
+               y(lpix, 1) = y(lpix, 1) + f_A*((1.d0 + x_im)*d + dx_im*p) * inv_sigmasq
+               y(rpix, 1) = y(rpix, 1) - f_B*((1.d0 - x_im)*d - dx_im*p) * inv_sigmasq
                ! Q
-               y(lpix, 2) = y(lpix, 2) + f_A*((1 + x_im)*p + dx_im*d) * tod%cos2psi(lpsi)*inv_sigmasq
-               y(rpix, 2) = y(rpix, 2) - f_B*((1 - x_im)*p - dx_im*d) * tod%cos2psi(rpsi)*inv_sigmasq
+               y(lpix, 2) = y(lpix, 2) + f_A*((1.d0 + x_im)*p + dx_im*d) * tod%cos2psi(lpsi)*inv_sigmasq
+               y(rpix, 2) = y(rpix, 2) - f_B*((1.d0 - x_im)*p - dx_im*d) * tod%cos2psi(rpsi)*inv_sigmasq
                ! U
-               y(lpix, 3) = y(lpix, 3) + f_A*((1 + x_im)*p + dx_im*d) * tod%sin2psi(lpsi)*inv_sigmasq
-               y(rpix, 3) = y(rpix, 3) - f_B*((1 - x_im)*p - dx_im*d) * tod%sin2psi(rpsi)*inv_sigmasq
-               ! S
-               !y(lpix, 4) = y(lpix, 4) + f_A*((1 + x_im)*p + dx_im*d) * inv_sigmasq
-               !y(rpix, 4) = y(rpix, 4) - f_B*((1 - x_im)*p - dx_im*d) * inv_sigmasq
+               y(lpix, 3) = y(lpix, 3) + f_A*((1.d0 + x_im)*p + dx_im*d) * tod%sin2psi(lpsi)*inv_sigmasq
+               y(rpix, 3) = y(rpix, 3) - f_B*((1.d0 - x_im)*p - dx_im*d) * tod%sin2psi(rpsi)*inv_sigmasq
             end do
          end if
          deallocate (pix, psi, flag)
