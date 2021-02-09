@@ -900,6 +900,7 @@ contains
 
 
      ! Table 1.8 is the summary of all data cuts, except for the daflags.
+     ! Transcription of table 1.8
      
   end subroutine get_pid_ranges_tabulated
 

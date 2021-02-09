@@ -103,15 +103,16 @@ contains
       real(sp), dimension(:, :), intent(out) :: s_skyA, s_skyB, tmask
       real(sp), dimension(:, :), intent(out), optional :: s_bpA, s_bpB
 
-      integer(i4b) :: i, j, lpoint, rpoint, sgn, det
+      integer(i4b) :: i, j, lpoint, rpoint, det
       real(sp)                                          :: sA, sB
-      tmask = 1d0
+      real(sp), dimension(4) :: sgn=[1., 1., -1., -1.]
+      tmask = 1.
 
       do i = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(i)%accept) then
-            s_skyA(:, i) = 0.d0
-            s_skyB(:, i) = 0.d0
-            tmask(:, i) = 0.d0
+            s_skyA(:, i) = 0.
+            s_skyB(:, i) = 0.
+            tmask(:, i) = 0.
             cycle
          end if
 
@@ -130,13 +131,12 @@ contains
             ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
             !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
 
-            ! sgn = (-1)**((i + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
             s_skyA(j, i) = map(1, lpoint, i) + &
-                       &  (-1)**((i + 1)/2 + 1)*( &
+                       &  sgn(i)*( &
                        &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
-                       &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1)))
+                       &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1))) 
             s_skyB(j, i) = map(1, rpoint, i) + &
-                       &  (-1)**((i + 1)/2 + 1) *( &
+                       &  sgn(i) *( &
                        &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                        &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
           
@@ -145,7 +145,7 @@ contains
             if (flag(j) == 0 .or. flag(j) == 262144) then
                 tmask(j, i) = pmask(pix(j, 1))*pmask(pix(j,2))
             else
-                tmask(j, i) = 0
+                tmask(j, i) = 0.
             end if
 
 
@@ -154,21 +154,20 @@ contains
 
       if (present(s_bpA) .and. present(s_bpB)) then
          do det = 1, tod%ndet
-            sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
             if (.not. tod%scans(scan_id)%d(det)%accept) then
-               s_bpA(:, det) = 0.d0
-               s_bpB(:, det) = 0.d0
+               s_bpA(:, det) = 0.
+               s_bpB(:, det) = 0.
                cycle
             end if
             do i = 1, tod%scans(scan_id)%ntod
                lpoint = tod%pix2ind(pix(i, 1))
                rpoint = tod%pix2ind(pix(i, 2))
                sA = map(1, lpoint, 0) + &
-                        &  sgn*( &
+                        &  sgn(det)*( &
                         &  map(2, lpoint, 0)*tod%cos2psi(psi(i, 1)) + &
                         &  map(3, lpoint, 0)*tod%sin2psi(psi(i, 1)))
                sB = map(1, rpoint, 0) + &
-                        &  sgn*( &
+                        &  sgn(det)*( &
                         &  map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
                         &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2)))
                s_bpA(i, det) = s_skyA(i, det) - sA

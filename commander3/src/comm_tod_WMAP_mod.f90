@@ -182,6 +182,7 @@ contains
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
+      real(dp)     :: x_im(4)
       real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky, s_skyA, s_skyB
       real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
       real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
@@ -253,6 +254,10 @@ contains
       npix = 12*nside**2
       nout = self%output_n_maps
       nscan_tot = self%nscan_tot
+      x_im(1) = self%x_im(1)
+      x_im(2) = self%x_im(1)
+      x_im(3) = self%x_im(2)
+      x_im(4) = self%x_im(2)
       allocate(A_abscal(self%ndet), b_abscal(self%ndet))
       allocate (map_sky(nmaps, self%nobs, 0:ndet, ndelta))
       allocate (chisq_S(ndet, ndelta))
@@ -332,7 +337,7 @@ contains
       iter_labels(3) = 'relative calibration'
       iter_labels(4) = 'time-varying gain'
       iter_labels(5) = 'imbalance'
-      iter_labels(6) = 'correlated noise'
+      iter_labels(6) = 'ncorr, npar, binmap, and chisq'
 
       main_it: do main_iter = 1, n_main_iter
          call update_status(status, "tod_istart")
@@ -425,11 +430,11 @@ contains
             end if
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               s_sky(:, j) = (1+self%x_im((j+1)/2))*s_skyA(:,j) - &
-                           & (1-self%x_im((j+1)/2))*s_skyB(:,j)
+               s_sky(:, j) = (1d0+x_im(j))*s_skyA(:,j) - &
+                           & (1d0-x_im(j))*s_skyB(:,j)
                if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
-                  s_bp(:, j)  = (1+self%x_im((j+1)/2))*s_bpA(:,j) - &
-                              & (1-self%x_im((j+1)/2))*s_bpB(:,j)
+                  s_bp(:, j)  = (1d0+x_im(j))*s_bpA(:,j) - &
+                              & (1d0-x_im(j))*s_bpB(:,j)
                end if
             end do
 
@@ -448,13 +453,13 @@ contains
                call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
-                  s_orb_tot(:, j) = (1+self%x_im((j+1)/2))*s_orbA(:,j) - &
-                                  & (1-self%x_im((j+1)/2))*s_orbB(:,j)
+                  s_orb_tot(:, j) = (1d0+x_im(j))*s_orbA(:,j) - &
+                                  & (1d0-x_im(j))*s_orbB(:,j)
                end do
             else
-               s_orbA    = 0.d0
-               s_orbB    = 0.d0
-               s_orb_tot = 0.d0
+               s_orbA    = 0.
+               s_orbB    = 0.
+               s_orb_tot = 0.
             end if
             call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
@@ -463,9 +468,9 @@ contains
             if (do_oper(sub_sl)) then
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) then
-                    s_sl(:,j) = 0
-                    s_slA(:,j) = 0
-                    s_slB(:,j) = 0
+                    s_sl(:,j) = 0.
+                    s_slA(:,j) = 0.
+                    s_slB(:,j) = 0.
                     cycle
                   end if
                   ! K113/114 are horn A
@@ -477,8 +482,8 @@ contains
                        & pix(:,2), psi(:,2), s_slB(:,j), 0d0)
                   s_slA(:,j) = 2 * s_slA(:,j) 
                   s_slB(:,j) = 2 * s_slB(:,j) 
-                  s_sl(:, j) = (1+self%x_im((j+1)/2))*s_slA(:,j) - &
-                               (1-self%x_im((j+1)/2))*s_slB(:,j)
+                  s_sl(:, j) = (1d0+x_im(j))*s_slA(:,j) - &
+                               (1d0-x_im(j))*s_slB(:,j)
                end do
             else
                s_sl = 0.
@@ -488,15 +493,15 @@ contains
             call wall_time(t2); t_tot(12) = t_tot(12) + t2-t1
 
             ! Add orbital dipole and sidelobes to total signal
-            s_totA = 0
-            s_totB = 0
-            s_tot = 0
+            s_totA = 0.
+            s_totB = 0.
+            s_tot = 0.
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                s_totA(:, j) = s_skyA(:, j) + s_slA(:, j) + s_orbA(:,j) 
                s_totB(:, j) = s_skyB(:, j) + s_slB(:, j) + s_orbB(:,j) 
-               s_tot(:, j) = (1+self%x_im((j+1)/2))*s_totA(:,j) - &
-                           & (1-self%x_im((j+1)/2))*s_totB(:,j)
+               s_tot(:, j) = (1d0+x_im(j))*s_totA(:,j) - &
+                           & (1d0-x_im(j))*s_totB(:,j)
             end do
 
 
@@ -525,11 +530,11 @@ contains
             ! Gain calculations
             !!!!!!!!!!!!!!!!!!!
 
-            s_buf = 0.d0
+            s_buf = 0.
             ! Precompute filtered signal for calibration
             if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
                call self%downsample_tod(s_orb_tot(:,1), ext)
-               allocate(  s_invN(ext(1):ext(2), ndet))      ! s * invN
+               allocate(     s_invN(ext(1):ext(2), ndet))      ! s * invN
                allocate(mask_lowres(ext(1):ext(2), ndet))
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
@@ -663,7 +668,7 @@ contains
             if (do_oper(bin_map)) then
                call wall_time(t1)
                allocate (d_calib(nout, ntod, ndet))
-               d_calib = 0
+               d_calib = 0.
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   inv_gain = 1.0/real(self%scans(i)%d(j)%gain, sp)
@@ -694,8 +699,10 @@ contains
                call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
 
-               if (i==1 .and. do_oper(bin_map) .and. self%first_call) then
+               call wall_time(t1)
+               if (.false. .and. i==1 .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
+                  if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
                   do k = 1, self%ndet
                      open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
                      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
@@ -710,6 +717,7 @@ contains
                   !call mpi_finalize(ierr)
                   !stop
                end if
+               call wall_time(t2); t_tot(22) = t2 - t1
 
                call wall_time(t1)
                ! Bin the calibrated map
@@ -733,8 +741,8 @@ contains
             ! Clean up
             deallocate (n_corr, s_sky, s_orbA, s_orbB, s_orb_tot, s_tot, s_buf)
             deallocate (s_totA, s_totB)
-            deallocate ( s_sl, s_slA, s_slB, s_sky_prop)
-            deallocate ( s_skyA, s_skyB)
+            deallocate (s_sl, s_slA, s_slB, s_sky_prop)
+            deallocate (s_skyA, s_skyB)
             deallocate (mask, mask2, pix, psi, flag)
             if (allocated(s_invN)) deallocate (s_invN)
             if (allocated(mask_lowres)) deallocate (mask_lowres)
@@ -756,6 +764,10 @@ contains
          if (do_oper(samp_imbal)) then
             call wall_time(t1)
             call sample_imbal_cal(self, handle, A_abscal, b_abscal)
+            x_im(1) = self%x_im(1)
+            x_im(2) = self%x_im(1)
+            x_im(3) = self%x_im(2)
+            x_im(4) = self%x_im(2)
             call wall_time(t2); t_tot(16) = t_tot(16) + t2-t1
          end if
 
@@ -857,8 +869,8 @@ contains
             delta_0 = delta_r
             delta_s = delta_s
 
-            omega = 1
-            alpha = 1
+            omega = 1d0
+            alpha = 1d0
 
             rho_new = sum(r0*r)
             bicg: do i = 1, i_max
@@ -934,6 +946,7 @@ contains
       call wall_time(t10); t_tot(21) = (t10 - t9)
 
       call mpi_bcast(cg_sol, size(cg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+      call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
       do k = 1, self%output_n_maps
          do j = 1, nmaps
             outmaps(k)%p%map(:, j) = cg_sol(self%info%pix, j, k)
@@ -960,28 +973,29 @@ contains
       call wall_time(t2); t_tot(10) = t_tot(10) + t2 - t1
       call wall_time(t6)
       if (self%myid == self%numprocs/2 .and. self%verbosity > 0) then
-         write(*,*) '  Time dist sky   = ', nint(t_tot(9))
-         write(*,*) '  Time sl precomp = ', nint(t_tot(13))
-         write(*,*) '  Time decompress = ', nint(t_tot(11))
-         write(*,*) '  Time project    = ', nint(t_tot(1))
-         write(*,*) '  Time orbital    = ', nint(t_tot(2))
-         write(*,*) '  Time sl interp  = ', nint(t_tot(12))
-         write(*,*) '  Time ncorr      = ', nint(t_tot(3))
-         write(*,*) '  Time gain       = ', nint(t_tot(4))
-         write(*,*) '  Time absgain    = ', nint(t_tot(14))
-         write(*,*) '  Time sel data   = ', nint(t_tot(15))
-         write(*,*) '  Time clean      = ', nint(t_tot(5))
-         write(*,*) '  Time noise      = ', nint(t_tot(6))
-         write(*,*) '  Time samp abs   = ', nint(t_tot(16))
-         write(*,*) '  Time samp bp    = ', nint(t_tot(17))
-         write(*,*) '  Time chisq      = ', nint(t_tot(7))
-         write(*,*) '  Time bin        = ', nint(t_tot(8))
-         write(*,*) '  Time scanlist   = ', nint(t_tot(20))
-         write(*,*) '  Time final      = ', nint(t_tot(10))
+         write(*,*) '  Time dist sky        = ', nint(t_tot(9))
+         write(*,*) '  Time sl precomp      = ', nint(t_tot(13))
+         write(*,*) '  Time decompress      = ', nint(t_tot(11))
+         write(*,*) '  Time project         = ', nint(t_tot(1))
+         write(*,*) '  Time orbital         = ', nint(t_tot(2))
+         write(*,*) '  Time sl interp       = ', nint(t_tot(12))
+         write(*,*) '  Time ncorr           = ', nint(t_tot(3))
+         write(*,*) '  Time gain            = ', nint(t_tot(4))
+         write(*,*) '  Time absgain         = ', nint(t_tot(14))
+         write(*,*) '  Time sel data        = ', nint(t_tot(15))
+         write(*,*) '  Time clean           = ', nint(t_tot(5))
+         write(*,*) '  Time noise           = ', nint(t_tot(6))
+         write(*,*) '  Time samp abs        = ', nint(t_tot(16))
+         write(*,*) '  Time samp bp         = ', nint(t_tot(17))
+         write(*,*) '  Time chisq           = ', nint(t_tot(7))
+         write(*,*) '  Time bin             = ', nint(t_tot(8))
+         write(*,*) '  Time scanlist        = ', nint(t_tot(20))
+         write(*,*) '  Time final           = ', nint(t_tot(10))
          write(*,*) '  Time solving cg      = ', nint(t_tot(21))
-         write(*,*) '  Time per cg iter     = '!, nint(t_tot(21)/num_cg_iters)
+         write(*,*) '  Time per cg iter     = ', nint(t_tot(21)/num_cg_iters)
          write(*,*) '  Number of cg iters   = ', num_cg_iters
-         write(*,*) '  Time total      = ', int(t6-t5), int(sum(t_tot(1:18)))
+         write(*,*) '  Time writing to txt  = ', nint(t_tot(22))
+         write(*,*) '  Time total           = ', int(t6-t5), int(sum(t_tot(1:18)))
       end if
 
       ! Clean up temporary arrays
@@ -1084,7 +1098,6 @@ contains
 
     integer(i4b) :: i, j, ierr
     real(dp), allocatable, dimension(:) :: A, b
-    real(dp), dimension(2) :: x_im
 
     ! Collect contributions from all cores
     allocate(A(tod%ndet), b(tod%ndet))

@@ -42,6 +42,14 @@ import os, sys
 from tqdm import tqdm
 
 Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
+fknees = np.array([6.13, 5.37, 1.66, 1.29,
+                   3.21, 3.13, 5.76, 8.62,
+                   2.56, 4.49, 2.43, 8.35,
+                  16.17,15.05, 9.02, 7.47,
+                   1.84, 2.39, 46.5, 26.0]) # mHz
+fknees *= 1e-3
+# From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
+# characterization", using the higher of the in-flight versus GSFC measurements.
 
 
 # version 15 uses the pre-calibrated data, gain = 1
@@ -63,10 +71,67 @@ Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 # version 'cal' uses the WMAP precalibrated data
 # version 34 has fixed a bug in the flag timing
 # version 35 makes the time in MJD.
+# version 36 reverts to the original planet flagging, since events like solar
+# storms are also included in there (see Table 8 of the ExSupp)
 
 from time import sleep
 from time import time as timer
 
+# from https://towardsdatascience.com/how-to-profile-your-code-in-python-e70c834fad89
+import cProfile
+import pstats
+from functools import wraps
+
+
+def profile(output_file=None, sort_by='cumulative', lines_to_print=None, strip_dirs=False):
+    """A time profiler decorator.
+    Inspired by and modified the profile decorator of Giampaolo Rodola:
+    http://code.activestate.com/recipes/577817-profile-decorator/
+    Args:
+        output_file: str or None. Default is None
+            Path of the output file. If only name of the file is given, it's
+            saved in the current directory.
+            If it's None, the name of the decorated function is used.
+        sort_by: str or SortKey enum or tuple/list of str/SortKey enum
+            Sorting criteria for the Stats object.
+            For a list of valid string and SortKey refer to:
+            https://docs.python.org/3/library/profile.html#pstats.Stats.sort_stats
+        lines_to_print: int or None
+            Number of lines to print. Default (None) is for all the lines.
+            This is useful in reducing the size of the printout, especially
+            that sorting by 'cumulative', the time consuming operations
+            are printed toward the top of the file.
+        strip_dirs: bool
+            Whether to remove the leading path info from file names.
+            This is also useful in reducing the size of the printout
+    Returns:
+        Profile of the decorated function
+    """
+
+    def inner(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            _output_file = output_file or func.__name__ + '.prof'
+            pr = cProfile.Profile()
+            pr.enable()
+            retval = func(*args, **kwargs)
+            pr.disable()
+            pr.dump_stats(_output_file)
+
+            with open(_output_file, 'w') as f:
+                ps = pstats.Stats(pr, stream=f)
+                if strip_dirs:
+                    ps.strip_dirs()
+                if isinstance(sort_by, (tuple, list)):
+                    ps.sort_stats(*sort_by)
+                else:
+                    ps.sort_stats(sort_by)
+                ps.print_stats(lines_to_print)
+            return retval
+
+        return wrapper
+
+    return inner
 
 from get_gain_model import get_gain
 
@@ -125,7 +190,7 @@ def get_flags(data, test=False):
             inds = (dists[i,:,band] < radii[band][i//2]*2)
             myflags[inds,band]= 2**(i+1)
 
-    myflags = np.where(daflags == 1, 1, myflags)
+    myflags = np.where(daflags % 2 == 1, 1, myflags)
 
     if test:
         return daflags, myflags
@@ -148,7 +213,10 @@ def test_flags(band=0):
     '''
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     files = glob(prefix + 'uncalibrated/*.fits')
-    file_input = np.random.choice(files)
+    #file_input = np.random.choice(files)
+    files.sort()
+    file_input = files[87]
+    print(file_input)
 
     data = fits.open(file_input)
     daflags, myflags = get_flags(data, test=True)
@@ -188,7 +256,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
-            scalars = np.array([gain, sigma_0, fknee, alpha])
+            scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
 
             if version == 'cal':
               todInd = ntodsigma*todi/(sigma_0*gain)
@@ -248,11 +316,13 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
     h.GenerateCode(pixArray)
 
 
-    h_Tod = huffman.Huffman("", nside)
-    h_Tod.GenerateCode(todArray)
+    if compress:
+      h_Tod = huffman.Huffman("", nside)
+      h_Tod.GenerateCode(todArray)
 
     huffarray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
-    huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
+    if compress:
+      huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
 
 
     #with h5py.File(file_out, 'a') as f:
@@ -270,7 +340,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                 tod[n::len(TOD[0])] = TOD[:,n]
             todi = np.array_split(tod, n_per_day)[i]
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
-            scalars = np.array([gain, sigma_0, fknee, alpha])
+            scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
             if (version == 'cal'):
                 baseline = 0
             else:
@@ -741,6 +811,7 @@ def get_psi_multiprocessing_2(i):
 def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
+@profile(sort_by='cumulative', strip_dirs=True)
 def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     f_name = file_input.split('/')[-1][:-8]
 
@@ -780,15 +851,8 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 
 
-    alpha = -1.7
+    alpha = -0.5
     fknee = 0.1
-    fknees = np.array([0.40, 0.51, 0.71, 0.32,
-                       1.09, 0.35, 5.76, 8.62,
-                       0.09, 1.41, 0.88, 8.35,
-                       7.88, 0.66, 9.02, 7.47,
-                       0.93, 0.28, 46.5, 26.0]) # mHz
-    # From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
-    # characterization", alpha=-1.7 from Figure
 
     nside = 512
     ntodsigma = 100
@@ -855,7 +919,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     # v14: add genflags somehow.
     genflags = data[2].data['genflags']*2**11
     daflags = data[2].data['daflags']
-    daflags = get_flags(data)
+    #daflags = get_flags(data)
     for i in range(10):
         daflags[:,i] += genflags
 
@@ -904,6 +968,8 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     inds = np.arange(len(files))
+    inds = inds[:64]
+    files = np.array(files)[:64]
     #inds = inds[:len(files)//4]
     #files = np.array(files)[:len(files)//4]
     #inds = inds[len(files)//4:2*len(files)//4]
@@ -930,9 +996,12 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         for i, f in zip(inds, files):
             fits_to_h5(f,i,compress, plot, version, center)
 
+
 if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=31, center=True)
     #main(par=True, plot=False, compress=True, version='cal', center=True)
     #main(par=True, plot=False, compress=True, version=34, center=True)
-    main(par=True, plot=False, compress=True, version=35, center=True)
-    test_flags()
+    #main(par=True, plot=False, compress=True, version=35, center=True)
+    #main(par=True, plot=False, compress=True, version=36, center=True)
+    main(par=True, plot=False, compress=True, version='test', center=True)
+    #test_flags()

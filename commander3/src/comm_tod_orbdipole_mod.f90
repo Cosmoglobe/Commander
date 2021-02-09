@@ -190,7 +190,7 @@ contains
        do j=1,self%tod%scans(ind)%ntod !length of the tod
           b_dot = dot_product(self%tod%scans(ind)%v_sun, self%tod%pix2vec(:,pix(j)))/c
           s_orb(j,i) = f*T_CMB * (b_dot + q*(b_dot**2 - b**2/3.))
-        end do
+       end do
     end do
 
   end subroutine compute_orbital_dipole_pencil
