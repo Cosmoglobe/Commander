@@ -65,6 +65,7 @@ module comm_tod_mod
      real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for first sample
      real(dp)       :: satpos(3)                                   ! Observatory position (x,y,z)
      type(huffcode) :: hkey                                        ! Huffman decompression key
+     type(huffcode) :: todkey                                      ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
@@ -153,6 +154,7 @@ module comm_tod_mod
      procedure                        :: get_total_chisq
      procedure                        :: symmetrize_flags
      procedure                        :: decompress_pointing_and_flags
+     procedure                        :: decompress_tod
      procedure                        :: tod_constructor
      procedure                        :: load_instrument_file
      procedure                        :: precompute_lookups
@@ -799,7 +801,9 @@ contains
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
-    !call hufmak(hsymb,hfreq,self%hkey)
+    call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+    call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+    call hufmak_precomp(hsymb,htree,self%todkey)
     deallocate(hsymb, htree)
     call wall_time(t2)
     t_tot(6) = t_tot(6) + t2-t1
@@ -1470,13 +1474,14 @@ contains
 
   ! Compute chisquare
   subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
-       & n_corr, absbp, verbose)
+       & n_corr, absbp, verbose, tod_arr)
     implicit none
     class(comm_tod),                 intent(inout)  :: self
     integer(i4b),                    intent(in)     :: scan, det
     real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
     real(sp),          dimension(:), intent(in)     :: n_corr
     logical(lgt),                    intent(in), optional :: absbp, verbose
+    integer(i4b),     dimension(:,:), intent(in), optional  :: tod_arr
 
     real(dp)     :: chisq, d0, g, b
     integer(i4b) :: i, n
@@ -1488,7 +1493,7 @@ contains
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
-       d0    = self%scans(scan)%d(det)%tod(i) - (g * s_spur(i) + n_corr(i) + b)
+       d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i) + b)
        chisq = chisq + (d0 - g * s_sky(i))**2
     end do
 
@@ -1596,5 +1601,17 @@ contains
   end subroutine decompress_pointing_and_flags
 
 
+  subroutine decompress_tod(self, scan, det, tod)
+    implicit none
+    class(comm_tod),                    intent(in)  :: self
+    integer(i4b),                       intent(in)  :: scan, det
+    integer(i4b),        dimension(:),  intent(out) :: tod
+    integer(i4b) :: i
+
+    tod = 0
+
+    !call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%tod, tod)
+
+  end subroutine decompress_tod
 
 end module comm_tod_mod

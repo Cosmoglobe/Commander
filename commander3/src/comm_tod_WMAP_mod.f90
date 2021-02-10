@@ -196,7 +196,7 @@ contains
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: A_map, dipole_mod, M_diag
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono
-      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
+      integer(i4b), allocatable, dimension(:, :)      :: pix, psi, tod
       integer(i4b), allocatable, dimension(:)         :: flag
       real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
       real(dp), allocatable, dimension(:, :)          :: cg_tot
@@ -405,6 +405,7 @@ contains
             allocate (mask2(ntod, ndet))                  ! Processing mask in time
             allocate (pix(ntod, nhorn))             ! Decompressed pointing
             allocate (psi(ntod, nhorn))             ! Decompressed pol angle
+            allocate (tod(ntod, ndet))              ! Decompressed tod
             allocate (flag(ntod))                   ! Decompressed flags
 
             ! --------------------
@@ -414,6 +415,13 @@ contains
             ! Decompress pointing, psi and flags for current scan
             call wall_time(t1)
             call self%decompress_pointing_and_flags(i, 1, pix, psi, flag)
+            do j = 1, ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               !call self%decompress_tod(i, j, tod(:,j))
+               tod(:, j) = self%scans(i)%d(j)%tod
+            end do
+            ! Implement the tod 
+            ! Every module that requires the tod, make the tod an argument
             call wall_time(t2); t_tot(11) = t_tot(11) + t2 - t1
 
             ! Construct sky signal template
@@ -600,7 +608,7 @@ contains
                   end if
                end do
 
-               call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), mask_lowres=mask_lowres)
+               call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, do_oper(samp_acal), mask_lowres=mask_lowres, tod_arr=tod)
             else if (do_oper(samp_imbal)) then
                do j = 1, ndet
                  ! this is subtracted from the data, equivalent to the first
@@ -615,7 +623,7 @@ contains
             ! Fit gain
             if (do_oper(samp_G)) then
                call wall_time(t1)
-               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle, mask_lowres=mask_lowres)
+               call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle, mask_lowres=mask_lowres, tod_arr=tod)
                call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
             end if
 
@@ -630,7 +638,7 @@ contains
                      s_buf(:,j) = s_tot(:,j)
                   end if
                end do
-               call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, .false.)
+               call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, .false., tod_arr=tod)
                do j = 1, ndet
                   n_corr(:,j) = n_corr(:, j) - sum(n_corr(:,j))/ size(n_corr,1)
                end do
@@ -642,7 +650,7 @@ contains
             ! Compute noise spectrum
             if (do_oper(samp_N_par)) then
                call wall_time(t1)
-               call sample_noise_psd(self, handle, i, mask, s_tot, n_corr)
+               call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_arr=tod)
                call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
             end if
 
@@ -677,7 +685,7 @@ contains
 !!$                  write(*,*) 'c', j, sum(abs(s_tot(:,j)))
 !!$                  write(*,*) 'd', j, sum(abs(s_sky(:,j)))
 !!$                  write(*,*) 'e', j, sum(abs(s_bp(:,j)))
-                  d_calib(1, :, j) = (self%scans(i)%d(j)%tod - &
+                  d_calib(1, :, j) = (tod(:,j) - &
                      & self%scans(i)%d(j)%baseline - n_corr(:, j))* &
                      & inv_gain - s_tot(:, j) + s_sky(:, j) - s_bp(:, j)
                   if (nout > 1) d_calib(2, :, j) = d_calib(1, :, j) - &
@@ -709,7 +717,7 @@ contains
                           & " s_orbA (mK)  s_orbB (mK)  mask, baseline, invgain, flag"
                      do j = 1, ntod
                         inv_gain = 1.0/real(self%scans(i)%d(k)%gain, sp)
-                        write(78,*) j, self%scans(i)%d(k)%tod(j), n_corr(j, k), d_calib(1,j,k), &
+                        write(78,*) j, tod(j, k), n_corr(j, k), d_calib(1,j,k), &
                          &  s_skyA(j,k), s_skyB(j,k), s_orbA(j,k), s_orbB(j,k), mask(j, k), self%scans(i)%d(k)%baseline, inv_gain, flag(j)
                      end do
                      close(78)
@@ -743,7 +751,7 @@ contains
             deallocate (s_totA, s_totB)
             deallocate (s_sl, s_slA, s_slB, s_sky_prop)
             deallocate (s_skyA, s_skyB)
-            deallocate (mask, mask2, pix, psi, flag)
+            deallocate (mask, mask2, pix, psi, flag, tod)
             if (allocated(s_invN)) deallocate (s_invN)
             if (allocated(mask_lowres)) deallocate (mask_lowres)
             deallocate(s_bp, s_bp_prop, s_bpA, s_bpB)
@@ -846,7 +854,7 @@ contains
          allocate (v     (0:npix-1, nmaps))
 
          cg_sol = 0.0d0
-         cg_sol(:,:,1) = map_sky(:,:,0,1)
+         !cg_sol(:,:,1) = map_sky(:,:,0,1)
          epsil(1)   = 1d-10
          epsil(2:6) = 1.d-6
          i_max = 100
