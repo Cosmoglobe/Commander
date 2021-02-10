@@ -663,7 +663,7 @@ contains
                   s_buf(:,j) =  s_sl(:,j) + s_orb_tot(:,j)
                   if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
                   call self%compute_chisq(i, j, mask(:,j), s_sky(:,j), &
-                       & s_buf(:,j), n_corr(:,j), verbose=.false.)
+                       & s_buf(:,j), n_corr(:,j), verbose=.false., tod_arr=tod)
                end do
                call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
             end if
