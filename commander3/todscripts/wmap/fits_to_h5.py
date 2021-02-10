@@ -74,8 +74,7 @@ fknees *= 1e-3
 # version 36 reverts to the original planet flagging, since events like solar
 # storms are also included in there (see Table 8 of the ExSupp)
 # version 37 uses the planet flag based on radii
-# version 38 compresses the TODs
-# version 39 adjusts the TODs and gains so that they are all positive
+# version 38 compresses the TODs, adjusts the TODs and gains so that they are all positive
 
 from time import sleep
 from time import time as timer
@@ -335,6 +334,9 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
         if label[:-2] == band.upper():
             TOD = TODs[j]
             gain = gain_guesses[j][i]
+            if gain < 0:
+              TOD = -TOD
+              gain = -gain
 
 
             tod = np.zeros(TOD.size)
@@ -1013,6 +1015,5 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=35, center=True)
     #main(par=True, plot=False, compress=True, version=36, center=True)
     #main(par=True, plot=False, compress=True, version=37, center=True)
-    #main(par=True, plot=False, compress=True, version=38, center=True)
-    main(par=True, plot=False, compress=True, version=39, center=True)
+    main(par=True, plot=False, compress=True, version=38, center=True)
     #test_flags()
