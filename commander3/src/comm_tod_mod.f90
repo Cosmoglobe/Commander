@@ -1483,7 +1483,6 @@ contains
     end if
     if (abs(self%scans(scan)%d(det)%chisq) > 20.d0 .or. &
       & isNaN(self%scans(scan)%d(det)%chisq)) then
-        write(*,*) "chisq  scan, det, sum(mask), sum(s_sky),   sum(n_corr)"
         write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
              & ', chisq = ', self%scans(scan)%d(det)%chisq
     end if
