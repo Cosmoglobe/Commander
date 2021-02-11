@@ -178,7 +178,7 @@ contains
       integer(i4b) :: i, j, k, l, m, n, t, ntod, ndet
       integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
       integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0, nout
-      character(len=20), allocatable, dimension(:) :: iter_labels ! names of iters 
+      character(len=40), allocatable, dimension(:) :: iter_labels ! names of iters 
       real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
       real(dp)     :: t_tot(22)
       real(sp)     :: inv_gain
@@ -600,7 +600,7 @@ contains
                         s_buf(:, j) = real(self%gain0(0),sp) * (s_tot(:, j) - s_orb_tot(:, j)) + &
                              & real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                      else
-                        if (self%scanid(i)==2114) write(*,*) j, self%gain0(j), self%scans(i)%d(j)%dgain, mean(abs(1.d0*s_tot(:, j)))
+                        !if (self%scanid(i)==2114) write(*,*) j, self%gain0(j), self%scans(i)%d(j)%dgain, mean(abs(1.d0*s_tot(:, j)))
                         s_buf(:, j) = real(self%gain0(j) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                      end if
                   else
