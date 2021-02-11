@@ -1442,12 +1442,12 @@ contains
   subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
        & n_corr, absbp, verbose, tod_arr)
     implicit none
-    class(comm_tod),                 intent(inout)  :: self
-    integer(i4b),                    intent(in)     :: scan, det
-    real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
-    real(sp),          dimension(:), intent(in)     :: n_corr
-    logical(lgt),                    intent(in), optional :: absbp, verbose
-    integer(i4b),     dimension(:,:), intent(in), optional  :: tod_arr
+    class(comm_tod),                  intent(inout)        :: self
+    integer(i4b),                     intent(in)           :: scan, det
+    real(sp),           dimension(:), intent(in)           :: mask, s_sky, s_spur
+    real(sp),           dimension(:), intent(in)           :: n_corr
+    logical(lgt),                     intent(in), optional :: absbp, verbose
+    integer(i4b),     dimension(:,:), intent(in), optional :: tod_arr
 
     real(dp)     :: chisq, d0, g, b
     integer(i4b) :: i, n

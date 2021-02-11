@@ -1225,7 +1225,7 @@ contains
 
   ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr2(tod, handle, scan, mask, s_sub, n_corr)
+  subroutine sample_n_corr2(tod, handle, scan, mask, s_sub, n_corr, tod_arr)
     implicit none
     class(comm_tod),               intent(in)     :: tod
     type(planck_rng),                  intent(inout)  :: handle
@@ -1241,6 +1241,7 @@ contains
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+    integer(i4b),  dimension(:,:),  intent(in), optional   :: tod_arr
     
     ntod = tod%scans(scan)%ntod
     ndet = tod%ndet
@@ -1281,7 +1282,7 @@ contains
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        j       = j+1
        gain    = tod%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime = tod%scans(scan)%d(i)%tod - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
+       d_prime = tod_arr(:,i) - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
        sigma_0 = tod%scans(scan)%d(i)%sigma0
 
        call wall_time(t1)       
