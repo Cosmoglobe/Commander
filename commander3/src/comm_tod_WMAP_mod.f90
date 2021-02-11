@@ -196,8 +196,9 @@ contains
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: A_map, dipole_mod, M_diag
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono
-      integer(i4b), allocatable, dimension(:, :)      :: pix, psi, tod
+      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
       integer(i4b), allocatable, dimension(:)         :: flag
+      integer(i4b), allocatable, dimension(:,:)           :: tod
       real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
       real(dp), allocatable, dimension(:, :)          :: cg_tot
       logical(lgt)       :: correct_sl, verbose, finished
@@ -417,8 +418,7 @@ contains
             call self%decompress_pointing_and_flags(i, 1, pix, psi, flag)
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               !call self%decompress_tod(i, j, tod(:,j))
-               tod(:, j) = self%scans(i)%d(j)%tod
+               call self%decompress_tod(i, j, tod(:,j))
             end do
             ! Implement the tod 
             ! Every module that requires the tod, make the tod an argument
@@ -616,7 +616,7 @@ contains
                  s_buf(:,j) = self%scans(i)%d(j)%gain * (s_totA(:,j) - s_totB(:,j))
                end do
 
-               call accumulate_imbal_cal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle)
+               call accumulate_imbal_cal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, tod_arr=tod)
             end if
             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
 
@@ -1137,7 +1137,7 @@ contains
 
   end subroutine sample_imbal_cal
 
-  subroutine accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
+  subroutine accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, tod_arr)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
@@ -1145,6 +1145,7 @@ contains
     real(sp),          dimension(:,:), intent(in)     :: s_invN
     real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
     type(planck_rng),                  intent(inout)  :: handle
+    integer(i4b),      dimension(:,:), intent(in), optional :: tod_arr
 
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
@@ -1161,7 +1162,7 @@ contains
           residual(:,j) = 0.
           cycle
        end if
-       r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
+       r_fill = tod_arr(:,j) - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do

@@ -601,26 +601,9 @@ contains
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn)
        do det = 1, self%ndet
-          !self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
-          !if (.not. self%scans(i)%d(det)%accept) then
-          !   write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
-          !        & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
-          !   write(*,fmt='(a,a)') '    filename = ', &
-          !        & trim(self%hdfname(i))
-          !end if
           self%scans(i)%d(det)%accept = .true.
        end do
     end do
-
-    ! Define all gains to be positive
-    !do i = 1, self%nscan
-    !   do j = 1, self%ndet
-    !      if (self%scans(i)%d(j)%gain < 0) then
-    !        self%scans(i)%d(j)%gain = -self%scans(i)%d(j)%gain
-    !        self%scans(i)%d(j)%tod  = -self%scans(i)%d(j)%tod
-    !      end if
-    !   end do
-    !end do
 
 
     ! Initialize mean gain
@@ -773,7 +756,7 @@ contains
          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
        end do
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
-       !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%tod)
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%tod)
        call wall_time(t2)
        t_tot(5) = t_tot(5) + t2-t1
     end do
@@ -784,9 +767,9 @@ contains
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
-    !call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-    !call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-    !call hufmak_precomp(hsymb,htree,self%todkey)
+    call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+    call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+    call hufmak_precomp(hsymb,htree,self%todkey)
     deallocate(hsymb, htree)
     call wall_time(t2)
     t_tot(6) = t_tot(6) + t2-t1
@@ -1588,12 +1571,10 @@ contains
     implicit none
     class(comm_tod),                    intent(in)  :: self
     integer(i4b),                       intent(in)  :: scan, det
-    integer(i4b),        dimension(:),  intent(out) :: tod
+    integer(i4b),         dimension(:),  intent(out) :: tod
     integer(i4b) :: i
 
-    tod = 0
-
-    !call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%tod, tod)
+    call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%tod, tod)
 
   end subroutine decompress_tod
 
