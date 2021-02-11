@@ -47,7 +47,8 @@ module comm_tod_mod
      real(dp)          :: chisq_masked
      real(sp)          :: baseline
      logical(lgt)      :: accept
-     real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)
+     !real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)
+     byte,     allocatable, dimension(:)  :: tod        ! compressed values in time domain, (ntod)
      byte,         allocatable, dimension(:)  :: flag       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      type(byte_pointer), allocatable, dimension(:)  :: pix   ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)  :: psi   ! pointer array of psi, length nhorn
@@ -600,45 +601,27 @@ contains
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn)
        do det = 1, self%ndet
-          self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
-          if (.not. self%scans(i)%d(det)%accept) then
-             write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
-                  & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
-             write(*,fmt='(a,a)') '    filename = ', &
-                  & trim(self%hdfname(i))
-          end if
+          !self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
+          !if (.not. self%scans(i)%d(det)%accept) then
+          !   write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
+          !        & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
+          !   write(*,fmt='(a,a)') '    filename = ', &
+          !        & trim(self%hdfname(i))
+          !end if
+          self%scans(i)%d(det)%accept = .true.
        end do
     end do
 
     ! Define all gains to be positive
-    do i = 1, self%nscan
-       do j = 1, self%ndet
-          if (self%scans(i)%d(j)%gain < 0) then
-            self%scans(i)%d(j)%gain = -self%scans(i)%d(j)%gain
-            self%scans(i)%d(j)%tod  = -self%scans(i)%d(j)%tod
-          end if
-       end do
-    end do
+    !do i = 1, self%nscan
+    !   do j = 1, self%ndet
+    !      if (self%scans(i)%d(j)%gain < 0) then
+    !        self%scans(i)%d(j)%gain = -self%scans(i)%d(j)%gain
+    !        self%scans(i)%d(j)%tod  = -self%scans(i)%d(j)%tod
+    !      end if
+    !   end do
+    !end do
 
-
-!!$    ! Apply precomputed gains and baselines
-!!$    allocate(g_precomp(self%nscan_tot, self%ndet), b_precomp(self%nscan_tot, self%ndet))
-!!$    open(58,file='data_WMAP/wmap_K1_gain_offset.dat')
-!!$    do while (.true.)
-!!$       do j = 1, 4
-!!$          read(58,*,end=13) i, b, g
-!!$          g_precomp(i,j) = g
-!!$          b_precomp(i,j) = b
-!!$       end do
-!!$    end do
-!!$13  close(58)
-!!$    do i = 1, self%nscan
-!!$       do j = 1, self%ndet
-!!$          self%scans(i)%d(j)%gain = g_precomp(self%scanid(i),j)
-!!$          self%scans(i)%d(j)%tod  = self%scans(i)%d(j)%tod - b_precomp(self%scanid(i),j)
-!!$       end do
-!!$    end do
-!!$    deallocate(g_precomp, b_precomp)
 
     ! Initialize mean gain
     allocate(ns(0:self%ndet))
@@ -759,7 +742,6 @@ contains
        call wall_time(t2)
        t_tot(2) = t_tot(2) + t2-t1
        call wall_time(t1)
-       allocate(self%d(i)%tod(m))
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
@@ -774,12 +756,13 @@ contains
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
-       call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-       if (tod%halfring_split == 2 )then
-         self%d(i)%tod = buffer_sp(m+1:2*m)
-       else
-         self%d(i)%tod = buffer_sp(1:m)
-       end if
+       !call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+       !allocate(self%d(i)%tod(m))
+       !if (tod%halfring_split == 2 )then
+       !  self%d(i)%tod = buffer_sp(m+1:2*m)
+       !else
+       !  self%d(i)%tod = buffer_sp(1:m)
+       !end if
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1
 
@@ -791,6 +774,7 @@ contains
          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
        end do
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+       !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%tod)
        call wall_time(t2)
        t_tot(5) = t_tot(5) + t2-t1
     end do
@@ -801,9 +785,9 @@ contains
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
-    call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-    call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-    call hufmak_precomp(hsymb,htree,self%todkey)
+    !call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+    !call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+    !call hufmak_precomp(hsymb,htree,self%todkey)
     deallocate(hsymb, htree)
     call wall_time(t2)
     t_tot(6) = t_tot(6) + t2-t1

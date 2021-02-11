@@ -834,7 +834,7 @@ contains
        prior_fknee = [0.001d0, 0.25d0]
        prior_alpha = [-3.0d0, -0.4d0]
     else if (trim(self%freq) == '023-WMAP_K') then
-       prior_fknee = [0.01d0,1.0d0]
+       prior_fknee = [0.0001d0,1.0d0]
        prior_alpha = [-3d0, -0.4d0]
     else if (trim(self%freq) == '061-WMAP_V2') then
        prior_fknee = [0.0001d0,1.0d0]
