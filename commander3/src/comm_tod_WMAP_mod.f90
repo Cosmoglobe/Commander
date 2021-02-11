@@ -525,7 +525,7 @@ contains
             do j = 1, ndet
               if (.not. self%scans(i)%d(j)%accept) cycle
               if (do_oper(samp_bline)) then
-                self%scans(i)%d(j)%baseline =sum((self%scans(i)%d(j)%tod &
+                self%scans(i)%d(j)%baseline =sum((tod(:,j) &
               &- self%scans(i)%d(j)%gain*s_tot(:,j))*mask(:,j))/sum(mask(:,j))
                 if (trim(self%operation) == 'sample') then
                   self%scans(i)%d(j)%baseline = self%scans(i)%d(j)%baseline &
@@ -708,7 +708,7 @@ contains
 
 
                call wall_time(t1)
-               if (.false. .and. i==1 .and. do_oper(bin_map) .and. self%first_call) then
+               if (.true. .and. i==1 .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
                   do k = 1, self%ndet
