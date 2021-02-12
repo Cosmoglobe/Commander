@@ -103,6 +103,7 @@ if(NOT FFTW_FOUND)
 	# 1. To download the project
 	# 2. To compile with single and double precision - requiores by GNU compilers
 	ExternalProject_Add(${project}
+		DEPENDS required_libraries
 		URL "${${project}_url}"
 		URL_MD5 "${${project}_md5}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"

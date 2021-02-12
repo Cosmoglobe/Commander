@@ -43,14 +43,9 @@ if(NOT HEALPIX_FOUND)
 		set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
 	endif()
 	#------------------------------------------------------------------------------
-	# Copying modyfied configure script to healpix root
-	list(APPEND healpix_copy_configure_script 
-		"${CMAKE_COMMAND}" "-E" "copy"
-		"${CMAKE_SOURCE_DIR}/cmake/third_party/healpix/hpxconfig_functions.sh"
-		"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
-		#"&&"
-		)
 	# Creating configure command for HEALPix
+	#message("my message ${CFITSIO_ROOT_DIR}")
+	#message("my message ${CFITSIO_ROOT}")
 	list(APPEND healpix_configure_command 
 		"${CMAKE_COMMAND}" "-E" "env" 
 		)
@@ -89,10 +84,10 @@ if(NOT HEALPIX_FOUND)
 		#"FITSDIR=${CFITSIO_LIBRARY}"
 		"FITSINC=${CFITSIO_INCLUDE_DIRS}"
 		"F_SHARED=0"
-		"FC=${MPI_Fortran_COMPILER}" 
-		"CXX=${MPI_CXX_COMPILER}" 
+		"FC=${COMMANDER3_Fortran_COMPILER}" 
+		"CXX=${COMMANDER3_CXX_COMPILER}" 
 		"CPP=${COMMANDER3_CPP_COMPILER}" 
-		"CC=${MPI_C_COMPILER}" 
+		"CC=${COMMANDER3_C_COMPILER}" 
 		"SHARP_COPT=${healpix_sharp2_C_FLAGS}"
 		"./configure" 
 		"--auto=f90" #${healpix_components}" #profile,f90,c,cxx;" 
@@ -102,8 +97,6 @@ if(NOT HEALPIX_FOUND)
 	# Getting HEALPix from source
 	#------------------------------------------------------------------------------
 	ExternalProject_Add(${project}
-		# making healpix to be installed the last before commander3
-		DEPENDS cfitsio 
 		URL "${${project}_url}"
 		URL_MD5 "${${project}_md5}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
@@ -118,10 +111,24 @@ if(NOT HEALPIX_FOUND)
 		LOG_BUILD ON
 		LOG_INSTALL ON
 		#BUILD_ALWAYS FALSE
-		#BUILD_ALWAYS TRUE 
+		BUILD_ALWAYS TRUE 
 		# commands how to build the project
-		CONFIGURE_COMMAND "${healpix_copy_configure_script}"
-		COMMAND "${${project}_configure_command}"
+		CONFIGURE_COMMAND "${${project}_configure_command}"
+		#BUILD_COMMAND ""
+		# making healpix to be installed the last before commander3
+		DEPENDS cfitsio 
+						#hdf5 
+						#sharp2 
+						#fftw 
+						#fftw_double 
+						#fftw_float 
+						#doxygen 
+						#tempita 
+						#blas 
+						#openmp 
+						#curl 
+						#mpi 
+						#zlib
 		# HEALPix doesn't have an install command 
 		INSTALL_COMMAND ""
 		# copying Healpix and all its files (src and compiled) into CMAKE_INSTALL_PREFIX directory
@@ -129,6 +136,16 @@ if(NOT HEALPIX_FOUND)
 		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${HEALPIX_INSTALL_PREFIX}"
 		)
 
+	#ExternalProject_Add_Step(${project} ${project}_copy_step
+	#		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${HEALPIX_INSTALL_PREFIX}"
+	#	ALWAYS FALSE
+	#		)
+	#ExternalProject_Add_StepTargets(${project} ${project}_copy_step)
+
+	#set(HEALPIX_LIBRARIES 
+	#	${CMAKE_INSTALL_PREFIX}/healpix/lib/${CMAKE_STATIC_LIBRARY_PREFIX}sharp${CMAKE_STATIC_LIBRARY_SUFFIX}
+	#	${CMAKE_INSTALL_PREFIX}/healpix/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX}
+	#	)
 	set(HEALPIX_LIBRARIES 
 		${HEALPIX_INSTALL_PREFIX}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}sharp${CMAKE_STATIC_LIBRARY_SUFFIX}
 		${HEALPIX_INSTALL_PREFIX}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX}

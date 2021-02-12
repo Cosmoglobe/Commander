@@ -49,13 +49,14 @@ if(NOT CURL_FOUND)
 		URL "${${project}_url}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
+		# Binary dir is for ./configure to find it properly
 		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
 		LOG_DIR "${CMAKE_LOG_DIR}"
 		LOG_DOWNLOAD ON
-		#LOG_CONFIGURE ON
-		#LOG_BUILD ON
-		#LOG_INSTALL ON
+		LOG_CONFIGURE ON
+		LOG_BUILD ON
+		LOG_INSTALL ON
 		CONFIGURE_COMMAND "${${project}_configure_command}"
 		BUILD_ALWAYS FALSE
 		)

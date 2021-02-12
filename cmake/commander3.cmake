@@ -194,6 +194,10 @@ target_link_options(${commander3}
 
 #message("cmake dl libs are ${CMAKE_DL_LIBS}")
 # LINKING ORDER IN LIBRARIES IS IMPORTANT!
+# Order is:
+# MPI => OpenMP => Blas => LAPACK => HEALPix => 
+# CFITSIO => cURL => libm => dl => HDF5 => ZLib
+# => FFTW => comm_system_backend
 target_link_libraries(${commander3} 
 	PRIVATE
 	# linking MPI
@@ -216,7 +220,8 @@ target_link_libraries(${commander3}
 	${CFITSIO_LIBRARIES}
 	# to avoid error error dlclose@@GLIBC_2.2.5', so 
 	# we need to link math library
-	-lm
+	#-lm
+	${LIBM_LIBRARY}
 	# and -ldl (dl library)
 	${CMAKE_DL_LIBS}
 	# including hdf5 - first fortran and then general

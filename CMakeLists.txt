@@ -53,9 +53,10 @@ message(STATUS "Scanning your system. Please, wait a moment...")
 # The necessary minimum to set-up cmake-based project
 cmake_minimum_required(VERSION 3.17 FATAL_ERROR)
 project(Commander3
-	DESCRIPTION "Complete installer for Commander 3"
-	VERSION 1.2.0	
+	DESCRIPTION "Complete installer for Commander 3."
+	VERSION 1.3.0	
 	LANGUAGES Fortran CXX C
+	HOMEPAGE_URL "https://github.com/Cosmoglobe/Commander"
 	)
 # Looking for python
 find_package(Python REQUIRED COMPONENTS Interpreter)
@@ -67,6 +68,8 @@ include(CMakeDependentOption)
 include(FetchContent)
 # Including external project routines to enable superbuild pattern
 include(ExternalProject)
+# Including useful macro to operate with project options
+include(CMakeDependentOption)
 # Verify that Fortran and CXX compilers can properly talk to each other
 include(FortranCInterface)
 FortranCInterface_VERIFY(CXX)
@@ -77,7 +80,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # The -flto
 
 # Adding project modules dir (with .cmake extension)
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH 
+	"${CMAKE_SOURCE_DIR}/cmake"
+	"${CMAKE_SOURCE_DIR}/cmake/third_party/cfitsio/cmake"
+	"${CMAKE_SOURCE_DIR}/cmake/third_party/curl/CMake"
+	)
 # Including custom cmake modules
 include(project_instructions)
 # Adding commander3 source files

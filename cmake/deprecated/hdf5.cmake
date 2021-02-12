@@ -25,8 +25,9 @@
 message(STATUS "---------------------------------------------------------------")
 # asking for an exact hdf5 version
 #find_package(HDF5 1.10.5 EXACT COMPONENTS Fortran) #Fortran_HL)
-
-if(NOT HDF5_FORCE_COMPILE)
+# TODO: look into deprecated folder and make hdf5 compile with cmake
+# to ensure better reproducibility.
+if(NOT (HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 	find_package(HDF5 1.10.0 COMPONENTS Fortran) #Fortran_HL)
 endif()
 
@@ -58,11 +59,12 @@ if(NOT HDF5_FOUND)
 		"./configure" 
 		"--prefix=<INSTALL_DIR>" 
 		"--enable-fortran"
-		"--enable-parallel"
-		"--enable-production"
+		#"--enable-parallel"
 		)
 
+	#------------------------------------------------------------------------------
 	# Getting HDF5 from source
+	#------------------------------------------------------------------------------
 	ExternalProject_Add(${project}
 		DEPENDS zlib
 		URL "${${project}_url}"

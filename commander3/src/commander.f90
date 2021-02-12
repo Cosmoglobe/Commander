@@ -40,38 +40,42 @@ program commander
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
 
+  !----------------------------------------------------------------------------------
   ! Command line arguments
-  !character(len=*), parameter :: version = '1.0.0'
-  !character(len=32)           :: arg
-  !integer                     :: myint
+  character(len=*), parameter :: version = '1.0.0'
+  character(len=32)           :: arg
+  integer                     :: arg_indx
 
-  !do myint = 1, command_argument_count()
-  !  call get_command_argument(myint, arg)
+  ! Giving the simple command line arguments for user to chose from.
+  comm3_args: do arg_indx = 1, command_argument_count()
+    call get_command_argument(arg_indx, arg)
 
-  !  select case (arg)
-  !    case ('-v', '--version')
-  !      print '(2a)', 'Commander3 version ', version
-  !      print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
-  !      print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
-  !      print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
-  !      call exit(0)
-  !    case ('-h', '--help')
-  !      call print_help()
-  !      call exit(0)
-  !    case default
-  !      print '(2a, /)', 'Unrecognised command-line option: ', arg
-  !      call print_help()
-  !      call exit(0)
-  !  end select
-  !end do
+    select case (arg)
+      case ('-v', '--version')
+        print '(2a)', 'Commander3 version: '//trim(version)
+        print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
+        print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
+        print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+        call exit(0)
+      case ('-h', '--help')
+        call print_help()
+        call exit(0)
+      case default
+        !print '(2a, /)', 'Unrecognised command-line option: ', arg
+        !call print_help()
+        !call exit(0)
+        exit comm3_args
+    end select
+  end do comm3_args
+  !----------------------------------------------------------------------------------
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
   call wall_time(t0)
-  call mpi_init(ierr)
-  call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
-  call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+  call MPI_Init(ierr)
+  call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
+  call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
   cpar%root = 0
     
   
@@ -86,28 +90,27 @@ program commander
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
-     call mpi_finalize(ierr)
+     call MPI_Finalize(ierr)
      stop
   end if
   if (cpar%myid == cpar%root) call wall_time(t2)
 
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
-     write(*,*) ''
-     write(*,*) '       **********   Commander   *************'
-     write(*,*) ''
+     write(*,*) '----------------------------------------------'
+     write(*,*) '|***********   Commander3   *************'
+     write(*,*) '----------------------------------------------'
      if (cpar%enable_tod_simulations) then
-       write(*,*) '   Regime:                            TOD Simulations'
+       write(*,*) '|  Regime:                            TOD Simulations'
      else
-       write(*,*) '   Regime:                            Data Processing'
+       write(*,*) '|  Regime:                            Data Processing'
      endif
-     write(*,*) '   Number of chains                       = ', cpar%numchain
-     write(*,*) '   Number of processors in first chain    = ', cpar%numprocs_chain
+     write(*,*) '|  Number of chains                       = ', cpar%numchain
+     write(*,*) '|  Number of processors in first chain    = ', cpar%numprocs_chain
      write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '   Time to initialize run = ', t2-t0, ' sec'
-     write(*,fmt='(a,f12.3,a)') '   Time to read in parameters = ', t3-t1, ' sec'
-     write(*,*) ''
-
+     write(*,fmt='(a,f12.3,a)') '|  Time to initialize run = ', t2-t0, ' sec'
+     write(*,fmt='(a,f12.3,a)') '|  Time to read in parameters = ', t3-t1, ' sec'
+     write(*,*) '----------------------------------------------'
   end if
 
 

@@ -23,31 +23,61 @@
 # Together with cURL, CFitsio is required to successfully compile HEALPix.
 #================================================================================
 
+#message(STATUS "---------------------------------------------------------------")
+#if(NOT (CFITSIO_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#	find_package(CFITSIO 3.470)
+#endif()
+
+# TODO: change cfitsio version to 3.49 and figure out how to link cURL correctly.
+# Also, try again to switch to cmake build and try to install healpix on top of it.
 message(STATUS "---------------------------------------------------------------")
 if(NOT (CFITSIO_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-	find_package(CFITSIO 3.47)
+	find_package(CFITSIO 3.470)
 endif()
 
 if(NOT CFITSIO_FOUND)
 	# Creating configure command for CFITSIO
-	set(cfitsio_configure_command 
+	list(APPEND cfitsio_configure_command
 		"${CMAKE_COMMAND}" "-E" "env" 
-		"FC=${COMMANDER3_Fortran_COMPILER}" 
-		"CXX=${COMMANDER3_CXX_COMPILER}" 
-		"CPP=${COMMANDER3_CPP_COMPILER}" 
+		)
+	# If user wanted to enable cURL in CFITSIO
+	# Adding cURL and other installed libraries to PATH variable
+	# because cfitsio is looking for curl-config during configuration.
+	if(CFITSIO_USE_CURL)
+		set(ENV{PATH} 
+			${CMAKE_RUNTIME_OUTPUT_DIRECTORY}:$ENV{PATH}
+			)
+		list(APPEND cfitsio_configure_command
+			"PATH=$ENV{PATH}"
+			)	
+	endif()
+	# Adding the rest of commands to the compilation
+	list(APPEND cfitsio_configure_command 
+		#"FC=${COMMANDER3_Fortran_COMPILER}" 
+		#"CXX=${COMMANDER3_CXX_COMPILER}" 
+		#"CPP=${COMMANDER3_CPP_COMPILER}" 
 		"CC=${COMMANDER3_C_COMPILER}" 
 		"./configure" 
 		"--prefix=<INSTALL_DIR>" 
-		"--enable-curl=${CURL_LIBRARIES}"
-		"--disable-curl"
 		)
+	if(CFITSIO_USE_CURL)
+		list(APPEND cfitsio_configure_command 
+			"--enable-curl"
+			)
+	else()
+		list(APPEND cfitsio_configure_command 
+			"--disable-curl"
+			)
+	endif()
+	#message("${cfitsio_configure_command}")
 	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
 	#------------------------------------------------------------------------------
 	ExternalProject_Add(${project}
 		# specifying that cfitsio depends on the curl project and should be built after it
 		# Note: I have removed curl support from cfitsio, but curl is left here for now
-		DEPENDS curl
+		DEPENDS required_libraries
+						curl
 		URL "${${project}_url}"
 		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
@@ -60,35 +90,44 @@ if(NOT CFITSIO_FOUND)
 		LOG_INSTALL ON
 		# commands how to build the project
 		CONFIGURE_COMMAND "${${project}_configure_command}"
-		#COMMAND ${CMAKE_COMMAND} -E env --unset=PATH PATH=$ENV{PATH} ./configure --prefix=<INSTALL_DIR> 
-		#COMMAND export PATH=${out_install_dir}/include/:${out_lib_dir}/:${out_bin_dir}/curl-config #"${${project}_configure_command}"
-		#COMMAND export PATH=$PATH:/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild2/build/install/bin #"${${project}_configure_command}"
-		#COMMAND ${CMAKE_COMMAND} -E env FC=${CMAKE_Fortran_COMPILER} CXX=${CMAKE_CXX_COMPILER} CC=${CMAKE_C_COMPILER} MPCC=${CMAKE_C_COMPILER} MPFC=${CMAKE_Fortran_COMPILER} MPCXX=${CMAKE_CXX_COMPILER} ./configure --prefix=<INSTALL_DIR> --disable-curl # <= if specified manually, the cmake args will not work
-		#COMMAND ${CMAKE_COMMAND} -E env FC=${MPI_Fortran_COMPILER} CXX=${MPI_CXX_COMPILER} CPP=${COMMANDER3_CPP_COMPILER} CC=${MPI_C_COMPILER} ./configure --prefix=<INSTALL_DIR> --disable-curl # <= if specified manually, the cmake args will not work
-		#CMAKE_ARGS
-		# specifying where to find curl library
-		#-DCURL_INCLUDE_DIR:PATH=${CURL_INCLUDE_DIR}
-		#-DCURL_BINARY_DIR:PATH=${CURL_BINARY_DIR}
-		#-DCURL_SOURCE_DIR:PATH=${CURL_SOURCE_DIR}
-		#-DCURL_LIBRARIES:PATH=${CURL_LIBRARIES}
-		# specifying where to install CFitsio
-		# (and how to install it)
-		#-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-		#-DBUILD_SHARED_LIBS:BOOL=OFF
-		# specifying build command
-		#BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Debug #--target INSTALL
-		#BUILD_IN_SOURCE 1	
 		)
-
+	#------------------------------------------------------------------------------
 	# setting cfitsio library and include variables
-	set(CFITSIO_LIBRARIES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX})
-	set(CFITSIO_INCLUDES "${CMAKE_INSTALL_PREFIX}/include/")
-	include_directories(${CFITSIO_INCLUDES})
-
+	# Note: for some reason, only set() works but not list(APPEND)
+	if(CFITSIO_USE_CURL)
+		set(CFITSIO_LIBRARIES 
+			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+			"${CURL_LIBRARIES}"
+			)
+	else()
+		set(CFITSIO_LIBRARIES 
+			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+			)
+	endif()
+	set(CFITSIO_INCLUDE_DIRS
+		"${CMAKE_INSTALL_PREFIX}/include/"
+		)
+	include_directories(${CFITSIO_INCLUDE_DIRS})
+	#------------------------------------------------------------------------------
 	message(STATUS "CFITSIO LIBRARIES will be: ${CFITSIO_LIBRARIES}")
-	message(STATUS "CFITSIO INCLUDE DIR will be: ${CFITSIO_INCLUDES}")
+	message(STATUS "CFITSIO INCLUDE DIRS will be: ${CFITSIO_INCLUDE_DIRS}")
+	#------------------------------------------------------------------------------
 else()
 	# adding empty targets in case CFITSIO was found on the system
 	add_custom_target(${project} ALL "")
-	include_directories(${CFITSIO_INCLUDES})
+	include_directories(${CFITSIO_INCLUDE_DIRS})
+	if(CFITSIO_USE_CURL)
+		set(CFITSIO_LIBRARIES
+			"${CFITSIO_LIBRARY}"
+			"${CURL_LIBRARIES}"
+			)
+	else()
+		set(CFITSIO_LIBRARIES
+			"${CFITSIO_LIBRARY}"
+			)
+	endif()
+	#------------------------------------------------------------------------------
+	message(STATUS "CFITSIO LIBRARIES are: ${CFITSIO_LIBRARIES}")
+	message(STATUS "CFITSIO INCLUDE DIRS are: ${CFITSIO_INCLUDE_DIRS}")
+	#------------------------------------------------------------------------------
 endif()
