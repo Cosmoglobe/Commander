@@ -30,7 +30,7 @@ contains
 
  ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix, dospike)
+  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix, dospike, tod_arr)
     implicit none
     class(comm_tod),               intent(in)     :: self
     type(planck_rng),                  intent(inout)  :: handle
@@ -38,6 +38,7 @@ contains
     integer(i4b),   dimension(1:,1:),  intent(in)     :: pix
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
     logical(lgt),            intent(in), optional     :: dospike
+    integer(i4b),  dimension(:,:),  intent(in), optional   :: tod_arr
     real(sp),          dimension(:,:), intent(out)    :: n_corr
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
@@ -78,7 +79,7 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - self%scans(scan)%d(i)%baseline &
+       d_prime(:) = tod_arr(:, i) - self%scans(scan)%d(i)%baseline &
                 &- S_sub(:,i) * gain
 
        sigma_0 = abs(self%scans(scan)%d(i)%sigma0)
@@ -188,7 +189,7 @@ contains
           write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
           open(65,file=trim(filename),status='REPLACE')
           do j = 1, ntod
-             write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+             write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
           end do
           close(65)
           !stop
@@ -800,12 +801,13 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
+  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr, tod_arr)
     implicit none
     class(comm_tod),             intent(inout)  :: self
     type(planck_rng),                intent(inout)  :: handle
     integer(i4b),                    intent(in)     :: scan
     real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
+    integer(i4b),        dimension(:,:), intent(in), optional     :: tod_arr
     
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
@@ -850,10 +852,10 @@ contains
 
        do j = 1, self%scans(scan)%ntod-1
           if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = (self%scans(scan)%d(i)%tod(j) - &
+          res = (tod_arr(j, i) - &
                & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
                & n_corr(j,i)) - &
-               & (self%scans(scan)%d(i)%tod(j+1) - &
+               & (tod_arr(j+1, i) - &
                & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
                & n_corr(j+1,i))))/sqrt(2.)
           s = s + res**2
@@ -1223,7 +1225,7 @@ contains
 
   ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr2(tod, handle, scan, mask, s_sub, n_corr)
+  subroutine sample_n_corr2(tod, handle, scan, mask, s_sub, n_corr, tod_arr)
     implicit none
     class(comm_tod),               intent(in)     :: tod
     type(planck_rng),                  intent(inout)  :: handle
@@ -1239,6 +1241,7 @@ contains
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+    integer(i4b),  dimension(:,:),  intent(in), optional   :: tod_arr
     
     ntod = tod%scans(scan)%ntod
     ndet = tod%ndet
@@ -1279,7 +1282,7 @@ contains
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        j       = j+1
        gain    = tod%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime = tod%scans(scan)%d(i)%tod - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
+       d_prime = tod_arr(:,i) - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
        sigma_0 = tod%scans(scan)%d(i)%sigma0
 
        call wall_time(t1)       
