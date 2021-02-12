@@ -846,7 +846,6 @@ contains
          allocate (v     (0:npix-1, nmaps))
 
          cg_sol = 0.0d0
-         cg_sol(:,:,1) = map_sky(:,:,0,1)
          epsil(1)   = 1d-10
          epsil(2:6) = 1.d-6
          i_max = 100
@@ -861,7 +860,12 @@ contains
          if (self%myid==0) then
             if (self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
             call update_status(status, "Starting bicg-stab")
-            r  = b_map(:, :, l)
+            if (.false. .and. l == 1) then
+               call compute_Ax(self, self%x_im, procmask, cg_sol(:,:,1), v)
+               r = b_map(:, :, l) - v 
+            else
+               r  = b_map(:, :, l)
+            end if
             r0 = b_map(:, :, l)
             if (maxval(r) == 0) cycle
             delta_r = sum(r**2/M_diag)
@@ -880,6 +884,14 @@ contains
                   p = r
                else
                   beta = (rho_new/rho_old) * (omega/alpha)
+!!$                  write(*,*) 'rho_new', rho_new
+!!$                  write(*,*) 'rho_old', rho_old
+!!$                  write(*,*) 'omega', omega
+!!$                  write(*,*) 'alpha', alpha
+!!$                  write(*,*) 'beta', beta
+!!$                  write(*,*) 'r', sum(abs(r))
+!!$                  write(*,*) 'p', sum(abs(p))
+!!$                  write(*,*) 'v', sum(abs(v))
                   p = r + beta*(p - omega*v)
                end if
                phat = p/M_diag
@@ -912,7 +924,7 @@ contains
                omega         = sum(q*s)/sum(q**2)
                cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
 
-               if (mod(i, 10) == 1) then
+               if (mod(i, 10) == 1 .or. beta > 1.d8) then
                   call update_status(status, 'r = b - Ax')
                   call compute_Ax(self, self%x_im, procmask, cg_sol(:,:,l), r)
                   r = b_map(:, :, l) - r

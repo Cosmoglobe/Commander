@@ -938,8 +938,8 @@ contains
          case ('023-WMAP_K')
              ! I think this is the width of the number of scans to smooth the
              ! gain estimate over. Could be worth experimenting on this one.
-             window_size_dipole_minimum = 1200 !120
-             window_size_dipole_maximum =  400 ! 40
+             window_size_dipole_minimum =  7 !120
+             window_size_dipole_maximum =  7 ! 40
          ! Currently, the 70-GHz ds
          case default
             window_size_dipole_minimum = 7 !1800

@@ -184,7 +184,7 @@ contains
           n_corr(:,i) = dt(1:ntod) 
        end if
 
-       if (mod(self%scanid(scan),100) == 1) then
+       if (.false. .and. mod(self%scanid(scan),100) == 1) then
           write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
           open(65,file=trim(filename),status='REPLACE')
           do j = 1, ntod
@@ -832,7 +832,7 @@ contains
        prior_fknee = [0.001d0, 0.25d0]
        prior_alpha = [-3.0d0, -0.4d0]
     else if (trim(self%freq) == '023-WMAP_K') then
-       prior_fknee = [0.01d0,1.0d0]
+       prior_fknee = [0.0001d0,1.0d0]
        prior_alpha = [-3d0, -0.4d0]
     else if (trim(self%freq) == '061-WMAP_V2') then
        prior_fknee = [0.0001d0,1.0d0]
