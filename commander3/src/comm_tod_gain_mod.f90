@@ -34,13 +34,14 @@ contains
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle, mask_lowres)
+   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle, mask_lowres, tod_arr)
     implicit none
     class(comm_tod),                      intent(inout) :: tod
     real(sp),             dimension(:,:), intent(in)    :: s_invN, mask, s_ref, s_tot
     integer(i4b),                         intent(in)    :: scan_id
     type(planck_rng),                     intent(inout)  :: handle
     real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
+    integer(i4b),         dimension(:,:), intent(in), optional :: tod_arr
 
 
     real(sp), allocatable, dimension(:,:) :: residual
@@ -65,7 +66,7 @@ contains
           residual(:,j) = 0.d0
           cycle
        end if
-       r_fill = tod%scans(scan_id)%d(j)%tod - tod%scans(scan_id)%d(j)%baseline & 
+       r_fill = tod_arr(:, j) - tod%scans(scan_id)%d(j)%baseline & 
          & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -127,12 +128,12 @@ contains
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline &
+          write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline &
           & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline
+          write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline
        end do
        close(58)
     end if
@@ -461,7 +462,7 @@ contains
 !       & s_orb, A_abs, b_abs)
    ! This is implementing equation 16, adding up all the terms over all the sums
    ! the sum i is over the detector.
-   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres, mask_lowres)
+   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres, mask_lowres, tod_arr)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
@@ -472,6 +473,7 @@ contains
     logical(lgt), intent(in) :: out
     real(sp),          dimension(:,:), intent(in), optional :: s_highres
     real(sp),          dimension(:,:), intent(in), optional :: mask_lowres
+    integer(i4b),      dimension(:,:), intent(in), optional :: tod_arr
  
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
@@ -490,7 +492,7 @@ contains
           residual(:,j) = 0.
           cycle
        end if
-       r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
+       r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
@@ -541,7 +543,7 @@ contains
 
        open(58,file='gainfit4_'//itext//'.dat')       
        do i = 1, size(s_sub,1)
-          write(58,*) i, tod%scans(scan)%d(4)%tod(i) - tod%scans(scan)%d(4)%baseline
+          write(58,*) i, tod_arr(i, 4) - tod%scans(scan)%d(4)%baseline
        end do
        write(58,*)
        do i = 1, size(s_sub,1)
