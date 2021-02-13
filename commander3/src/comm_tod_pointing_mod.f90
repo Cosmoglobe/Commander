@@ -104,18 +104,22 @@ contains
       real(sp), dimension(:, :), intent(out), optional :: s_bpA, s_bpB
 
       integer(i4b) :: i, j, lpoint, rpoint, det
-      real(sp)                                          :: sA, sB
+      real(sp)                                          :: sA, sB, tr, pr, tl, pl
       real(sp), dimension(4) :: sgn=[1., 1., -1., -1.]
-      tmask = 1.
+
+
+      if (any(.not. tod%scans(scan_id)%d(:)%accept)) then
+         s_skyA = 0.
+         s_skyB = 0.
+         tmask  = 0.
+         if (present(s_bpA) .and. present(s_bpB)) then
+            s_bpA = 0.
+            s_bpB = 0.
+         end if
+         return
+      end if
 
       do i = 1, tod%ndet
-         if (.not. tod%scans(scan_id)%d(i)%accept) then
-            s_skyA(:, i) = 0.
-            s_skyB(:, i) = 0.
-            tmask(:, i) = 0.
-            cycle
-         end if
-
          do j = 1, tod%scans(scan_id)%ntod
             lpoint = tod%pix2ind(pix(j, 1))
             rpoint = tod%pix2ind(pix(j, 2))
@@ -139,39 +143,32 @@ contains
                        &  sgn(i) *( &
                        &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                        &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
-          
-          
+                    
             ! second flag should be "moon visible over sun shield" 
-            if (flag(j) == 0 .or. flag(j) == 262144) then
-                tmask(j, i) = pmask(pix(j, 1))*pmask(pix(j,2))
-            else
-                tmask(j, i) = 0.
+            if (i == 1) then
+               if (flag(j) == 0 .or. flag(j) == 262144) then
+                  tmask(j, :) = pmask(pix(j, 1))*pmask(pix(j,2))
+               else
+                  tmask(j, :) = 0.
+               end if
             end if
-
-
          end do
       end do
 
       if (present(s_bpA) .and. present(s_bpB)) then
-         do det = 1, tod%ndet
-            if (.not. tod%scans(scan_id)%d(det)%accept) then
-               s_bpA(:, det) = 0.
-               s_bpB(:, det) = 0.
-               cycle
-            end if
-            do i = 1, tod%scans(scan_id)%ntod
-               lpoint = tod%pix2ind(pix(i, 1))
-               rpoint = tod%pix2ind(pix(i, 2))
-               sA = map(1, lpoint, 0) + &
-                        &  sgn(det)*( &
-                        &  map(2, lpoint, 0)*tod%cos2psi(psi(i, 1)) + &
-                        &  map(3, lpoint, 0)*tod%sin2psi(psi(i, 1)))
-               sB = map(1, rpoint, 0) + &
-                        &  sgn(det)*( &
-                        &  map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
-                        &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2)))
-               s_bpA(i, det) = s_skyA(i, det) - sA
-               s_bpB(i, det) = s_skyB(i, det) - sB
+         do i = 1, tod%scans(scan_id)%ntod
+            lpoint = tod%pix2ind(pix(i, 1))
+            rpoint = tod%pix2ind(pix(i, 2))
+            tl     = map(1, lpoint, 0) 
+            tr     = map(1, rpoint, 0) 
+            pl     = map(2, lpoint, 0)*tod%cos2psi(psi(i, 1)) + &
+                  &  map(3, lpoint, 0)*tod%sin2psi(psi(i, 1))
+            pr     = map(2, rpoint, 0)*tod%cos2psi(psi(i, 2)) + &
+                  &  map(3, rpoint, 0)*tod%sin2psi(psi(i, 2))
+
+            do det = 1, tod%ndet      
+               s_bpA(i, det) = s_skyA(i, det) - (tl + sgn(det)*pl) 
+               s_bpB(i, det) = s_skyB(i, det) - (tr + sgn(det)*pr) 
             end do
          end do
       end if
