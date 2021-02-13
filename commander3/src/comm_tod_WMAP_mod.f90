@@ -708,7 +708,7 @@ contains
 
 
                call wall_time(t1)
-               if (.true. .and. i==1 .and. do_oper(bin_map) .and. self%first_call) then
+               if (.false. .and. i==1 .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
                   do k = 1, self%ndet
@@ -855,6 +855,7 @@ contains
 
          cg_sol = 0.0d0
          !cg_sol(:,:,1) = map_sky(:,:,0,1)
+         ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
          epsil(1)   = 1d-10
          epsil(2:6) = 1.d-6
          i_max = 100
@@ -878,7 +879,6 @@ contains
             r0 = b_map(:, :, l)
             if (maxval(r) == 0) cycle
             delta_r = sum(r**2/M_diag)
-            ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
             delta_0 = delta_r
             delta_s = delta_s
 
@@ -889,10 +889,17 @@ contains
             bicg: do i = 1, i_max
                rho_old = rho_new
                rho_new = sum(r0*r)
+               if (rho_new == 0d0) then
+                 write(*,*) 'rho_i is zero'
+                 finished = .true.
+                 call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
+                 exit bicg
+               end if
+
                if (i==1) then
                   p = r
                else
-                  beta = (rho_new/rho_old) * (omega/alpha)
+                  beta = (rho_new/rho_old) * (alpha/omega)
 !!$                  write(*,*) 'rho_new', rho_new
 !!$                  write(*,*) 'rho_old', rho_old
 !!$                  write(*,*) 'omega', omega
@@ -913,10 +920,9 @@ contains
                cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
                s             = r - alpha*v
                shat          = s/M_diag
-               alpha         = rho_new/sum(r0*v)
                delta_s       = sum(s*shat)
 
-               if (self%myid==0 .and. self%verbosity > 1) then 
+               if (self%verbosity > 1) then 
                   write(*,101) 2*i-1, delta_s/delta_0
 101               format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
                end if
@@ -932,6 +938,12 @@ contains
 
                omega         = sum(q*s)/sum(q**2)
                cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
+               if (omega == 0d0) then
+                 write(*,*) 'omega is zero'
+                 finished = .true.
+                 call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
+                 exit bicg
+               end if
 
                if (mod(i, 10) == 1 .or. beta > 1.d8) then
                   call update_status(status, 'r = b - Ax')
