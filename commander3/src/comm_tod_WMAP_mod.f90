@@ -708,7 +708,7 @@ contains
 
 
                call wall_time(t1)
-               if (.true. .and. i==1 .and. do_oper(bin_map) .and. self%first_call) then
+               if (.false. .and. i==1 .and. do_oper(bin_map) .and. self%first_call) then
                   call int2string(self%scanid(i), scantext)
                   if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
                   do k = 1, self%ndet
@@ -855,7 +855,7 @@ contains
 
          cg_sol = 0.0d0
          !cg_sol(:,:,1) = map_sky(:,:,0,1)
-         epsil(1)   = 1d-10
+         epsil(1)   = 1d-9
          epsil(2:6) = 1.d-6
          i_max = 100
          i_min = 0
