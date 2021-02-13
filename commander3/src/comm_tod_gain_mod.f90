@@ -940,12 +940,12 @@ contains
          case ('023-WMAP_K')
              ! I think this is the width of the number of scans to smooth the
              ! gain estimate over. Could be worth experimenting on this one.
-             window_size_dipole_minimum = 1200 !120
-             window_size_dipole_maximum =  400 ! 40
+             window_size_dipole_minimum = 1 !120
+             window_size_dipole_maximum = 1 ! 40
          ! Currently, the 70-GHz ds
          case default
-            window_size_dipole_minimum = 7 !1800
-            window_size_dipole_maximum = 7 !400
+            window_size_dipole_minimum = 1 !1800
+            window_size_dipole_maximum = 1 !400
       end select
 
       do i = 1, tod%nscan_tot
