@@ -917,7 +917,6 @@ contains
                num_cg_iters = num_cg_iters + 1
 
                alpha         = rho_new/sum(r0*v)
-               cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
                s             = r - alpha*v
                shat          = s/M_diag
                delta_s       = sum(s*shat)
@@ -928,6 +927,7 @@ contains
                end if
 
                if (delta_s .le. (delta_0*epsil(l)) .and. 2*i-1 .ge. i_min) then
+                  cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
                   finished = .true.
                   call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
                   exit bicg
@@ -937,7 +937,7 @@ contains
                call compute_Ax(self, self%x_im, procmask, shat, q)
 
                omega         = sum(q*s)/sum(q**2)
-               cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
+               cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat + omega*shat
                if (omega == 0d0) then
                  write(*,*) 'omega is zero'
                  finished = .true.
