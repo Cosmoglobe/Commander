@@ -242,7 +242,7 @@ def test_flags(band=0):
 
 def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         baseline_guesses,
-        band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee, alpha, n_per_day,
+        band_labels, band, psi_A, psi_B, pix_A, pix_B, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version, compress=False):
     prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out =  prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
@@ -261,10 +261,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
               TOD = -TOD
               gain = -gain
                     
-            tod = np.zeros(TOD.size)
-            for n in range(len(TOD[0])):
-                tod[n::len(TOD[0])] = TOD[:,n]
-            todi = np.array_split(tod, n_per_day)[i].astype('int')
+            todi = np.array_split(TOD, n_per_day)[i].astype('int')
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
             scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
 
@@ -339,10 +336,7 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
               gain = -gain
 
 
-            tod = np.zeros(TOD.size)
-            for n in range(len(TOD[0])):
-                tod[n::len(TOD[0])] = TOD[:,n]
-            todi = np.array_split(tod, n_per_day)[i].astype('int')
+            todi = np.array_split(TOD, n_per_day)[i].astype('int')
             deltatod = np.diff(todi)
             deltatod = np.insert(deltatod, 0, todi[0])
 
@@ -468,14 +462,14 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
     f[obsid + '/common/vsun'].attrs['info'] = '[x, y, z]'
     f[obsid + '/common/vsun'].attrs['coords'] = 'galactic'
 
-    dt = dt0/len(TOD[0])
-    time_band = np.arange(time.min(), time.min() + dt*len(tod), dt)
+    dt = dt0/len(TODs[0])
+    time_band = np.arange(time.min(), time.min() + dt*len(TOD), dt)
     f.create_dataset(obsid + '/common/time',
             data=[np.array_split(time_band, n_per_day)[i][0],0,0])
     f[obsid + '/common/time'].attrs['type'] = 'MJD, null, null'
 
     f.create_dataset(obsid + '/common/ntod',
-            data=len(np.array_split(tod,n_per_day)[i]))
+            data=len(np.array_split(TOD,n_per_day)[i]))
 
     if "/common/fsamp" not in f:
         f.create_dataset('/common/fsamp', data=fsamp)
@@ -824,9 +818,6 @@ def ang2pix_multiprocessing(nside, theta, phi):
 
 #@profile(sort_by='cumulative', strip_dirs=True)
 def fits_to_h5(file_input, file_ind, compress, plot, version, center):
-    f_name = file_input.split('/')[-1][:-8]
-
-
     prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v{version}.h5'
     if (os.path.exists(file_out) and file_ind != 1):
@@ -862,101 +853,168 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 
 
-    alpha = -0.5
-    fknee = 0.1
+    alpha = -1
 
     nside = 512
     ntodsigma = 100
     npsi = 2048
     psiBins = np.linspace(0, 2*np.pi, npsi)
-    fsamp = 1.536 # A single TOD record contains 30 1.536 second major science frames
+    fsamp = 1/1.536 # A single TOD record contains 30 1.536 second major science frames
     chunk_size = 1875
     nsamp = chunk_size*fsamp
     n_per_day = 1
 
 
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-    #bands = ['K1']
 
     t2jd = 2.45e6
 
-    data = fits.open(file_input, memmap=False)
+    TODs_all = [
+        [],[],[],[],[],[],[],[],[],[],
+        [],[],[],[],[],[],[],[],[],[],
+        [],[],[],[],[],[],[],[],[],[],
+        [],[],[],[],[],[],[],[],[],[]]
+    flags_all = [[],[],[],[],[],[],[],[],[],[]]
+    psi_A_all = [[],[],[],[],[],[],[],[],[],[]]
+    psi_B_all = [[],[],[],[],[],[],[],[],[],[]]
+    pix_A_all = [[],[],[],[],[],[],[],[],[],[]]
+    pix_B_all = [[],[],[],[],[],[],[],[],[],[]]
+    pos_all = []
+    vel_all = []
+    time_all = []
+    for fi in file_input:
+        data = fits.open(fi, memmap=False)
 
-    band_labels = data[2].columns.names[1:-6]
+        band_labels = data[2].columns.names[1:-6]
 
-    # Returns the gain model estimate at the start of each frame.
-    gain_guesses = []
-    for i in range(len(band_labels)):
-        t_jd, gain = get_gain(data, band_labels[i])
-        gain_split = np.array_split(gain, n_per_day)
-        gain_guesses.append([g.mean() for g in gain_split])
-    gain_guesses = np.array(gain_guesses)
-    if (version == 'cal'):
-        gain_guesses = gain_guesses*0 + 1
+        # Returns the gain model estimate at the start of each frame.
+        gain_guesses = []
+        for i in range(len(band_labels)):
+            t_jd, gain = get_gain(data, band_labels[i])
+            gain_split = np.array_split(gain, n_per_day)
+            gain_guesses.append([g.mean() for g in gain_split])
+        gain_guesses = np.array(gain_guesses)
+        if (version == 'cal'):
+            gain_guesses = gain_guesses*0 + 1
 
 
 
-    TODs = []
-    for key in band_labels:
-        TODs.append(data[2].data[key])
+        TODs = []
+        for index, key in enumerate(band_labels):
+            TOD = data[2].data[key]
+            tod = np.zeros(TOD.size)
+            for n in range(len(TOD[0])):
+                tod[n::len(TOD[0])] = TOD[:,n]
+            TODs.append(tod)
+            if len(TODs_all[index]) == 0:
+              TODs_all[index] = tod
+            else:
+              TODs_all[index] = np.concatenate((TODs_all[index], tod))
 
-    
-    
+        
+        
    
-    # position (and velocity) in km(/s) in Sun-centered coordinates
-    pos = data[1].data['POSITION']*1e3
-    vel = data[1].data['VELOCITY']*1e3
+        # position (and velocity) in km(/s) in Sun-centered coordinates
+        pos = data[1].data['POSITION']*1e3
+        vel = data[1].data['VELOCITY']*1e3
 
 
-    pos = coord_trans(pos, 'C', 'G', lonlat=False)
-    vel = coord_trans(vel, 'C', 'G', lonlat=False)
-    # time2jd = 2.45e6, converts table time (modified reduced Julian day) to Julian day, for both...
-    time_aihk = data[1].data['TIME'] + t2jd
+        pos = coord_trans(pos, 'C', 'G', lonlat=False)
+        vel = coord_trans(vel, 'C', 'G', lonlat=False)
+
+        time_aihk = data[1].data['TIME'] + t2jd
+        time = data[2].data['TIME'] + t2jd - 24000000.5
+        
+        if len(pos_all) == 0:
+          pos_all = pos
+          vel_all = vel
+          time_all = time
+        else:
+          pos_all = np.concatenate((pos_all, pos))
+          vel_all = np.concatenate((vel_all, pos))
+          time_all = np.concatenate((time_all, time))
+
+        dt0 = np.median(np.diff(time))
+
+        quat = data[1].data['QUATERN']
+        gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center)
+
+        # If genflags == 1, there is an issue with the spacecraft attitude. This
+        # appears to be the quaternion problem.
+        # v14: add genflags somehow.
+        genflags = data[2].data['genflags']*2**11
+        daflags = data[2].data['daflags']
+        #daflags = get_flags(data)
+        for i in range(10):
+            daflags[:,i] += genflags
+            if len(flags_all[i]) == 0:
+              flags_all[i] = daflags[:,i]
+            else:
+              flags_all[i] = np.concatenate((flags_all[i], daflags[:,i]))
+        data.close()
 
 
+        psi_A = get_psi(gal_A, pol_A, band_labels[::4])
+        psi_B = get_psi(gal_B, pol_B, band_labels[1::4])
 
 
-
-
-    time = data[2].data['TIME'] + t2jd - 24000000.5
-
-    dt0 = np.median(np.diff(time))
-
-    quat = data[1].data['QUATERN']
-    gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center)
-
-    # If genflags == 1, there is an issue with the spacecraft attitude. This
-    # appears to be the quaternion problem.
-    # v14: add genflags somehow.
-    genflags = data[2].data['genflags']*2**11
-    daflags = data[2].data['daflags']
-    #daflags = get_flags(data)
-    for i in range(10):
-        daflags[:,i] += genflags
-
-    data.close()
-
-
-    psi_A = get_psi(gal_A, pol_A, band_labels[::4])
-    psi_B = get_psi(gal_B, pol_B, band_labels[1::4])
-
-
-    args_A = [(nside, gal_A[i][:,0], gal_A[i][:,1]) for i in range(len(gal_A))]
-    args_B = [(nside, gal_B[i][:,0], gal_B[i][:,1]) for i in range(len(gal_B))]
-    pix_A = []
-    pix_B = []
-    for i in range(len(args_A)):
-        pix_A.append(ang2pix_multiprocessing(*args_A[i]))
-        pix_B.append(ang2pix_multiprocessing(*args_B[i]))
+        args_A = [(nside, gal_A[i][:,0], gal_A[i][:,1]) for i in range(len(gal_A))]
+        args_B = [(nside, gal_B[i][:,0], gal_B[i][:,1]) for i in range(len(gal_B))]
+        pix_A = []
+        pix_B = []
+        for i in range(len(args_A)):
+            pix_A.append(ang2pix_multiprocessing(*args_A[i]))
+            pix_B.append(ang2pix_multiprocessing(*args_B[i]))
+        for b in range(10):
+          if len(psi_A_all[b]) == 0:
+            psi_A_all[b] = psi_A[b]
+            psi_B_all[b] = psi_B[b]
+            pix_A_all[b] = pix_A[b]
+            pix_B_all[b] = pix_B[b]
+          else:
+            psi_A_all[b] = np.concatenate((psi_A_all[b], psi_A[b]))
+            psi_B_all[b] = np.concatenate((psi_B_all[b], psi_B[b]))
+            pix_A_all[b] = np.concatenate((pix_A_all[b], pix_A[b]))
+            pix_B_all[b] = np.concatenate((pix_B_all[b], pix_B[b]))
 
 
     obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
+    pos_all = np.array(pos_all)
+    vel_all = np.array(vel_all)
+    time_all = np.array(time_all)
+    flags_all = np.array(flags_all).T
+    #print('TODs[1].shape')
+    #print(TODs[1].shape)
+    #print('TODs_all[1].shape')
+    #print(TODs_all[1].shape)
+    #print('psi_A[0].shape')
+    #print(psi_A[0].shape)
+    #print('len(psi_A[0])')
+    #print(len(psi_A[0]))
+    #print('len(psi_A_all[0])')
+    #print(len(psi_A_all[0]))
+    #print('pos.shape')
+    #print(pos.shape)
+    #print('pos_all.shape')
+    #print(pos_all.shape)
+    #print('time_all.shape')
+    #print(time_all.shape)
+    #print('time.shape')
+    #print(time.shape)
+    #print('daflags.shape')
+    #print(daflags.shape)
+    #print('flags_all.shape')
+    #print(flags_all.shape)
     for ind, band in enumerate(bands):
-        args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses, baseline,
-                    band_labels, band, psi_A, psi_B, pix_A, pix_B, fknee,
-                    alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
-                    fsamp*Nobs_array[ind], pos, vel, time, version, compress) for i in range(len(obs_inds))]
+        #args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses, baseline,
+        #            band_labels, band, psi_A, psi_B, pix_A, pix_B, 
+        #            alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
+        #            fsamp*Nobs_array[ind], pos, vel, time, version, compress) for i in range(len(obs_inds))]
+        args = [(file_ind, i, obsids[i], obs_inds[i], flags_all, TODs_all, gain_guesses, baseline,
+                band_labels, band, psi_A_all, psi_B_all, pix_A_all, pix_B_all, 
+                alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
+                fsamp*Nobs_array[ind], pos_all, vel_all, time_all, version, compress) for i in range(len(obs_inds))]
         for i in range(n_per_day):
             write_file_parallel(*args[i])
 
@@ -990,9 +1048,13 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
     #inds = inds[3*len(files)//4:]
     #files = np.array(files)[3*len(files)//4:]
 
+    files = np.array_split(np.array(files), 3280//7)
+    inds = np.arange(len(files))
+
+
 
     if par:
-        nprocs = 64
+        nprocs = 72
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -1015,5 +1077,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=35, center=True)
     #main(par=True, plot=False, compress=True, version=36, center=True)
     #main(par=True, plot=False, compress=True, version=37, center=True)
-    main(par=True, plot=False, compress=True, version=38, center=True)
+    #main(par=True, plot=False, compress=True, version=38, center=True)
+    main(par=True, plot=False, compress=True, version=39, center=True)
     #test_flags()
