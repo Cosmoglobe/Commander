@@ -889,6 +889,13 @@ contains
             bicg: do i = 1, i_max
                rho_old = rho_new
                rho_new = sum(r0*r)
+               if (rho_new == 0d0) then
+                 write(*,*) 'rho_i is zero'
+                 finished = .true.
+                 call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
+                 exit bicg
+               end if
+
                if (i==1) then
                   p = r
                else
