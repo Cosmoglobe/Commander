@@ -82,7 +82,7 @@ export MPFCLIBS := -qopenmp
 # instead of lowercase (*.mod).
 #export FORTRAN_UPPER := 1
 
-export LOCAL=build
+export LOCAL=../../build
 
 # =============== CFITSIO Linking ================
 
