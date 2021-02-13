@@ -185,7 +185,7 @@ contains
           n_corr(:,i) = dt(1:ntod) 
        end if
 
-       if (mod(self%scanid(scan),100) == 1) then
+       if (.false. .and. mod(self%scanid(scan),100) == 1) then
           write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
           open(65,file=trim(filename),status='REPLACE')
           do j = 1, ntod
