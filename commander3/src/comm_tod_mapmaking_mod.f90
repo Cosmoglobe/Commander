@@ -121,7 +121,8 @@ contains
       if (tod%scans(scan)%d(1)%accept) then
          var = 0.d0
          do det = 1, 4
-           var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2
+           !var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2
+           var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2/4
          end do
          inv_sigmasq = 1.d0/var
          do t = 1, tod%scans(scan)%ntod
@@ -220,7 +221,8 @@ contains
 
             var = 0.d0
             do k = 1, 4
-               var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2
+               !var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2
+               var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2/4
             end do
             inv_sigmasq = 1.d0/var
 
