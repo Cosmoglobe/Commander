@@ -798,7 +798,7 @@ contains
        allocate(map(0:self%info%npix-1,self%info%nmaps))
        if (present(udgrade)) then
           allocate(map_in(0:npix-1,self%info%nmaps))
-          call input_map(filename, map_in, npix, self%info%nmaps)
+          call input_map(filename, map_in, npix, self%info%nmaps, ignore_polcconv=.false.)
           if (ordering == 1) then
              call udgrade_ring(map_in, nside, map, nside_out=self%info%nside)
           else
@@ -806,7 +806,7 @@ contains
           end if
           deallocate(map_in)
        else
-          call input_map(filename, map, self%info%npix, self%info%nmaps)
+          call input_map(filename, map, self%info%npix, self%info%nmaps, ignore_polcconv=.false.)
        end if
 
        if (present(mask)) then
