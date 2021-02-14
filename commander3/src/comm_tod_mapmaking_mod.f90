@@ -119,12 +119,12 @@ contains
       x_im = 0.5*(x_imarr(1) + x_imarr(2))
 
       if (tod%scans(scan)%d(1)%accept) then
-         var = 0.d0
+         inv_sigmasq = 0.d0 
          do det = 1, 4
-           !var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2
            var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2/4
+           !inv_sigmasq = inv_sigmasq  + (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
          end do
-         inv_sigmasq = 1.d0/var
+         inv_sigmasq = 1/var
          do t = 1, tod%scans(scan)%ntod
             if (flag(t) /= 0 .and. flag(t) /= 262144) cycle
 
@@ -219,10 +219,10 @@ contains
             call tod%decompress_pointing_and_flags(j, 1, pix, &
                 & psi, flag)
 
-            var = 0.d0
+            inv_sigmasq = 0.d0 
             do k = 1, 4
-               !var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2
                var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2/4
+               !inv_sigmasq = inv_sigmasq  + (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
             end do
             inv_sigmasq = 1.d0/var
 
