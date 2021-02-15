@@ -21,6 +21,7 @@
 module comm_tod_noise_mod
   use comm_tod_mod
   use comm_utils
+  use comm_fft_mod
   use InvSamp_mod
   implicit none
 
@@ -44,10 +45,10 @@ contains
     logical(lgt) :: init_masked_region, end_masked_region, pcg_converged
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c
     real(dp)     :: nu, power, fft_norm
-    ! real(sp),     allocatable, dimension(:) :: dt
-    ! complex(spc), allocatable, dimension(:) :: dv
-    real(dp),     allocatable, dimension(:) :: dt
-    complex(dpc), allocatable, dimension(:) :: dv
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
+    ! real(dp),     allocatable, dimension(:) :: dt
+    ! complex(dpc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2
     character(len=1024) :: filename
 
@@ -55,17 +56,17 @@ contains
     ndet = self%ndet
     nomp = omp_get_max_threads()
     
-    nfft = 2 * ntod
-    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
+    ! nfft = 2 * ntod
+    nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
     
     n = nfft / 2 + 1
 
-    call dfftw_init_threads(err)
-    call dfftw_plan_with_nthreads(nomp)
+    call sfftw_init_threads(err)
+    call sfftw_plan_with_nthreads(nomp)
 
     allocate(dt(nfft), dv(0:n-1))
-    call dfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
-    call dfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
     !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
@@ -140,15 +141,15 @@ contains
        if (.not. pcg_converged) then
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
-          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-          ! nbuff = nfft - ntod
-          ! do j=1, nbuff
-          !    dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
-          ! end do
+          ! dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          nbuff = nfft - ntod
+          do j=1, nbuff
+             dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
+          end do
 
 
 
-          call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 
 
           fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
@@ -176,7 +177,7 @@ contains
                 dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
              end if
           end do
-          call dfftw_execute_dft_c2r(plan_back, dv, dt)
+          call sfftw_execute_dft_c2r(plan_back, dv, dt)
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
        end if
@@ -319,10 +320,10 @@ contains
     real(dp),    allocatable,      dimension(:) :: invNcorr, invM
     integer(i4b),    allocatable,  dimension(:) :: u
     real(dp)           :: r2, r2new, alp, bet, eps, freq, d2, sigma_bp
-    real(dp),     allocatable, dimension(:) :: dt
-    complex(dpc), allocatable, dimension(:) :: dv
-    ! real(sp),     allocatable, dimension(:) :: dt
-    ! complex(spc), allocatable, dimension(:) :: dv
+    ! real(dp),     allocatable, dimension(:) :: dt
+    ! complex(dpc), allocatable, dimension(:) :: dv
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
     integer(i4b) :: i, j, k, l, ntod, n, n_iter, nmask
     character(len=1024) :: filename
 
@@ -437,21 +438,21 @@ contains
       real(dp),  dimension(:), intent(out)   :: res
       !real(sp),  dimension(:)  :: apply_fourier_mat
       integer(i4b), intent(in) :: nfft 
-      real(dp),      dimension(:), intent(inout) :: dt
-      complex(dpc), dimension(0:), intent(inout) :: dv
-      ! real(sp),     allocatable, dimension(:), intent(inout) :: dt
-      ! complex(spc), allocatable, dimension(:), intent(inout) :: dv
+      ! real(dp),      dimension(:), intent(inout) :: dt
+      ! complex(dpc), dimension(0:), intent(inout) :: dv
+      real(sp),     allocatable, dimension(:), intent(inout) :: dt
+      complex(spc), allocatable, dimension(:), intent(inout) :: dv
       integer(i4b) :: i, j, k, l, ntod, n
       n = nfft / 2 + 1
       ntod = size(vec, 1)
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
 
-      call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
       do l = 0, n-1
          dv(l) = dv(l) * mat(l)
       end do
-      call dfftw_execute_dft_c2r(plan_back, dv, dt)
+      call sfftw_execute_dft_c2r(plan_back, dv, dt)
       dt = dt / nfft
       res(:) = dt(1:ntod)
       
