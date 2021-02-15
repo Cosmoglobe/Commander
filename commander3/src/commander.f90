@@ -106,11 +106,11 @@ program commander
      else
        write(*,*) '|  Regime:                            Data Processing'
      endif
-     write(*,*) '|  Number of chains                       = ', cpar%numchain
-     write(*,*) '|  Number of processors in first chain    = ', cpar%numprocs_chain
+     write(*,fmt='(a,2i)') ' |  Number of chains                       = ', cpar%numchain
+     write(*,fmt='(a,2i)') ' |  Number of processors in first chain    = ', cpar%numprocs_chain
      write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '|  Time to initialize run = ', t2-t0, ' sec'
-     write(*,fmt='(a,f12.3,a)') '|  Time to read in parameters = ', t3-t1, ' sec'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to initialize run                 = ', t2-t0, ' sec'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to read in parameters             = ', t3-t1, ' sec'
      write(*,*) '----------------------------------------------'
   end if
 
