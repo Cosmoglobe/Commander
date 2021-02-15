@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
-HEALPIX_ROOT=/mn/stornext/u3/maksymb/commander/bp8.1_sims/build_owl29-30r/install/healpix
-COMM3_BIN=/mn/stornext/u3/maksymb/commander/bp8.1_sims/build_owl29-30r/install/bin/commander3
+HEALPIX_ROOT=/path/to/healpix/root/healpix
+COMM3_BIN=/path/to/commander/binary/commander3
 PARAM_FILE=proc_BP8.1.txt
 CHAINS_DIR=proc_chains
 OUT_FILE=slurm.txt

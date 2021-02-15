@@ -32,7 +32,7 @@
 # - "RelWithDebInfo" builds library/executable w/ less aggressive optimizations and w/ debug symbols;
 # - "MinSizeRel" builds library/executable w/ optimizations that do not increase object code size. 
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE Release
+	set(CMAKE_BUILD_TYPE RelWithDebInfo
 		CACHE STRING
 		"Specifies the Build type. Available options are: Release, Debug, RelWithDebInfo, MinSizeRel. Default: Release." FORCE)
 endif()

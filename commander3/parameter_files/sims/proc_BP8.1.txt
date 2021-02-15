@@ -15,7 +15,7 @@ NUM_GIBBS_ITER                = 300     # Put this to 3 in simulation mode # Len
 BASE_SEED                     = 163425  # Seed for random number generator
 CHAIN_STATUS                  = append
 NUM_INIT_CHAINS               = 1
-INIT_CHAIN01                  = "/mn/stornext/d16/cmbco/bp/maksym/data_BP8/chain_init_for_BP8.1_v1.h5:27" 
+INIT_CHAIN01                  = "/path/to/data/dir/data_BP8/chain_init_for_BP8.1_v1.h5:27" 
 
 NUM_GIBBS_STEPS_PER_TOD_SAMPLE = 1
 
@@ -30,7 +30,7 @@ ENABLE_TOD_SIMULATIONS        = .false.
 TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 10
 TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER = 10
 TOD_INCLUDE_ZODI              = .false.
-FFTW3_MAGIC_NUMBERS           = '/mn/stornext/d16/cmbco/bp/maksym/data_BP8/fft3_magic_numbers_230810.txt'
+FFTW3_MAGIC_NUMBERS           = '/path/to/data/dir/data/data_BP8/fft3_magic_numbers_230810.txt'
 
 # Options for CMB resampling (for constrained realization production)
 RESAMPLE_CMB                  = .false.
@@ -56,7 +56,7 @@ IGNORE_GAIN_AND_BANDPASS_CORR = .false.
 ##############################################################
 
 OUTPUT_DIRECTORY              = proc_chains
-SIMS_OUTPUT_DIRECTORY         = "/mn/stornext/d16/cmbco/bp/maksym/results_bp/simulated_tods"
+SIMS_OUTPUT_DIRECTORY         = "/full/path/to/sims/dir/simulated_tods"
 THINNING_FACTOR               = 10
 NSIDE_CHISQ                   = 16
 POLARIZATION_CHISQ            = .true.
@@ -73,7 +73,7 @@ OUTPUT_SIGNALS_PER_BAND       = .false.
 #                         Data sets                          #
 ##############################################################	
 
-DATA_DIRECTORY                 = "/mn/stornext/d16/cmbco/bp/maksym/data_BP8"
+DATA_DIRECTORY                 = "/full/path/to/data/dir/data_BP8"
 NUMBAND                        = 14
 
 # LFI
