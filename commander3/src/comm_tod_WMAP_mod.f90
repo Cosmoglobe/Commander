@@ -218,6 +218,7 @@ contains
       real(dp) :: alpha, beta, g, f_quad
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
+      real(dp), allocatable, dimension(:)       :: map_full
       logical(lgt) :: write_cg_iter=.false.
 
 
@@ -276,6 +277,10 @@ contains
 
       ! Distribute fullsky maps
       allocate (m_buf(0:npix - 1, nmaps))
+      if (self%myid == 0) then
+         allocate(map_full(0:npix-1))
+         map_full = 0.d0
+      end if
       do j = 1, ndelta
          do i = 1, self%ndet
             map_in(i, j)%p%map = map_in(i, j)%p%map
@@ -287,6 +292,7 @@ contains
             do k = 1, self%nobs
                map_sky(:, k, i, j) = m_buf(self%ind2pix(k), :)
             end do
+            if (self%myid == 0 .and. j == 1) map_full = map_full + m_buf(:,1)
          end do
          do k = 1, self%nobs
             do l = 1, nmaps
@@ -294,6 +300,7 @@ contains
             end do
          end do
       end do
+      if (self%myid == 0) map_full = map_full/self%ndet
       deallocate (m_buf)
 !      call mpi_finalize(ierr)
 !      stop
@@ -967,6 +974,12 @@ contains
                   exit bicg
                end if
             end do bicg
+
+            if (l == 1) then
+               ! Set monopole
+               cg_sol(:,1,1) = cg_sol(:,1,1) - sum((cg_sol(:,1,1)-map_full)*procmask)/sum(procmask)
+               deallocate(map_full)
+            end if
          else
             loop: do while (.true.) 
                call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
