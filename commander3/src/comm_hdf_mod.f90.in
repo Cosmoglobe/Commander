@@ -431,7 +431,6 @@ contains
     
   end subroutine read_hdf_string2
 
-
   ! *****************************************************
   ! Set write operations
   ! *****************************************************
@@ -484,7 +483,6 @@ contains
 
   {{endfor}}
   {{endfor}}
-
 
   ! *****************************************************
   ! Sliced set operations.

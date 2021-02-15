@@ -31,8 +31,13 @@ set(CMAKE_DOWNLOAD_DIRECTORY "${CMAKE_SOURCE_DIR}/build/downloads"
 	CACHE STRING
 	"Directory where to download commander dependencies' source files"
 	)
-# Where to output libraries
+# Where to output shared libraries
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
+	CACHE STRING
+	"Directory where to install all the libraries."
+	)
+# Where to output static libraries
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
 	CACHE STRING
 	"Directory where to install all the libraries."
 	)
@@ -44,6 +49,11 @@ set(CMAKE_LIBRARY64_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib64"
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/bin"
 	CACHE STRING
 	"Directory where to install all the executables."
+	)
+# setting the directory where to output all .mod and .o files
+set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_INSTALL_PREFIX}/mod"
+	CACHE STRING
+	"Directory where to install all .mod/.o files."
 	)
 # HEALPix install (root) dir - by default we will install it in "healpix" dir
 set(HEALPIX_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}/healpix"
@@ -63,48 +73,96 @@ set(DOXYGEN_BUILD_DOCS OFF
 # If any problems with installation will occur, which cannot be fixed quickly,
 # these variables will force a fresh installation for every specified library.
 # If LIBSALL_FORCE_COMPILE is set to TRUE, all libraries will be recompiled,
-# whereas iof i set to FALSE, the libraries will first be searched on the
-# system and only if not found, compile dfrom source. If LIBSALL_FORCE_COMPILE
+# whereas if set to FALSE, the libraries will first be searched on the
+# system and only if not found, compiled from source. If LIBSALL_FORCE_COMPILE
 # is set to FALSE but, e.g. HDF5_FORCE_COMPILE is set to TRUE, then HDF5 will
-# be compile dfrom source (it will be given the advantage).
+# be compiled from source (it will be given the advantage).
 #------------------------------------------------------------------------------
-set(LIBSALL_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of Commander3 dependencies."
-  )
-set(HDF5_FORCE_COMPILE FALSE
-  CACHE BOOL
-  "Forces fresh installation of HDF5."
-  )
-set(FFTW_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of FFTW."
-  )
-set(CFITSIO_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of CFITSIO."
-  )
-set(HEALPIX_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of HEALPIX."
-  )
-set(CURL_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of CURL."
-  )
-set(DOXYGEN_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of DOXYGEN."
-  )
-set(FLEX_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of FLEX."
-  )
-set(BISON_FORCE_COMPILE FALSE
-  CACHE BOOL
-	"Forces fresh installation of BISON."
-  )
-
+#set(ALL_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of all Commander3 dependencies."
+#  )
+#set(BLAS_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of OpenBLAS."
+#  )
+#set(HDF5_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#  "Forces fresh installation of HDF5."
+#  )
+#set(FFTW_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of FFTW."
+#  )
+#set(CFITSIO_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of CFITSIO."
+#  )
+#set(HEALPIX_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of HEALPIX."
+#  )
+#set(CURL_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of CURL."
+#  )
+#set(DOXYGEN_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of DOXYGEN."
+#  )
+#set(FLEX_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of FLEX."
+#  )
+#set(BISON_FORCE_COMPILE FALSE
+#  CACHE BOOL
+#	"Forces fresh installation of BISON."
+#  )
+# All options default to OFF
+option(ALL_FORCE_COMPILE "Forces fresh installation of all Commander3 dependencies.")
+option(BLAS_FORCE_COMPILE "Forces fresh installation of OpenBLAS.")
+#
+option(ZLIB_FORCE_COMPILE "Forces fresh installation of ZLib.")
+option(LIBAEC_FORCE_COMPILE "Forces fresh installation of LibAEC.")
+option(HDF5_FORCE_COMPILE "Forces fresh installation of HDF5.")
+#
+option(FFTW_FORCE_COMPILE "Forces fresh installation of FFTW.")
+# TODO: Add option "CFITSIO_USE_CURL" to give user an opportunity 
+# to compile CFitsIO with cURL support. In this case, will download,
+# compile and install ZLib -> MbedTLS -> LibSSH2 -> cURL.
+option(MBEDTLS_FORCE_COMPILE "Forces fresh installation of MbedTLS.")
+option(LIBSSH2_FORCE_COMPILE "Forces fresh installation of LibSSH2.")
+option(CURL_FORCE_COMPILE "Forces fresh installation of cURL.")
+option(CFITSIO_FORCE_COMPILE "Forces fresh installation of CFITSIO.")
+option(CFITSIO_USE_CURL "Installs CFITSIO with cURL support.")
+option(HEALPIX_FORCE_COMPILE "Forces fresh installation of HEALPix.")
+#
+option(FLEX_FORCE_COMPILE "Forces fresh installation of FLEX.")
+option(BISON_FORCE_COMPILE "Forces fresh installation of BISON.")
+option(DOXYGEN_FORCE_COMPILE "Forces fresh installation of Doxygen.")
+#
+#cmake_dependent_option(BLAS_FORCE_COMPILE "Forces fresh installation of OpenBLAS." ON "ALL_FORCE_COMPILE" ON)
+#cmake_dependent_option(ZLIB_FORCE_COMPILE "Forces fresh installation of ZLib." ON "ALL_FORCE_COMPILE" ON)
+#cmake_dependent_option(HDF5_FORCE_COMPILE "Forces fresh installation of HDF5." ON "ALL_FORCE_COMPILE" ON)
+#
+#cmake_dependent_option(FFTW_FORCE_COMPILE "Forces fresh installation of FFTW." ON "ALL_FORCE_COMPILE" ON)
+#
+#cmake_dependent_option(CURL_FORCE_COMPILE "Forces fresh installation of cURL." ON "ALL_FORCE_COMPILE" ON)
+#cmake_dependent_option(CFITSIO_FORCE_COMPILE "Forces fresh installation of CFITSIO." ON "ALL_FORCE_COMPILE" ON)
+#cmake_dependent_option(HEALPIX_FORCE_COMPILE "Forces fresh installation of HEALPix." ON "ALL_FORCE_COMPILE" ON)
+#
+#cmake_dependent_option(FLEX_FORCE_COMPILE "Forces fresh installation of FLEX." ON "ALL_FORCE_COMPILE" ON)
+#cmake_dependent_option(BISON_FORCE_COMPILE "Forces fresh installation of BISON." ON "ALL_FORCE_COMPILE" ON)
+#cmake_dependent_option(DOXYGEN_FORCE_COMPILE "Forces fresh installation of Doxygen." ON "ALL_FORCE_COMPILE" ON)
+#------------------------------------------------------------------------------
+# Commander source dir
+set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
+# tempita source dir
+set(TEMPITA_DIR ${CMAKE_SOURCE_DIR}/commander3/python)
+# adding custom cmake modules directory, e.g. for FindSomething.cmake
+# Note: It should be already inside root CmakeLists.txt, so 
+# don't need to include in here
+#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 #------------------------------------------------------------------------------
 # Commander source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")

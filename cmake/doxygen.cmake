@@ -118,7 +118,7 @@ if(DOXYGEN_BUILD_DOCS)
 			URL "${${project}_url}"
 			#GIT_REPOSITORY "${${project}_url}"
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
-			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
+			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 			INSTALL_DIR ${CMAKE_INSTALL_PREFIX} #"${out_install_dir}"
 			LOG_DIR "${CMAKE_LOG_DIR}"
 			LOG_DOWNLOAD ON

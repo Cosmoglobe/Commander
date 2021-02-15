@@ -1,0 +1,90 @@
+{
+	"make": 
+	{
+		"source": "https://ftp.gnu.org/gnu/make/make-4.3.tar.gz",
+		"executables": ["make"],
+		"min_version": "3.80",
+		"command": "./configure --prefix={install_dir} && sh build.sh -j {num_procs} && ./make install",
+		"checker":
+		{
+			"signature": "https://ftp.gnu.org/gnu/make/make-4.3.tar.gz.sig",
+			"MD5":    "",
+			"SHA1":   "",
+			"SHA256": "",
+			"SHA512": ""
+		}
+	},
+	"autoconf": 
+	{
+		"source": "https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz",
+		"executables": ["autoconf"],
+		"min_version": "2.69",
+		"command": "./configure --prefix={install_dir} && make -j {num_procs} && make install",
+		"checker":
+		{
+			"signature": "https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz.sig",
+			"MD5":    "",
+			"SHA1":   "",
+			"SHA256": "",
+			"SHA512": ""
+		}
+	},
+	"automake": 
+	{
+		"source": "https://ftp.gnu.org/gnu/automake/automake-1.16.3.tar.gz",
+		"executables": ["automake"],
+		"min_version": "1.16.0",
+		"command": "./configure --prefix={install_dir} && make -j {num_procs} && make install",
+		"checker":
+		{
+			"signature": "https://ftp.gnu.org/gnu/automake/automake-1.16.3.tar.gz.sig",
+			"MD5":    "",
+			"SHA1":   "",
+			"SHA256": "",
+			"SHA512": ""
+		}
+	},
+	"libtool": 
+	{
+		"source": "https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.gz",
+		"executables": ["glibtool"],
+		"min_version": "2.4.6",
+		"command": "./configure --prefix={install_dir} && make -j {num_procs} && make install",
+		"checker":
+		{
+			"signature": "https://ftp.gnu.org/gnu/libtool/libtool-2.4.6.tar.gz.sig",
+			"MD5":    "",
+			"SHA1":   "",
+			"SHA256": "",
+			"SHA512": ""
+		}
+	},
+	"compilers": 
+	{
+		"source": "https://mirror.koddos.net/gcc/releases/gcc-9.3.0/gcc-9.3.0.tar.gz",
+		"executables": ["gcc", "g++", "gfortran"],
+		"min_version": "9.3.0",
+		"command": "./contrib/download_prerequisites && mkdir build && cd build && ../configure --prefix={install_dir} --enable-languages=default --disable-multilib --enable-threads && make -j {num_procs} && make install", 
+		"checker":
+		{
+			"signature": "",
+			"MD5":    "",
+			"SHA1":   "",
+			"SHA256": "",
+			"SHA512": ""
+		}
+	},
+	"mpi": 
+	{
+		"source": "https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.0.tar.gz",
+		"executables": ["mpirun"],
+		"min_version": "4.0.0",
+		"checker": 
+		{
+			"signature": "",
+			"MD5":    "45d272a0541857a40d1808e86833bc15",
+			"SHA1":   "760d33ab160370e7cf6262590d3b66d6e34291a8",
+			"SHA256": "228467c3dd15339d9b26cf26a291af3ee7c770699c5e8a1b3ad786f9ae78140a"
+		}
+	}
+}
