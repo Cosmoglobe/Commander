@@ -58,8 +58,8 @@ contains
     ndet = self%ndet
     nomp = omp_get_max_threads()
     
-    ! nfft = 2 * ntod
-    nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
+    nfft = 2 * ntod
+    ! nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
     
     n = nfft / 2 + 1
 

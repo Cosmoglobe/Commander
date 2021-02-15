@@ -246,7 +246,7 @@ contains
 
       ! Set up full-sky map structures
       call wall_time(t1)
-      correct_sl = .false.
+      correct_sl = .true.
       chisq_threshold = 6d0
       n_main_iter     = 6
       ndet = self%ndet
@@ -979,6 +979,11 @@ contains
             if (l == 1) then
                ! Set monopole
                monopole = sum((cg_sol(:,1,1)-map_full)*procmask)/sum(procmask)
+               write(*,*) monopole
+               ! Maximum likelihood monopole
+               monopole = sum((cg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
+                      & / sum(M_diag(:,1)*procmask)
+               write(*,*) monopole
                if (trim(self%operation) == 'sample') then
                   ! Add fluctuation term if requested
                   if (self%verbosity > 1) then
@@ -988,6 +993,7 @@ contains
                   monopole = monopole + sum(M_diag(:,1) * procmask)**-0.5 * rand_gauss(handle)
                end if
                cg_sol(:,1,1) = cg_sol(:,1,1) - monopole
+               write(*,*) sum(cg_sol(:,1,1)*procmask)/sum(procmask)
                deallocate(map_full)
             end if
          else
@@ -1010,7 +1016,6 @@ contains
       end do
 
       map_out%map = outmaps(1)%p%map
-      ! Sometimes get a float invalid error here...
       rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
       call outmaps(1)%p%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
