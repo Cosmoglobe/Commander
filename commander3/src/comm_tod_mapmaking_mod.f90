@@ -137,8 +137,10 @@ contains
             !pB = pmask(rpix)
             !f_A = 1-pA*(1-pB)
             !f_B = 1-pB*(1-pA)
-            f_A = 1-pmask(lpix)*(1-pmask(rpix))
-            f_B = 1-pmask(rpix)*(1-pmask(lpix))
+            !f_A = 1-pmask(lpix)*(1-pmask(rpix))
+            !f_B = 1-pmask(rpix)*(1-pmask(lpix))
+            f_A = pmask(rpix)
+            f_B = pmask(lpix)
             !f_A = pA
             !f_B = pB
 
@@ -238,8 +240,10 @@ contains
 
                pA  = pmask(lpix)
                pB  = pmask(rpix)
-               f_A = 1-pA*(1-pB)
-               f_B = 1-pB*(1-pA)
+               f_A = pB !1-pA*(1-pB)
+               f_B = pA !1-pB*(1-pA)
+               !f_A = pB
+               !f_B = pA
                !f_A = 1
                !f_B = 1
                !f_A = pB
