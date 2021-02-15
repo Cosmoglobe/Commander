@@ -133,12 +133,6 @@ contains
             rpix = pix(t, 2)
             lpsi = psi(t, 1)
             rpsi = psi(t, 2)
-            !pA = pmask(lpix)
-            !pB = pmask(rpix)
-            !f_A = 1-pA*(1-pB)
-            !f_B = 1-pB*(1-pA)
-            !f_A = 1-pmask(lpix)*(1-pmask(rpix))
-            !f_B = 1-pmask(rpix)*(1-pmask(lpix))
             f_A = pmask(rpix)
             f_B = pmask(lpix)
 
@@ -236,12 +230,6 @@ contains
                lpsi = psi(t, 1)
                rpsi = psi(t, 2)
 
-               !pA  = pmask(lpix)
-               !pB  = pmask(rpix)
-               !f_A = 1-pA*(1-pB)
-               !f_B = 1-pB*(1-pA)
-               !f_A = 1
-               !f_B = 1
                f_A = pmask(rpix)
                f_B = pmask(lpix)
                ! This is the model for each timestream
