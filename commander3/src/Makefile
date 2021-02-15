@@ -123,6 +123,7 @@ comm_tod_simulations_mod.o: comm_tod_LFI_mod.o comm_hdf_mod.o comm_fft_mod.o com
 
 commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_chisq_mod.o \
                            comm_output_mod.o comm_nonlin_mod.o comm_tod_simulations_mod.o
+
 sharp_test.o :              ARS_mod.o
 
 

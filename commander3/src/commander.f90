@@ -76,6 +76,7 @@ program commander
   call MPI_Init(ierr)
   call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
   call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+  
   cpar%root = 0
     
   
@@ -98,7 +99,7 @@ program commander
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
      write(*,*) '----------------------------------------------'
-     write(*,*) '|***********   Commander3   *************'
+     write(*,*) '|              Commander3                '
      write(*,*) '----------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,*) '|  Regime:                            TOD Simulations'

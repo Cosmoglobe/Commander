@@ -163,7 +163,6 @@ set(TEMPITA_DIR ${CMAKE_SOURCE_DIR}/commander3/python)
 # Note: It should be already inside root CmakeLists.txt, so 
 # don't need to include in here
 #set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
-option(ZLIB_FORCE_COMPILE "Forces fresh installation of ZLib.")
 #------------------------------------------------------------------------------
 # Commander source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")

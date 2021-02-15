@@ -911,7 +911,6 @@ contains
             call wall_time(t2); t_tot(23) = t_tot(23) + t2-t1
           end if
           !----------------------------------------------------------------------------------
-
           ! Clean up
           call wall_time(t1)
           deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_buf)
