@@ -137,10 +137,10 @@ contains
             !pB = pmask(rpix)
             !f_A = 1-pA*(1-pB)
             !f_B = 1-pB*(1-pA)
-            f_A = 1-pmask(lpix)*(1-pmask(rpix))
-            f_B = 1-pmask(rpix)*(1-pmask(lpix))
-            !f_A = pA
-            !f_B = pB
+            !f_A = 1-pmask(lpix)*(1-pmask(rpix))
+            !f_B = 1-pmask(rpix)*(1-pmask(lpix))
+            f_A = pmask(rpix)
+            f_B = pmask(lpix)
 
             do i = 1, nout
                d = 0.d0
@@ -236,14 +236,14 @@ contains
                lpsi = psi(t, 1)
                rpsi = psi(t, 2)
 
-               pA  = pmask(lpix)
-               pB  = pmask(rpix)
-               f_A = 1-pA*(1-pB)
-               f_B = 1-pB*(1-pA)
+               !pA  = pmask(lpix)
+               !pB  = pmask(rpix)
+               !f_A = 1-pA*(1-pB)
+               !f_B = 1-pB*(1-pA)
                !f_A = 1
                !f_B = 1
-               !f_A = pB
-               !f_B = pA
+               f_A = pmask(rpix)
+               f_B = pmask(lpix)
                ! This is the model for each timestream
                ! The sgn parameter is +1 for timestreams 13 and 14, -1
                ! for timestreams 23 and 24, and also is used to switch

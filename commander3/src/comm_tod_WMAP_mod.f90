@@ -219,6 +219,7 @@ contains
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
       real(dp), allocatable, dimension(:)       :: map_full
+      real(dp) :: monopole
       logical(lgt) :: write_cg_iter=.false.
 
 
@@ -977,7 +978,16 @@ contains
 
             if (l == 1) then
                ! Set monopole
-               cg_sol(:,1,1) = cg_sol(:,1,1) - sum((cg_sol(:,1,1)-map_full)*procmask)/sum(procmask)
+               monopole = sum((cg_sol(:,1,1)-map_full)*procmask)/sum(procmask)
+               if (trim(self%operation) == 'sample') then
+                  ! Add fluctuation term if requested
+                  if (self%verbosity > 1) then
+                    write(*,*) 'monopole, fluctuation sigma'
+                    write(*,*) monopole, sum(M_diag(:,1) * procmask)**-0.5
+                  end if
+                  monopole = monopole + sum(M_diag(:,1) * procmask)**-0.5 * rand_gauss(handle)
+               end if
+               cg_sol(:,1,1) = cg_sol(:,1,1) - monopole
                deallocate(map_full)
             end if
          else
