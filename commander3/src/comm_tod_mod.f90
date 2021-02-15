@@ -73,6 +73,8 @@ module comm_tod_mod
      character(len=512) :: instfile
      character(len=512) :: operation
      character(len=512) :: outdir
+     character(len=512) :: sims_output_dir !< simulation folder
+     logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
      logical(lgt) :: first_call
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters

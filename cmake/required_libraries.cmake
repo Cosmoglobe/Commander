@@ -29,20 +29,48 @@
 # We are also using tempita language to generate comm_hdf_mod.f90 from comm_hdf_mod.f90.in
 #================================================================================
 
+message(STATUS "---------------------------------------------------------------")
+message(STATUS "Looking for packages...")
+# use this to write your own find_package
+find_package(PkgConfig)
+#------------------------------------------------------------------------------
+# Looking for Linux Math Library. 
+#------------------------------------------------------------------------------
+# finding math library
+find_library(LIBM_LIBRARY m)
+message(STATUS "math (m) libraries are: ${LIBM_LIBRARY}")
+# printing out the dl libs, which are also required on some unix systems
+message(STATUS "dl libs are: ${CMAKE_DL_LIBS}")
+#------------------------------------------------------------------------------
+# Looking for Git.
+#------------------------------------------------------------------------------
 # We will be using Git to download some dependencies, so we need to check if git available
 find_package(Git REQUIRED)
 
-message(STATUS "---------------------------------------------------------------")
-find_package(ZLIB REQUIRED)
 
-message(STATUS "ZLIB LIBRARIES ARE: ${ZLIB_LIBRARIES}")
-message(STATUS "ZLIB INCLUDE DIRS ARE: ${ZLIB_INCLUDE_DIRS}")
+#message(STATUS "---------------------------------------------------------------")
+#find_package(OpenSSL REQUIRED)
 
-add_custom_target(zlib ALL "")
-include_directories(${ZLIB_INCLUDE_DIRS})
-add_library(zlib_lib SHARED IMPORTED GLOBAL) 
-set_target_properties(zlib_lib PROPERTIES IMPORTED_LOCATION ${ZLIB_LIBRARIES})
+#message(STATUS "OpenSSL INCLUDE DIR is: ${OPENSSL_INCLUDE_DIR}")
+#message(STATUS "${OPENSSL_SSL_LIBRARIES}")
+#message(STATUS "${OPENSSL_CRYPTO_LIBRARIES}")
+#message(STATUS "OpenSSL LIBRARIES are: ${OPENSSL_LIBRARIES}")
 
+#message(STATUS "---------------------------------------------------------------")
+#find_package(LibSSH2)
+#find_package(ZLIB REQUIRED)
+
+#message(STATUS "ZLIB LIBRARIES are: ${ZLIB_LIBRARIES}")
+#message(STATUS "ZLIB INCLUDE DIRS are: ${ZLIB_INCLUDE_DIRS}")
+
+#add_custom_target(zlib ALL "")
+#include_directories(${ZLIB_INCLUDE_DIRS})
+#add_library(zlib_lib SHARED IMPORTED GLOBAL) 
+#set_target_properties(zlib_lib PROPERTIES IMPORTED_LOCATION ${ZLIB_LIBRARIES})
+
+#------------------------------------------------------------------------------
+# Looking for MPI with C, CXX and Fortran components. 
+#------------------------------------------------------------------------------
 message(STATUS "---------------------------------------------------------------")
 find_package(MPI REQUIRED COMPONENTS Fortran C CXX)
 find_package(Threads)
@@ -61,6 +89,9 @@ set(CMAKE_REQUIRED_FLAGS ${MPI_Fortran_COMPILE_OPTIONS})
 set(CMAKE_REQUIRED_INCLUDES ${MPI_Fortran_INCLUDE_DIRS})
 set(CMAKE_REQUIRED_LIBRARIES ${MPI_Fortran_LIBRARIES} Threads::Threads)
 
+#------------------------------------------------------------------------------
+# Looking for OpenMP. 
+#------------------------------------------------------------------------------
 message(STATUS "---------------------------------------------------------------")
 find_package(OpenMP REQUIRED)
 
@@ -73,6 +104,9 @@ set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
 
 message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
 
+#------------------------------------------------------------------------------
+# Creating comm_hdf_mod.f90 with Tempita language. Python is required. 
+#------------------------------------------------------------------------------
 add_custom_target(tempita ALL "")
 set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
 # running python command at configure time
@@ -87,5 +121,81 @@ add_custom_target(required_libraries ALL ""
 					mpi
 					openmp
 					#blas
-					zlib
+					#zlib
 					)
+
+#------------------------------------------------------------------------------
+# Looking for CFITSIO and (optionally) its dependencies.
+#------------------------------------------------------------------------------
+#message(STATUS "---------------------------------------------------------------")
+#if(NOT (CFITSIO_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#	find_package(CFITSIO 3.470)
+#endif()
+#if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
+#	#------------------------------------------------------------------------------
+#	# cURL
+#	#------------------------------------------------------------------------------
+#	message(STATUS "---------------------------------------------------------------")
+#	# looking for cURL in the system. 
+#	if(NOT (CURL_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#		# CMake configure scripts foesn't work properly,
+#		# so we look for cURL in a standard manner.
+#		set(CURL_NO_CURL_CMAKE ON)
+#		find_package(CURL)
+#	endif()
+#
+#	# If there is no cURL, we install MbedTLS, LibSSH2 and cURL
+#	if(NOT CURL_FOUND)
+#		set(CURL_INCLUDE_DIR
+#			"${CMAKE_INSTALL_PREFIX}/include"
+#			)
+#		set(CURL_LIBRARIES
+#			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}curl${CMAKE_SHARED_LIBRARY_SUFFIX}" 
+#			)
+#		#------------------------------------------------------------------------------
+#		message(STATUS "cURL LIBRARIES will be ${CURL_LIBRARIES}")
+#		message(STATUS "cURL INCLUDE DIR will be ${CURL_INCLUDE_DIR}")
+#		#------------------------------------------------------------------------------
+#		# MbedTLS
+#		#------------------------------------------------------------------------------
+#		message(STATUS "---------------------------------------------------------------")
+#		if(NOT (MDEBTLS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#			find_package(MbedTLS)
+#		endif()
+#		if(NOT MBEDTLS_FOUND) 
+#			message(STATUS "MbedTLS will be compiled from source.")
+#			#------------------------------------------------------------------------------
+#			message(STATUS "MbedTLS LIBRARIES will be: ${MBEDTLS_LIBRARIES}")
+#			message(STATUS "MbedTLS INCLUDE DIRS will be: ${MBEDTLS_INCLUDE_DIRS}")
+#			#------------------------------------------------------------------------------
+#		else()
+#			#------------------------------------------------------------------------------
+#			message(STATUS "MbedTLS LIBRARIES are: ${MBEDTLS_LIBRARIES}")
+#			message(STATUS "MbedTLS INCLUDE DIRS are: ${MBEDTLS_INCLUDE_DIRS}")
+#			#------------------------------------------------------------------------------
+#		endif()
+#		#------------------------------------------------------------------------------
+#		# LibSSH2
+#		#------------------------------------------------------------------------------
+#		message(STATUS "---------------------------------------------------------------")
+#		if(NOT (LIBSSH2_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#			find_package(LibSSH2)
+#		endif()
+#		if(NOT LIBSSH2_FOUND) 
+#			#------------------------------------------------------------------------------
+#			message(STATUS "LibSSH2 LIBRARY will be: ${LIBSSH2_LIBRARY}")
+#			message(STATUS "LibSSH2 INCLUDE DIR will be: ${LIBSSH2_INCLUDE_DIR}")
+#			#------------------------------------------------------------------------------
+#		else()
+#			#------------------------------------------------------------------------------
+#			message(STATUS "LibSSH2 LIBRARY are: ${LIBSSH2_LIBRARY}")
+#			message(STATUS "LibSSH2 INCLUDE DIR are: ${LIBSSH2_INCLUDE_DIR}")
+#			#------------------------------------------------------------------------------
+#		endif()
+#	else()
+#		#------------------------------------------------------------------------------
+#		message(STATUS "cURL LIBRARIES are ${CURL_LIBRARIES}")
+#		message(STATUS "cURL INCLUDE DIR is ${CURL_INCLUDE_DIR}")
+#		#------------------------------------------------------------------------------
+#	endif()
+#endif()
