@@ -215,7 +215,7 @@ contains
       ! conjugate gradient parameters
       integer(i4b) :: i_max, i_min, num_cg_iters
       real(dp) :: delta_0, delta_old, delta_new, epsil(6)
-      real(dp) :: alpha, beta, g, f_quad
+      real(dp) :: alpha, beta, g, f_quad, sigma_mono
       real(dp), allocatable, dimension(:, :, :) :: cg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
       real(dp), allocatable, dimension(:)       :: map_full
@@ -986,12 +986,15 @@ contains
                write(*,*) monopole
                if (trim(self%operation) == 'sample') then
                   ! Add fluctuation term if requested
+                  sigma_mono = sum(M_diag(:,1) * procmask)
+                  if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
                   if (self%verbosity > 1) then
                     write(*,*) 'monopole, fluctuation sigma'
-                    write(*,*) monopole, sum(M_diag(:,1) * procmask)**-0.5
+                    write(*,*) monopole, sigma_mono
                   end if
-                  monopole = monopole + sum(M_diag(:,1) * procmask)**-0.5 * rand_gauss(handle)
+                  monopole = monopole + sigma_mono * rand_gauss(handle)
                end if
+               write(*,*) 'final monopole = ', monopole
                cg_sol(:,1,1) = cg_sol(:,1,1) - monopole
                write(*,*) sum(cg_sol(:,1,1)*procmask)/sum(procmask)
                deallocate(map_full)

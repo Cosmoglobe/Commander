@@ -59,7 +59,7 @@ contains
     nomp = omp_get_max_threads()
     
     nfft = 2 * ntod
-    ! nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
+    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
     
     n = nfft / 2 + 1
 
@@ -144,11 +144,11 @@ contains
        if (.not. pcg_converged) then
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
-          ! dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-          nbuff = nfft - ntod
-          do j=1, nbuff
-             dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
-          end do
+          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$          nbuff = nfft - ntod
+!!$          do j=1, nbuff
+!!$             dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * real(j-1,sp) / real(nbuff - 1,sp)
+!!$          end do
 
 
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
@@ -446,11 +446,15 @@ contains
       ! complex(dpc), dimension(0:), intent(inout) :: dv
       real(sp),     allocatable, dimension(:), intent(inout) :: dt
       complex(spc), allocatable, dimension(:), intent(inout) :: dv
-      integer(i4b) :: i, j, k, l, ntod, n
+      integer(i4b) :: i, j, k, l, ntod, n, m
       n = nfft / 2 + 1
       ntod = size(vec, 1)
+      m = size(dt) - ntod
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$      do j = 1, m
+!!$         dt(ntod+j) = vec(ntod) + (vec(1) - vec(ntod)) * real(j-1,sp) / real(m - 1,sp)
+!!$      end do
 
       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
       do l = 0, n-1
@@ -572,11 +576,16 @@ contains
       complex(dpc), allocatable, dimension(:), intent(inout) :: dv
       ! real(sp),     allocatable, dimension(:), intent(inout) :: dt
       ! complex(spc), allocatable, dimension(:), intent(inout) :: dv
-      integer(i4b) :: i, j, k, l, ntod, n
+      integer(i4b) :: i, j, k, l, ntod, n, m
       n = nfft / 2 + 1
       ntod = size(vec, 1)
+      m = size(dt) - ntod
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$      do j = 1, m
+!!$         dt(ntod+j) = vec(ntod) + (vec(1) - vec(ntod)) * real(j-1,sp) / real(m - 1,sp)
+!!$      end do
+
 
       call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
       do l = 0, n-1
