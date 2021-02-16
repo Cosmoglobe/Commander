@@ -1038,7 +1038,7 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         pool = Pool(processes=nprocs)
         print('pool set up')
         x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot, version, center]) for i, f in zip(inds, files)]
-        for i in tqdm(range(len(x))):
+        for i in tqdm(range(len(x)), smooth=0):
             x[i].get()
             #res.wait()
         pool.close()
