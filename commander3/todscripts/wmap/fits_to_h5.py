@@ -75,6 +75,8 @@ fknees *= 1e-3
 # storms are also included in there (see Table 8 of the ExSupp)
 # version 37 uses the planet flag based on radii
 # version 38 compresses the TODs, adjusts the TODs and gains so that they are all positive
+# version 39 uses weeklong scans
+# version 40 computes the polarization angles in a different way
 
 from time import sleep
 from time import time as timer
@@ -588,7 +590,7 @@ def gamma_from_pol(gal, pol):
     cos_2_gamma = 2*cos_gamma**2 - 1
     sin_2_gamma = 2*sin_gamma*cos_gamma
 
-    return sin_2_gamma, cos_2_gamma
+    return sin_gamma, cos_gamma
 
 def q_interp(q_arr, t):
     '''
@@ -783,34 +785,10 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
 
 
 def get_psi(gal, pol, band_labels):
-    sin_2_gamma = np.zeros( (len(band_labels), len(gal[0])) )
-    cos_2_gamma = np.zeros( (len(band_labels), len(gal[0])) )
     psi = []
     for band in range(len(band_labels)):
-        sin2g, cos2g = gamma_from_pol(gal[band], pol[band])
-        psi.append(0.5*np.arctan2(sin2g, cos2g))
-    return psi
-
-def get_psi_multiprocessing(gal, pol):
-    sin_2_gamma = np.zeros(len(gal))
-    cos_2_gamma = np.zeros(len(gal))
-    for t in range(len(sin_2_gamma)):
-        sin_2_gi, cos_2_gi = gamma_from_pol(gal[t], pol[t])
-        sin_2_gamma[t] = sin_2_gi
-        cos_2_gamma[t] = cos_2_gi
-    psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
-    return psi
-
-def get_psi_multiprocessing_2(i):
-    gal = gals[i]
-    pol = pols[i]
-    sin_2_gamma = np.zeros(len(gal))
-    cos_2_gamma = np.zeros(len(gal))
-    for t in range(len(sin_2_gamma)):
-        sin_2_gi, cos_2_gi = gamma_from_pol(gal[t], pol[t])
-        sin_2_gamma[t] = sin_2_gi
-        cos_2_gamma[t] = cos_2_gi
-    psi = 0.5*np.arctan2(sin_2_gamma, cos_2_gamma)
+        sing, cosg = gamma_from_pol(gal[band], pol[band])
+        psi.append(np.arctan2(sing, cosg))
     return psi
 
 def ang2pix_multiprocessing(nside, theta, phi):
@@ -1078,5 +1056,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=36, center=True)
     #main(par=True, plot=False, compress=True, version=37, center=True)
     #main(par=True, plot=False, compress=True, version=38, center=True)
-    main(par=True, plot=False, compress=True, version=39, center=True)
+    #main(par=True, plot=False, compress=True, version=39, center=True)
+    main(par=True, plot=False, compress=True, version=40, center=True)
     #test_flags()
