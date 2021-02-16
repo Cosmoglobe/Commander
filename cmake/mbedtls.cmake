@@ -26,7 +26,8 @@
 
 if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 	message(STATUS "---------------------------------------------------------------")
-	if(NOT (MBEDTLS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+	#if(NOT (MBEDTLS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+	if(USE_SYSTEM_MBEDTLS AND USE_SYSTEM_LIBS)
 		find_package(MbedTLS)
 	endif()
 
@@ -34,15 +35,15 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Getting MbedTLS from source and compiling both static and shared libraries.
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(${project}
+		ExternalProject_Add(mbedtls
 			DEPENDS required_libraries
 							zlib
-			GIT_REPOSITORY "${${project}_git_url}"
-			GIT_TAG "${${project}_git_tag}"
+			GIT_REPOSITORY "${mbedtls_git_url}"
+			GIT_TAG "${mbedtls_git_tag}"
 			# PREFIX should be present, otherwise it will pull it into "build" dir
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
+			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/mbedtls"
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
+			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/mbedtls/src/mbedtls"
 			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
 			LOG_DIR "${CMAKE_LOG_DIR}"
 			LOG_DOWNLOAD ON

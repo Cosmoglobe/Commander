@@ -25,7 +25,8 @@
 message(STATUS "---------------------------------------------------------------")
 # TODO: make it so components will matter because now it install everything because 
 # I gave the command to add appropriate configure suboptions to configure command
-if(NOT (FFTW_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#if(NOT (FFTW_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+if(USE_SYSTEM_FFTW AND USE_SYSTEM_LIBS)
 	find_package(FFTW 
 		COMPONENTS 
 		DOUBLE 

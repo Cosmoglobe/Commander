@@ -35,7 +35,8 @@ message(STATUS "---------------------------------------------------------------"
 # TODO: make another variable for shared/static linking
 # also ensure that if hdf5 wasn't compiled with autotools
 # it still be working as before.
-if(NOT (HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#if(NOT (HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+if(USE_SYSTEM_HDF5 AND USE_SYSTEM_LIBS)
 	# Using static linking instead of dynamic
 	set(HDF5_USE_STATIC_LIBRARIES FALSE)#TRUE)
 	# Using parallel build instead of serial

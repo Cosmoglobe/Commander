@@ -28,7 +28,8 @@
 # To avoid different cmake errors, we create an empty targets for each of the projects.
 # We are also using tempita language to generate comm_hdf_mod.f90 from comm_hdf_mod.f90.in
 #================================================================================
-
+# Looking for PkgConfig. 
+#------------------------------------------------------------------------------
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "Looking for packages...")
 # use this to write your own find_package
@@ -46,28 +47,6 @@ message(STATUS "dl libs are: ${CMAKE_DL_LIBS}")
 #------------------------------------------------------------------------------
 # We will be using Git to download some dependencies, so we need to check if git available
 find_package(Git REQUIRED)
-
-
-#message(STATUS "---------------------------------------------------------------")
-#find_package(OpenSSL REQUIRED)
-
-#message(STATUS "OpenSSL INCLUDE DIR is: ${OPENSSL_INCLUDE_DIR}")
-#message(STATUS "${OPENSSL_SSL_LIBRARIES}")
-#message(STATUS "${OPENSSL_CRYPTO_LIBRARIES}")
-#message(STATUS "OpenSSL LIBRARIES are: ${OPENSSL_LIBRARIES}")
-
-#message(STATUS "---------------------------------------------------------------")
-#find_package(LibSSH2)
-#find_package(ZLIB REQUIRED)
-
-#message(STATUS "ZLIB LIBRARIES are: ${ZLIB_LIBRARIES}")
-#message(STATUS "ZLIB INCLUDE DIRS are: ${ZLIB_INCLUDE_DIRS}")
-
-#add_custom_target(zlib ALL "")
-#include_directories(${ZLIB_INCLUDE_DIRS})
-#add_library(zlib_lib SHARED IMPORTED GLOBAL) 
-#set_target_properties(zlib_lib PROPERTIES IMPORTED_LOCATION ${ZLIB_LIBRARIES})
-
 #------------------------------------------------------------------------------
 # Looking for MPI with C, CXX and Fortran components. 
 #------------------------------------------------------------------------------
@@ -120,10 +99,26 @@ add_custom_target(required_libraries ALL ""
 	DEPENDS tempita 
 					mpi
 					openmp
-					#blas
-					#zlib
 					)
 
+#------------------------------------------------------------------------------
+# Compiled libraries
+#------------------------------------------------------------------------------
+# TODO: figure out whether this needs to be implemented or not.
+# Below libraries can be compiled from source. Depending on CMake configuration
+# they first will be search on the host system for minimal required version. If
+# such version is absent or user decides to omit the search, libs will be 
+# installed from source. 
+# The search performed as follows:
+# - HDF5 => LibAEC + ZLib;
+# - CFITSIO + HEALPix => cURL => MbedTLS + LibSSH2;
+# - BLAS/LAPACK;
+# - FFTW;
+# Installition is the opposite way:
+# - ZLib + LIBAEC => HDF5;
+# - LibSSH2 + MbedTLS => cURL => CFITSIO => HEALPix;
+# - BLAS/LAPACK;
+# - FFTW;
 #------------------------------------------------------------------------------
 # Looking for CFITSIO and (optionally) its dependencies.
 #------------------------------------------------------------------------------

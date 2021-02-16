@@ -489,7 +489,7 @@ contains
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
-  
+
   subroutine read_hdf_0d_int(file, setname, val, opt)
     implicit none
     type(hdf_file) :: file
@@ -500,11 +500,6 @@ contains
     integer(hsize_t) :: s(0), ext2(0)
     integer(i4b)     :: ext(0)
     integer(i4b) , intent(out) :: val
-    call h5eset_auto_f(0, hdferr)
-    call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
-    if (hdferr /= 0) then
-       write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
-       return
     logical(lgt) :: opt_   
  
     if(.not. present(opt)) then
@@ -1502,7 +1497,7 @@ contains
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
-  
+
   subroutine read_hdf_6d_int(file, setname, val, opt)
     implicit none
     type(hdf_file) :: file
@@ -1586,7 +1581,7 @@ contains
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
-  
+
   subroutine read_hdf_7d_dp(file, setname, val, opt)
     implicit none
     type(hdf_file) :: file
@@ -2287,12 +2282,12 @@ contains
     
   end subroutine read_hdf_string2
 
-
   ! *****************************************************
   ! Set write operations
   ! *****************************************************
 
   subroutine write_hdf_0d_dp(file, setname, val)
+
       implicit none
       type(hdf_file) :: file
       character(len=*), intent(in) :: setname
@@ -2978,7 +2973,6 @@ contains
       deallocate(ext_hdf)
 
   end subroutine
-
 
 
   ! *****************************************************
