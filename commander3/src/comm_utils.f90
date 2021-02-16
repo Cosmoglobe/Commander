@@ -532,7 +532,7 @@ contains
        write(*,*) 'Incorrect nside or nmaps for file called ', trim(filename)
     end if
 
-    call input_map(filename, map, npix, nmaps, ignore_polcconv=.false.)
+    call input_map(filename, map, npix, nmaps, ignore_polcconv=.true.)
     if (ordering == 2) then
        do i = 1, nmaps
           call convert_nest2ring(nside, map(:,i))
