@@ -996,7 +996,7 @@ contains
                end if
                write(*,*) 'final monopole = ', monopole
                cg_sol(:,1,1) = cg_sol(:,1,1) - monopole
-               write(*,*) sum(cg_sol(:,1,1)*procmask)/sum(procmask)
+               write(*,*) sum((cg_sol(:,1,1)-map_full)*procmask*M_diag(:,1))/sum(procmask*M_diag(:,1))
                deallocate(map_full)
             end if
          else
