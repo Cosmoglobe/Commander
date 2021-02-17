@@ -136,12 +136,6 @@ $ mpirun -n num_proc ~/Commander/commander1/src/commander/commander param_file.t
 
 ---
 
-## License
-
-[GNU GPLv3](https://github.com/Cosmoglobe/Commander/blob/master/COPYING)
-
----
-
 ## Projects
 
 Commander framework is part of the following projects:
@@ -163,6 +157,12 @@ This work has received funding from the European Union's Horizon 2020 research a
     <img src="./logo/LOGO_ERC-FLAG_EU_.jpg" height="200">
     <img src="./logo/horizon2020_logo.jpg" height="200">
 </p>
+
+---
+
+## License
+
+[GNU GPLv3](https://github.com/Cosmoglobe/Commander/blob/master/COPYING)
 
 ---
 
