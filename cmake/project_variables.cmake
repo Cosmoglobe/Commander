@@ -119,27 +119,27 @@ set(DOXYGEN_BUILD_DOCS OFF
 #	"Forces fresh installation of BISON."
 #  )
 # All options default to OFF
-option(ALL_FORCE_COMPILE "Forces fresh installation of all Commander3 dependencies.")
-option(BLAS_FORCE_COMPILE "Forces fresh installation of OpenBLAS.")
+#option(ALL_FORCE_COMPILE "Forces fresh installation of all Commander3 dependencies.")
+#option(BLAS_FORCE_COMPILE "Forces fresh installation of OpenBLAS.")
 #
-option(ZLIB_FORCE_COMPILE "Forces fresh installation of ZLib.")
-option(LIBAEC_FORCE_COMPILE "Forces fresh installation of LibAEC.")
-option(HDF5_FORCE_COMPILE "Forces fresh installation of HDF5.")
+#option(ZLIB_FORCE_COMPILE "Forces fresh installation of ZLib.")
+#option(LIBAEC_FORCE_COMPILE "Forces fresh installation of LibAEC.")
+#option(HDF5_FORCE_COMPILE "Forces fresh installation of HDF5.")
 #
-option(FFTW_FORCE_COMPILE "Forces fresh installation of FFTW.")
+#option(FFTW_FORCE_COMPILE "Forces fresh installation of FFTW.")
 # TODO: Add option "CFITSIO_USE_CURL" to give user an opportunity 
 # to compile CFitsIO with cURL support. In this case, will download,
 # compile and install ZLib -> MbedTLS -> LibSSH2 -> cURL.
-option(MBEDTLS_FORCE_COMPILE "Forces fresh installation of MbedTLS.")
-option(LIBSSH2_FORCE_COMPILE "Forces fresh installation of LibSSH2.")
-option(CURL_FORCE_COMPILE "Forces fresh installation of cURL.")
-option(CFITSIO_FORCE_COMPILE "Forces fresh installation of CFITSIO.")
-option(CFITSIO_USE_CURL "Installs CFITSIO with cURL support.")
-option(HEALPIX_FORCE_COMPILE "Forces fresh installation of HEALPix.")
+#option(MBEDTLS_FORCE_COMPILE "Forces fresh installation of MbedTLS.")
+#option(LIBSSH2_FORCE_COMPILE "Forces fresh installation of LibSSH2.")
+#option(CURL_FORCE_COMPILE "Forces fresh installation of cURL.")
+#option(CFITSIO_FORCE_COMPILE "Forces fresh installation of CFITSIO.")
+#option(CFITSIO_USE_CURL "Installs CFITSIO with cURL support.")
+#option(HEALPIX_FORCE_COMPILE "Forces fresh installation of HEALPix.")
 #
-option(FLEX_FORCE_COMPILE "Forces fresh installation of FLEX.")
-option(BISON_FORCE_COMPILE "Forces fresh installation of BISON.")
-option(DOXYGEN_FORCE_COMPILE "Forces fresh installation of Doxygen.")
+#option(FLEX_FORCE_COMPILE "Forces fresh installation of FLEX.")
+#option(BISON_FORCE_COMPILE "Forces fresh installation of BISON.")
+#option(DOXYGEN_FORCE_COMPILE "Forces fresh installation of Doxygen.")
 #
 #cmake_dependent_option(BLAS_FORCE_COMPILE "Forces fresh installation of OpenBLAS." ON "ALL_FORCE_COMPILE" ON)
 #cmake_dependent_option(ZLIB_FORCE_COMPILE "Forces fresh installation of ZLib." ON "ALL_FORCE_COMPILE" ON)
@@ -154,15 +154,28 @@ option(DOXYGEN_FORCE_COMPILE "Forces fresh installation of Doxygen.")
 #cmake_dependent_option(FLEX_FORCE_COMPILE "Forces fresh installation of FLEX." ON "ALL_FORCE_COMPILE" ON)
 #cmake_dependent_option(BISON_FORCE_COMPILE "Forces fresh installation of BISON." ON "ALL_FORCE_COMPILE" ON)
 #cmake_dependent_option(DOXYGEN_FORCE_COMPILE "Forces fresh installation of Doxygen." ON "ALL_FORCE_COMPILE" ON)
-#------------------------------------------------------------------------------
-# Commander source dir
-set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
-# tempita source dir
-set(TEMPITA_DIR ${CMAKE_SOURCE_DIR}/commander3/python)
-# adding custom cmake modules directory, e.g. for FindSomething.cmake
-# Note: It should be already inside root CmakeLists.txt, so 
-# don't need to include in here
-#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+option(USE_SYSTEM_LIBS    "Enables search for LIBS on the system."        ON)
+# BLAS/LAPACK
+option(USE_SYSTEM_BLAS    "Enables search for BLAS/LAPACK on the system." ON)
+# HDF5
+option(USE_SYSTEM_ZLIB    "Enables search for ZLIB on the system."        ON)
+option(USE_SYSTEM_LIBAEC  "Enables search for LibAEC on the system."      ON)
+option(USE_SYSTEM_HDF5    "Enables search for HDF5 on the system."        OFF)
+# FFTW
+option(USE_SYSTEM_FFTW    "Enables search for HDF5 on the system."        OFF)
+# CFITSIO
+option(USE_SYSTEM_MBEDTLS "Enables search for MbedTLS on the system."     ON)
+option(USE_SYSTEM_LIBSSH2 "Enables search for LibSSH2 on the system."     ON)
+option(USE_SYSTEM_CURL    "Enables search for cURL on the system."        ON)
+option(USE_SYSTEM_CFITSIO "Enables search for CFITSIO on the system."     OFF)
+# Can choose whether to compile CFITSIO with or without cURL support
+option(CFITSIO_USE_CURL   "Installs CFITSIO with cURL support."           OFF)
+# HEALPix
+option(USE_SYSTEM_HEALPIX "Enables search for HEALPIX on the system."     OFF)
+# Doxygen
+option(USE_SYSTEM_FLEX    "Enables search for FLEX on the system."        ON)
+option(USE_SYSTEM_BISON   "Enables search for BISON on the system."       ON)
+option(USE_SYSTEM_DOXYGEN "Enables search for DOXYGEN on the system."     ON)
 #------------------------------------------------------------------------------
 # Commander source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")

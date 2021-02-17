@@ -31,7 +31,8 @@
 # TODO: change cfitsio version to 3.49 and figure out how to link cURL correctly.
 # Also, try again to switch to cmake build and try to install healpix on top of it.
 message(STATUS "---------------------------------------------------------------")
-if(NOT (CFITSIO_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#if(NOT (CFITSIO_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+if(USE_SYSTEM_CFITSIO AND USE_SYSTEM_LIBS)
 	find_package(CFITSIO 3.470)
 endif()
 
@@ -56,7 +57,7 @@ if(NOT CFITSIO_FOUND)
 		#"FC=${COMMANDER3_Fortran_COMPILER}" 
 		#"CXX=${COMMANDER3_CXX_COMPILER}" 
 		#"CPP=${COMMANDER3_CPP_COMPILER}" 
-		"CC=${COMMANDER3_C_COMPILER}" 
+		"CC=${MPI_C_COMPILER}" 
 		"./configure" 
 		"--prefix=<INSTALL_DIR>" 
 		)
@@ -73,15 +74,15 @@ if(NOT CFITSIO_FOUND)
 	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(${project}
+	ExternalProject_Add(cfitsio
 		# specifying that cfitsio depends on the curl project and should be built after it
 		# Note: I have removed curl support from cfitsio, but curl is left here for now
 		DEPENDS required_libraries
 						curl
-		URL "${${project}_url}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
+		URL "${cfitsio_url}"
+		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/cfitsio"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
+		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/cfitsio/src/cfitsio"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
 		LOG_DIR "${CMAKE_LOG_DIR}"
 		LOG_DOWNLOAD ON
@@ -89,7 +90,7 @@ if(NOT CFITSIO_FOUND)
 		LOG_BUILD ON
 		LOG_INSTALL ON
 		# commands how to build the project
-		CONFIGURE_COMMAND "${${project}_configure_command}"
+		CONFIGURE_COMMAND "${cfitsio_configure_command}"
 		)
 	#------------------------------------------------------------------------------
 	# setting cfitsio library and include variables
@@ -114,7 +115,7 @@ if(NOT CFITSIO_FOUND)
 	#------------------------------------------------------------------------------
 else()
 	# adding empty targets in case CFITSIO was found on the system
-	add_custom_target(${project} ALL "")
+	add_custom_target(cfitsio ALL "")
 	include_directories(${CFITSIO_INCLUDE_DIRS})
 	if(CFITSIO_USE_CURL)
 		set(CFITSIO_LIBRARIES

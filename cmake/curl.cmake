@@ -26,7 +26,8 @@
 if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 	message(STATUS "---------------------------------------------------------------")
 	# looking for cURL in the system. 
-	if(NOT (CURL_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+	#if(NOT (CURL_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+	if(USE_SYSTEM_CURL AND USE_SYSTEM_LIBS)
 		# CMake configure scripts foesn't work properly,
 		# so we look for cURL in a standard manner.
 		set(CURL_NO_CURL_CMAKE ON)
