@@ -25,7 +25,8 @@
 
 message(STATUS "---------------------------------------------------------------")
 
-if(NOT (LIBAEC_FORCE_COMPILE OR HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#if(NOT (LIBAEC_FORCE_COMPILE OR HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+if(USE_SYSTEM_LIBAEC AND USE_SYSTEM_LIBS AND NOT USE_SYSTEM_HDF5)
 	# TODO: Add maybe SZip with find_package or something like that.
 	# Need to have a proper find package or something like that for SZip/LibAEC
 	#set(zlib_minimal_accepted_version "1.2.11")

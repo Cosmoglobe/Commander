@@ -23,7 +23,8 @@
 #================================================================================
 
 message(STATUS "---------------------------------------------------------------")
-if(NOT (HEALPIX_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#if(NOT (HEALPIX_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+if(USE_SYSTEM_HEALPIX AND USE_SYSTEM_LIBS)
 	find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
 endif()
 

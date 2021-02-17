@@ -42,7 +42,8 @@ message(STATUS "---------------------------------------------------------------"
 #			Intel10_64_dyn
 #			)
 #else()
-if(NOT (BLAS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#if(NOT (BLAS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+if(USE_SYSTEM_BLAS AND USE_SYSTEM_LIBS)
 	# This works for OpenBLAS
 	# Note: Sometimes this doesn't work, i.e. it cannot detect MKL/OpenBLAS 
 	# for some weird reason. In this case it is a good idea to logout and login
@@ -78,13 +79,13 @@ if(NOT (BLAS_FOUND OR LAPACK_FOUND))
 		#"PREFIX=${CMAKE_INSTALL_PREFIX}"
 		#"install"
 		#)
-	ExternalProject_Add(${project}
+	ExternalProject_Add(blas
 		DEPENDS required_libraries
-		URL "${${project}_url}"
-		URL_MD5 "${${project}_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
+		URL "${blas_url}"
+		URL_MD5 "${blas_md5}"
+		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/blas"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
+		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/blas/src/blas"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
 		LOG_DIR "${CMAKE_LOG_DIR}"
 		LOG_DOWNLOAD ON

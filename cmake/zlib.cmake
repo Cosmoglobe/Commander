@@ -25,7 +25,9 @@
 
 message(STATUS "---------------------------------------------------------------")
 
-if(NOT (ZLIB_FORCE_COMPILE OR HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#if(NOT (ZLIB_FORCE_COMPILE OR HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
+#if(USE_SYSTEM_ZLIB AND NOT USE_SYSTEM_HDF5 AND USE_SYSTEM_LIBS)
+if(USE_SYSTEM_ZLIB AND USE_SYSTEM_LIBS)
 	#set(zlib_minimal_accepted_version "1.2.11")
 	find_package(ZLIB 1.2.11)
 	# Require ZLib to be of the most recent version
@@ -39,13 +41,13 @@ if(NOT ZLIB_FOUND) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_acce
 	#------------------------------------------------------------------------------
 	# Getting ZLib from source.
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(${project}
+	ExternalProject_Add(zlib
 		DEPENDS required_libraries
-		URL "${${project}_url}"
-		URL_MD5 "${${project}_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
+		URL "${zlib_url}"
+		URL_MD5 "${zlib_md5}"
+		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/zlib"
 		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
+		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/zlib/src/zlib"
 		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
 		LOG_DIR "${CMAKE_LOG_DIR}"
 		LOG_DOWNLOAD ON
@@ -80,7 +82,7 @@ if(NOT ZLIB_FOUND) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_acce
 	message(STATUS "ZLIB INCLUDE DIRS will be: ${ZLIB_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
-	add_custom_target(${project} ALL "")
+	add_custom_target(zlib ALL "")
 	#------------------------------------------------------------------------------
 	message(STATUS "ZLIB LIBRARIES are: ${ZLIB_LIBRARIES}")
 	message(STATUS "ZLIB INCLUDE DIRS are: ${ZLIB_INCLUDE_DIRS}")
