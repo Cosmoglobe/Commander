@@ -138,13 +138,12 @@ $ mpirun -n num_proc ~/Commander/commander1/src/commander/commander param_file.t
 
 ## License
 
-Coming soon...
+[GNU GPLv3](https://github.com/Cosmoglobe/Commander/blob/master/COPYING)
 
 ---
 
 ## Projects
 
-Coming soon...
 
 ---
 
