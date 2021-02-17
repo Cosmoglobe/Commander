@@ -148,7 +148,7 @@ Commander framework is official part of the following projects:
 
 <p align="center">
     <img src="./logo/beyondplanck_logo.png" height="100"> 
-    <img src="./logo/LiteBIRD-logo-posi-RGB.png height="100"> 
+    <img src="./logo/LiteBIRD-logo-posi-RGB.png" height="100"> 
 </p>
 
 ---
