@@ -144,6 +144,22 @@ $ mpirun -n num_proc ~/Commander/commander1/src/commander/commander param_file.t
 
 ## Projects
 
+Commander framework is official part of the following projects:
+
+<p align="center">
+    <img src="https://github.com/Cosmoglobe/Commander/blob/maksymb/logo/beyondplanck_logo.png" height="150" width="150">
+</p>
+
+---
+
+## Funding
+
+This work has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreements No 776282 (COMPET-4; BeyondPlanck), 772253 (ERC; bits2cosmology) and 819478 (ERC; Cosmoglobe).
+
+<p align="center">
+    <img src="https://github.com/Cosmoglobe/Commander/blob/maksymb/logo/LOGO_ERC-FLAG_EU_.jpg" height="150" width="150">
+    <img src="https://github.com/Cosmoglobe/Commander/blob/maksymb/logo/horizon2020_logo.jpg" height="150" width="150">
+</p>
 
 ---
 
