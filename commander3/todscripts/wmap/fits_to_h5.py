@@ -77,6 +77,7 @@ fknees *= 1e-3
 # version 38 compresses the TODs, adjusts the TODs and gains so that they are all positive
 # version 39 uses weeklong scans
 # version 40 computes the polarization angles in a different way
+# version 41 fixes the unit vectors in the polarization angle calculation
 
 from time import sleep
 from time import time as timer
@@ -576,7 +577,7 @@ def gamma_from_pol(gal, pol):
     dir_west_y = -dir_gal[:,0]/sin_theta
     dir_west_z = dir_gal[:,1]*0
     dir_west = np.array([dir_west_x, dir_west_y, dir_west_z]).T
-    dir_north = (dir_Z - dir_gal[2]*dir_gal)/sin_theta[:,np.newaxis]
+    dir_north = (dir_Z - dir_gal[:,2][:,np.newaxis]*dir_gal)/sin_theta[:,np.newaxis]
 
     # If north Galactic pole is observed
     ind = (sin_theta == 0)
@@ -1038,7 +1039,7 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
         pool = Pool(processes=nprocs)
         print('pool set up')
         x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot, version, center]) for i, f in zip(inds, files)]
-        for i in tqdm(range(len(x)), smooth=0):
+        for i in tqdm(range(len(x)), smoothing=0):
             x[i].get()
             #res.wait()
         pool.close()
@@ -1057,5 +1058,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=37, center=True)
     #main(par=True, plot=False, compress=True, version=38, center=True)
     #main(par=True, plot=False, compress=True, version=39, center=True)
-    main(par=True, plot=False, compress=True, version=40, center=True)
+    #main(par=True, plot=False, compress=True, version=40, center=True)
+    main(par=True, plot=False, compress=True, version=41, center=True)
     #test_flags()
