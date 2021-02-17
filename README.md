@@ -141,7 +141,7 @@ $ mpirun -n num_proc ~/Commander/commander1/src/commander/commander param_file.t
 Commander framework is part of the following projects:
 
 <p align="center">
-    <img src="./logo/Planck_logo.jpg" height="100"> 
+    <img src="./logo/Planck_logo.png" height="100"> 
     <img src="./logo/beyondplanck_logo.png" height="100"> 
     <img src="./logo/LiteBIRD-logo-posi-RGB.png" height="100"> 
     <img src="./logo/Cosmoglobe-logo-vertical-large.png" height="100"> 
