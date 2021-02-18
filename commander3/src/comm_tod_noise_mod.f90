@@ -137,7 +137,7 @@ contains
        pcg_converged = .false.
 !  subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, freq)
        !!!! add choice between PCG and regular ncorr here
-       if (.true.) then !(self%scanid(scan) == 2112) .and. (i == 1)) then
+       if (.false.) then !(self%scanid(scan) == 2112) .and. (i == 1)) then
           !call test_fft(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           n_corr(:, i) = ncorr2(:)
@@ -336,7 +336,7 @@ contains
     n = nfft / 2 + 1
     ntod = size(d_prime, 1)
     nmask = ntod - sum(mask)
-    
+
     eps = 1.d-5
 
     converged = .false.

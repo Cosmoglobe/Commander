@@ -183,7 +183,6 @@ contains
 
     call initialize_fft_mod(cpar)
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
-
   end subroutine initialize_tod_mod
 
   !common constructor functionality for all tod processing classes
@@ -421,7 +420,7 @@ contains
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
-         stop
+         !stop
        end if
        call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)

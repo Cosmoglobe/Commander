@@ -644,7 +644,7 @@ contains
           
           
           ! Harald
-          dir_name = 'chains10_all/'
+          dir_name = 'chains11_test/'
           run_label = 'cut'
           do j=1, ndet
             call wall_time(time_start)
@@ -798,10 +798,10 @@ contains
 
 
 
-
           ! Construct orbital dipole template
           call wall_time(t1)
-          call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb)
+         !  call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix, psi, s_orb) ! Harald
+          s_orb = 0 ! Harald
           call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
           !call update_status(status, "tod_orb")
 
@@ -809,7 +809,7 @@ contains
           if (do_oper(sub_zodi)) then
              call compute_zodi_template(self%nside, pix, self%scans(i)%satpos, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
           end if
-          
+
           ! Construct sidelobe template 
           call wall_time(t1)
           if (do_oper(sub_sl)) then
@@ -931,10 +931,13 @@ contains
             n_corr = 0.
           end if
 
+
+
           ! Use n_corr to find jumps (Harald)
-          if (do_oper(samp_N) .and. (iter==1) .and. .false.) then
+          if (do_oper(samp_N) .and. (iter==1) .and. .true.) then
             do j = 1, ndet
                ! call tod2file(trim(dir_name)//'res_test_'//trim(it_text)//'.txt', tod_gapfill(:,j)-s_sky(:,j))
+               if (.not. self%scans(i)%d(j)%accept) cycle
                call jump_scan_stage2( &
                   & n_corr(:,j),    &
                   & flag(:,j),      &

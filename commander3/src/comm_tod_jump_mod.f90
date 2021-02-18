@@ -463,7 +463,7 @@ contains
     character(len=100)                         :: filename
     logical                                    :: switch, first_call, counting, downsampled
 
-    !  write(*,*) 'Routine: Jump scan'
+   !   write(*,*) 'Routine: Jump scan'
 
     downsampled = .true.
     
