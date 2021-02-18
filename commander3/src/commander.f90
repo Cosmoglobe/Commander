@@ -98,9 +98,9 @@ program commander
 
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
-     write(*,*)                  '----------------------------------------------'
-     write(*,*)                  '|              Commander3                '
-     write(*,*)                  '----------------------------------------------'
+     write(*,*)                  '------------------------------------------------------'
+     write(*,*)                  '|                     Commander3                     |'
+     write(*,*)                  '------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,*)                '|  Regime:                            TOD Simulations'
      else

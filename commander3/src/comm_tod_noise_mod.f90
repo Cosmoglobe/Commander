@@ -71,7 +71,7 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
-    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
+    !!$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
     allocate(d_prime(ntod))
     allocate(ncorr2(ntod))
     allocate(dt(nfft), dv(0:n-1))
@@ -197,12 +197,12 @@ contains
        end if
 
     end do
-    !$OMP END DO                                                          
+    !!$OMP END DO                                                          
     deallocate(dt, dv)
     deallocate(d_prime)
     deallocate(ncorr2)
     !deallocate(diff)
-    !$OMP END PARALLEL
+    !!$OMP END PARALLEL
     
     
 
@@ -892,12 +892,12 @@ contains
 
     ! Commented out OMP since we had problems with global parameters 
     ! in the likelihood functions
-!    !$OMP PARALLEL PRIVATE(i,l,j,dt,dv,f,d_prime,gain,ps,sigma0,alpha,fknee,samprate)
-!    allocate(dt(2*ntod), dv(0:n-1))
+    !!$OMP PARALLEL PRIVATE(i,l,j,dt,dv,f,d_prime,gain,ps,sigma0,alpha,fknee,samprate)
+    !allocate(dt(2*ntod), dv(0:n-1))
     allocate(dt(ntod), dv(0:n-1))
     
     allocate(ps(0:n-1))
-!    !$OMP DO SCHEDULE(guided)
+    !!$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        dt(1:ntod) = n_corr(:,i)
@@ -1110,7 +1110,7 @@ contains
        if (.not. allocated(tod%scans(scan)%d(i)%log_n_psd2)) allocate(tod%scans(scan)%d(i)%log_n_psd2(n_bins))
     end do
     
-    !$OMP PARALLEL PRIVATE(i,l,j,dt,dv,nu,log_nu,d_prime,log_nu_bin_edges,n_modes,psd,nu_sum,gain,dlog_nu)
+    !!$OMP PARALLEL PRIVATE(i,l,j,dt,dv,nu,log_nu,d_prime,log_nu_bin_edges,n_modes,psd,nu_sum,gain,dlog_nu)
     allocate(dt(2*ntod), dv(0:n-1))
     allocate(d_prime(ntod))
     
@@ -1118,7 +1118,7 @@ contains
     allocate(n_modes(n_bins))
     allocate(psd(n_bins))
     allocate(nu_sum(n_bins))
-    !$OMP DO SCHEDULE(guided)
+    !!$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle
     
@@ -1209,12 +1209,12 @@ contains
        !    close(65)
        ! end if
     end do
-    !$OMP END DO
+    !!$OMP END DO
     deallocate(dt, dv)
     deallocate(d_prime, psd, n_modes, nu_sum)
     deallocate(log_nu_bin_edges)
     
-    !$OMP END PARALLEL
+    !!$OMP END PARALLEL
     
     call sfftw_destroy_plan(plan_fwd)
     
