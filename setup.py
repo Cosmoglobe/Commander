@@ -16,7 +16,8 @@ import subprocess
 import json
 #----------------------------------------------------------------------
 # Custom modules
-from commander3.python import Downloader, Checker 
+#from commander3.python import Downloader, Checker 
+from pysetup import Downloader, Checker 
 #----------------------------------------------------------------------
 
 #print(python)
