@@ -81,6 +81,8 @@ CONTAINS
        IF (list%key /= key) THEN
           IF ( .NOT. ASSOCIATED(list%child) ) ALLOCATE(list%child)
           CALL put_sll(list%child,key,val)
+       ELSE
+          list%val = val
        END IF
     ELSE
        IF (.NOT. ALLOCATED(list%key)) &
