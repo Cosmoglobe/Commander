@@ -80,14 +80,6 @@ module comm_tod_WMAP_mod
 
 contains
 
-   !*************************************************
-   !    Convert integer to string
-   !*************************************************
-   character(len=20) function str(k)
-       integer, intent(in) :: k
-       write (str, *) k
-       str = adjustl(str)
-   end function str
 
 
    !**************************************************
@@ -144,7 +136,7 @@ contains
 
 
       ! Read the actual TOD
-      call constructor%read_tod_WMAP(constructor%label)
+      call constructor%read_tod(constructor%label)
 
       call constructor%precompute_lookups()
 
@@ -837,7 +829,8 @@ contains
 
       ! write out M_diag, b_map to fits.
       cg_tot = b_map(self%info%pix, 1:nmaps, 1)
-      call write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
+      call write_map2(trim(prefix)//'b2'//trim(postfix), b_map(:,:,1))
+      !call self%write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
       !cg_tot = M_diag(self%info%pix, 1:nmaps)
       !call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
       !cg_tot = b_map(self%info%pix, 1:nmaps, 5)
@@ -1113,62 +1106,6 @@ contains
 
 
 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   ! Subroutine to save time-ordered-data chunk
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   subroutine write_tod_chunk(filename, tod)
-     implicit none
-     character(len=*),                   intent(in) :: filename
-     real(sp),         dimension(:),     intent(in) :: tod
-     ! Expects one-dimensional TOD chunk
-
-     integer(i4b) :: unit, n_tod, t
-
-     n_tod = size(tod)
-
-     unit = getlun()
-     open(unit,file=trim(filename), recl=1024)
-     write(unit,*) '# TOD value in mK'
-     do t = 1, n_tod
-        write(unit,fmt='(e16.8)') tod(t)
-     end do
-     close(unit)
-   end subroutine write_tod_chunk
-
-
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   ! Subroutine to save map array to fits file 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   subroutine write_fits_file(filename, array, outmaps)
-     implicit none
-     character(len=*),                   intent(in) :: filename
-     real(dp),         dimension(0:),    intent(in) :: array
-     class(map_ptr),   dimension(:),     intent(in) :: outmaps
-
-     integer(i4b) :: np0, m
-
-     do m = 0, size(array) - 1
-        outmaps(1)%p%map(m, 1) = array(m)
-     end do
-
-     call outmaps(1)%p%writeFITS(filename)
-
-   end subroutine write_fits_file
-
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   ! Subroutine to save map array to fits file 
-   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-   subroutine write_fits_file_iqu(filename, array, outmaps)
-     implicit none
-     character(len=*),                    intent(in) :: filename
-     real(dp),         dimension(0:, 1:), intent(in) :: array
-     class(map_ptr),   dimension(:),      intent(in) :: outmaps
-
-     outmaps(1)%p%map = array
-
-     call outmaps(1)%p%writeFITS(filename)
-
-   end subroutine write_fits_file_iqu
 
 
   subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)

@@ -80,8 +80,13 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = tod_arr(:, i) - self%scans(scan)%d(i)%baseline &
+       if (present(tod_arr)) then
+         d_prime(:) = tod_arr(:, i) - self%scans(scan)%d(i)%baseline &
                 &- S_sub(:,i) * gain
+       else
+         d_prime(:) = self%scans(scan)%d(i)%tod(:) - self%scans(scan)%d(i)%baseline &
+                &- S_sub(:,i) * gain
+       end if
 
        sigma_0 = abs(self%scans(scan)%d(i)%sigma0)
        !write(*,*) "rms:", scan, sigma_0, sqrt(sum(d_prime**2)/size(d_prime))
@@ -190,7 +195,11 @@ contains
           write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
           open(65,file=trim(filename),status='REPLACE')
           do j = 1, ntod
-             write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+             if (present(tod_arr)) then
+               write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+             else
+               write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+             end if
           end do
           close(65)
           !stop
@@ -859,12 +868,21 @@ contains
 
        do j = 1, self%scans(scan)%ntod-1
           if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = (tod_arr(j, i) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
-               & n_corr(j,i)) - &
-               & (tod_arr(j+1, i) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
-               & n_corr(j+1,i))))/sqrt(2.)
+          if (present(tod_arr)) then
+            res = (tod_arr(j, i) - &
+                 & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                 & n_corr(j,i)) - &
+                 & (tod_arr(j+1, i) - &
+                 & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                 & n_corr(j+1,i))))/sqrt(2.)
+          else
+            res = (self%scans(scan)%d(i)%tod(j) - &
+                 & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                 & n_corr(j,i)) - &
+                 & (self%scans(scan)%d(i)%tod(j+1) - &
+                 & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                 & n_corr(j+1,i))))/sqrt(2.)
+          end if
           s = s + res**2
           n = n + 1
        end do
@@ -1289,7 +1307,12 @@ contains
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        j       = j+1
        gain    = tod%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime = tod_arr(:,i) - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
+       if (present(tod_arr)) then
+         d_prime = tod_arr(:,i) - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
+       else
+         d_prime = tod%scans(scan)%d(i)%tod - S_sub(:,i) * gain &
+               & - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
+       end if
        sigma_0 = tod%scans(scan)%d(i)%sigma0
 
        call wall_time(t1)       

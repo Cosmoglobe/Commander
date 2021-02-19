@@ -143,7 +143,6 @@ module comm_tod_mod
      integer(i4b)                                      :: verbosity ! verbosity of output
    contains
      procedure                        :: read_tod
-     procedure                        :: read_tod_WMAP
      procedure                        :: get_scan_ids
      procedure                        :: dumpToHDF
      procedure                        :: initHDF
@@ -540,119 +539,6 @@ contains
          & ', TOD IO time = ', t2-t1, ' sec'
 
   end subroutine read_tod
-
-  subroutine read_tod_WMAP(self, detlabels)
-    implicit none
-    class(comm_tod),                intent(inout)  :: self
-    character(len=*), dimension(:), intent(in)     :: detlabels
-
-    integer(i4b) :: i, j, n, det, ierr, ndet_tot
-    real(dp)     :: t1, t2
-    real(sp)     :: psi, g, b
-    type(hdf_file)     :: file
-
-    integer(i4b), dimension(:), allocatable       :: ns
-    character(len=1024)                           :: det_buf
-    character(len=128), dimension(:), allocatable :: dets
-    
-    real(sp), allocatable, dimension(:,:) :: g_precomp, b_precomp
-
-
-    ! Read common fields
-    allocate(self%mono(self%ndet), self%gain0(0:self%ndet), self%polang(self%ndet))
-    self%mono = 0.d0
-    if (self%myid == 0) then
-       call open_hdf_file(self%initfile, file, "r")
-
-
-       !TODO: figure out how to make this work
-       call read_hdf_string2(file, "/common/det",    det_buf, n)
-       ndet_tot = num_tokens(det_buf(1:n), ",")
-       allocate(dets(ndet_tot))
-       call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
-       call read_hdf(file, "common/nside",  self%nside)
-       if(self%nside /= self%nside_param) then
-         write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
-         stop
-       end if
-       call read_hdf(file, "common/npsi",   self%npsi)
-       call read_hdf(file, "common/fsamp",  self%samprate)
-
-
-       do i = 1, self%ndet
-          do j = 1, ndet_tot
-             if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
-                exit
-             end if
-          end do
-          if (j > ndet_tot) then
-             write(*,*) ' Error -- detector not found in HDF file: ', trim(adjustl(detlabels(i)))
-             stop
-          end if
-       end do
-       deallocate(dets)
-       call close_hdf_file(file)
-    end if
-    call mpi_bcast(self%nside,    1,     MPI_INTEGER,          0, self%comm, ierr)
-    call mpi_bcast(self%npsi,     1,     MPI_INTEGER,          0, self%comm, ierr)
-    call mpi_bcast(self%samprate, 1,     MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-
-    call wall_time(t1)
-    allocate(self%scans(self%nscan))
-    do i = 1, self%nscan
-       call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
-            & detlabels, self%nhorn)
-       do det = 1, self%ndet
-          self%scans(i)%d(det)%accept = .true.
-       end do
-    end do
-
-
-    ! Initialize mean gain
-    allocate(ns(0:self%ndet))
-    self%gain0 = 0.d0
-    ns         = 0
-    do i = 1, self%nscan
-       do j = 1, self%ndet
-          if (.not. self%scans(i)%d(j)%accept) cycle
-          self%gain0(j) = self%gain0(j) + self%scans(i)%d(j)%gain
-          ns(j)         = ns(j) + 1
-       end do
-    end do
-    call mpi_allreduce(MPI_IN_PLACE, self%gain0, self%ndet+1, &
-         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-    call mpi_allreduce(MPI_IN_PLACE, ns,         self%ndet+1, &
-         & MPI_INTEGER,          MPI_SUM, self%comm, ierr)
-    self%gain0(0) = sum(self%gain0)/sum(ns)
-    where (ns > 0)
-       self%gain0 = self%gain0 / ns - self%gain0(0)
-    end where
-
-    do i = 1, self%nscan
-       do j = 1, self%ndet
-          self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
-!          self%scans(i)%d(j)%dgain = 0.d0
-!          self%scans(i)%d(j)%gain  = self%gain0(0) + self%gain0(j)
-       end do
-    end do
-
-    ! Precompute trigonometric functions
-    allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
-    allocate(self%psi(self%npsi))
-    do i = 1, self%npsi
-       psi             = (i-0.5)*2.0*pi/real(self%npsi,sp)
-       self%psi(i)     = psi
-       self%sin2psi(i) = sin(2.0*psi)
-       self%cos2psi(i) = cos(2.0*psi)
-    end do
-
-    call mpi_barrier(self%comm, ierr)
-    call wall_time(t2)
-    if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
-         & '    Myid = ', self%myid, ' -- nscan = ', self%nscan, &
-         & ', TOD IO time = ', t2-t1, ' sec'
-
-  end subroutine read_tod_WMAP
 
   subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels, nhorn)
     implicit none
@@ -1461,7 +1347,12 @@ contains
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
-       d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i) + b)
+       if (present(tod_arr)) then
+         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i) + b)
+       else
+         d0    = self%scans(scan)%d(det)%tod(i) - &
+           &  (g * s_spur(i) + n_corr(i) + b)
+       end if
        chisq = chisq + (d0 - g * s_sky(i))**2
     end do
 
@@ -1578,5 +1469,63 @@ contains
     call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%tod, tod)
 
   end subroutine decompress_tod
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Subroutine to save time-ordered-data chunk
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine write_tod_chunk(filename, tod)
+    implicit none
+    character(len=*),                   intent(in) :: filename
+    real(sp),         dimension(:),     intent(in) :: tod
+    ! Expects one-dimensional TOD chunk
+
+    integer(i4b) :: unit, n_tod, t
+
+    n_tod = size(tod)
+
+    unit = getlun()
+    open(unit,file=trim(filename), recl=1024)
+    write(unit,*) '# TOD value in mK'
+    do t = 1, n_tod
+       write(unit,fmt='(e16.8)') tod(t)
+    end do
+    close(unit)
+  end subroutine write_tod_chunk
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Subroutine to save map array to fits file 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine write_fits_file(filename, array, outmaps)
+    implicit none
+    character(len=*),                   intent(in) :: filename
+    real(dp),         dimension(0:),    intent(in) :: array
+    class(map_ptr),   dimension(:),     intent(in) :: outmaps
+
+    integer(i4b) :: np0, m
+
+    do m = 0, size(array) - 1
+       outmaps(1)%p%map(m, 1) = array(m)
+    end do
+
+    call outmaps(1)%p%writeFITS(filename)
+
+  end subroutine write_fits_file
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Subroutine to save map array to fits file 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine write_fits_file_iqu(filename, array, outmaps)
+    implicit none
+    character(len=*),                    intent(in) :: filename
+    real(dp),         dimension(0:, 1:), intent(in) :: array
+    class(map_ptr),   dimension(:),      intent(in) :: outmaps
+
+    outmaps(1)%p%map = array
+
+    call outmaps(1)%p%writeFITS(filename)
+
+  end subroutine write_fits_file_iqu
 
 end module comm_tod_mod
