@@ -97,11 +97,11 @@ dir_B_los = np.array([
 
 
 rots = np.arange(0, 360, 45)
-#rots = [0]
+rots = [0]
 for rot in rots:
   fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v7.h5'
-  #fname_out = 'test.h5'
+  fname_out = 'test.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
@@ -276,8 +276,8 @@ for rot in rots:
           if lab in fname:
             data = hp.read_map(fname, nest=True)
             break
-      
-     
+        
+        print(lab, fname)
         # Beam is normalized such that \int B(\Omega)\,d\Omega = 4\pi, Commander
         # expects \int B\,d\Omega = 1.
         # Not sure if this factor is needed...
@@ -296,19 +296,19 @@ for rot in rots:
         phi = np.arctan2(dir_A[1], dir_A[0])
 
        
-        hp.mollview(beam_A, min=0, max=0.3)
+        #hp.mollview(beam_A, min=0, max=0.3)
   
         r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
             deg=False, eulertype='ZYX')
         beam_A_temp = r.rotate_map_pixel(beam_A)
 
-        hp.mollview(beam_A_temp, min=0, max=0.3)
+        #hp.mollview(beam_A_temp, min=0, max=0.3)
   
         r = hp.rotator.Rotator(rot=(rot*np.pi/180, 0, 0), \
             deg=False, eulertype='ZYX')
         beam_A = r.rotate_map_pixel(beam_A_temp)
   
-        hp.mollview(beam_A, min=0, max=0.3)
+        #hp.mollview(beam_A, min=0, max=0.3)
   
         alm_A = hp.map2alm(beam_A, lmax=sllmax, mmax=slmmax)
         s_lm_A = complex2realAlms(alm_A, sllmax, slmmax)

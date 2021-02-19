@@ -162,6 +162,11 @@ contains
             M_diag(lpix, 3) = M_diag(lpix, 3) + f_A*inv_sigmasq*tod%sin2psi(lpsi)**2
             M_diag(rpix, 3) = M_diag(rpix, 3) + f_B*inv_sigmasq*tod%sin2psi(rpsi)**2
 
+            ! Not a true diagonal term, just the off-diagonal estimate of the
+            ! covariance for each pixel.
+            M_diag(lpix, 4) = M_diag(lpix, 4)+f_A*inv_sigmasq*tod%sin2psi(lpsi)*tod%cos2psi(lpsi)
+            M_diag(rpix, 4) = M_diag(rpix, 4)+f_B*inv_sigmasq*tod%sin2psi(rpsi)*tod%cos2psi(rpsi)
+
          end do
        end if
 

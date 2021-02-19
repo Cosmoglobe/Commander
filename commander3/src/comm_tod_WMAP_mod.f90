@@ -107,7 +107,7 @@ contains
 
       ! Set up WMAP specific parameters
       allocate (constructor)
-      constructor%output_n_maps = 6
+      constructor%output_n_maps = 3
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn = 2
       constructor%first_call = .true.
@@ -220,7 +220,7 @@ contains
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
       real(dp), allocatable, dimension(:)       :: map_full
       real(dp) :: monopole
-      logical(lgt) :: write_cg_iter=.false.
+      logical(lgt) :: write_cg_iter=.true.
 
 
       real(dp) :: phi, theta
@@ -236,7 +236,8 @@ contains
       ! biconjugate gradient parameters
       real(dp) :: rho_old, rho_new
       real(dp) :: omega, delta_r, delta_s
-      real(dp), allocatable, dimension(:, :) :: r0, shat, p, phat, v
+      real(dp), allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
+      real(dp), allocatable, dimension(:)    :: determ
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
@@ -246,7 +247,7 @@ contains
 
       ! Set up full-sky map structures
       call wall_time(t1)
-      correct_sl = .true.
+      correct_sl = .false.
       chisq_threshold = 6d0
       n_main_iter     = 6
       ndet = self%ndet
@@ -333,7 +334,7 @@ contains
       call update_status(status, "tod_init")
       call wall_time(t3)
       do_oper             = .true.
-      allocate (M_diag(0:npix-1, nmaps))
+      allocate (M_diag(0:npix-1, nmaps+1))
       allocate ( b_map(0:npix-1, nmaps, nout))
       M_diag = 0d0
       b_map = 0d0
@@ -837,8 +838,9 @@ contains
       ! write out M_diag, b_map to fits.
       cg_tot = b_map(self%info%pix, 1:nmaps, 1)
       call write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
-      cg_tot = M_diag(self%info%pix, 1:nmaps)
-      call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
+      call write_map2(trim(prefix)//'b2'//trim(postfix), m_buf)
+      !cg_tot = M_diag(self%info%pix, 1:nmaps)
+      !call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
       !cg_tot = b_map(self%info%pix, 1:nmaps, 5)
       !call write_fits_file_iqu(trim(prefix)//'b_sl'//trim(postfix), cg_tot, outmaps)
 
@@ -852,6 +854,7 @@ contains
       allocate (cg_sol(0:npix-1, nmaps, nout))
       if (self%myid == 0) then 
          allocate (r     (0:npix-1, nmaps))
+         allocate (rhat  (0:npix-1, nmaps))
          allocate (r0    (0:npix-1, nmaps))
          allocate (q     (0:npix-1, nmaps))
          allocate (p     (0:npix-1, nmaps))
@@ -860,6 +863,8 @@ contains
          allocate (m_buf (0:npix-1, nmaps))
          allocate (phat  (0:npix-1, nmaps))
          allocate (v     (0:npix-1, nmaps))
+         allocate (determ(0:npix-1))
+         determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
 
          cg_sol = 0.0d0
          !cg_sol(:,:,1) = map_sky(:,:,0,1)
@@ -886,7 +891,10 @@ contains
             end if
             r0 = b_map(:, :, l)
             if (maxval(r) == 0) cycle
-            delta_r = sum(r**2/M_diag)
+            rhat(:,1) =  r(:,1)/M_diag(:,1)
+            rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
+            rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+            delta_r = sum(r*rhat)
             delta_0 = delta_r
             delta_s = delta_s
 
@@ -908,17 +916,11 @@ contains
                   p = r
                else
                   beta = (rho_new/rho_old) * (alpha/omega)
-!!$                  write(*,*) 'rho_new', rho_new
-!!$                  write(*,*) 'rho_old', rho_old
-!!$                  write(*,*) 'omega', omega
-!!$                  write(*,*) 'alpha', alpha
-!!$                  write(*,*) 'beta', beta
-!!$                  write(*,*) 'r', sum(abs(r))
-!!$                  write(*,*) 'p', sum(abs(p))
-!!$                  write(*,*) 'v', sum(abs(v))
                   p = r + beta*(p - omega*v)
                end if
-               phat = p/M_diag
+               phat(:,1) =  p(:,1)/M_diag(:,1)
+               phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
+               phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
                
                call update_status(status, "Calling v=Ap")
                call compute_Ax(self, self%x_im, procmask, phat, v)
@@ -926,7 +928,9 @@ contains
 
                alpha         = rho_new/sum(r0*v)
                s             = r - alpha*v
-               shat          = s/M_diag
+               shat(:,1) =  s(:,1)/M_diag(:,1)
+               shat(:,2) = (s(:,2)*M_diag(:,3)- s(:,2)*M_diag(:,4))/determ
+               shat(:,3) = (s(:,3)*M_diag(:,2)- s(:,3)*M_diag(:,4))/determ
                delta_s       = sum(s*shat)
 
                if (self%verbosity > 1) then 
@@ -934,8 +938,14 @@ contains
 101               format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
                end if
 
+               cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
+               if (write_cg_iter) then
+                 cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
+                 filename=trim(prefix)//'cg'//trim(str(l))//'_it'//trim(str(2*(i-1)))//trim(postfix)
+                 call write_map2(filename, cg_tot)
+               end if
+
                if (delta_s .le. (delta_0*epsil(l)) .and. 2*i-1 .ge. i_min) then
-                  cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
                   finished = .true.
                   call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
                   exit bicg
@@ -945,7 +955,12 @@ contains
                call compute_Ax(self, self%x_im, procmask, shat, q)
 
                omega         = sum(q*s)/sum(q**2)
-               cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat + omega*shat
+               cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
+               if (write_cg_iter) then
+                 cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
+                 filename=trim(prefix)//'cg'//trim(str(l))//'_it'//trim(str(2*(i-1)+1))//trim(postfix)
+                 call write_map2(filename, cg_tot)
+               end if
                if (omega == 0d0) then
                  write(*,*) 'omega is zero'
                  finished = .true.
@@ -962,7 +977,10 @@ contains
                   r = s - omega*q
                end if
 
-               delta_r      = sum(r**2/M_diag)
+               rhat(:,1) =  r(:,1)/M_diag(:,1)
+               rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
+               rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+               delta_r      = sum(r*rhat)
                num_cg_iters = num_cg_iters + 1
 
                if (self%verbosity > 1) then 
@@ -1078,7 +1096,7 @@ contains
       end if
 
       deallocate (map_sky, cg_sol)
-      if (self%myid == 0) deallocate (r, s, q, r0, shat, p, phat, v, m_buf)
+      if (self%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
 
       if (correct_sl) then
          do i = 1, self%ndet
