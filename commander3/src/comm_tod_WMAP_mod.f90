@@ -220,7 +220,7 @@ contains
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
       real(dp), allocatable, dimension(:)       :: map_full
       real(dp) :: monopole
-      logical(lgt) :: write_cg_iter=.true.
+      logical(lgt) :: write_cg_iter=.false.
 
 
       real(dp) :: phi, theta
@@ -287,7 +287,7 @@ contains
          do i = 1, self%ndet
             map_in(i, j)%p%map = map_in(i, j)%p%map
             call map_in(i, j)%p%bcast_fullsky_map(m_buf)
-            if (.false. .and. self%myid == 0) then
+            if (.true. .and. self%myid == 0) then
                filename = trim(chaindir) // '/fg_' // trim(self%label(i)) // '_v1.fits'
                call write_map2(filename, m_buf)
             end if
@@ -838,7 +838,6 @@ contains
       ! write out M_diag, b_map to fits.
       cg_tot = b_map(self%info%pix, 1:nmaps, 1)
       call write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
-      call write_map2(trim(prefix)//'b2'//trim(postfix), m_buf)
       !cg_tot = M_diag(self%info%pix, 1:nmaps)
       !call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
       !cg_tot = b_map(self%info%pix, 1:nmaps, 5)
@@ -942,7 +941,7 @@ contains
                if (write_cg_iter) then
                  cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
                  filename=trim(prefix)//'cg'//trim(str(l))//'_it'//trim(str(2*(i-1)))//trim(postfix)
-                 call write_map2(filename, cg_tot)
+                 call write_map(filename, cg_tot)
                end if
 
                if (delta_s .le. (delta_0*epsil(l)) .and. 2*i-1 .ge. i_min) then
@@ -959,7 +958,7 @@ contains
                if (write_cg_iter) then
                  cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
                  filename=trim(prefix)//'cg'//trim(str(l))//'_it'//trim(str(2*(i-1)+1))//trim(postfix)
-                 call write_map2(filename, cg_tot)
+                 call write_map(filename, cg_tot)
                end if
                if (omega == 0d0) then
                  write(*,*) 'omega is zero'
