@@ -100,6 +100,7 @@ module comm_tod_mod
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                      ! Sample rate in Hz
      logical(lgt) :: orb_abscal
+     logical(lgt) :: compressed_tod               
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
@@ -597,7 +598,8 @@ contains
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
     call read_hdf(file, slabel // "/common/time",  self%t0)
-    call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
+    ! HKE: LFI files should be regenerated with (x,y,z) info
+    !call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
     call wall_time(t2)
     t_tot(1) = t2-t1
 
@@ -627,13 +629,6 @@ contains
        call wall_time(t2)
        t_tot(3) = t_tot(3) + t2-t1
        call wall_time(t1)
-       !call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-       !allocate(self%d(i)%tod(m))
-       !if (tod%halfring_split == 2 )then
-       !  self%d(i)%tod = buffer_sp(m+1:2*m)
-       !else
-       !  self%d(i)%tod = buffer_sp(1:m)
-       !end if
        call wall_time(t2)
        t_tot(4) = t_tot(4) + t2-t1
 
@@ -641,15 +636,23 @@ contains
        ! Read Huffman coded data arrays
        call wall_time(t1)
        do j = 1, nhorn
-         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
-         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
+         !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
+         !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
+         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
        end do
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
-       if (.true.) then
-          ! Uncompressed TOD; Duncan -- fix this test
-          call read_hdf(file, slabel // "/" // trim(field) // "/tod", self%d(i)%tod)
+
+       if (tod%compressed_tod) then
+          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
        else
-          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
+          allocate(self%d(i)%tod(m))
+          call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+          if (tod%halfring_split == 2 )then
+             self%d(i)%tod = buffer_sp(m+1:2*m)
+          else
+             self%d(i)%tod = buffer_sp(1:m)
+          end if
        end if
        call wall_time(t2)
        t_tot(5) = t_tot(5) + t2-t1
@@ -661,9 +664,11 @@ contains
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
-    call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-    call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-    call hufmak_precomp(hsymb,htree,self%todkey)
+    if (tod%compressed_tod) then
+       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+       call hufmak_precomp(hsymb,htree,self%todkey)
+    end if
     deallocate(hsymb, htree)
     call wall_time(t2)
     t_tot(6) = t_tot(6) + t2-t1

@@ -101,6 +101,7 @@ contains
     constructor%subtract_zodi = cpar%include_TOD_zodi
     constructor%central_freq  = cpar%ds_nu_c(id_abs)
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+    constructor%compressed_tod = .false.
 
     call mpi_comm_size(cpar%comm_shared, constructor%numprocs_shared, ierr)
 

@@ -128,6 +128,7 @@ contains
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%halfring_split = cpar%ds_tod_halfring(id_abs)
     constructor%nside_param   = cpar%ds_nside(id_abs)
+    constructor%compressed_tod = .false.
 
     !----------------------------------------------------------------------------------
     ! Simulation Routine
