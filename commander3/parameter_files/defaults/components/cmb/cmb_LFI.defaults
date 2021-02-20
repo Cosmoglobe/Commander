@@ -1,0 +1,36 @@
+# CMB for LFI TOD study
+COMP_LABEL&&                  = cmb
+COMP_TYPE&&                   = cmb
+COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc, template}
+COMP_POLARIZATION&&           = .true.
+COMP_CG_SCALE_T&&             = 1.d0
+COMP_CG_SCALE_P&&             = 1.d0
+COMP_CG_SAMPLE_GROUP&&        =  1
+COMP_NSIDE&&                  = 1024
+COMP_MONOPOLE_PRIOR&&         = monopole:mask_common_dx12_n1024_TQU.fits
+COMP_DEFLATION_MASK&&         = fullsky
+COMP_L_APOD&&                 = 2000
+COMP_LMIN_AMP&&               = 0
+COMP_LMAX_AMP&&               = 2000
+COMP_LMAX_IND&&               = 0
+COMP_OUTPUT_FWHM&&            = 14         # arcmin
+COMP_UNIT&&                   = uK_cmb
+COMP_NU_REF_T&&               = 1  100.
+COMP_NU_REF_P&&               = 1  100.
+COMP_CL_TYPE&&                = none  power_law  # {none, single_l, binned, power_law}
+COMP_CL_POLTYPE&&             = 1  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+COMP_CL_BETA_PRIOR_MEAN&&     =  0.0
+COMP_CL_BETA_PRIOR_RMS&&      =  0.1
+COMP_CL_L_PIVOT&&             =  20          # Pivot multipole
+COMP_CL_DEFAULT_AMP_T&&       =  1000000        # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_E&&       =  1000
+COMP_CL_DEFAULT_AMP_B&&       =  1000
+COMP_CL_DEFAULT_BETA_T&&      =  0.d0
+COMP_CL_DEFAULT_BETA_E&&      = -0.5d0
+COMP_CL_DEFAULT_BETA_B&&      = -0.5d0
+COMP_MASK&&                   = fullsky
+COMP_INPUT_AMP_MAP&&          = init_cmb_amp_BP8.1_v1.fits
+COMP_PRIOR_AMP_MAP&&          = none
+COMP_OUTPUT_EB_MAP&&          = .false.
+COMP_INIT_FROM_HDF&&          = default
+
