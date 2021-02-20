@@ -71,7 +71,7 @@ module comm_shared_arr_mod
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
-     integer(i4b), pointer,     dimension(:)  :: a => null()
+     integer(i4b), pointer,     dimension(:)   :: a => null()
   end type shared_1d_int
 
   type shared_2d_int
@@ -356,8 +356,8 @@ contains
   subroutine init_shared_1d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
        & n, arr)
     implicit none
-    integer(i4b),       intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
-    integer(i4b),       intent(in)  :: n(:)
+    integer(i4b),        intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),        intent(in)  :: n(:)
     type(shared_1d_int), intent(out) :: arr
 
     integer(i4b) :: ierr

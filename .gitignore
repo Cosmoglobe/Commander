@@ -1,16 +1,22 @@
-*.mod
-*.o
-*.optrpt
-*.a
-*.gitignore
+#---------------------------------------------------------------
+# Compiled python modules.
+#---------------------------------------------------------------
+.Python
 *.pyc
-*.swp
-*comm_like_sampler
-*comm_like_tools
-*comm_like_tools_mpi
-*comm_process_resfiles
-*commander
-
+# Setuptools distribution folder.
+/dist/
+/sdist/
+# Python egg metadata, regenerated from source files by setuptools.
+eggs/
+.eggs/
+develop-eggs/
+*.egg-info/
+*.egg
+# Python cache files 
+__pycache__/
+#---------------------------------------------------------------
+# CMake miscellaneous files
+#---------------------------------------------------------------
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
@@ -21,3 +27,34 @@ install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
 _deps
+build/
+downloads/
+lib/
+lib64/
+#---------------------------------------------------------------
+# Fortran compiled output
+#---------------------------------------------------------------
+*.mod
+*.o
+*.optrpt
+*.a
+*.swp
+*.swo
+*comm_like_sampler
+*comm_like_tools
+*comm_like_tools_mpi
+*comm_process_resfiles
+*commander
+*.gitignore
+
+#---------------------------------------------------------------
+# Editors
+#---------------------------------------------------------------
+.vscode/
+.idea/
+# Vagrant
+.vagrant/
+# Mac/OSX
+.DS_Store
+# Windows
+Thumbs.db

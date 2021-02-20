@@ -136,24 +136,43 @@ $ mpirun -n num_proc ~/Commander/commander1/src/commander/commander param_file.t
 
 ---
 
-## License
+## Projects
 
-Coming soon...
+Commander framework is part of the following projects:
+
+<p align="center">
+    <img src="./logo/Planck_logo.png" height="100"> 
+    <img src="./logo/beyondplanck_logo.png" height="100"> 
+    <img src="./logo/LiteBIRD-logo-posi-RGB.png" height="100"> 
+    <img src="./logo/Cosmoglobe-logo-vertical-large.png" height="100"> 
+</p>
 
 ---
 
-## Projects
+## Funding
 
-Coming soon...
+This work has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreements No 776282 (COMPET-4; BeyondPlanck), 772253 (ERC; bits2cosmology) and 819478 (ERC; Cosmoglobe).
+
+<p align="center">
+    <img src="./logo/LOGO_ERC-FLAG_EU_.jpg" height="200">
+    <img src="./logo/horizon2020_logo.jpg" height="200">
+</p>
+
+---
+
+## License
+
+[GNU GPLv3](https://github.com/Cosmoglobe/Commander/blob/master/COPYING)
 
 ---
 
 ## Citation
 
-If used for published results, please cite these papers:
+If used for published results, please cite these papers using the associated bibliography file:
 
-- Jewell et al. 2004, ApJ, 609, 1                            
-- Wandelt et al. 2004, Phys. Rev. D, 70, 083511
-- Eriksen et al. 2004, ApJS, 155, 227 (Commander)
-- Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB) 
+- [Jewell et al. 2004, ApJ, 609, 1](https://doi.org/10.1086/383515)                            
+- [Wandelt et al. 2004, Phys. Rev. D, 70, 083511](https://doi.org/10.1103/PhysRevD.70.083511)
+- [Eriksen et al. 2004, ApJS, 155, 227 (Commander)](https://doi.org/10.1086/425219)
+- [Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)](https://doi.org/10.1086/525277)
 
+[commander.bib](docs/commander.bib)

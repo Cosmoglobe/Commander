@@ -27,6 +27,7 @@ program commander
   use comm_output_mod
   use comm_comp_mod
   use comm_nonlin_mod
+  use comm_tod_simulations_mod
   implicit none
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
@@ -39,38 +40,43 @@ program commander
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
 
+  !----------------------------------------------------------------------------------
   ! Command line arguments
-  !character(len=*), parameter :: version = '1.0.0'
-  !character(len=32)           :: arg
-  !integer                     :: myint
+  character(len=*), parameter :: version = '1.0.0'
+  character(len=32)           :: arg
+  integer                     :: arg_indx
 
-  !do myint = 1, command_argument_count()
-  !  call get_command_argument(myint, arg)
+  ! Giving the simple command line arguments for user to chose from.
+  comm3_args: do arg_indx = 1, command_argument_count()
+    call get_command_argument(arg_indx, arg)
 
-  !  select case (arg)
-  !    case ('-v', '--version')
-  !      print '(2a)', 'Commander3 version ', version
-  !      print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
-  !      print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
-  !      print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
-  !      call exit(0)
-  !    case ('-h', '--help')
-  !      call print_help()
-  !      call exit(0)
-  !    case default
-  !      print '(2a, /)', 'Unrecognised command-line option: ', arg
-  !      call print_help()
-  !      call exit(0)
-  !  end select
-  !end do
+    select case (arg)
+      case ('-v', '--version')
+        print '(2a)', 'Commander3 version: '//trim(version)
+        print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
+        print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
+        print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+        call exit(0)
+      case ('-h', '--help')
+        call print_help()
+        call exit(0)
+      case default
+        !print '(2a, /)', 'Unrecognised command-line option: ', arg
+        !call print_help()
+        !call exit(0)
+        exit comm3_args
+    end select
+  end do comm3_args
+  !----------------------------------------------------------------------------------
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
   call wall_time(t0)
-  call mpi_init(ierr)
-  call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
-  call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+  call MPI_Init(ierr)
+  call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
+  call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+  
   cpar%root = 0
     
   
@@ -85,23 +91,27 @@ program commander
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
-     call mpi_finalize(ierr)
+     call MPI_Finalize(ierr)
      stop
   end if
   if (cpar%myid == cpar%root) call wall_time(t2)
 
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
-     write(*,*) ''
-     write(*,*) '       **********   Commander   *************'
-     write(*,*) ''
-     write(*,*) '   Number of chains                       = ', cpar%numchain
-     write(*,*) '   Number of processors in first chain    = ', cpar%numprocs_chain
-     write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '   Time to initialize run = ', t2-t0, ' sec'
-     write(*,fmt='(a,f12.3,a)') '   Time to read in parameters = ', t3-t1, ' sec'
-     write(*,*) ''
-
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+     write(*,fmt='(a)') ' |                           Commander3                              |'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+     if (cpar%enable_tod_simulations) then
+       write(*,fmt='(a)')       ' |  Regime:                            TOD Simulations'
+     else
+       write(*,fmt='(a)')       ' |  Regime:                            Data Processing'
+     endif
+     write(*,fmt='(a,2i)')      ' |  Number of chains                       = ', cpar%numchain
+     write(*,fmt='(a,2i)')      ' |  Number of processors in first chain    = ', cpar%numprocs_chain
+     write(*,fmt='(a)')         ' |'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to initialize run                 = ', t2-t0, ' sec'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to read in parameters             = ', t3-t1, ' sec'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
   end if
 
 
@@ -179,13 +189,19 @@ program commander
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.
+  !----------------------------------------------------------------------------------
+  ! Part of Simulation routine
+  !----------------------------------------------------------------------------------
+  ! Will make only one full gibbs loop to produce simulations
+  !if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
+  !----------------------------------------------------------------------------------
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
-        write(*,fmt='(a)') '---------------------------------------------------------------------'
-        write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
+        write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+        write(*,fmt='(a,i4,a,i8)') ' Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
@@ -196,8 +212,19 @@ program commander
            call update_mixing_matrices(update_F_int=.true.)       
         end if
      end if
+     !----------------------------------------------------------------------------------
+     ! Part of Simulation routine
+     !----------------------------------------------------------------------------------
+     ! If we are on 1st iteration and simulation was enabled,
+     ! we copy real LFI data into specified folder.
+     if ((iter == 1) .and. cpar%enable_tod_simulations) then
+       call copy_LFI_tod(cpar, ierr)
+       call write_filelists_to_disk(cpar, ierr)
+     end if
+     !----------------------------------------------------------------------------------
      ! Process TOD structures
-     if (cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+
+     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
@@ -240,12 +267,12 @@ program commander
      if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
         end if
         iter = iter+1
      else
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
            write(*,*) 'SAMPLE REJECTED'
         end if        
      end if
@@ -338,7 +365,7 @@ contains
           !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
-                call data(i)%bp(j)%p%update_tau(delta(j,:,k))
+                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
           !end if
@@ -379,7 +406,7 @@ contains
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
-          call data(i)%bp(j)%p%update_tau(delta(j,:,1))
+          call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
        end do
        call update_mixing_matrices(i, update_F_int=.true.)       
 
