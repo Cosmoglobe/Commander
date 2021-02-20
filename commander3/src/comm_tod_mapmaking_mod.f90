@@ -27,70 +27,72 @@ module comm_tod_mapmaking_mod
 
 contains
 
-   ! Compute map with white noise assumption from correlated noise
-   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain
-   subroutine bin_TOD(tod, data, pix, psi, flag, A, b, scan, comp_S, b_mono)
-      implicit none
-      class(comm_tod), intent(in)                               :: tod
-      integer(i4b), intent(in)                                  :: scan
-      real(sp), dimension(1:, 1:, 1:), intent(in)               :: data
-      integer(i4b), dimension(1:, 1:), intent(in)               :: pix, psi, flag
-      real(dp), dimension(1:, 1:), intent(inout)                :: A
-      real(dp), dimension(1:, 1:, 1:), intent(inout)            :: b
-      real(dp), dimension(1:, 1:, 1:), intent(inout), optional  :: b_mono
-      logical(lgt), intent(in)                                  :: comp_S
 
-      integer(i4b)                                              :: det, i, t, pix_, off, nout, psi_
-      real(dp)                                                  :: inv_sigmasq
+  ! Compute map with white noise assumption from correlated noise 
+  ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
+  subroutine bin_TOD(tod, data, pix, psi, flag, A, b, scan, comp_S, b_mono)
+    implicit none
+    class(comm_tod),                             intent(in)    :: tod
+    integer(i4b),                                intent(in)    :: scan
+    real(sp),            dimension(1:,1:,1:),    intent(in)    :: data
+    integer(i4b),        dimension(1:,1:),       intent(in)    :: pix, psi, flag
+    real(dp),            dimension(1:,1:),       intent(inout) :: A
+    real(dp),            dimension(1:,1:,1:),    intent(inout) :: b
+    real(dp),            dimension(1:,1:,1:),    intent(inout), optional :: b_mono
+    logical(lgt),                                intent(in)    :: comp_S
 
-      nout = size(b, dim=1)
+    integer(i4b) :: det, i, t, pix_, off, nout, psi_
+    real(dp)     :: inv_sigmasq
 
-      do det = 1, tod%ndet
-         if (.not. tod%scans(scan)%d(det)%accept) cycle
-         !write(*,*) tod%scanid(scan), det, tod%scans(scan)%d(det)%sigma0
-         off = 6 + 4*(det - 1)
-         !inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
-         inv_sigmasq = 1/(tod%scans(scan)%d(det)%sigma0)**2
-         do t = 1, tod%scans(scan)%ntod
+    nout        = size(b,dim=1)
 
-            if (iand(flag(t, det), tod%flag0) .ne. 0) cycle
+    do det = 1, tod%ndet
+       if (.not. tod%scans(scan)%d(det)%accept) cycle
+       !write(*,*) tod%scanid(scan), det, tod%scans(scan)%d(det)%sigma0
+       off         = 6 + 4*(det-1)
+       inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+       do t = 1, tod%scans(scan)%ntod
+          
+         !  if (iand(flag(t,det),tod%flag0) .ne. 0) cycle
+         if (flag(t,det)==1) cycle
+          
+          pix_    = tod%pix2ind(pix(t,det))
+          psi_    = psi(t,det)
+          
+          A(1,pix_) = A(1,pix_) + 1.d0                                  * inv_sigmasq
+          A(2,pix_) = A(2,pix_) + tod%cos2psi(psi_)                    * inv_sigmasq
+          A(3,pix_) = A(3,pix_) + tod%cos2psi(psi_)**2                 * inv_sigmasq
+          A(4,pix_) = A(4,pix_) + tod%sin2psi(psi_)                    * inv_sigmasq
+          A(5,pix_) = A(5,pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_) * inv_sigmasq
+          A(6,pix_) = A(6,pix_) + tod%sin2psi(psi_)**2                 * inv_sigmasq
+          
+          do i = 1, nout
+             b(i,1,pix_) = b(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
+             b(i,2,pix_) = b(i,2,pix_) + data(i,t,det) * tod%cos2psi(psi_) * inv_sigmasq
+             b(i,3,pix_) = b(i,3,pix_) + data(i,t,det) * tod%sin2psi(psi_) * inv_sigmasq
+          end do
+          
+          if (present(b_mono)) then
+             b_mono(1,pix_,det) = b_mono(1,pix_,det) +                      inv_sigmasq
+             b_mono(2,pix_,det) = b_mono(2,pix_,det) + tod%cos2psi(psi_) * inv_sigmasq
+             b_mono(3,pix_,det) = b_mono(3,pix_,det) + tod%sin2psi(psi_) * inv_sigmasq
+          end if
+          
+          if (comp_S .and. det < tod%ndet) then
+             A(off+1,pix_) = A(off+1,pix_) + 1.d0               * inv_sigmasq 
+             A(off+2,pix_) = A(off+2,pix_) + tod%cos2psi(psi_) * inv_sigmasq
+             A(off+3,pix_) = A(off+3,pix_) + tod%sin2psi(psi_) * inv_sigmasq
+             A(off+4,pix_) = A(off+4,pix_) + 1.d0               * inv_sigmasq
+             do i = 1, nout
+                b(i,det+3,pix_) = b(i,det+3,pix_) + data(i,t,det) * inv_sigmasq 
+             end do
+          end if
+          
+       end do
+    end do
 
-            pix_ = tod%pix2ind(pix(t, det))
-            psi_ = psi(t, det)
+  end subroutine bin_TOD
 
-            A(1, pix_) = A(1, pix_) + 1.d0*inv_sigmasq
-            A(2, pix_) = A(2, pix_) + tod%cos2psi(psi_)*inv_sigmasq
-            A(3, pix_) = A(3, pix_) + tod%cos2psi(psi_)**2*inv_sigmasq
-            A(4, pix_) = A(4, pix_) + tod%sin2psi(psi_)*inv_sigmasq
-            A(5, pix_) = A(5, pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_)*inv_sigmasq
-            A(6, pix_) = A(6, pix_) + tod%sin2psi(psi_)**2*inv_sigmasq
-
-            do i = 1, nout
-               b(i, 1, pix_) = b(i, 1, pix_) + data(i, t, det)*inv_sigmasq
-               b(i, 2, pix_) = b(i, 2, pix_) + data(i, t, det)*tod%cos2psi(psi_)*inv_sigmasq
-               b(i, 3, pix_) = b(i, 3, pix_) + data(i, t, det)*tod%sin2psi(psi_)*inv_sigmasq
-            end do
-
-            if (present(b_mono)) then
-               b_mono(1, pix_, det) = b_mono(1, pix_, det) + inv_sigmasq
-               b_mono(2, pix_, det) = b_mono(2, pix_, det) + tod%cos2psi(psi_)*inv_sigmasq
-               b_mono(3, pix_, det) = b_mono(3, pix_, det) + tod%sin2psi(psi_)*inv_sigmasq
-            end if
-
-            if (comp_S .and. det < tod%ndet) then
-               A(off + 1, pix_) = A(off + 1, pix_) + 1.d0*inv_sigmasq
-               A(off + 2, pix_) = A(off + 2, pix_) + tod%cos2psi(psi_)*inv_sigmasq
-               A(off + 3, pix_) = A(off + 3, pix_) + tod%sin2psi(psi_)*inv_sigmasq
-               A(off + 4, pix_) = A(off + 4, pix_) + 1.d0*inv_sigmasq
-               do i = 1, nout
-                  b(i, det + 3, pix_) = b(i, det + 3, pix_) + data(i, t, det)*inv_sigmasq
-               end do
-            end if
-
-         end do
-      end do
-
-   end subroutine bin_TOD
 
    ! differential TOD computation, written with WMAP in mind.
    subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_imarr, pmask, b, M_diag, scan, comp_S, b_mono)
@@ -170,7 +172,7 @@ contains
          end do
        end if
 
-   end subroutine bin_differential_TOD
+end subroutine bin_differential_TOD
 
    subroutine compute_Ax(tod, x_imarr, pmask, x_in, y_out)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -274,47 +276,48 @@ contains
 
    end subroutine compute_Ax
 
+  subroutine finalize_binned_map(tod, handle, sA_map, sb_map, rms, outmaps, chisq_S, Sfile, mask, sb_mono, sys_mono, condmap)
+    implicit none
+    class(comm_tod),                      intent(in)    :: tod
+    type(planck_rng),                     intent(inout) :: handle
+    type(shared_2d_dp), intent(inout) :: sA_map
+    type(shared_3d_dp), intent(inout) :: sb_map
+    class(comm_map),                      intent(inout) :: rms
+    class(map_ptr),  dimension(1:),       intent(inout), optional :: outmaps
+    real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
+    character(len=*),                     intent(in),    optional :: Sfile
+    integer(i4b),    dimension(0:),       intent(in),    optional :: mask
+    type(shared_3d_dp), intent(inout), optional :: sb_mono
+    real(dp),        dimension(1:,1:,0:), intent(out),   optional :: sys_mono
+    class(comm_map),                      intent(inout), optional :: condmap
 
-   subroutine finalize_binned_map(tod, handle, sA_map, sb_map, rms, outmaps, chisq_S, Sfile, mask, sb_mono, sys_mono, condmap)
-      implicit none
-      class(comm_tod), intent(in)    :: tod
-      type(planck_rng), intent(inout) :: handle
-      type(shared_2d_dp), intent(inout) :: sA_map
-      type(shared_3d_dp), intent(inout) :: sb_map
-      class(comm_map), intent(inout) :: rms
-      class(map_ptr), dimension(1:), intent(inout), optional :: outmaps
-      real(dp), dimension(1:, 1:), intent(out), optional :: chisq_S
-      character(len=*), intent(in), optional :: Sfile
-      integer(i4b), dimension(0:), intent(in), optional :: mask
-      type(shared_3d_dp), intent(inout), optional :: sb_mono
-      real(dp), dimension(1:, 1:, 0:), intent(out), optional :: sys_mono
-      class(comm_map), intent(inout), optional :: condmap
+    integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
+    integer(i4b) :: det, nout, np0, comm, myid, nprocs
+    real(dp), allocatable, dimension(:,:)   :: A_inv, As_inv, buff_2d
+    real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot, buff_3d
+    real(dp), allocatable, dimension(:)     :: W, eta
+    real(dp), allocatable, dimension(:,:)   :: A_tot
+    class(comm_mapinfo), pointer :: info 
+    class(comm_map), pointer :: smap 
 
-      integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
-      integer(i4b) :: det, nout, np0, comm, myid, nprocs
-      real(dp), allocatable, dimension(:, :)   :: A_inv, As_inv, buff_2d
-      real(dp), allocatable, dimension(:, :, :) :: b_tot, bs_tot, buff_3d
-      real(dp), allocatable, dimension(:)     :: W, eta
-      real(dp), allocatable, dimension(:, :)   :: A_tot
-      class(comm_mapinfo), pointer :: info
-      class(comm_map), pointer :: smap
+    myid  = tod%myid
+    nprocs= tod%numprocs
+    comm  = tod%comm
+    np0   = tod%info%np
+    nout  = size(sb_map%a,dim=1)
+    nmaps = tod%info%nmaps
+    ndet  = tod%ndet
+    n_A   = size(sA_map%a,dim=1)
+    ncol  = size(sb_map%a,dim=2)
+    ndelta = 0; if (present(chisq_S)) ndelta = size(chisq_S,dim=2)
 
-      myid = tod%myid
-      nprocs = tod%numprocs
-      comm = tod%comm
-      np0 = tod%info%np
-      nout = size(sb_map%a, dim=1)
-      nmaps = tod%info%nmaps
-      ndet = tod%ndet
-      n_A = size(sA_map%a, dim=1)
-      ncol = size(sb_map%a, dim=2)
-      ndelta = 0; if (present(chisq_S)) ndelta = size(chisq_S, dim=2)
+    ! Collect contributions from all nodes
+    !call update_status(status, "tod_final1")
+    call mpi_win_fence(0, sA_map%win, ierr)
+    if (sA_map%myid_shared == 0) then
+       !allocate(buff_2d(size(sA_map%a,1),size(sA_map%a,2)))
+       
 
-      ! Collect contributions from all nodes
-      !call update_status(status, "tod_final1")
-      call mpi_win_fence(0, sA_map%win, ierr)
-      if (sA_map%myid_shared == 0) then
-         !allocate(buff_2d(size(sA_map%a,1),size(sA_map%a,2)))
 !       call mpi_allreduce(sA_map%a, buff_2d, size(sA_map%a), &
 !            & MPI_DOUBLE_PRECISION, MPI_SUM, sA_map%comm_inter, ierr)
          do i = 1, size(sA_map%a, 1)

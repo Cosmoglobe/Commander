@@ -55,6 +55,9 @@ module comm_tod_mod
      real(dp),     allocatable, dimension(:)  :: log_n_psd  ! Noise power spectrum density; in uncalibrated units
      real(dp),     allocatable, dimension(:)  :: log_n_psd2 ! Second derivative (for spline)
      real(dp),     allocatable, dimension(:)  :: log_nu     ! Noise power spectrum bins; in Hz
+     integer(i4b), allocatable, dimension(:,:)  :: offset_range    ! Beginning and end tod index of every offset region
+     real(sp),     allocatable, dimension(:)    :: offset_level    ! Amplitude of every offset region(step)
+     integer(i4b), allocatable, dimension(:,:)  :: jumpflag_range  ! Beginning and end tod index of regions where jumps occur
   end type comm_detscan
 
   type :: comm_scan
@@ -193,7 +196,6 @@ contains
 
     call initialize_fft_mod(cpar)
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
-
   end subroutine initialize_tod_mod
 
   !common constructor functionality for all tod processing classes
@@ -415,7 +417,7 @@ contains
 
     integer(i4b), dimension(:), allocatable       :: ns
     real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
-    character(len=1024)                           :: det_buf
+    character(len=100000)                         :: det_buf
     character(len=128), dimension(:), allocatable :: dets
 
 
@@ -445,13 +447,12 @@ contains
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
-         stop
+         !stop
        end if
        call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
-
 
 !!$          do j = 1, ndet_tot
 !!$             write(*,*) j, trim(dets(j))
@@ -710,40 +711,50 @@ contains
        if (n_tot == 0) then
           write(*,*) 'Error: No accepted scans in filelist: ', trim(filelist)
           stop
-       end if
-
-
-       open(unit, file=trim(filelist))
-       read(unit,*) n
-       allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot))
-       j = 1
-       do i = 1, n
-          read(unit,*) scanid(j), filename(j), weight(j), spinpos(1:2,j)
-          if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
-          id(j)  = j
-          sid(j) = scanid(j)
-          call ang2vec(spinpos(1,j), spinpos(2,j), spinaxis(j,1:3))
-          if (j == 1) self%initfile = filename(j)
-          j      = j+1
-          if (j > n_tot) exit
-       end do
-       close(unit)
-
-       ! Compute symmetry axis
-       v0 = 0.d0
-       do i = 2, n_tot
-          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-          if (v(3) < 0.d0) v  = -v
-          if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
-       end do
-       if (any(v0 == 0)) then
-         v0 = 1
+       else if (n_tot==1) then
+         self%nscan = n_tot
+         open(unit, file=trim(filelist))
+         read(unit,*) n
+         allocate(filename(n_tot), scanid(n_tot), proc(n_tot), spinpos(2,n_tot), weight(n_tot))
+         j = 1
+         do i = 1, n
+            read(unit,*) scanid(j), filename(j), weight(j), spinpos(1:2,j)
+            if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) exit
+         end do
+         proc(1) = 0
+         self%initfile = filename(1)
+         close(unit)
+         
        else
-         v0 = v0 / sqrt(v0*v0)
-       end if
+       
+         open(unit, file=trim(filelist))
+         read(unit,*) n
+         allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot))
+         j = 1
+         do i = 1, n
+            read(unit,*) scanid(j), filename(j), weight(j), spinpos(1:2,j)
+            if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
+            id(j)  = j
+            sid(j) = scanid(j)
+            call ang2vec(spinpos(1,j), spinpos(2,j), spinaxis(j,1:3))
+            if (j == 1) self%initfile = filename(j)
+            j      = j+1
+            if (j > n_tot) exit
+         end do
+         close(unit)
 
+         ! Compute symmetry axis
+         v0 = 0.d0
+         do i = 2, n_tot
+            v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+            v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+            v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+            if (v(3) < 0.d0) v  = -v
+            if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
+         end do
+         v0 = v0 / sqrt(v0*v0)
+!        v0(1) = 1
+       
 
 !!$
 !!$       ! Compute angle between i'th and first vector
@@ -752,13 +763,13 @@ contains
 !!$          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
 !!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
 !!$       end do
-       do i = n_tot, 1, -1
-          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-          sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
-          if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign
-       end do
+         do i = n_tot, 1, -1
+            v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+            v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+            v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+            sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
+            if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
+         end do
 
 !!$       ! Sort according to weight
 !!$       pweight = 0.d0
@@ -771,43 +782,44 @@ contains
 !!$       deallocate(id, pweight, weight)
 
        ! Sort according to scan id
-       proc    = -1
-       call QuickSort(id, sid)
-       w_tot = sum(weight)
-       j     = 1
-       do i = np-1, 1, -1
-          w = 0.d0
-          do k = 1, n_tot
-             if (proc(k) == i) w = w + weight(k)
-          end do
-          do while (w < w_tot/np .and. j <= n_tot)
-             proc(id(j)) = i
-             w           = w + weight(id(j))
-             if (w > 1.2d0*w_tot/np) then
-                ! Assign large scans to next core
-                proc(id(j)) = i-1
-                w           = w - weight(id(j))
-             end if
-             j           = j+1
-          end do
-       end do
-       do while (j <= n_tot)
-          proc(id(j)) = 0
-          j = j+1
-       end do
-       pweight = 0.d0
-       do k = 1, n_tot
-          pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
-       end do
-       write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
-       deallocate(id, pweight, weight, sid, spinaxis)
+         proc    = -1
+         call QuickSort(id, sid)
+         w_tot = sum(weight)
+         j     = 1
+         do i = np-1, 1, -1
+            w = 0.d0
+            do k = 1, n_tot
+               if (proc(k) == i) w = w + weight(k) 
+            end do
+            do while (w < w_tot/np .and. j <= n_tot)
+               proc(id(j)) = i
+               w           = w + weight(id(j))
+               if (w > 1.2d0*w_tot/np) then
+                  ! Assign large scans to next core
+                  proc(id(j)) = i-1
+                  w           = w - weight(id(j))
+               end if
+               j           = j+1
+            end do
+         end do
+         do while (j <= n_tot)
+            proc(id(j)) = 0
+            j = j+1
+         end do
+         pweight = 0.d0
+         do k = 1, n_tot
+            pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+         end do
+         write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
+         deallocate(id, pweight, weight, sid, spinaxis)
 
        ! Distribute according to consecutive PID
 !!$       do i = 1, n_tot
 !!$          proc(i) = max(min(int(real(i-1,sp)/real(n_tot-1,sp) * np),np-1),0)
 !!$       end do
 
-    end if
+      end if
+   end if
 
     call mpi_bcast(n_tot, 1,  MPI_INTEGER, 0, self%comm, ierr)
     if (self%myid /= 0) then
@@ -1328,15 +1340,17 @@ contains
 
   ! Compute chisquare
   subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
-       & n_corr, absbp, verbose, tod_arr)
+       & n_corr, s_jump, absbp, verbose, tod_arr)
     implicit none
-    class(comm_tod),                  intent(inout)        :: self
-    integer(i4b),                     intent(in)           :: scan, det
-    real(sp),           dimension(:), intent(in)           :: mask, s_sky, s_spur
-    real(sp),           dimension(:), intent(in)           :: n_corr
-    logical(lgt),                     intent(in), optional :: absbp, verbose
+    class(comm_tod),                 intent(inout)  :: self
+    integer(i4b),                    intent(in)     :: scan, det
+    real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
+    real(sp),          dimension(:), intent(in)     :: n_corr
+    real(sp),          dimension(:), intent(in), optional :: s_jump
+    logical(lgt),                    intent(in), optional :: absbp, verbose
     integer(i4b),     dimension(:,:), intent(in), optional :: tod_arr
 
+    
     real(dp)     :: chisq, d0, g, b
     integer(i4b) :: i, n
 
@@ -1353,10 +1367,12 @@ contains
          d0    = self%scans(scan)%d(det)%tod(i) - &
            &  (g * s_spur(i) + n_corr(i) + b)
        end if
+       if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2
+
     end do
 
-    if (self%scans(scan)%d(det)%sigma0 <= 0.d0 .or. n == 0) then
+    if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = 0.d0
        else
@@ -1367,7 +1383,9 @@ contains
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = chisq
        else
+          !write(*,*) 'nc',n
           self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
+          !write(*,*) 'chisq in routine:',scan, det, n, self%scans(scan)%d(det)%sigma0, self%scans(scan)%d(det)%chisq
        end if
     end if
     if (present(verbose)) then

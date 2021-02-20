@@ -305,7 +305,7 @@ contains
     real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation, j_real
     real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
     real(dp), dimension(:), allocatable :: x_vec, y_vec
-
+write(*,*) "IS THIS HAPPENING?"
     !these are the npipe paper definitions
     !TODO: maybe also use the bandpass shift to modify the central frequency? 
     !will that matter?

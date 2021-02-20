@@ -26,6 +26,7 @@ module comm_data_mod
   use comm_map_mod
   use comm_tod_mod
   use comm_tod_LFI_mod
+  use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
   use locate_mod
   implicit none
@@ -103,6 +104,7 @@ contains
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
+
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
@@ -138,6 +140,9 @@ contains
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'SPIDER') then
+             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else

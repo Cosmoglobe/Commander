@@ -31,7 +31,7 @@ contains
 
  ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix, dospike, tod_arr)
+  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix, tod_input, dospike, tod_arr)
     implicit none
     class(comm_tod),               intent(in)     :: self
     type(planck_rng),                  intent(inout)  :: handle
@@ -41,6 +41,7 @@ contains
     logical(lgt),            intent(in), optional     :: dospike
     integer(i4b),  dimension(:,:),  intent(in), optional   :: tod_arr
     real(sp),          dimension(:,:), intent(out)    :: n_corr
+    real(sp),    dimension(:,:), intent(in), optional :: tod_input
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
     integer*8    :: plan_fwd, plan_back
@@ -80,12 +81,14 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       if (present(tod_arr)) then
+
+       if (present(tod_input)) then
+         d_prime(:) = tod_input(:,i) - self%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
+       else if (present(tod_arr)) then
          d_prime(:) = tod_arr(:, i) - self%scans(scan)%d(i)%baseline &
                 &- S_sub(:,i) * gain
        else
-         d_prime(:) = self%scans(scan)%d(i)%tod(:) - self%scans(scan)%d(i)%baseline &
-                &- S_sub(:,i) * gain
+         d_prime(:) = self%scans(scan)%d(i)%tod(:) - self%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
        end if
 
        sigma_0 = abs(self%scans(scan)%d(i)%sigma0)
@@ -141,7 +144,9 @@ contains
        pcg_converged = .false.
 !  subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, freq)
        !!!! add choice between PCG and regular ncorr here
+
        if (.true.) then !(self%scanid(scan) == 2112) .and. (i == 1)) then
+          !call test_fft(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           n_corr(:, i) = ncorr2(:)
        end if
@@ -344,7 +349,7 @@ contains
     n = nfft / 2 + 1
     ntod = size(d_prime, 1)
     nmask = ntod - sum(mask)
-    
+
     eps = 1.d-5
 
     converged = .false.
@@ -820,12 +825,13 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr, tod_arr)
+  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr, tod_input, tod_arr)
     implicit none
     class(comm_tod),             intent(inout)  :: self
     type(planck_rng),                intent(inout)  :: handle
     integer(i4b),                    intent(in)     :: scan
     real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
+    real(sp), dimension(:,:), intent(in), optional  :: tod_input
     integer(i4b),        dimension(:,:), intent(in), optional     :: tod_arr
     
     integer*8    :: plan_fwd
@@ -868,7 +874,14 @@ contains
 
        do j = 1, self%scans(scan)%ntod-1
           if (any(mask(j:j+1,i) < 0.5)) cycle
-          if (present(tod_arr)) then
+          if (present(tod_input)) then
+            res = (tod_input(j,i) - &
+                  & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                  & n_corr(j,i)) - &
+                  & (self%scans(scan)%d(i)%tod(j+1) - &
+                  & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                  & n_corr(j+1,i))))/sqrt(2.)
+          else if (present(tod_arr)) then
             res = (tod_arr(j, i) - &
                  & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
                  & n_corr(j,i)) - &
@@ -877,11 +890,11 @@ contains
                  & n_corr(j+1,i))))/sqrt(2.)
           else
             res = (self%scans(scan)%d(i)%tod(j) - &
-                 & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
-                 & n_corr(j,i)) - &
-                 & (self%scans(scan)%d(i)%tod(j+1) - &
-                 & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
-                 & n_corr(j+1,i))))/sqrt(2.)
+                  & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                  & n_corr(j,i)) - &
+                  & (self%scans(scan)%d(i)%tod(j+1) - &
+                  & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                  & n_corr(j+1,i))))/sqrt(2.)
           end if
           s = s + res**2
           n = n + 1
