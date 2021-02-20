@@ -33,8 +33,7 @@ if(DOXYGEN_BUILD_DOCS)
 		 $ENV{PATH}:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 		 )
 
-	#if(NOT FLEX_FORCE_COMPILE)
-	if(USE_SYSTEM_FLEX AND USE_SYSTEM_LIBS)
+	if(NOT FLEX_FORCE_COMPILE)
 		find_package(FLEX)
 	endif()
 	if(NOT FLEX_FOUND)
@@ -71,8 +70,7 @@ if(DOXYGEN_BUILD_DOCS)
 		add_custom_target(flex ALL "")
 	endif()
 
-	#if(NOT BISON_FORCE_COMPILE)
-	if(USE_SYSTEM_BISON AND USE_SYSTEM_LIBS)
+	if(NOT BISON_FORCE_COMPILE)
 		find_package(BISON)
 	endif()
 	if(NOT BISON_FOUND)
@@ -108,8 +106,7 @@ if(DOXYGEN_BUILD_DOCS)
 		add_custom_target(bison ALL "")
 	endif()
 
-	#if(NOT DOXYGEN_FORCE_COMPILE)
-	if(USE_SYSTEM_DOXYGEN AND USE_SYSTEM_LIBS)
+	if(NOT DOXYGEN_FORCE_COMPILE)
 		find_package(Doxygen)
 	endif()
 	if(NOT DOXYGEN_FOUND)
@@ -121,7 +118,7 @@ if(DOXYGEN_BUILD_DOCS)
 			URL "${${project}_url}"
 			#GIT_REPOSITORY "${${project}_url}"
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}" #"${download_dir}"
-			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
+			BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
 			INSTALL_DIR ${CMAKE_INSTALL_PREFIX} #"${out_install_dir}"
 			LOG_DIR "${CMAKE_LOG_DIR}"
 			LOG_DOWNLOAD ON

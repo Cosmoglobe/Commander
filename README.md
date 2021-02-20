@@ -168,11 +168,10 @@ This work has received funding from the European Union's Horizon 2020 research a
 
 ## Citation
 
-If used for published results, please cite these papers using the associated bibliography file:
+If used for published results, please cite these papers:
 
-- [Jewell et al. 2004, ApJ, 609, 1](https://doi.org/10.1086/383515)                            
-- [Wandelt et al. 2004, Phys. Rev. D, 70, 083511](https://doi.org/10.1103/PhysRevD.70.083511)
-- [Eriksen et al. 2004, ApJS, 155, 227 (Commander)](https://doi.org/10.1086/425219)
-- [Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)](https://doi.org/10.1086/525277)
+- Jewell et al. 2004, ApJ, 609, 1                            
+- Wandelt et al. 2004, Phys. Rev. D, 70, 083511
+- Eriksen et al. 2004, ApJS, 155, 227 (Commander)
+- Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB) 
 
-[commander.bib](docs/commander.bib)

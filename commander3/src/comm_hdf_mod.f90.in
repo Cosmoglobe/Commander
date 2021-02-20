@@ -27,7 +27,7 @@ types  = [
     [ "dp",   "real",      "dp",    "H5T_IEEE_F64LE", "H5T_NATIVE_DOUBLE"  ],
     [ "sp",   "real",      "sp",    "H5T_IEEE_F32LE", "H5T_NATIVE_REAL"    ],
     [ "int",  "integer",   "i4b",   "H5T_STD_I32LE",  "H5T_NATIVE_INTEGER" ],
-    [ "char", "character", "len=*", "H5T_FORTRAN_S1", "H5T_NATIVE_CHARACTER" ],
+    [ "char", "character", "len=*", "H5T_C_S1",       "H5T_NATIVE_CHARACTER" ],
 ]
 def desc(i):
     return "%dd" % i
@@ -282,31 +282,20 @@ contains
 
   {{for d in range(ndim)}}
   {{for t in types}}
-  subroutine read_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val, opt)
+  subroutine read_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val)
     implicit none
     type(hdf_file) :: file
     character(len=*), intent(in)  :: setname
-    logical(lgt), intent(in), optional :: opt
     TYPE(h5o_info_t) :: object_info
     integer(i4b) :: hdferr, v(100)
     integer(hsize_t) :: s({{d}}), ext2({{d}})
     integer(i4b)     :: ext({{d}})
     {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(out) :: val
-    logical(lgt) :: opt_   
- 
-    if(.not. present(opt)) then
-      opt_ = .false.
-    else
-      opt_ = opt
-    end if
     call h5eset_auto_f(0, hdferr)
     call h5oget_info_by_name_f(file%filehandle, setname, object_info, hdferr)
     if (hdferr /= 0) then
-       if(.not. opt_) then
-         write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
-       else
-         return
-       end if
+       write(*,*) 'Warning: HDF field does not exist in '//trim(file%filename)//' = ', trim(setname)
+       return
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
@@ -318,7 +307,7 @@ contains
        write(*,*) '             Setname        = ', trim(setname)
        write(*,*) '             HDF size       = ', ext
        write(*,*) '             Requested size = ', int(s,i4b)
-       write(*,*) opt_, 'Optional parameter'
+       stop
     end if
     call h5dread_f(file%sethandle, {{t[4]}}, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
@@ -342,7 +331,7 @@ contains
     call open_hdf_set(file, setname)
     s = int(shape(val))
     call h5dread_f(file%sethandle, {{t[4]}}, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set")
   end subroutine
 
   {{endfor}}
@@ -404,7 +393,7 @@ contains
     character(len=*), intent(out) :: val
     integer(i4b),     intent(out) :: n
 
-    integer(i4b), parameter :: mlen=100000
+    integer(i4b), parameter :: mlen=10000
     integer(hid_t)  :: filetype, space
     INTEGER(SIZE_T) :: size
     !integer(size_t), dimension(1)  :: len
@@ -431,6 +420,8 @@ contains
     
   end subroutine read_hdf_string2
 
+
+
   ! *****************************************************
   ! Set write operations
   ! *****************************************************
@@ -438,47 +429,13 @@ contains
   {{for d in range(ndim)}}
   {{for t in types}}
   subroutine write_hdf_{{desc(d)}}_{{t[0]}}(file, setname, val)
-    {{if t[0] == "char"}}
-
-      implicit none
-      type(hdf_file) :: file
-      character(len=*), intent(in) :: setname
-      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-      {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
-      integer(hid_t) :: str_dtype
-      integer :: hdferr
-
-      allocate(ext_hdf(size(shape(val))))
-      ext_hdf =  int(shape(val), hsize_t)
-
-      call H5Tcopy_f({{t[3]}}, str_dtype, hdferr)
-      call H5Tset_size_f(str_dtype, int(len(val), size_t), hdferr)
-
-      call create_hdf_set(file, setname, shape(val), str_dtype)
-      call h5dwrite_f(file%sethandle, str_dtype, val, ext_hdf, file%status)
-      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-      deallocate(ext_hdf)
-
-    {{else}}
-
-      implicit none
-      type(hdf_file) :: file
-      character(len=*), intent(in) :: setname
-      integer(hsize_t), allocatable, dimension(:) :: i
-      integer(hsize_t), allocatable, dimension(:) :: ext_hdf
-      {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
-      {{t[1]}}({{t[2]}}), allocatable {{dims(d)}} :: v
-
-      allocate(ext_hdf(size(shape(val))))
-      allocate(v, source=val)
-      ext_hdf =  int(shape(val), hsize_t)
-
-      call create_hdf_set(file, setname, shape(val), {{t[3]}})
-      call h5dwrite_f(file%sethandle, {{t[4]}}, v, ext_hdf, file%status)
-      call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
-      deallocate(ext_hdf, v)
-
-    {{endif}}
+    implicit none
+    type(hdf_file) :: file
+    character(len=*), intent(in) :: setname
+    {{t[1]}}({{t[2]}}) {{dims(d)}}, intent(in) :: val
+    call create_hdf_set(file, setname, shape(val), {{t[3]}})
+    call h5dwrite_f(file%sethandle, {{t[4]}}, val, int(shape(val),hsize_t), file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot write data set")
   end subroutine
 
   {{endfor}}
@@ -488,7 +445,7 @@ contains
   ! Sliced set operations.
   !  These are like read/write, but the dataset is
   !  indexed with a slice. Note that the dataset must
-  !  exist beforehand. Use create_hdf_set for this.
+  !  exist beforehand. Use crate_hdf_set for this.
   ! *****************************************************
 
   {{for op in [["read","out"],["write","in"]]}}
@@ -527,11 +484,6 @@ contains
   {{endfor}}
 
   ! *****************************************************
-  ! Optional Reads
-  ! *****************************************************
-
-
-  ! *****************************************************
   ! Dataset creation operation
   ! *****************************************************
   subroutine create_hdf_set(file, setname, ext, type_id)
@@ -542,13 +494,10 @@ contains
     integer(i4b),     dimension(:),   intent(in) :: ext
     integer(hid_t)                               :: type_id
     integer(hid_t) :: space
-    integer(hsize_t), allocatable, dimension(:) :: ext_hdf
     if (trim(file%setname) /= trim(setname)) call close_hdf_set(file)
     !write(*,*) trim(file%setname), trim(setname)
     file%setname = setname
-    allocate(ext_hdf(size(shape(ext))))
-    ext_hdf =  int(ext, hsize_t)
-    call h5screate_simple_f(size(ext), ext_hdf, space, file%status)
+    call h5screate_simple_f(size(ext), int(ext,hsize_t), space, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot create data space, "//trim(file%filename)//', '//trim(setname))
     !write(*,*) trim(file%setname), type_id, space, file%sethandle, file%status, ext
     call h5dcreate_f(file%filehandle, file%setname, type_id, space, file%sethandle, file%status)
@@ -557,7 +506,6 @@ contains
     call assert(file%status>=0, "comm_hdf_mod: Cannot create data set "//trim(file%filename)//', '//trim(setname))
     call h5sclose_f(space, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot close data space")
-    deallocate(ext_hdf)
   end subroutine create_hdf_set
 
   ! Group creation. Once created, they can be used by specifying "group/dset" instead

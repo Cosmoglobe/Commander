@@ -415,7 +415,7 @@ contains
     mono_ = .true.; if (present(mono)) mono_=mono 
 
     P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]
-    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! NPIPE
+    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! NPOPE
     !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! SROLL2
 
     ! Allocate map

@@ -129,7 +129,7 @@ class lfi(object):
                 outI = lfi.getOutidx(l, m)
                 outJ = lfi.getOutidx(l, -1*m)
                 outData[outI] = np.real(data[healpixI]) * scaling
-                if(m != 0):
+                if(m is not 0):
                     outData[outJ] = np.imag(data[healpixI]) * scaling
 
         return outData
