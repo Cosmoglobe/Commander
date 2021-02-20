@@ -746,7 +746,7 @@ contains
                    s_buf(:,j) = s_tot(:,j)
                 end if
              end do
-             call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), .true.)
+             call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), dospike=.true.)
 !!$             do j = 1, ndet
 !!$                n_corr(:,j) = sum(n_corr(:,j))/ size(n_corr,1)
 !!$             end do

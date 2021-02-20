@@ -31,7 +31,7 @@ COBJS  := d1mach.o drc3jj.o hashtbl.o hashtbl_4Dmap.o powell_mod.o comm_hdf_mod.
 	  comm_gain_mod.o comm_nonlin_mod.o comm_N_mod.o comm_N_rms_mod.o comm_N_QUcov_mod.o \
           comm_B_mod.o comm_B_bl_mod.o comm_beam_mod.o \
           comm_F_int_mod.o comm_F_int_1D_mod.o comm_F_int_0D_mod.o comm_F_int_2D_mod.o \
-          comm_fft_mod.o comm_tod_mod.o comm_tod_mapmaking_mod.o comm_tod_bandpass_mod.o comm_tod_gain_mod.o comm_tod_pointing_mod.o comm_tod_LFI_mod.o comm_tod_SPIDER_mod.o comm_tod_orbdipole_mod.o \
+          comm_fft_mod.o comm_tod_mod.o comm_tod_mapmaking_mod.o comm_tod_bandpass_mod.o comm_tod_gain_mod.o comm_tod_pointing_mod.o comm_tod_LFI_mod.o comm_tod_jump_mod.o comm_tod_SPIDER_mod.o comm_tod_orbdipole_mod.o \
           comm_tod_noise_mod.o comm_F_line_mod.o comm_data_mod.o comm_bp_mod.o comm_Cl_mod.o \
           comm_chisq_mod.o comm_cr_mod.o comm_signal_mod.o comm_output_mod.o comm_tod_WMAP_mod.o \
 					comm_tod_simulations_mod.o

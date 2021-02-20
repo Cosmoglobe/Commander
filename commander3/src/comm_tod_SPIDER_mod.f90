@@ -68,7 +68,7 @@ contains
     class(comm_mapinfo),     target     :: info
     class(comm_SPIDER_tod),     pointer    :: constructor
 
-    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
+    integer(i4b) :: i, j, k, l, nside_beam, lmax_beam, nmaps_beam, ndelta, np_vec, ierr
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi
     character(len=512) :: datadir
     logical(lgt) :: pol_beam
@@ -260,12 +260,14 @@ contains
     do i = 1, constructor%nscan
        allocate(pix(constructor%scans(i)%ntod))          
        do j = 1, constructor%ndet
-          call huffman_decode(constructor%scans(i)%hkey, &
-               constructor%scans(i)%d(j)%pix, pix)
-          constructor%pix2ind(pix(1)) = 1
-          do k = 2, constructor%scans(i)%ntod
-             pix(k)  = pix(k-1)  + pix(k)
-             constructor%pix2ind(pix(k)) = 1
+          do l = 1, constructor%nhorn
+             call huffman_decode(constructor%scans(i)%hkey, &
+                  constructor%scans(i)%d(j)%pix(l)%p, pix)
+             constructor%pix2ind(pix(1)) = 1
+             do k = 2, constructor%scans(i)%ntod
+                pix(k)  = pix(k-1)  + pix(k)
+                constructor%pix2ind(pix(k)) = 1
+             end do
           end do
        end do
        deallocate(pix)
@@ -310,7 +312,7 @@ contains
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
 
     integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
-    integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot
+    integer(i4b) :: nside, npix, nmaps, naccept, nhorn, ntot, ext(2), nscan_tot
     integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, nout=1
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, chisq_threshold
     real(dp)     :: t_tot(22)
@@ -324,7 +326,8 @@ contains
     real(dp),     allocatable, dimension(:,:)     :: chisq_S, m_buf
     real(dp),     allocatable, dimension(:,:)     :: A_map, dipole_mod
     real(dp),     allocatable, dimension(:,:,:)   :: b_map, b_mono, sys_mono
-    integer(i4b), allocatable, dimension(:,:)     :: pix, psi, flag
+    integer(i4b), allocatable, dimension(:,:)     :: flag
+    integer(i4b), allocatable, dimension(:,:,:)   :: pix, psi
     logical(lgt)       :: correct_sl
     character(len=512) :: prefix, postfix, prefix4D, filename
     character(len=2048) :: Sfilename
@@ -558,8 +561,8 @@ contains
           if (do_oper(sub_zodi)) allocate(s_zodi(ntod, ndet))                 ! Zodical light
           allocate(mask(ntod, ndet))                   ! Processing mask in time
           allocate(mask2(ntod, ndet))                  ! Processing mask in time
-          allocate(pix(ntod, ndet))                    ! Decompressed pointing
-          allocate(psi(ntod, ndet))                    ! Decompressed pol angle
+          allocate(pix(ntod, ndet, nhorn))                    ! Decompressed pointing
+          allocate(psi(ntod, ndet, nhorn))                    ! Decompressed pol angle
           allocate(flag(ntod, ndet))                   ! Decompressed flags
 
           ! Harald's stuff
@@ -578,8 +581,8 @@ contains
           call wall_time(t1)
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             call self%decompress_pointing_and_flags(i, j, pix(:,j), &
-                  & psi(:,j), flag(:,j))
+             call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
+                  & psi(:,j,:), flag(:,j))
           end do
          !  call self%symmetrize_flags(flag)
           !call validate_psi(self%scanid(i), psi)
@@ -807,7 +810,7 @@ contains
 
           ! Construct zodical light template
           if (do_oper(sub_zodi)) then
-             call compute_zodi_template(self%nside, pix, self%scans(i)%satpos, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
+             call compute_zodi_template(self%nside, pix(:,:,1), self%scans(i)%satpos, [30.d9, 30.d9, 30.d9, 30.d9], s_zodi)
           end if
 
           ! Construct sidelobe template 
@@ -816,7 +819,7 @@ contains
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 call self%construct_sl_template(self%slconv(j)%p, &
-                     & pix(:,j), psi(:,j), s_sl(:,j), self%polang(j))
+                     & pix(:,j,1), psi(:,j,1), s_sl(:,j), self%polang(j))
                 s_sl(:,j) = 2 * s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
              end do
           else
@@ -883,7 +886,7 @@ contains
                    s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
              end do
-             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle)
+             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, .false.)
 
              if (.false.) then
                 call int2string(self%scanid(i), scantext)
@@ -925,7 +928,7 @@ contains
                   s_buf(:,j) = s_tot(:,j)
                end if
             end do
-            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, tod_gapfill)
+            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), tod_gapfill)
             call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
             n_corr = 0.
@@ -1124,7 +1127,7 @@ contains
                 call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
                      & self%label, self%horn_id, real(self%polang*180/pi,sp), &
                      & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-                     & pix, psi-1, d_calib(1,:,:), iand(flag,self%flag0), &
+                     & pix(:,:,1), psi(:,:,1)-1, d_calib(1,:,:), iand(flag,self%flag0), &
                      & self%scans(i)%d(:)%accept)
              end if
 
@@ -1148,11 +1151,11 @@ contains
              call wall_time(t1)
 
              if (do_oper(samp_mono)) then
-                call bin_TOD(self, d_calib, pix, &
-                     & psi, flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
+                call bin_TOD(self, d_calib, pix(:,:,1), &
+                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
              else
-                call bin_TOD(self, d_calib, pix, &
-                     & psi, flag, A_map, b_map, i, do_oper(prep_relbp))
+                call bin_TOD(self, d_calib, pix(:,:,1), &
+                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp))
              end if
              deallocate(d_calib)
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1

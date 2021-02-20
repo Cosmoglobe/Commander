@@ -47,8 +47,8 @@ module comm_tod_mod
      real(dp)          :: chisq_masked
      real(sp)          :: baseline
      logical(lgt)      :: accept
-     !real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)
-     byte,     allocatable, dimension(:)  :: tod        ! compressed values in time domain, (ntod)
+     real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)
+     byte,     allocatable, dimension(:)  :: ztod        ! compressed values in time domain, (ntod)
      byte,         allocatable, dimension(:)  :: flag       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      type(byte_pointer), allocatable, dimension(:)  :: pix   ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)  :: psi   ! pointer array of psi, length nhorn
@@ -645,7 +645,12 @@ contains
          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
        end do
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%tod)
+       if (.true.) then
+          ! Uncompressed TOD; Duncan -- fix this test
+          call read_hdf(file, slabel // "/" // trim(field) // "/tod", self%d(i)%tod)
+       else
+          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
+       end if
        call wall_time(t2)
        t_tot(5) = t_tot(5) + t2-t1
     end do
@@ -1484,7 +1489,7 @@ contains
     integer(i4b),         dimension(:),  intent(out) :: tod
     integer(i4b) :: i
 
-    call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%tod, tod)
+    call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
 
   end subroutine decompress_tod
 
