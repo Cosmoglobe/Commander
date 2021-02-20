@@ -98,20 +98,20 @@ program commander
 
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
-     write(*,*) '----------------------------------------------'
-     write(*,*) '|              Commander3                '
-     write(*,*) '----------------------------------------------'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+     write(*,fmt='(a)') ' |                           Commander3                              |'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
-       write(*,*) '|  Regime:                            TOD Simulations'
+       write(*,fmt='(a)')       ' |  Regime:                            TOD Simulations'
      else
-       write(*,*) '|  Regime:                            Data Processing'
+       write(*,fmt='(a)')       ' |  Regime:                            Data Processing'
      endif
-     write(*,*) '|  Number of chains                       = ', cpar%numchain
-     write(*,*) '|  Number of processors in first chain    = ', cpar%numprocs_chain
-     write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '|  Time to initialize run = ', t2-t0, ' sec'
-     write(*,fmt='(a,f12.3,a)') '|  Time to read in parameters = ', t3-t1, ' sec'
-     write(*,*) '----------------------------------------------'
+     write(*,fmt='(a,2i)')      ' |  Number of chains                       = ', cpar%numchain
+     write(*,fmt='(a,2i)')      ' |  Number of processors in first chain    = ', cpar%numprocs_chain
+     write(*,fmt='(a)')         ' |'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to initialize run                 = ', t2-t0, ' sec'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to read in parameters             = ', t3-t1, ' sec'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
   end if
 
 
@@ -200,8 +200,8 @@ program commander
 
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
-        write(*,fmt='(a)') '---------------------------------------------------------------------'
-        write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
+        write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+        write(*,fmt='(a,i4,a,i8)') ' Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
@@ -223,7 +223,7 @@ program commander
      end if
      !----------------------------------------------------------------------------------
      ! Process TOD structures
-     if (iter > 2 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
@@ -266,12 +266,12 @@ program commander
      if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
         end if
         iter = iter+1
      else
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
            write(*,*) 'SAMPLE REJECTED'
         end if        
      end if
@@ -364,7 +364,7 @@ contains
           !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
-                call data(i)%bp(j)%p%update_tau(delta(j,:,k))
+                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
           !end if
@@ -405,7 +405,7 @@ contains
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
-          call data(i)%bp(j)%p%update_tau(delta(j,:,1))
+          call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
        end do
        call update_mixing_matrices(i, update_F_int=.true.)       
 

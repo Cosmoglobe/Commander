@@ -1136,10 +1136,14 @@ contains
           !write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs)), j
           open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
           read(11,*) self%corrlen(j,:)
+          ! forrtl: warning (406): fort: (1): In call to I/O Read routine,
+          ! an array temporary was created for argument #1
           do p = 1, self%nmaps
              read(11,*)
              do q = 0, size(self%L(:,1,p,j))-1
                 read(11,*) self%L(q,:,p,j)
+                ! forrtl: warning (406): fort: (1): In call to I/O Read routine,
+                ! an array temporary was created for argument #1
              end do
           end do
           close(11)

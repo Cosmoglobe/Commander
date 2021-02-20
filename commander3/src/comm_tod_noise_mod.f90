@@ -31,13 +31,15 @@ contains
 
  ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix)
+  subroutine sample_n_corr(self, handle, scan, mask, s_sub, n_corr, pix, dospike, tod_arr)
     implicit none
     class(comm_tod),               intent(in)     :: self
     type(planck_rng),                  intent(inout)  :: handle
     integer(i4b),                      intent(in)     :: scan
     integer(i4b),   dimension(1:,1:),  intent(in)     :: pix
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
+    logical(lgt),            intent(in), optional     :: dospike
+    integer(i4b),  dimension(:,:),  intent(in), optional   :: tod_arr
     real(sp),          dimension(:,:), intent(out)    :: n_corr
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
@@ -56,8 +58,8 @@ contains
     ndet = self%ndet
     nomp = omp_get_max_threads()
     
-    ! nfft = 2 * ntod
-    nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
+    nfft = 2 * ntod
+    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
     
     n = nfft / 2 + 1
 
@@ -69,7 +71,7 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
-    !$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
+    !!$OMP PARALLEL PRIVATE(i,j,l,k,dt,dv,nu,sigma_0,alpha,nu_knee,d_prime,init_masked_region,end_masked_region)
     allocate(d_prime(ntod))
     allocate(ncorr2(ntod))
     allocate(dt(nfft), dv(0:n-1))
@@ -78,9 +80,16 @@ contains
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        gain = self%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime(:) = self%scans(scan)%d(i)%tod(:) - S_sub(:,i) * gain
+       if (present(tod_arr)) then
+         d_prime(:) = tod_arr(:, i) - self%scans(scan)%d(i)%baseline &
+                &- S_sub(:,i) * gain
+       else
+         d_prime(:) = self%scans(scan)%d(i)%tod(:) - self%scans(scan)%d(i)%baseline &
+                &- S_sub(:,i) * gain
+       end if
 
-       sigma_0 = self%scans(scan)%d(i)%sigma0
+       sigma_0 = abs(self%scans(scan)%d(i)%sigma0)
+       !write(*,*) "rms:", scan, sigma_0, sqrt(sum(d_prime**2)/size(d_prime))
        ! Fill gaps in data 
        init_masked_region = .true.
        end_masked_region = .false.
@@ -117,9 +126,9 @@ contains
           end if      
        end if
 
-       !if (self%first_call) then
-       !   call find_d_prime_spikes(self, scan, i, d_prime, pix)
-       !end if
+       if (self%first_call .and. not(present(dospike))) then
+          call find_d_prime_spikes(self, scan, i, d_prime, pix)
+       end if
 
        samprate = self%samprate
        alpha    = self%scans(scan)%d(i)%alpha
@@ -133,7 +142,6 @@ contains
 !  subroutine get_ncorr_pcg(handle, d_prime, ncorr, mask, alpha, fknee, wn, samprate, nfft, plan_fwd, plan_back, converged, scan, det, freq)
        !!!! add choice between PCG and regular ncorr here
        if (.true.) then !(self%scanid(scan) == 2112) .and. (i == 1)) then
-          !call test_fft(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
           n_corr(:, i) = ncorr2(:)
        end if
@@ -141,12 +149,11 @@ contains
        if (.not. pcg_converged) then
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
-          ! dt(2*ntod:ntod+1:-1) = dt(1:ntod)
-          nbuff = nfft - ntod
-          do j=1, nbuff
-             dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * (j-1) / (nbuff - 1)
-          end do
-
+          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$          nbuff = nfft - ntod
+!!$          do j=1, nbuff
+!!$             dt(ntod+j) = d_prime(ntod) + (d_prime(1) - d_prime(ntod)) * real(j-1,sp) / real(nbuff - 1,sp)
+!!$          end do
 
 
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
@@ -164,9 +171,11 @@ contains
 
              N_c = N_wn * (nu/(nu_knee))**(alpha)  ! correlated noise power spectrum
 
+             if (N_c == 0) N_c = 1
              if (abs(nu-1.d0/60.d0)*60.d0 < 0.05d0) then
                 dv(l) = fft_norm * sqrt(N_c) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) ! Dont include scan frequency; replace with better solution
              end if
+
 
              if (trim(self%operation) == "sample") then
                 dv(l) = (dv(l) + fft_norm * ( &
@@ -182,23 +191,27 @@ contains
           n_corr(:,i) = dt(1:ntod) 
        end if
 
-       ! if (mod(self%scanid(scan),100) == 1) then
-       !    write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
-       !    open(65,file=trim(filename),status='REPLACE')
-       !    do j = 1, ntod
-       !       write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
-       !    end do
-       !    close(65)
-       !    !stop
-       ! end if
+       if (.false. .and. mod(self%scanid(scan),100) == 1) then
+          write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
+          open(65,file=trim(filename),status='REPLACE')
+          do j = 1, ntod
+             if (present(tod_arr)) then
+               write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+             else
+               write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+             end if
+          end do
+          close(65)
+          !stop
+       end if
 
     end do
-    !$OMP END DO                                                          
+    !!$OMP END DO                                                          
     deallocate(dt, dv)
     deallocate(d_prime)
     deallocate(ncorr2)
     !deallocate(diff)
-    !$OMP END PARALLEL
+    !!$OMP END PARALLEL
     
     
 
@@ -442,11 +455,15 @@ contains
       ! complex(dpc), dimension(0:), intent(inout) :: dv
       real(sp),     allocatable, dimension(:), intent(inout) :: dt
       complex(spc), allocatable, dimension(:), intent(inout) :: dv
-      integer(i4b) :: i, j, k, l, ntod, n
+      integer(i4b) :: i, j, k, l, ntod, n, m
       n = nfft / 2 + 1
       ntod = size(vec, 1)
+      m = size(dt) - ntod
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$      do j = 1, m
+!!$         dt(ntod+j) = vec(ntod) + (vec(1) - vec(ntod)) * real(j-1,sp) / real(m - 1,sp)
+!!$      end do
 
       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
       do l = 0, n-1
@@ -568,11 +585,16 @@ contains
       complex(dpc), allocatable, dimension(:), intent(inout) :: dv
       ! real(sp),     allocatable, dimension(:), intent(inout) :: dt
       ! complex(spc), allocatable, dimension(:), intent(inout) :: dv
-      integer(i4b) :: i, j, k, l, ntod, n
+      integer(i4b) :: i, j, k, l, ntod, n, m
       n = nfft / 2 + 1
       ntod = size(vec, 1)
+      m = size(dt) - ntod
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+!!$      do j = 1, m
+!!$         dt(ntod+j) = vec(ntod) + (vec(1) - vec(ntod)) * real(j-1,sp) / real(m - 1,sp)
+!!$      end do
+
 
       call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
       do l = 0, n-1
@@ -777,7 +799,7 @@ contains
     
     
 
-    if (found_spike) then
+    if (.false. .and. found_spike) then
        close(62)
        write(filename, "(A, I0.3, A, I0.3, 3A)") 'spike_tod_', self%scanid(scan), '_', det, '_',trim(self%freq),'.dat' 
        open(63,file=filename, status='REPLACE')
@@ -798,18 +820,19 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr)
+  subroutine sample_noise_psd(self, handle, scan, mask, s_tot, n_corr, tod_arr)
     implicit none
     class(comm_tod),             intent(inout)  :: self
     type(planck_rng),                intent(inout)  :: handle
     integer(i4b),                    intent(in)     :: scan
     real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
+    integer(i4b),        dimension(:,:), intent(in), optional     :: tod_arr
     
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
     integer(i4b) :: ndet
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, f
-    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior(2), alpha_dpc, fknee_dpc
+    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
@@ -820,6 +843,23 @@ contains
     ndet = self%ndet
     nomp = omp_get_max_threads()
 
+    if (trim(self%freq) == '030') then
+       prior_fknee = [0.010d0, 0.45d0]
+       prior_alpha = [-2.5d0, -0.4d0]
+    else if (trim(self%freq) == '044') then
+       prior_fknee = [0.002d0, 0.40d0]
+       prior_alpha = [-2.5d0, -0.4d0]
+    else if (trim(self%freq) == '070') then
+       prior_fknee = [0.001d0, 0.25d0]
+       prior_alpha = [-3.0d0, -0.4d0]
+    else if (index(trim(self%freq), 'WMAP') > 0) then
+       prior_fknee = [0.0001d0,1.0d0]
+       prior_alpha = [-3d0, -0.4d0]
+    else 
+       prior_fknee = [0.02d0,1.0d0]
+       prior_alpha = [-3d0, -0.4d0]
+    end if
+
     ! compute sigma_0 the old way
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
@@ -828,12 +868,21 @@ contains
 
        do j = 1, self%scans(scan)%ntod-1
           if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = (self%scans(scan)%d(i)%tod(j) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
-               & n_corr(j,i)) - &
-               & (self%scans(scan)%d(i)%tod(j+1) - &
-               & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
-               & n_corr(j+1,i))))/sqrt(2.)
+          if (present(tod_arr)) then
+            res = (tod_arr(j, i) - &
+                 & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                 & n_corr(j,i)) - &
+                 & (tod_arr(j+1, i) - &
+                 & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                 & n_corr(j+1,i))))/sqrt(2.)
+          else
+            res = (self%scans(scan)%d(i)%tod(j) - &
+                 & (self%scans(scan)%d(i)%gain * s_tot(j,i) + &
+                 & n_corr(j,i)) - &
+                 & (self%scans(scan)%d(i)%tod(j+1) - &
+                 & (self%scans(scan)%d(i)%gain * s_tot(j+1,i) + &
+                 & n_corr(j+1,i))))/sqrt(2.)
+          end if
           s = s + res**2
           n = n + 1
        end do
@@ -861,12 +910,12 @@ contains
 
     ! Commented out OMP since we had problems with global parameters 
     ! in the likelihood functions
-!    !$OMP PARALLEL PRIVATE(i,l,j,dt,dv,f,d_prime,gain,ps,sigma0,alpha,fknee,samprate)
-!    allocate(dt(2*ntod), dv(0:n-1))
+    !!$OMP PARALLEL PRIVATE(i,l,j,dt,dv,f,d_prime,gain,ps,sigma0,alpha,fknee,samprate)
+    !allocate(dt(2*ntod), dv(0:n-1))
     allocate(dt(ntod), dv(0:n-1))
     
     allocate(ps(0:n-1))
-!    !$OMP DO SCHEDULE(guided)
+    !!$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        dt(1:ntod) = n_corr(:,i)
@@ -875,9 +924,9 @@ contains
        ps(:) = 0
        
        samprate = self%samprate
-       alpha = self%scans(scan)%d(i)%alpha
-       sigma0 = self%scans(scan)%d(i)%sigma0
-       fknee = self%scans(scan)%d(i)%fknee
+       alpha    = min(max(self%scans(scan)%d(i)%alpha,prior_alpha(1)), prior_alpha(2))
+       sigma0   = abs(self%scans(scan)%d(i)%sigma0)
+       fknee    = min(max(self%scans(scan)%d(i)%fknee,prior_fknee(1)), prior_fknee(2))
        
        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 
@@ -893,57 +942,47 @@ contains
 
        ! Sampling noise parameters given n_corr
        ! TODO: get prior parameters from parameter file
-       ! Sampling fknee
-       if (trim(self%freq) == '030') then
-          prior(1) = 0.01
-          prior(2) = 0.45
-       else if (trim(self%freq) == '044') then
-          prior(1) = 0.002
-          prior(2) = 0.40
-       else if (trim(self%freq) == '070') then
-          prior(1) = 0.001
-          prior(2) = 0.25
-       else 
-          write(*,*) "invalid band label in sample_noise_psd"
-          stop
-       end if
+       ! Sampling fknee, in Hz
+       ! FOr WMAP, they report the "optimal time-domain filters", i.e., noise
+       ! autocorrelation functions, rather than PSDs. But Table 2 of Jarosik et
+       ! al. (2003) (On-orbit radiometer characterization) they report in Table
+       ! 1 for each of the 20 radiometers fknee in mHz;
+       ! K11    K12     Ka11    Ka12
+       ! 0.40   0.51    0.71    0.32    
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! Q11    Q12     Q21     Q22
+       ! 1.09   0.35    5.76    8.62
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! V11    V12     V21     V22
+       ! 0.09   1.41    0.88    8.35    
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! W111   W112    W211    W212
+       ! 7.88   0.66    9.02    7.47
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! W311   W312    W411    W412
+       ! 0.93   0.28   46.5    26.0
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! As far as I can tell, this is the only place where the fknees are
+       ! reported...
 
-       x_in(1) = max(fknee - 0.5 * fknee, prior(1))
-       x_in(3) = min(fknee + 0.5 * fknee, prior(2))
+       x_in(1) = max(fknee - 0.5 * fknee, prior_fknee(1))
+       x_in(3) = min(fknee + 0.5 * fknee, prior_fknee(2))
        x_in(2) = 0.5 * (x_in(1) + x_in(3))
-
-       
-       fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior)
-
-       if ((fknee < prior(1)) .or. (fknee > prior(2))) then
-          fknee = self%scans(scan)%d(i)%fknee
+       fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior_fknee)
+       if ((fknee < prior_fknee(1)) .or. (fknee > prior_fknee(2))) then
+          fknee = min(max(self%scans(scan)%d(i)%fknee,prior_fknee(1)), prior_fknee(2))
        end if
-       alpha_dpc = self%scans(scan)%d(i)%alpha_def
+
+
        ! Sampling alpha
-       if (trim(self%freq) == '030') then
-          prior(1) = -2.5
-          prior(2) = -0.4
-       else if (trim(self%freq) == '044') then
-          prior(1) = -2.5
-          prior(2) = -0.4
-       else if (trim(self%freq) == '070') then
-          prior(1) = -3.0
-          prior(2) = -0.4
-       else 
-          write(*,*) "invalid band label in sample_noise_psd"
-          stop
+       alpha_dpc = self%scans(scan)%d(i)%alpha_def
+       x_in(1)   = max(alpha - 0.2 * abs(alpha), prior_alpha(1))
+       x_in(3)   = min(alpha + 0.2 * abs(alpha), prior_alpha(2))
+       x_in(2)   = 0.5 * (x_in(1) + x_in(3))
+       alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior_alpha)
+       if ((alpha < prior_alpha(1)) .or. (alpha > prior_alpha(2))) then
+          alpha = min(max(self%scans(scan)%d(i)%alpha,prior_alpha(1)), prior_alpha(2))
        end if
-
-       x_in(1) = max(alpha - 0.2 * abs(alpha), prior(1))
-       x_in(3) = min(alpha + 0.2 * abs(alpha), prior(2))
-       x_in(2) = 0.5 * (x_in(1) + x_in(3))
-
-       alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior)
-
-       if ((alpha < prior(1)) .or. (alpha > prior(2))) then
-          alpha = self%scans(scan)%d(i)%alpha
-       end if
-
 
        self%scans(scan)%d(i)%alpha = alpha
        self%scans(scan)%d(i)%fknee = fknee
@@ -963,6 +1002,7 @@ contains
       implicit none
       real(dp), intent(in) :: x
       real(dp)             :: lnL_fknee, sconst, f, s
+
       if (x <= 1e-6 .or. x > 10.d0) then
          lnL_fknee = -1.d30
          return
@@ -1088,7 +1128,7 @@ contains
        if (.not. allocated(tod%scans(scan)%d(i)%log_n_psd2)) allocate(tod%scans(scan)%d(i)%log_n_psd2(n_bins))
     end do
     
-    !$OMP PARALLEL PRIVATE(i,l,j,dt,dv,nu,log_nu,d_prime,log_nu_bin_edges,n_modes,psd,nu_sum,gain,dlog_nu)
+    !!$OMP PARALLEL PRIVATE(i,l,j,dt,dv,nu,log_nu,d_prime,log_nu_bin_edges,n_modes,psd,nu_sum,gain,dlog_nu)
     allocate(dt(2*ntod), dv(0:n-1))
     allocate(d_prime(ntod))
     
@@ -1096,7 +1136,7 @@ contains
     allocate(n_modes(n_bins))
     allocate(psd(n_bins))
     allocate(nu_sum(n_bins))
-    !$OMP DO SCHEDULE(guided)
+    !!$OMP DO SCHEDULE(guided)
     do i = 1, ndet
        if (.not. tod%scans(scan)%d(i)%accept) cycle
     
@@ -1187,12 +1227,12 @@ contains
        !    close(65)
        ! end if
     end do
-    !$OMP END DO
+    !!$OMP END DO
     deallocate(dt, dv)
     deallocate(d_prime, psd, n_modes, nu_sum)
     deallocate(log_nu_bin_edges)
     
-    !$OMP END PARALLEL
+    !!$OMP END PARALLEL
     
     call sfftw_destroy_plan(plan_fwd)
     
@@ -1210,7 +1250,7 @@ contains
 
   ! Compute correlated noise term, n_corr from eq:
   ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
-  subroutine sample_n_corr2(tod, handle, scan, mask, s_sub, n_corr)
+  subroutine sample_n_corr2(tod, handle, scan, mask, s_sub, n_corr, tod_arr)
     implicit none
     class(comm_tod),               intent(in)     :: tod
     type(planck_rng),                  intent(inout)  :: handle
@@ -1226,6 +1266,7 @@ contains
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+    integer(i4b),  dimension(:,:),  intent(in), optional   :: tod_arr
     
     ntod = tod%scans(scan)%ntod
     ndet = tod%ndet
@@ -1266,7 +1307,12 @@ contains
        if (.not. tod%scans(scan)%d(i)%accept) cycle
        j       = j+1
        gain    = tod%scans(scan)%d(i)%gain  ! Gain in V / K
-       d_prime = tod%scans(scan)%d(i)%tod - S_sub(:,i) * gain
+       if (present(tod_arr)) then
+         d_prime = tod_arr(:,i) - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
+       else
+         d_prime = tod%scans(scan)%d(i)%tod - S_sub(:,i) * gain &
+               & - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
+       end if
        sigma_0 = tod%scans(scan)%d(i)%sigma0
 
        call wall_time(t1)       
@@ -1422,7 +1468,7 @@ contains
     !!$OMP DO SCHEDULE(guided)
     j = 0
     do i = 1, ndet
-       sigma_0  = real(tod%scans(scan)%d(i)%sigma0,sp)
+       sigma_0  = abs(real(tod%scans(scan)%d(i)%sigma0,sp))
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
        j = j+1
        dt(1:ntod,j)           = buffer(:,i)
@@ -1433,7 +1479,7 @@ contains
 
     j = 0
     do i = 1, ndet
-       sigma_0  = real(tod%scans(scan)%d(i)%sigma0,sp)
+       sigma_0  = abs(real(tod%scans(scan)%d(i)%sigma0,sp))
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
        j = j+1
        samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)

@@ -364,8 +364,6 @@ def make_od(freq, od, args, outbuf):
                 newTheta, newPhi = r(fileName[str(horn) + hornType + '/THETA'][pid_start:pid_end], fileName[str(horn) + hornType + '/PHI'][pid_start:pid_end])
                 pixels = hp.pixelfunc.ang2pix(nside, newTheta, newPhi)
 
-                outP = [0,0,0]
-
                 nsamps = min(100, len(newTheta))
 
                 mapPix = np.zeros(hp.nside2npix(512))
