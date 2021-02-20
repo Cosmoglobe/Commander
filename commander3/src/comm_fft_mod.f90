@@ -35,7 +35,6 @@ contains
   subroutine initialize_fft_mod(cpar)
     implicit none
     type(comm_params),       intent(in) :: cpar
-    character(len=1024)                 :: filename
 
     integer(i4b)       :: i, n, unit
 
@@ -47,13 +46,7 @@ contains
 
     ! Read magic numbers list
     unit = getlun()
-    if(cpar%fft_magic_number_file(1:1) == '/') then ! full path given
-      filename = trim(cpar%fft_magic_number_file)
-    else
-      filename = trim(cpar%datadir)//'/'//trim(cpar%fft_magic_number_file)
-    end if
-
-    open(unit, file=trim(filename))
+    open(unit, file=trim(cpar%fft_magic_number_file))
     read(unit,*) n
     allocate(fft_magic_numbers(n))
     do i = 1, n

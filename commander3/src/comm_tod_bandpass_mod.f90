@@ -59,13 +59,13 @@ contains
              current = k
           end if
        end do
-       if (.true. .or. mod(iter,2) == 0) then
-          write(*,fmt='(a,f16.1,a,f10.1,l3)') 'Rel bp c0 = ', cc, &
-               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1
-       else
-          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cc, &
-               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
-       end if
+!       if (.true. .or. mod(iter,2) == 0) then
+!          write(*,fmt='(a,f16.1,a,f10.1,l3)') 'Rel bp c0 = ', cc, &
+!               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1
+!       else
+!          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cc, &
+!               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
+!       end if
     end if
 
     ! Broadcast new saved data

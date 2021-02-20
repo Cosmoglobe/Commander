@@ -60,7 +60,6 @@ module comm_param_mod
      character(len=512) :: output_comps
      logical(lgt)       :: only_pol
      logical(lgt)       :: enable_TOD_analysis
-     logical(lgt)       :: enable_TOD_simulations !< start commander in simulation regime
      integer(i4b)       :: tod_freq
      integer(i4b)       :: resamp_hard_gain_prior_nth_iter
      integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
@@ -71,7 +70,6 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: nside_smooth
      character(len=512), allocatable, dimension(:)     :: pixwin_smooth
      character(len=512), allocatable, dimension(:)     :: init_chain_prefixes
-     character(len=512)                                :: sims_output_dir !< simulations directory
 
      ! alm-sampler
      integer(i4b)       :: almsamp_nsamp, almsamp_nside_chisq_lowres, almsamp_prior_fwhm, almsamp_burnin
@@ -237,45 +235,52 @@ contains
     type(hash_tbl_sll) :: htable
     type(comm_params), intent(inout) :: cpar
     
-    integer(i4b)       :: paramfile_len, ierr, i, idx
-    character(len=512) :: paramfile, paramfile_name
+    integer(i4b)       :: paramfile_len, ierr, i
+    character(len=512) :: paramfile
     character(len=512), allocatable, dimension(:) :: paramfile_cache
 
     call getarg(1, paramfile)
     ! read parameter file once, save to ascii array
-    ! Guess at file size, will be resized later if needed
+    ! Need to know how long the file is to allocate ascii array
+    if (cpar%myid == cpar%root) then
+       call get_file_length(paramfile,paramfile_len)
+    end if
+    
+    call mpi_bcast(paramfile_len, 1, MPI_INTEGER, cpar%root, MPI_COMM_WORLD, ierr)
+    allocate(paramfile_cache(paramfile_len))
 
     if (cpar%myid == cpar%root) then
-      paramfile_len = 512
-      allocate(paramfile_cache(paramfile_len))
-      call read_paramfile_to_ascii(paramfile,paramfile_cache,paramfile_len)
-    end if
-    call mpi_bcast(paramfile_len, 1, MPI_INTEGER, cpar%root, MPI_COMM_WORLD, ierr)
-    if (cpar%myid /= cpar%root) then 
-      allocate(paramfile_cache(paramfile_len))
+       call read_paramfile_to_ascii(paramfile,paramfile_cache)
     end if
     do i=1,paramfile_len
        call mpi_bcast(paramfile_cache(i), 512, MPI_CHAR, cpar%root, MPI_COMM_WORLD, ierr)
     end do
+    
     !Initialize a hash table
     call init_hash_tbl_sll(htable,tbl_len=10*paramfile_len)
     ! Put the parameter file into the hash table
     call put_ascii_into_hashtable(paramfile_cache,htable)
+    deallocate(paramfile_cache)
 
     ! Read parameters from the hash table
     call read_global_params_hash(htable,cpar)
     call read_data_params_hash(htable,cpar)
     call read_component_params_hash(htable,cpar)
-   
-    !output parameter file to output directory
-    if (cpar%myid == cpar%root) then
-      idx = index(paramfile, '/', back=.true.) 
-      paramfile_name = trim(cpar%outdir)//'/'//paramfile(idx+1:len(paramfile))
-      call save_ascii_parameter_file(paramfile_name, paramfile_cache) 
-    end if 
-    !deallocate ascii cache
-    deallocate(paramfile_cache)
 
+    ! Override parameter choices if user if RESAMPLE_CMB = .true.
+    if (cpar%resamp_CMB) then
+       !cpar%operation           = 'sample'     ! Force sampling
+       !cpar%cg_precond          = 'diagonal'   ! Use diagonal precond to fill in the mask
+       !cpar%enable_TOD_analysis = .false.      ! Disable TOD analysis
+       !cpar%sample_specind      = .false.      ! Disable non-linear parameter fitting
+       !cpar%num_gibbs_iter      = (cpar%last_samp_resamp-cpar%first_samp_resamp+1)*cpar%numsamp_per_resamp
+!!$       do i = 1, cpar%cs_ncomp_tot
+!!$          if (trim(cpar%cs_type(i)) /= 'cmb') then
+!!$             cpar%cs_cg_samp_group(i) = 0   ! Disable all other components than CMB from CG search
+!!$          end if
+!!$       end do
+    end if
+    
     !Deallocate hash table
     call free_hash_tbl_sll(htable)
   end subroutine read_comm_params
@@ -386,6 +391,7 @@ contains
        call get_parameter_hashtable(htbl, 'INIT_CHAIN'//itext,     par_string=cpar%init_chain_prefixes(i))
     end do
     call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
+
     call get_parameter_hashtable(htbl, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
     call get_parameter_hashtable(htbl, 'CG_PRECOND_TYPE',          par_string=cpar%cg_precond)
     call get_parameter_hashtable(htbl, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
@@ -423,11 +429,6 @@ contains
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 
     call get_parameter_hashtable(htbl, 'ENABLE_TOD_ANALYSIS',      par_lgt=cpar%enable_TOD_analysis)
-    !----------------------------------------------------------------------------------
-    ! Commander3 simulations parameters
-    call get_parameter_hashtable(htbl, 'ENABLE_TOD_SIMULATIONS',   par_lgt=cpar%enable_TOD_simulations)
-    call get_parameter_hashtable(htbl, 'SIMS_OUTPUT_DIRECTORY',    par_string=cpar%sims_output_dir)
-    !----------------------------------------------------------------------------------
 
     call get_parameter_hashtable(htbl, 'NUMITER_RESAMPLE_HARD_GAIN_PRIORS', par_int=cpar%resamp_hard_gain_prior_nth_iter)
 
@@ -1743,11 +1744,8 @@ contains
     implicit none
     character(len=*)           :: parfile, outfile
     integer(i4b), parameter    :: maxdepth = 256
-    integer(i4b)               :: depth, units(maxdepth), i, num, ounit, stat
-    character(len=1024)        :: key, value, arg, default_path
-
-    call get_environment_variable("COMMANDER_PARAMS_DEFAULT", default_path, status=stat)
-
+    integer(i4b)               :: depth, units(maxdepth), i, num, ounit
+    character(len=1024)        :: key, value, arg
 
     num = 0
     depth = 1
@@ -1772,17 +1770,6 @@ contains
           depth=depth+1
           units(depth) = getlun()
           open(units(depth),file=value,status="old")
-       else if (key=='@DEFAULT') then
-          ! Recurse into the new file
-          if(stat /=0) then
-            write(*,*) "@DEFAULT directive present but getting COMMANDER_PARAMS_DEFAULT returned ", stat
-            stop
-          end if
-          read(units(depth),*,end=1) key, value
-          write(ounit,fmt='(a)') pad("",depth-1," ") // "# File: " // trim(default_path)//'/'//trim(value)
-          depth=depth+1
-          units(depth) = getlun()
-          open(units(depth),file=trim(default_path)//'/'//trim(value),status="old")
        else
           read(units(depth),fmt="(a)") value
           write(ounit,fmt='(a)') pad("",depth-1," ") // trim(value)
@@ -1954,18 +1941,10 @@ contains
 
     integer(i4b) :: i, j
     character(len=512) :: datadir, chaindir
-    logical(lgt) :: exist
 
     datadir  = trim(cpar%datadir) // '/'
     chaindir = trim(cpar%outdir) // '/'
-   
-    !verify that the output directory exists
-    inquire(directory=cpar%outdir, exist=exist) 
-    if (.not. exist) then
-      write(*,*) "Error: the specified output directory ", trim(cpar%outdir), " does not exist"
-      stop
-    end if 
-
+    
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') call validate_file(trim(datadir)//trim(cpar%cg_samp_group_mask(i)))
     end do
@@ -2074,7 +2053,7 @@ contains
        end if
        
     end do
-   
+    
   end subroutine validate_params
 
   subroutine validate_file(filename, should_exist)
@@ -2094,26 +2073,15 @@ contains
     end if
   end subroutine validate_file
 
-  subroutine read_paramfile_to_ascii(paramfile,paramfile_cache, paramfile_len)
+  subroutine read_paramfile_to_ascii(paramfile,paramfile_cache)
     implicit none
     character(len=512),                            intent(in)  :: paramfile
     character(len=512), allocatable, dimension(:), intent(inout) :: paramfile_cache
-    integer(i4b),intent(inout) :: paramfile_len
-
     integer(i4b), parameter    :: maxdepth = 256
-    integer(i4b)               :: depth, units(maxdepth), line_nr,i, stat, pos
+    integer(i4b)               :: depth, units(maxdepth), line_nr, paramfile_len, i
     character(len=512)         :: key, value, filenames(maxdepth), line
-    character(len=1024)        :: default_path
-    character(len=3)           :: band_num
-
-    character(len=512), allocatable, dimension(:) :: new_cache
-
     ! read file to ascii array
 
-    
-    call get_environment_variable("COMMANDER_PARAMS_DEFAULT", default_path, status=stat)
-
-    band_num = 'XXX'
     line_nr = 0
     depth = 1
     units(depth) = getlun()
@@ -2127,47 +2095,11 @@ contains
        if (key(1:1)=='@') then
           if(key == '@INCLUDE') then
              ! Recurse into the new file
-             read(units(depth),fmt="(a)",end=1) line
-             pos = index(line, ' ')
-             value = adjustl(line(pos:len(line)))
-             pos = index(value, ' ')
-             value = trim(value(1:pos))
-
+             read(units(depth),*,end=1) key, value
              depth=depth+1
              units(depth) = getlun()
              filenames(depth) = value
              open(units(depth),file=value,status="old",err=2)
-          else if(key == '@DEFAULT') then
-             if(stat /= 0) then
-               write(*,*) "Paramater file uses @DEFAULT command but the environment variable COMMANDER_PARAMS_DEFAULT returns ", stat
-               stop
-             end if
-             ! Recurse to the default new file
-             read(units(depth),fmt="(a)",end=1) line
-             pos = index(line, ' ')
-             value = adjustl(line(pos:len(line)))
-             pos = index(value, ' ')
-             value = trim(value(1:pos))
-
-             depth = depth+1
-             units(depth) = getlun()
-             filenames(depth) = trim(default_path)//'/'//trim(value)
-             open(units(depth),file=filenames(depth), status="old", err=2)
-          else if(key == '@START') then
-             read(units(depth),*,end=1) key, value
-             if(band_num /= 'XXX') then
-               write(*,*) "Error starting band number ", trim(value), ", band ", band_num, " has not ended in file ", trim(filenames(depth))
-               stop
-             end if
-             band_num = value(1:len(value))
-          else if(key == '@END') then
-             read(units(depth),*,end=1) key, value
-             if(value(1:len(value)) /= band_num) then
-               write(*,*) "Error ending band ", trim(value), ", current band is ", band_num, " in file ", trim(filenames(depth))
-               stop
-             end if
-             band_num = 'XXX'
-
           else
              goto 3
           end if
@@ -2175,24 +2107,7 @@ contains
           read(units(depth),fmt="(a)") line
           !if we get here we have read a new line from the parameter file(s)
           line_nr = line_nr + 1
-          if(line_nr > paramfile_len) then !we need to resize the cache array
-            allocate(new_cache(2*paramfile_len))
-
-            new_cache(1:paramfile_len) = paramfile_cache(1:paramfile_len)
-            deallocate(paramfile_cache)
-            call move_alloc(new_cache, paramfile_cache)
-
-            paramfile_len = paramfile_len*2
-          end if
-          if(band_num /= 'XXX') then !active @START directive
-            !replace the string &&& with the band number given by @START
-            pos = index(line, '&&&') !if this is a band
-            if(pos > 0)  line(pos:pos+2)=band_num
-            pos = index(line, '&&') !this could be a component
-            if(pos > 0) line(pos:pos+1)=band_num
-          end if
           write(paramfile_cache(line_nr),fmt="(a)") line
-
        end if
        cycle
        ! We get here if we reached the end of a file. Close it and
@@ -2201,20 +2116,12 @@ contains
        !write(*,*) "Exiting file " // filenames(depth)
        depth = depth-1
     end do
-    !resize the cache to be the exact length
-    allocate(new_cache(line_nr))
-
-    new_cache(1:line_nr) = paramfile_cache(1:line_nr)
-    deallocate(paramfile_cache)
-
-    call move_alloc(new_cache, paramfile_cache)
-    paramfile_len = line_nr
     return
 
     ! ===== Error handling section ======
 
     ! Case 1: Include file error
-2   write(*,*) "Error: Cannot open include file '" // trim(filenames(depth)) // "'"
+2   write(*,*) "Error: Cannot open include file '" // trim(value) // "'"
     write(*,*) " in file " // trim(filenames(depth-1))
     do i = depth-2, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
     do i = depth-1, 1, -1; close(units(i)); end do
@@ -2226,34 +2133,94 @@ contains
     do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
     do i = depth, 1, -1; close(units(i)); end do
     stop
+
     ! Case 3: Top level parameter file unreadable
 4   write(*,*) "Error: Cannot open parameter file '" // trim(paramfile) // "'"
     stop
 
   end subroutine read_paramfile_to_ascii
+    
+  subroutine get_file_length(filename,length)
+    implicit none 
+    character(len=512), intent(in)  :: filename
+    integer(i4b),       intent(out) :: length
+    integer(i4b), parameter    :: maxdepth = 256
+    integer(i4b)               :: depth, units(maxdepth), i
+    character(len=512)         :: key, value, filenames(maxdepth), line
 
-  ! outputs the parameter file to the path provided
-  subroutine save_ascii_parameter_file(outfile, ascii_table)
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    length = 0
+    depth = 1
+    units(depth) = getlun()
+    filenames(depth) = filename
+    open(units(depth),file=trim(filename),status="old",err=4)
+    do while(depth >= 1)
+       read(units(depth),*,end=1) key
+       if (key(1:1)=='#') cycle
+       backspace(units(depth))
+
+       if (key(1:1)=='@') then
+          if(key == '@INCLUDE') then
+             ! Recurse into the new file
+             read(units(depth),*,end=1) key, value
+             depth=depth+1
+             units(depth) = getlun()
+             filenames(depth) = value
+             open(units(depth),file=value,status="old",err=2)
+          else
+             goto 3
+          end if
+       else
+          read(units(depth),fmt="(a)") line
+          !if we get here we have read a new line from the parameter file(s)
+          length = length + 1
+       end if
+       cycle
+       ! We get here if we reached the end of a file. Close it and
+       ! return to the file above.
+1      close(units(depth))
+       !write(*,*) "Exiting file " // filenames(depth)
+       depth = depth-1
+    end do
+    return
+    ! ===== Error handling section ======
+
+    ! Case 1: Include file error
+2   write(*,*) "Error: Cannot open include file '" // trim(value) // "'"
+    write(*,*) " in file " // trim(filenames(depth-1))
+    do i = depth-2, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
+    do i = depth-1, 1, -1; close(units(i)); end do
+    stop
+
+    ! Case 2: Directive error
+3   write(*,*) "Error: Unrecognized directive '" // trim(key) //"'"
+    write(*,*) " in file " // trim(filenames(depth))
+    do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
+    do i = depth, 1, -1; close(units(i)); end do
+    stop
+
+    ! Case 3: Top level parameter file unreadable
+4   write(*,*) "Error: Cannot open parameter file '" // trim(filename) // "'"
+    stop
+
+  end subroutine get_file_length
+
+  ! A subroutine for debugging
+  subroutine print_ascii_parameter_file  !(paramfile_cache)
     implicit none
-    character(len=512), intent(in) :: outfile
-    character(len=512), dimension(:), intent(in) :: ascii_table
-
-    integer(i4b)      :: unit, i
-
-    write(*,*) "Saving parameter file to ", trim(outfile)
+    !character(len=512), allocatable, dimension(:), intent(in) :: paramfile_cache
+    integer(i4b)      :: unit
+    character(len=32) :: paramfile_out
 
     unit = getlun()
-    open(unit, file=trim(outfile),err=1)
+    paramfile_out="read_ascii_paramfile.txt"
+    open(unit, file=trim(paramfile_out),err=1)
 
-    do i=1, size(ascii_table) 
-      write(unit, '(a)') trim(ascii_table(i))
-    end do
-    close(unit)
-    return
     !If the opening of the output parameter file fails
-1   write(*,*) "Error: Cannot open output file '" // trim(outfile) // "'"
+1   write(*,*) "Error: Cannot open ascii file '" // trim(paramfile_out) // "'"
     stop
-  end subroutine save_ascii_parameter_file
+  end subroutine print_ascii_parameter_file
 
   ! filling the hash table with elements from the parameter file (ascii array) 
   subroutine put_ascii_into_hashtable(asciitbl,htbl)
@@ -2363,8 +2330,7 @@ contains
     elseif (present(par_char)) then
        read(val,*) par_char
     elseif (present(par_string)) then
-       !read(val,*) par_string
-       par_string = val
+       read(val,*) par_string
     elseif (present(par_sp)) then
        read(val,*) par_sp
     elseif (present(par_dp)) then

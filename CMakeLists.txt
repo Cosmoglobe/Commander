@@ -18,76 +18,50 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Ensure out-of-source build
-if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
-	message(FATAL_ERROR 
-			"\n-------------------------------------------------------------------"
-			"\n		IN-SOURCE BUILDS ARE NOT ALLOWED!" 
-			"\nTo sucessfully run CMake configuration, please, do the following:"
-			"\n1. Delete the CMakeCache.txt file and the CMakeFiles directory"
-			" created inside current (root) directory. For instance, on Linux do: "
-			"\n		$ rm -r CMakeCache.txt CMakeFiles/"
-			"\n2. Create new directory (any name will do, but usually it is called build)"
-			" and re-run CMake configuration from it. For example, on Linux do:"
-			"\n		$ mkdir build && cd build"
-			"\n		$ cmake [CMake variable 1] [...] [CMake variable n] .."
-			"\n3. Run compilation command to install Commander3, e.g.: "
-			"\n		$ cmake --build . --target install -j n"
-			"\n where n is the number of processors to utilize."
-			"\nFor more information, please refer to official documentation: "
-			"\n		https://docs.beyondplanck.science"
-			"\nIn case you have any questions, feel free to post them on our forum:"
-			"\n		https://forums.beyondplanck.science/"
-			"\n-------------------------------------------------------------------"
-			)
-endif()
-# Just a short message to signify start of configuration script
+
+# just a short message to signify start of configuration script
 message(STATUS "===============================================================")
 message(STATUS "Welcome to automatic Commander3 installer!")
 message(STATUS "Issued under: GNU GPLv3 license")
 message(STATUS "Official repo: https://github.com/Cosmoglobe/Commander")
 message(STATUS "Documentation: https://docs.beyondplanck.science")
-message(STATUS "Forum: https://forums.beyondplanck.science/")
 message(STATUS "===============================================================")
 message(STATUS "Scanning your system. Please, wait a moment...")
-# The necessary minimum to set-up cmake-based project
+#message(STATUS "---------------------------------------------------------------")
+# the necessary minimum to set-up cmake
 cmake_minimum_required(VERSION 3.17 FATAL_ERROR)
-project(Commander3
-	DESCRIPTION "Complete installer for Commander 3."
-	VERSION 1.3.0	
-	LANGUAGES Fortran CXX C
-	HOMEPAGE_URL "https://github.com/Cosmoglobe/Commander"
+project(CommanderSuperbuild
+	DESCRIPTION "Complete installer for Commander 3"
+	VERSION 1.1.0	
+	LANGUAGES Fortran CXX C #Python
 	)
-# Looking for python
-find_package(Python REQUIRED COMPONENTS Interpreter)
 
-# Including native cmake commands 
+# ensuring that we do out-of-source build
+if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
+    message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there.")
+endif()
+
+# including native cmake commands 
 include(CMakePrintHelpers)
 include(CMakeDependentOption)
-# Enables content population at configure time
+# enables content population at configure time
 include(FetchContent)
-# Including external project routines to enable superbuild pattern
+# including external project routines to enable superbuild pattern
 include(ExternalProject)
-# Including useful macro to operate with project options
-include(CMakeDependentOption)
-# Verify that Fortran and CXX compilers can properly talk to each other
+# verify that Fortran and CXX compilers can properly talk to each other
 include(FortranCInterface)
 FortranCInterface_VERIFY(CXX)
-# Check if given fortran source compiles
+# check if given fortran source compiles
 include(CheckFortranSourceCompiles)
-# The -fPIC flag
+# the -fPIC flag
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-# The -flto
+# the -flto
 
-# Adding project modules dir (with .cmake extension)
-list(APPEND CMAKE_MODULE_PATH 
-	"${CMAKE_SOURCE_DIR}/cmake"
-	"${CMAKE_SOURCE_DIR}/cmake/third_party/cfitsio/cmake"
-	"${CMAKE_SOURCE_DIR}/cmake/third_party/curl/CMake"
-	)
-# Including custom cmake modules
+# adding project modules dir (with .cmake extension)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+# including cmake modules
 include(project_instructions)
-# Adding commander3 source files
+# adding commander3 source files
 # Note: I have added commander.cmake as an "independent" project 
 # so there is no need for other cmake lists. Advantage of this 
 # approach is that everything located in the same folder (cmake)

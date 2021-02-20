@@ -34,14 +34,12 @@ contains
   ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
 !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
 !   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle, mask_lowres, tod_arr)
+   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle)
     implicit none
     class(comm_tod),                      intent(inout) :: tod
     real(sp),             dimension(:,:), intent(in)    :: s_invN, mask, s_ref, s_tot
     integer(i4b),                         intent(in)    :: scan_id
     type(planck_rng),                     intent(inout)  :: handle
-    real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
-    integer(i4b),         dimension(:,:), intent(in), optional :: tod_arr
 
 
     real(sp), allocatable, dimension(:,:) :: residual
@@ -66,13 +64,8 @@ contains
           residual(:,j) = 0.d0
           cycle
        end if
-       if (present(tod_arr)) then
-         r_fill = tod_arr(:, j) - tod%scans(scan_id)%d(j)%baseline & 
-           & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
-       else
-         r_fill = tod%scans(scan_id)%d(j)%tod - tod%scans(scan_id)%d(j)%baseline & 
-           & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
-       end if
+       r_fill = tod%scans(scan_id)%d(j)%tod - (tod%gain0(0) + &
+            & tod%gain0(j)) * s_tot(:,j)
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
@@ -84,13 +77,8 @@ contains
           tod%scans(scan_id)%d(j)%gain  = 0.d0
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
-          if (present(mask_lowres)) then
-             tod%scans(scan_id)%d(j)%dgain         = sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
-             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
-          else
-             tod%scans(scan_id)%d(j)%dgain         = sum(s_invN(:,j) * residual(:,j))
-             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j))
-          end if
+          tod%scans(scan_id)%d(j)%dgain      = sum(s_invN(:,j) * residual(:,j))
+          tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j))
           if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
              write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
           end if
@@ -133,21 +121,12 @@ contains
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline &
-            & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
-          else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline &
-            & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
-          end if
+          write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - (tod%gain0(0) + &
+            & tod%gain0(1)) * s_tot(i,1)
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline
-          else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline
-          end if
+          write(58,*) i, tod%scans(scan_id)%d(1)%tod(i)
        end do
        close(58)
     end if
@@ -211,36 +190,36 @@ contains
 !!$       close(58)
 
         count = count+1
-        !write(*, *) "FREQ IS ", trim(tod%freq), count
-       !nbin = nscan_tot / binsize + 1
+        write(*, *) "FREQ IS ", trim(tod%freq), count
+!       nbin = nscan_tot / binsize + 1
 
-        !open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
-          do k = 1, nscan_tot
-             !if (g(k,j,2) /= 0) then
-             !if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
-             if (g(k,j,2) > 0) then
-                if (abs(g(k, j, 1)) > 1e10) then
-                   write(*, *) 'G1'
-                   write(*, *) g(k, j, 1)
-                end if
-                if (abs(g(k, j, 2)) > 1e10) then
-                   write(*, *) 'G2'
-                   write(*, *) g(k, j, 2)
-                end if
-                !if (abs(dipole_mods(k, j) > 1e10)) then
-                !   write(*, *) 'DIPOLE_MODS'
-                !   write(*, *) dipole_mods(k, j)
-                !else
-                  ! write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-                !end if
-             else
-                !write(58,*) j, k, 0., 0.0, 0., 0.
-             end if
-          end do
-          !write(58,*)
-       end do
-       !close(58)
+!!$       open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$          do k = 1, nscan_tot
+!!$             !if (g(k,j,2) /= 0) then
+!!$             if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
+!!$             if (g(k,j,2) > 0) then
+!!$                if (abs(g(k, j, 1)) > 1e10) then
+!!$                   write(*, *) 'G1'
+!!$                   write(*, *) g(k, j, 1)
+!!$                end if
+!!$                if (abs(g(k, j, 2)) > 1e10) then
+!!$                   write(*, *) 'G2'
+!!$                   write(*, *) g(k, j, 2)
+!!$                end if
+!!$                if (abs(dipole_mods(k, j) > 1e10)) then
+!!$                   write(*, *) 'DIPOLE_MODS'
+!!$                   write(*, *) dipole_mods(k, j)
+!!$                else
+!!$                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+!!$                end if
+!!$             else
+!!$                write(58,*) j, k, 0., 0.0, 0., 0.
+!!$             end if
+!!$          end do
+!!$          write(58,*)
+!!$       end do
+!!$       close(58)
 
        allocate(window_sizes(tod%ndet, tod%nscan_tot))
        call get_smoothing_windows(tod, window_sizes, dipole_mods)
@@ -279,7 +258,7 @@ contains
          rhs = 0.d0
          pid_id = 1
          k = 0
-         !write(*,*) "PIDRANGE: ", pid_ranges(j, :)
+!         write(*,*) "PIDRANGE: ", pid_ranges(j, :)
          do while (pid_id < size(pid_ranges(j, :)))
             if (pid_ranges(j, pid_id) == 0) exit
             currstart = pid_ranges(j, pid_id)
@@ -328,8 +307,8 @@ contains
                write(*, *) 'temp_invsigsquared', temp_invsigsquared
                stop
             end if
-            !write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
-            !write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
+!            write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
+!            write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
             do k = currstart, currend
                g(k, j, 1) = smoothed_gain(k - currstart + 1)
 !               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then
@@ -416,37 +395,35 @@ contains
          mu = mu / denom
 
          ! Make sure fluctuations sum up to zero
-         if (tod%verbosity > 1) then
-           write(*,*) 'mu = ', mu
-         end if
+         !write(*,*) 'mu = ', mu
          g(:,j,1) = g(:,j,1) - mu
        end do
-!       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
-          do k = 1, nscan_tot
-             !if (g(k,j,2) /= 0) then
-             if (g(k,j,2) > 0) then
-                if (abs(g(k, j, 1)) > 1e10) then
-                   write(*, *) 'G1_postsmooth'
-                   write(*, *) g(k, j, 1)
-                end if
-                if (abs(g(k, j, 2)) > 1e10) then
-                   write(*, *) 'G2_postsmooth'
-                   write(*, *) g(k, j, 2)
-                end if
-                if (abs(dipole_mods(k, j) > 1e10)) then
-                   write(*, *) 'DIPOLE_MODS'
-                   write(*, *) dipole_mods(k, j)
-                else
-!                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-                end if
-             else
-!                write(58,*) j, k, 0., 0.0, 0., 0.
-             end if
-          end do
-!          write(58,*)
-       end do
-       close(58)
+!!$       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$          do k = 1, nscan_tot
+!!$             !if (g(k,j,2) /= 0) then
+!!$             if (g(k,j,2) > 0) then
+!!$                if (abs(g(k, j, 1)) > 1e10) then
+!!$                   write(*, *) 'G1_postsmooth'
+!!$                   write(*, *) g(k, j, 1)
+!!$                end if
+!!$                if (abs(g(k, j, 2)) > 1e10) then
+!!$                   write(*, *) 'G2_postsmooth'
+!!$                   write(*, *) g(k, j, 2)
+!!$                end if
+!!$                if (abs(dipole_mods(k, j) > 1e10)) then
+!!$                   write(*, *) 'DIPOLE_MODS'
+!!$                   write(*, *) dipole_mods(k, j)
+!!$                else
+!!$                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+!!$                end if
+!!$             else
+!!$                write(58,*) j, k, 0., 0.0, 0., 0.
+!!$             end if
+!!$          end do
+!!$          write(58,*)
+!!$       end do
+!!$       close(58)
 
        deallocate(window_sizes, pid_ranges)
     end if
@@ -474,9 +451,7 @@ contains
   ! Haavard: Remove current monopole fit, and replace inv_sigmasq with a proper invN(alpha,fknee) multiplication
 !  subroutine accumulate_abscal(self, scan, det, mask, s_sub, &
 !       & s_orb, A_abs, b_abs)
-   ! This is implementing equation 16, adding up all the terms over all the sums
-   ! the sum i is over the detector.
-   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres, mask_lowres, tod_arr)
+   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
@@ -484,14 +459,10 @@ contains
     real(sp),          dimension(:,:), intent(in)     :: s_invN
     real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
     type(planck_rng),                  intent(inout)  :: handle
-    logical(lgt), intent(in) :: out
-    real(sp),          dimension(:,:), intent(in), optional :: s_highres
-    real(sp),          dimension(:,:), intent(in), optional :: mask_lowres
-    integer(i4b),      dimension(:,:), intent(in), optional :: tod_arr
- 
+
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
-    real(dp)     :: A, b, scale
+    real(dp)     :: A, b
     integer(i4b) :: i, j, ext(2), ndet, ntod
     character(len=5) :: itext
 
@@ -506,12 +477,8 @@ contains
           residual(:,j) = 0.
           cycle
        end if
-       if (present(tod_arr)) then
-         r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-       else
-         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-       end if
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
+       r_fill = tod%scans(scan)%d(j)%tod-s_sub(:,j)
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan)%d(j)%sigma0, sp), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
 
@@ -519,74 +486,41 @@ contains
 
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (present(mask_lowres)) then
-          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
-          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
-       else
-          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
-          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
-       end if
-!       if (out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+       A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
+       b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
     end do
+    !write(*,*) sum(abs(s_sub)), sum(abs(tod%scans(scan)%d(det)%tod))
 
-!    if (trim(tod%freq) == '070') then
-!       write(*,*) tod%scanid(scan), real(b/A,sp), real(1/sqrt(A),sp), '  # absK', det
- !   end if
+!!$    if (trim(tod%freq) == '070') then
+!!$       write(*,*) tod%scanid(scan), real(b/A,sp), real(1/sqrt(A),sp), '  # abs70', det
+!!$    end if
+!!$
 
-
-    if (.false. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
-       call int2string(tod%scanid(scan), itext)
-       !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
-       open(58,file='gainfit3_'//itext//'.dat')
-       do i = ext(1), ext(2)
-          write(58,*) i-ext(1)+1, residual(i,1)
-       end do
-       write(58,*)
-       do i = 1, size(s_ref,1)
-          write(58,*) i, s_ref(i,1)
-       end do
-       write(58,*)
-       scale = sum(s_invN(:,1) * residual(:,1)) / sum(s_invN(:,1) * s_ref(:,1))
-       residual(:,1) = residual(:,1) - scale * s_ref(:,1)
-       do i = 1, size(s_ref,1)
-          write(58,*) i-ext(1)+1, residual(i,1) 
-       end do
-       if (present(mask_lowres)) then
-          write(58,*)
-          do i = 1, size(s_ref,1)
-             write(58,*) i-ext(1)+1, mask_lowres(i,1) 
-          end do
-       end if
-       close(58)
-
-       open(58,file='gainfit4_'//itext//'.dat')       
-       do i = 1, size(s_sub,1)
-          if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 4) - tod%scans(scan)%d(4)%baseline
-          else
-            write(58,*) i, tod%scans(scan)%d(4)%tod(i) - tod%scans(scan)%d(4)%baseline
-          end if
-       end do
-       write(58,*)
-       do i = 1, size(s_sub,1)
-          write(58,*) i, r_fill(i)
-       end do
-       write(58,*)
-       if (present(s_highres)) then
-          do i = 1, size(s_sub,1)
-             write(58,*) i, s_highres(i,4)
-          end do
-          write(58,*)
-       end if
-       do i = 1, size(s_sub,1)
-          write(58,*) i, s_sub(i,4)
-       end do
-       write(58,*)
-       do i = 1, size(s_sub,1)
-          write(58,*) i, mask(i,4)*10
-       end do
-       close(58)
-    end if
+!!$    if (mod(tod%scanid(scan),100) == 0) then
+!!$       call int2string(tod%scanid(scan), itext)
+!!$       !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
+!!$       open(58,file='gainfit3_'//itext//'.dat')
+!!$       do i = 1, size(s_ref,1)
+!!$          write(58,*) i, residual(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_ref,1)
+!!$          write(58,*) i, s_ref(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_ref,1)
+!!$          write(58,*) i, s_invN(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_sub,1)
+!!$          write(58,*) i, s_sub(i,1)
+!!$       end do
+!!$       write(58,*)
+!!$       do i = 1, size(s_sub,1)
+!!$          write(58,*) i, tod%scans(scan)%d(1)%tod(i)
+!!$       end do
+!!$       close(58)
+!!$    end if
 
 
 
@@ -620,9 +554,7 @@ contains
           ! Add fluctuation term if requested
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
-       if (tod%verbosity > 1) then
-         write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A)
-       end if
+       write(*,*) 'abscal = ', tod%gain0(0), sum(b), sum(A), tod%myid_inter
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
          & tod%info%comm, ierr)
@@ -673,9 +605,8 @@ contains
        coeff_matrix(tod%ndet+1, tod%ndet+1) = 0.d0
        rhs(tod%ndet+1) = 0.d0
        call solve_system_real(coeff_matrix, x, rhs)
-       if (tod%verbosity > 1) then
-         write(*,*) 'relcal = ', real(x,sp)
-       end if
+       
+       write(*,*) 'relcal = ', real(x,sp)
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
        & tod%info%comm, ierr)
@@ -728,7 +659,7 @@ contains
             jump_percentile = 0.995
          ! Currently, the 70-GHz ds
          case default
-            slow_smooth_window_size = 15
+            slow_smooth_window_size = 150
             jump_percentile = 0.995
       end select
 
@@ -834,7 +765,6 @@ contains
 
 !     n_jumps = 17 ! Npipe has 15 events + the beginning and end
      n_jumps = 26 ! Npipe has 15 events + the beginning and end (but two of them are too bunched up)
-     n_jumps = 2 ! WMAP has several maneuvers, but I'm ignoring that for now.
 
      allocate(pid_ranges(tod%ndet, n_jumps))
      pid_ranges(:, :) = 0
@@ -858,73 +788,35 @@ contains
 !!$     ! This last event is too close to the previous one
 !!$     pid_ranges(:, 16) = 0
 
-!     pid_ranges(:, 1) = 1
-!     pid_ranges(:, 2) = 3352
-!     pid_ranges(:, 3) = 5030
-!     pid_ranges(:, 4) = 5484
-!     pid_ranges(:, 5) = 8309 ! 20K
-!     pid_ranges(:, 6) = 8503 ! 20K
-!     pid_ranges(:, 7) = 8606 ! 20K
-!     pid_ranges(:, 8) = 9613 ! 20K
-!     pid_ranges(:, 9) = 10117 ! 20K
-!     pid_ranges(:, 10) = 10512 ! 20K
-!     ! There's one more 20K at 10897 but that's very close to this one
-!     pid_ranges(:, 11) = 10911
-!     pid_ranges(:, 12) = 14061 ! 20K
-!     pid_ranges(:, 13) = 15957
-!     pid_ranges(:, 14) = 16204 ! 20K
-!     pid_ranges(:, 15) = 16455
-!     pid_ranges(:, 16) = 17024 ! 20K
-!     pid_ranges(:, 17) = 18338 ! 20K
-!     pid_ranges(:, 18) = 21484
-!     pid_ranges(:, 19) = 25654
-!     pid_ranges(:, 20) = 27110
-!     pid_ranges(:, 21) = 27343
-!     pid_ranges(:, 22) = 30387
-!     pid_ranges(:, 23) = 32763
-!     pid_ranges(:, 24) = 38591
-!     pid_ranges(:, 25) = 43929
-!     ! pid_ranges(:, 16) = 44063
-!     ! This last event is too close to the previous one
-!     pid_ranges(:, 26) = 0
-
-
-
-     ! WMAP ExSupp Table 1.6 has a series of station keeping maneuvers.
-
-     pid_ranges(:, 1 ) =   1
-     !pid_ranges(:, 2 ) =  36  ! Mid-course correction 2: 2001-257
-     !pid_ranges(:, 3 ) = 159  ! Station keeping 1:       2002-016
-     !pid_ranges(:, 4) = 272! Station keeping 2:       2002-128
-     !pid_ranges(:, 5) = 355! Station keeping 3:       2002-211
-     !pid_ranges(:, 6) = 453! Station keeping 4:       2002-309
-     !pid_ranges(:, 7) = 580! Station keeping 5:       2003-071
-     !pid_ranges(:, 8) = 824! Station keeping 6:       2003-316
-     !pid_ranges(:, 9) = 942! Station keeping 7:       2004-069
-     !pid_ranges(:, 10) = 1097! Station keeping 8:       2004-224
-     !pid_ranges(:, 11) = 1222! Station keeping 9:       2004-349
-     !pid_ranges(:, 12) = 1333! Station keeping 10:      2005-094
-     !pid_ranges(:, 13) = 1447! Station keeping 11:      2005-208
-     !pid_ranges(:, 14) = 1553! Station keeping 12:      2005-314
-     !pid_ranges(:, 15) = 1670! Station keeping 13:      2006-066
-     !pid_ranges(:, 16) = 1769! Station keeping 14:      2006-165
-     !pid_ranges(:, 17) = 1917! Station keeping 15:      2006-313
-     !pid_ranges(:, 18) = 2036! Station keeping 16:      2007-067
-     !pid_ranges(:, 19) = 2147! Station keeping 17:      2007-178
-     !pid_ranges(:, 20) = 2217! Shadow avoidance:        2007-248
-     !pid_ranges(:, 21) = 2238! Shadow avoidence Corr    2007-269
-     !pid_ranges(:, 22) = 2357! Station keeping 18:      2008-023
-     !pid_ranges(:, 23) = 2490! Station keeping 19:      2008-156
-     !pid_ranges(:, 24) = 2616! Station keeping 20:      2008-282
-     !pid_ranges(:, 25) = 2742! Station keeping 21:      2009-042
-     !pid_ranges(:, 26) = 2897! Station keeping 22:      2009-197
-     !pid_ranges(:, 27) = 3085! Station keeping 23:      2010-020
-     !pid_ranges(:, 28) = 3198! Station keeping 24:      2010-133
-     pid_ranges(:, 2) =   0
-
-
-     ! Table 1.8 is the summary of all data cuts, except for the daflags.
-     ! Transcription of table 1.8
+     pid_ranges(:, 1) = 1
+     pid_ranges(:, 2) = 3352
+     pid_ranges(:, 3) = 5030
+     pid_ranges(:, 4) = 5484
+     pid_ranges(:, 5) = 8309 ! 20K
+     pid_ranges(:, 6) = 8503 ! 20K
+     pid_ranges(:, 7) = 8606 ! 20K
+     pid_ranges(:, 8) = 9613 ! 20K
+     pid_ranges(:, 9) = 10117 ! 20K
+     pid_ranges(:, 10) = 10512 ! 20K
+     ! There's one more 20K at 10897 but that's very close to this one
+     pid_ranges(:, 11) = 10911
+     pid_ranges(:, 12) = 14061 ! 20K
+     pid_ranges(:, 13) = 15957
+     pid_ranges(:, 14) = 16204 ! 20K
+     pid_ranges(:, 15) = 16455
+     pid_ranges(:, 16) = 17024 ! 20K
+     pid_ranges(:, 17) = 18338 ! 20K
+     pid_ranges(:, 18) = 21484
+     pid_ranges(:, 19) = 25654
+     pid_ranges(:, 20) = 27110
+     pid_ranges(:, 21) = 27343
+     pid_ranges(:, 22) = 30387
+     pid_ranges(:, 23) = 32763
+     pid_ranges(:, 24) = 38591
+     pid_ranges(:, 25) = 43929
+     ! pid_ranges(:, 16) = 44063
+     ! This last event is too close to the previous one
+     pid_ranges(:, 26) = 0
      
   end subroutine get_pid_ranges_tabulated
 
@@ -957,14 +849,12 @@ contains
             window_size_dipole_minimum = 1500
             window_size_dipole_maximum = 300
          case ('070')
-            window_size_dipole_minimum = 1880
+            window_size_dipole_minimum = 1800
             window_size_dipole_maximum = 400
-         case ('023-WMAP_K')
-             window_size_dipole_minimum = 1 !120
-             window_size_dipole_maximum = 1 ! 40
+         ! Currently, the 70-GHz ds
          case default
-            window_size_dipole_minimum = 1 !1800
-            window_size_dipole_maximum = 1 !400
+            window_size_dipole_minimum = 1800
+            window_size_dipole_maximum = 400
       end select
 
       do i = 1, tod%nscan_tot
@@ -988,8 +878,5 @@ contains
       end do
 
   end subroutine get_smoothing_windows
-
-
-
 
 end module comm_tod_gain_mod

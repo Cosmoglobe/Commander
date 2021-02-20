@@ -532,7 +532,7 @@ contains
        write(*,*) 'Incorrect nside or nmaps for file called ', trim(filename)
     end if
 
-    call input_map(filename, map, npix, nmaps, ignore_polcconv=.true.)
+    call input_map(filename, map, npix, nmaps)
     if (ordering == 2) then
        do i = 1, nmaps
           call convert_nest2ring(nside, map(:,i))
@@ -1223,16 +1223,6 @@ contains
    masked_variance = currvar
 
   end function masked_variance
-
-
-  !*************************************************
-  !    Convert integer to string
-  !*************************************************
-  character(len=20) function str(k)
-      integer, intent(in) :: k
-      write (str, *) k
-      str = adjustl(str)
-  end function str
 
   
 end module comm_utils

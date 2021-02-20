@@ -41,9 +41,6 @@ module comm_tod_orbdipole_mod
     procedure :: compute_orbital_dipole_4pi
     procedure :: compute_orbital_dipole_pencil
     procedure :: compute_4pi_product
-    procedure :: compute_solar_dipole_4pi
-    procedure :: compute_solar_dipole_pencil
-    procedure :: compute_4pi_product_sol
 
   end type comm_orbdipole
 
@@ -161,21 +158,14 @@ contains
 
   end subroutine precompute_orb_dp_s
 
-  subroutine compute_orbital_dipole_pencil(self, ind, pix, psi, s_orb, factor)
+  subroutine compute_orbital_dipole_pencil(self, ind, pix, psi, s_orb)
     implicit none
     class(comm_orbdipole),               intent(in)  :: self
     integer(i4b),                        intent(in)  :: ind !scan nr/index
-    integer(i4b),        dimension(:),   intent(in)  :: pix, psi
+    integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
     real(sp),            dimension(:,:), intent(out) :: s_orb
-    real(dp),               intent(in), optional     :: factor
-    real(dp) :: b, x, q, b_dot, f
+    real(dp) :: b, x, q, b_dot
     integer(i4b) :: i, j
-
-    if (present(factor)) then 
-      f = factor
-    else
-      f = 1
-    end if
 
     b = sqrt(sum(self%tod%scans(ind)%v_sun**2))/c   ! beta for the given scan
     x = h * self%tod%central_freq/(k_B * T_CMB)
@@ -183,45 +173,19 @@ contains
 
 
     do i = 1,self%tod%ndet
-       if (.not. self%tod%scans(ind)%d(i)%accept) then
-         s_orb(:,i) = 0
-         cycle
-       end if
+       if (.not. self%tod%scans(ind)%d(i)%accept) cycle
        do j=1,self%tod%scans(ind)%ntod !length of the tod
-          b_dot = dot_product(self%tod%scans(ind)%v_sun, self%tod%pix2vec(:,pix(j)))/c
-          s_orb(j,i) = f*T_CMB * (b_dot + q*(b_dot**2 - b**2/3.))
-       end do
+          b_dot = dot_product(self%tod%scans(ind)%v_sun, self%tod%pix2vec(:,pix(j,i)))/c
+          !s_orb(j,i) = real(T_CMB  * b_dot,sp) !* self%tod%mb_eff(i) !only dipole,
+          !1.d6 to make it uK, as [T_CMB] = K
+          !s_orb(j,i) = T_CMB  * 1.d6 * b_dot !only dipole, 1.d6 to make it uK,
+          !as [T_CMB] = K
+          !s_orb(j,i) = T_CMB * 1.d6 * (b_dot + q*b_dot**2) ! with quadrupole
+          s_orb(j,i) = T_CMB * (b_dot + q*(b_dot**2 - b**2/3.)) ! net zero monopole
+        end do
     end do
 
   end subroutine compute_orbital_dipole_pencil
-
-  subroutine compute_solar_dipole_pencil(self, ind, pix, s_sol, factor)
-    implicit none
-    class(comm_orbdipole),               intent(in)  :: self
-    integer(i4b),                        intent(in)  :: ind !scan nr/index
-    integer(i4b),        dimension(:),   intent(in)  :: pix
-    real(sp),            dimension(:),   intent(out) :: s_sol
-    real(sp),                            intent(in), optional :: factor
-    real(dp) :: b, x, q, b_dot, phi, theta
-    real(sp) :: f
-    real(dp), dimension(3) :: vnorm
-    integer(i4b) :: i, j
-
-    if (.not. self%tod%scans(ind)%d(i)%accept) then
-       s_sol = 0
-       return
-    end if
-
-    f = 1.; if (present(factor)) f = factor
-    phi   = 4.607145626489432  ! 263.97*pi/180
-    theta = 0.7278022980816355 ! (90-48.3)*pi/180
-    vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
-
-    do j=1,self%tod%scans(ind)%ntod !length of the tod
-       b_dot = dot_product(vnorm, self%tod%pix2vec(:,pix(j)))
-       s_sol(j) = f * T_CMB_DIP * b_dot
-    end do
-  end subroutine compute_solar_dipole_pencil
 
   function compute_4pi_product(self, p, psiInd, chunkInd, i, q) result(prod)
     implicit none
@@ -241,57 +205,17 @@ contains
     call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
     vnorm = matmul(rot_mat, self%tod%scans(chunkInd)%v_sun)
     vnorm = vnorm / c
-    ! Equation C.5 in NPIPE paper
-    prod = vnorm(1)*self%orb_dp_s(i,1)+ &
-          &vnorm(2)*self%orb_dp_s(i,2)+ &
-          &vnorm(3)*self%orb_dp_s(i,3)+ &
-          & q*(vnorm(1)*vnorm(1)*self%orb_dp_s(i,4) + &
-          &    vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + &
-          &    vnorm(1)*vnorm(3)*self%orb_dp_s(i,6) + &
-          &    vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
-          &    vnorm(2)*vnorm(3)*self%orb_dp_s(i,8) + &
-          &    vnorm(3)*vnorm(3)*self%orb_dp_s(i,9))
+    prod = vnorm(1)*self%orb_dp_s(i,1)+vnorm(2)*self%orb_dp_s(i,2)+&
+    &vnorm(3)*self%orb_dp_s(i,3)+q*(vnorm(1)*vnorm(1)*self%orb_dp_s(i,4)+&
+            &vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + vnorm(1)*vnorm(3)* &
+            &self%orb_dp_s(i,6) + vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
+            &vnorm(2)*vnorm(3)*self%orb_dp_s(i,8) + vnorm(3)*vnorm(3)*&
+            &self%orb_dp_s(i,9))
 
     prod = T_CMB*prod/self%orb_dp_s(i,10)
 
   end function compute_4pi_product
 
-  function compute_4pi_product_sol(self, p, psiInd, chunkInd, i, q) result(prod)
-    implicit none
-    class(comm_orbdipole), intent(in) :: self
-    integer(i4b),          intent(in) :: p, psiInd, chunkInd, i
-    real(dp),              intent(in) :: q
-    real(dp)                          :: prod
-
-    real(dp) :: theta, psi_d, phi
-    real(dp), dimension(3,3) :: rot_mat
-    real(dp), dimension(3)   :: vnorm
-    real(dp), dimension(3)   :: T_dip
-
-    phi   = 4.607145626489432  ! 263.97*pi/180
-    theta = 0.7278022980816355 ! (90-48.3)*pi/180
-    vnorm = (/ sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta) /)
-
-    theta = self%tod%ind2ang(1,p)
-    phi   = self%tod%ind2ang(2,p)
-    psi_d = self%tod%psi(psiInd)
-    !write(*,*), j, phi, theta, psi_d, rot_mat 
-    call compute_euler_matrix_zyz(-psi_d, -theta, -phi, rot_mat)
-    vnorm = matmul(rot_mat, vnorm)
-    ! Equation C.5 in NPIPE paper
-    prod = vnorm(1)*self%orb_dp_s(i,1)+ &
-          &vnorm(2)*self%orb_dp_s(i,2)+ &
-          &vnorm(3)*self%orb_dp_s(i,3)+ &
-          & q*(vnorm(1)*vnorm(1)*self%orb_dp_s(i,4) + &
-          &    vnorm(1)*vnorm(2)*self%orb_dp_s(i,5) + &
-          &    vnorm(1)*vnorm(3)*self%orb_dp_s(i,6) + &
-          &    vnorm(2)*vnorm(2)*self%orb_dp_s(i,7) + &
-          &    vnorm(2)*vnorm(3)*self%orb_dp_s(i,8) + &
-          &    vnorm(3)*vnorm(3)*self%orb_dp_s(i,9))
-
-    prod = T_CMB_DIP*prod/self%orb_dp_s(i,10)
-
-  end function compute_4pi_product_sol
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
@@ -305,13 +229,18 @@ contains
     real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation, j_real
     real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
     real(dp), dimension(:), allocatable :: x_vec, y_vec
-write(*,*) "IS THIS HAPPENING?"
+
     !these are the npipe paper definitions
     !TODO: maybe also use the bandpass shift to modify the central frequency? 
     !will that matter?
     x = h * self%tod%central_freq/(k_B * T_CMB)
     q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
 
+    !if (trim(self%tod%label(1)) == '27M') then 
+    !  open(58,file='orb_27M.dat')
+    !  if (self%tod%scans(ind)%chunk_num == 27) write(58,*) " SCET    THETA    PHI    PSI    TOD    ORB_DP    ORB_FSL"
+    !  open(59,file='orb_27M_debug.dat')
+    !end if
     do i = 1,self%tod%ndet
        if (.not. self%tod%scans(ind)%d(i)%accept) cycle
        s_len = self%tod%scans(ind)%ntod/self%subsample
@@ -333,6 +262,8 @@ write(*,*) "IS THIS HAPPENING?"
        do j=1, s_len*self%subsample
          j_real = j
          s_orb(j,i) = splint_simple(self%s, j_real)
+         !if (trim(self%tod%label(i)) == '27M' .and. self%tod%scans(ind)%chunk_num == 27) write(59,*) self%tod%scans(ind)%t0(3)/1000000.d0 + real(j-1)/(real(self%tod%samprate)), theta, phi, psi_d, self%tod%scans(ind)%v_sun, vnorm, self%tod%scans(ind)%d(i)%tod(j), s_orb(j,i), summation 
+        !if (trim(self%tod%label(i)) == '27M' .and. self%tod%scans(ind)%chunk_num == 27) write(58,"(ES25.18,  ES15.7, ES15.7,  ES15.7,  ES15.7,  ES15.7,  ES15.7)") self%tod%scans(ind)%t0(2)/2**16 + real(j-1)/(real(self%tod%samprate)), self%tod%ind2ang(1,p) ,self%tod%ind2ang(2,p), self%tod%psi(psi(j,i)), self%tod%scans(ind)%d(i)%tod(j)/self%tod%scans(ind)%d(i)%gain, s_orb(j,i), s_orb(j,i)
        end do
 
        !handle the last irregular length bit of each chunk as a special case 
@@ -342,6 +273,7 @@ write(*,*) "IS THIS HAPPENING?"
          psiInd = psi(j,i)
          
          s_orb(j,i) = self%compute_4pi_product(p, psiInd, ind, i, q)
+         !if (trim(self%tod%label(i)) == '27M' .and. self%tod%scans(ind)%chunk_num == 27) write(58,"(ES25.18,  ES15.7, ES15.7,  ES15.7,  ES15.7,  ES15.7,  ES15.7)") self%tod%scans(ind)%t0(2)/2**16 + real(j-1)/(real(self%tod%samprate)), self%tod%ind2ang(1,p) ,self%tod%ind2ang(2,p), self%tod%psi(psi(j,i)), self%tod%scans(ind)%d(i)%tod(j)/self%tod%scans(ind)%d(i)%gain, s_orb(j,i), s_orb(j,i)
 
        end do
 
@@ -355,61 +287,4 @@ write(*,*) "IS THIS HAPPENING?"
    ! close(59)
    !end if
   end subroutine compute_orbital_dipole_4pi
-
-  subroutine compute_solar_dipole_4pi(self, ind, pix, psi, s_sol)
-    implicit none
-    class(comm_orbdipole),               intent(inout)  :: self
-    integer(i4b),                        intent(in)  :: ind !scan nr/index
-    integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
-    real(sp),            dimension(:,:), intent(out) :: s_sol
-    integer(i4b)         :: i, j, p, s_len, k, psiInd
-    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation, j_real
-    real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
-    real(dp), dimension(:), allocatable :: x_vec, y_vec
-
-    !these are the npipe paper definitions
-    !TODO: maybe also use the bandpass shift to modify the central frequency? 
-    !will that matter?
-    x = h * self%tod%central_freq/(k_B * T_CMB)
-    q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
-
-    do i = 1,self%tod%ndet
-       if (.not. self%tod%scans(ind)%d(i)%accept) cycle
-       s_len = self%tod%scans(ind)%ntod/self%subsample
-       allocate(x_vec(s_len), y_vec(s_len))
-       do k=0,s_len-1 !number of subsampled samples
-          j = (self%subsample * k) + 1
-
-          p      = self%tod%pix2ind(pix(j,i))
-          psiInd = psi(j,i)
-
-          summation = self%compute_4pi_product_sol(p, psiInd, ind, i, q)
-          x_vec(k+1) = j
-          y_vec(k+1) = summation
-       end do
-       
-       !spline the subsampled dipole to the full resolution
-       call spline_simple(self%s, x_vec, y_vec, regular=.true.)
-
-       do j=1, s_len*self%subsample
-         j_real = j
-         s_sol(j,i) = splint_simple(self%s, j_real)
-       end do
-
-       !handle the last irregular length bit of each chunk as a special case 
-       !so that we can use regular=true in the spline code for speed
-       do j=s_len*self%subsample, self%tod%scans(ind)%ntod
-         p      = self%tod%pix2ind(pix(j,i))
-         psiInd = psi(j,i)
-         
-         s_sol(j,i) = self%compute_4pi_product_sol(p, psiInd, ind, i, q)
-
-       end do
-
-       deallocate(x_vec, y_vec)
-   end do
-
-   call free_spline(self%s)
-   
-  end subroutine compute_solar_dipole_4pi
 end module comm_tod_orbdipole_mod

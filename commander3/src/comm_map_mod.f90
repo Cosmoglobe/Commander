@@ -798,7 +798,7 @@ contains
        allocate(map(0:self%info%npix-1,self%info%nmaps))
        if (present(udgrade)) then
           allocate(map_in(0:npix-1,self%info%nmaps))
-          call input_map(filename, map_in, npix, self%info%nmaps, ignore_polcconv=.true.)
+          call input_map(filename, map_in, npix, self%info%nmaps)
           if (ordering == 1) then
              call udgrade_ring(map_in, nside, map, nside_out=self%info%nside)
           else
@@ -806,7 +806,7 @@ contains
           end if
           deallocate(map_in)
        else
-          call input_map(filename, map, self%info%npix, self%info%nmaps, ignore_polcconv=.true.)
+          call input_map(filename, map, self%info%npix, self%info%nmaps)
        end if
 
        if (present(mask)) then
@@ -923,7 +923,7 @@ contains
     
     ! Only the root actually reads from disk; data are distributed via MPI
     allocate(alms(0:nalm-1))
-    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms, opt=.true.)
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
     call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
     if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
     do i = 0, self%info%nalm-1

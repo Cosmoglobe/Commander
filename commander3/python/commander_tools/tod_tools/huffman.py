@@ -129,7 +129,6 @@ class Huffman:
         if(node.symbol != None):
             self.encoding[node.symbol] = code
             self.decoding[code] = node.symbol
-            #print(node.symbol, node.weight, code)
             return
         self.PrintCode(node.left, code + "0")
         self.PrintCode(node.right, code + "1")
