@@ -32,7 +32,7 @@
 # - "RelWithDebInfo" builds library/executable w/ less aggressive optimizations and w/ debug symbols;
 # - "MinSizeRel" builds library/executable w/ optimizations that do not increase object code size. 
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE Release
+	set(CMAKE_BUILD_TYPE RelWithDebInfo
 		CACHE STRING
 		"Specifies the Build type. Available options are: Release, Debug, RelWithDebInfo, MinSizeRel. Default: Release." FORCE)
 endif()
@@ -418,6 +418,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 endif()
 #------------------------------------------------------------------------------
 # Making a summary of compiler location and compile flags
+#------------------------------------------------------------------------------
 message(STATUS "---------------------------------------------------------------")
 message(STATUS "SUMMARY ON COMPILERS:")
 message(STATUS "---------------------------------------------------------------")
@@ -435,3 +436,28 @@ elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel")
 	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 endif()
+#------------------------------------------------------------------------------
+# Making a summary of Host System 
+#------------------------------------------------------------------------------
+# CMake reference:
+# https://cmake.org/cmake/help/v3.17/module/ProcessorCount.html 
+# https://cmake.org/cmake/help/v3.17/command/cmake_host_system_information.html
+include(ProcessorCount)
+ProcessorCount(N_CORES)
+
+cmake_host_system_information(RESULT N_LOGICAL_CORES  QUERY NUMBER_OF_LOGICAL_CORES)
+cmake_host_system_information(RESULT N_PHYSICAL_CORES QUERY NUMBER_OF_PHYSICAL_CORES)
+cmake_host_system_information(RESULT HOST_NAME QUERY HOSTNAME)
+# Processor
+cmake_host_system_information(RESULT PROC_NAME QUERY PROCESSOR_NAME)
+cmake_host_system_information(RESULT PROC_DESCRIPTION QUERY PROCESSOR_DESCRIPTION)
+# OS information
+cmake_host_system_information(RESULT HOST_OS_NAME QUERY OS_NAME)
+cmake_host_system_information(RESULT HOST_OS_RELEASE QUERY OS_RELEASE)
+cmake_host_system_information(RESULT HOST_OS_VERSION QUERY OS_VERSION)
+cmake_host_system_information(RESULT HOST_OS_PLATFORM QUERY OS_PLATFORM)
+
+message(STATUS ${HOST_NAME})
+message(STATUS "${HOST_OS_NAME} ${HOST_OS_PLATFORM} ${HOST_OS_RELEASE} ${HOST_OS_VERSION}")
+message(STATUS "${PROC_NAME} | ${PROC_DESCRIPTION}")
+

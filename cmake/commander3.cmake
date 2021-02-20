@@ -55,8 +55,6 @@ install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_D
 #	${COMMANDER3_CXX_LINKER_FLAGS}
 #	)
 
-# setting the directory where to output all .mod and .o files
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/mod)
 # TODO: add all sources manually instead of this command, as 
 # there seems to be a problem with tempita language
 #file(GLOB_RECURSE sources *.f90 *.cpp *.f)
@@ -68,7 +66,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_4D_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_F_int_0D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_N_rms_mod.f90
-	# TOD processing/simulations modules
+	# TOD processing modules
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_LFI_mod.f90
@@ -77,7 +75,8 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_WMAP_mod.f90
-	#${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
+	# TOD simulations module (and submodules)
+	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
 	${COMMANDER3_SOURCE_DIR}/comm_F_int_1D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_output_mod.f90
@@ -130,7 +129,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_task_mod.f90
 	${COMMANDER3_SOURCE_DIR}/sharp.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_utils.f90
+	# MPI (sub)modules
 	${COMMANDER3_SOURCE_DIR}/comm_mpi_mod.f90
+	# 
 	${COMMANDER3_SOURCE_DIR}/comm_template_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/sort_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_data_mod.f90
@@ -193,6 +194,10 @@ target_link_options(${commander3}
 
 #message("cmake dl libs are ${CMAKE_DL_LIBS}")
 # LINKING ORDER IN LIBRARIES IS IMPORTANT!
+# Order is:
+# MPI => OpenMP => Blas => LAPACK => HEALPix => 
+# CFITSIO => cURL => libm => dl => HDF5 => ZLib
+# => FFTW => comm_system_backend
 target_link_libraries(${commander3} 
 	PRIVATE
 	# linking MPI
@@ -215,7 +220,8 @@ target_link_libraries(${commander3}
 	${CFITSIO_LIBRARIES}
 	# to avoid error error dlclose@@GLIBC_2.2.5', so 
 	# we need to link math library
-	-lm
+	#-lm
+	${LIBM_LIBRARY}
 	# and -ldl (dl library)
 	${CMAKE_DL_LIBS}
 	# including hdf5 - first fortran and then general
