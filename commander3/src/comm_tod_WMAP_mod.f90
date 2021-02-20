@@ -104,7 +104,7 @@ contains
       constructor%nhorn = 2
       constructor%first_call = .true.
       constructor%verbosity = cpar%verbosity
-
+      constructor%compressed_tod = .true.
 
       ! Iniitialize TOD labels
       allocate (constructor%labels(6))
