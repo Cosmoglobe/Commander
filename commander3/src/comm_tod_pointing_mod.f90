@@ -27,13 +27,13 @@ module comm_tod_pointing_mod
 contains
 
    ! Sky signal template
-   subroutine project_sky(tod, map, pix_in, psi_in, flag, pmask, scan_id, &
+   subroutine project_sky(tod, map, pix, psi, flag, pmask, scan_id, &
         & s_sky, tmask, s_bp)
       implicit none
       class(comm_tod), intent(in)                       :: tod
       integer(i4b), dimension(0:), intent(in)           :: pmask
       real(sp), dimension(1:, 1:, 0:), intent(in)       :: map
-      integer(i4b), dimension(:, :, :), intent(in)      :: pix_in, psi_in
+      integer(i4b), dimension(:, :, :), intent(in)      :: pix, psi
       integer(i4b), dimension(:, :), intent(in)         :: flag
       integer(i4b), intent(in)                          :: scan_id
       real(sp), dimension(:, :), intent(out)            :: s_sky, tmask
@@ -41,15 +41,13 @@ contains
 
       integer(i4b)                                      :: i, p, det
       real(sp)                                          :: s
-      integer(i4b), allocatable, dimension(:, :)        :: pix, psi
 
-      if (size(pix, 2) /= 1 .or. size(psi, 2) /= 1) then
+      if (size(pix, 3) /= 1 .or. size(psi, 3) /= 1) then
          write (*, *) "Call to project sky with nhorn /= 1. You probably want project_sky_differential."
-         return
+         call mpi_finalize(i)
+         stop
       end if
 
-      pix = pix_in(:, :, 1)
-      psi = psi_in(:, :, 1)
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
       ! T - temperature; Q, U - Stoke's parameters
       do det = 1, tod%ndet
@@ -59,12 +57,12 @@ contains
             cycle
          end if
          do i = 1, tod%scans(scan_id)%ntod
-            p = tod%pix2ind(pix(i, det))
+            p = tod%pix2ind(pix(i, det, 1))
             s_sky(i, det) = map(1, p, det) + &
-                         & map(2, p, det)*tod%cos2psi(psi(i, det)) + &
-                         & map(3, p, det)*tod%sin2psi(psi(i, det))
+                         & map(2, p, det)*tod%cos2psi(psi(i, det, 1)) + &
+                         & map(3, p, det)*tod%sin2psi(psi(i, det, 1))
 
-            tmask(i, det) = pmask(pix(i, det))
+            tmask(i, det) = pmask(pix(i, det, 1))
             if (iand(flag(i, det), tod%flag0) .ne. 0) tmask(i, det) = 0.
          end do
       end do
@@ -76,10 +74,10 @@ contains
                cycle
             end if
             do i = 1, tod%scans(scan_id)%ntod
-               p = tod%pix2ind(pix(i, det))
+               p = tod%pix2ind(pix(i, det, 1))
                s = map(1, p, 0) + &
-                    & map(2, p, 0)*tod%cos2psi(psi(i, det)) + &
-                    & map(3, p, 0)*tod%sin2psi(psi(i, det))
+                    & map(2, p, 0)*tod%cos2psi(psi(i, det, 1)) + &
+                    & map(3, p, 0)*tod%sin2psi(psi(i, det, 1))
                s_bp(i, det) = s_sky(i, det) - s
             end do
          end do

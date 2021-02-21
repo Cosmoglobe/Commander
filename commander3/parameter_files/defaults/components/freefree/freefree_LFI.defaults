@@ -36,7 +36,7 @@ COMP_CL_DEFAULT_THETA_E&&     = 90.d0
 COMP_CL_DEFAULT_THETA_B&&     = 90.d0
 
 # NOT Us?
-COMP_EM_POLTYPE&&             = 2 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_EM_POLTYPE&&             = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_INPUT_EM_MAP&&           = default    # null_n2048.fits
 COMP_EM_SMOOTHING_SCALE&&     = 0
 COMP_DEFAULT_EM&&             = 1.
@@ -47,7 +47,7 @@ COMP_PRIOR_GAUSS_EM_RMS&&     = 0.
 COMP_EM_NU_MIN&&              = 0.        # Lowest frequency for index estimation in GHz
 COMP_EM_NU_MAX&&              = 80.        # Highest frequency for index estimation in GHz
 
-COMP_T_E_POLTYPE&&             = 2 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_T_E_POLTYPE&&             = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_INPUT_T_E_MAP&&           = default  ff_Te_c0001_k000007_n1024.fits
 COMP_T_E_SMOOTHING_SCALE&&     = 0
 COMP_DEFAULT_T_E&&             = 7000.
