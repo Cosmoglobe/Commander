@@ -380,6 +380,7 @@ contains
     !self%lmax_ind      = cpar%cs_lmax_ind(id_abs) !not to be used anymore
 
     self%lmax_ind = -1 !default
+    !self%lmax_ind_pol = -1 !default
     do i = 1,self%npar
        do p = 1, self%poltype(i)
           l = cpar%cs_lmax_ind_pol(p,i,id_abs)
@@ -1788,7 +1789,6 @@ contains
 
                 
                 call wall_time(t2)
-
                 do p = 1,self%poltype(j)
                    if (self%lmax_ind_pol(p,j) >= 0) cycle
                    if (self%poltype(j) == 1) then
@@ -1827,7 +1827,6 @@ contains
              call td%dealloc(); deallocate(td)
           end do
        end if
-
 
        do l = 0, data(i)%ndet
           
