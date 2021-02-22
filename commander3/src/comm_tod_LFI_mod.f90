@@ -878,7 +878,7 @@ contains
 
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
-             if (.false. .and. do_oper(bin_map) ) then
+             if (.false. .and. do_oper(bin_map)) then
                 call int2string(self%scanid(i), scantext)
                 do k = 1, self%ndet
                    open(78,file='tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
