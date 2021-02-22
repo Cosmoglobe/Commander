@@ -2190,6 +2190,11 @@ contains
             if(pos > 0)  line(pos:pos+2)=band_num
             pos = index(line, '&&') !this could be a component
             if(pos > 0) line(pos:pos+1)=band_num
+          else
+            pos = index(line, '&&') !check for the special chars outside START
+            if(pos > 0) then
+              write(*,*) "Warning: parameter line ", line, " found outside of a START-END block"
+            end if
           end if
           write(paramfile_cache(line_nr),fmt="(a)") line
 

@@ -46,6 +46,7 @@ lib64/
 *comm_process_resfiles
 *commander
 *.gitignore
+*sharp_test
 
 #---------------------------------------------------------------
 # Editors
@@ -58,3 +59,5 @@ lib64/
 .DS_Store
 # Windows
 Thumbs.db
+# vim
+*.swp
