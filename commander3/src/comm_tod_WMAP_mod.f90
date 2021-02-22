@@ -126,9 +126,6 @@ contains
       !initialize the common tod stuff
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
-      ! For K-band
-      !constructor%x_im = [-0.00067, 0.00536]
-
 
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)

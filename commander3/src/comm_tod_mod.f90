@@ -318,6 +318,8 @@ contains
        do j = 1, self%ndet
          do l = 1, self%nhorn
           call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+          write(*,*) 'scan, det, horn, pix(1)', i, j, l, pix(1)
+          if (pix(1) < 0) stop
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              pix(k)  = pix(k-1)  + pix(k)
@@ -487,12 +489,16 @@ contains
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn)
        do det = 1, self%ndet
-          self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
-          if (.not. self%scans(i)%d(det)%accept) then
-             write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
-                  & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
-             write(*,fmt='(a,a)') '    filename = ', &
-                  & trim(self%hdfname(i))
+          if (self%compressed_tod) then
+            self%scans(i)%d(det)%accept = .true.
+          else
+            self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
+            if (.not. self%scans(i)%d(det)%accept) then
+               write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
+                    & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
+               write(*,fmt='(a,a)') '    filename = ', &
+                    & trim(self%hdfname(i))
+            end if
           end if
        end do
     end do
@@ -762,7 +768,12 @@ contains
             if (v(3) < 0.d0) v  = -v
             if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
          end do
-         v0 = v0 / sqrt(v0*v0)
+         write(*,*) 'v0', v0
+         if (maxval(sqrt(v0*v0)) == 0) then
+           v0 = 1
+         else
+           v0 = v0 / sqrt(v0*v0)
+         end if
 !        v0(1) = 1
        
 
