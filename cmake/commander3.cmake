@@ -75,6 +75,8 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_WMAP_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_SPIDER_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
