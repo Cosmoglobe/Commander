@@ -3,7 +3,7 @@ BASE_SEED                     = 163425  # Seed for random number generator
 
 NUM_GIBBS_STEPS_PER_TOD_SAMPLE = 1
 
-SAMPLE_ONLY_POLARIZATION      = .true.
+SAMPLE_ONLY_POLARIZATION      = .false.
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
 SAMPLE_POWSPEC                = .false.
