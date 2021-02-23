@@ -1996,7 +1996,8 @@ contains
           call validate_file(trim(datadir)//trim(cpar%ds_tod_procmask1(i)))  ! Procmask1
           call validate_file(trim(datadir)//trim(cpar%ds_tod_procmask2(i)))  ! Procmask2
           call validate_file(trim(datadir)//trim(cpar%ds_tod_filelist(i)))   ! Filelist
-          call validate_file(trim(datadir)//trim(cpar%ds_tod_jumplist(i)))   ! Jumplist
+          if (trim(cpar%ds_tod_jumplist(i)) /= 'none') &
+               & call validate_file(trim(datadir)//trim(cpar%ds_tod_jumplist(i)))   ! Jumplist
           call validate_file(trim(datadir)//trim(cpar%ds_tod_instfile(i)))   ! Instrument file, RIMO
           call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
        end if

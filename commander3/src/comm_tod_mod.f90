@@ -756,7 +756,6 @@ contains
        end do
        close(unit)
 
-       write(*,*) 'n_tot = ', n_tot, self%first_scan, self%last_scan
        if (n_tot == 0) then
           write(*,*) 'Error: No accepted scans in filelist: ', trim(filelist)
           stop
