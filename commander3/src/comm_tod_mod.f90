@@ -733,8 +733,9 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr
-    real(dp)           :: w_tot, w, v0(3), v(3)
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p
+    real(dp)           :: w_tot, w, v0(3), v(3), spin(2)
+    character(len=512) :: infile
     real(dp),           allocatable, dimension(:)   :: weight, sid
     real(dp),           allocatable, dimension(:,:) :: spinpos, spinaxis
     integer(i4b),       allocatable, dimension(:)   :: scanid, id
@@ -765,8 +766,13 @@ contains
          allocate(filename(n_tot), scanid(n_tot), proc(n_tot), spinpos(2,n_tot), weight(n_tot))
          j = 1
          do i = 1, n
-            read(unit,*) scanid(j), filename(j), weight(j), spinpos(1:2,j)
-            if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) exit
+            !read(unit,*) scanid(j), filename(j), weight(j), spinpos(1:2,j)
+            read(unit,*) p, infile, w, spin
+            if (p < self%first_scan .or. p > self%last_scan) cycle
+            scanid(j)      = p
+            filename(j)    = infile
+            weight(j)      = 2
+            spinpos(1:2,j) = spin
          end do
          proc(1) = 0
          self%initfile = filename(1)
@@ -779,13 +785,17 @@ contains
          allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot))
          j = 1
          do i = 1, n
-            read(unit,*) scanid(j), filename(j), weight(j), spinpos(1:2,j)
-            if (scanid(j) < self%first_scan .or. scanid(j) > self%last_scan) cycle
-            id(j)  = j
-            sid(j) = scanid(j)
+            read(unit,*) p, infile, w, spin
+            if (p < self%first_scan .or. p > self%last_scan) cycle
+            scanid(j)      = p
+            filename(j)    = infile
+            weight(j)      = 2
+            spinpos(1:2,j) = spin
+            id(j)          = j
+            sid(j)         = scanid(j)
             call ang2vec(spinpos(1,j), spinpos(2,j), spinaxis(j,1:3))
             if (j == 1) self%initfile = filename(j)
-            j      = j+1
+            j              = j+1
             if (j > n_tot) exit
          end do
          close(unit)
@@ -1476,7 +1486,7 @@ contains
     integer(i4b) :: i, det
 
     do det = 1, self%ndet
-       do i = 1, size(flag,2)
+       do i = 1, size(flag,1)
           if (iand(flag(i,det),self%flag0) .ne. 0) then
              flag(i,self%partner(det)) = flag(i,det)
           end if
