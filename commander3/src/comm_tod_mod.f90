@@ -323,7 +323,6 @@ contains
        do j = 1, self%ndet
          do l = 1, self%nhorn
           call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-          write(*,*) 'scan, det, horn, pix(1)', i, j, l, pix(1)
           if (pix(1) < 0) stop
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
@@ -647,7 +646,7 @@ contains
 
        ! Read Huffman coded data arrays
        call wall_time(t1)
-       if (self%nhorn == 2) then
+       if (nhorn == 2) then
          do j = 1, nhorn 
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
@@ -811,7 +810,6 @@ contains
             if (v(3) < 0.d0) v  = -v
             if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
          end do
-         write(*,*) 'v0', v0
          if (maxval(sqrt(v0*v0)) == 0) then
            v0 = 1
          else
