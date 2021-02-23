@@ -597,7 +597,6 @@ contains
                   & psi(:,j,:), flag(:,j))
           end do
           call self%symmetrize_flags(flag)
-          write(*,*) 'flag', self%scanid(i),count(iand(flag(:,1),self%flag0) /= 0), count(iand(flag(:,2),self%flag0) /= 0), count(iand(flag(:,3),self%flag0) /= 0), count(iand(flag(:,4),self%flag0) /= 0), self%scans(i)%d(1)%accept, self%scans(i)%d(2)%accept, self%scans(i)%d(3)%accept, self%scans(i)%d(4)%accept
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
           !call update_status(status, "tod_decomp")

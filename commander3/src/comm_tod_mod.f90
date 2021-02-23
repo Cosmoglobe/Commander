@@ -1487,7 +1487,7 @@ contains
     integer(i4b) :: i, det
 
     do det = 1, self%ndet
-       do i = 1, size(flag,2)
+       do i = 1, size(flag,1)
           if (iand(flag(i,det),self%flag0) .ne. 0) then
              flag(i,self%partner(det)) = flag(i,det)
           end if
