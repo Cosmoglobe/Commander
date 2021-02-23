@@ -53,8 +53,8 @@ contains
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
        do t = 1, tod%scans(scan)%ntod
           
-         !  if (iand(flag(t,det),tod%flag0) .ne. 0) cycle
-         if (flag(t,det)==1) cycle
+          if (iand(flag(t,det),tod%flag0) .ne. 0) cycle
+         !if (flag(t,det)==1) cycle
           
           pix_    = tod%pix2ind(pix(t,det))
           psi_    = psi(t,det)

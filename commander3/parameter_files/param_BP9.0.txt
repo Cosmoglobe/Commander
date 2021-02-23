@@ -1,0 +1,354 @@
+**************************************************************
+*                  Commander parameter file                  *
+**************************************************************
+@DEFAULT LFI_tod.defaults
+
+OPERATION                     = sample  # {sample,optimize}
+VERBOSITY                     = 3       # [0,...,3]
+
+##############################################################
+#                   Algorithm specification                  #
+##############################################################
+
+# Monte Carlo options
+NUMCHAIN         = 1       # Number of independent chains
+NUM_GIBBS_ITER   = 100       # Length of each Markov chain
+CHAIN_STATUS     = append
+NUM_INIT_CHAINS  = 1
+INIT_CHAIN01     = /mn/stornext/u3/hke/xsan/commander3/BP9/data/chain_init_BP9.0_v1.h5:10
+
+SAMPLE_SIGNAL_AMPLITUDES      = .true.
+SAMPLE_SPECTRAL_INDICES       = .true.
+
+##############################################################
+#                       Output options                       #
+##############################################################
+
+OUTPUT_DIRECTORY              = chains
+
+##############################################################
+#                         Data sets                          #
+##############################################################	
+
+DATA_DIRECTORY                 = /mn/stornext/u3/hke/xsan/commander3/BP9/data
+NUMBAND                        = 14
+
+# LFI
+INCLUDE_BAND001                = .true.   # 30 GHz
+INCLUDE_BAND002                = .true.   # 44 GHz
+INCLUDE_BAND003                = .true.   # 70 GHz
+
+# HFI T	       	   
+INCLUDE_BAND004                = .true.    # 857 GHz
+
+# Haslam and WMAP T
+INCLUDE_BAND005                = .true.    # Haslam
+INCLUDE_BAND006                = .true.    # WMAP Ka T
+INCLUDE_BAND007                = .true.    # WMAP Q1 T
+INCLUDE_BAND008                = .true.    # WMAP Q2 T
+INCLUDE_BAND009                = .true.    # WMAP V1 T
+INCLUDE_BAND010                = .true.    # WMAP V2 T
+
+# HFI P
+INCLUDE_BAND011                = .true.   # 353 GHz P
+
+# WMAP P
+INCLUDE_BAND012                = .true.   # WMAP Ka P
+INCLUDE_BAND013                = .true.   # WMAP Q  P
+INCLUDE_BAND014                = .true.   # WMAP V  P
+
+# 30 GHz parameters
+@START 001
+@DEFAULT bands/LFI/LFI_030_TOD.defaults
+BAND_MAPFILE&&&                = init_tod_map_030_n512_BP8.1_v1.fits
+BAND_NOISEFILE&&&              = init_tod_rms_030_n512_BP8.1_v1.fits
+BAND_REG_NOISEFILE&&&          = none   
+BAND_NOISE_RMS&&&_SMOOTH01     = BP7_030_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = BP7_030_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = BP7_030_rms_n0016_60arcmin_uK_true.fits
+BAND_BANDPASSFILE&&&           = LFI_instrument_v4.h5
+BAND_TOD_TYPE&&&               = LFI
+BAND_TOD_MAIN_PROCMASK&&&      = mask_proc_030_res_v5.fits
+BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits
+BAND_TOD_RIMO&&&               = LFI_instrument_v4.h5
+BAND_TOD_FILELIST&&&           = filelist_30_v17.txt
+BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
+BAND_TOD_START_SCANID&&&       = 3      
+BAND_TOD_END_SCANID&&&         = 44072  
+BAND_TOD_INIT_FROM_HDF&&&      = default
+@END 001
+
+# 44 GHz parameters
+@START 002
+@DEFAULT bands/LFI/LFI_044_TOD.defaults
+BAND_MAPFILE&&&                = init_tod_map_044_n512_BP8.1_v1.fits
+BAND_NOISEFILE&&&              = init_tod_rms_044_n512_BP8.1_v1.fits
+BAND_REG_NOISEFILE&&&          = none   
+BAND_NOISE_RMS&&&_SMOOTH01     = BP7_044_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = BP7_044_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = BP7_044_rms_n0016_60arcmin_uK_true.fits
+BAND_BANDPASSFILE&&&           = LFI_instrument_v4.h5
+BAND_TOD_TYPE&&&               = LFI
+BAND_TOD_MAIN_PROCMASK&&&      = mask_proc_044_res_v5.fits  
+BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_044_v1.dat
+BAND_TOD_RIMO&&&               = LFI_instrument_v4.h5
+BAND_TOD_FILELIST&&&           = filelist_44_v17.txt
+BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
+BAND_TOD_START_SCANID&&&       = 3
+BAND_TOD_END_SCANID&&&         = 44072
+BAND_TOD_INIT_FROM_HDF&&&      = default
+@END 002
+
+# 70 GHz parameters
+@START 003
+@DEFAULT bands/LFI/LFI_070_TOD.defaults
+BAND_MAPFILE&&&                = init_tod_map_070_n1024_BP8.1_v1.fits
+BAND_NOISEFILE&&&              = init_tod_rms_070_n1024_BP8.1_v1.fits
+BAND_REG_NOISEFILE&&&          = none   
+BAND_NOISE_RMS&&&_SMOOTH01     = BP7_070_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = BP7_070_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = BP7_070_rms_n0016_60arcmin_uK_true.fits
+BAND_BANDPASSFILE&&&           = LFI_instrument_v4.h5
+BAND_TOD_TYPE&&&               = LFI
+BAND_TOD_MAIN_PROCMASK&&&      = mask_proc_070_res_v5.fits  
+BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6_n1024.fits
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_070_v1.dat
+BAND_TOD_RIMO&&&               = LFI_instrument_v4.h5
+BAND_TOD_FILELIST&&&           = filelist_70_v17.txt
+BAND_TOD_JUMPLIST&&&           = gain_jumps_LFI_1hour_v1.dat
+BAND_TOD_START_SCANID&&&       = 3
+BAND_TOD_END_SCANID&&&         = 44072
+BAND_TOD_INIT_FROM_HDF&&&      = default
+@END 003
+
+
+# 857 GHz (full frequency) parameters         
+@START 004
+@DEFAULT bands/HFI/HFI_857_map.defaults
+BAND_MAPFILE&&&                = npipe6v20_857_map_n1024_10arcmin_QUADCOR_ZODICOR_uK.fits
+BAND_NOISEFILE&&&              = npipe6v20_857_rms_n1024_10arcmin_uK_hrscaled_true.fits 
+BAND_REG_NOISEFILE&&&          = npipe6v20_857_regnoise_v1.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = npipe6v20_857_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = npipe6v20_857_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = npipe6v20_857_rms_n0016_60arcmin_uK_true.fits
+@END 004
+
+# Haslam 0.4 GHz
+@START 005
+@DEFAULT bands/haslam/haslam_0.4_map.defaults
+BAND_MAPFILE&&&                = haslam_n0512_60arcmin_uK.fits
+BAND_NOISEFILE&&&              = haslam_rms_n0512_60arcmin_uK_1pct_0.8K.fits
+BAND_REG_NOISEFILE&&&          = BP_haslam_rmsreg_v2.fits  none
+BAND_NOISE_RMS&&&_SMOOTH01     = Haslam_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = Haslam_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = Haslam_rms_n0016_60arcmin_uK_true.fits
+@END 005
+
+# WMAP 033 Ka
+@START 006
+@DEFAULT bands/WMAP/WMAP_Ka_map.defaults
+BAND_MAPFILE&&&                = WMAP9_Ka1_pol_n512_mK_dipole.fits
+BAND_NOISEFILE&&&              = wmap_deconv_imap_r9_9yr_Ka1_v5_rms.fits
+BAND_REG_NOISEFILE&&&          = BP_Ka1_rmsreg_v1.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_Ka1_rms_n0032_5deg_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_Ka1_rms_n0016_10deg_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_Ka1_rms_n0016_60arcmin_mK_true.fits
+@END 006
+
+# WMAP 041 Q1
+@START 007
+@DEFAULT bands/WMAP/WMAP_Q1_map.defaults
+BAND_NOISEFILE&&&              = WMAP9_Q1_pol_rms_n512_uK.fits
+BAND_REG_NOISEFILE&&&          = BP_Q1_rmsreg_v1.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_Q1_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_Q1_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_Q1_rms_n0016_60arcmin_uK_true.fits
+@END 007
+
+# WMAP 041 Q2
+@START 008
+@DEFAULT bands/WMAP/WMAP_Q2_map.defaults
+BAND_MAPFILE&&&                = WMAP9_Q2_pol_n512_uK_dipole.fits
+BAND_NOISEFILE&&&              = WMAP9_Q2_pol_rms_n512_uK.fits
+BAND_REG_NOISEFILE&&&          = BP_Q1_rmsreg_v1.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_Q2_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_Q2_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_Q2_rms_n0016_60arcmin_uK_true.fits
+@END 008
+
+# WMAP 061 V1
+@START 009
+@DEFAULT bands/WMAP/WMAP_V1_map.defaults
+BAND_MAPFILE&&&                = WMAP9_V1_pol_n512_uK_dipole.fits
+BAND_NOISEFILE&&&              = WMAP9_V1_pol_rms_n512_uK.fits
+BAND_REG_NOISEFILE&&&          = BP_V1_rmsreg_v1.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_V1_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_V1_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_V1_rms_n0016_60arcmin_uK_true.fits
+@END 009
+
+# WMAP 061 V2
+@START 010
+@DEFAULT bands/WMAP/WMAP_V2_map.defaults
+BAND_MAPFILE&&&                = WMAP9_V2_pol_n512_uK_dipole.fits
+BAND_NOISEFILE&&&              = WMAP9_V2_pol_rms_n512_uK.fits
+BAND_REG_NOISEFILE&&&          = BP_V1_rmsreg_v1.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_V2_rms_n0032_5deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_V2_rms_n0016_10deg_uK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_V2_rms_n0016_60arcmin_uK_true.fits
+@END 010
+
+
+# 353 GHz (full frequency) parameters; only polarization, not temperature
+@START 011
+@DEFAULT bands/HFI/HFI_353_map_pol_only.defaults
+BAND_MAPFILE&&&                = npipe6v20_353_map_n1024_uK_udgrade.fits 
+BAND_NOISEFILE&&&              = npipe6v20_353_rms_n1024_hrscaled_uK_udgrade.fits
+BAND_REG_NOISEFILE&&&          = npipe6v20_353_n2048_rms_uK_mcscaled_n1024_10arc_mean_regnoise_10uK.fits
+@END 011
+
+# WMAP 33 GHz P
+@START 012
+@DEFAULT bands/WMAP/WMAP_Ka_map_pol.defaults
+BAND_MAPFILE&&&                = wmap_band_qumap_r4_9yr_Ka_v5_QQU.fits
+BAND_NOISEFILE&&&              = wmap_band_quninv_r4_9yr_Ka_v5.fits
+BAND_REG_NOISEFILE&&&          = none
+BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
+BAND_MASKFILE&&&               = wmap_processing_mask_Ka_r4_9yr_v5_TQU_chisq50.fits
+@END 012
+
+# WMAP 41 GHz P
+@START 013
+@DEFAULT bands/WMAP/WMAP_Q_map_pol.defaults
+BAND_MAPFILE&&&                = wmap_band_qumap_r4_9yr_Q_v5_QQU.fits
+BAND_NOISEFILE&&&              = wmap_band_quninv_r4_9yr_Q_v5.fits
+BAND_REG_NOISEFILE&&&          = none
+BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
+BAND_MASKFILE&&&               = wmap_processing_mask_Q_r4_9yr_v5_TQU_chisq50.fits
+@END 013
+
+# WMAP 61 GHz P
+@START 014
+@DEFAULT bands/WMAP/WMAP_V_map_pol.defaults
+BAND_MAPFILE&&&                = wmap_band_qumap_r4_9yr_V_v5_QQU.fits
+BAND_NOISEFILE&&&              = wmap_band_quninv_r4_9yr_V_v5.fits
+BAND_REG_NOISEFILE&&&          = none
+BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
+BAND_MASKFILE&&&               = wmap_processing_mask_V_r4_9yr_v5_TQU_chisq50.fits
+@END 014
+
+
+##############################################################
+#                     Model parameters                       #
+##############################################################	
+
+INSTRUMENT_PARAM_FILE         = instrument_params_init_BP8.1_v1.dat
+INIT_INSTRUMENT_FROM_HDF      = default
+ 
+NUM_SIGNAL_COMPONENTS         = 8
+INCLUDE_COMP01                = .true.  # Cmb # CMB; no monopole or dipole
+INCLUDE_COMP02                = .true.  # synch # Synch pow-law
+INCLUDE_COMP03                = .true.  # dust # Thermal dust
+INCLUDE_COMP04                = .true.  # md # Mono and dipoles
+INCLUDE_COMP05                = .true.  # radio # Radio sources
+INCLUDE_COMP06                = .true.  # freefree
+INCLUDE_COMP07                = .true.  # Low-freq AME
+INCLUDE_COMP08                = .true.  # CMB relativistic quadrupole
+
+
+NUM_CG_SAMPLING_GROUPS = 3
+CG_SAMPLING_GROUP01          = cmb,ff,ame
+CG_SAMPLING_GROUP_MASK01     = fullsky
+CG_SAMPLING_GROUP_MAXITER01  = 50
+CG_SAMPLING_GROUP02          = md
+CG_SAMPLING_GROUP_MASK02     = mask_common_dx12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER02  = 3
+CG_SAMPLING_GROUP03          = dust,synch
+CG_SAMPLING_GROUP_MASK03     = fullsky
+CG_SAMPLING_GROUP_MAXITER03  = 50
+
+# CMB
+@START 01
+@DEFAULT components/cmb/cmb_LFI.defaults
+COMP_INPUT_AMP_MAP&&          = init_cmb_amp_BP8.1_v1.fits
+@END 01
+
+
+# Synchrotron component
+@START 02 
+@DEFAULT components/synch/synch_LFI.defaults
+COMP_INDMASK&&                = mask_synch_beta_BP8_10deg_new_chisqmask.fits 
+COMP_INPUT_AMP_MAP&&          = init_synch_amp_BP8.1_v1.fits
+COMP_INPUT_BETA_MAP&&         = init_synch_beta_BP8.1_v1.fits
+# New Local sampling parameters
+@DEFAULT components/synch/synch_LFI_localsampler.defaults
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_4reg_BP8.dat
+COMP_BETA_MASK&&              = mask_synch_beta_BP8_10deg_new_chisqmask.fits # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_BETA_PIXREG_MAP&&        = UF_sindex_4regions_n1024.fits  # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
+COMP_BETA_PIXREG_INITVALUE_MAP&& = init_synch_beta_noSmooth_BP8.11.fits
+@END 02
+
+# Thermal dust component
+@START 03
+@DEFAULT components/dust/dust_LFI.defaults
+COMP_INDMASK&&                = mask_dust_beta_BP8_10deg_HKE.fits 
+COMP_INPUT_AMP_MAP&&          = init_dust_amp_BP8.1_v1.fits
+COMP_INPUT_BETA_MAP&&         = init_dust_beta_BP8.1_v1.fits
+COMP_INPUT_T_MAP&&            = init_dust_T_BP8.1_v1.fits
+@DEFAULT components/dust/dust_LFI_localsampler.defaults
+# New Local sampling parameters, 'dust'
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta.dat
+COMP_BETA_MASK&&              = mask_dust_beta_BP8_10deg.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
+@END 03
+
+# Mono- and dipole component
+@START 04
+@DEFAULT components/monodipole/md_LFI.defaults
+COMP_MD_MONO_FROM_PRIOR&&     = 0.4-Haslam
+COMP_MD_DEFINITION_FILE&&     = init_md_BP8.2_v7.dat 
+@END 04
+
+# Radio sources
+@START 05
+@DEFAULT components/radio/radio_LFI.defaults
+COMP_CATALOG&&                 = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v8.dat
+COMP_INIT_CATALOG&&            = init_radio_BP8.11.dat
+COMP_PTSRC_TEMPLATE&&          = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v39.h5
+@END 05
+
+# freefree component ---------------------------------------------------------------------
+@START 06
+@DEFAULT components/freefree/freefree_LFI.defaults
+COMP_MONOPOLE_PRIOR&&         = monopole:mask_lat_70deg_n1024_TQU.fits none  
+COMP_INPUT_AMP_MAP&&          = init_ff_amp_BP8.1_v1.fits
+COMP_PRIOR_AMP_MAP&&          = ff_prior_mean_2015_median_90arc.fits none
+# New Local sampling parameters. 'freefree, ff'
+@DEFAULT components/freefree/freefree_LFI_localsampler.defaults
+@END 06
+
+# Low-frequency AME component ------------------------------------------------------------------
+@START 07
+@DEFAULT components/ame/ame_LFI.defaults
+COMP_MONOPOLE_PRIOR&&         = monopole:mask_lat_70deg_n1024_TQU.fits none  
+COMP_INDMASK&&                = mask_AME_nu_p_BP8_10deg.fits
+COMP_INPUT_NU_P_MAP&&         = init_ame_nu_p_BP8.1_v1.fits
+COMP_SED_TEMPLATE&&           = spdust2_cnm.dat
+COMP_INPUT_AMP_MAP&&          = init_ame_amp_BP8.1_v1.fits
+COMP_PRIOR_AMP_MAP&&          = ame_prior_mean_857_scaled2.40.fits  
+@DEFAULT components/ame/ame_LFI_localsampler.defaults
+# New Local sampling parameters, 'ame'
+COMP_NU_P_MASK&&              = mask_AME_nu_p_BP8_10deg_new_chisqmask.fits   # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_ALPHA_MASK&&              = mask_AME_nu_p_BP8_10deg.fits mask_AME_n1024_v3.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
+@END 07
+
+# CMB relativistic quadrupole correction
+@START 08
+@DEFAULT components/cmb/cmb_relquad.defaults
+@END 08
