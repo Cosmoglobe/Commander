@@ -323,10 +323,6 @@ contains
       call update_status(status, "tod_init")
       call wall_time(t3)
       do_oper             = .true.
-      allocate (M_diag(0:npix-1, nmaps+1))
-      allocate ( b_map(0:npix-1, nmaps, nout))
-      M_diag = 0d0
-      b_map = 0d0
       ! There are five main iterations, for imbalance, absolute calibration, 
       ! relative calibration, time-variable calibration, and 
       ! correlated noise estimation.
@@ -363,6 +359,19 @@ contains
          do_oper(sim_map)      = .false. ! (main_iter == 1) !   
 
          dipole_mod = 0
+         if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+            if (do_oper(prep_relbp)) then
+               nout = self%output_n_maps + ndelta - 1
+            else
+               nout = self%output_n_maps
+            end if
+         end if
+         if (do_oper(bin_map)) then
+           allocate (M_diag(0:npix-1, nmaps+1))
+           allocate ( b_map(0:npix-1, nmaps, nout))
+           M_diag = 0d0
+           b_map = 0d0
+         end if
 
          if (do_oper(samp_acal) .or. do_oper(samp_rcal) .or. do_oper(samp_imbal)) then
             A_abscal = 0.d0; b_abscal = 0.d0
@@ -664,6 +673,9 @@ contains
                        & s_buf(:,j), n_corr(:,j), verbose=.false., tod_arr=tod)
                end do
                call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
+               if (self%verbosity > 2) then
+                 write(*,*) 'Finished computing chi^2'
+               end if
             end if
 
             !*******************
@@ -868,7 +880,7 @@ contains
       end if
 
       call wall_time(t9)
-      do l=1, nout
+      do l=1, self%output_n_maps
          if (self%myid==0) then
             if (self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
             call update_status(status, "Starting bicg-stab")
@@ -943,7 +955,7 @@ contains
                call update_status(status, "Calling  q= A shat")
                call compute_Ax(self, self%x_im, procmask, shat, q)
 
-               omega         = sum(q*s)/sum(q**2)
+               omega         = sum(q*s)/sum(q*q)
                cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
                if (write_cg_iter) then
                  cg_tot = cg_sol(self%info%pix, 1:nmaps, l)

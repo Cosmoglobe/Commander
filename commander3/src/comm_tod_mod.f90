@@ -1461,11 +1461,11 @@ contains
     if (present(verbose)) then
       if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
          & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
-    end if
-    if (abs(self%scans(scan)%d(det)%chisq) > 20.d0 .or. &
-      & isNaN(self%scans(scan)%d(det)%chisq)) then
-        write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
-             & ', chisq = ', self%scans(scan)%d(det)%chisq
+      if (abs(self%scans(scan)%d(det)%chisq) > 40.d0 .or. &
+        & isNaN(self%scans(scan)%d(det)%chisq)) then
+          write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
+               & ', chisq = ', self%scans(scan)%d(det)%chisq
+      end if
     end if
 
   end subroutine compute_chisq

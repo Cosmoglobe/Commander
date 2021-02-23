@@ -142,7 +142,6 @@ contains
                        &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                        &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
                     
-            ! second flag should be "moon visible over sun shield" 
             if (i == 1) then
                if (iand(flag(j), tod%flag0) .ne. 0) then
                   tmask(j, :) = 0.
