@@ -144,10 +144,10 @@ contains
                     
             ! second flag should be "moon visible over sun shield" 
             if (i == 1) then
-               if (flag(j) == 0 .or. flag(j) == 262144) then
-                  tmask(j, :) = pmask(pix(j, 1))*pmask(pix(j,2))
-               else
+               if (iand(flag(j), tod%flag0) .ne. 0) then
                   tmask(j, :) = 0.
+               else
+                  tmask(j, :) = pmask(pix(j, 1))*pmask(pix(j,2))
                end if
             end if
          end do
