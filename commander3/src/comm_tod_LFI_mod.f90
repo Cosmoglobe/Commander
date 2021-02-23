@@ -129,6 +129,7 @@ contains
     constructor%halfring_split = cpar%ds_tod_halfring(id_abs)
     constructor%nside_param   = cpar%ds_nside(id_abs)
     constructor%compressed_tod = .false.
+    constructor%verbosity     = cpar%verbosity
 
     !----------------------------------------------------------------------------------
     ! Simulation Routine
@@ -189,6 +190,7 @@ contains
        constructor%horn_id(i) = (i+1)/2
     end do
 
+    call constructor%read_jumplist(datadir, cpar%ds_tod_jumplist(id_abs))
 
     if (trim(cpar%ds_bpmodel(id_abs)) == 'additive_shift') then
        ndelta = 1
@@ -299,6 +301,11 @@ contains
        write(*,*) '  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/constructor%info%nprocs,sp), real(100*f_fill_lim(2),sp)
     end if
 
+    ! Set all baseline corrections to zero
+    do i = 1, constructor%nscan
+       constructor%scans(i)%d%baseline = 0.d0
+    end do
+
   end function constructor
 
   !**************************************************
@@ -323,7 +330,7 @@ contains
     real(sp)     :: inv_gain
     real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
     real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
-    real(sp),     allocatable, dimension(:,:)     :: s_invN, s_lowres
+    real(sp),     allocatable, dimension(:,:)     :: s_invN
     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
     real(sp),     allocatable, dimension(:,:,:)   :: d_calib
     real(dp),     allocatable, dimension(:)       :: A_abscal, b_abscal
@@ -468,9 +475,9 @@ contains
        if (self%myid == 0) write(*,*) '  Performing main iteration = ', main_iter
 
        ! Select operations for current iteration
-       do_oper(samp_acal)    = (main_iter == n_main_iter-3) .and. .not. self%first_call
-       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) .and. .not. self%first_call
-       do_oper(samp_G)       = (main_iter == n_main_iter-1) .and. .not. self%first_call
+       do_oper(samp_acal)    = (main_iter == n_main_iter-3) !.and. .not. self%first_call
+       do_oper(samp_rcal)    = (main_iter == n_main_iter-2) !.and. .not. self%first_call
+       do_oper(samp_G)       = (main_iter == n_main_iter-1) !.and. .not. self%first_call
        do_oper(samp_N)       = (main_iter >= n_main_iter-0)
        do_oper(samp_N_par)   = do_oper(samp_N)
        do_oper(prep_relbp)   = ndelta > 1 .and. (main_iter == n_main_iter-0) .and. .not. self%first_call !.and. mod(iter,2) == 0
@@ -678,22 +685,19 @@ contains
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
              call self%downsample_tod(s_orb(:,1), ext)
              allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
-             allocate(s_lowres(ext(1):ext(2), ndet))      ! s * invN
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
-                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
+                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, .false., real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
                    call self%downsample_tod(s_buf(:,j), ext, &
-                        & s_lowres(:,j))!, mask(:,j))
+                        & s_invN(:,j))!, mask(:,j))
                 else
                    call self%downsample_tod(s_orb(:,j), ext, &
-                        & s_lowres(:,j))!, mask(:,j))
+                        & s_invN(:,j))!, mask(:,j))
                 end if
              end do
-             s_invN = s_lowres
              call multiply_inv_N(self, i, s_invN,   sampfreq=self%samprate_lowres, pow=0.5d0)
-             call multiply_inv_N(self, i, s_lowres, sampfreq=self%samprate_lowres, pow=0.5d0)
           end if
 
           ! Prepare for absolute calibration
@@ -714,7 +718,7 @@ contains
                    s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
              end do
-             call accumulate_abscal(self, i, mask, s_buf, s_lowres, s_invN, A_abscal, b_abscal, handle, .false.)
+             call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, out=do_oper(samp_acal))
 
              if (.false.) then
                 call int2string(self%scanid(i), scantext)
@@ -732,7 +736,7 @@ contains
           ! Fit gain
           if (do_oper(samp_G)) then
              call wall_time(t1)
-             call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_lowres, s_tot, handle)
+             call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle)
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
@@ -874,7 +878,7 @@ contains
 
              call wall_time(t2); t_tot(5) = t_tot(5) + t2-t1
 
-             if (.false. .and. do_oper(bin_map) ) then
+             if (.false. .and. do_oper(bin_map)) then
                 call int2string(self%scanid(i), scantext)
                 do k = 1, self%ndet
                    open(78,file='tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
@@ -920,7 +924,6 @@ contains
           deallocate(n_corr, s_sl, s_sky, s_orb, s_tot, s_buf)
           deallocate(s_bp, s_sky_prop, s_bp_prop)
           deallocate(mask, mask2, pix, psi, flag)
-          if (allocated(s_lowres)) deallocate(s_lowres)
           if (allocated(s_invN)) deallocate(s_invN)
           if (do_oper(sub_zodi)) deallocate(s_zodi)
           if (do_oper(samp_mono)) deallocate(s_mono)

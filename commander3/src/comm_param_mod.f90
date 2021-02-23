@@ -136,6 +136,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask1
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask2
      character(len=512), allocatable, dimension(:)   :: ds_tod_filelist
+     character(len=512), allocatable, dimension(:)   :: ds_tod_jumplist
      character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
      character(len=512), allocatable, dimension(:)   :: ds_tod_dets
      character(len=512), allocatable, dimension(:)   :: ds_tod_bp_init
@@ -506,7 +507,7 @@ contains
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
-    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_initHDF(n))
+    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_jumplist(n), cpar%ds_tod_initHDF(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n), cpar%ds_tod_halfring(n))
@@ -573,6 +574,8 @@ contains
                   & par_string=cpar%ds_tod_procmask2(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_filelist(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_JUMPLIST'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_jumplist(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_START_SCANID'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_scanrange(i,1))
              call get_parameter_hashtable(htbl, 'BAND_TOD_END_SCANID'//itext, len_itext=len_itext, &
@@ -1993,6 +1996,7 @@ contains
           call validate_file(trim(datadir)//trim(cpar%ds_tod_procmask1(i)))  ! Procmask1
           call validate_file(trim(datadir)//trim(cpar%ds_tod_procmask2(i)))  ! Procmask2
           call validate_file(trim(datadir)//trim(cpar%ds_tod_filelist(i)))   ! Filelist
+          call validate_file(trim(datadir)//trim(cpar%ds_tod_jumplist(i)))   ! Jumplist
           call validate_file(trim(datadir)//trim(cpar%ds_tod_instfile(i)))   ! Instrument file, RIMO
           call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
        end if

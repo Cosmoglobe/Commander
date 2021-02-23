@@ -145,6 +145,7 @@ module comm_tod_mod
      character(len=128)                                :: tod_type
      integer(i4b)                                      :: nside_beam
      integer(i4b)                                      :: verbosity ! verbosity of output
+     integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
    contains
      procedure                        :: read_tod
      procedure                        :: get_scan_ids
@@ -164,6 +165,7 @@ module comm_tod_mod
      procedure                        :: tod_constructor
      procedure                        :: load_instrument_file
      procedure                        :: precompute_lookups
+     procedure                        :: read_jumplist
   end type comm_tod
 
   abstract interface
@@ -271,6 +273,9 @@ contains
     self%nmaps    = info%nmaps
     !TODO: this should be changed to not require a really long string
     self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+
+    ! Initialize jumplist
+    call self%read_jumplist(datadir, cpar%ds_tod_jumplist(id_abs))
 
     allocate(self%stokes(self%nmaps))
     allocate(self%w(self%nmaps, self%nhorn, self%ndet))
@@ -701,6 +706,38 @@ contains
 !!$    end if
 
   end subroutine read_hdf_scan
+
+
+  subroutine read_jumplist(self, datadir, jumplist)
+    implicit none
+    class(comm_tod),   intent(inout) :: self
+    character(len=*),  intent(in)    :: datadir, jumplist
+
+    integer(i4b) :: i, j, n_jumps, unit
+
+    if (trim(jumplist) == 'none')  then
+
+       allocate(self%jumplist(self%ndet, 2))
+       self%jumplist(:,1) = 1
+       self%jumplist(:,2) = 0 !self%nscan_tot
+
+    else
+
+       unit = getlun()
+       open(unit,file=trim(datadir)//'/'//trim(jumplist))
+       read(unit,*) n_jumps
+       allocate(self%jumplist(self%ndet, n_jumps+2))
+       self%jumplist(:,1) = 1
+       do i = 1, n_jumps
+          read(unit,*) j
+          self%jumplist(:,i+1) = j
+       end do
+       self%jumplist(:,n_jumps+2) = 0  !self%nscan_tot
+       close(unit)
+
+    end if
+
+  end subroutine read_jumplist
 
 
   subroutine get_scan_ids(self, filelist)

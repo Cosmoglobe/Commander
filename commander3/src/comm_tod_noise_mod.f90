@@ -350,8 +350,12 @@ contains
     ntod = size(d_prime, 1)
     nmask = ntod - sum(mask)
 
-    eps = 1.d-5
+    if (nmask == 0) then
+       ncorr = d_prime
+       return
+    end if
 
+    eps       = 1.d-5
     converged = .false.
 
     allocate(dt(nfft), dv(0:n-1))
@@ -387,7 +391,11 @@ contains
     call apply_fourier_mat(b, invM, Mr, dt, dv, nfft, plan_fwd, plan_back)
     bp(:) = Mr(u)
 
-    sigma_bp = sqrt(variance(bp))
+    if (nmask == 1) then
+       sigma_bp = sqrt(variance(real(d_prime,dp)))
+    else
+       sigma_bp = sqrt(variance(bp))
+    end if
 
     xp(:) = x(u)  !! not sure exactly how to get a good initial vector
     x(:) = 0.d0
