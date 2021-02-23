@@ -15,7 +15,7 @@ NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 100       # Length of each Markov chain
 CHAIN_STATUS     = append
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/u3/hke/xsan/commander3/BP9/data/chain_init_BP9.0_v1.h5:10
+INIT_CHAIN01     = /mn/stornext/u3/hke/xsan/commander3/BP9/data/chain_init_BP9.0.h5:10
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
