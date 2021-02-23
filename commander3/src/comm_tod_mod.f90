@@ -323,6 +323,7 @@ contains
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              pix(k)  = pix(k-1)  + pix(k)
+             if (pix(k) < 0 .or. pix(k) > 12*self%nside**2-1) stop
              self%pix2ind(pix(k)) = 1
           end do
         end do
@@ -624,7 +625,7 @@ contains
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
-       self%d(i)%sigma0_def = scalars(2) * abs(self%d(i)%gain_def)  ! To get sigma0 in uncalibrated units
+       self%d(i)%sigma0_def = scalars(2) * self%d(i)%gain_def  ! To get sigma0 in uncalibrated units
        self%d(i)%fknee_def  = scalars(3)
        self%d(i)%alpha_def  = scalars(4)
        self%d(i)%gain       = self%d(i)%gain_def
@@ -641,12 +642,17 @@ contains
 
        ! Read Huffman coded data arrays
        call wall_time(t1)
-       do j = 1, nhorn
-         !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
-         !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
-         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
-       end do
+       if (self%nhorn == 2) then
+         do j = 1, nhorn 
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
+         end do
+       else
+         do j = 1, nhorn
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+         end do
+       end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
        if (tod%compressed_tod) then
