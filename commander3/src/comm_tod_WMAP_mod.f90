@@ -825,8 +825,8 @@ contains
       allocate (cg_tot(0:np0 - 1, nmaps))
 
       ! write out M_diag, b_map to fits.
-      cg_tot = b_map(self%info%pix, 1:nmaps, 1)
-      call write_map2(trim(prefix)//'b2'//trim(postfix), b_map(:,:,1))
+      !cg_tot = b_map(self%info%pix, 1:nmaps, 1)
+      !call write_map2(trim(prefix)//'b2'//trim(postfix), b_map(:,:,1))
       !call self%write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
       !cg_tot = M_diag(self%info%pix, 1:nmaps)
       !call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
