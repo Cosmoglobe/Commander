@@ -328,7 +328,7 @@ contains
     real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
     real(dp)     :: t_tot(23)
     real(sp)     :: inv_gain
-    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask,mask2, s_bp
+    real(sp),     allocatable, dimension(:,:)     :: n_corr, s_sl, s_sky, s_orb, mask, mask2, mask_lowres, s_bp
     real(sp),     allocatable, dimension(:,:)     :: s_mono, s_buf, s_tot, s_zodi
     real(sp),     allocatable, dimension(:,:)     :: s_invN
     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop, s_bp_prop
@@ -597,6 +597,7 @@ contains
                   & psi(:,j,:), flag(:,j))
           end do
           call self%symmetrize_flags(flag)
+          write(*,*) 'flag', self%scanid(i),count(iand(flag(:,1),self%flag0) /= 0), count(iand(flag(:,2),self%flag0) /= 0), count(iand(flag(:,3),self%flag0) /= 0), count(iand(flag(:,4),self%flag0) /= 0), self%scans(i)%d(1)%accept, self%scans(i)%d(2)%accept, self%scans(i)%d(3)%accept, self%scans(i)%d(4)%accept
           !call validate_psi(self%scanid(i), psi)
           call wall_time(t2); t_tot(11) = t_tot(11) + t2-t1
           !call update_status(status, "tod_decomp")
@@ -684,9 +685,12 @@ contains
           ! Precompute filtered signal for calibration
           if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. do_oper(samp_acal)) then
              call self%downsample_tod(s_orb(:,1), ext)
-             allocate(s_invN(ext(1):ext(2), ndet))      ! s * invN
+             allocate(     s_invN(ext(1):ext(2), ndet))      ! s * invN
+             allocate(mask_lowres(ext(1):ext(2), ndet))
              do j = 1, ndet
                 if (.not. self%scans(i)%d(j)%accept) cycle
+                call self%downsample_tod(mask(:,j), ext, &
+                     & mask_lowres(:,j), threshold=0.9)!, mask(:,j))  
                 if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
                    call fill_all_masked(s_buf(:,j), mask(:,j), ntod, .false., real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
@@ -718,7 +722,7 @@ contains
                    s_buf(:,j) = real(self%gain0(0) + self%scans(i)%d(j)%dgain,sp) * s_tot(:, j)
                 end if
              end do
-             call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, out=do_oper(samp_acal))
+             call accumulate_abscal(self, i, mask, s_buf, s_invN, s_invN, A_abscal, b_abscal, handle, out=do_oper(samp_acal), mask_lowres=mask_lowres)
 
              if (.false.) then
                 call int2string(self%scanid(i), scantext)
@@ -736,7 +740,7 @@ contains
           ! Fit gain
           if (do_oper(samp_G)) then
              call wall_time(t1)
-             call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle)
+             call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle, mask_lowres=mask_lowres)
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
@@ -925,6 +929,7 @@ contains
           deallocate(s_bp, s_sky_prop, s_bp_prop)
           deallocate(mask, mask2, pix, psi, flag)
           if (allocated(s_invN)) deallocate(s_invN)
+          if (allocated(mask_lowres)) deallocate(mask_lowres)
           if (do_oper(sub_zodi)) deallocate(s_zodi)
           if (do_oper(samp_mono)) deallocate(s_mono)
           call wall_time(t2); t_tot(18) = t_tot(18) + t2-t1
