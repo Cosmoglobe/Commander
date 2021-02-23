@@ -245,7 +245,6 @@ contains
       nside = map_out%info%nside
       nmaps = map_out%info%nmaps
       npix = 12*nside**2
-      nout = self%output_n_maps
       nscan_tot = self%nscan_tot
       x_im(1) = self%x_im(1)
       x_im(2) = self%x_im(1)
@@ -257,8 +256,8 @@ contains
       allocate(dipole_mod(nscan_tot, ndet))
       allocate (slist(self%nscan))
       slist = ''
-      allocate (outmaps(nout))
-      do i = 1, nout
+      allocate (outmaps(self%output_n_maps))
+      do i = 1, self%output_n_maps
          outmaps(i)%p => comm_map(map_out%info)
       end do
       call int2string(chain, ctext)
@@ -673,9 +672,6 @@ contains
                        & s_buf(:,j), n_corr(:,j), verbose=.false., tod_arr=tod)
                end do
                call wall_time(t2); t_tot(7) = t_tot(7) + t2-t1
-               if (self%verbosity > 2) then
-                 write(*,*) 'Finished computing chi^2'
-               end if
             end if
 
             !*******************
@@ -871,7 +867,7 @@ contains
          !cg_sol(:,:,1) = map_sky(:,:,0,1)
          ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
          epsil(1)   = 1d-10
-         epsil(2:6) = 1.d-6
+         epsil(2:6) = 1d-6
          i_max = 100
          i_min = 0
          num_cg_iters = 0
@@ -1090,7 +1086,7 @@ contains
       if (allocated(dipole_mod)) deallocate (dipole_mod)
 
       if (allocated(outmaps)) then
-         do i = 1, nout
+         do i = 1, self%output_n_maps
             call outmaps(i)%p%dealloc
          end do
          deallocate (outmaps)
