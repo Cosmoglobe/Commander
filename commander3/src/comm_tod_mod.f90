@@ -323,11 +323,9 @@ contains
        do j = 1, self%ndet
          do l = 1, self%nhorn
           call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-          if (pix(1) < 0) stop
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              pix(k)  = pix(k-1)  + pix(k)
-             if (pix(k) < 0 .or. pix(k) > 12*self%nside**2-1) stop
              self%pix2ind(pix(k)) = 1
           end do
         end do
