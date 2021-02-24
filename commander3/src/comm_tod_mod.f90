@@ -492,12 +492,16 @@ contains
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn)
        do det = 1, self%ndet
-          self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
-          if (.not. self%scans(i)%d(det)%accept) then
-             write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
-                  & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
-             write(*,fmt='(a,a)') '    filename = ', &
-                  & trim(self%hdfname(i))
+          if (self%compressed_tod) then
+            self%scans(i)%d(det)%accept = .true.
+          else
+            self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
+            if (.not. self%scans(i)%d(det)%accept) then
+               write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
+                    & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
+               write(*,fmt='(a,a)') '    filename = ', &
+                    & trim(self%hdfname(i))
+            end if
           end if
        end do
     end do
@@ -623,7 +627,7 @@ contains
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
-       self%d(i)%sigma0_def = scalars(2) * abs(self%d(i)%gain_def)  ! To get sigma0 in uncalibrated units
+       self%d(i)%sigma0_def = scalars(2) * self%d(i)%gain_def  ! To get sigma0 in uncalibrated units
        self%d(i)%fknee_def  = scalars(3)
        self%d(i)%alpha_def  = scalars(4)
        self%d(i)%gain       = self%d(i)%gain_def
@@ -640,12 +644,17 @@ contains
 
        ! Read Huffman coded data arrays
        call wall_time(t1)
-       do j = 1, nhorn
-         !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
-         !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
-         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-         call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
-       end do
+       if (nhorn == 2) then
+         do j = 1, nhorn 
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
+         end do
+       else
+         do j = 1, nhorn
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+         end do
+       end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
        if (tod%compressed_tod) then
@@ -809,7 +818,11 @@ contains
             if (v(3) < 0.d0) v  = -v
             if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
          end do
-         v0 = v0 / sqrt(v0*v0)
+         if (maxval(sqrt(v0*v0)) == 0) then
+           v0 = 1
+         else
+           v0 = v0 / sqrt(v0*v0)
+         end if
 !        v0(1) = 1
        
 
@@ -1448,11 +1461,11 @@ contains
     if (present(verbose)) then
       if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
          & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
-    end if
-    if (abs(self%scans(scan)%d(det)%chisq) > 20.d0 .or. &
-      & isNaN(self%scans(scan)%d(det)%chisq)) then
-        write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
-             & ', chisq = ', self%scans(scan)%d(det)%chisq
+      if (abs(self%scans(scan)%d(det)%chisq) > 40.d0 .or. &
+        & isNaN(self%scans(scan)%d(det)%chisq)) then
+          write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
+               & ', chisq = ', self%scans(scan)%d(det)%chisq
+      end if
     end if
 
   end subroutine compute_chisq
