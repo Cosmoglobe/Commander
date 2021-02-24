@@ -1,5 +1,5 @@
 !================================================================================
-!
+! 
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
 !
 ! This file is part of Commander3.
