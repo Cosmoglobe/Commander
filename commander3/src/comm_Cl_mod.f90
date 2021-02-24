@@ -76,7 +76,7 @@ module comm_Cl_mod
      character(len=512) :: plfile
      integer(i4b)       :: iter = 0
      real(dp)           :: prior(2), lpiv
-     real(dp), allocatable, dimension(:) :: amp, beta
+     real(dp), allocatable, dimension(:) :: amp, beta, theta
    contains
      ! Data procedures
      procedure :: S        => matmulS
@@ -190,11 +190,11 @@ contains
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
        call constructor%updatePowlaw(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
     else if (trim(constructor%type) == 'power_law_gauss') then
-       allocate(constructor%amp(nmaps), constructor%beta(nmaps))
+       allocate(constructor%amp(nmaps), constructor%beta(nmaps),constructor%theta(nmaps))
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
        constructor%prior         = cpar%cs_cl_prior(id_abs,:)
        constructor%poltype       = cpar%cs_cl_poltype(id_abs)
-       call constructor%updatePowlawGauss(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps))
+       call constructor%updatePowlawGauss(cpar%cs_cl_amp_def(id_abs,1:nmaps), cpar%cs_cl_beta_def(id_abs,1:nmaps),cpar%cs_cl_theta_def(id_abs,1:nmaps))
     else if (trim(constructor%type) == 'exp') then
        allocate(constructor%amp(nmaps), constructor%beta(nmaps))
        constructor%lpiv          = cpar%cs_lpivot(id_abs)
@@ -245,22 +245,23 @@ contains
 
   end subroutine updatePowlaw
 
-  subroutine updatePowlawGauss(self, amp, beta)
+  subroutine updatePowlawGauss(self, amp, beta, theta)
     implicit none
     class(comm_Cl),                intent(inout)        :: self
-    real(dp),       dimension(1:), intent(in), optional :: amp, beta
+    real(dp),       dimension(1:), intent(in), optional :: amp, beta, theta
 
     integer(i4b) :: i, j, l, i_min
     
     if (present(amp))  self%amp   = amp
     if (present(beta)) self%beta  = beta
+    if (present(theta)) self%theta  = theta
     self%Dl    = 0.d0
     i_min      = 1; if (self%only_pol) i_min = 2
     do i = i_min, self%nmaps
        j = i*(1-i)/2 + (i-1)*self%nmaps + i
        do l = max(self%lmin,1), self%lmax
           if (i > 1 .and. l < 2) cycle
-          self%Dl(l,j) = self%amp(i) * (real(l,dp)/real(self%lpiv,dp))**self%beta(i) * max(exp(-l*(l+1)*(90.d0*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2),1d-10)
+          self%Dl(l,j) = self%amp(i) * (real(l,dp)/real(self%lpiv,dp))**self%beta(i) * max(exp(-l*(l+1)*(self%theta(i)*pi/180.d0/60.d0/sqrt(8.d0*log(2.d0)))**2),1d-10)
        end do
        self%Dl(0,j) = self%Dl(1,j)
     end do
@@ -1355,9 +1356,17 @@ contains
     if (self%iter == 0) then
        open(unit,file=trim(filename), recl=1024)
        if (self%nspec == 1) then
-          write(unit,*) '# Columns are {iteration, A_TT, beta_TT}'
+          if (trim(self%type)=='power_law_gauss') then
+             write(unit,*) '# Columns are {iteration, A_TT, beta_TT, theta_TT}'
+          else
+             write(unit,*) '# Columns are {iteration, A_TT, beta_TT}'
+          end if
        else
-          write(unit,*) '# Columns are {iteration, A_TT, A_EE, A_BB, beta_TT, beta_EE, beta_BB}'
+          if (trim(self%type)=='power_law_gauss') then
+             write(unit,*) '# Columns are {iteration, A_TT, A_EE, A_BB, beta_TT, beta_EE, beta_BB, theta_TT, theta_EE, theta_BB}'
+          else
+             write(unit,*) '# Columns are {iteration, A_TT, A_EE, A_BB, beta_TT, beta_EE, beta_BB}'
+          end if
        end if
        close(unit)
     end if
@@ -1365,15 +1374,24 @@ contains
     self%iter = self%iter + 1
     open(unit,file=trim(filename), recl=1024, position='append')
     if (self%nspec == 1) then
-       write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
+       if (trim(self%type)=='power_law_gauss') then
+          write(unit,fmt='(i8,3e16.8)') self%iter, self%amp, self%beta, self%theta
+       else
+          write(unit,fmt='(i8,2e16.8)') self%iter, self%amp, self%beta
+       end if
     else
-       write(unit,fmt='(i8,6e16.8)') self%iter, self%amp, self%beta
+       if (trim(self%type)=='power_law_gauss') then
+          write(unit,fmt='(i8,9e16.8)') self%iter, self%amp, self%beta, self%theta
+       else
+          write(unit,fmt='(i8,6e16.8)') self%iter, self%amp, self%beta
+       end if
     end if
     close(unit)
 
     if (present(hdffile)) then
        call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
        call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+       call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_theta', self%theta)
     end if
     
   end subroutine write_powlaw_to_FITS
@@ -1398,6 +1416,7 @@ contains
     case ('power_law_gauss')
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_theta', self%theta)
        call self%updatePowLawGauss()
     case ('exp')
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)

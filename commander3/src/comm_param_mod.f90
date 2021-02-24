@@ -203,6 +203,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
+     real(dp),           allocatable, dimension(:,:)   :: cs_cl_theta_def
      integer(i4b),       allocatable, dimension(:)     :: cs_cl_poltype
      logical(lgt),       allocatable, dimension(:)     :: cs_output_EB
      character(len=512), allocatable, dimension(:)     :: cs_input_amp
@@ -673,7 +674,7 @@ contains
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_mono_prior(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_latmask(n), cpar%cs_defmask(n), cpar%cs_cg_samp_group_maxiter(n))
     allocate(cpar%cs_indmask(n), cpar%cs_amp_rms_scale(n))
-    allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
+    allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_theta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
@@ -753,6 +754,10 @@ contains
                   & par_dp=cpar%cs_cl_amp_def(i,1))
              call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_T'//itext, len_itext=len_itext, &
                   & par_dp=cpar%cs_cl_beta_def(i,1))
+             if (trim(cpar%cs_cltype(i))=='power_law_gauss') then
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_T'//itext, len_itext=len_itext, &
+                     & par_dp=cpar%cs_cl_theta_def(i,1))
+             end if
              if (cpar%cs_polarization(i)) then
                 call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_E'//itext, len_itext=len_itext, &
                      & par_dp=cpar%cs_cl_amp_def(i,2))
@@ -762,6 +767,12 @@ contains
                      & par_dp=cpar%cs_cl_amp_def(i,3))
                 call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_B'//itext, len_itext=len_itext, &  
                 & par_dp=cpar%cs_cl_beta_def(i,3))
+                if (trim(cpar%cs_cltype(i))=='power_law_gauss') then
+                   call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_E'//itext, len_itext=len_itext, &
+                     & par_dp=cpar%cs_cl_theta_def(i,2))
+                   call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_B'//itext, len_itext=len_itext, &
+                        & par_dp=cpar%cs_cl_theta_def(i,3))
+                end if
              end if
              cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(:,i)**2
           end if
