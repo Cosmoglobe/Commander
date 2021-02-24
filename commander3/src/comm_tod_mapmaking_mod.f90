@@ -129,7 +129,7 @@ contains
          end do
          inv_sigmasq = 1/var
          do t = 1, tod%scans(scan)%ntod
-            if (flag(t) /= 0 .and. flag(t) /= 262144) cycle
+            if (iand(flag(t),tod%flag0) .ne. 0) cycle
 
             lpix = pix(t, 1)
             rpix = pix(t, 2)
@@ -231,7 +231,7 @@ end subroutine bin_differential_TOD
 
             do t = 1, ntod
 
-               if (flag(t) /= 0 .and. flag(t) /= 262144) cycle
+               if (iand(flag(t),tod%flag0) .ne. 0) cycle
                lpix = pix(t, 1)
                rpix = pix(t, 2)
                lpsi = psi(t, 1)
