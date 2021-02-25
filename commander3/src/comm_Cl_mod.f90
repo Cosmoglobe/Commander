@@ -1295,6 +1295,9 @@ contains
     case ('exp')
        call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
        call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
+    case ('gauss')
+       call write_Dl_to_FITS(self, 'c'//ctext//'_k'//itext)
+       call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
     end select
 
   end subroutine writeFITS
@@ -1391,7 +1394,7 @@ contains
     if (present(hdffile)) then
        call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
        call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
-       call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_theta', self%theta)
+       if (trim(self%type)=='power_law_gauss') call write_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_theta', self%theta)
     end if
     
   end subroutine write_powlaw_to_FITS
@@ -1422,6 +1425,10 @@ contains
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
        call self%updateExponential()
+    case ('gauss')
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_amp',  self%amp)
+       call read_hdf(hdffile, trim(adjustl(hdfpath))//'/Dl_beta', self%beta)
+       call self%updateGaussian()
     end select
     call self%updateS()
 
