@@ -6,5 +6,5 @@ COMP_POLARIZATION&&           = .false.
 COMP_CG_SAMPLE_GROUP&&        = 0
 COMP_MD_MONO_FROM_PRIOR&&     = 0.4-Haslam
 COMP_MD_DEFINITION_FILE&&     = init_md_BP8.2_v7.dat
-COMP_INIT_FROM_HDF&&          = none default
+COMP_INIT_FROM_HDF&&          = default
 
