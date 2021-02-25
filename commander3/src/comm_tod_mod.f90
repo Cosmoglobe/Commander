@@ -37,6 +37,7 @@ module comm_tod_mod
    byte, dimension(:), allocatable :: p 
   end type byte_pointer
 
+
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
      real(dp)          :: gain, dgain, gain_invsigma           ! Gain; assumed constant over scan
@@ -117,6 +118,9 @@ module comm_tod_mod
      integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
+     logical(lgt) :: correct_sl                                   ! Subtract sidelobes
+     logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
+     logical(lgt) :: orb_4pi_beam                                 ! Perform 4pi beam convolution for orbital CMB dipole 
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
      real(dp),           allocatable, dimension(:,:,:) :: w       ! Stokes weights per detector per horn, (nmaps,nhorn,ndet)
      real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi)

@@ -67,7 +67,7 @@ module comm_tod_LFI_mod
 
 
   type, extends(comm_tod) :: comm_LFI_tod
-    class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
+     class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
    contains
      procedure     :: process_tod        => process_LFI_tod
      procedure     :: simulate_LFI_tod
@@ -102,34 +102,37 @@ contains
 
     ! Set up LFI specific parameters
     allocate(constructor)
-    constructor%tod_type      = tod_type
-    constructor%myid          = cpar%myid_chain
-    constructor%comm          = cpar%comm_chain
-    constructor%numprocs      = cpar%numprocs_chain
-    constructor%myid_shared   = cpar%myid_shared
-    constructor%comm_shared   = cpar%comm_shared
-    constructor%myid_inter    = cpar%myid_inter
-    constructor%comm_inter    = cpar%comm_inter
-    constructor%info          => info
-    constructor%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
-    constructor%freq          = cpar%ds_label(id_abs)
-    constructor%operation     = cpar%operation
-    constructor%outdir        = cpar%outdir
-    constructor%first_call    = .true.
-    constructor%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
-    constructor%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
-    constructor%flag0         = cpar%ds_tod_flag(id_abs)
-    constructor%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
-    constructor%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
-    constructor%output_4D_map = cpar%output_4D_map_nth_iter
+    constructor%tod_type        = tod_type
+    constructor%myid            = cpar%myid_chain
+    constructor%comm            = cpar%comm_chain
+    constructor%numprocs        = cpar%numprocs_chain
+    constructor%myid_shared     = cpar%myid_shared
+    constructor%comm_shared     = cpar%comm_shared
+    constructor%myid_inter      = cpar%myid_inter
+    constructor%comm_inter      = cpar%comm_inter
+    constructor%info            => info
+    constructor%init_from_HDF   = cpar%ds_tod_initHDF(id_abs)
+    constructor%freq            = cpar%ds_label(id_abs)
+    constructor%operation       = cpar%operation
+    constructor%outdir          = cpar%outdir
+    constructor%first_call      = .true.
+    constructor%first_scan      = cpar%ds_tod_scanrange(id_abs,1)
+    constructor%last_scan       = cpar%ds_tod_scanrange(id_abs,2)
+    constructor%flag0           = cpar%ds_tod_flag(id_abs)
+    constructor%orb_abscal      = cpar%ds_tod_orb_abscal(id_abs)
+    constructor%nscan_tot       = cpar%ds_tod_tot_numscan(id_abs)
+    constructor%output_4D_map   = cpar%output_4D_map_nth_iter
     constructor%output_aux_maps = cpar%output_aux_maps
-    constructor%subtract_zodi = cpar%include_TOD_zodi
-    constructor%central_freq  = cpar%ds_nu_c(id_abs)
+    constructor%subtract_zodi   = cpar%include_TOD_zodi
+    constructor%central_freq    = cpar%ds_nu_c(id_abs)
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
-    constructor%halfring_split = cpar%ds_tod_halfring(id_abs)
-    constructor%nside_param   = cpar%ds_nside(id_abs)
-    constructor%compressed_tod = .false.
-    constructor%verbosity     = cpar%verbosity
+    constructor%halfring_split  = cpar%ds_tod_halfring(id_abs)
+    constructor%nside_param     = cpar%ds_nside(id_abs)
+    constructor%compressed_tod  = .false.
+    constructor%correct_sl      = .true.
+    constructor%sample_mono     = .false.
+    constructor%verbosity       = cpar%verbosity
+    constructor%orb_4pi_beam    = .true.
 
     !----------------------------------------------------------------------------------
     ! Simulation Routine
@@ -463,6 +466,8 @@ contains
     call wall_time(t2); t_tot(13) = t2-t1
 
     call update_status(status, "tod_init")
+
+
 
     ! Compute output map and rms
     call wall_time(t3)

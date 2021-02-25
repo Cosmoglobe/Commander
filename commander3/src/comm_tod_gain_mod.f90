@@ -28,12 +28,10 @@ module comm_tod_gain_mod
 
 contains
 
-
   ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
-  ! Haavard: Get rid of explicit n_corr, and replace 1/sigma**2 with proper invN multiplication
-!  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
-!   subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
+  !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
+  !  subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
    subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle, mask_lowres, tod_arr)
     implicit none
     class(comm_tod),                      intent(inout) :: tod
