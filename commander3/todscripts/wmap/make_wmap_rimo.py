@@ -30,6 +30,8 @@ beam and sl are both alm representations of the beam and sidelobes.
 
 mbeam_eff is main beam efficiency, assume it is one.
 '''
+
+from tqdm import tqdm
 def getOutidx(l, m):
     return l**2 + l + m
 
@@ -61,7 +63,6 @@ import numpy as np
 from glob import glob
 import matplotlib.pyplot as plt
 from astropy.io import fits
-from astropy.wcs import WCS
 import h5py
 
 import healpy as hp
@@ -69,7 +70,6 @@ import healpy as hp
 from scipy.integrate import trapz
 from scipy.optimize import curve_fit, minimize
 
-import reproject
 
 
 dir_A_los = np.array([
@@ -188,7 +188,8 @@ for rot in rots:
       
       
       hdus = [fits.open(fname)[0] for fname in fnames]
-      wcs = WCS(hdus[0].header) # hdus are the same
+      beamAs = [fits.open(fname)[0].data[0] for fname in fnames]
+      beamBs = [fits.open(fname)[0].data[2] for fname in fnames]
       
       
       # pixel size is 0.04 ~ 58.6/nside
@@ -197,44 +198,74 @@ for rot in rots:
       mmax = 100
       
       
-      # I am nearly certain that the projection that they use, 
-      # X=2*sin(theta/2)*cos(phi), is zenithal equal area, making the coordinate
-      # system centered at the north pole.
-      #target_header = fits.Header.fromstring("""
-      #NAXIS   =                    2
-      #NAXIS1  =                  600
-      #NAXIS2  =                  600
-      #CTYPE1  = 'GLON-ZEA'
-      #CRPIX1  =                0.5
-      #CRVAL1  =                -11.98
-      #CDELT1  =               0.04
-      #CUNIT1  = 'deg     '
-      #CTYPE2  = 'GLAT-ZEA'
-      #CRPIX2  =                0.5
-      #CRVAL2  =                -11.98
-      #CDELT2  =                0.04
-      #CUNIT2  = 'deg     '
-      #COORDSYS= 'icrs    '
-      #""", sep='\n')
+      X = np.arange(-11.98, 12, 0.04)*np.pi/180
+      Y = np.arange(-11.98, 12, 0.04)*np.pi/180
+      X2 = np.linspace(X[0], X[-1], len(X)*50)
+      Y2 = np.linspace(Y[0], Y[-1], len(Y)*50)
+      xx, yy = np.meshgrid(X,Y)
+      theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
+      phi = np.arctan2(yy, xx)
 
-      #X = np.arange(-11.98, 12, 0.04)*180/np.pi
-      #Y = np.arange(-11.98, 12, 0.04)*180/np.pi
-      #xx, yy = np.meshgrid(X,Y)
-      #theta = 2*np.arcsin(np.sqrt(X**2+Y**2)/2)
-      #phi = np.arctan2(yy, xx)
+      from scipy import interpolate
 
-      #nside = 1024
-      #m = np.zeros(12*nside**2)
-      #N = np.zeros(12*nside**2)
-      #for i in range(len(theta)):
-      #    for j in range(len(theta)):
-      #        pix = hp.ang2pix(nside, theta[i,j], phi[i,j])
-      #        m[pix] += beamA[i,j]
-      #        N[pix] += 1
+
+      xx, yy = np.meshgrid(X2,Y2)
+      theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
+      phi = np.arctan2(yy, xx)
+      
+      #data = fits.open(fnames[-1])
+      #beamA = data[0].data[0]
+      #fig = plt.figure()
+      #ax = fig.add_subplot(111)
+      #ax.pcolormesh(X,Y,beamA)
+
+      #fig = plt.figure()
+      #ax = fig.add_subplot(111)
+      #ax.pcolormesh(X2,Y2,beamA_2)
+
+      #plt.show()
 
       
       for fname in fnames:
           data = fits.open(fname)
+          beamA = data[0].data[0]
+          beamB = data[0].data[2]
+          f = interpolate.interp2d(X, Y, beamA)
+          beamA_2 = f(X2, Y2)
+          f = interpolate.interp2d(X, Y, beamB)
+          beamB_2 = f(X2, Y2)
+
+          nside = 4096
+          mA = np.zeros(12*nside**2)
+          mB = np.zeros(12*nside**2)
+          N = np.zeros(12*nside**2)
+          #for i in range(len(theta)):
+          #    for j in range(len(theta)):
+          #        pix = hp.ang2pix(nside, theta[i,j], phi[i,j])
+          #        mA[pix] += beamA[i,j]
+          #        mB[pix] += beamB[i,j]
+          #        N[pix] += 1
+          #for i in tqdm(range(len(X2))):
+          #    for j in range(len(Y2)):
+          pix = hp.ang2pix(nside, theta, phi)
+          mA[pix] += beamA_2
+          mB[pix] += beamB_2
+          N[pix] += 1
+          #hp.gnomview(m/N, rot=(-130,86.38,0), reso=1)
+          mA = mA/N
+          mB = mB/N
+          mA[~np.isfinite(mA)] = 0
+          mB[~np.isfinite(mB)] = 0
+          ind = np.argmax(mA)
+          lon, lat = hp.pix2ang(nside, ind, lonlat=True)
+          print(lon, lat)
+          hp.gnomview(mA, rot=(lon,lat,0), reso=0.12, title='A')
+          ind = np.argmax(mB)
+          lon, lat = hp.pix2ang(nside, ind, lonlat=True)
+          print(lon, lat)
+          hp.gnomview(mB, rot=(lon,lat,0), reso=0.12, title='B')
+          plt.show()
+          print('\n')
           
           b_lm_A = np.zeros((lmax+1)**2) + 1
           b_lm_B = np.zeros((lmax+1)**2) + 1

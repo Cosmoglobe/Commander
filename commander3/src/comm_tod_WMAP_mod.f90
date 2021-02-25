@@ -992,9 +992,6 @@ contains
             end do bicg
 
             if (l == 1) then
-               ! Set monopole
-               monopole = sum((cg_sol(:,1,1)-map_full)*procmask)/sum(procmask)
-               write(*,*) monopole
                ! Maximum likelihood monopole
                monopole = sum((cg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
                       & / sum(M_diag(:,1)*procmask)
@@ -1009,9 +1006,9 @@ contains
                   end if
                   monopole = monopole + sigma_mono * rand_gauss(handle)
                end if
-               write(*,*) 'final monopole = ', monopole
+               write(*,*) 'sampled final monopole = ', monopole
                cg_sol(:,1,1) = cg_sol(:,1,1) - monopole
-               write(*,*) sum(cg_sol(:,1,1)*procmask)/sum(procmask)
+               write(*,*) 'cg_sol monopole', sum(cg_sol(:,1,1)*procmask)/sum(procmask)
                deallocate(map_full)
             end if
          else
