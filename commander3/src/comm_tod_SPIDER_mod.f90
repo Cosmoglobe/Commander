@@ -592,20 +592,20 @@ contains
           ! Construct sky signal template
           call wall_time(t1)
           if (do_oper(bin_map) .or. do_oper(prep_relbp)) then 
-             call project_sky(self, map_sky(:,:,:,1), pix, psi, flag, &
+             call project_sky(self, map_sky(:,:,:,1), pix(:,:,1), psi(:,:,1), flag, &
                   & sprocmask%a, i, s_sky, mask, s_bp=s_bp)  
           else 
-             call project_sky(self, map_sky(:,:,:,1), pix, psi, flag, &
+             call project_sky(self, map_sky(:,:,:,1), pix(:,:,1), psi(:,:,1), flag, &
                   & sprocmask%a, i, s_sky, mask)
           end if
           if (do_oper(prep_relbp)) then
              do j = 2, ndelta
-                call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
+                call project_sky(self, map_sky(:,:,:,j), pix(:,:,1), psi(:,:,1), flag, &
                      & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
              end do
           else if (do_oper(prep_absbp)) then
              do j = 2, ndelta
-                call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
+                call project_sky(self, map_sky(:,:,:,j), pix(:,:,1), psi(:,:,1), flag, &
                      & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
              end do
           end if
