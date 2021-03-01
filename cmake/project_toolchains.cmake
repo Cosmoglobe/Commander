@@ -136,6 +136,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
 			"-Ofast"# -traceback -ipo -xHost -parallel -qopenmp -qopt-matmul -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
+			"-DNDEBUG"
 			"-traceback" 
 			"-ipo" 
 			"-xHost" 
@@ -214,6 +215,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
 			"-O3"# -fno-strict-aliasing -march=native -flto -fopenmp -fbacktrace -fexternal-blas -ffpe-trap=zero -fPIC" 
+			"-DNDEBUG"
 			"-fno-strict-aliasing"
 			"-march=native" 
 			"-flto" 
@@ -321,6 +323,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
 			"-O4"# -fast -mp=all -traceback -Mconcur -fPIC" 
+			"-DNDEBUG"
 			"-fast" 
 			"-mp=all"
 			"-traceback" 
@@ -344,6 +347,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
 			"-O2"# -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
+			"-DNDEBUG"
 			"-mp=all"
 			"-gopt" 
 			"-fast" 
