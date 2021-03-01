@@ -75,7 +75,7 @@ contains
     dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
-    constructor%type              = cpar%ds_noise_format(id_abs)
+    constructor%type              = trim(cpar%ds_noise_format(id_abs))
     constructor%nmaps             = 3
     constructor%pol               = .true.
     constructor%uni_fsky          = 1.d0 
