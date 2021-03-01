@@ -56,7 +56,7 @@ if(NOT CFITSIO_FOUND)
 	list(APPEND cfitsio_configure_command 
 		#"FC=${COMMANDER3_Fortran_COMPILER}" 
 		#"CXX=${COMMANDER3_CXX_COMPILER}" 
-		#"CPP=${COMMANDER3_CPP_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
 		"CC=${MPI_C_COMPILER}" 
 		"./configure" 
 		"--prefix=<INSTALL_DIR>" 
