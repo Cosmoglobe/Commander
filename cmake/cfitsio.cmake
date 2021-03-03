@@ -55,8 +55,8 @@ if(NOT CFITSIO_FOUND)
 	# Adding the rest of commands to the compilation
 	list(APPEND cfitsio_configure_command 
 		#"FC=${COMMANDER3_Fortran_COMPILER}" 
-		#"CXX=${COMMANDER3_CXX_COMPILER}" 
-		#"CPP=${COMMANDER3_CPP_COMPILER}" 
+		"CXX=${MPI_CXX_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
 		"CC=${MPI_C_COMPILER}" 
 		"./configure" 
 		"--prefix=<INSTALL_DIR>" 
