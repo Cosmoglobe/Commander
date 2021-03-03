@@ -31,7 +31,20 @@ beam and sl are both alm representations of the beam and sidelobes.
 mbeam_eff is main beam efficiency, assume it is one.
 '''
 
+from scipy import interpolate
 from tqdm import tqdm
+from scipy.optimize import curve_fit
+
+import numpy as np
+from glob import glob
+import matplotlib.pyplot as plt
+from astropy.io import fits
+import h5py
+
+import healpy as hp
+
+from scipy.integrate import trapz
+from scipy.optimize import curve_fit, minimize
 def getOutidx(l, m):
     return l**2 + l + m
 
@@ -57,18 +70,6 @@ def complex2realAlms(data, lmax, mmax):
 def gauss(x, sigma):
     return np.exp(-x**2/(2*sigma**2))
 
-from scipy.optimize import curve_fit
-
-import numpy as np
-from glob import glob
-import matplotlib.pyplot as plt
-from astropy.io import fits
-import h5py
-
-import healpy as hp
-
-from scipy.integrate import trapz
-from scipy.optimize import curve_fit, minimize
 
 
 
@@ -99,9 +100,9 @@ dir_B_los = np.array([
 rots = np.arange(0, 360, 45)
 rots = [0]
 for rot in rots:
-  fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
-  #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v7.h5'
-  fname_out = 'test.h5'
+  #fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
+  fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v8.h5'
+  #fname_out = 'test.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
@@ -193,20 +194,18 @@ for rot in rots:
       
       
       # pixel size is 0.04 ~ 58.6/nside
-      nside_beam = 512
-      lmax = 2*nside_beam
+      lmax = 1700
       mmax = 100
       
       
       X = np.arange(-11.98, 12, 0.04)*np.pi/180
       Y = np.arange(-11.98, 12, 0.04)*np.pi/180
-      X2 = np.linspace(X[0], X[-1], len(X)*50)
-      Y2 = np.linspace(Y[0], Y[-1], len(Y)*50)
+      X2 = np.linspace(X[0], X[-1], len(X)*5)
+      Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
       xx, yy = np.meshgrid(X,Y)
       theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
       phi = np.arctan2(yy, xx)
 
-      from scipy import interpolate
 
 
       xx, yy = np.meshgrid(X2,Y2)
@@ -225,8 +224,11 @@ for rot in rots:
 
       #plt.show()
 
-      
-      for fname in fnames:
+     
+      #fig, axes = plt.subplots(nrows=5, ncols=2, sharey=True)
+      #axs = axes.flatten()
+      #lmaxes = [600, 800, 1000, 1000, 1200, 1200, 1500, 1500, 1500, 1500]
+      for beam_ind, fname in enumerate(fnames):
           data = fits.open(fname)
           beamA = data[0].data[0]
           beamB = data[0].data[2]
@@ -235,7 +237,7 @@ for rot in rots:
           f = interpolate.interp2d(X, Y, beamB)
           beamB_2 = f(X2, Y2)
 
-          nside = 4096
+          nside = 4096//4
           mA = np.zeros(12*nside**2)
           mB = np.zeros(12*nside**2)
           N = np.zeros(12*nside**2)
@@ -256,27 +258,69 @@ for rot in rots:
           mB = mB/N
           mA[~np.isfinite(mA)] = 0
           mB[~np.isfinite(mB)] = 0
+
+
           ind = np.argmax(mA)
-          lon, lat = hp.pix2ang(nside, ind, lonlat=True)
-          print(lon, lat)
-          hp.gnomview(mA, rot=(lon,lat,0), reso=0.12, title='A')
+          #fig = plt.figure()
+          #ax = fig.add_subplot(121)
+          #ax.pcolormesh(X,Y,beamA)
+          #ax.set_aspect('equal')
+          #ax = fig.add_subplot(122)
+          #ax.pcolormesh(X,Y,beamB)
+          #ax.set_aspect('equal')
+
+
+          th, ph = hp.pix2ang(nside, ind)
+          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
+              deg=False, eulertype='ZYX')
+          mA = r.rotate_map_pixel(mA)
+
+          #ind = np.argmax(mA)
+          #lon, lat = hp.pix2ang(nside, ind, lonlat=True)
+          #print(lon, lat)
+          #hp.gnomview(mA, rot=(lon,lat,0), reso=0.5, title='A')
+
           ind = np.argmax(mB)
-          lon, lat = hp.pix2ang(nside, ind, lonlat=True)
-          print(lon, lat)
-          hp.gnomview(mB, rot=(lon,lat,0), reso=0.12, title='B')
-          plt.show()
-          print('\n')
+          th, ph = hp.pix2ang(nside, ind)
+          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
+              deg=False, eulertype='ZYX')
+          mB = r.rotate_map_pixel(mB)
+
+          #lon, lat = hp.pix2ang(nside, ind, lonlat=True)
+          #hp.gnomview(mB, rot=(lon,lat,0), reso=0.5, title='B')
+          #plt.show()
+          #print('\n')
           
-          b_lm_A = np.zeros((lmax+1)**2) + 1
-          b_lm_B = np.zeros((lmax+1)**2) + 1
+          alm_A = hp.map2alm(mA, lmax=lmax, mmax=mmax)
+          b_lm_A = complex2realAlms(alm_A, lmax, mmax)
+          alm_B = hp.map2alm(mB, lmax=lmax, mmax=mmax)
+          b_lm_B = complex2realAlms(alm_B, lmax, mmax)
+
+          b_lA = hp.alm2cl(alm_A, lmax=lmax, mmax=mmax)**0.5
+          b_lB = hp.alm2cl(alm_B, lmax=lmax, mmax=mmax)**0.5
+          b_lm_A /= max(b_lA)
+          b_lm_B /= max(b_lB)
+          #axs[beam_ind].plot(b_lA/max(b_lA), label='A')
+          #axs[beam_ind].plot(b_lB/max(b_lB), ':', label='B')
+          #axs[beam_ind].set_ylim([0,1])
+          #axs[beam_ind].set_xlim([0, lmaxes[beam_ind]])
+          #axs[1].legend()
       
           DA = fname.split('_')[4]
-      
+           
           with h5py.File(fname_out, 'a') as f:
               f.create_dataset(DA + '13/beam/T', data=b_lm_A)
               f.create_dataset(DA + '14/beam/T', data=b_lm_A)
               f.create_dataset(DA + '23/beam/T', data=b_lm_B)
               f.create_dataset(DA + '24/beam/T', data=b_lm_B)
+              f.create_dataset(DA + '13/beam/E', data=b_lm_A*0)
+              f.create_dataset(DA + '14/beam/E', data=b_lm_A*0)
+              f.create_dataset(DA + '23/beam/E', data=b_lm_B*0)
+              f.create_dataset(DA + '24/beam/E', data=b_lm_B*0)
+              f.create_dataset(DA + '13/beam/B', data=b_lm_A*0)
+              f.create_dataset(DA + '14/beam/B', data=b_lm_A*0)
+              f.create_dataset(DA + '23/beam/B', data=b_lm_B*0)
+              f.create_dataset(DA + '24/beam/B', data=b_lm_B*0)
               f.create_dataset(DA + '13/beamlmax', data=[lmax])
               f.create_dataset(DA + '14/beamlmax', data=[lmax])
               f.create_dataset(DA + '23/beamlmax', data=[lmax])
@@ -295,7 +339,8 @@ for rot in rots:
               f.create_dataset(DA + '23/psi_ell', data=[0])
               f.create_dataset(DA + '24/psi_ell', data=[0])
       
-      
+     
+      plt.show()
       nside = 2**7
       sllmax = 512
       slmmax = 100
