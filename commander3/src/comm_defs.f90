@@ -30,6 +30,7 @@ module comm_defs
   real(dp), parameter :: c         = 2.99792458d8
   real(dp)            :: T_CMB     = 2.72548d0
   real(dp)            :: T_CMB_DIP = 3359.5d-6
+  real(dp)            :: v_solar(3)= [0.d0, 0.d0, 0.d0]
 
   !**************************************************
   !               Counters

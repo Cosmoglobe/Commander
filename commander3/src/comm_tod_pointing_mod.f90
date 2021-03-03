@@ -31,7 +31,7 @@ contains
         & s_sky, tmask, s_bp)
       implicit none
       class(comm_tod),                   intent(in)             :: tod
-      integer(i4b), dimension(0:),       intent(in)             :: pmask
+      real(sp),     dimension(0:),       intent(in)             :: pmask
       real(sp),     dimension(1:,1:,0:), intent(in)             :: map
       integer(i4b), dimension(:,:),      intent(in)             :: pix, psi
       integer(i4b), dimension(:,:),      intent(in)             :: flag
@@ -85,18 +85,17 @@ contains
       implicit none
       !class(comm_tod), intent(in)  :: tod
       ! It is only inout for simulating data
-      class(comm_tod), intent(inout)  :: tod
-      integer(i4b), dimension(0:), intent(in)  :: pmask
-      real(sp), dimension(1:, 1:, 0:), intent(in)  :: map
-      !type(shared_2d_sp),  dimension(0:),     intent(in)  :: map
-      integer(i4b), dimension(:, :), intent(in)  :: pix, psi
-      integer(i4b), dimension(:), intent(in)  :: flag
-      integer(i4b), intent(in)  :: scan_id
-      real(sp), dimension(:, :), intent(out) :: s_skyA, s_skyB, tmask
-      real(sp), dimension(:, :), intent(out), optional :: s_bpA, s_bpB
+      class(comm_tod),                      intent(inout)  :: tod
+      real(sp),        dimension(0:),       intent(in)     :: pmask
+      real(sp),        dimension(1:,1:,0:), intent(in)     :: map
+      integer(i4b),    dimension(:,:),      intent(in)     :: pix, psi
+      integer(i4b),    dimension(:),        intent(in)     :: flag
+      integer(i4b),                         intent(in)     :: scan_id
+      real(sp),        dimension(:,:),      intent(out)    :: s_skyA, s_skyB, tmask
+      real(sp),        dimension(:,:),      intent(out), optional :: s_bpA, s_bpB
 
       integer(i4b) :: i, j, lpoint, rpoint, det
-      real(sp)                                          :: sA, sB, tr, pr, tl, pl
+      real(sp)     :: sA, sB, tr, pr, tl, pl
       real(sp), dimension(4) :: sgn=[1., 1., -1., -1.]
 
 

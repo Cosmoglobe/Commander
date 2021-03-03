@@ -47,7 +47,7 @@ module comm_tod_SPIDER_mod
 
 
   type, extends(comm_tod) :: comm_SPIDER_tod
-  class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
+     !class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
    contains
      procedure     :: process_tod        => process_SPIDER_tod
   end type comm_SPIDER_tod
@@ -591,24 +591,25 @@ contains
           !call update_status(status, "tod_decomp")
           ! Construct sky signal template
           call wall_time(t1)
-          if (do_oper(bin_map) .or. do_oper(prep_relbp)) then 
-             call project_sky(self, map_sky(:,:,:,1), pix(:,:,1), psi(:,:,1), flag, &
-                  & sprocmask%a, i, s_sky, mask, s_bp=s_bp)  
-          else 
-             call project_sky(self, map_sky(:,:,:,1), pix(:,:,1), psi(:,:,1), flag, &
-                  & sprocmask%a, i, s_sky, mask)
-          end if
-          if (do_oper(prep_relbp)) then
-             do j = 2, ndelta
-                call project_sky(self, map_sky(:,:,:,j), pix(:,:,1), psi(:,:,1), flag, &
-                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
-             end do
-          else if (do_oper(prep_absbp)) then
-             do j = 2, ndelta
-                call project_sky(self, map_sky(:,:,:,j), pix(:,:,1), psi(:,:,1), flag, &
-                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
-             end do
-          end if
+!!$ HKE: commented out this
+!!$          if (do_oper(bin_map) .or. do_oper(prep_relbp)) then 
+!!$             call project_sky(self, map_sky(:,:,:,1), pix(:,:,1), psi(:,:,1), flag, &
+!!$                  & sprocmask%a, i, s_sky, mask, s_bp=s_bp)  
+!!$          else 
+!!$             call project_sky(self, map_sky(:,:,:,1), pix(:,:,1), psi(:,:,1), flag, &
+!!$                  & sprocmask%a, i, s_sky, mask)
+!!$          end if
+!!$          if (do_oper(prep_relbp)) then
+!!$             do j = 2, ndelta
+!!$                call project_sky(self, map_sky(:,:,:,j), pix(:,:,1), psi(:,:,1), flag, &
+!!$                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
+!!$             end do
+!!$          else if (do_oper(prep_absbp)) then
+!!$             do j = 2, ndelta
+!!$                call project_sky(self, map_sky(:,:,:,j), pix(:,:,1), psi(:,:,1), flag, &
+!!$                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
+!!$             end do
+!!$          end if
           if (main_iter == 1 .and. self%first_call) then
              do j = 1, ndet
                 if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
@@ -1151,13 +1152,14 @@ contains
 
              call wall_time(t1)
 
-             if (do_oper(samp_mono)) then
-                call bin_TOD(self, d_calib, pix(:,:,1), &
-                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
-             else
-                call bin_TOD(self, d_calib, pix(:,:,1), &
-                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp))
-             end if
+!!$ HKE: commented out this
+!!$             if (do_oper(samp_mono)) then
+!!$                call bin_TOD(self, d_calib, pix(:,:,1), &
+!!$                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
+!!$             else
+!!$                call bin_TOD(self, d_calib, pix(:,:,1), &
+!!$                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp))
+!!$             end if
              deallocate(d_calib)
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
           end if
@@ -1276,26 +1278,23 @@ contains
 
        call update_status(status, "finalize1")
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
-       if (do_oper(samp_mono)) then
-          if (do_oper(prep_relbp)) then
-             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
-          else
-             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
-          end if
-!!$          condmap => comm_map(self%info)
-!!$          call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono, condmap=condmap)
-!!$          call condmap%writeFITS("cond.fits")
-!!$          call condmap%dealloc()
-       else
-          !condmap => comm_map(self%info)
-          if (do_oper(prep_relbp)) then
-             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
-          else
-             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
-          end if
-          !call condmap%writeFITS("cond.fits")
-          !call condmap%dealloc()
-       end if
+!!$ HKE: commented out this
+!!$       if (do_oper(samp_mono)) then
+!!$          if (do_oper(prep_relbp)) then
+!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+!!$          else
+!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
+!!$          end if
+!!$       else
+!!$          !condmap => comm_map(self%info)
+!!$          if (do_oper(prep_relbp)) then
+!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+!!$          else
+!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
+!!$          end if
+!!$          !call condmap%writeFITS("cond.fits")
+!!$          !call condmap%dealloc()
+!!$       end if
 
        if (do_oper(samp_bp)) then
           call wall_time(t1)
@@ -1307,10 +1306,11 @@ contains
        map_out%map = outmaps(1)%p%map
        
        ! Sample monopole coefficients
-       if (do_oper(samp_mono)) then
-          call sample_mono(self, handle, sys_mono, outmaps(2)%p, rms_out, &
-               & self%procmask)
-       end if
+!!$ HKE: Commented out this; no support for monopole sampling anymore
+!!$       if (do_oper(samp_mono)) then
+!!$          call sample_mono(self, handle, sys_mono, outmaps(2)%p, rms_out, &
+!!$               & self%procmask)
+!!$       end if
 
        ! Update bandpass parameters
        self%bp_delta = delta(:,:,1)

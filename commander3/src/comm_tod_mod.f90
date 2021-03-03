@@ -27,6 +27,7 @@ module comm_tod_mod
   use comm_huffman_mod
   use comm_conviqt_mod
   use comm_zodi_mod
+  use comm_tod_orbdipole_mod
   USE ISO_C_BINDING
   implicit none
 
@@ -93,15 +94,18 @@ module comm_tod_mod
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
-     integer(i4b) :: nscan, nscan_tot                              ! Number of scans
+     integer(i4b) :: nscan, nscan_tot                             ! Number of scans
      integer(i4b) :: first_scan, last_scan
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
 
      real(dp)     :: central_freq                                 !Central frequency
-     real(dp)     :: samprate, samprate_lowres                      ! Sample rate in Hz
+     real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
+     real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
      logical(lgt) :: orb_abscal
      logical(lgt) :: compressed_tod               
+     logical(lgt) :: symm_flags               
+     class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
@@ -159,6 +163,7 @@ module comm_tod_mod
      procedure                        :: initialize_bp_covar
      procedure(process_tod), deferred :: process_tod
      procedure                        :: construct_sl_template
+     procedure                        :: construct_dipole_template
      procedure                        :: output_scan_list
      procedure                        :: downsample_tod
      procedure                        :: compute_chisq
@@ -300,6 +305,10 @@ contains
     end if
     allocate(self%bp_delta(0:self%ndet,ndelta))
     self%bp_delta = 0.d0
+
+    ! Allocate orbital dipole object
+    allocate(self%orb_dp)
+    self%orb_dp => comm_orbdipole(self%mbeam)
 
   end subroutine tod_constructor
 
@@ -1180,7 +1189,7 @@ contains
     real(dp)     :: psi_
 
     pix_prev = -1; psi_prev = -1
-    do j=1, size(pix)
+    do j = 1, size(pix)
        pix_    = self%ind2sl(self%pix2ind(pix(j)))
        if (pix_prev == pix_ .and. psi(j) == psi_prev) then
           s_sl(j) = s_sl(j-1)
@@ -1192,6 +1201,46 @@ contains
     end do
 
   end subroutine construct_sl_template
+
+  !construct a CMB dipole template in the time domain
+  subroutine construct_dipole_template(self, scan, pix, psi, orbital, s_dip)
+    implicit none
+    class(comm_tod),                   intent(inout) :: self
+    integer(i4b),                      intent(in)    :: scan
+    integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
+    logical(lgt),                      intent(in)    :: orbital
+    real(sp),        dimension(:,:),   intent(out)   :: s_dip
+
+    integer(i4b) :: i, j, ntod
+    real(dp)     :: v_ref(3)
+    real(dp), allocatable, dimension(:,:) :: P
+
+    ntod = self%scans(scan)%ntod
+
+    allocate(P(3,ntod))
+    do j = 1, self%ndet
+       if (.not. self%scans(scan)%d(j)%accept) cycle
+
+       if (orbital) then
+          v_ref = self%scans(scan)%v_sun
+          do i = 1, ntod
+             P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
+                     & self%ind2ang(1,self%pix2ind(pix(i,j))), &
+                     & self%psi(psi(i,j))] ! [phi, theta, psi7]
+          end do
+       else
+          v_ref = v_solar
+          do i = 1, ntod
+             P(:,i) =  self%pix2vec(:,pix(i,j)) ! [v_x, v_y, v_z]
+          end do
+       end if
+
+       call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
+            & orbital, self%orb_4pi_beam, P, s_dip(:,j))
+    end do
+    deallocate(P)
+
+  end subroutine construct_dipole_template
 
   subroutine output_scan_list(self, slist)
     implicit none

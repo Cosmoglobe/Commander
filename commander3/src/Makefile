@@ -47,12 +47,12 @@ comm_conviqt_mod.o :       sharp.o comm_map_mod.o comm_shared_arr_mod.o
 comm_hdf_mod.o :           comm_utils.o
 comm_fft_mod.o :           locate_mod.o comm_utils.o comm_param_mod.o
 comm_tod_mod.o :           comm_utils.o comm_fft_mod.o comm_map_mod.o comm_hdf_mod.o comm_param_mod.o \
-			   comm_huffman_mod.o comm_zodi_mod.o
+			   comm_huffman_mod.o comm_zodi_mod.o comm_tod_orbdipole_mod.o
 comm_tod_mapmaking_mod.o:  comm_tod_mod.o
 comm_tod_bandpass_mod.o:   comm_tod_mod.o
 comm_tod_noise_mod.o:      comm_tod_mod.o comm_tod_jump_mod.o InvSamp_mod.o
 comm_tod_gain_mod.o:       comm_tod_mod.o comm_tod_noise_mod.o
-comm_tod_orbdipole_mod.o:  comm_map_mod.o comm_tod_mod.o
+comm_tod_orbdipole_mod.o:  comm_map_mod.o comm_utils.o
 comm_tod_pointing_mod.o:   comm_tod_mod.o
 comm_utils.o :             comm_defs.o spline_1D_mod.o
 comm_shared_arr_mod.o :    comm_utils.o
@@ -125,7 +125,7 @@ comm_tod_jump_mod.o :      comm_utils.o sort_utils.o
 comm_tod_WMAP_mod.o :      comm_tod_mod.o comm_shared_arr_mod.o comm_conviqt_mod.o comm_4D_map_mod.o comm_zodi_mod.o \
                            comm_tod_mapmaking_mod.o comm_tod_bandpass_mod.o comm_tod_pointing_mod.o \
 			   comm_tod_orbdipole_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o
-comm_tod_simulations_mod.o: comm_tod_LFI_mod.o comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o \
+comm_tod_simulations_mod.o: comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o \
 														spline_1D_mod.o comm_param_mod.o comm_utils.o
 
 commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_chisq_mod.o \

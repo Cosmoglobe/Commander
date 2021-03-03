@@ -512,7 +512,7 @@ contains
 
 
     !if (.false. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
-    if (.false. .and. out) then
+    if (out) then
        call int2string(tod%scanid(scan), itext)
        !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
        open(58,file='gainfit3_'//itext//'.dat')
