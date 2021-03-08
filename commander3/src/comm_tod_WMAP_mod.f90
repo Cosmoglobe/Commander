@@ -147,6 +147,8 @@ contains
 
       allocate(constructor%slconv(constructor%ndet))
       allocate (constructor%orb_dp)
+      ! Need precompute the main beam precomputation for both the A-horn and
+      ! B-horn.
       constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
    end function constructor
 
@@ -464,12 +466,14 @@ contains
             call wall_time(t1)
             !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
             !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
-            call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,1), psi(:,1), s_orbA, 1d3)
-            call self%orb_dp%p%compute_orbital_dipole_4pi(i, pix(:,2), psi(:,2), s_orbB, 1d3)
+            ! The ordering is a bit messed up, where 13/14 are beam A, 23/24 are beam B
+            call self%orb_dp%p%compute_orbital_dipole_4pi_diff(i, pix(:,1), psi(:,1),s_orbA,1,1d3)
+            call self%orb_dp%p%compute_orbital_dipole_4pi_diff(i, pix(:,2), psi(:,2),s_orbB,3,1d3)
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                s_orb_tot(:, j) = (1d0+x_im(j))*s_orbA(:,j) - &
                                & (1d0-x_im(j))*s_orbB(:,j)
+            end do
             call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
             ! Construct sidelobe template

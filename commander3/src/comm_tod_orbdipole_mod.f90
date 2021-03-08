@@ -39,6 +39,7 @@ module comm_tod_orbdipole_mod
   contains
     procedure :: precompute_orb_dp_s
     procedure :: compute_orbital_dipole_4pi
+    procedure :: compute_orbital_dipole_4pi_diff
     procedure :: compute_orbital_dipole_pencil
     procedure :: compute_4pi_product
     procedure :: compute_solar_dipole_4pi
@@ -295,17 +296,19 @@ contains
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
-  subroutine compute_orbital_dipole_4pi(self, ind, pix, psi, s_orb)
+  subroutine compute_orbital_dipole_4pi(self, ind, pix, psi, s_orb, factor)
     implicit none
     class(comm_orbdipole),               intent(inout)  :: self
     integer(i4b),                        intent(in)  :: ind !scan nr/index
     integer(i4b),        dimension(:,:), intent(in)  :: pix, psi
     real(sp),            dimension(:,:), intent(out) :: s_orb
+    real(dp),               intent(in), optional     :: factor
     integer(i4b)         :: i, j, p, s_len, k, psiInd
-    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation, j_real
+    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation, j_real, f
     real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
     real(dp), dimension(:), allocatable :: x_vec, y_vec
 
+    f = 1.; if (present(factor)) f = factor
     !these are the npipe paper definitions
     !TODO: maybe also use the bandpass shift to modify the central frequency? 
     !will that matter?
@@ -322,7 +325,7 @@ contains
           p      = self%tod%pix2ind(pix(j,i))
           psiInd = psi(j,i)
 
-          summation = self%compute_4pi_product(p, psiInd, ind, i, q)
+          summation = f*self%compute_4pi_product(p, psiInd, ind, i, q)
           x_vec(k+1) = j
           y_vec(k+1) = summation
        end do
@@ -355,6 +358,63 @@ contains
    ! close(59)
    !end if
   end subroutine compute_orbital_dipole_4pi
+
+  subroutine compute_orbital_dipole_4pi_diff(self, ind, pix, psi, s_orb, i, factor)
+    implicit none
+    class(comm_orbdipole),               intent(inout)  :: self
+    integer(i4b),                        intent(in)  :: ind !scan nr/index
+    integer(i4b),                        intent(in)  :: i   !detector
+    integer(i4b),        dimension(:), intent(in)  :: pix, psi
+    real(sp),            dimension(:,:), intent(out) :: s_orb
+    real(dp),               intent(in), optional     :: factor
+    integer(i4b)         :: j, p, s_len, k, psiInd
+    real(dp)             :: x, T_0, q, pix_dir(3), b, b_dot, summation, j_real, f
+    real(dp), parameter  :: h = 6.62607015d-34   ! Planck's constant [Js]
+    real(dp), dimension(:), allocatable :: x_vec, y_vec
+
+    f = 1.d0; if (present(factor)) f = factor
+    !these are the npipe paper definitions
+    !TODO: maybe also use the bandpass shift to modify the central frequency? 
+    !will that matter?
+    x = h * self%tod%central_freq/(k_B * T_CMB)
+    q = (x/2.d0)*(exp(x)+1.d0)/(exp(x) -1.d0)
+
+    s_len = self%tod%scans(ind)%ntod/self%subsample
+    allocate(x_vec(s_len), y_vec(s_len))
+    do k=0,s_len-1 !number of subsampled samples
+       j = (self%subsample * k) + 1
+
+       p      = self%tod%pix2ind(pix(j))
+       psiInd = psi(j)
+
+       summation = f*self%compute_4pi_product(p, psiInd, ind, i, q)
+       x_vec(k+1) = j
+       y_vec(k+1) = summation
+    end do
+    
+    !spline the subsampled dipole to the full resolution
+    call spline_simple(self%s, x_vec, y_vec, regular=.true.)
+
+    do j=1, s_len*self%subsample
+      j_real = j
+      s_orb(j,i) = splint_simple(self%s, j_real)
+    end do
+
+    !handle the last irregular length bit of each chunk as a special case 
+    !so that we can use regular=true in the spline code for speed
+    do j=s_len*self%subsample, self%tod%scans(ind)%ntod
+      p      = self%tod%pix2ind(pix(j))
+      psiInd = psi(j)
+      
+      s_orb(j,i) = self%compute_4pi_product(p, psiInd, ind, i, q)
+
+    end do
+
+    deallocate(x_vec, y_vec)
+
+    call free_spline(self%s)
+   
+  end subroutine compute_orbital_dipole_4pi_diff
 
   subroutine compute_solar_dipole_4pi(self, ind, pix, psi, s_sol)
     implicit none
