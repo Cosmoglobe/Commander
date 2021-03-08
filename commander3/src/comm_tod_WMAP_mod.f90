@@ -269,10 +269,10 @@ contains
 
       ! Distribute fullsky maps
       allocate (m_buf(0:npix - 1, nmaps))
-      if (self%myid == 0) then
+      !if (self%myid == 0) then
          allocate(map_full(0:npix-1))
          map_full = 0.d0
-      end if
+      !end if
       do j = 1, ndelta
          do i = 1, self%ndet
             map_in(i, j)%p%map = map_in(i, j)%p%map
@@ -859,7 +859,9 @@ contains
       call wall_time(t9)
       call update_status(status, "Starting bicg-stab")
       do l=1, self%output_n_maps
-         if (self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+         if (self%verbosity > 0 .and. self%myid == 0) then
+           write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+         end if
          call run_bicgstab(self, handle, cg_sol, npix, nmaps, num_cg_iters, &
                           & epsil(l), procmask, map_full, M_diag, b_map, l)
       end do
@@ -921,7 +923,8 @@ contains
       ! Clean up temporary arrays
       deallocate(A_abscal, b_abscal, chisq_S, procmask)
       deallocate(b_map, M_diag, cg_tot)
-      if (self%myid ==0) deallocate(map_full)
+      !if (self%myid ==0) deallocate(map_full)
+      deallocate(map_full)
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
       if (allocated(slist)) deallocate (slist)
