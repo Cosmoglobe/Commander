@@ -158,4 +158,4 @@ libcommander.a : $(COBJS)
 	$(TEMPITA) < "$<" > "$@"
 
 clean :
-	@rm -f *.o *.mod *.MOD *.a *~ commander
+	@rm -f *.o *.mod *.MOD *.a *~ commander sharp_test

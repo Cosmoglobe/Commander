@@ -481,6 +481,176 @@ end subroutine bin_differential_TOD
 
    end subroutine finalize_binned_map
 
+
+   subroutine run_bicgstab(tod, handle, cg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l)
+     implicit none
+     class(comm_tod), intent(in) :: tod
+     type(planck_rng),                     intent(inout) :: handle
+     real(dp), dimension(:, :, :), intent(inout) :: cg_sol
+     integer(i4b), intent(in) :: npix, nmaps
+     integer(i4b), intent(inout) :: num_cg_iters
+     real(dp),  intent(in) :: epsil
+     integer(i4b), dimension(:), intent(in)    :: procmask
+     real(dp), dimension(:), intent(inout)     :: map_full
+     real(dp), dimension(:,:), intent(in)     :: M_diag
+     real(dp), dimension(:,:,:), intent(in)     :: b_map
+     integer(i4b), intent(in)    :: l
+
+     real(dp), allocatable, dimension(:, :)          :: m_buf
+     integer(i4b) :: i_max, i_min, ierr, status, i
+     real(dp) :: delta_0, delta_old, delta_new
+     real(dp) :: alpha, beta, g, f_quad, sigma_mono
+     real(dp), allocatable, dimension(:, :)    :: r, s, d, q
+     real(dp) :: monopole
+     logical(lgt) :: write_cg_iter=.false., finished
+     real(dp) :: rho_old, rho_new
+     real(dp) :: omega, delta_r, delta_s
+     real(dp), allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
+     real(dp), allocatable, dimension(:)    :: determ
+
+     if (tod%myid==0) then
+         allocate (r     (0:npix-1, nmaps))
+         allocate (rhat  (0:npix-1, nmaps))
+         allocate (r0    (0:npix-1, nmaps))
+         allocate (q     (0:npix-1, nmaps))
+         allocate (p     (0:npix-1, nmaps))
+         allocate (s     (0:npix-1, nmaps))
+         allocate (shat  (0:npix-1, nmaps))
+         allocate (m_buf (0:npix-1, nmaps))
+         allocate (phat  (0:npix-1, nmaps))
+         allocate (v     (0:npix-1, nmaps))
+         allocate (determ(0:npix-1))
+         determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
+
+         i_max = 100
+         i_min = 0
+
+        if (.false. .and. l == 1) then
+           call compute_Ax(tod, tod%x_im, procmask, cg_sol(:,:,1), v)
+           r = b_map(:, :, l) - v 
+        else
+           r  = b_map(:, :, l)
+        end if
+        r0 = b_map(:, :, l)
+        rhat(:,1) =  r(:,1)/M_diag(:,1)
+        rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
+        rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+        delta_r = sum(r*rhat)
+        delta_0 = delta_r
+        delta_s = delta_s
+
+        omega = 1d0
+        alpha = 1d0
+
+        rho_new = sum(r0*r)
+        bicg: do i = 1, i_max
+           rho_old = rho_new
+           rho_new = sum(r0*r)
+           if (rho_new == 0d0) then
+             write(*,*) 'rho_i is zero'
+             finished = .true.
+             call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+             exit bicg
+           end if
+
+           if (i==1) then
+              p = r
+           else
+              beta = (rho_new/rho_old) * (alpha/omega)
+              p = r + beta*(p - omega*v)
+           end if
+           phat(:,1) =  p(:,1)/M_diag(:,1)
+           phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
+           phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
+           
+           call compute_Ax(tod, tod%x_im, procmask, phat, v)
+           num_cg_iters = num_cg_iters + 1
+
+           alpha         = rho_new/sum(r0*v)
+           s             = r - alpha*v
+           shat(:,1) =  s(:,1)/M_diag(:,1)
+           shat(:,2) = (s(:,2)*M_diag(:,3)- s(:,2)*M_diag(:,4))/determ
+           shat(:,3) = (s(:,3)*M_diag(:,2)- s(:,3)*M_diag(:,4))/determ
+           delta_s       = sum(s*shat)
+
+           if (tod%verbosity > 1) then 
+              write(*,101) 2*i-1, delta_s/delta_0
+101           format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
+           end if
+
+           cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
+
+           if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
+              finished = .true.
+              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+              exit bicg
+           end if
+
+           call compute_Ax(tod, tod%x_im, procmask, shat, q)
+
+           omega         = sum(q*s)/sum(q*q)
+           cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
+           if (omega == 0d0) then
+             write(*,*) 'omega is zero'
+             finished = .true.
+             call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+             exit bicg
+           end if
+
+           if (mod(i, 10) == 1 .or. beta > 1.d8) then
+              call compute_Ax(tod, tod%x_im, procmask, cg_sol(:,:,l), r)
+              r = b_map(:, :, l) - r
+           else
+              r = s - omega*q
+           end if
+
+           rhat(:,1) =  r(:,1)/M_diag(:,1)
+           rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
+           rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+           delta_r      = sum(r*rhat)
+           num_cg_iters = num_cg_iters + 1
+
+           if (tod%verbosity > 1) then 
+              write(*,102) 2*i, delta_r/delta_0
+102           format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
+           end if
+           if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
+              finished = .true.
+              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+              exit bicg
+           end if
+        end do bicg
+
+        if (l == 1) then
+           ! Maximum likelihood monopole
+           monopole = sum((cg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
+                  & / sum(M_diag(:,1)*procmask)
+           write(*,*) monopole
+           if (trim(tod%operation) == 'sample') then
+              ! Add fluctuation term if requested
+              sigma_mono = sum(M_diag(:,1) * procmask)
+              if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
+              if (tod%verbosity > 1) then
+                write(*,*) 'monopole, fluctuation sigma'
+                write(*,*) monopole, sigma_mono
+              end if
+              monopole = monopole + sigma_mono * rand_gauss(handle)
+           end if
+           write(*,*) 'sampled final monopole = ', monopole
+           cg_sol(:,1,1) = cg_sol(:,1,1) - monopole
+           write(*,*) 'cg_sol monopole', sum(cg_sol(:,1,1)*procmask)/sum(procmask)
+        end if
+     else
+        loop: do while (.true.) 
+           call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+           if (finished) exit loop
+           call compute_Ax(tod, tod%x_im, procmask)
+        end do loop
+     end if
+     if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
+
+   end subroutine run_bicgstab
+
    subroutine sample_mono(tod, handle, sys_mono, res, rms, mask)
       implicit none
       class(comm_tod), intent(inout) :: tod

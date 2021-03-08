@@ -849,174 +849,19 @@ contains
       call update_status(status, "Allocating cg arrays")
       allocate (cg_sol(0:npix-1, nmaps, nout))
       if (self%myid == 0) then 
-         allocate (r     (0:npix-1, nmaps))
-         allocate (rhat  (0:npix-1, nmaps))
-         allocate (r0    (0:npix-1, nmaps))
-         allocate (q     (0:npix-1, nmaps))
-         allocate (p     (0:npix-1, nmaps))
-         allocate (s     (0:npix-1, nmaps))
-         allocate (shat  (0:npix-1, nmaps))
-         allocate (m_buf (0:npix-1, nmaps))
-         allocate (phat  (0:npix-1, nmaps))
-         allocate (v     (0:npix-1, nmaps))
-         allocate (determ(0:npix-1))
-         determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
-
          cg_sol = 0.0d0
-         !cg_sol(:,:,1) = map_sky(:,:,0,1)
-         ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
          epsil(1)   = 1d-10
          epsil(2:6) = 1d-6
-         i_max = 100
-         i_min = 0
          num_cg_iters = 0
-
          if (self%verbosity > 0) write(*,*) '  Running BiCG'
       end if
 
       call wall_time(t9)
+      call update_status(status, "Starting bicg-stab")
       do l=1, self%output_n_maps
-         if (self%myid==0) then
-            if (self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
-            call update_status(status, "Starting bicg-stab")
-            if (.false. .and. l == 1) then
-               call compute_Ax(self, self%x_im, procmask, cg_sol(:,:,1), v)
-               r = b_map(:, :, l) - v 
-            else
-               r  = b_map(:, :, l)
-            end if
-            r0 = b_map(:, :, l)
-            if (maxval(r) == 0) cycle
-            rhat(:,1) =  r(:,1)/M_diag(:,1)
-            rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
-            rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
-            delta_r = sum(r*rhat)
-            delta_0 = delta_r
-            delta_s = delta_s
-
-            omega = 1d0
-            alpha = 1d0
-
-            rho_new = sum(r0*r)
-            bicg: do i = 1, i_max
-               rho_old = rho_new
-               rho_new = sum(r0*r)
-               if (rho_new == 0d0) then
-                 write(*,*) 'rho_i is zero'
-                 finished = .true.
-                 call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
-                 exit bicg
-               end if
-
-               if (i==1) then
-                  p = r
-               else
-                  beta = (rho_new/rho_old) * (alpha/omega)
-                  p = r + beta*(p - omega*v)
-               end if
-               phat(:,1) =  p(:,1)/M_diag(:,1)
-               phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
-               phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
-               
-               call update_status(status, "Calling v=Ap")
-               call compute_Ax(self, self%x_im, procmask, phat, v)
-               num_cg_iters = num_cg_iters + 1
-
-               alpha         = rho_new/sum(r0*v)
-               s             = r - alpha*v
-               shat(:,1) =  s(:,1)/M_diag(:,1)
-               shat(:,2) = (s(:,2)*M_diag(:,3)- s(:,2)*M_diag(:,4))/determ
-               shat(:,3) = (s(:,3)*M_diag(:,2)- s(:,3)*M_diag(:,4))/determ
-               delta_s       = sum(s*shat)
-
-               if (self%verbosity > 1) then 
-                  write(*,101) 2*i-1, delta_s/delta_0
-101               format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
-               end if
-
-               cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
-               if (write_cg_iter) then
-                 cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
-                 filename=trim(prefix)//'cg'//trim(str(l))//'_it'//trim(str(2*(i-1)))//trim(postfix)
-                 call write_map(filename, cg_tot)
-               end if
-
-               if (delta_s .le. (delta_0*epsil(l)) .and. 2*i-1 .ge. i_min) then
-                  finished = .true.
-                  call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
-                  exit bicg
-               end if
-
-               call update_status(status, "Calling  q= A shat")
-               call compute_Ax(self, self%x_im, procmask, shat, q)
-
-               omega         = sum(q*s)/sum(q*q)
-               cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
-               if (write_cg_iter) then
-                 cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
-                 filename=trim(prefix)//'cg'//trim(str(l))//'_it'//trim(str(2*(i-1)+1))//trim(postfix)
-                 call write_map(filename, cg_tot)
-               end if
-               if (omega == 0d0) then
-                 write(*,*) 'omega is zero'
-                 finished = .true.
-                 call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
-                 exit bicg
-               end if
-
-               if (mod(i, 10) == 1 .or. beta > 1.d8) then
-                  call update_status(status, 'r = b - Ax')
-                  call compute_Ax(self, self%x_im, procmask, cg_sol(:,:,l), r)
-                  r = b_map(:, :, l) - r
-               else
-                  call update_status(status, 'r = s - omega*t')
-                  r = s - omega*q
-               end if
-
-               rhat(:,1) =  r(:,1)/M_diag(:,1)
-               rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
-               rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
-               delta_r      = sum(r*rhat)
-               num_cg_iters = num_cg_iters + 1
-
-               if (self%verbosity > 1) then 
-                  write(*,102) 2*i, delta_r/delta_0
-102               format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
-               end if
-               if (delta_r .le. delta_0*epsil(l) .and. 2*i .ge. i_min) then
-                  finished = .true.
-                  call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
-                  exit bicg
-               end if
-            end do bicg
-
-            if (l == 1) then
-               ! Maximum likelihood monopole
-               monopole = sum((cg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
-                      & / sum(M_diag(:,1)*procmask)
-               write(*,*) monopole
-               if (trim(self%operation) == 'sample') then
-                  ! Add fluctuation term if requested
-                  sigma_mono = sum(M_diag(:,1) * procmask)
-                  if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
-                  if (self%verbosity > 1) then
-                    write(*,*) 'monopole, fluctuation sigma'
-                    write(*,*) monopole, sigma_mono
-                  end if
-                  monopole = monopole + sigma_mono * rand_gauss(handle)
-               end if
-               write(*,*) 'sampled final monopole = ', monopole
-               cg_sol(:,1,1) = cg_sol(:,1,1) - monopole
-               write(*,*) 'cg_sol monopole', sum(cg_sol(:,1,1)*procmask)/sum(procmask)
-               deallocate(map_full)
-            end if
-         else
-            loop: do while (.true.) 
-               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, self%info%comm, ierr)
-               if (finished) exit loop
-               call compute_Ax(self, self%x_im, procmask)
-            end do loop
-         end if
+         if (self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+         call run_bicgstab(self, handle, cg_sol, npix, nmaps, num_cg_iters, &
+                          & epsil(l), procmask, map_full, M_diag, b_map, l)
       end do
 
       call wall_time(t10); t_tot(21) = (t10 - t9)
@@ -1076,6 +921,7 @@ contains
       ! Clean up temporary arrays
       deallocate(A_abscal, b_abscal, chisq_S, procmask)
       deallocate(b_map, M_diag, cg_tot)
+      if (self%myid ==0) deallocate(map_full)
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
       if (allocated(slist)) deallocate (slist)
