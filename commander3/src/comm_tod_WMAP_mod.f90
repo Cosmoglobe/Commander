@@ -938,7 +938,7 @@ contains
       end if
 
       deallocate (map_sky, cg_sol)
-      if (self%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
+      !if (self%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
 
       if (correct_sl) then
          do i = 1, self%ndet
