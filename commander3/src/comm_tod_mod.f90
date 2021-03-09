@@ -248,6 +248,9 @@ contains
     self%central_freq  = cpar%ds_nu_c(id_abs)
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
     self%nside_param   = cpar%ds_nside(id_abs)
+    self%verbosity     = cpar%verbosity
+    self%sims_output_dir = cpar%sims_output_dir
+    self%enable_tod_simulations = cpar%enable_tod_simulations
 
     call mpi_comm_size(cpar%comm_shared, self%numprocs_shared, ierr)
 
@@ -307,9 +310,9 @@ contains
     allocate(self%bp_delta(0:self%ndet,ndelta))
     self%bp_delta = 0.d0
 
-    ! Allocate orbital dipole object
-    allocate(self%orb_dp)
-    self%orb_dp => comm_orbdipole(self%mbeam)
+    ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
+    !allocate(self%orb_dp)
+    !self%orb_dp => comm_orbdipole(self%mbeam)
 
   end subroutine tod_constructor
 
