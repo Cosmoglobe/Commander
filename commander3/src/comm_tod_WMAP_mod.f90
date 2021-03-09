@@ -68,7 +68,7 @@ module comm_tod_WMAP_mod
    logical(lgt), dimension(N_test) :: do_oper
 
    type, extends(comm_tod) :: comm_WMAP_tod
-      class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
+      !class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
    contains
       procedure     :: process_tod => process_WMAP_tod
@@ -146,8 +146,8 @@ contains
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
       allocate(constructor%slconv(constructor%ndet))
-      allocate (constructor%orb_dp)
-      constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
+      !allocate (constructor%orb_dp)
+      !constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
    end function constructor
 
    !**************************************************
@@ -432,16 +432,17 @@ contains
 
             ! Construct sky signal template
             call wall_time(t1)
-            if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
-               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
-                 & procmask, i, s_skyA, s_skyB, mask, s_bpA=s_bpA, s_bpB=s_bpB)
-            else
-               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
-                    & procmask, i, s_skyA, s_skyB, mask)
-               s_bpA = 0.
-               s_bpB = 0.
-               s_bp  = 0.
-            end if
+!!$ HKE: commented out this
+!!$            if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+!!$               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+!!$                 & procmask, i, s_skyA, s_skyB, mask, s_bpA=s_bpA, s_bpB=s_bpB)
+!!$            else
+!!$               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+!!$                    & procmask, i, s_skyA, s_skyB, mask)
+!!$               s_bpA = 0.
+!!$               s_bpB = 0.
+!!$               s_bp  = 0.
+!!$            end if
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                s_sky(:, j) = (1d0+x_im(j))*s_skyA(:,j) - &
@@ -463,8 +464,8 @@ contains
             ! Construct orbital dipole template
             call wall_time(t1)
             if (.true.) then
-               call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
-               call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
+               !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
+               !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   s_orb_tot(:, j) = (1d0+x_im(j))*s_orbA(:,j) - &

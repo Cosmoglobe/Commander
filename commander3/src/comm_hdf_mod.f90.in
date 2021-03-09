@@ -247,6 +247,16 @@ contains
     call get_size_hdf(file, setname, ext)
     allocate(buffer(ext(1),ext(2)))
     ext2 = ext
+    ! Validate that sizes are consistent
+    !call get_size_hdf(file, setname, ext)
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       !write(*,*) opt_, 'Optional parameter'
+    end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, buffer, ext2, file%status)
     val = buffer(1:s(1),1:s(2))
     deallocate(buffer)
@@ -274,6 +284,16 @@ contains
     call get_size_hdf(file, setname, ext)
     allocate(buffer(ext(1),ext(2)))
     ext2 = ext
+    ! Validate that sizes are consistent
+    !call get_size_hdf(file, setname, ext)
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       !write(*,*) opt_, 'Optional parameter'
+    end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, buffer, ext2, file%status)
     val = buffer(1:s(1),1:s(2))
     deallocate(buffer)
@@ -310,8 +330,8 @@ contains
     end if
     call open_hdf_set(file, setname)
     s = int(shape(val))
-    call get_size_hdf(file, setname, ext)
     ! Validate that sizes are consistent
+    call get_size_hdf(file, setname, ext)
     if (any(ext /= s)) then
        write(*,*) 'HDF error -- inconsistent array sizes'
        write(*,*) '             Filename       = ', trim(file%filename)
@@ -336,11 +356,22 @@ contains
     {{t[1]}}({{t[2]}}) {{dims(d)}}, allocatable, intent(out) :: val
     integer(i4b) :: n({{d}})
     integer(hsize_t) :: s({{d}})
+    integer(i4b)     :: ext({{d}})
     if(allocated(val)) deallocate(val)
     call get_size_hdf(file, setname, n)
     allocate(val({{",".join(["n(%d)" % (i+1) for i in range(d)])}}))
     call open_hdf_set(file, setname)
     s = int(shape(val))
+    ! Validate that sizes are consistent
+    call get_size_hdf(file, setname, ext)
+    if (any(ext /= s)) then
+       write(*,*) 'HDF error -- inconsistent array sizes'
+       write(*,*) '             Filename       = ', trim(file%filename)
+       write(*,*) '             Setname        = ', trim(setname)
+       write(*,*) '             HDF size       = ', ext
+       write(*,*) '             Requested size = ', int(s,i4b)
+       !write(*,*) opt_, 'Optional parameter'
+    end if
     call h5dread_f(file%sethandle, {{t[4]}}, val, s, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
