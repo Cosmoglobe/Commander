@@ -67,14 +67,17 @@ contains
        write(*,*) 'Error: init_scan_data_singlehorn only applicable for 1-horn experiments'
        stop
     end if
+    
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
     init_s_bp_prop_ = .false.
     if (present(init_s_bp_prop)) then
-       init_s_bp_prop_ = init_s_bp_prop
-       init_s_sky_prop_ = init_s_sky_prop
+       init_s_bp_prop_  = init_s_bp_prop
+       init_s_sky_prop_ = init_s_bp_prop
     end if
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c1', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     self%ntod   = tod%scans(scan)%ntod
     self%ndet   = tod%ndet
@@ -99,13 +102,17 @@ contains
     if (tod%sample_mono)    allocate(self%s_mono(self%ntod, self%ndet))
     if (tod%subtract_zodi)  allocate(self%s_zodi(self%ntod, self%ndet))
 
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+
     ! Decompress pointing, psi and flags for current scan
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        call tod%decompress_pointing_and_flags(scan, j, self%pix(:,j,:), &
             & self%psi(:,j,:), self%flag(:,j))
     end do
+    !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%symm_flags) call tod%symmetrize_flags(self%flag)
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c4', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Prepare TOD
     do j = 1, self%ndet
@@ -116,6 +123,7 @@ contains
           self%tod(:,j) = tod%scans(scan)%d(j)%tod
        end if
     end do
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
     if (init_s_bp_) then
@@ -125,19 +133,25 @@ contains
        call project_sky(tod, map_sky(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_sky, self%mask)
     end if
+    !if (tod%myid == 78) write(*,*) 'c6', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
        do j = 2, size(map_sky,4)
+          !if (.true. .or. tod%myid == 78) write(*,*) 'c61', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, size(map_sky,4)
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2, s_bp=self%s_bp_prop(:,:,j))
        end do
     else if (init_s_sky_prop_) then
        do j = 2, size(map_sky,4)
+          !if (.true. .or. tod%myid == 78) write(*,*) 'c62', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
        end do
     end if
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c72', tod%myid, tod%ndet
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c73', tod%myid, tod%slconv(1)%p%psires
 
     ! Perform sanity tests
     do j = 1, self%ndet
@@ -145,19 +159,24 @@ contains
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
        if (tod%scans(scan)%d(j)%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
     call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., self%s_orb)
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
        call compute_zodi_template(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%nu_c, self%s_zodi)
     end if
+    !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sidelobe template
+    !if (.true. .or. tod%myid == 78) write(*,*) 'd', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%correct_sl) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
+          !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
           call tod%construct_sl_template(tod%slconv(j)%p, &
                & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%polang(j))
           self%s_sl(:,j) = 2.d0 * self%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
@@ -415,11 +434,7 @@ contains
     real(dp), allocatable, dimension(:,:) :: dipole_mod
     type(comm_scandata) :: sd
 
-
-
-    if (tod%myid == 0) then
-       write(*,*) '   --> Sampling absolute calibration'
-    end if
+    if (tod%myid == 0) write(*,*) '   --> Sampling calibration, mode = ', trim(mode)
 
     if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal') then
        allocate(A(tod%ndet), b(tod%ndet))
@@ -467,15 +482,16 @@ contains
              if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_orb(:,j)) + &
                      & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
-             else
+             else if (trim(mode) == 'abscal' .and. .not. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
+             else if (trim(mode) == 'relcal') then
+                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              end if
-             call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, .false., mask_lowres=mask_lowres)
           end do
+          call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, out=trim(mode)=='abscal', mask_lowres=mask_lowres)
        else
           ! Time-variable gain terms
           call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, handle, mask_lowres=mask_lowres)
-
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))
@@ -582,7 +598,13 @@ contains
        if (nout > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
        if (nout > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
        if (nout > 5) d_calib(6,:,j) = sd%s_sl(:,j)                                               ! sidelobes
-       if (nout > 6) d_calib(7,:,j) = sd%s_zodi(:,j)                                             ! zodi
+       if (nout > 6) then
+          if (allocated(sd%s_zodi)) then
+             d_calib(7,:,j) = sd%s_zodi(:,j)                                                     ! zodi
+          else
+             d_calib(7,:,j) = 0.
+          end if
+       end if
     end do
 
   end subroutine compute_calibrated_data

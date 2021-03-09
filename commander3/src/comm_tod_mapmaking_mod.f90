@@ -58,12 +58,14 @@ contains
     if (solve_S) then
        self%ncol = tod%nmaps + tod%ndet - 1
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2 + 4*(tod%ndet-1)
-       self%nout = tod%output_n_maps + size(tod%bp_delta,2) - 1
+       self%nout = tod%output_n_maps + tod%n_bp_prop - 1
+       !write(*,*) 'hei!', size(tod%bp_delta,2)
     else
        self%ncol = tod%nmaps
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2
        self%nout = tod%output_n_maps
     end if
+    !write(*,*) 'nout = ', tod%output_n_maps, self%nout
     allocate(self%outmaps(self%nout))
     do i = 1, self%nout
        self%outmaps(i)%p => comm_map(tod%info)
@@ -156,7 +158,7 @@ contains
     integer(i4b) :: det, i, t, pix_, off, nout, psi_
     real(dp)     :: inv_sigmasq
 
-    nout = binmap%nout
+    nout = size(data,1) 
     do det = 1, size(pix,2)
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = 6 + 4*(det-1)

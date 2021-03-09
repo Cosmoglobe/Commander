@@ -487,6 +487,7 @@ contains
          r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
        else
          r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
+         !if (tod%scanid(scan) == 1348 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -503,7 +504,7 @@ contains
           A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
           b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
        end if
-       !if (out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+       !if (tod%scanid(scan) == 1348 .and. out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j, sum(abs(s_invN(:,j))), sum(abs(s_ref(:,j))), sum(abs( mask_lowres(:,j))), sum(abs(residual(:,j))), sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j)), sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
     end do
 
 !    if (trim(tod%freq) == '070') then
@@ -511,8 +512,8 @@ contains
  !   end if
 
 
-    !if (.false. .and. mod(tod%scanid(scan),1000) == 0 .and. out) then
-    if (out) then
+    if (.false. .and. out) then
+    !if (sum(s_invN(:,4) * residual(:,4) * mask_lowres(:,4))/sum(s_invN(:,4) * s_ref(:,4) * mask_lowres(:,4)) < -0.5d0) then
        call int2string(tod%scanid(scan), itext)
        !write(*,*) 'gain'//itext//'   = ', tod%gain0(0) + tod%gain0(1), tod%gain0(0), tod%gain0(1)
        open(58,file='gainfit3_'//itext//'.dat')
@@ -527,12 +528,12 @@ contains
        scale = sum(s_invN(:,1) * residual(:,1)) / sum(s_invN(:,1) * s_ref(:,1))
        residual(:,1) = residual(:,1) - scale * s_ref(:,1)
        do i = 1, size(s_ref,1)
-          write(58,*) i-ext(1)+1, residual(i,1) 
+          write(58,*) i+ext(1)-1, residual(i+ext(1)-1,1) 
        end do
        if (present(mask_lowres)) then
           write(58,*)
           do i = 1, size(s_ref,1)
-             write(58,*) i-ext(1)+1, mask_lowres(i,1) 
+             write(58,*) i+ext(1)-1, mask_lowres(i,1) 
           end do
        end if
        close(58)
@@ -651,9 +652,9 @@ contains
        coeff_matrix(tod%ndet+1, tod%ndet+1) = 0.d0
        rhs(tod%ndet+1) = 0.d0
        call solve_system_real(coeff_matrix, x, rhs)
-       !if (tod%verbosity > 1) then
-       !  write(*,*) 'relcal = ', real(x,sp)
-       !end if
+       if (tod%verbosity > 1) then
+         write(*,*) 'relcal = ', real(x,sp)
+       end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
        & tod%info%comm, ierr)

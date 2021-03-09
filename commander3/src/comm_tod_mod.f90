@@ -116,6 +116,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
+     integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
      integer(i4b) :: output_4D_map                                ! Output 4D maps
@@ -747,7 +748,7 @@ contains
     character(len=*),  intent(in)    :: filelist
 
     integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p
-    real(dp)           :: w_tot, w, v0(3), v(3), spin(2)
+    real(dp)           :: w_tot, w_curr, w, v0(3), v(3), spin(2)
     character(len=512) :: infile
     real(dp),           allocatable, dimension(:)   :: weight, sid
     real(dp),           allocatable, dimension(:,:) :: spinpos, spinaxis
@@ -802,7 +803,7 @@ contains
             if (p < self%first_scan .or. p > self%last_scan) cycle
             scanid(j)      = p
             filename(j)    = infile
-            weight(j)      = 2
+            weight(j)      = w
             spinpos(1:2,j) = spin
             id(j)          = j
             sid(j)         = scanid(j)
@@ -841,45 +842,53 @@ contains
             if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
          end do
 
-!!$       ! Sort according to weight
-!!$       pweight = 0.d0
-!!$       call QuickSort(id, weight)
-!!$       do i = n_tot, 1, -1
-!!$          ind             = minloc(pweight)-1
-!!$          proc(id(i))     = ind(1)
-!!$          pweight(ind(1)) = pweight(ind(1)) + weight(i)
-!!$       end do
+       ! Sort according to weight
+       pweight = 0.d0
+       w_tot = sum(weight)
+       call QuickSort(id, weight)
+       do i = n_tot, 1, -1
+          ind             = minloc(pweight)-1
+          proc(id(i))     = ind(1)
+          pweight(ind(1)) = pweight(ind(1)) + weight(i)
+       end do
 !!$       deallocate(id, pweight, weight)
 
        ! Sort according to scan id
-         proc    = -1
-         call QuickSort(id, sid)
-         w_tot = sum(weight)
-         j     = 1
-         do i = np-1, 1, -1
-            w = 0.d0
-            do k = 1, n_tot
-               if (proc(k) == i) w = w + weight(k) 
-            end do
-            do while (w < w_tot/np .and. j <= n_tot)
-               proc(id(j)) = i
-               w           = w + weight(id(j))
-               if (w > 1.2d0*w_tot/np) then
-                  ! Assign large scans to next core
-                  proc(id(j)) = i-1
-                  w           = w - weight(id(j))
-               end if
-               j           = j+1
-            end do
-         end do
-         do while (j <= n_tot)
-            proc(id(j)) = 0
-            j = j+1
-         end do
+!!$         proc    = -1
+!!$         call QuickSort(id, sid)
+!!$         w_tot = sum(weight)
+!!$         w_curr = 0.d0
+!!$         j     = 1
+!!$         do i = np-1, 1, -1
+!!$            w = 0.d0
+!!$            do k = 1, n_tot
+!!$               if (proc(k) == i) w = w + weight(k) 
+!!$            end do
+!!$            do while (w < real(np-1,sp)/real(np,sp)*w_tot/np .and. j <= n_tot)
+!!$               proc(id(j)) = i
+!!$               w           = w + weight(id(j))
+!!$               if (w > 1.2d0*w_tot/np) then
+!!$                  ! Assign large scans to next core
+!!$                  proc(id(j)) = i-1
+!!$                  w           = w - weight(id(j))
+!!$               end if
+!!$               j           = j+1
+!!$            end do
+!!$            if (w_curr > i*w_tot/np) then
+!!$               proc(id(j-1)) = i-1
+!!$            end if
+!!$         end do
+!!$         do while (j <= n_tot)
+!!$            proc(id(j)) = 0
+!!$            j = j+1
+!!$         end do
          pweight = 0.d0
          do k = 1, n_tot
             pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
          end do
+!!$         do k = 0, np-1
+!!$            write(*,*) k, pweight(k)/w_tot, count(proc == k)
+!!$         end do
          write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
          deallocate(id, pweight, weight, sid, spinaxis)
 
@@ -1195,6 +1204,7 @@ contains
           s_sl(j) = s_sl(j-1)
        else
           psi_    = self%psi(psi(j))-polangle
+          !write(*,*) j, psi(j), polangle, self%psi(psi(j))
           s_sl(j) = slconv%interp(pix_, psi_)
           pix_prev = pix_; psi_prev = psi(j)
        end if
@@ -1502,11 +1512,11 @@ contains
       if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
          & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
     end if
-    if (abs(self%scans(scan)%d(det)%chisq) > 20.d0 .or. &
-      & isNaN(self%scans(scan)%d(det)%chisq)) then
-        write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
-             & ', chisq = ', self%scans(scan)%d(det)%chisq
-    end if
+!!$    if (abs(self%scans(scan)%d(det)%chisq) > 20.d0 .or. &
+!!$      & isNaN(self%scans(scan)%d(det)%chisq)) then
+!!$        write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
+!!$             & ', chisq = ', self%scans(scan)%d(det)%chisq
+!!$    end if
 
   end subroutine compute_chisq
 

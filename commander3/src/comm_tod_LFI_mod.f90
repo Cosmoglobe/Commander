@@ -104,7 +104,7 @@ contains
     constructor%verbosity       = cpar%verbosity
     constructor%orb_4pi_beam    = .true.
     constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 7.d0
+    constructor%chisq_threshold = 20.d0 ! 9.d0
 
     !----------------------------------------------------------------------------------
     ! Simulation Routine
@@ -317,13 +317,14 @@ contains
     call update_status(status, "tod_start"//ctext)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = .true.                 
-    sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses...
+    sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
+    sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
     ! Initialize local variables
     ndelta          = size(delta,3)
+    self%n_bp_prop  = ndelta
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
@@ -349,7 +350,7 @@ contains
     deallocate(m_buf)
 
     ! Precompute far sidelobe Conviqt structures
-    if (.not. self%correct_sl) then
+    if (self%correct_sl) then
        if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
        do i = 1, self%ndet
           !TODO: figure out why this is rotated
@@ -359,6 +360,10 @@ contains
                & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
        end do
     end if
+!    write(*,*) 'qqq', self%myid
+!    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
+!!$    call mpi_finalize(ierr)
+!!$    stop
 
     call update_status(status, "tod_init")
 
@@ -373,7 +378,7 @@ contains
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
-    if (sample_abs_bandpass) then
+    if (sample_abs_bandpass .or. sample_rel_bandpass) then
        allocate(chisq_S(self%ndet,size(delta,3)))
        chisq_S = 0.d0
     end if
@@ -383,6 +388,7 @@ contains
     end if
 
     ! Perform loop over scans
+    if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     do i = 1, self%nscan
        
        ! Skip scan if no accepted data
@@ -391,6 +397,7 @@ contains
 
        ! Prepare data
        if (sample_rel_bandpass) then
+!          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
@@ -444,7 +451,7 @@ contains
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
 
        ! Update scan list
-       call wall_time(t1)
+       call wall_time(t2)
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
        self%scans(i)%n_proctime = self%scans(i)%n_proctime + 1
        if (output_scanlist) then
@@ -458,6 +465,8 @@ contains
        deallocate(s_buf, d_calib)
 
     end do
+
+    if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)
