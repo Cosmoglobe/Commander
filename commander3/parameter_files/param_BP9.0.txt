@@ -278,6 +278,7 @@ CG_SAMPLING_GROUP_MAXITER03  = 50
 @START 01
 @DEFAULT components/cmb/cmb_LFI.defaults
 COMP_INPUT_AMP_MAP&&          = init_cmb_amp_BP8.1_v1.fits
+COMP_INIT_FROM_HDF&&          = default
 @END 01
 
 
@@ -293,6 +294,7 @@ COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_4reg_BP8.dat
 COMP_BETA_MASK&&              = mask_synch_beta_BP8_10deg_new_chisqmask.fits # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_BETA_PIXREG_MAP&&        = UF_sindex_4regions_n1024.fits  # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_BETA_PIXREG_INITVALUE_MAP&& = init_synch_beta_noSmooth_BP8.11.fits
+COMP_INIT_FROM_HDF&&          = default
 @END 02
 
 # Thermal dust component
@@ -306,6 +308,7 @@ COMP_INPUT_T_MAP&&            = init_dust_T_BP8.1_v1.fits
 # New Local sampling parameters, 'dust'
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta.dat
 COMP_BETA_MASK&&              = mask_dust_beta_BP8_10deg.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_INIT_FROM_HDF&&          = default
 @END 03
 
 # Mono- and dipole component
@@ -313,6 +316,7 @@ COMP_BETA_MASK&&              = mask_dust_beta_BP8_10deg.fits  # index sampling 
 @DEFAULT components/monodipole/md_LFI.defaults
 COMP_MD_MONO_FROM_PRIOR&&     = 0.4-Haslam
 COMP_MD_DEFINITION_FILE&&     = init_md_BP8.2_v7.dat 
+COMP_INIT_FROM_HDF&&          = default
 @END 04
 
 # Radio sources
@@ -321,6 +325,7 @@ COMP_MD_DEFINITION_FILE&&     = init_md_BP8.2_v7.dat
 COMP_CATALOG&&                 = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v8.dat
 COMP_INIT_CATALOG&&            = init_radio_BP8.11.dat
 COMP_PTSRC_TEMPLATE&&          = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v39.h5
+COMP_INIT_FROM_HDF&&          = default
 @END 05
 
 # freefree component ---------------------------------------------------------------------
@@ -331,6 +336,7 @@ COMP_INPUT_AMP_MAP&&          = init_ff_amp_BP8.1_v1.fits
 COMP_PRIOR_AMP_MAP&&          = ff_prior_mean_2015_median_90arc.fits none
 # New Local sampling parameters. 'freefree, ff'
 @DEFAULT components/freefree/freefree_LFI_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = default
 @END 06
 
 # Low-frequency AME component ------------------------------------------------------------------
@@ -346,9 +352,11 @@ COMP_PRIOR_AMP_MAP&&          = ame_prior_mean_857_scaled2.40.fits
 # New Local sampling parameters, 'ame'
 COMP_NU_P_MASK&&              = mask_AME_nu_p_BP8_10deg_new_chisqmask.fits   # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_ALPHA_MASK&&              = mask_AME_nu_p_BP8_10deg.fits mask_AME_n1024_v3.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_INIT_FROM_HDF&&          = default
 @END 07
 
 # CMB relativistic quadrupole correction
 @START 08
 @DEFAULT components/cmb/cmb_relquad.defaults
+COMP_INIT_FROM_HDF&&          = none
 @END 08

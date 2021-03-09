@@ -113,6 +113,8 @@ contains
        constructor%threshold = 1.d-5
     case ('dame') 
        constructor%threshold = 0.d0
+    case ('LB')
+       constructor%threshold = 0.d0
     case default
        call report_error('Error -- unsupported bandpass type = '//trim(constructor%type))
     end select
@@ -282,6 +284,16 @@ contains
        self%f2t     = 1.0 !tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        !& 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%tau     = 1.0 !self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
+
+    case ('LB')
+       
+       self%a2t     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+       self%a2sz    = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
+       self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
+                   & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+       self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
     end select
     deallocate(a, bnu_prime, bnu_prime_RJ, sz)

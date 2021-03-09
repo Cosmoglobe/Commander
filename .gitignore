@@ -47,6 +47,7 @@ lib64/
 *commander
 *sharp_test
 *.gitignore
+*sharp_test
 
 #---------------------------------------------------------------
 # Editors
@@ -59,3 +60,5 @@ lib64/
 .DS_Store
 # Windows
 Thumbs.db
+# vim
+*.swp
