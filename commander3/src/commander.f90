@@ -106,8 +106,8 @@ program commander
      else
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            Data Processing', '|'
      endif
-     write(*,fmt='(a,2i,t70,a)')      ' |  Number of chains                       = ', cpar%numchain, '|'
-     write(*,fmt='(a,2i,t70,a)')      ' |  Number of processors in first chain    = ', cpar%numprocs_chain, '|'
+     write(*,fmt='(a,i12,t70,a)') ' |  Number of chains                       = ', cpar%numchain, '|'
+     write(*,fmt='(a,i12,t70,a)') ' |  Number of processors in first chain    = ', cpar%numprocs_chain, '|'
      write(*,fmt='(a,t70,a)')         ' |', '|'
      write(*,fmt='(a,f12.3,a,t70,a)') ' |  Time to initialize run                 = ', t2-t0, ' sec', '|'
      write(*,fmt='(a,f12.3,a,t70,a)') ' |  Time to read in parameters             = ', t3-t1, ' sec', '|'
