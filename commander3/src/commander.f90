@@ -102,15 +102,15 @@ program commander
      write(*,fmt='(a)') ' |                           Commander3                              |'
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
-       write(*,fmt='(a)')       ' |  Regime:                            TOD Simulations'
+       write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
      else
-       write(*,fmt='(a)')       ' |  Regime:                            Data Processing'
+       write(*,fmt='(a,t70,a)')       ' |  Regime:                            Data Processing', '|'
      endif
-     write(*,fmt='(a,2i)')      ' |  Number of chains                       = ', cpar%numchain
-     write(*,fmt='(a,2i)')      ' |  Number of processors in first chain    = ', cpar%numprocs_chain
-     write(*,fmt='(a)')         ' |'
-     write(*,fmt='(a,f12.3,a)') ' |  Time to initialize run                 = ', t2-t0, ' sec'
-     write(*,fmt='(a,f12.3,a)') ' |  Time to read in parameters             = ', t3-t1, ' sec'
+     write(*,fmt='(a,2i,t70,a)')      ' |  Number of chains                       = ', cpar%numchain, '|'
+     write(*,fmt='(a,2i,t70,a)')      ' |  Number of processors in first chain    = ', cpar%numprocs_chain, '|'
+     write(*,fmt='(a,t70,a)')         ' |', '|'
+     write(*,fmt='(a,f12.3,a,t70,a)') ' |  Time to initialize run                 = ', t2-t0, ' sec', '|'
+     write(*,fmt='(a,f12.3,a,t70,a)') ' |  Time to read in parameters             = ', t3-t1, ' sec', '|'
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
   end if
 
