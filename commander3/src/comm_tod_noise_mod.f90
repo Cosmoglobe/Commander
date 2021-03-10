@@ -868,7 +868,7 @@ contains
        prior_alpha = [-3.0d0, -0.4d0]
     else if (index(trim(self%freq), 'WMAP') > 0) then
        prior_fknee = [0.0001d0,1.0d0]
-       prior_alpha = [-3d0, -0.4d0]
+       prior_alpha = [-3d0, -0.1d0]
     else 
        prior_fknee = [0.02d0,1.0d0]
        prior_alpha = [-3d0, -0.4d0]
