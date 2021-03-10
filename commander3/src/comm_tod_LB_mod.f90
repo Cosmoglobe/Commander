@@ -19,6 +19,18 @@
 !
 !================================================================================
 module comm_tod_LB_mod
+  !   Module which contains all the LiteBIRD time ordered data processing and routines
+  !   for a given frequency band
+  !
+  !   Main Methods
+  !   ------------
+  !   constructor(cpar, id_abs, info, tod_type)
+  !       Initialization routine that reads in, allocates and associates 
+  !       all data needed for TOD processing
+  !   process_LB_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  !       Routine which processes the time ordered data
+  !
+
   use comm_tod_mod
   use comm_param_mod
   use comm_map_mod
@@ -53,12 +65,33 @@ contains
   !             Constructor
   !**************************************************
   function constructor(cpar, id_abs, info, tod_type)
+    ! 
+    ! Constructor function that gathers all the instrument parameters in a pointer
+    ! and constructs the objects
+    ! 
+    ! Arguments:
+    ! ----------
+    ! cpar:     derived type
+    !           Object containing parameters from the parameterfile.
+    ! id_abs:   integer
+    !           The index of the current band within the parameters, related to cpar
+    ! info:     map_info structure
+    !           Information about the maps for this band, like how the maps are distributed in memory
+    ! tod_type: string
+    !           Instrument specific tod type
+    !
+    ! Returns
+    ! ----------
+    ! constructor: pointer
+    !              Pointer that contains all instrument data
+
+
     implicit none
-    type(comm_params),       intent(in) :: cpar
-    integer(i4b),            intent(in) :: id_abs
+    type(comm_params),       intent(in) :: cpar          !comm_param structure, list of all the input parameters
+    integer(i4b),            intent(in) :: id_abs        !index of the current band within the parameters 
     class(comm_mapinfo),     target     :: info
-    character(len=128),      intent(in) :: tod_type
-    class(comm_LB_tod),     pointer    :: constructor
+    character(len=128),      intent(in) :: tod_type      !
+    class(comm_LB_tod),      pointer    :: constructor
 
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
@@ -123,6 +156,42 @@ contains
   !             Driver routine
   !**************************************************
   subroutine process_LB_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+    ! 
+    ! Routine that processes the LiteBIRD time ordered data. 
+    ! Sampels absolute and relative bandpass, gain and correlated noise in time domain, 
+    ! perform data selection, correct for sidelobes, compute chisquare  and outputs maps and rms. 
+    ! Writes maps to disc in fits format
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     pointer of comm_LB_tod class
+    !           Points to output of the constructor
+    ! chaindir: string
+    !           Directory for output files
+    ! chain:    integer
+    !           Index number of the chain being run
+    ! iter:     integer
+    !           Gibbs iteration number
+    ! handle:   planck_rng derived type 
+    !           Healpix definition for random number generation
+    !           so that the same sequence can be resumed later on from that same point
+    ! map_in:   array 
+    !           Array of dimension (ndet,ndelta) with pointer to maps,
+    !           with both access to maps and changing them.
+    !           ndet is the number of detectors and 
+    !           ndelta is the number of bandpass deltas being considered
+    ! delta:    array
+    !           Array of bandpass corrections with dimensions (0:ndet,npar,ndelta)
+    !           where ndet is number of detectors, npar is number of parameters
+    !           and ndelta is the number of bandpass deltas being considered
+    !
+    ! Returns:
+    ! ----------
+    ! map_out: comm_map class
+    !          Final output map after TOD processing combined for all detectors
+    ! rms_out: comm_map class
+    !          Final output rms map after TOD processing combined for all detectors
+
     implicit none
     class(comm_LB_tod),                      intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
@@ -152,7 +221,7 @@ contains
     call update_status(status, "tod_start"//ctext)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
+    sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
