@@ -82,7 +82,7 @@ module comm_tod_WMAP_mod
    logical(lgt), dimension(N_test) :: do_oper
 
    type, extends(comm_tod) :: comm_WMAP_tod
-      class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
+      !class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
    contains
       procedure     :: process_tod => process_WMAP_tod
@@ -160,16 +160,51 @@ contains
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
       allocate(constructor%slconv(constructor%ndet))
-      allocate (constructor%orb_dp)
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
-      constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
+      !allocate (constructor%orb_dp)
+      !constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
    end function constructor
 
    !**************************************************
    !             Driver routine
    !**************************************************
    subroutine process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+      !
+      ! Routine that processes the WMAP time ordered data.
+      ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
+      ! perform data selection, correct for sidelobes, compute chisquare  and outputs maps and rms.
+      ! Writes maps to disc in fits format
+      !
+      ! Arguments:
+      ! ----------
+      ! self:     pointer of comm_LFI_tod class
+      !           Points to output of the constructor
+      ! chaindir: string
+      !           Directory for output files
+      ! chain:    integer
+      !           Index number of the chain being run
+      ! iter:     integer
+      !           Gibbs iteration number
+      ! handle:   planck_rng derived type
+      !           Healpix definition for random number generation
+      !           so that the same sequence can be resumed later on from that same point
+      ! map_in:   array
+      !           Array of dimension (ndet,ndelta) with pointer to maps,
+      !           with both access to maps and changing them.
+      !           ndet is the number of detectors and
+      !           ndelta is the number of bandpass deltas being considered
+      ! delta:    array
+      !           Array of bandpass corrections with dimensions (0:ndet,npar,ndelta)
+      !           where ndet is number of detectors, npar is number of parameters
+      !           and ndelta is the number of bandpass deltas being considered
+      !
+      ! Returns:
+      ! ----------
+      ! map_out: comm_map class
+      !          Final output map after TOD processing combined for all detectors
+      ! rms_out: comm_map class
+      !          Final output rms map after TOD processing combined for all detectors
       implicit none
       class(comm_WMAP_tod), intent(inout) :: self
       character(len=*), intent(in)    :: chaindir
@@ -205,7 +240,6 @@ contains
       integer(i4b), allocatable, dimension(:)         :: flag
       integer(i4b), allocatable, dimension(:,:)           :: tod
       real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
-      real(dp), allocatable, dimension(:, :)          :: cg_tot
       logical(lgt)       :: correct_sl, verbose, finished
       character(len=512) :: prefix, postfix, prefix4D, filename
       character(len=2048) :: Sfilename
@@ -217,32 +251,19 @@ contains
       class(comm_map), pointer :: condmap
       class(map_ptr), allocatable, dimension(:) :: outmaps
 
-      ! conjugate gradient parameters
-      integer(i4b) :: i_max, i_min, num_cg_iters
-      real(dp) :: delta_0, delta_old, delta_new, epsil(6)
-      real(dp) :: alpha, beta, g, f_quad, sigma_mono
+      ! biconjugate gradient-stab parameters
+      integer(i4b) :: num_cg_iters
+      real(dp) ::  epsil(6)
       real(dp), allocatable, dimension(:, :, :) :: bicg_sol
-      real(dp), allocatable, dimension(:, :)    :: r, s, d, q
       real(dp), allocatable, dimension(:)       :: map_full
-      real(dp) :: monopole
       logical(lgt) :: write_cg_iter=.false.
 
-
-      real(dp) :: phi, theta
-      real(dp), dimension(3) :: vnorm
-      integer(i4b) :: pixind
 
 
       real(dp) :: masked_var
 
 
 
-
-      ! biconjugate gradient parameters
-      real(dp) :: rho_old, rho_new
-      real(dp) :: omega, delta_r, delta_s
-      real(dp), allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
-      real(dp), allocatable, dimension(:)    :: determ
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
@@ -448,16 +469,17 @@ contains
 
             ! Construct sky signal template
             call wall_time(t1)
-            if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
-               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
-                 & procmask, i, s_skyA, s_skyB, mask, s_bpA=s_bpA, s_bpB=s_bpB)
-            else
-               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
-                    & procmask, i, s_skyA, s_skyB, mask)
-               s_bpA = 0.
-               s_bpB = 0.
-               s_bp  = 0.
-            end if
+!!$ HKE: commented out this
+!!$            if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+!!$               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+!!$                 & procmask, i, s_skyA, s_skyB, mask, s_bpA=s_bpA, s_bpB=s_bpB)
+!!$            else
+!!$               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+!!$                    & procmask, i, s_skyA, s_skyB, mask)
+!!$               s_bpA = 0.
+!!$               s_bpB = 0.
+!!$               s_bp  = 0.
+!!$            end if
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                s_sky(:, j) = (1d0+x_im(j))*s_skyA(:,j) - &
@@ -478,16 +500,21 @@ contains
 
             ! Construct orbital dipole template
             call wall_time(t1)
-            !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
-            !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
-            ! The ordering is a bit messed up, where 13/14 are beam A, 23/24 are beam B
-            call self%orb_dp%p%compute_orbital_dipole_4pi_diff(i, pix(:,1), psi(:,1),s_orbA,1,1d3)
-            call self%orb_dp%p%compute_orbital_dipole_4pi_diff(i, pix(:,2), psi(:,2),s_orbB,3,1d3)
-            do j = 1, ndet
-               if (.not. self%scans(i)%d(j)%accept) cycle
-               s_orb_tot(:, j) = (1d0+x_im(j))*s_orbA(:,j) - &
-                               & (1d0-x_im(j))*s_orbB(:,j)
-            end do
+            if (.true.) then
+               !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
+               !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
+            !call self%orb_dp%p%compute_orbital_dipole_4pi_diff(i, pix(:,1), psi(:,1),s_orbA,1,1d3)
+            !call self%orb_dp%p%compute_orbital_dipole_4pi_diff(i, pix(:,2), psi(:,2),s_orbB,3,1d3)
+               do j = 1, ndet
+                  if (.not. self%scans(i)%d(j)%accept) cycle
+                  s_orb_tot(:, j) = (1d0+x_im(j))*s_orbA(:,j) - &
+                                  & (1d0-x_im(j))*s_orbB(:,j)
+               end do
+            else
+               s_orbA    = 0.
+               s_orbB    = 0.
+               s_orb_tot = 0.
+            end if
             call wall_time(t2); t_tot(2) = t_tot(2) + t2-t1
 
             ! Construct sidelobe template
@@ -639,12 +666,17 @@ contains
             end if
             call wall_time(t2); t_tot(14) = t_tot(14) + t2-t1
 
+            if (self%myid == 0) then
+              write(*,*) A_abscal, do_oper(samp_acal)
+            end if
+
             ! Fit gain
             if (do_oper(samp_G)) then
                call wall_time(t1)
                call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_invN, s_tot, handle, mask_lowres=mask_lowres, tod_arr=tod)
                call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
             end if
+
 
             ! Fit correlated noise
             if (do_oper(samp_N)) then
@@ -843,16 +875,6 @@ contains
 
 
       np0 = self%info%np
-      allocate (cg_tot(0:np0 - 1, nmaps))
-
-      ! write out M_diag, b_map to fits.
-      !cg_tot = b_map(self%info%pix, 1:nmaps, 1)
-      !call write_map2(trim(prefix)//'b2'//trim(postfix), b_map(:,:,1))
-      !call self%write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
-      !cg_tot = M_diag(self%info%pix, 1:nmaps)
-      !call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
-      !cg_tot = b_map(self%info%pix, 1:nmaps, 5)
-      !call write_fits_file_iqu(trim(prefix)//'b_sl'//trim(postfix), cg_tot, outmaps)
 
 
       where (M_diag == 0d0)
@@ -936,7 +958,7 @@ contains
 
       ! Clean up temporary arrays
       deallocate(A_abscal, b_abscal, chisq_S, procmask)
-      deallocate(b_map, M_diag, cg_tot)
+      deallocate(b_map, M_diag)
       !if (self%myid ==0) deallocate(map_full)
       deallocate(map_full)
       if (allocated(b_mono)) deallocate (b_mono)
