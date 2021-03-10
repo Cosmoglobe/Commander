@@ -76,7 +76,7 @@ contains
 !!$          end if
 !!$       end do
 !!$    end do
-
+    write(*,*) "size x_in: ", size(x_in)
     k = 1
     node=hcode%nodemax
     do i = 2, size(x_in)  ! First byte does not contain real data

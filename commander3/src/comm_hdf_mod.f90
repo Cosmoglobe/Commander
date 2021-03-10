@@ -2213,6 +2213,7 @@ contains
     call h5dget_type_f(file%sethandle, dtype, file%status)
     call h5tget_size_f(dtype, len, file%status)
     numint = len
+    write(*,*) 'len in hdf_mod', numint
     allocate(val(numint))
     f_ptr = c_loc(val)
     call h5dread_f(file%sethandle, dtype, f_ptr, file%status)

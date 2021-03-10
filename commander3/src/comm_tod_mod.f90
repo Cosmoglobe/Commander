@@ -448,7 +448,7 @@ contains
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
-         !stop
+         stop
        end if
        call read_hdf(file, "common/npsi",   self%npsi)
        call read_hdf(file, "common/fsamp",  self%samprate)
@@ -486,6 +486,8 @@ contains
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn)
+
+
        do det = 1, self%ndet
           self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
           if (.not. self%scans(i)%d(det)%accept) then
@@ -496,6 +498,7 @@ contains
           end if
        end do
     end do
+
 
     ! Initialize mean gain
     allocate(ns(0:self%ndet))
@@ -524,6 +527,7 @@ contains
        end do
     end do
 
+
     ! Precompute trigonometric functions
     allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
     allocate(self%psi(self%npsi))
@@ -534,11 +538,14 @@ contains
        self%cos2psi(i) = cos(2.0*psi)
     end do
 
+
+
     call mpi_barrier(self%comm, ierr)
     call wall_time(t2)
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
          & '    Myid = ', self%myid, ' -- nscan = ', self%nscan, &
          & ', TOD IO time = ', t2-t1, ' sec'
+
 
   end subroutine read_tod
 
@@ -639,10 +646,13 @@ contains
          !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
          !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
+         write(*,*) "read pix in tod_mod", size(self%d(i)%pix(j)%p)
          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
+         write(*,*) "read psi in tod_mod", size(self%d(i)%psi(j)%p)
        end do
-       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
+       call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
+       write(*,*) "read flag in tod_mod", size(self%d(i)%flag)
        if (tod%compressed_tod) then
           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
        else
@@ -654,6 +664,7 @@ contains
              self%d(i)%tod = buffer_sp(1:m)
           end if
        end if
+
        call wall_time(t2)
        t_tot(5) = t_tot(5) + t2-t1
     end do
@@ -1455,12 +1466,21 @@ contains
     integer(i4b),        dimension(:),  intent(out) :: flag
     integer(i4b),        dimension(:,:),intent(out) :: psi, pix
     integer(i4b) :: i
-
+    if (self%myid==0) write(*,*) "psi at beginning: ", size(self%scans(scan)%d(det)%psi(1)%p), scan, det
+    if (self%myid==0) write(*,*) "pix at beginning: ", size(self%scans(scan)%d(det)%pix(1)%p)
+    if (self%myid==0) write(*,*) "scan, det, nhorn", scan, det, self%nhorn
+    
     do i=1, self%nhorn
-      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
+      write(*,*) "Decode psi", i
+      if (self%myid==0) write(*,*) "size ...psi(i)%p: ", size(self%scans(scan)%d(det)%psi(i)%p), scan, det
       call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
-    end do
-    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+      write(*,*) "Decode pix", i
+      if (self%myid==0) write(*,*) "size ...pix(i)%p: ", size(self%scans(scan)%d(det)%pix(i)%p), scan, det
+      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
+   end do
+
+   if (self%myid==0) write(*,*) "size ...flag: ", size(self%scans(scan)%d(det)%flag), scan, det
+   call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
 !!$    if (det == 2) psi = modulo(psi + 20,self%npsi)

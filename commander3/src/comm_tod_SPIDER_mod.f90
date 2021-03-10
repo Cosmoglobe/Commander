@@ -61,10 +61,11 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(cpar, id_abs, info)
+  function constructor(cpar, id_abs, info, tod_type)
     implicit none
     type(comm_params),       intent(in) :: cpar
     integer(i4b),            intent(in) :: id_abs
+    character(len=128),     intent(in) :: tod_type
     class(comm_mapinfo),     target     :: info
     class(comm_SPIDER_tod),     pointer    :: constructor
 
@@ -110,6 +111,10 @@ contains
        call mpi_finalize(ierr)
        stop
     end if
+
+    !call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+    !self%nside_param   = cpar%ds_nside(id_abs)
+    constructor%nside_param   = cpar%ds_nside(id_abs)
 
     datadir = trim(cpar%datadir)//'/' 
     constructor%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
@@ -582,6 +587,9 @@ contains
           call wall_time(t1)
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
+             if (self%myid==0) write(*,*) "pix in spider mod: ", size(self%scans(i)%d(j)%pix(1)%p), i, j
+             if (self%myid==0) write(*,*) "psi in spider mod: ", size(self%scans(i)%d(j)%psi(1)%p), i, j
+             if (self%myid==0) write(*,*) "flag in spider mod: ", size(self%scans(i)%d(j)%flag), i, j
              call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
                   & psi(:,j,:), flag(:,j))
           end do
