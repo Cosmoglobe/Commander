@@ -482,31 +482,67 @@ end subroutine bin_differential_TOD
    end subroutine finalize_binned_map
 
 
-   subroutine run_bicgstab(tod, handle, cg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l)
+   subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l)
+     !
+     !
+     !  Subroutine that runs the biconjugate gradient-stabilized mapmaking
+     !  routine on differential data, solving the P_m^T N^-1 P x = P_m^T N^-1 d
+     !  mapmaking equation, where P_m takes into account the asymmetric masking
+     !
+     !  Arguments (fixed):
+     !  ------------------
+     !  tod: comm_tod
+     !
+     !  npix: int
+     !
+     !  nmaps: int
+     !
+     !  epsil: real (dp)
+     !
+     !  procmask: int
+     !
+     !  M_diag: real (dp)
+     !
+     !  b_map: real (dp)
+     !
+     !  l: int
+     !
+     !  Arguments (modified):
+     !  ---------------------
+     !  handle: planck_rng
+     !
+     !  bicg_sol: real (dp)
+     !
+     !  num_cg_iters: int
+     !
+     !  map_full: real (dp)
+     !
      implicit none
-     class(comm_tod), intent(in) :: tod
+     class(comm_tod),                         intent(in) :: tod
      type(planck_rng),                     intent(inout) :: handle
-     real(dp), dimension(:, :, :), intent(inout) :: cg_sol
-     integer(i4b), intent(in) :: npix, nmaps
-     integer(i4b), intent(inout) :: num_cg_iters
-     real(dp),  intent(in) :: epsil
-     integer(i4b), dimension(:), intent(in)    :: procmask
-     real(dp), dimension(:), intent(inout)     :: map_full
-     real(dp), dimension(:,:), intent(in)     :: M_diag
-     real(dp), dimension(:,:,:), intent(in)     :: b_map
-     integer(i4b), intent(in)    :: l
+     real(dp),         dimension(:, :, :), intent(inout) :: bicg_sol
+     integer(i4b),                            intent(in) :: npix, nmaps
+     integer(i4b),                         intent(inout) :: num_cg_iters
+     real(dp),                                intent(in) :: epsil
+     integer(i4b),              dimension(:), intent(in) :: procmask
+     real(dp),               dimension(:), intent(inout) :: map_full
+     real(dp),                dimension(:,:), intent(in) :: M_diag
+     real(dp),              dimension(:,:,:), intent(in) :: b_map
+     integer(i4b),                            intent(in) :: l
 
-     real(dp), allocatable, dimension(:, :)          :: m_buf
-     integer(i4b) :: i_max, i_min, ierr, status, i
-     real(dp) :: delta_0, delta_old, delta_new
-     real(dp) :: alpha, beta, g, f_quad, sigma_mono
-     real(dp), allocatable, dimension(:, :)    :: r, s, d, q
-     real(dp) :: monopole
-     logical(lgt) :: write_cg_iter=.false., finished
-     real(dp) :: rho_old, rho_new
-     real(dp) :: omega, delta_r, delta_s
-     real(dp), allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
-     real(dp), allocatable, dimension(:)    :: determ
+
+
+     real(dp),     allocatable, dimension(:, :) :: m_buf
+     integer(i4b)                               :: i_max, i_min, ierr, status, i
+     real(dp)                                   :: delta_0, delta_old, delta_new
+     real(dp)                                   :: alpha, beta, g, f_quad, sigma_mono
+     real(dp),     allocatable, dimension(:, :) :: r, s, d, q
+     real(dp)                                   :: monopole
+     logical(lgt)                               :: write_cg_iter=.false., finished
+     real(dp)                                   :: rho_old, rho_new
+     real(dp)                                   :: omega, delta_r, delta_s
+     real(dp),     allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
+     real(dp),        allocatable, dimension(:) :: determ
 
      if (tod%myid==0) then
          allocate (r     (0:npix-1, nmaps))
@@ -526,7 +562,7 @@ end subroutine bin_differential_TOD
          i_min = 0
 
         if (.false. .and. l == 1) then
-           call compute_Ax(tod, tod%x_im, procmask, cg_sol(:,:,1), v)
+           call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,1), v)
            r = b_map(:, :, l) - v 
         else
            r  = b_map(:, :, l)
@@ -578,7 +614,7 @@ end subroutine bin_differential_TOD
 101           format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
            end if
 
-           cg_sol(:,:,l) = cg_sol(:,:,l) + alpha*phat
+           bicg_sol(:,:,l) = bicg_sol(:,:,l) + alpha*phat
 
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
               finished = .true.
@@ -589,7 +625,7 @@ end subroutine bin_differential_TOD
            call compute_Ax(tod, tod%x_im, procmask, shat, q)
 
            omega         = sum(q*s)/sum(q*q)
-           cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
+           bicg_sol(:,:,l) = bicg_sol(:,:,l) + omega*shat
            if (omega == 0d0) then
              write(*,*) 'omega is zero'
              finished = .true.
@@ -598,7 +634,7 @@ end subroutine bin_differential_TOD
            end if
 
            if (mod(i, 10) == 1 .or. beta > 1.d8) then
-              call compute_Ax(tod, tod%x_im, procmask, cg_sol(:,:,l), r)
+              call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,l), r)
               r = b_map(:, :, l) - r
            else
               r = s - omega*q
@@ -623,7 +659,7 @@ end subroutine bin_differential_TOD
 
         if (l == 1) then
            ! Maximum likelihood monopole
-           monopole = sum((cg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
+           monopole = sum((bicg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
                   & / sum(M_diag(:,1)*procmask)
            write(*,*) monopole
            if (trim(tod%operation) == 'sample') then
@@ -637,8 +673,8 @@ end subroutine bin_differential_TOD
               monopole = monopole + sigma_mono * rand_gauss(handle)
            end if
            write(*,*) 'sampled final monopole = ', monopole
-           cg_sol(:,1,1) = cg_sol(:,1,1) - monopole
-           write(*,*) 'cg_sol monopole', sum(cg_sol(:,1,1)*procmask)/sum(procmask)
+           bicg_sol(:,1,1) = bicg_sol(:,1,1) - monopole
+           write(*,*) 'bicg_sol monopole', sum(bicg_sol(:,1,1)*procmask)/sum(procmask)
         end if
      else
         loop: do while (.true.) 

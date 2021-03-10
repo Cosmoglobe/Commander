@@ -19,6 +19,20 @@
 !
 !================================================================================
 module comm_tod_WMAP_mod
+  !   Module which contains all the WMAP time ordered data processing and routines
+  !   for a given frequency band
+  !
+  !   Main Methods
+  !   ------------
+  !   constructor(cpar, id_abs, info, tod_type)
+  !       Initialization routine that reads in, allocates and associates 
+  !       all data needed for TOD processing
+  !   process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  !       Routine which processes the time ordered data
+  !   accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, tod_arr)
+  !       Submodule that prepares for horn imbalance sampling
+  !   sample_imbal_cal(tod, handle, A_abs, b_abs)
+  !       Submodule that updates the estimate for the horn imbalance
    use comm_tod_mod
    use comm_param_mod
    use comm_map_mod
@@ -207,7 +221,7 @@ contains
       integer(i4b) :: i_max, i_min, num_cg_iters
       real(dp) :: delta_0, delta_old, delta_new, epsil(6)
       real(dp) :: alpha, beta, g, f_quad, sigma_mono
-      real(dp), allocatable, dimension(:, :, :) :: cg_sol
+      real(dp), allocatable, dimension(:, :, :) :: bicg_sol
       real(dp), allocatable, dimension(:, :)    :: r, s, d, q
       real(dp), allocatable, dimension(:)       :: map_full
       real(dp) :: monopole
@@ -847,9 +861,9 @@ contains
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      allocate (cg_sol(0:npix-1, nmaps, nout))
+      allocate (bicg_sol(0:npix-1, nmaps, nout))
       if (self%myid == 0) then 
-         cg_sol = 0.0d0
+         bicg_sol = 0.0d0
          epsil(1)   = 1d-10
          epsil(2:6) = 1d-6
          num_cg_iters = 0
@@ -862,17 +876,17 @@ contains
          if (self%verbosity > 0 .and. self%myid == 0) then
            write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          end if
-         call run_bicgstab(self, handle, cg_sol, npix, nmaps, num_cg_iters, &
+         call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                           & epsil(l), procmask, map_full, M_diag, b_map, l)
       end do
 
       call wall_time(t10); t_tot(21) = (t10 - t9)
 
-      call mpi_bcast(cg_sol, size(cg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+      call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
       do k = 1, self%output_n_maps
          do j = 1, nmaps
-            outmaps(k)%p%map(:, j) = cg_sol(self%info%pix, j, k)
+            outmaps(k)%p%map(:, j) = bicg_sol(self%info%pix, j, k)
          end do
       end do
 
@@ -937,7 +951,7 @@ contains
          deallocate (outmaps)
       end if
 
-      deallocate (map_sky, cg_sol)
+      deallocate (map_sky, bicg_sol)
       !if (self%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
 
       if (correct_sl) then
@@ -959,6 +973,30 @@ contains
 
 
   subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
+    !  Subroutine to sample the transmission imbalance parameters, defined in
+    !  the WMAP data model as the terms x_im; given the definition
+    !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})
+    !  we have
+    !  d = g[(1+x_im)*d_A - (1-x_im)*d_B]
+    !  Returns x_{im,1} for detectors 13/14, and x_{im,2} for detectors 23/24.
+    !
+    !
+    !  Arguments (fixed):
+    !  ------------------
+    !  A_abs: real(dp)
+    !     Accumulated A_abs = s_ref^T N^-1 s_ref for all scans
+    !  b_abs: real(dp)
+    !     Accumulated b_abs = s_ref^T N^-1 s_sub for all scans
+    !
+    !  
+    !  Arguments (modified):
+    !  ---------------------
+    !  tod: comm_WMAP_tod
+    !     The entire tod object. tod%x_im estimated and optionally sampled
+    !  handle: planck_rng derived type 
+    !     Healpix definition for random number generation
+    !     so that the same sequence can be resumed later on from that same point
+    !
     implicit none
     class(comm_WMAP_tod),              intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
@@ -998,6 +1036,39 @@ contains
   end subroutine sample_imbal_cal
 
   subroutine accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, tod_arr)
+    !
+    !  Subroutine that is used to calculate the numerator and denominator of the
+    !  transmisssion imbalance term, b_abs = r^T N^-1 s_ref and A_abs s_ref^T N^-1 s_ref
+    !
+    !  Arguments (fixed):
+    !  ----------
+    !  tod: comm_tod
+    !     pointer to the TOD object
+    !  scan: int
+    !     number of scan being calculated currently
+    !  mask: real (sp)
+    !     TOD mask, with values set to 0 for data to be discarded, 1 for data to
+    !     be kept.
+    !  s_sub: real (sp)
+    !     Data with fixed components removed in units of du, i.e., 
+    !     s_sub = d-n_corr - g*s_sky \simeq s_orb + n_w
+    !  s_ref: real (sp)
+    !     Reference template in time space, usually the orbital dipole.
+    !  s_invN: real (sp)
+    !     Pre-computed product s_ref^T N^-1
+    !  tod_arr: int
+    !     Decompressed TOD
+    !
+    !  Arguments (modified):
+    !  --------
+    !  A_abs: real(dp)
+    !     Accumulated A_abs = s_ref^T N^-1 s_ref for scan in question
+    !  b_abs: real(dp)
+    !     Accumulated b_abs = s_ref^T N^-1 s_sub for scan in question
+    !  handle: planck_rng derived type 
+    !     Healpix definition for random number generation
+    !     so that the same sequence can be resumed later on from that same point
+    !
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
