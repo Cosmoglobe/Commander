@@ -75,6 +75,28 @@ contains
   !             Routine definitions
   !**************************************************
   function constructor(cpar, id, id_abs, detlabel, subdets)
+    !
+    ! Initialization routine (constructor) for bandpass objects. Reads in bandpass 
+    ! data, and precomputes default unit conversions etc.
+    !
+    ! Arguments:
+    ! ----------
+    ! cpar: type(comm_params)
+    !    Commander parameter structure
+    ! id: int (scalar)
+    !    Frequency channel ID/counter, only counting active bands
+    ! id_abs: int (scalar)
+    !    Frequency channel ID/counter, counting all bands (as defined in parameter file)
+    ! detlabel: string (scalar; optional)
+    !    Detector label; typically used for full-frequency bands 
+    ! subdets: string (scalar; optional)
+    !    Comma-separated string with sub-detector labels. Used for TOD-type bands
+    !
+    ! Returns:
+    ! --------
+    ! constructor: class(comm_bp)
+    !    Pointer to new comm_bp object
+    ! 
     implicit none
     type(comm_params),                intent(in)           :: cpar
     integer(i4b),                     intent(in)           :: id, id_abs
