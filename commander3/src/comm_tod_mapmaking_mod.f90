@@ -206,7 +206,7 @@ contains
       integer(i4b), intent(in)                                  :: scan
       real(sp), dimension(1:, 1:, 1:), intent(in)               :: data
       integer(i4b), dimension(1:), intent(in)                   :: flag
-      integer(i4b), dimension(0:), intent(in)                   :: pmask
+      real(sp), dimension(0:), intent(in)                   :: pmask
       integer(i4b), dimension(1:, 1:), intent(in)               :: pix, psi
       real(dp), dimension(1:), intent(in)                       :: x_imarr
       real(dp), dimension(0:, 1:, 1:), intent(inout)            :: b
@@ -287,7 +287,7 @@ end subroutine bin_differential_TOD
       implicit none
       class(comm_tod),                 intent(in)              :: tod
       real(dp),     dimension(1:),     intent(in)              :: x_imarr
-      integer(i4b), dimension(0:),     intent(in)              :: pmask
+      real(sp),     dimension(0:),     intent(in)              :: pmask
       real(dp),     dimension(0:, 1:), intent(in),    optional :: x_in
       real(dp),     dimension(0:, 1:), intent(inout), optional :: y_out
 
@@ -535,7 +535,7 @@ end subroutine bin_differential_TOD
      !
      !  epsil: real (dp)
      !
-     !  procmask: int
+     !  procmask: real(sp)
      !
      !  M_diag: real (dp)
      !
@@ -560,7 +560,7 @@ end subroutine bin_differential_TOD
      integer(i4b),                            intent(in) :: npix, nmaps
      integer(i4b),                         intent(inout) :: num_cg_iters
      real(dp),                                intent(in) :: epsil
-     integer(i4b),              dimension(:), intent(in) :: procmask
+     real(sp),                  dimension(:), intent(in) :: procmask
      real(dp),               dimension(:), intent(inout) :: map_full
      real(dp),                dimension(:,:), intent(in) :: M_diag
      real(dp),              dimension(:,:,:), intent(in) :: b_map
