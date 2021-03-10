@@ -26,4 +26,4 @@ COMP_BETA_POL_NUM_PIXREG&&    = 4                              # number of pixel
 COMP_BETA_POL_FIX_PIXREG&&    = 1,3                          # pixel regions to fix, i.e. freeze on init
 COMP_BETA_POL_PIXREG_PRIORS&& = none
 COMP_BETA_PIXREG_MAP&&        = UF_sindex_4regions_n1024.fits  # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
-COMP_BETA_PIXREG_INITVALUE_MAP&& = init_synch_beta_noSmooth_BP8.11.fits
+COMP_BETA_PIXREG_INITVALUE_MAP&& = none 

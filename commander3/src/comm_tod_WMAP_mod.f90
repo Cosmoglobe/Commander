@@ -68,7 +68,7 @@ module comm_tod_WMAP_mod
    logical(lgt), dimension(N_test) :: do_oper
 
    type, extends(comm_tod) :: comm_WMAP_tod
-      class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
+      !class(orbdipole_pointer), allocatable :: orb_dp ! orbital dipole calculator
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
    contains
       procedure     :: process_tod => process_WMAP_tod
@@ -126,9 +126,6 @@ contains
       !initialize the common tod stuff
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
-      ! For K-band
-      !constructor%x_im = [-0.00067, 0.00536]
-
 
       !TODO: this is LFI specific, write something here for wmap
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -149,8 +146,8 @@ contains
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
       allocate(constructor%slconv(constructor%ndet))
-      allocate (constructor%orb_dp)
-      constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
+      !allocate (constructor%orb_dp)
+      !constructor%orb_dp%p => comm_orbdipole(constructor, constructor%mbeam)
    end function constructor
 
    !**************************************************
@@ -248,7 +245,6 @@ contains
       nside = map_out%info%nside
       nmaps = map_out%info%nmaps
       npix = 12*nside**2
-      nout = self%output_n_maps
       nscan_tot = self%nscan_tot
       x_im(1) = self%x_im(1)
       x_im(2) = self%x_im(1)
@@ -260,8 +256,8 @@ contains
       allocate(dipole_mod(nscan_tot, ndet))
       allocate (slist(self%nscan))
       slist = ''
-      allocate (outmaps(nout))
-      do i = 1, nout
+      allocate (outmaps(self%output_n_maps))
+      do i = 1, self%output_n_maps
          outmaps(i)%p => comm_map(map_out%info)
       end do
       call int2string(chain, ctext)
@@ -326,10 +322,6 @@ contains
       call update_status(status, "tod_init")
       call wall_time(t3)
       do_oper             = .true.
-      allocate (M_diag(0:npix-1, nmaps+1))
-      allocate ( b_map(0:npix-1, nmaps, nout))
-      M_diag = 0d0
-      b_map = 0d0
       ! There are five main iterations, for imbalance, absolute calibration, 
       ! relative calibration, time-variable calibration, and 
       ! correlated noise estimation.
@@ -366,6 +358,19 @@ contains
          do_oper(sim_map)      = .false. ! (main_iter == 1) !   
 
          dipole_mod = 0
+         if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+            if (do_oper(prep_relbp)) then
+               nout = self%output_n_maps + ndelta - 1
+            else
+               nout = self%output_n_maps
+            end if
+         end if
+         if (do_oper(bin_map)) then
+           allocate (M_diag(0:npix-1, nmaps+1))
+           allocate ( b_map(0:npix-1, nmaps, nout))
+           M_diag = 0d0
+           b_map = 0d0
+         end if
 
          if (do_oper(samp_acal) .or. do_oper(samp_rcal) .or. do_oper(samp_imbal)) then
             A_abscal = 0.d0; b_abscal = 0.d0
@@ -427,16 +432,17 @@ contains
 
             ! Construct sky signal template
             call wall_time(t1)
-            if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
-               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
-                 & procmask, i, s_skyA, s_skyB, mask, s_bpA=s_bpA, s_bpB=s_bpB)
-            else
-               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
-                    & procmask, i, s_skyA, s_skyB, mask)
-               s_bpA = 0.
-               s_bpB = 0.
-               s_bp  = 0.
-            end if
+!!$ HKE: commented out this
+!!$            if (do_oper(bin_map) .or. do_oper(prep_relbp)) then
+!!$               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+!!$                 & procmask, i, s_skyA, s_skyB, mask, s_bpA=s_bpA, s_bpB=s_bpB)
+!!$            else
+!!$               call project_sky_differential(self, map_sky(:,:,:,1), pix, psi, flag, &
+!!$                    & procmask, i, s_skyA, s_skyB, mask)
+!!$               s_bpA = 0.
+!!$               s_bpB = 0.
+!!$               s_bp  = 0.
+!!$            end if
             do j = 1, ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
                s_sky(:, j) = (1d0+x_im(j))*s_skyA(:,j) - &
@@ -458,8 +464,8 @@ contains
             ! Construct orbital dipole template
             call wall_time(t1)
             if (.true.) then
-               call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
-               call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
+               !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,1), psi(:,1), s_orbA, 1d3)
+               !call self%orb_dp%p%compute_orbital_dipole_pencil(i, pix(:,2), psi(:,2), s_orbB, 1d3)
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
                   s_orb_tot(:, j) = (1d0+x_im(j))*s_orbA(:,j) - &
@@ -828,8 +834,8 @@ contains
       allocate (cg_tot(0:np0 - 1, nmaps))
 
       ! write out M_diag, b_map to fits.
-      cg_tot = b_map(self%info%pix, 1:nmaps, 1)
-      call write_map2(trim(prefix)//'b2'//trim(postfix), b_map(:,:,1))
+      !cg_tot = b_map(self%info%pix, 1:nmaps, 1)
+      !call write_map2(trim(prefix)//'b2'//trim(postfix), b_map(:,:,1))
       !call self%write_fits_file_iqu(trim(prefix)//'b'//trim(postfix), cg_tot, outmaps)
       !cg_tot = M_diag(self%info%pix, 1:nmaps)
       !call write_fits_file_iqu(trim(prefix)//'M'//trim(postfix), cg_tot, outmaps)
@@ -862,7 +868,7 @@ contains
          !cg_sol(:,:,1) = map_sky(:,:,0,1)
          ! WMAP's metric was |Ax-b|/|b| < 10^-8, which essentially is 
          epsil(1)   = 1d-10
-         epsil(2:6) = 1.d-6
+         epsil(2:6) = 1d-6
          i_max = 100
          i_min = 0
          num_cg_iters = 0
@@ -871,7 +877,7 @@ contains
       end if
 
       call wall_time(t9)
-      do l=1, nout
+      do l=1, self%output_n_maps
          if (self%myid==0) then
             if (self%verbosity > 0) write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
             call update_status(status, "Starting bicg-stab")
@@ -946,7 +952,7 @@ contains
                call update_status(status, "Calling  q= A shat")
                call compute_Ax(self, self%x_im, procmask, shat, q)
 
-               omega         = sum(q*s)/sum(q**2)
+               omega         = sum(q*s)/sum(q*q)
                cg_sol(:,:,l) = cg_sol(:,:,l) + omega*shat
                if (write_cg_iter) then
                  cg_tot = cg_sol(self%info%pix, 1:nmaps, l)
@@ -1081,7 +1087,7 @@ contains
       if (allocated(dipole_mod)) deallocate (dipole_mod)
 
       if (allocated(outmaps)) then
-         do i = 1, nout
+         do i = 1, self%output_n_maps
             call outmaps(i)%p%dealloc
          end do
          deallocate (outmaps)
