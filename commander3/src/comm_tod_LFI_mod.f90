@@ -19,6 +19,17 @@
 !
 !================================================================================
 module comm_tod_LFI_mod
+  !   Module which contains all the LFI time ordered data processing and routines
+  !   for a given frequency band
+  !
+  !   Main Methods
+  !   ------------
+  !   constructor(cpar, id_abs, info, tod_type)
+  !       Initialization routine that reads in, allocates and associates
+  !       all data needed for TOD processing
+  !   process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  !       Routine which processes the time ordered data
+  !
   use comm_tod_mod
   use comm_param_mod
   use comm_map_mod
@@ -53,6 +64,26 @@ contains
   !             Constructor
   !**************************************************
   function constructor(cpar, id_abs, info, tod_type)
+    !
+    ! Constructor function that gathers all the instrument parameters in a pointer
+    ! and constructs the objects
+    !
+    ! Arguments:
+    ! ----------
+    ! cpar:     derived type
+    !           Object containing parameters from the parameterfile.
+    ! id_abs:   integer
+    !           The index of the current band within the parameters, related to cpar
+    ! info:     map_info structure
+    !           Information about the maps for this band, like how the maps are distributed in memory
+    ! tod_type: string
+    !           Instrument specific tod type
+    !
+    ! Returns
+    ! ----------
+    ! constructor: pointer
+    !              Pointer that contains all instrument data
+
     implicit none
     type(comm_params),       intent(in) :: cpar
     integer(i4b),            intent(in) :: id_abs
@@ -123,6 +154,42 @@ contains
   !             Driver routine
   !**************************************************
   subroutine process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+    !
+    ! Routine that processes the LFI time ordered data.
+    ! Sampels absolute and relative bandpass, gain and correlated noise in time domain,
+    ! perform data selection, correct for sidelobes, compute chisquare  and outputs maps and rms.
+    ! Writes maps to disc in fits format
+    !
+    ! Arguments:
+    ! ----------
+    ! self:     pointer of comm_LFI_tod class
+    !           Points to output of the constructor
+    ! chaindir: string
+    !           Directory for output files
+    ! chain:    integer
+    !           Index number of the chain being run
+    ! iter:     integer
+    !           Gibbs iteration number
+    ! handle:   planck_rng derived type
+    !           Healpix definition for random number generation
+    !           so that the same sequence can be resumed later on from that same point
+    ! map_in:   array
+    !           Array of dimension (ndet,ndelta) with pointer to maps,
+    !           with both access to maps and changing them.
+    !           ndet is the number of detectors and
+    !           ndelta is the number of bandpass deltas being considered
+    ! delta:    array
+    !           Array of bandpass corrections with dimensions (0:ndet,npar,ndelta)
+    !           where ndet is number of detectors, npar is number of parameters
+    !           and ndelta is the number of bandpass deltas being considered
+    !
+    ! Returns:
+    ! ----------
+    ! map_out: comm_map class
+    !          Final output map after TOD processing combined for all detectors
+    ! rms_out: comm_map class
+    !          Final output rms map after TOD processing combined for all detectors
+
     implicit none
     class(comm_LFI_tod),                      intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
