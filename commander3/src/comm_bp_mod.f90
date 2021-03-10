@@ -325,6 +325,8 @@ contains
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW
        SED2F = f(1) * self%a2t
+    case ('LB')
+       SED2F = tsum(self%nu, self%tau * f)
     case default
        write(*,*) 'Unsupported bandpass type'
        stop
