@@ -27,7 +27,7 @@ module comm_tod_LFI_mod
   !   constructor(cpar, id_abs, info, tod_type)
   !       Initialization routine that reads in, allocates and associates
   !       all data needed for TOD processing
-  !   process_LB_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  !   process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
   use comm_tod_mod
