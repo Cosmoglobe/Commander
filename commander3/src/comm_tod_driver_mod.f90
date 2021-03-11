@@ -119,7 +119,7 @@ contains
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (tod%compressed_tod) then
-          !call tod%decompress_tod(scan, j, self%tod(:,j))
+          call tod%decompress_tod(scan, j, self%tod(:,j))
        else
           self%tod(:,j) = tod%scans(scan)%d(j)%tod
        end if
@@ -271,14 +271,16 @@ contains
     allocate(s_buf2B(self%ntod, self%ndet))
 
     ! Decompress pointing, psi and flags for current scan
-    call tod%decompress_pointing_and_flags(scan, j, self%pix(:,1,:), &
+    ! Only called for one detector, det=1, since the pointing and polarization
+    ! angles are the same for all detectors
+    call tod%decompress_pointing_and_flags(scan, 1, self%pix(:,1,:), &
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (tod%compressed_tod) then
-          !call tod%decompress_tod(scan, j, self%tod(:,j))
+          call tod%decompress_tod(scan, j, self%tod(:,j))
        else
           self%tod(:,j) = tod%scans(scan)%d(j)%tod
        end if
@@ -331,8 +333,8 @@ contains
     end do
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA)
-    call tod%construct_dipole_template(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB)
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_orb(:,j)  = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
@@ -443,6 +445,9 @@ contains
     else if (trim(mode) == 'deltaG') then
        allocate(dipole_mod(tod%nscan_tot, tod%ndet))
        dipole_mod = 0.d0
+    else
+       write(*,*) 'Unsupported sampling mode!'
+       stop
     end if
 
     do i = 1, tod%nscan
@@ -489,10 +494,22 @@ contains
                 s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              end if
           end do
-          call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, out=trim(mode)=='abscal', mask_lowres=mask_lowres)
+          if (tod%compressed_tod) then
+            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, &
+              & out=trim(mode)=='abscal', mask_lowres=mask_lowres, tod_arr=sd%tod)
+          else
+            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, &
+              & out=trim(mode)=='abscal', mask_lowres=mask_lowres)
+          end if
        else
           ! Time-variable gain terms
-          call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, handle, mask_lowres=mask_lowres)
+          if (tod%compressed_tod) then
+            call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, &
+              & handle, mask_lowres=mask_lowres, tod_arr=sd%tod)
+          else
+            call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, &
+              & handle, mask_lowres=mask_lowres)
+          end if
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))
@@ -523,6 +540,50 @@ contains
     if (allocated(dipole_mod)) deallocate(dipole_mod)
 
   end subroutine sample_calibration
+
+
+  ! Sample baseline
+  subroutine sample_baseline(tod, handle, map_sky, procmask, procmask2)
+    implicit none
+    class(comm_tod),                              intent(inout) :: tod
+    type(planck_rng),                             intent(inout) :: handle
+    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
+    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+
+    integer(i4b) :: i, j
+    real(dp)     :: t1, t2
+    type(comm_scandata) :: sd
+
+    if (tod%myid == 0) write(*,*) '   --> Sampling baseline'
+
+    do i = 1, tod%nscan
+       if (.not. any(tod%scans(i)%d%accept)) cycle
+       call wall_time(t1)
+
+       ! Prepare data
+       if (tod%nhorn == 1) then
+          call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
+       else
+          call sd%init_differential(tod, i, map_sky, procmask, procmask2)
+       end if
+
+       do j = 1, tod%ndet
+          tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
+            & *sd%mask(:,j))/sum(sd%mask(:,j))
+          if (trim(tod%operation) == 'sample') then
+            tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
+             &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%sigma0**2))
+          end if
+       end do
+
+       ! Clean up
+       call wall_time(t2)
+       tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1
+       tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
+       call sd%dealloc
+    end do
+
+  end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
     implicit none
@@ -580,6 +641,32 @@ contains
   end subroutine compute_chisq_abs_bp
 
   subroutine compute_calibrated_data(tod, scan, sd, d_calib)
+    !
+    !  gets calibrated timestreams
+    !
+    !  Arguments:
+    !  ----------
+    !  tod: comm_tod object
+    !
+    !  scan: integer
+    !     integer label for scan
+    !  sd:  comm_scandata object
+    !
+    !  Returns:
+    !  --------
+    !  d_calib: real(sp) array
+    !     nout x ndet x ntod array of calibrated timestreams
+    !     d_calib(1,:,:) - best estimate of calibrated data, with all known
+    !       calibrations applied
+    !     d_calib(2,:,:) - calibrated TOD with expected sky signal subtracted,
+    !       i.e., residual
+    !     d_calib(3,:,:) - correlated noise, mean subtracted, in temperature
+    !       units
+    !     d_calib(4,:,:) - bandpass difference contribution
+    !     d_calib(5,:,:) - orbital dipole
+    !     d_calib(6,:,:) - sidelobe
+    !     d_calib(7,:,:) - zodiacal light emission
+    !
     implicit none
     class(comm_tod),                       intent(in)   :: tod
     integer(i4b),                          intent(in)   :: scan
@@ -593,7 +680,8 @@ contains
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / real(tod%scans(scan)%d(j)%gain,sp)
-       d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+       d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+         & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
        if (nout > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(sd%n_corr(:,j)/sd%ntod)) * inv_gain  ! ncorr
        if (nout > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass

@@ -39,7 +39,7 @@ contains
     integer(i4b),                         intent(in)    :: scan_id
     type(planck_rng),                     intent(inout)  :: handle
     real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
-    integer(i4b),         dimension(:,:), intent(in), optional :: tod_arr
+    real(sp),             dimension(:,:), intent(in), optional :: tod_arr
 
 
     real(sp), allocatable, dimension(:,:) :: residual
@@ -464,7 +464,7 @@ contains
     logical(lgt), intent(in) :: out
     real(sp),          dimension(:,:), intent(in), optional :: s_highres
     real(sp),          dimension(:,:), intent(in), optional :: mask_lowres
-    integer(i4b),      dimension(:,:), intent(in), optional :: tod_arr
+    real(sp),          dimension(:,:), intent(in), optional :: tod_arr
  
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill

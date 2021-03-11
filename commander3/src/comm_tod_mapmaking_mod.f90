@@ -206,7 +206,7 @@ contains
       integer(i4b), intent(in)                                  :: scan
       real(sp), dimension(1:, 1:, 1:), intent(in)               :: data
       integer(i4b), dimension(1:), intent(in)                   :: flag
-      real(sp), dimension(0:), intent(in)                   :: pmask
+      real(sp), dimension(0:), intent(in)                       :: pmask
       integer(i4b), dimension(1:, 1:), intent(in)               :: pix, psi
       real(dp), dimension(1:), intent(in)                       :: x_imarr
       real(dp), dimension(0:, 1:, 1:), intent(inout)            :: b
@@ -222,15 +222,15 @@ contains
       integer(i4b) :: pA, pB, f_A, f_B
 
       nout = size(b, dim=3)
-      dx_im = 0.5*(x_imarr(1) - x_imarr(2))
-      x_im = 0.5*(x_imarr(1) + x_imarr(2))
+      ! Note that x_imarr is duplicated
+      dx_im = 0.5*(x_imarr(1) - x_imarr(3))
+      x_im = 0.5*(x_imarr(1) + x_imarr(3))
 
       if (tod%scans(scan)%d(1)%accept) then
          !inv_sigmasq = 0.d0 
          var = 0
          do det = 1, 4
            var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2/4
-           !inv_sigmasq = inv_sigmasq  + (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
          end do
          inv_sigmasq = 1/var
          do t = 1, tod%scans(scan)%ntod
@@ -313,8 +313,8 @@ end subroutine bin_differential_TOD
       end if
       call mpi_bcast(x, size(x),  MPI_DOUBLE_PRECISION, 0, tod%info%comm, ierr)
 
-      x_im   = 0.5*(x_imarr(1) + x_imarr(2))
-      dx_im  = 0.5*(x_imarr(1) - x_imarr(2))
+      x_im   = 0.5*(x_imarr(1) + x_imarr(3))
+      dx_im  = 0.5*(x_imarr(1) - x_imarr(3))
       y      = 0.d0
       do j = 1, tod%nscan
          ntod = tod%scans(j)%ntod
