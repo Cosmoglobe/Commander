@@ -32,7 +32,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, byte_pointer
+  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, byte_pointer
 
   type :: byte_pointer
    byte, dimension(:), allocatable :: p 
@@ -156,26 +156,30 @@ module comm_tod_mod
      integer(i4b)                                      :: verbosity ! verbosity of output
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
    contains
-     procedure                        :: read_tod
-     procedure                        :: get_scan_ids
-     procedure                        :: dumpToHDF
-     procedure                        :: initHDF
-     procedure                        :: get_det_id
-     procedure                        :: initialize_bp_covar
-     procedure(process_tod), deferred :: process_tod
-     procedure                        :: construct_sl_template
-     procedure                        :: construct_dipole_template
-     procedure                        :: output_scan_list
-     procedure                        :: downsample_tod
-     procedure                        :: compute_chisq
-     procedure                        :: get_total_chisq
-     procedure                        :: symmetrize_flags
-     procedure                        :: decompress_pointing_and_flags
-     procedure                        :: decompress_tod
-     procedure                        :: tod_constructor
-     procedure                        :: load_instrument_file
-     procedure                        :: precompute_lookups
-     procedure                        :: read_jumplist
+     procedure                           :: read_tod
+     procedure(read_tod_inst), deferred  :: read_tod_inst
+     procedure(read_scan_inst), deferred :: read_scan_inst
+     procedure                           :: get_scan_ids
+     procedure                           :: dumpToHDF
+     procedure(dumpToHDF_inst), deferred :: dumpToHDF_inst
+     procedure                           :: initHDF
+     procedure(initHDF_inst), deferred   :: initHDF_inst
+     procedure                           :: get_det_id
+     procedure                           :: initialize_bp_covar
+     procedure(process_tod), deferred    :: process_tod
+     procedure                           :: construct_sl_template
+     procedure                           :: construct_dipole_template
+     procedure                           :: output_scan_list
+     procedure                           :: downsample_tod
+     procedure                           :: compute_chisq
+     procedure                           :: get_total_chisq
+     procedure                           :: symmetrize_flags
+     procedure                           :: decompress_pointing_and_flags
+     procedure                           :: decompress_tod
+     procedure                           :: tod_constructor
+     procedure                           :: load_instrument_file
+     procedure                           :: precompute_lookups
+     procedure                           :: read_jumplist
   end type comm_tod
 
   abstract interface
@@ -191,6 +195,39 @@ module comm_tod_mod
        class(comm_map),                     intent(inout) :: map_out
        class(comm_map),                     intent(inout) :: rms_out
      end subroutine process_tod
+
+     subroutine read_tod_inst(self, file)
+       import comm_tod, hdf_file
+       implicit none
+       class(comm_tod),                     intent(inout)          :: self
+       type(hdf_file),                      intent(in),   optional :: file
+     end subroutine read_tod_inst
+
+     subroutine read_scan_inst(self, file, slabel, detlabels, scan)
+       import comm_tod, hdf_file, comm_scan
+       implicit none
+       class(comm_tod),                     intent(in)    :: self
+       type(hdf_file),                      intent(in)    :: file
+       character(len=*),                    intent(in)    :: slabel
+       character(len=*), dimension(:),      intent(in)    :: detlabels
+       class(comm_scan),                    intent(inout) :: scan
+     end subroutine read_scan_inst
+
+     subroutine initHDF_inst(self, chainfile, path)
+       import comm_tod, hdf_file
+       implicit none
+       class(comm_tod),                     intent(inout)  :: self
+       type(hdf_file),                      intent(in)     :: chainfile
+       character(len=*),                    intent(in)     :: path
+     end subroutine initHDF_inst
+
+     subroutine dumpToHDF_inst(self, chainfile, path)
+       import comm_tod, hdf_file
+       implicit none
+       class(comm_tod),                     intent(in)     :: self
+       type(hdf_file),                      intent(in)     :: chainfile
+       character(len=*),                    intent(in)     :: path
+     end subroutine dumpToHDF_inst
   end interface
 
   type tod_pointer
@@ -211,8 +248,29 @@ contains
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   end subroutine initialize_tod_mod
 
-  !common constructor functionality for all tod processing classes
   subroutine tod_constructor(self, cpar, id_abs, info, tod_type)
+    ! 
+    ! Common constructor function for all TOD objects; allocatates and initializes general
+    ! data structures. This routine is typically called from within an instrument-specific 
+    ! initialization routine, *after* defining fields such that nhorn, ndet etc.
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object to be initialized
+    ! cpar:     derived type
+    !           Object containing parameters from the parameterfile.
+    ! id_abs:   integer
+    !           The index of the current band within the parameters, related to cpar
+    ! info:     map_info structure
+    !           Information about the maps for this band, like how the maps are distributed in memory
+    ! tod_type: string
+    !           Instrument specific tod type
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
     implicit none
     class(comm_tod),                intent(inout)  :: self
     integer(i4b),                   intent(in)     :: id_abs
@@ -317,6 +375,17 @@ contains
   end subroutine tod_constructor
 
   subroutine precompute_lookups(self)
+    ! 
+    ! Routine that precomputes static look-up tables in a given TOD object (pix2ind, ind2pix, ind2sl, ind2ang). 
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object to be initialized
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
     implicit none
     class(comm_tod),                intent(inout)  :: self
 
@@ -429,6 +498,19 @@ contains
 
 
   subroutine read_tod(self, detlabels)
+    ! 
+    ! Reads common TOD fields into existing TOD object
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object to be initialized
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
     implicit none
     class(comm_tod),                intent(inout)  :: self
     character(len=*), dimension(:), intent(in)     :: detlabels
@@ -449,7 +531,6 @@ contains
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
-
 
        !TODO: figure out how to make this work
        call read_hdf_string2(file, "/common/det",    det_buf, n)
@@ -495,7 +576,13 @@ contains
           self%mbang(i) = mbang_buf(j)
        end do
        deallocate(polang_buf, mbang_buf, dets)
+
+       ! Read instrument specific parameters
+       call self%read_tod_inst(file)
+
        call close_hdf_file(file)
+    else
+       call self%read_tod_inst
     end if
     call mpi_bcast(self%nside,    1,     MPI_INTEGER,          0, self%comm, ierr)
     call mpi_bcast(self%npsi,     1,     MPI_INTEGER,          0, self%comm, ierr)
@@ -569,6 +656,36 @@ contains
   end subroutine read_tod
 
   subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels, nhorn)
+    ! 
+    ! Reads common scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_scan)
+    !           Scan object
+    ! tod:      derived class (comm_tod)
+    !           Main TOD object to which current scan belongs
+    ! filename: character
+    !           TOD filename
+    ! scan:     int
+    !           Scan ID
+    ! ndet:     int
+    !           Number of detectors
+    ! nhorn:    int
+    !           Number of horns
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    ! TODO
+    ! ----
+    ! - ndet, nhorn and detlabels should be taken from tod, not inserted as separate parameters?
+    ! 
     implicit none
     class(comm_scan),               intent(inout) :: self
     class(comm_tod),                intent(in)    :: tod
@@ -704,6 +821,10 @@ contains
     call wall_time(t2)
     t_tot(6) = t_tot(6) + t2-t1
 
+    ! Read instrument-specific infomation
+    call tod%read_scan_inst(file, slabel, detlabels, self)
+
+    ! Clean up
     call close_hdf_file(file)
 
     call wall_time(t4)
@@ -1045,6 +1166,9 @@ contains
     call map%writeMapToHDF(chainfile, path, 'map')
     call rms%writeMapToHDF(chainfile, path, 'rms')
 
+    ! Write instrument-specific parameters
+    call self%dumpToHDF_inst(chainfile, path)
+
     deallocate(output)
 
   end subroutine dumpToHDF
@@ -1064,9 +1188,9 @@ contains
     npar = 5
     allocate(output(self%nscan_tot,self%ndet,npar))
 
+    call int2string(iter, itext)
+    path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
     if (self%myid == 0) then
-       call int2string(iter, itext)
-       path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
        call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
        call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,3))
@@ -1112,6 +1236,9 @@ contains
 
     call map%readMapFromHDF(chainfile, trim(adjustl(path))//'map')
     call rms%readMapFromHDF(chainfile, trim(adjustl(path))//'rms')
+
+    ! Read instrument-specific parameters
+    call self%initHDF_inst(chainfile, path)
 
     deallocate(output)
 

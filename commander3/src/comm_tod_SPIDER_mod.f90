@@ -50,6 +50,10 @@ module comm_tod_SPIDER_mod
      !class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
    contains
      procedure     :: process_tod        => process_SPIDER_tod
+     procedure     :: read_tod_inst      => read_tod_inst_SPIDER
+     procedure     :: read_scan_inst     => read_scan_inst_SPIDER
+     procedure     :: initHDF_inst       => initHDF_SPIDER
+     procedure     :: dumpToHDF_inst     => dumpToHDF_SPIDER
   end type comm_SPIDER_tod
 
   interface comm_SPIDER_tod
@@ -1500,6 +1504,102 @@ subroutine write2file(filename, iter, param)
 
    close(unit)
  end subroutine write2file
+
+
+  subroutine read_tod_inst_SPIDER(self, file)
+    ! 
+    ! Reads SPIDER-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst_SPIDER
+  
+  subroutine read_scan_inst_SPIDER(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads SPIDER-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst_SPIDER
+
+  subroutine initHDF_SPIDER(self, chainfile, path)
+    ! 
+    ! Initializes SPIDER-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_SPIDER
+  
+  subroutine dumpToHDF_SPIDER(self, chainfile, path)
+    ! 
+    ! Writes SPIDER-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_SPIDER
 
 
 
