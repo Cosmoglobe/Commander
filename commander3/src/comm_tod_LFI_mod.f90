@@ -54,6 +54,8 @@ module comm_tod_LFI_mod
      procedure     :: process_tod        => process_LFI_tod
      procedure     :: read_tod_inst      => read_tod_inst_LFI
      procedure     :: read_scan_inst     => read_scan_inst_LFI
+     procedure     :: initHDF_inst       => initHDF_LFI
+     procedure     :: dumpToHDF_inst     => dumpToHDF_LFI
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -466,5 +468,51 @@ contains
     character(len=*), dimension(:),      intent(in)    :: detlabels
     class(comm_scan),                    intent(inout) :: scan
   end subroutine read_scan_inst_LFI
+
+  subroutine initHDF_LFI(self, chainfile, path)
+    ! 
+    ! Initializes LFI-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LFI_tod)
+    !           LFI-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_LFI_tod),                 intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_LFI
+  
+  subroutine dumpToHDF_LFI(self, chainfile, path)
+    ! 
+    ! Writes LFI-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LFI_tod)
+    !           LFI-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_LFI_tod),                 intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_LFI
 
 end module comm_tod_LFI_mod

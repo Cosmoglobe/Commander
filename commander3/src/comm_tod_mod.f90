@@ -161,7 +161,9 @@ module comm_tod_mod
      procedure(read_scan_inst), deferred :: read_scan_inst
      procedure                           :: get_scan_ids
      procedure                           :: dumpToHDF
+     procedure(dumpToHDF_inst), deferred :: dumpToHDF_inst
      procedure                           :: initHDF
+     procedure(initHDF_inst), deferred   :: initHDF_inst
      procedure                           :: get_det_id
      procedure                           :: initialize_bp_covar
      procedure(process_tod), deferred    :: process_tod
@@ -210,6 +212,22 @@ module comm_tod_mod
        character(len=*), dimension(:),      intent(in)    :: detlabels
        class(comm_scan),                    intent(inout) :: scan
      end subroutine read_scan_inst
+
+     subroutine initHDF_inst(self, chainfile, path)
+       import comm_tod, hdf_file
+       implicit none
+       class(comm_tod),                     intent(inout)  :: self
+       type(hdf_file),                      intent(in)     :: chainfile
+       character(len=*),                    intent(in)     :: path
+     end subroutine initHDF_inst
+
+     subroutine dumpToHDF_inst(self, chainfile, path)
+       import comm_tod, hdf_file
+       implicit none
+       class(comm_tod),                     intent(in)     :: self
+       type(hdf_file),                      intent(in)     :: chainfile
+       character(len=*),                    intent(in)     :: path
+     end subroutine dumpToHDF_inst
   end interface
 
   type tod_pointer
@@ -1148,6 +1166,9 @@ contains
     call map%writeMapToHDF(chainfile, path, 'map')
     call rms%writeMapToHDF(chainfile, path, 'rms')
 
+    ! Write instrument-specific parameters
+    call self%dumpToHDF_inst(chainfile, path)
+
     deallocate(output)
 
   end subroutine dumpToHDF
@@ -1167,9 +1188,9 @@ contains
     npar = 5
     allocate(output(self%nscan_tot,self%ndet,npar))
 
+    call int2string(iter, itext)
+    path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
     if (self%myid == 0) then
-       call int2string(iter, itext)
-       path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
        call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
        call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,3))
@@ -1215,6 +1236,9 @@ contains
 
     call map%readMapFromHDF(chainfile, trim(adjustl(path))//'map')
     call rms%readMapFromHDF(chainfile, trim(adjustl(path))//'rms')
+
+    ! Read instrument-specific parameters
+    call self%initHDF_inst(chainfile, path)
 
     deallocate(output)
 

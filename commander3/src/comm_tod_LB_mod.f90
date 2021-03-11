@@ -55,6 +55,8 @@ module comm_tod_LB_mod
      procedure     :: process_tod        => process_LB_tod
      procedure     :: read_tod_inst      => read_tod_inst_LB
      procedure     :: read_scan_inst     => read_scan_inst_LB
+     procedure     :: initHDF_inst       => initHDF_LB
+     procedure     :: dumpToHDF_inst     => dumpToHDF_LB
   end type comm_LB_tod
 
   interface comm_LB_tod
@@ -470,5 +472,52 @@ contains
     character(len=*), dimension(:),      intent(in)    :: detlabels
     class(comm_scan),                    intent(inout) :: scan
   end subroutine read_scan_inst_LB
+
+  subroutine initHDF_LB(self, chainfile, path)
+    ! 
+    ! Initializes LB-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_LB_tod),                  intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_LB
+  
+  subroutine dumpToHDF_LB(self, chainfile, path)
+    ! 
+    ! Writes LB-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_LB_tod),                  intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_LB
+
 
 end module comm_tod_LB_mod

@@ -74,6 +74,8 @@ module comm_tod_WMAP_mod
       procedure     :: process_tod    => process_WMAP_tod
       procedure     :: read_tod_inst  => read_tod_inst_WMAP
       procedure     :: read_scan_inst => read_scan_inst_WMAP
+      procedure     :: initHDF_inst   => initHDF_WMAP
+      procedure     :: dumpToHDF_inst => dumpToHDF_WMAP
    end type comm_WMAP_tod
 
    interface comm_WMAP_tod
@@ -1246,6 +1248,52 @@ contains
     character(len=*), dimension(:),      intent(in)    :: detlabels
     class(comm_scan),                    intent(inout) :: scan
   end subroutine read_scan_inst_WMAP
+
+  subroutine initHDF_WMAP(self, chainfile, path)
+    ! 
+    ! Initializes WMAP-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_WMAP_tod)
+    !           WMAP-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_WMAP_tod),                intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_WMAP
+  
+  subroutine dumpToHDF_WMAP(self, chainfile, path)
+    ! 
+    ! Writes WMAP-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_WMAP_tod)
+    !           WMAP-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_WMAP_tod),                intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_WMAP
 
 
 end module comm_tod_WMAP_mod

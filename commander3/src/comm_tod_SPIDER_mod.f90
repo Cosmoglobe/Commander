@@ -52,6 +52,8 @@ module comm_tod_SPIDER_mod
      procedure     :: process_tod        => process_SPIDER_tod
      procedure     :: read_tod_inst      => read_tod_inst_SPIDER
      procedure     :: read_scan_inst     => read_scan_inst_SPIDER
+     procedure     :: initHDF_inst       => initHDF_SPIDER
+     procedure     :: dumpToHDF_inst     => dumpToHDF_SPIDER
   end type comm_SPIDER_tod
 
   interface comm_SPIDER_tod
@@ -1552,6 +1554,52 @@ subroutine write2file(filename, iter, param)
     character(len=*), dimension(:),      intent(in)    :: detlabels
     class(comm_scan),                    intent(inout) :: scan
   end subroutine read_scan_inst_SPIDER
+
+  subroutine initHDF_SPIDER(self, chainfile, path)
+    ! 
+    ! Initializes SPIDER-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_SPIDER
+  
+  subroutine dumpToHDF_SPIDER(self, chainfile, path)
+    ! 
+    ! Writes SPIDER-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_SPIDER
 
 
 
