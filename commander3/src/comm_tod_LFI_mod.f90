@@ -52,6 +52,8 @@ module comm_tod_LFI_mod
   type, extends(comm_tod) :: comm_LFI_tod
    contains
      procedure     :: process_tod        => process_LFI_tod
+     procedure     :: read_tod_inst      => read_tod_inst_LFI
+     procedure     :: read_scan_inst     => read_scan_inst_LFI
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -414,5 +416,55 @@ contains
     call update_status(status, "tod_end"//ctext)
 
   end subroutine process_LFI_tod
+
+  
+  subroutine read_tod_inst_LFI(self, file)
+    ! 
+    ! Reads LFI-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LFI_tod)
+    !           LFI-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_LFI_tod),                 intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst_LFI
+  
+  subroutine read_scan_inst_LFI(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads LFI-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LFI_tod)
+    !           LFI-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_LFI_tod),                 intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst_LFI
 
 end module comm_tod_LFI_mod

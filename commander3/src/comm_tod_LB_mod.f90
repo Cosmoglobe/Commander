@@ -53,6 +53,8 @@ module comm_tod_LB_mod
   type, extends(comm_tod) :: comm_LB_tod
    contains
      procedure     :: process_tod        => process_LB_tod
+     procedure     :: read_tod_inst      => read_tod_inst_LB
+     procedure     :: read_scan_inst     => read_scan_inst_LB
   end type comm_LB_tod
 
   interface comm_LB_tod
@@ -417,5 +419,56 @@ contains
     call update_status(status, "tod_end"//ctext)
 
   end subroutine process_LB_tod   
+
+
+
+  subroutine read_tod_inst_LB(self, file)
+    ! 
+    ! Reads LB-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_LB_tod),                  intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst_LB
+  
+  subroutine read_scan_inst_LB(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads LB-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_LB_tod),                  intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst_LB
 
 end module comm_tod_LB_mod
