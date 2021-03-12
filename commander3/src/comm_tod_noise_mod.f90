@@ -350,6 +350,11 @@ contains
     ntod = size(d_prime, 1)
     nmask = ntod - sum(mask)
 
+    if (nmask == 0) then
+      ncorr = d_prime
+      return
+    end if
+
     eps = 1.d-5
 
     converged = .false.

@@ -365,6 +365,7 @@ contains
     t_tot   = 0.d0
     call wall_time(t5)
 
+    nhorn           = self%nhorn
 
     ! Set up full-sky map structures
     call wall_time(t1)
@@ -587,9 +588,6 @@ contains
           call wall_time(t1)
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             if (self%myid==0) write(*,*) "pix in spider mod: ", size(self%scans(i)%d(j)%pix(1)%p), i, j
-             if (self%myid==0) write(*,*) "psi in spider mod: ", size(self%scans(i)%d(j)%psi(1)%p), i, j
-             if (self%myid==0) write(*,*) "flag in spider mod: ", size(self%scans(i)%d(j)%flag), i, j
              call self%decompress_pointing_and_flags(i, j, pix(:,j,:), &
                   & psi(:,j,:), flag(:,j))
           end do

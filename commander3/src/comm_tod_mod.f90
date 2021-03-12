@@ -646,13 +646,10 @@ contains
          !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
          !call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
-         write(*,*) "read pix in tod_mod", size(self%d(i)%pix(j)%p)
          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
-         write(*,*) "read psi in tod_mod", size(self%d(i)%psi(j)%p)
        end do
 
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
-       write(*,*) "read flag in tod_mod", size(self%d(i)%flag)
        if (tod%compressed_tod) then
           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
        else
@@ -1466,20 +1463,12 @@ contains
     integer(i4b),        dimension(:),  intent(out) :: flag
     integer(i4b),        dimension(:,:),intent(out) :: psi, pix
     integer(i4b) :: i
-    if (self%myid==0) write(*,*) "psi at beginning: ", size(self%scans(scan)%d(det)%psi(1)%p), scan, det
-    if (self%myid==0) write(*,*) "pix at beginning: ", size(self%scans(scan)%d(det)%pix(1)%p)
-    if (self%myid==0) write(*,*) "scan, det, nhorn", scan, det, self%nhorn
     
     do i=1, self%nhorn
-      write(*,*) "Decode psi", i
-      if (self%myid==0) write(*,*) "size ...psi(i)%p: ", size(self%scans(scan)%d(det)%psi(i)%p), scan, det
-      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
-      write(*,*) "Decode pix", i
-      if (self%myid==0) write(*,*) "size ...pix(i)%p: ", size(self%scans(scan)%d(det)%pix(i)%p), scan, det
       call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
+      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
    end do
 
-   if (self%myid==0) write(*,*) "size ...flag: ", size(self%scans(scan)%d(det)%flag), scan, det
    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
