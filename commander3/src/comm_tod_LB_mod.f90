@@ -100,8 +100,11 @@ contains
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
-    ! Initialize common parameters
+    ! Allocate object
     allocate(constructor)
+    constructor%noise_psd_model = 'oof'
+
+    ! Initialize common parameters
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
@@ -345,16 +348,16 @@ contains
        call compute_calibrated_data(self, i, sd, d_calib)    
 
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-       if (self%output_4D_map > 0) then
-          if (mod(iter-1,self%output_4D_map) == 0) then
-             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                  & samptext, self%scanid(i), self%nside, self%npsi, &
-                  & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-                  & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                  & self%scans(i)%d(:)%accept)
-          end if
-       end if
+!!$       if (self%output_4D_map > 0) then
+!!$          if (mod(iter-1,self%output_4D_map) == 0) then
+!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
+!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), &
+!!$                  & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
+!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+!!$                  & self%scans(i)%d(:)%accept)
+!!$          end if
+!!$       end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)

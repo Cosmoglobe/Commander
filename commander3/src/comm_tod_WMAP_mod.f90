@@ -460,7 +460,7 @@ contains
             if (main_iter == 1 .and. self%first_call) then
                do j = 1, ndet
                   if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
-                  if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(:)%accept = .false.
+                  if (self%scans(i)%d(j)%N_psd%sigma0 <= 0.d0) self%scans(i)%d(:)%accept = .false.
                end do
             end if
             call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
@@ -540,7 +540,7 @@ contains
               &- self%scans(i)%d(j)%gain*s_tot(:,j))*mask(:,j))/sum(mask(:,j))
                 if (trim(self%operation) == 'sample') then
                   self%scans(i)%d(j)%baseline = self%scans(i)%d(j)%baseline &
-                   &  + rand_gauss(handle)/sqrt(sum(mask(:,j)*self%scans(i)%d(j)%sigma0**2))
+                   &  + rand_gauss(handle)/sqrt(sum(mask(:,j)*self%scans(i)%d(j)%N_psd%sigma0**2))
                 end if
               end if
             end do
@@ -563,7 +563,7 @@ contains
                      s_buf(:,j) = s_tot(:,j)
                      call fill_all_masked(s_buf(:,j), mask(:,j), ntod, &
                      &  .false., &   !trim(self%operation)=='sample', &
-                     &  real(self%scans(i)%d(j)%sigma0, sp), &
+                     &  real(self%scans(i)%d(j)%N_psd%sigma0, sp), &
                      &  handle, self%scans(i)%chunk_num)
                      call self%downsample_tod(s_buf(:,j), ext, &
                           & s_invN(:,j))!, mask(:,j))
@@ -593,7 +593,7 @@ contains
                    s_buf(:,j) = self%scans(i)%d(j)%gain*(s_totA(:,j)+s_totB(:,j))
                    call fill_all_masked(s_buf(:,j), mask(:,j), ntod, &
                    &  .false., &   !trim(self%operation)=='sample', &
-                   &  real(self%scans(i)%d(j)%sigma0, sp), &
+                   &  real(self%scans(i)%d(j)%N_psd%sigma0, sp), &
                    &  handle, self%scans(i)%chunk_num)
                    call self%downsample_tod(s_buf(:,j), ext, &
                         & s_invN(:,j))!, mask(:,j))
@@ -1183,7 +1183,7 @@ contains
           cycle
        end if
        r_fill = tod_arr(:,j) - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
+       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
 
