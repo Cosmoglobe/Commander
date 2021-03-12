@@ -615,7 +615,9 @@ end subroutine bin_differential_TOD
         alpha = 1d0
 
         rho_new = sum(r0*r)
-        bicg: do i = 1, i_max
+        i = 0
+        bicg: do
+           i = i + 1
            rho_old = rho_new
            rho_new = sum(r0*r)
            if (rho_new == 0d0) then
@@ -690,6 +692,12 @@ end subroutine bin_differential_TOD
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
+           end if
+           if (i==i_max) then
+             write(*,*) 'Reach maximum number of iterations'
+             finished = .true.
+             call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+             exit bicg
            end if
         end do bicg
 
