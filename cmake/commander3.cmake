@@ -68,6 +68,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_N_rms_mod.f90
 	# TOD processing modules
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_LFI_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_mod.f90
