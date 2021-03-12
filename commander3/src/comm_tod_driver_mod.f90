@@ -421,7 +421,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Sample gain
-  ! Supported modes = {abscal, relcal, deltaG}
+  ! Supported modes = {abscal, relcal, deltaG, imbal}
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
     implicit none
     class(comm_tod),                              intent(inout) :: tod
@@ -439,7 +439,7 @@ contains
 
     if (tod%myid == 0) write(*,*) '   --> Sampling calibration, mode = ', trim(mode)
 
-    if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal') then
+    if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
        allocate(A(tod%ndet), b(tod%ndet))
        A = 0.d0; b = 0.d0
     else if (trim(mode) == 'deltaG') then
@@ -473,15 +473,16 @@ contains
              ! Calibrator = orbital dipole only
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invN(:,j))
           else
-             ! Calibratior = total signal
+             ! Calibrator = total signal
              s_buf(:,j) = sd%s_tot(:,j)
-             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%sigma0, sp), handle, tod%scans(i)%chunk_num)
+             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
+               & real(tod%scans(i)%d(j)%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           end if
        end do
        call multiply_inv_N(tod, i, s_invN, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
-       if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal') then
+       if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
@@ -492,6 +493,8 @@ contains
                 s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'relcal') then
                 s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
+             else if (trim(mode) == 'imbal') then
+                s_buf(:,j) = self%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
           if (tod%compressed_tod) then
@@ -532,6 +535,8 @@ contains
     else if (trim(mode) == 'deltaG') then
        call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
        call sample_smooth_gain(tod, handle, dipole_mod)
+    else if (trim(mode) == 'imbal') then
+       call sample_imbal_cal(tod, handle, A, b)
     end if
 
     ! Clean up

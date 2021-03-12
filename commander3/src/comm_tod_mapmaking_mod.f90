@@ -594,7 +594,7 @@ end subroutine bin_differential_TOD
          allocate (determ(0:npix-1))
          determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
 
-         i_max = 100
+         i_max = 10
          i_min = 0
 
         if (.false. .and. l == 1) then

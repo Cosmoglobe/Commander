@@ -1688,7 +1688,7 @@ contains
     real(sp),          dimension(:), intent(in)     :: n_corr
     real(sp),          dimension(:), intent(in), optional :: s_jump
     logical(lgt),                    intent(in), optional :: absbp, verbose
-    integer(i4b),     dimension(:,:), intent(in), optional :: tod_arr
+    real(sp),        dimension(:,:), intent(in), optional :: tod_arr
 
     
     real(dp)     :: chisq, d0, g, b

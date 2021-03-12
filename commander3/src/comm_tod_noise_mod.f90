@@ -39,7 +39,7 @@ contains
     integer(i4b),   dimension(1:,1:),  intent(in)     :: pix
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
     logical(lgt),            intent(in), optional     :: dospike
-    integer(i4b),  dimension(:,:),  intent(in), optional   :: tod_arr
+    real(sp),  dimension(:,:),  intent(in), optional   :: tod_arr
     real(sp),          dimension(:,:), intent(out)    :: n_corr
     real(sp),    dimension(:,:), intent(in), optional :: tod_input
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
@@ -840,7 +840,7 @@ contains
     integer(i4b),                    intent(in)     :: scan
     real(sp),        dimension(:,:), intent(in)     :: mask, s_tot, n_corr
     real(sp), dimension(:,:), intent(in), optional  :: tod_input
-    integer(i4b),        dimension(:,:), intent(in), optional     :: tod_arr
+    real(sp),        dimension(:,:), intent(in), optional     :: tod_arr
     
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, n, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_f 
@@ -1287,7 +1287,7 @@ contains
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
-    integer(i4b),  dimension(:,:),  intent(in), optional   :: tod_arr
+    real(sp),  dimension(:,:),  intent(in), optional   :: tod_arr
     
     ntod = tod%scans(scan)%ntod
     ndet = tod%ndet

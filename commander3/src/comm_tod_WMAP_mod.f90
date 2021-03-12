@@ -121,7 +121,7 @@ contains
       constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
-      constructor%chisq_threshold = 20.d0 ! 9.d0
+      constructor%chisq_threshold = 400.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
@@ -347,7 +347,7 @@ contains
       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
-      !call sample_calibration(self, 'imbalance', handle, map_sky, procmask, procmask2)
+      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2)
 
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -358,6 +358,11 @@ contains
          allocate(slist(self%nscan))
          slist   = ''
       end if
+
+      allocate (M_diag(0:npix-1, nmaps))
+      allocate ( b_map(0:npix-1, nmaps, self%output_n_maps))
+      M_diag = 0d0
+      b_map = 0d0
 
       ! Perform loop over scans
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
@@ -386,15 +391,15 @@ contains
          !end if
 
          ! Sample correlated noise
-         call sample_n_corr(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.true.)
+         call sample_n_corr(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false., tod_arr=sd%tod)
 
          ! Compute noise spectrum parameters
-         call sample_noise_psd(self, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         call sample_noise_psd(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, tod_arr=sd%tod)
 
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
-            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
+            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
          end do
 
          ! Select data
@@ -519,7 +524,6 @@ contains
       end if
 
       deallocate (map_sky, bicg_sol)
-      !if (self%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
 
       if (correct_sl) then
          do i = 1, self%ndet
@@ -534,150 +538,6 @@ contains
       self%first_call = .false.
 
    end subroutine process_WMAP_tod
-
-
-
-
-
-  subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
-    !  Subroutine to sample the transmission imbalance parameters, defined in
-    !  the WMAP data model as the terms x_im; given the definition
-    !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})
-    !  we have
-    !  d = g[(1+x_im)*d_A - (1-x_im)*d_B]
-    !  Returns x_{im,1} for detectors 13/14, and x_{im,2} for detectors 23/24.
-    !
-    !
-    !  Arguments (fixed):
-    !  ------------------
-    !  A_abs: real(dp)
-    !     Accumulated A_abs = s_ref^T N^-1 s_ref for all scans
-    !  b_abs: real(dp)
-    !     Accumulated b_abs = s_ref^T N^-1 s_sub for all scans
-    !
-    !  
-    !  Arguments (modified):
-    !  ---------------------
-    !  tod: comm_WMAP_tod
-    !     The entire tod object. tod%x_im estimated and optionally sampled
-    !  handle: planck_rng derived type 
-    !     Healpix definition for random number generation
-    !     so that the same sequence can be resumed later on from that same point
-    !
-    implicit none
-    class(comm_WMAP_tod),              intent(inout)  :: tod
-    type(planck_rng),                  intent(inout)  :: handle
-    real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
-
-    integer(i4b) :: i, j, ierr
-    real(dp), allocatable, dimension(:) :: A, b
-
-    ! Collect contributions from all cores
-    allocate(A(tod%ndet), b(tod%ndet))
-    call mpi_reduce(A_abs, A, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
-         & tod%info%comm, ierr)
-    call mpi_reduce(b_abs, b, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
-         & tod%info%comm, ierr)
-
-    ! Compute gain update and distribute to all cores
-    if (tod%myid == 0) then
-       tod%x_im(1) = sum(b(1:2))/sum(A(1:2))
-       tod%x_im(3) = sum(b(3:4))/sum(A(3:4))
-       if (trim(tod%operation) == 'sample') then
-          ! Add fluctuation term if requested
-          tod%x_im(1) = tod%x_im(1) + 1.d0/sqrt(sum(A(1:2))) * rand_gauss(handle)
-          tod%x_im(3) = tod%x_im(3) + 1.d0/sqrt(sum(A(3:4))) * rand_gauss(handle)
-       end if
-       tod%x_im(2) = tod%x_im(1)
-       tod%x_im(4) = tod%x_im(3)
-       if (tod%verbosity > 1) then
-         write(*,*) 'imbal sample =', tod%x_im
-         write(*,*) 'b', sum(b(1:2)), sum(b(3:4))
-         write(*,*) 'A', sum(A(1:2)), sum(A(3:4))
-       end if
-    end if
-    call mpi_bcast(tod%x_im, 4,  MPI_DOUBLE_PRECISION, 0, &
-         & tod%info%comm, ierr)
-
-
-    deallocate(A, b)
-
-  end subroutine sample_imbal_cal
-
-  subroutine accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, tod_arr)
-    !
-    !  Subroutine that is used to calculate the numerator and denominator of the
-    !  transmisssion imbalance term, b_abs = r^T N^-1 s_ref and A_abs s_ref^T N^-1 s_ref
-    !
-    !  Arguments (fixed):
-    !  ----------
-    !  tod: comm_tod
-    !     pointer to the TOD object
-    !  scan: int
-    !     number of scan being calculated currently
-    !  mask: real (sp)
-    !     TOD mask, with values set to 0 for data to be discarded, 1 for data to
-    !     be kept.
-    !  s_sub: real (sp)
-    !     Data with fixed components removed in units of du, i.e., 
-    !     s_sub = d-n_corr - g*s_sky \simeq s_orb + n_w
-    !  s_ref: real (sp)
-    !     Reference template in time space, usually the orbital dipole.
-    !  s_invN: real (sp)
-    !     Pre-computed product s_ref^T N^-1
-    !  tod_arr: int
-    !     Decompressed TOD
-    !
-    !  Arguments (modified):
-    !  --------
-    !  A_abs: real(dp)
-    !     Accumulated A_abs = s_ref^T N^-1 s_ref for scan in question
-    !  b_abs: real(dp)
-    !     Accumulated b_abs = s_ref^T N^-1 s_sub for scan in question
-    !  handle: planck_rng derived type 
-    !     Healpix definition for random number generation
-    !     so that the same sequence can be resumed later on from that same point
-    !
-    implicit none
-    class(comm_tod),                   intent(in)     :: tod
-    integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
-    real(sp),          dimension(:,:), intent(in)     :: s_invN
-    real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
-    type(planck_rng),                  intent(inout)  :: handle
-    integer(i4b),      dimension(:,:), intent(in), optional :: tod_arr
-
-    real(sp), allocatable, dimension(:,:)     :: residual
-    real(sp), allocatable, dimension(:)       :: r_fill
-    real(dp)     :: A, b
-    integer(i4b) :: i, j, ext(2), ndet, ntod
-    character(len=5) :: itext
-
-    ndet = tod%ndet
-    ntod = size(s_sub,1)
-    call tod%downsample_tod(s_sub(:,1), ext)    
-    allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
-    do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) then
-          residual(:,j) = 0.
-          cycle
-       end if
-       r_fill = tod_arr(:,j) - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-       call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
-       call tod%downsample_tod(r_fill, ext, residual(:,j))
-    end do
-
-    call multiply_inv_N(tod, scan, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
-
-    do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) cycle
-       A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
-       b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
-    end do
-
-    deallocate(residual, r_fill)
-
-  end subroutine accumulate_imbal_cal
 
 
   subroutine read_tod_inst_WMAP(self, file)

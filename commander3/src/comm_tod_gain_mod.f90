@@ -670,7 +670,70 @@ contains
 
   end subroutine sample_relcal
 
+  subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
+    !  Subroutine to sample the transmission imbalance parameters, defined in
+    !  the WMAP data model as the terms x_im; given the definition
+    !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})
+    !  we have
+    !  d = g[(1+x_im)*d_A - (1-x_im)*d_B]
+    !  Returns x_{im,1} for detectors 13/14, and x_{im,2} for detectors 23/24.
+    !
+    !
+    !  Arguments (fixed):
+    !  ------------------
+    !  A_abs: real(dp)
+    !     Accumulated A_abs = s_ref^T N^-1 s_ref for all scans
+    !  b_abs: real(dp)
+    !     Accumulated b_abs = s_ref^T N^-1 s_sub for all scans
+    !
+    !  
+    !  Arguments (modified):
+    !  ---------------------
+    !  tod: comm_WMAP_tod
+    !     The entire tod object. tod%x_im estimated and optionally sampled
+    !  handle: planck_rng derived type 
+    !     Healpix definition for random number generation
+    !     so that the same sequence can be resumed later on from that same point
+    !
+    implicit none
+    class(comm_WMAP_tod),              intent(inout)  :: tod
+    type(planck_rng),                  intent(inout)  :: handle
+    real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
 
+    integer(i4b) :: i, j, ierr
+    real(dp), allocatable, dimension(:) :: A, b
+
+    ! Collect contributions from all cores
+    allocate(A(tod%ndet), b(tod%ndet))
+    call mpi_reduce(A_abs, A, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & tod%info%comm, ierr)
+    call mpi_reduce(b_abs, b, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & tod%info%comm, ierr)
+
+    ! Compute gain update and distribute to all cores
+    if (tod%myid == 0) then
+       tod%x_im(1) = sum(b(1:2))/sum(A(1:2))
+       tod%x_im(3) = sum(b(3:4))/sum(A(3:4))
+       if (trim(tod%operation) == 'sample') then
+          ! Add fluctuation term if requested
+          tod%x_im(1) = tod%x_im(1) + 1.d0/sqrt(sum(A(1:2))) * rand_gauss(handle)
+          tod%x_im(3) = tod%x_im(3) + 1.d0/sqrt(sum(A(3:4))) * rand_gauss(handle)
+       end if
+       tod%x_im(2) = tod%x_im(1)
+       tod%x_im(4) = tod%x_im(3)
+       if (tod%verbosity > 1) then
+         write(*,*) 'imbal sample =', tod%x_im
+         write(*,*) 'b', sum(b(1:2)), sum(b(3:4))
+         write(*,*) 'A', sum(A(1:2)), sum(A(3:4))
+       end if
+    end if
+    call mpi_bcast(tod%x_im, 4,  MPI_DOUBLE_PRECISION, 0, &
+         & tod%info%comm, ierr)
+
+
+    deallocate(A, b)
+
+  end subroutine sample_imbal_cal
 
   subroutine get_smoothing_windows(tod, windows, dipole_mods)
      implicit none
