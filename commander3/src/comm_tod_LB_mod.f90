@@ -225,6 +225,7 @@ contains
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
+    sample_gain           = .false.                ! Gain sampling, LB TOD sims have perfect gain
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -277,9 +278,14 @@ contains
     !------------------------------------
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+     if (sample_gain) then
+       ! 'abscal': the global constant gain factor
+       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
+       ! 'relcal': the gain factor that is constant in time but varying between detectors
+       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
+       ! 'deltaG': the time-variable and detector-variable gain
+       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+    end if
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -396,7 +402,8 @@ contains
     call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
     if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-    if (self%output_n_maps > 3) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
+    !if (self%output_n_maps > 3) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
+    if (self%output_n_maps > 4) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
     if (self%output_n_maps > 5) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 7) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
