@@ -781,8 +781,8 @@ contains
        call wall_time(t1)
        if (nhorn == 2) then
          do j = 1, nhorn 
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
          end do
        else
          do j = 1, nhorn
@@ -1847,7 +1847,7 @@ contains
 
     call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
 
-    tod = real(tod_int)
+    tod = real(tod_int, sp)
 
     deallocate(tod_int)
 

@@ -326,6 +326,11 @@ contains
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
       deallocate(m_buf)
 
+      ! Allocate total map (for monopole sampling)
+      allocate(map_full(0:npix-1))
+      map_full = 0.d0
+
+
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
          if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
@@ -359,7 +364,7 @@ contains
          slist   = ''
       end if
 
-      allocate (M_diag(0:npix-1, nmaps))
+      allocate (M_diag(0:npix-1, nmaps+1))
       allocate ( b_map(0:npix-1, nmaps, self%output_n_maps))
       M_diag = 0d0
       b_map = 0d0
@@ -374,11 +379,14 @@ contains
 
          ! Prepare data
          if (sample_rel_bandpass) then
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+              & init_s_bp=.true., init_s_bp_prop=.true.)
          else if (sample_abs_bandpass) then
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+              & init_s_bp=.true., init_s_sky_prop=.true.)
          else
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+              & init_s_bp=.true.)
          end if
          allocate(s_buf(sd%ntod,sd%ndet))
 
@@ -391,7 +399,8 @@ contains
          !end if
 
          ! Sample correlated noise
-         call sample_n_corr(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false., tod_arr=sd%tod)
+         call sample_n_corr(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
+           & sd%pix(:,1,:), dospike=.false., tod_arr=sd%tod)
 
          ! Compute noise spectrum parameters
          call sample_noise_psd(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, tod_arr=sd%tod)
@@ -399,11 +408,12 @@ contains
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
-            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
+            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
+              & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
          end do
 
          ! Select data
-         if (select_data) call remove_bad_data(self, i, sd%flag)
+         ! if (select_data) call remove_bad_data(self, i, sd%flag)
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
@@ -464,7 +474,7 @@ contains
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      allocate (bicg_sol(0:npix-1, nmaps, nout))
+      allocate (bicg_sol(0:npix-1, nmaps, self%output_n_maps))
       if (self%myid == 0) then 
          bicg_sol = 0.0d0
          epsil(1)   = 1d-10
@@ -482,6 +492,7 @@ contains
          call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                           & epsil(l), procmask, map_full, M_diag, b_map, l)
       end do
+      if (self%verbosity > 0) write(*,*) '  Finished BiCG'
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)

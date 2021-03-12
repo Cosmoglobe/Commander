@@ -472,6 +472,12 @@ contains
           if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
              ! Calibrator = orbital dipole only
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invN(:,j))
+          else if (trim(mode) == 'imbal') then
+             ! Calibrator = common mode signal
+             s_buf(:,j) = sd%s_totA(:,j) + sd%s_totB(:,j)
+             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
+               & real(tod%scans(i)%d(j)%sigma0, sp), handle, tod%scans(i)%chunk_num)
+             call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           else
              ! Calibrator = total signal
              s_buf(:,j) = sd%s_tot(:,j)
@@ -488,13 +494,17 @@ contains
              if (.not. tod%scans(i)%d(j)%accept) cycle
              if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_orb(:,j)) + &
-                     & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
+                     & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
+                     & tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'abscal' .and. .not. tod%orb_abscal) then
-                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
+                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
+                     & tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'relcal') then
-                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
+                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
+                     & tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'imbal') then
-                s_buf(:,j) = self%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
+                s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j)) + &
+                     & tod%scans(i)%d(j)%baseline
              end if
           end do
           if (tod%compressed_tod) then
@@ -587,6 +597,16 @@ contains
        tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
        call sd%dealloc
     end do
+    !do j = 1, tod%ndet
+    !  if (tod%myid == 0) then
+    !    call sd%init_differential(tod, 1, map_sky, procmask, procmask2)
+    !    write(*,*) 'Detector',j
+    !    write(*,*) tod%scans(1)%d(j)%baseline
+    !    write(*,*) sum(sd%tod(:,j))/size(sd%tod(:,j))
+    !    write(*,*) sum(sd%tod(:,j) - tod%scans(1)%d(j)%baseline)/size(sd%tod(:,j))
+    !    call sd%dealloc
+    !  end if
+    !end do
 
   end subroutine sample_baseline
 
@@ -661,16 +681,17 @@ contains
     !  --------
     !  d_calib: real(sp) array
     !     nout x ndet x ntod array of calibrated timestreams
-    !     d_calib(1,:,:) - best estimate of calibrated data, with all known
-    !       calibrations applied
-    !     d_calib(2,:,:) - calibrated TOD with expected sky signal subtracted,
-    !       i.e., residual
-    !     d_calib(3,:,:) - correlated noise, mean subtracted, in temperature
-    !       units
-    !     d_calib(4,:,:) - bandpass difference contribution
-    !     d_calib(5,:,:) - orbital dipole
-    !     d_calib(6,:,:) - sidelobe
-    !     d_calib(7,:,:) - zodiacal light emission
+    !
+    !  d_calib(1,:,:) - best estimate of calibrated data, with all known
+    !    calibrations applied
+    !  d_calib(2,:,:) - calibrated TOD with expected sky signal subtracted,
+    !    i.e., residual
+    !  d_calib(3,:,:) - correlated noise, mean subtracted, in temperature
+    !    units
+    !  d_calib(4,:,:) - bandpass difference contribution
+    !  d_calib(5,:,:) - orbital dipole
+    !  d_calib(6,:,:) - sidelobe
+    !  d_calib(7,:,:) - zodiacal light emission
     !
     implicit none
     class(comm_tod),                       intent(in)   :: tod
@@ -679,14 +700,19 @@ contains
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
 
     integer(i4b) :: j, nout
-    real(sp)     :: inv_gain
+    real(dp)     :: inv_gain
 
     nout = size(d_calib,1)
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       inv_gain = 1.0 / real(tod%scans(scan)%d(j)%gain,sp)
-       d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
-         & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+       inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
+       if (tod%compressed_tod) then
+        d_calib(1,:,j) = (sd%tod(:,j) - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+          & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+       else
+        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+          & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+       end if
        if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
        if (nout > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(sd%n_corr(:,j)/sd%ntod)) * inv_gain  ! ncorr
        if (nout > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass

@@ -484,10 +484,11 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
+         r_fill = tod_arr(:,j)-s_sub(:,j)! - tod%scans(scan)%d(j)%baseline
+         if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod_arr(:,j))), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
        else
-         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 1348 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
+         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j)! - tod%scans(scan)%d(j)%baseline
+         if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -504,13 +505,8 @@ contains
           A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
           b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
        end if
-       !if (tod%scanid(scan) == 1348 .and. out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j, sum(abs(s_invN(:,j))), sum(abs(s_ref(:,j))), sum(abs( mask_lowres(:,j))), sum(abs(residual(:,j))), sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j)), sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+       if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j, sum(abs(s_invN(:,j))), sum(abs(s_ref(:,j))), sum(abs( mask_lowres(:,j))), sum(abs(residual(:,j))), sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j)), sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
     end do
-
-!    if (trim(tod%freq) == '070') then
-!       write(*,*) tod%scanid(scan), real(b/A,sp), real(1/sqrt(A),sp), '  # absK', det
- !   end if
-
 
     if (.false. .and. out) then
     !if (sum(s_invN(:,4) * residual(:,4) * mask_lowres(:,4))/sum(s_invN(:,4) * s_ref(:,4) * mask_lowres(:,4)) < -0.5d0) then
@@ -600,7 +596,8 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,*) 'abscal = ', tod%gain0(0)!, sum(b), sum(A)
+         write(*,*) 'abscal = ', tod%gain0(0)
+         write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
@@ -696,7 +693,7 @@ contains
     !     so that the same sequence can be resumed later on from that same point
     !
     implicit none
-    class(comm_WMAP_tod),              intent(inout)  :: tod
+    class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
     real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
 
@@ -722,9 +719,7 @@ contains
        tod%x_im(2) = tod%x_im(1)
        tod%x_im(4) = tod%x_im(3)
        if (tod%verbosity > 1) then
-         write(*,*) 'imbal sample =', tod%x_im
-         write(*,*) 'b', sum(b(1:2)), sum(b(3:4))
-         write(*,*) 'A', sum(A(1:2)), sum(A(3:4))
+         write(*,*) 'imbal =', tod%x_im(1), tod%x_im(3)
        end if
     end if
     call mpi_bcast(tod%x_im, 4,  MPI_DOUBLE_PRECISION, 0, &
