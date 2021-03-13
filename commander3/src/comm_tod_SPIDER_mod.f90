@@ -617,12 +617,12 @@ contains
           if (main_iter == 1 .and. self%first_call) then
              do j = 1, ndet
                 if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
-                if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
+                if (self%scans(i)%d(j)%N_psd%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
              end do
           end if
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
+             if (self%scans(i)%d(j)%N_psd%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%N_psd%sigma0
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
@@ -861,7 +861,7 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
-                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
+                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%N_psd%sigma0, sp), handle, self%scans(i)%chunk_num)
                    call self%downsample_tod(s_buf(:,j), ext, &
                         & s_lowres(:,j))!, mask(:,j))
                 else
@@ -918,7 +918,7 @@ contains
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Harald
           if (self%first_call) then
             do j = 1, ndet
-               self%scans(i)%d(j)%sigma0 = 0.0018
+               self%scans(i)%d(j)%N_psd%sigma0 = 0.0018
             end do
           end if
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1128,13 +1128,13 @@ contains
              if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-                call int2string(self%scanid(i), scantext)
-                prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
-                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
-                     & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-                     & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-                     & pix(:,:,1), psi(:,:,1)-1, d_calib(1,:,:), iand(flag,self%flag0), &
-                     & self%scans(i)%d(:)%accept)
+!!$                call int2string(self%scanid(i), scantext)
+!!$                prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
+!!$                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
+!!$                     & self%label, self%horn_id, real(self%polang*180/pi,sp), &
+!!$                     & real(self%scans(i)%d%N_psdsigma0/self%scans(i)%d%gain,sp), &
+!!$                     & pix(:,:,1), psi(:,:,1)-1, d_calib(1,:,:), iand(flag,self%flag0), &
+!!$                     & self%scans(i)%d(:)%accept)
              end if
 
 

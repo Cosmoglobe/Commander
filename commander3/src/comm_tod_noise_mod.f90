@@ -26,7 +26,6 @@ module comm_tod_noise_mod
   implicit none
 
 
-
 contains
 
  ! Compute correlated noise term, n_corr from eq:
@@ -91,7 +90,7 @@ contains
          d_prime(:) = self%scans(scan)%d(i)%tod(:) - self%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
        end if
 
-       sigma_0 = abs(self%scans(scan)%d(i)%sigma0)
+       sigma_0 = abs(self%scans(scan)%d(i)%N_psd%sigma0)
        !write(*,*) "rms:", scan, sigma_0, sqrt(sum(d_prime**2)/size(d_prime))
        ! Fill gaps in data 
        init_masked_region = .true.
@@ -134,8 +133,8 @@ contains
        end if
 
        samprate = self%samprate
-       alpha    = self%scans(scan)%d(i)%alpha
-       nu_knee  = self%scans(scan)%d(i)%fknee
+       alpha    = self%scans(scan)%d(i)%N_psd%alpha
+       nu_knee  = self%scans(scan)%d(i)%N_psd%fknee
        N_wn = sigma_0 ** 2  ! white noise power spectrum
 
        !call get_ncorr_pcg(handle, d_prime, ncorr2, mask(:,i), alpha, nu_knee, N_wn, samprate, nfft, plan_fwd, plan_back)
@@ -201,9 +200,9 @@ contains
           open(65,file=trim(filename),status='REPLACE')
           do j = 1, ntod
              if (present(tod_arr)) then
-               write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+               write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
              else
-               write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%alpha, self%scans(scan)%d(i)%fknee, self%scans(scan)%d(i)%sigma0, self%scans(scan)%d(i)%alpha_def, self%scans(scan)%d(i)%fknee_def, self%scans(scan)%d(i)%sigma0_def, self%samprate, ncorr2(j)
+               write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
              end if
           end do
           close(65)
@@ -910,7 +909,7 @@ contains
        ! if ((i == 1) .and. (scan == 1)) then
        !    write(*,*) "sigma0: ", sqrt(s/(n-1))
        ! end if
-       if (n > 100) self%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
+       if (n > 100) self%scans(scan)%d(i)%N_psd%sigma0 = sqrt(s/(n-1))
     end do
 
     ! return
@@ -945,13 +944,13 @@ contains
        ps(:) = 0
        
        samprate = self%samprate
-       alpha    = min(max(self%scans(scan)%d(i)%alpha,prior_alpha(1)), prior_alpha(2))
-       sigma0   = abs(self%scans(scan)%d(i)%sigma0)
-       fknee    = min(max(self%scans(scan)%d(i)%fknee,prior_fknee(1)), prior_fknee(2))
+       alpha    = min(max(self%scans(scan)%d(i)%N_psd%alpha,prior_alpha(1)), prior_alpha(2))
+       sigma0   = abs(self%scans(scan)%d(i)%N_psd%sigma0)
+       fknee    = min(max(self%scans(scan)%d(i)%N_psd%fknee,prior_fknee(1)), prior_fknee(2))
        
        call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 
-       fknee_dpc = self%scans(scan)%d(i)%fknee_def
+       fknee_dpc = self%scans(scan)%d(i)%N_psd%fknee_def
 
        ! n_f should be the index representing fknee
        ! we want to only use smaller frequencies than this in the likelihood
@@ -991,22 +990,22 @@ contains
        x_in(2) = 0.5 * (x_in(1) + x_in(3))
        fknee = sample_InvSamp(handle, x_in, lnL_fknee, prior_fknee)
        if ((fknee < prior_fknee(1)) .or. (fknee > prior_fknee(2))) then
-          fknee = min(max(self%scans(scan)%d(i)%fknee,prior_fknee(1)), prior_fknee(2))
+          fknee = min(max(self%scans(scan)%d(i)%N_psd%fknee,prior_fknee(1)), prior_fknee(2))
        end if
 
 
        ! Sampling alpha
-       alpha_dpc = self%scans(scan)%d(i)%alpha_def
+       alpha_dpc = self%scans(scan)%d(i)%N_psd%alpha_def
        x_in(1)   = max(alpha - 0.2 * abs(alpha), prior_alpha(1))
        x_in(3)   = min(alpha + 0.2 * abs(alpha), prior_alpha(2))
        x_in(2)   = 0.5 * (x_in(1) + x_in(3))
        alpha = sample_InvSamp(handle, x_in, lnL_alpha, prior_alpha)
        if ((alpha < prior_alpha(1)) .or. (alpha > prior_alpha(2))) then
-          alpha = min(max(self%scans(scan)%d(i)%alpha,prior_alpha(1)), prior_alpha(2))
+          alpha = min(max(self%scans(scan)%d(i)%N_psd%alpha,prior_alpha(1)), prior_alpha(2))
        end if
 
-       self%scans(scan)%d(i)%alpha = alpha
-       self%scans(scan)%d(i)%fknee = fknee
+       self%scans(scan)%d(i)%N_psd%alpha = alpha
+       self%scans(scan)%d(i)%N_psd%fknee = fknee
     end do
 !    !$OMP END DO
     deallocate(dt, dv)
@@ -1128,7 +1127,7 @@ contains
        ! if ((i == 1) .and. (scan == 1)) then
        !    write(*,*) "sigma0: ", sqrt(s/(n-1))
        ! end if
-       if (n > 100) tod%scans(scan)%d(i)%sigma0 = sqrt(s/(n-1))
+       if (n > 100) tod%scans(scan)%d(i)%N_psd%sigma0 = sqrt(s/(n-1))
     end do
 
     return
@@ -1144,9 +1143,9 @@ contains
     deallocate(dt, dv)
     
     do i = 1, ndet
-       if (.not. allocated(tod%scans(scan)%d(i)%log_n_psd)) allocate(tod%scans(scan)%d(i)%log_n_psd(n_bins))
-       if (.not. allocated(tod%scans(scan)%d(i)%log_nu)) allocate(tod%scans(scan)%d(i)%log_nu(n_bins))
-       if (.not. allocated(tod%scans(scan)%d(i)%log_n_psd2)) allocate(tod%scans(scan)%d(i)%log_n_psd2(n_bins))
+       if (.not. allocated(tod%scans(scan)%d(i)%N_psd%log_n_psd)) allocate(tod%scans(scan)%d(i)%N_psd%log_n_psd(n_bins))
+       if (.not. allocated(tod%scans(scan)%d(i)%N_psd%log_nu)) allocate(tod%scans(scan)%d(i)%N_psd%log_nu(n_bins))
+       if (.not. allocated(tod%scans(scan)%d(i)%N_psd%log_n_psd2)) allocate(tod%scans(scan)%d(i)%N_psd%log_n_psd2(n_bins))
     end do
     
     !!$OMP PARALLEL PRIVATE(i,l,j,dt,dv,nu,log_nu,d_prime,log_nu_bin_edges,n_modes,psd,nu_sum,gain,dlog_nu)
@@ -1210,12 +1209,12 @@ contains
           ! use abs to prevent rare cases of negative power spectra
           ! (should have been samples from inverse gamma distribution)
 !          write(*,*) "sampling!!!!!!!"
-          tod%scans(scan)%d(i)%log_n_psd(:) =  log(psd(:) / n_modes(:)) ! &
+          tod%scans(scan)%d(i)%N_psd%log_n_psd(:) =  log(psd(:) / n_modes(:)) ! &
               ! & * abs(1.d0 + sqrt(2.d0 / n_modes(:)) * rand_gauss(handle))) 
        else
-          tod%scans(scan)%d(i)%log_n_psd(:) = log(psd(:) / n_modes(:))
+          tod%scans(scan)%d(i)%N_psd%log_n_psd(:) = log(psd(:) / n_modes(:))
        end if
-       tod%scans(scan)%d(i)%log_nu(:) = log(nu_sum(:) / n_modes(:)) !log_nu_bin_edges(1:n_bins) + 0.5d0 * dlog_nu
+       tod%scans(scan)%d(i)%N_psd%log_nu(:) = log(nu_sum(:) / n_modes(:)) !log_nu_bin_edges(1:n_bins) + 0.5d0 * dlog_nu
        !tod%scans(scan)%d(i)%log_nu(:) = log_nu_bin_edges(1:n_bins) + 0.5d0 * dlog_nu
        ! write(*,*) tod%scans(scan)%d(i)%log_n_psd
        ! write(*,*) tod%scans(scan)%d(i)%log_nu
@@ -1262,9 +1261,9 @@ contains
        ! call spline(tod%scans(scan)%d(i)%log_nu,&
        !      tod%scans(scan)%d(i)%log_n_psd,&
        !      0.d0,0.d0,tod%scans(scan)%d(i)%log_n_psd2)
-       call spline(tod%scans(scan)%d(i)%log_nu,&
-            tod%scans(scan)%d(i)%log_n_psd,&
-            1.d30,1.d30,tod%scans(scan)%d(i)%log_n_psd2)
+       call spline(tod%scans(scan)%d(i)%N_psd%log_nu,&
+            tod%scans(scan)%d(i)%N_psd%log_n_psd,&
+            1.d30,1.d30,tod%scans(scan)%d(i)%N_psd%log_n_psd2)
     end do
        
   end subroutine sample_noise_psd2
@@ -1334,7 +1333,7 @@ contains
          d_prime = tod%scans(scan)%d(i)%tod - S_sub(:,i) * gain &
                & - tod%scans(scan)%d(i)%baseline - S_sub(:,i) * gain
        end if
-       sigma_0 = tod%scans(scan)%d(i)%sigma0
+       sigma_0 = tod%scans(scan)%d(i)%N_psd%sigma0
 
        call wall_time(t1)       
        call fill_all_masked(d_prime, mask(:,i), ntod, (trim(tod%operation) == "sample"), sigma_0, handle, tod%scans(scan)%chunk_num)
@@ -1355,8 +1354,8 @@ contains
        j       = j+1
     
        samprate = tod%samprate
-       alpha    = tod%scans(scan)%d(i)%alpha
-       nu_knee  = tod%scans(scan)%d(i)%fknee
+       alpha    = tod%scans(scan)%d(i)%N_psd%alpha
+       nu_knee  = tod%scans(scan)%d(i)%N_psd%fknee
        N_wn     = sigma_0 ** 2           ! white noise power spectrum
        fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
        call wall_time(t2)
@@ -1489,7 +1488,7 @@ contains
     !!$OMP DO SCHEDULE(guided)
     j = 0
     do i = 1, ndet
-       sigma_0  = abs(real(tod%scans(scan)%d(i)%sigma0,sp))
+       sigma_0  = abs(real(tod%scans(scan)%d(i)%N_psd%sigma0,sp))
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
        j = j+1
        dt(1:ntod,j)           = buffer(:,i)
@@ -1500,12 +1499,12 @@ contains
 
     j = 0
     do i = 1, ndet
-       sigma_0  = abs(real(tod%scans(scan)%d(i)%sigma0,sp))
+       sigma_0  = abs(real(tod%scans(scan)%d(i)%N_psd%sigma0,sp))
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) cycle
        j = j+1
        samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
-       alpha    = real(tod%scans(scan)%d(i)%alpha,sp)
-       nu_knee  = real(tod%scans(scan)%d(i)%fknee,sp)
+       alpha    = real(tod%scans(scan)%d(i)%N_psd%alpha,sp)
+       nu_knee  = real(tod%scans(scan)%d(i)%N_psd%fknee,sp)
        noise = sigma_0 ** 2 * samprate / tod%samprate
        
        dv(0,j) = 0.d0
@@ -1527,7 +1526,7 @@ contains
 
     j = 0
     do i = 1, ndet
-       sigma_0  = real(tod%scans(scan)%d(i)%sigma0,sp)
+       sigma_0  = real(tod%scans(scan)%d(i)%N_psd%sigma0,sp)
        if (.not. tod%scans(scan)%d(i)%accept .or. sigma_0 <= 0.d0) then
           buffer(:,i)  = 0.d0
        else
@@ -1546,6 +1545,9 @@ contains
 !!$    call mpi_finalize(i)
 !!$    stop
   end subroutine multiply_inv_N
+
+
+
 
 
 

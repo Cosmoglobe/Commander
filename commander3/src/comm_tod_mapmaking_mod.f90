@@ -162,7 +162,7 @@ contains
     do det = 1, size(pix,2)
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = 6 + 4*(det-1)
-       inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+       inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
        do t = 1, size(pix,1)
           
           if (iand(flag(t,det),tod%flag0) .ne. 0) cycle
@@ -229,7 +229,7 @@ contains
          !inv_sigmasq = 0.d0 
          var = 0
          do det = 1, 4
-           var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2/4
+           var = var  + (tod%scans(scan)%d(det)%N_psd%sigma0/tod%scans(scan)%d(det)%gain)**2/4
            !inv_sigmasq = inv_sigmasq  + (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
          end do
          inv_sigmasq = 1/var
@@ -329,7 +329,7 @@ end subroutine bin_differential_TOD
             !inv_sigmasq = 0.d0 
             var = 0
             do k = 1, 4
-               var = var + (tod%scans(j)%d(k)%sigma0/tod%scans(j)%d(k)%gain)**2/4
+               var = var + (tod%scans(j)%d(k)%N_psd%sigma0/tod%scans(j)%d(k)%gain)**2/4
                !inv_sigmasq = inv_sigmasq  + (tod%scans(j)%d(k)%gain/tod%scans(j)%d(k)%sigma0)**2
             end do
             inv_sigmasq = 1.d0/var
