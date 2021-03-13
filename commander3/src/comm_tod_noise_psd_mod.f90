@@ -44,7 +44,9 @@ module comm_tod_noise_psd_mod
      real(dp), allocatable, dimension(:)    :: log_n_psd2     ! Second derivative (for spline)
      real(dp), allocatable, dimension(:)    :: log_nu         ! Noise power spectrum bins; in Hz
    contains
-     procedure :: eval => eval_noise_psd
+     procedure :: eval   => eval_noise_psd
+     procedure :: update => update_noise_psd
+     procedure :: xi_n   => get_xi_n_noise_psd
   end type comm_noise_psd
 
   type, extends(comm_noise_psd) :: comm_noise_psd_2oof
@@ -54,7 +56,9 @@ module comm_tod_noise_psd_mod
      real(sp) :: alpha2,     fknee2
      real(sp) :: alpha2_def, fknee2_def
    contains
-     procedure :: eval => eval_noise_psd_2oof
+     procedure :: eval   => eval_noise_psd_2oof
+     procedure :: update => update_noise_psd_2oof
+     procedure :: xi_n   => get_xi_n_noise_psd_2oof
   end type comm_noise_psd_2oof
 
   interface comm_noise_psd
@@ -88,11 +92,11 @@ contains
 
     allocate(constructor_oof)
     constructor_oof%sigma0     = xi_n(1)
-    constructor_oof%alpha      = xi_n(2)
-    constructor_oof%fknee      = xi_n(3)
+    constructor_oof%fknee      = xi_n(2)
+    constructor_oof%alpha      = xi_n(3)
     constructor_oof%sigma0_def = xi_n_def(1)
-    constructor_oof%alpha_def  = xi_n_def(2)
-    constructor_oof%fknee_def  = xi_n_def(3)
+    constructor_oof%fknee_def  = xi_n_def(2)
+    constructor_oof%alpha_def  = xi_n_def(3)
 
   end function constructor_oof
 
@@ -116,6 +120,52 @@ contains
 
   end function eval_noise_psd
 
+  subroutine update_noise_psd(self, xi_n)
+    ! 
+    ! Routine to update parameters in basic 1/f noise PSD object
+    ! 
+    ! Arguments
+    ! --------- 
+    ! self:    derived class (comm_noise_psd)
+    !          Object to be updated
+    ! xi_n:    sp (array)
+    !          3-element array containing {sigma0, fknee, alpha}, where
+    !          [sigma0] = du/volts/tod unit, [alpha] = 1, and [fknee] = Hz
+    !
+    implicit none
+    class(comm_noise_psd),               intent(inout)   :: self
+    real(sp),              dimension(:), intent(in)      :: xi_n
+
+    self%sigma0     = xi_n(1)
+    self%fknee      = xi_n(2)
+    self%alpha      = xi_n(3)
+
+  end subroutine update_noise_psd
+
+  subroutine get_xi_n_noise_psd(self, xi_n)
+    ! 
+    ! Routine to return parameters in basic 1/f noise PSD object
+    ! 
+    ! Arguments
+    ! --------- 
+    ! self:    derived class (comm_noise_psd)
+    !          Object to be updated
+    ! 
+    ! Returns
+    ! -------
+    ! xi_n:    sp (array)
+    !          3-element array containing {sigma0, fknee, alpha}
+    !
+    implicit none
+    class(comm_noise_psd),               intent(in)      :: self
+    real(sp),              dimension(:), intent(out)     :: xi_n
+
+    xi_n(1) = self%sigma0
+    xi_n(2) = self%fknee
+    xi_n(3) = self%alpha
+
+  end subroutine get_xi_n_noise_psd
+
 
 
   function constructor_2oof(xi_n, xi_n_def)
@@ -127,7 +177,7 @@ contains
     ! Arguments
     ! ---------
     ! xi_n:    sp (array)
-    !          5-element array containing {sigma0, alpha, fknee, alpha2, fknee2}, where
+    !          5-element array containing {sigma0, fknee, alpha, fknee2, alpha2}, where
     !          [sigma0] = du/volts/tod unit, [alpha,alpha2] = 1, and [fknee,fknee2] = Hz
     ! xi_n_def: sp (array)
     !          5-element array containing default parameters/prior values
@@ -139,15 +189,15 @@ contains
 
     allocate(constructor_2oof)
     constructor_2oof%sigma0     = xi_n(1)
-    constructor_2oof%alpha      = xi_n(2)
-    constructor_2oof%fknee      = xi_n(3)
-    constructor_2oof%alpha2     = xi_n(4)
-    constructor_2oof%fknee2     = xi_n(5)
+    constructor_2oof%fknee      = xi_n(2)
+    constructor_2oof%alpha      = xi_n(3)
+    constructor_2oof%fknee2     = xi_n(4)
+    constructor_2oof%alpha2     = xi_n(5)
     constructor_2oof%sigma0_def = xi_n_def(1)
-    constructor_2oof%alpha_def  = xi_n_def(2)
-    constructor_2oof%fknee_def  = xi_n_def(3)
-    constructor_2oof%alpha2_def = xi_n_def(4)
-    constructor_2oof%fknee2_def = xi_n_def(5)
+    constructor_2oof%fknee_def  = xi_n_def(2)
+    constructor_2oof%alpha_def  = xi_n_def(3)
+    constructor_2oof%fknee2_def = xi_n_def(4)
+    constructor_2oof%alpha2_def = xi_n_def(5)
 
   end function constructor_2oof
   
@@ -170,5 +220,58 @@ contains
     eval_noise_psd_2oof = self%sigma0**2 * (1. + (nu/self%fknee)**self%alpha + (nu/self%fknee2)**self%alpha2)
 
   end function eval_noise_psd_2oof
+
+  subroutine update_noise_psd_2oof(self, xi_n)
+    ! 
+    ! Routine to update parameters in two-component 1/f noise PSD object
+    ! 
+    ! Arguments
+    ! --------- 
+    ! self:    derived class (comm_noise_psd_2oof)
+    !          Object to be updated
+    ! xi_n:    sp (array)
+    !          5-element array containing {sigma0, fknee, alpha, fknee2,alpha2}, where
+    !          [sigma0] = du/volts/tod unit, [alpha] = 1, and [fknee] = Hz
+    !
+    implicit none
+    class(comm_noise_psd_2oof),               intent(inout)   :: self
+    real(sp),                   dimension(:), intent(in)      :: xi_n
+
+    self%sigma0     = xi_n(1)
+    self%fknee      = xi_n(2)
+    self%alpha      = xi_n(3)
+    if (size(xi_n) == 5) then
+       self%fknee2     = xi_n(4)
+       self%alpha2     = xi_n(5)
+    end if
+
+  end subroutine update_noise_psd_2oof
+
+  subroutine get_xi_n_noise_psd_2oof(self, xi_n)
+    ! 
+    ! Routine to return parameters in 2-component 1/f noise PSD object
+    ! 
+    ! Arguments
+    ! --------- 
+    ! self:    derived class (comm_noise_psd)
+    !          Object to be updated
+    ! 
+    ! Returns
+    ! -------
+    ! xi_n:    sp (array)
+    !          5-element array containing {sigma0, fknee, alpha, fknee2, alpha2}
+    !
+    implicit none
+    class(comm_noise_psd_2oof),               intent(in)      :: self
+    real(sp),                   dimension(:), intent(out)     :: xi_n
+
+    xi_n(1) = self%sigma0
+    xi_n(2) = self%fknee
+    xi_n(3) = self%alpha
+    xi_n(4) = self%fknee2
+    xi_n(5) = self%alpha2
+
+  end subroutine get_xi_n_noise_psd_2oof
+
 
 end module comm_tod_noise_psd_mod

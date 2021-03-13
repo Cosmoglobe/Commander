@@ -763,8 +763,8 @@ contains
        if (trim(tod%noise_psd_model) == 'oof') then
           self%d(i)%N_psd => comm_noise_psd(self%d(i)%xi_n, self%d(i)%xi_n)
        else if (trim(tod%noise_psd_model) == '2oof') then
-          self%d(i)%xi_n(4) = -1.000 ! alpha2; arbitrary value
-          self%d(i)%xi_n(5) =  1e-4  ! fknee2 (Hz); arbitrary value
+          self%d(i)%xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
+          self%d(i)%xi_n(5) = -1.000 ! alpha2; arbitrary value
           self%d(i)%N_psd => comm_noise_psd_2oof(self%d(i)%xi_n, self%d(i)%xi_n)
        end if
 
@@ -1045,7 +1045,7 @@ contains
 
   subroutine dumpToHDF(self, chainfile, iter, map, rms)
     implicit none
-    class(comm_tod),                   intent(in)    :: self
+    class(comm_tod),                   intent(inout) :: self
     integer(i4b),                      intent(in)    :: iter
     type(hdf_file),                    intent(in)    :: chainfile
     class(comm_map),                   intent(in)    :: map, rms
@@ -1068,6 +1068,7 @@ contains
           output(k,j,2) = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
           output(k,j,3) = self%scans(i)%d(j)%chisq
           output(k,j,4) = self%scans(i)%d(j)%baseline
+          call self%scans(i)%d(j)%N_psd%xi_n(self%scans(i)%d(j)%xi_n)
           output(k,j,5:npar) = self%scans(i)%d(j)%xi_n
        end do
     end do
@@ -1162,7 +1163,10 @@ contains
     path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
-       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,2:4))
+       call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
+       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
+       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
+!       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,2:4))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,5))
        call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
@@ -1198,6 +1202,7 @@ contains
           !self%scans(i)%d(j)%fknee  = output(k,j,4)          
           self%scans(i)%d(j)%xi_n   = output(k,j,2:4)
           self%scans(i)%d(j)%accept = .true.  !output(k,j,5) == 1.d0
+          call self%scans(i)%d(j)%N_psd%update(self%scans(i)%d(j)%xi_n)
           if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
           if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
