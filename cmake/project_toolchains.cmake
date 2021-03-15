@@ -153,6 +153,11 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
 			"-O0"# -g -traceback -parallel -qopenmp -C -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
 			"-g" 
+      "-debug" "all"
+      "-check" "all"
+      #"-warn" "all"
+      "-fp-stack-check"
+      "-fstack-protector-all"
 			"-traceback" 
 			"-parallel" 
 			"-qopenmp"

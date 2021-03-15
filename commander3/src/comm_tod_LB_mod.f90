@@ -165,7 +165,7 @@ contains
   subroutine process_LB_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
     ! 
     ! Routine that processes the LiteBIRD time ordered data. 
-    ! Sampels absolute and relative bandpass, gain and correlated noise in time domain, 
+    ! Samples absolute and relative bandpass, gain and correlated noise in time domain, 
     ! perform data selection, correct for sidelobes, compute chisquare  and outputs maps and rms. 
     ! Writes maps to disc in fits format
     ! 

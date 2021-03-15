@@ -206,7 +206,7 @@ contains
       integer(i4b), intent(in)                                  :: scan
       real(sp), dimension(1:, 1:, 1:), intent(in)               :: data
       integer(i4b), dimension(1:), intent(in)                   :: flag
-      integer(i4b), dimension(0:), intent(in)                   :: pmask
+      real(sp), dimension(0:), intent(in)                       :: pmask
       integer(i4b), dimension(1:, 1:), intent(in)               :: pix, psi
       real(dp), dimension(1:), intent(in)                       :: x_imarr
       real(dp), dimension(0:, 1:, 1:), intent(inout)            :: b
@@ -217,20 +217,20 @@ contains
       integer(i4b) :: det, i, t, nout
       real(dp)     :: inv_sigmasq, d, p, var, dx_im, x_im
 
-      integer(i4b) :: lpix, rpix, lpsi, rpsi, sgn
+      integer(i4b) :: lpix, rpix, lpsi, rpsi
 
-      integer(i4b) :: pA, pB, f_A, f_B
+      integer(i4b) :: f_A, f_B
 
       nout = size(b, dim=3)
-      dx_im = 0.5*(x_imarr(1) - x_imarr(2))
-      x_im = 0.5*(x_imarr(1) + x_imarr(2))
+      ! Note that x_imarr is duplicated
+      dx_im = 0.5*(x_imarr(1) - x_imarr(3))
+      x_im = 0.5*(x_imarr(1) + x_imarr(3))
 
       if (tod%scans(scan)%d(1)%accept) then
          !inv_sigmasq = 0.d0 
          var = 0
          do det = 1, 4
-           var = var  + (tod%scans(scan)%d(det)%N_psd%sigma0/tod%scans(scan)%d(det)%gain)**2/4
-           !inv_sigmasq = inv_sigmasq  + (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%sigma0)**2
+           var = var + (tod%scans(scan)%d(det)%N_psd%sigma0/tod%scans(scan)%d(det)%gain)**2/4
          end do
          inv_sigmasq = 1/var
          do t = 1, tod%scans(scan)%ntod
@@ -247,7 +247,6 @@ contains
                d = 0.d0
                p = 0.d0
                do det = 1, 4
-                 !sgn = (-1)**((det + 1)/2 + 1) ! 1 for 13, 14, -1 for 23, 24
                  d = d + data(i, t, det)/4
                  p = p + data(i, t, det)/4*(-1)**((det + 1)/2 + 1)
                end do
@@ -287,7 +286,7 @@ end subroutine bin_differential_TOD
       implicit none
       class(comm_tod),                 intent(in)              :: tod
       real(dp),     dimension(1:),     intent(in)              :: x_imarr
-      integer(i4b), dimension(0:),     intent(in)              :: pmask
+      real(sp),     dimension(0:),     intent(in)              :: pmask
       real(dp),     dimension(0:, 1:), intent(in),    optional :: x_in
       real(dp),     dimension(0:, 1:), intent(inout), optional :: y_out
 
@@ -295,9 +294,9 @@ end subroutine bin_differential_TOD
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
 
       logical(lgt) :: finished
-      integer(i4b) :: i, j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
-      integer(i4b) :: nhorn, t, sgn, pA, pB, f_A, f_B, nside, npix, nmaps
-      real(dp)     :: inv_sigmasq, var, dA, dB, iA, iB, sA, sB, d, p, x_im, dx_im
+      integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
+      integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps
+      real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im
       real(dp), allocatable, dimension(:,:) :: x, y
       nhorn = tod%nhorn
       ndet  = tod%ndet
@@ -313,8 +312,8 @@ end subroutine bin_differential_TOD
       end if
       call mpi_bcast(x, size(x),  MPI_DOUBLE_PRECISION, 0, tod%info%comm, ierr)
 
-      x_im   = 0.5*(x_imarr(1) + x_imarr(2))
-      dx_im  = 0.5*(x_imarr(1) - x_imarr(2))
+      x_im   = 0.5*(x_imarr(1) + x_imarr(3))
+      dx_im  = 0.5*(x_imarr(1) - x_imarr(3))
       y      = 0.d0
       do j = 1, tod%nscan
          ntod = tod%scans(j)%ntod
@@ -345,10 +344,6 @@ end subroutine bin_differential_TOD
                f_A = pmask(rpix)
                f_B = pmask(lpix)
                ! This is the model for each timestream
-               ! The sgn parameter is +1 for timestreams 13 and 14, -1
-               ! for timestreams 23 and 24, and also is used to switch
-               ! the sign of the polarization sensitive parts of the
-               ! model
                iA = x(lpix, 1)
                iB = x(rpix, 1)
                sA = x(lpix, 2)*tod%cos2psi(lpsi) + x(lpix, 3)*tod%sin2psi(lpsi)
@@ -393,12 +388,10 @@ end subroutine bin_differential_TOD
 
     integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
     integer(i4b) :: det, nout, np0, comm, myid, nprocs
-    real(dp), allocatable, dimension(:,:)   :: A_inv, As_inv, buff_2d
-    real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot, buff_3d
+    real(dp), allocatable, dimension(:,:)   :: A_inv, As_inv
+    real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot
     real(dp), allocatable, dimension(:)     :: W, eta
     real(dp), allocatable, dimension(:,:)   :: A_tot
-    class(comm_mapinfo), pointer :: info 
-    class(comm_map), pointer :: smap 
 
     myid  = tod%myid
     nprocs= tod%numprocs
@@ -517,5 +510,220 @@ end subroutine bin_differential_TOD
 
    end subroutine finalize_binned_map
 
+
+   subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l)
+     !
+     !
+     !  Subroutine that runs the biconjugate gradient-stabilized mapmaking
+     !  routine on differential data, solving the P_m^T N^-1 P x = P_m^T N^-1 d
+     !  mapmaking equation, where P_m takes into account the asymmetric masking
+     !
+     !  Arguments (fixed):
+     !  ------------------
+     !  tod: comm_tod
+     !
+     !  npix: int
+     !
+     !  nmaps: int
+     !
+     !  epsil: real (dp)
+     !
+     !  procmask: real(sp)
+     !
+     !  M_diag: real (dp)
+     !
+     !  b_map: real (dp)
+     !
+     !  l: int
+     !
+     !  Arguments (modified):
+     !  ---------------------
+     !  handle: planck_rng
+     !
+     !  bicg_sol: real (dp)
+     !
+     !  num_cg_iters: int
+     !
+     !  map_full: real (dp)
+     !
+     implicit none
+     class(comm_tod),                         intent(in) :: tod
+     type(planck_rng),                     intent(inout) :: handle
+     real(dp),         dimension(:, :, :), intent(inout) :: bicg_sol
+     integer(i4b),                            intent(in) :: npix, nmaps
+     integer(i4b),                         intent(inout) :: num_cg_iters
+     real(dp),                                intent(in) :: epsil
+     real(sp),                  dimension(:), intent(in) :: procmask
+     real(dp),               dimension(:), intent(inout) :: map_full
+     real(dp),                dimension(:,:), intent(in) :: M_diag
+     real(dp),              dimension(:,:,:), intent(in) :: b_map
+     integer(i4b),                            intent(in) :: l
+
+
+
+     real(dp),     allocatable, dimension(:, :) :: m_buf
+     integer(i4b)                               :: i_max, i_min, ierr, i
+     real(dp)                                   :: delta_0
+     real(dp)                                   :: alpha, beta, sigma_mono
+     real(dp),     allocatable, dimension(:, :) :: r, s, q
+     real(dp)                                   :: monopole
+     logical(lgt)                               :: finished
+     real(dp)                                   :: rho_old, rho_new
+     real(dp)                                   :: omega, delta_r, delta_s
+     real(dp),     allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
+     real(dp),        allocatable, dimension(:) :: determ
+
+     if (tod%myid==0) then
+        allocate (r     (0:npix-1, nmaps))
+        allocate (rhat  (0:npix-1, nmaps))
+        allocate (r0    (0:npix-1, nmaps))
+        allocate (q     (0:npix-1, nmaps))
+        allocate (p     (0:npix-1, nmaps))
+        allocate (s     (0:npix-1, nmaps))
+        allocate (shat  (0:npix-1, nmaps))
+        allocate (m_buf (0:npix-1, nmaps))
+        allocate (phat  (0:npix-1, nmaps))
+        allocate (v     (0:npix-1, nmaps))
+        allocate (determ(0:npix-1))
+        determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
+
+        i_max = 200
+        i_min = 0
+
+        if (.false. .and. l == 1) then
+           call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,1), v)
+           r = b_map(:, :, l) - v 
+        else
+           r = b_map(:, :, l)
+        end if
+        r0 = b_map(:, :, l)
+        rhat(:,1) =  r(:,1)/M_diag(:,1)
+        rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
+        rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+        delta_r = sum(r*rhat)
+        delta_0 = delta_r
+        delta_s = delta_s
+
+        omega = 1d0
+        alpha = 1d0
+
+        rho_new = sum(r0*r)
+        i = 0
+        bicg: do
+           i = i + 1
+           rho_old = rho_new
+           rho_new = sum(r0*r)
+           if (rho_new == 0d0) then
+             write(*,*) 'rho_i is zero'
+             finished = .true.
+             call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+             exit bicg
+           end if
+
+           if (i==1) then
+              p = r
+           else
+              beta = (rho_new/rho_old) * (alpha/omega)
+              p = r + beta*(p - omega*v)
+           end if
+           phat(:,1) =  p(:,1)/M_diag(:,1)
+           phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
+           phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
+           
+           call compute_Ax(tod, tod%x_im, procmask, phat, v)
+           num_cg_iters = num_cg_iters + 1
+
+           alpha         = rho_new/sum(r0*v)
+           s             = r - alpha*v
+           shat(:,1) =  s(:,1)/M_diag(:,1)
+           shat(:,2) = (s(:,2)*M_diag(:,3)- s(:,2)*M_diag(:,4))/determ
+           shat(:,3) = (s(:,3)*M_diag(:,2)- s(:,3)*M_diag(:,4))/determ
+           delta_s       = sum(s*shat)
+
+           if (tod%verbosity > 1) then 
+              write(*,101) 2*i-1, delta_s/delta_0
+101           format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
+           end if
+
+           bicg_sol(:,:,l) = bicg_sol(:,:,l) + alpha*phat
+
+           if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
+              write(*,*) 'Reached bicg-stap tolerance'
+              finished = .true.
+              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+              exit bicg
+           end if
+
+           call compute_Ax(tod, tod%x_im, procmask, shat, q)
+
+           omega         = sum(q*s)/sum(q*q)
+           bicg_sol(:,:,l) = bicg_sol(:,:,l) + omega*shat
+           if (omega == 0d0) then
+             write(*,*) 'omega is zero'
+             finished = .true.
+             call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+             exit bicg
+           end if
+
+           if (mod(i, 10) == 1 .or. beta > 1.d8) then
+              call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,l), r)
+              r = b_map(:, :, l) - r
+           else
+              r = s - omega*q
+           end if
+
+           rhat(:,1) =  r(:,1)/M_diag(:,1)
+           rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
+           rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+           delta_r      = sum(r*rhat)
+           num_cg_iters = num_cg_iters + 1
+
+           if (tod%verbosity > 1) then 
+              write(*,102) 2*i, delta_r/delta_0
+102           format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
+           end if
+           if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
+              write(*,*) 'Reached bicg-stap tolerance'
+              finished = .true.
+              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+              exit bicg
+           end if
+           if (i==i_max) then
+             write(*,*) 'Reached maximum number of iterations'
+             finished = .true.
+             call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+             exit bicg
+           end if
+        end do bicg
+
+        if (l == 1) then
+           ! Maximum likelihood monopole
+           monopole = sum((bicg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
+                  & / sum(M_diag(:,1)*procmask)
+           write(*,*) monopole
+           if (trim(tod%operation) == 'sample') then
+              ! Add fluctuation term if requested
+              sigma_mono = sum(M_diag(:,1) * procmask)
+              if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
+              if (tod%verbosity > 1) then
+                write(*,*) 'monopole, fluctuation sigma'
+                write(*,*) monopole, sigma_mono
+              end if
+              monopole = monopole + sigma_mono * rand_gauss(handle)
+           end if
+           write(*,*) 'sampled final monopole = ', monopole
+           bicg_sol(:,1,1) = bicg_sol(:,1,1) - monopole
+           write(*,*) 'bicg_sol monopole', sum(bicg_sol(:,1,1)*procmask)/sum(procmask)
+        end if
+     else
+        loop: do while (.true.) 
+           call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+           if (finished) exit loop
+           call compute_Ax(tod, tod%x_im, procmask)
+        end do loop
+     end if
+     if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
+
+   end subroutine run_bicgstab
 
 end module comm_tod_mapmaking_mod
