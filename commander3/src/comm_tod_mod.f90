@@ -1163,10 +1163,10 @@ contains
     path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
-       call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
-       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
-       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
-!       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,2:4))
+!       call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
+!       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
+!       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
+       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,2:4))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,5))
        call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
