@@ -158,7 +158,7 @@ contains
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
-       if (tod%scans(scan)%d(j)%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
+       if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
@@ -329,7 +329,7 @@ contains
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
-       if (tod%scans(scan)%d(j)%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
+       if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
     
     ! Construct orbital dipole template
@@ -481,8 +481,7 @@ contains
           else
              ! Calibrator = total signal
              s_buf(:,j) = sd%s_tot(:,j)
-             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
-               & real(tod%scans(i)%d(j)%sigma0, sp), handle, tod%scans(i)%chunk_num)
+             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           end if
        end do
@@ -843,11 +842,11 @@ contains
       ! getting gain for each detector (units, V / K)
       ! (gain is assumed to be CONSTANT for EACH SCAN)
       gain   = self%scans(scan_id)%d(j)%gain
-      sigma0 = self%scans(scan_id)%d(j)%sigma0
+      sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
       samprate = self%samprate
-      alpha    = self%scans(scan_id)%d(j)%alpha
+      alpha    = self%scans(scan_id)%d(j)%N_psd%alpha
       ! knee frequency
-      nu_knee  = self%scans(scan_id)%d(j)%fknee
+      nu_knee  = self%scans(scan_id)%d(j)%N_psd%fknee
       ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
       fft_norm = sqrt(1.d0 * nfft)
       !
@@ -882,7 +881,7 @@ contains
         ! (gain is assumed to be CONSTANT for EACH SCAN)
         gain   = self%scans(scan_id)%d(j)%gain
         !write(*,*) "gain ", gain
-        sigma0 = self%scans(scan_id)%d(j)%sigma0
+        sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
         !write(*,*) "sigma0 ", sigma0
         ! Simulating tods
         tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)

@@ -28,6 +28,7 @@ module comm_tod_mod
   use comm_conviqt_mod
   use comm_zodi_mod
   use comm_tod_orbdipole_mod
+  use comm_tod_noise_psd_mod
   USE ISO_C_BINDING
   implicit none
 
@@ -38,28 +39,25 @@ module comm_tod_mod
    byte, dimension(:), allocatable :: p 
   end type byte_pointer
 
-
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
-     real(dp)          :: gain, dgain, gain_invsigma           ! Gain; assumed constant over scan
-     real(dp)          :: sigma0, alpha, fknee              ! Noise parameters
-     real(dp)          :: gain_def, sigma0_def, alpha_def, fknee_def ! Default parameters
+     real(dp)          :: gain, dgain, gain_invsigma        ! Gain; assumed constant over scan
+     real(dp)          :: gain_def                          ! Default parameters
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
      real(sp)          :: baseline
      logical(lgt)      :: accept
-     real(sp),     allocatable, dimension(:)  :: tod        ! Detector values in time domain, (ntod)
-     byte,     allocatable, dimension(:)  :: ztod        ! compressed values in time domain, (ntod)
-     byte,         allocatable, dimension(:)  :: flag       ! Compressed detector flag; 0 is accepted, /= 0 is rejected
-     type(byte_pointer), allocatable, dimension(:)  :: pix   ! pointer array of pixels length nhorn
-     type(byte_pointer), allocatable, dimension(:)  :: psi   ! pointer array of psi, length nhorn
-     real(dp),     allocatable, dimension(:)  :: log_n_psd  ! Noise power spectrum density; in uncalibrated units
-     real(dp),     allocatable, dimension(:)  :: log_n_psd2 ! Second derivative (for spline)
-     real(dp),     allocatable, dimension(:)  :: log_nu     ! Noise power spectrum bins; in Hz
-     integer(i4b), allocatable, dimension(:,:)  :: offset_range    ! Beginning and end tod index of every offset region
-     real(sp),     allocatable, dimension(:)    :: offset_level    ! Amplitude of every offset region(step)
-     integer(i4b), allocatable, dimension(:,:)  :: jumpflag_range  ! Beginning and end tod index of regions where jumps occur
+     class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
+     real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
+     byte,               allocatable, dimension(:)    :: ztod           ! compressed values in time domain, (ntod)
+     byte,               allocatable, dimension(:)    :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
+     type(byte_pointer), allocatable, dimension(:)    :: pix            ! pointer array of pixels length nhorn
+     type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
+     real(sp),           allocatable, dimension(:)    :: xi_n           ! Noise PSD parameters
+     integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
+     real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
+     integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
   end type comm_detscan
 
   type :: comm_scan
@@ -85,7 +83,8 @@ module comm_tod_mod
      character(len=512) :: instfile
      character(len=512) :: operation
      character(len=512) :: outdir
-     character(len=512) :: sims_output_dir !< simulation folder
+     character(len=512) :: sims_output_dir  !< simulation folder
+     character(len=512) :: noise_psd_model  
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
      logical(lgt) :: first_call
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
@@ -98,6 +97,7 @@ module comm_tod_mod
      integer(i4b) :: first_scan, last_scan
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
+     integer(i4b) :: n_xi                                         ! Number of noise parameters
 
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -310,6 +310,15 @@ contains
     self%verbosity     = cpar%verbosity
     self%sims_output_dir = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
+
+    if (trim(self%noise_psd_model) == 'oof') then
+       self%n_xi = 3  ! {sigma0, alpha, fknee}
+    else if (trim(self%noise_psd_model) == '2oof') then
+       self%n_xi = 5  ! {sigma0, alpha, fknee, alpha2, fknee2}
+    else
+       write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
+       stop
+    end if
 
     call mpi_comm_size(cpar%comm_shared, self%numprocs_shared, ierr)
 
@@ -695,19 +704,13 @@ contains
     character(len=*), dimension(:), intent(in)     :: detlabels
 
     integer(i4b)       :: i,j, n, m, ext(1)
-    real(dp)           :: t1, t2, t3, t4, t_tot(6), scalars(4)
+    real(dp)           :: scalars(4)
     character(len=6)   :: slabel
     character(len=128) :: field
     type(hdf_file)     :: file
     integer(i4b), allocatable, dimension(:)       :: hsymb
     real(sp),     allocatable, dimension(:)       :: buffer_sp
     integer(i4b), allocatable, dimension(:)       :: htree
-
-
-    call wall_time(t3)
-    t_tot = 0.d0
-
-    call wall_time(t1)
 
     self%chunk_num = scan
     call int2string(scan, slabel)
@@ -744,41 +747,29 @@ contains
     call read_hdf(file, slabel // "/common/time",  self%t0)
     ! HKE: LFI files should be regenerated with (x,y,z) info
     !call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
-    call wall_time(t2)
-    t_tot(1) = t2-t1
-
-    !write(*,*) self%t0(1), real(self%v_sun), "# v"
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
     do i = 1, ndet
        allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       allocate(self%d(i)%xi_n(tod%n_xi))
 
-       call wall_time(t1)
        field = detlabels(i)
-       call wall_time(t2)
-       t_tot(2) = t_tot(2) + t2-t1
-       call wall_time(t1)
        self%d(i)%label = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
-       self%d(i)%sigma0_def = scalars(2) * self%d(i)%gain_def  ! To get sigma0 in uncalibrated units
-       self%d(i)%fknee_def  = scalars(3)
-       self%d(i)%alpha_def  = scalars(4)
-       self%d(i)%gain       = self%d(i)%gain_def
-       self%d(i)%sigma0     = self%d(i)%sigma0_def
-       self%d(i)%fknee      = self%d(i)%fknee_def
-       self%d(i)%alpha      = self%d(i)%alpha_def
+       self%d(i)%xi_n(1:3)  = scalars(2:4)
+       self%d(i)%xi_n(1)    = self%d(i)%xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
 
-       call wall_time(t2)
-       t_tot(3) = t_tot(3) + t2-t1
-       call wall_time(t1)
-       call wall_time(t2)
-       t_tot(4) = t_tot(4) + t2-t1
-
+       if (trim(tod%noise_psd_model) == 'oof') then
+          self%d(i)%N_psd => comm_noise_psd(self%d(i)%xi_n, self%d(i)%xi_n)
+       else if (trim(tod%noise_psd_model) == '2oof') then
+          self%d(i)%xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
+          self%d(i)%xi_n(5) = -1.000 ! alpha2; arbitrary value
+          self%d(i)%N_psd => comm_noise_psd_2oof(self%d(i)%xi_n, self%d(i)%xi_n)
+       end if
 
        ! Read Huffman coded data arrays
-       call wall_time(t1)
        if (nhorn == 2) then
          do j = 1, nhorn 
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
@@ -803,13 +794,10 @@ contains
              self%d(i)%tod = buffer_sp(1:m)
           end if
        end if
-       call wall_time(t2)
-       t_tot(5) = t_tot(5) + t2-t1
     end do
     deallocate(buffer_sp)
 
     ! Initialize Huffman key
-    call wall_time(t1)
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
@@ -819,27 +807,12 @@ contains
        call hufmak_precomp(hsymb,htree,self%todkey)
     end if
     deallocate(hsymb, htree)
-    call wall_time(t2)
-    t_tot(6) = t_tot(6) + t2-t1
 
     ! Read instrument-specific infomation
     call tod%read_scan_inst(file, slabel, detlabels, self)
 
     ! Clean up
     call close_hdf_file(file)
-
-    call wall_time(t4)
-
-!!$    if (myid == 0) then
-!!$       write(*,*)
-!!$       write(*,*) '  IO init   = ', t_tot(1)
-!!$       write(*,*) '  IO field  = ', t_tot(2)
-!!$       write(*,*) '  IO scalar = ', t_tot(3)
-!!$       write(*,*) '  IO tod    = ', t_tot(4)
-!!$       write(*,*) '  IO comp   = ', t_tot(5)
-!!$       write(*,*) '  IO huff   = ', t_tot(6)
-!!$       write(*,*) '  IO total  = ', t4-t3
-!!$    end if
 
   end subroutine read_hdf_scan
 
@@ -1073,7 +1046,7 @@ contains
 
   subroutine dumpToHDF(self, chainfile, iter, map, rms)
     implicit none
-    class(comm_tod),                   intent(in)    :: self
+    class(comm_tod),                   intent(inout) :: self
     integer(i4b),                      intent(in)    :: iter
     type(hdf_file),                    intent(in)    :: chainfile
     class(comm_map),                   intent(in)    :: map, rms
@@ -1084,7 +1057,7 @@ contains
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
 
-    npar = 7
+    npar = 4+self%n_xi
     allocate(output(self%nscan_tot,self%ndet,npar))
 
     ! Collect all parameters
@@ -1093,12 +1066,11 @@ contains
        do i = 1, self%nscan
           k             = self%scanid(i)
           output(k,j,1) = self%scans(i)%d(j)%gain
-          output(k,j,2) = self%scans(i)%d(j)%sigma0
-          output(k,j,3) = self%scans(i)%d(j)%alpha
-          output(k,j,4) = self%scans(i)%d(j)%fknee
-          output(k,j,5) = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,6) = self%scans(i)%d(j)%chisq
-          output(k,j,7) = self%scans(i)%d(j)%baseline
+          output(k,j,2) = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+          output(k,j,3) = self%scans(i)%d(j)%chisq
+          output(k,j,4) = self%scans(i)%d(j)%baseline
+          call self%scans(i)%d(j)%N_psd%xi_n(self%scans(i)%d(j)%xi_n)
+          output(k,j,5:npar) = self%scans(i)%d(j)%xi_n
        end do
     end do
 
@@ -1113,7 +1085,8 @@ contains
     if (self%myid == 0) then
        ! Fill in defaults (closest previous)
        do j = 1, self%ndet
-          do i = 1, 4
+          do i = 1, npar
+             if (i >= 2 .and. i <= 4) cycle
              do k = 1, self%nscan_tot
                 if (output(k,j,i) == 0.d0) then
                    l = k
@@ -1151,12 +1124,10 @@ contains
        !write(*,*) 'path', trim(path)
        call create_hdf_group(chainfile, trim(adjustl(path)))
        call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
-       call write_hdf(chainfile, trim(adjustl(path))//'sigma0', output(:,:,2))
-       call write_hdf(chainfile, trim(adjustl(path))//'alpha',  output(:,:,3))
-       call write_hdf(chainfile, trim(adjustl(path))//'fknee',  output(:,:,4))
-       call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,5))
-       call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,6))
-       call write_hdf(chainfile, trim(adjustl(path))//'baseline',output(:,:,7))
+       call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,2))
+       call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,3))
+       call write_hdf(chainfile, trim(adjustl(path))//'baseline',output(:,:,4))
+       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,5:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'x_im',   [self%x_im(1), self%x_im(3)])
@@ -1186,7 +1157,7 @@ contains
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
 
-    npar = 5
+    npar = 2+self%n_xi
     allocate(output(self%nscan_tot,self%ndet,npar))
 
     call int2string(iter, itext)
@@ -1194,8 +1165,9 @@ contains
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
        call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
-       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,3))
-       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,4))
+       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
+       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
+!       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,2:4))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,5))
        call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
@@ -1226,10 +1198,12 @@ contains
           k             = self%scanid(i)
           self%scans(i)%d(j)%gain   = output(k,j,1)
           self%scans(i)%d(j)%dgain  = output(k,j,1)-self%gain0(0)-self%gain0(j)
-          self%scans(i)%d(j)%sigma0 = output(k,j,2)
-          self%scans(i)%d(j)%alpha  = output(k,j,3)
-          self%scans(i)%d(j)%fknee  = output(k,j,4)
+          !self%scans(i)%d(j)%sigma0 = output(k,j,2)
+          !self%scans(i)%d(j)%alpha  = output(k,j,3)
+          !self%scans(i)%d(j)%fknee  = output(k,j,4)          
+          self%scans(i)%d(j)%xi_n   = output(k,j,2:4)
           self%scans(i)%d(j)%accept = .true.  !output(k,j,5) == 1.d0
+          call self%scans(i)%d(j)%N_psd%update(self%scans(i)%d(j)%xi_n)
           if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
           if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
@@ -1712,14 +1686,14 @@ contains
 
     end do
 
-    if (self%scans(scan)%d(det)%sigma0 <= 0.d0) then
+    if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0) then
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = 0.d0
        else
           self%scans(scan)%d(det)%chisq        = 0.d0
        end if
     else
-       chisq      = chisq      / self%scans(scan)%d(det)%sigma0**2
+       chisq      = chisq      / self%scans(scan)%d(det)%N_psd%sigma0**2
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = chisq
        else
@@ -1730,7 +1704,7 @@ contains
     end if
     if (present(verbose)) then
       if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
-         & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%sigma0, n
+         & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%N_psd%sigma0, n
     end if
 !!$    if (abs(self%scans(scan)%d(det)%chisq) > 20.d0 .or. &
 !!$      & isNaN(self%scans(scan)%d(det)%chisq)) then
