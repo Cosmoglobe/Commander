@@ -194,7 +194,7 @@ contains
       !
       ! Arguments:
       ! ----------
-      ! self:     pointer of comm_LFI_tod class
+      ! self:     pointer of comm_WMAP_tod class
       !           Points to output of the constructor
       ! chaindir: string
       !           Directory for output files
@@ -222,54 +222,35 @@ contains
       ! rms_out: comm_map class
       !          Final output rms map after TOD processing combined for all detectors
       implicit none
-      class(comm_WMAP_tod), intent(inout) :: self
-      character(len=*), intent(in)    :: chaindir
-      integer(i4b), intent(in)    :: chain, iter
-      type(planck_rng), intent(inout) :: handle
-      type(map_ptr), dimension(1:, 1:), intent(inout) :: map_in       ! (ndet,ndelta)
-      real(dp), dimension(0:, 1:, 1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
+      class(comm_WMAP_tod),             intent(inout) :: self
+      character(len=*),                    intent(in) :: chaindir
+      integer(i4b),                        intent(in) :: chain, iter
+      type(planck_rng),                 intent(inout) :: handle
+      type(map_ptr), dimension(1:, 1:), intent(inout) :: map_in    ! (ndet,ndelta)
+      real(dp),  dimension(0:, 1:, 1:), intent(inout) :: delta     ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map), intent(inout) :: map_out      ! Combined output map
       class(comm_map), intent(inout) :: rms_out      ! Combined output rms
 
-      integer(i4b) :: i, j, k, l, m, n, t, ntod, ndet
-      integer(i4b) :: nside, npix, nmaps, naccept, ntot, ext(2), nscan_tot, nhorn
-      integer(i4b) :: ierr, main_iter, n_main_iter, ndelta, ncol, n_A, np0, nout
-      character(len=40), allocatable, dimension(:) :: iter_labels ! names of iters 
-      real(dp)     :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, chisq_threshold
-      real(dp)     :: t_tot(22)
-      real(sp)     :: inv_gain
-      real(dp)     :: x_im(4)
-      real(sp), allocatable, dimension(:, :)          :: n_corr, s_sky, s_skyA, s_skyB
-      real(sp), allocatable, dimension(:, :)          :: s_sl, s_slA, s_slB
-      real(sp), allocatable, dimension(:, :)          :: s_orbA, s_orbB, s_orb_tot
-      real(sp), allocatable, dimension(:, :)          :: mask, mask2, mask_lowres, s_bp, s_bpA, s_bpB
-      real(sp), allocatable, dimension(:, :)          :: s_mono, s_buf, s_tot, s_zodi
-      real(sp), allocatable, dimension(:, :)          :: s_totA, s_totB
-      real(sp), allocatable, dimension(:, :)          :: s_invN, s_lowres
-      real(sp), allocatable, dimension(:, :, :)       :: s_sky_prop, s_bp_prop
+      real(dp)     :: t1, t2
+      integer(i4b) :: i, j, k, l, n
+      integer(i4b) :: nside, npix, nmaps 
+      integer(i4b) :: ierr, ndelta
+      real(sp), allocatable, dimension(:, :)          :: s_buf
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
-      real(dp), allocatable, dimension(:)             :: A_abscal, b_abscal
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
-      real(dp), allocatable, dimension(:, :)          :: A_map, dipole_mod, M_diag
+      real(dp), allocatable, dimension(:, :)          :: M_diag
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono
-      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
-      integer(i4b), allocatable, dimension(:)         :: flag
-      integer(i4b), allocatable, dimension(:,:)           :: tod
-      real(dp), allocatable, dimension(:, :, :)       :: b_tot, M_diag_tot
-      logical(lgt)       :: correct_sl, verbose, finished
-      character(len=512) :: prefix, postfix, prefix4D, filename
+      character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
 
       logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
-      type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
 
       character(len=4)   :: ctext, myid_text
-      character(len=6)   :: samptext, scantext
+      character(len=6)   :: samptext
       character(len=512), allocatable, dimension(:) :: slist
       real(sp),       allocatable, dimension(:)     :: procmask, procmask2
       real(sp),  allocatable, dimension(:, :, :, :) :: map_sky
-      class(comm_map),                      pointer :: condmap
       class(map_ptr),     allocatable, dimension(:) :: outmaps
 
       ! biconjugate gradient-stab parameters
@@ -277,21 +258,10 @@ contains
       real(dp) ::  epsil(6)
       real(dp), allocatable, dimension(:, :, :) :: bicg_sol
       real(dp), allocatable, dimension(:)       :: map_full
-      logical(lgt) :: write_cg_iter=.false.
-
-
-
-      real(dp) :: masked_var
-
-
 
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
-
-
-
-
 
       ! Toggle optional operations
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -492,10 +462,14 @@ contains
          call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                           & epsil(l), procmask, map_full, M_diag, b_map, l)
       end do
-      if (self%verbosity > 0) write(*,*) '  Finished BiCG'
+      if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
+      allocate(outmaps(self%output_n_maps))
+      do i = 1, self%output_n_maps
+         outmaps(i)%p => comm_map(self%info)
+      end do
       do k = 1, self%output_n_maps
          do j = 1, nmaps
             outmaps(k)%p%map(:, j) = bicg_sol(self%info%pix, j, k)
@@ -518,14 +492,13 @@ contains
       end if
 
       ! Clean up temporary arrays
-      deallocate(A_abscal, b_abscal, chisq_S, procmask)
+      deallocate(procmask, procmask2)
       deallocate(b_map, M_diag)
-      !if (self%myid ==0) deallocate(map_full)
       deallocate(map_full)
+      if (allocated(chisq_S)) deallocate (chisq_S)
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
       if (allocated(slist)) deallocate (slist)
-      if (allocated(dipole_mod)) deallocate (dipole_mod)
 
       if (allocated(outmaps)) then
          do i = 1, self%output_n_maps
@@ -536,7 +509,7 @@ contains
 
       deallocate (map_sky, bicg_sol)
 
-      if (correct_sl) then
+      if (self%correct_sl) then
          do i = 1, self%ndet
             call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
          end do
