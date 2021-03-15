@@ -112,11 +112,14 @@ contains
 
       ! Initialize common parameters
       allocate (constructor)
+      constructor%noise_psd_model = 'oof'
+
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
       ! Set up WMAP specific parameters
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn           = 2
+      constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
       constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
@@ -249,7 +252,7 @@ contains
       character(len=4)   :: ctext, myid_text
       character(len=6)   :: samptext
       character(len=512), allocatable, dimension(:) :: slist
-      real(sp),       allocatable, dimension(:)     :: procmask, procmask2
+      real(sp),       allocatable, dimension(:)     :: procmask, procmask2, sigma0
       real(sp),  allocatable, dimension(:, :, :, :) :: map_sky
       class(map_ptr),     allocatable, dimension(:) :: outmaps
 
@@ -395,12 +398,16 @@ contains
          ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
          if (self%output_4D_map > 0) then
             if (mod(iter-1,self%output_4D_map) == 0) then
+               allocate(sigma0(sd%ndet))
+               do j = 1, sd%ndet
+                  sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
+               end do
                call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
                     & samptext, self%scanid(i), self%nside, self%npsi, &
-                    & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-                    & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
+                    & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
                     & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
                     & self%scans(i)%d(:)%accept)
+               deallocate(sigma0)
             end if
          end if
 

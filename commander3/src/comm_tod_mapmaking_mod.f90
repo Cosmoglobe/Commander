@@ -230,7 +230,7 @@ contains
          !inv_sigmasq = 0.d0 
          var = 0
          do det = 1, 4
-           var = var  + (tod%scans(scan)%d(det)%sigma0/tod%scans(scan)%d(det)%gain)**2/4
+           var = var + (tod%scans(scan)%d(det)%N_psd%sigma0/tod%scans(scan)%d(det)%gain)**2/4
          end do
          inv_sigmasq = 1/var
          do t = 1, tod%scans(scan)%ntod

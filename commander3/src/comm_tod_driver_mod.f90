@@ -476,7 +476,7 @@ contains
              ! Calibrator = common mode signal
              s_buf(:,j) = sd%s_totA(:,j) + sd%s_totB(:,j)
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
-               & real(tod%scans(i)%d(j)%sigma0, sp), handle, tod%scans(i)%chunk_num)
+               & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           else
              ! Calibrator = total signal
@@ -586,7 +586,7 @@ contains
             & *sd%mask(:,j))/sum(sd%mask(:,j))
           if (trim(tod%operation) == 'sample') then
             tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
-             &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%sigma0**2))
+             &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%N_psd%sigma0**2))
           end if
        end do
 
