@@ -1,6 +1,6 @@
 module params
   use precision
-  integer :: nr_of_samples = 10000
+  integer :: nr_of_samples = 10
   character(len=4) :: dat_length = '1501'
   integer :: l_max = 1500
   integer :: l_min = 4
@@ -12,7 +12,7 @@ module params
   character(len=2), dimension(3) :: spectra_list = (/ 'TT', 'EE', 'TE' /)
 end module
 
-program tester
+program comm_camb_mod
 use CAMB
 use precision
 use params
@@ -32,15 +32,14 @@ real(dl), dimension(:, :), allocatable :: list_of_cosmo_param
 real(dl), dimension(:, :, :), allocatable :: list_of_sigma_l
 real(dl), dimension(6, 6) :: covariance_matrix, L_mat
 
-real(dl), dimension(:, :), allocatable :: scaled_f_lm, cur_sigma_l, hat_c_l, d_lm, correct_c_l
+real(dl), dimension(:, :), allocatable :: cur_sigma_l, hat_c_l, d_lm, correct_c_l
 
-integer :: cur_sample, i, j, accepted_samples
+integer :: sample_nr, i, j, accepted_samples
 logical :: accept
 real(dl), dimension(6) :: average, var
 type(sample) :: old_sample, new_sample, correct_sample
 
 allocate(d_lm(2, (l_max+1)**2))
-allocate(scaled_f_lm(2, (l_max+1)**2))
 allocate(list_of_cosmo_param(6, nr_of_samples))
 allocate(list_of_sigma_l(3, 0:l_max, nr_of_samples))
 allocate(cur_sigma_l(3, 0:l_max))
@@ -55,38 +54,36 @@ accepted_samples = 0
 ! Initialize
 correct_sample%theta = correct_cosmo_param
 call rand_init(rng_handle, 12345, 1245689)
-call get_c_l(correct_sample)
+call get_c_l_from_camb(correct_sample)
 call init_CMB_and_noise(d_lm, correct_sample, rng_handle)
 call init_covariance_matrix(L_mat, covariance_matrix)
 
 ! First sample
 old_sample%theta = correct_cosmo_param
-call get_c_l(old_sample)
+call get_c_l_from_camb(old_sample)
 call get_s_lm_f_lm(old_sample, d_lm, rng_handle)
 
-DO cur_sample = 1, nr_of_samples
+DO sample_nr = 1, nr_of_samples
   ! Get new theta, get c_l, s_lm and f_lm from new theta. Then rescale f_lm
-  call cosmo_param_proposal(new_sample, old_sample, L_mat, rng_handle)
-  call get_c_l(new_sample)
-  call get_s_lm_f_lm(new_sample, d_lm, rng_handle)
-  call get_scaled_f_lm(scaled_f_lm, new_sample, old_sample) 
-  print *, 'Sample:', cur_sample, 'Out of', nr_of_samples
-  print *, 'New Sample', new_sample%theta(1)
-  print *, 'Old Sample', old_sample%theta(1)
+  call get_new_sample(accept, new_sample, old_sample, d_lm, L_mat, rng_handle)
 
-  accept = acceptance(scaled_f_lm, new_sample, old_sample, d_lm, rng_handle)
-  list_of_cosmo_param(:, cur_sample) = new_sample%theta
+  print *, 'Sample:', sample_nr, 'Out of', nr_of_samples
+  print *, 'New Sample OmbH2', new_sample%theta(1)
+  print *, 'Old Sample OmbH2', old_sample%theta(1)
   
+  ! Save information about new sample that will be printed to dat files
+  list_of_cosmo_param(:, sample_nr) = new_sample%theta
   call get_c_l_from_a_lm(cur_sigma_l, new_sample%s_lm + new_sample%f_lm)
-  list_of_sigma_l(:, :, cur_sample) = cur_sigma_l
+  list_of_sigma_l(:, :, sample_nr) = cur_sigma_l
 
   if (accept) then
+    ! Sample was accepted
     accepted_samples = accepted_samples + 1 
     old_sample = new_sample
   end if
 END DO
 
-! Done smapling, save data
+! Done sampling, save data
 print*, 'Accepted Samples: ', accepted_samples, 'Ratio:', real(accepted_samples)/real(nr_of_samples)
 average = sum(list_of_cosmo_param, dim = 2)/nr_of_samples
 print *, 'Average:', average
@@ -117,7 +114,30 @@ end do
 close(1)
 contains
 
+subroutine get_new_sample(accept, new_sample, old_sample, d_lm, L_mat, rng_handle)
+  ! Gets new theta sample. Finds c_l from theta, and then s_lm and scaled f_lm
+  logical, intent(out) :: accept
+  type(sample), intent(out) :: new_sample
+  type(sample), intent(in) :: old_sample
+  real(dl), dimension(2, (l_max+1)**2), intent(in) :: d_lm
+  real(dl), dimension(6, 6), intent(in) :: L_mat
+  type(planck_rng), intent(in) :: rng_handle
+
+  real(dl), dimension(2, (l_max+1)**2) :: scaled_f_lm
+
+  call cosmo_param_proposal(new_sample, old_sample, L_mat, rng_handle)
+  call get_c_l_from_camb(new_sample)
+  call get_s_lm_f_lm(new_sample, d_lm, rng_handle)
+  call get_scaled_f_lm(scaled_f_lm, new_sample, old_sample) 
+  accept = acceptance(scaled_f_lm, new_sample, old_sample, d_lm, rng_handle)
+end subroutine get_new_sample
+
 subroutine init_covariance_matrix(L, covariance_matrix)
+    ! Caclulates a multivariate Gaussian for the proposal function w
+    ! If there exists a cosmo_param_out.dat file in the parent folder it uses
+    ! that to calculate a covariance matrix and then uses Cholesky decomposition
+    ! to find the L (L*L^T=Covariance matrix), and so theta_new = theta_old + L*z
+    ! where z is a random Gaussian vector
   real(dl), dimension(6, 6) :: L, covariance_matrix
 
   integer :: i, j, k, nlines
@@ -189,6 +209,7 @@ subroutine init_covariance_matrix(L, covariance_matrix)
 end subroutine
 
 subroutine get_c_l_from_a_lm(c_l, a_lm)  
+  ! Calculates power spectra from a_lm. TT, EE, and TE
   real(dl), dimension(3, 0:l_max) :: c_l
   real(dl), dimension(2, (l_max+1)**2), intent(in) :: a_lm
 
@@ -216,10 +237,12 @@ subroutine get_c_l_from_a_lm(c_l, a_lm)
     END DO
     c_l(3, l) = cur_c_l / (2*l+1)
   END DO
-  
 end subroutine get_c_l_from_a_lm
 
 subroutine cosmo_param_proposal(new_sample, old_sample, L, rng_handle)
+  ! This is the proposal function w. Finds new sample based on covariance
+  ! matrix L*L^T. Proposal_multiplier = 0.3 to make sure the proposal theta
+  ! becomes too large.
   type(sample) :: new_sample
   type(sample), intent(in) :: old_sample
   real(dl), dimension(6, 6), intent(in) :: L
@@ -238,6 +261,9 @@ end subroutine cosmo_param_proposal
 
 
 function acceptance(scaled_f_lm, new_sample, old_sample, d_lm, rng_handle)
+  ! This function determines if the new sample should be accepted or not.
+  ! Assumes no priors and that the proposal is symmetric. Hence 
+  ! A = min(1, pi(theta^{i+1})/pi(theta^i))
   real(dl), dimension(2, (l_max+1)**2), intent(in) :: scaled_f_lm, d_lm
   type(sample), intent(in) :: old_sample, new_sample
   type(planck_rng) :: rng_handle
@@ -261,10 +287,14 @@ function acceptance(scaled_f_lm, new_sample, old_sample, d_lm, rng_handle)
   DO l = l_min, l_max
     DO m = 0, l
       i = l**2 + l + m + 1
-      DO k = 1, 2   
-        ln_pi_ip1 = ln_pi_ip1 + (d_lm(k, i) - new_s_lm(k, i))**2 / noise_l(k) + scaled_f_lm(k, i)**2 / noise_l(k)! + new_s_lm(k, i)**2 / new_c_l(k, l)
 
-        ln_pi_i  =  ln_pi_i   + (d_lm(k, i) - old_s_lm(k, i))**2 / noise_l(k) + old_f_lm(k, i)**2 / noise_l(k)! + old_s_lm(k, i)**2 / old_c_l(k, l)
+      ! This part is a bit ugly. Everything is diagonal except c_l (because of
+      ! C^TE) and so that is done after the k loop. k=1 is a^T_lm and k=2 is
+      ! a^E_lm
+      DO k = 1, 2   
+        ln_pi_ip1 = ln_pi_ip1 + (d_lm(k, i) - new_s_lm(k, i))**2 / noise_l(k) + scaled_f_lm(k, i)**2 / noise_l(k)
+
+        ln_pi_i  =  ln_pi_i   + (d_lm(k, i) - old_s_lm(k, i))**2 / noise_l(k) + old_f_lm(k, i)**2 / noise_l(k)
       END DO
       new_S = reshape((/ new_c_l(1, l), new_c_l(3, l), new_c_l(3, l), new_c_l(2, l) /), shape(new_S))
       old_S = reshape((/ old_c_l(1, l), old_c_l(3, l), old_c_l(3, l), old_c_l(2, l) /), shape(old_S))
@@ -287,6 +317,7 @@ function acceptance(scaled_f_lm, new_sample, old_sample, d_lm, rng_handle)
 end function acceptance
 
 subroutine init_CMB_and_noise(d_lm, cur_sample, rng_handle)
+  ! Initializes simulated d_lm which is a_lm from CMB plus noise.
   real(dl), dimension(2, (l_max+1)**2) :: d_lm
   type(sample), intent(in) :: cur_sample
   type(planck_rng) :: rng_handle  
@@ -315,6 +346,7 @@ subroutine init_CMB_and_noise(d_lm, cur_sample, rng_handle)
 end subroutine
 
 subroutine get_s_lm_f_lm(cur_sample, d_lm, rng_handle)
+  ! Caclulates mean field s_lm and fluctuation f_lm from c_l from cur_sample
   type(sample) :: cur_sample
   real(dl), dimension(2, (l_max+1)**2), intent(in) :: d_lm
   type(planck_rng) :: rng_handle
@@ -350,13 +382,12 @@ subroutine get_s_lm_f_lm(cur_sample, d_lm, rng_handle)
 end subroutine
 
 subroutine get_scaled_f_lm(scaled_f_lm, new_sample, old_sample)
+  ! Scaled f_lm from new_sample. f_scaled = sqrt(c_l^{i+1}/c_l^i)f^{i+1}
   implicit none
   
   type(sample), intent(in) :: new_sample, old_sample
-
   integer :: index, l, m, k
   real(dl) :: prefactor
-
   real(dl), dimension(3, 0: l_max) :: old_c_l, new_c_l
   real(dl), dimension(2, (l_max+1)**2) :: old_f_lm
   real(dl), dimension(2, (l_max+1)**2) :: scaled_f_lm
@@ -366,7 +397,7 @@ subroutine get_scaled_f_lm(scaled_f_lm, new_sample, old_sample)
   old_c_l = old_sample%c_l
   new_c_l = new_sample%c_l
   DO l = l_min, l_max
-    !prefactor = sqrt(new_c_l(k, l) / old_c_l(k, l))
+    !Scaling is non-trivial when C^TE != 0, then we need to do matrix operations
     new_S = reshape((/ new_c_l(1, l), new_c_l(3, l), new_c_l(3, l), new_c_l(2, l) /), shape(new_S))
     old_S = reshape((/ old_c_l(1, l), old_c_l(3, l), old_c_l(3, l), old_c_l(2, l) /), shape(old_S))
     inv_old_S = inv_mat(old_S)
@@ -377,7 +408,9 @@ subroutine get_scaled_f_lm(scaled_f_lm, new_sample, old_sample)
   END DO
 end subroutine get_scaled_f_lm
 
-subroutine get_c_l(cur_sample)
+subroutine get_c_l_from_camb(cur_sample)
+  ! Gets TT, EE, and TE power spectra from camb using the cosmological
+  ! parameters in theta.
   implicit none
   
   type(sample) :: cur_sample 
@@ -430,7 +463,7 @@ subroutine get_c_l(cur_sample)
     END DO
   END DO
   cur_sample%c_l = c_l
-end subroutine get_c_l
+end subroutine get_c_l_from_camb
 
 ! TOOL FUNCTIONS
 
@@ -479,5 +512,5 @@ function mat_vec_mul(A, v) result(v_out)
     END DO
   END DO
 end function mat_vec_mul
-end program Tester
+end program comm_camb_mod
 
