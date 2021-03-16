@@ -39,7 +39,7 @@ contains
     integer(i4b),                         intent(in)    :: scan_id
     type(planck_rng),                     intent(inout)  :: handle
     real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
-    integer(i4b),         dimension(:,:), intent(in), optional :: tod_arr
+    real(sp),             dimension(:,:), intent(in), optional :: tod_arr
 
 
     real(sp), allocatable, dimension(:,:) :: residual
@@ -464,7 +464,7 @@ contains
     logical(lgt), intent(in) :: out
     real(sp),          dimension(:,:), intent(in), optional :: s_highres
     real(sp),          dimension(:,:), intent(in), optional :: mask_lowres
-    integer(i4b),      dimension(:,:), intent(in), optional :: tod_arr
+    real(sp),          dimension(:,:), intent(in), optional :: tod_arr
  
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
@@ -484,10 +484,11 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
+         r_fill = tod_arr(:,j)-s_sub(:,j)! - tod%scans(scan)%d(j)%baseline
+         if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod_arr(:,j))), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
        else
-         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 1348 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
+         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j)! - tod%scans(scan)%d(j)%baseline
+         if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -504,13 +505,11 @@ contains
           A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
           b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
        end if
-       !if (tod%scanid(scan) == 1348 .and. out) write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j, sum(abs(s_invN(:,j))), sum(abs(s_ref(:,j))), sum(abs( mask_lowres(:,j))), sum(abs(residual(:,j))), sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j)), sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+       if (tod%scanid(scan) == 30 .and. out) then
+         write(*,*) 'scan, s N^-1 r/s N^-1 s, sigma, absK, det, sum(abs(s_invN)), sum(abs(s_ref)), sum(abs(mask)), sum(abs(res), sum(s N^-1 ref*mask), sum(s N^-1 res*mask)'
+         write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j, sum(abs(s_invN(:,j))), sum(abs(s_ref(:,j))), sum(abs( mask_lowres(:,j))), sum(abs(residual(:,j))), sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j)), sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+       end if
     end do
-
-!    if (trim(tod%freq) == '070') then
-!       write(*,*) tod%scanid(scan), real(b/A,sp), real(1/sqrt(A),sp), '  # absK', det
- !   end if
-
 
     if (.false. .and. out) then
     !if (sum(s_invN(:,4) * residual(:,4) * mask_lowres(:,4))/sum(s_invN(:,4) * s_ref(:,4) * mask_lowres(:,4)) < -0.5d0) then
@@ -600,7 +599,8 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,*) 'abscal = ', tod%gain0(0)!, sum(b), sum(A)
+         write(*,*) 'abscal = ', tod%gain0(0)
+         write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
@@ -670,7 +670,68 @@ contains
 
   end subroutine sample_relcal
 
+  subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
+    !  Subroutine to sample the transmission imbalance parameters, defined in
+    !  the WMAP data model as the terms x_im; given the definition
+    !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})
+    !  we have
+    !  d = g[(1+x_im)*d_A - (1-x_im)*d_B]
+    !  Returns x_{im,1} for detectors 13/14, and x_{im,2} for detectors 23/24.
+    !
+    !
+    !  Arguments (fixed):
+    !  ------------------
+    !  A_abs: real(dp)
+    !     Accumulated A_abs = s_ref^T N^-1 s_ref for all scans
+    !  b_abs: real(dp)
+    !     Accumulated b_abs = s_ref^T N^-1 s_sub for all scans
+    !
+    !  
+    !  Arguments (modified):
+    !  ---------------------
+    !  tod: comm_WMAP_tod
+    !     The entire tod object. tod%x_im estimated and optionally sampled
+    !  handle: planck_rng derived type 
+    !     Healpix definition for random number generation
+    !     so that the same sequence can be resumed later on from that same point
+    !
+    implicit none
+    class(comm_tod),                   intent(inout)  :: tod
+    type(planck_rng),                  intent(inout)  :: handle
+    real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
 
+    integer(i4b) :: i, j, ierr
+    real(dp), allocatable, dimension(:) :: A, b
+
+    ! Collect contributions from all cores
+    allocate(A(tod%ndet), b(tod%ndet))
+    call mpi_reduce(A_abs, A, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & tod%info%comm, ierr)
+    call mpi_reduce(b_abs, b, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+         & tod%info%comm, ierr)
+
+    ! Compute gain update and distribute to all cores
+    if (tod%myid == 0) then
+       tod%x_im(1) = sum(b(1:2))/sum(A(1:2))
+       tod%x_im(3) = sum(b(3:4))/sum(A(3:4))
+       if (trim(tod%operation) == 'sample') then
+          ! Add fluctuation term if requested
+          tod%x_im(1) = tod%x_im(1) + 1.d0/sqrt(sum(A(1:2))) * rand_gauss(handle)
+          tod%x_im(3) = tod%x_im(3) + 1.d0/sqrt(sum(A(3:4))) * rand_gauss(handle)
+       end if
+       tod%x_im(2) = tod%x_im(1)
+       tod%x_im(4) = tod%x_im(3)
+       if (tod%verbosity > 1) then
+         write(*,*) 'imbal =', tod%x_im(1), tod%x_im(3)
+       end if
+    end if
+    call mpi_bcast(tod%x_im, 4,  MPI_DOUBLE_PRECISION, 0, &
+         & tod%info%comm, ierr)
+
+
+    deallocate(A, b)
+
+  end subroutine sample_imbal_cal
 
   subroutine get_smoothing_windows(tod, windows, dipole_mods)
      implicit none

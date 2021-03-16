@@ -140,7 +140,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: partner ! Partner detector; for symmetrizing flags
      integer(i4b),       allocatable, dimension(:)     :: horn_id  ! Internal horn number per detector
-     real(dp),           dimension(2)                  :: x_im    ! feedhorn imbalance parameters
+     real(dp),           dimension(4)                  :: x_im    ! feedhorn imbalance parameters, with duplicates
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask => null() ! Mask for gain and n_corr
@@ -171,6 +171,7 @@ module comm_tod_mod
      procedure(process_tod), deferred    :: process_tod
      procedure                           :: construct_sl_template
      procedure                           :: construct_dipole_template
+     procedure                           :: construct_dipole_template_diff
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
      procedure                           :: compute_chisq
@@ -767,8 +768,8 @@ contains
        ! Read Huffman coded data arrays
        if (nhorn == 2) then
          do j = 1, nhorn 
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // char(j+64),  self%d(i)%pix(j)%p)
-           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // char(j+64),  self%d(i)%psi(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
+           call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
          end do
        else
          do j = 1, nhorn
@@ -1124,7 +1125,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,5:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
-       call write_hdf(chainfile, trim(adjustl(path))//'x_im',   self%x_im)
+       call write_hdf(chainfile, trim(adjustl(path))//'x_im',   [self%x_im(1), self%x_im(3)])
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
     end if
@@ -1320,8 +1321,26 @@ contains
 
   end subroutine construct_sl_template
 
-  !construct a CMB dipole template in the time domain
   subroutine construct_dipole_template(self, scan, pix, psi, orbital, s_dip)
+    !  construct a CMB dipole template in the time domain
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !  orbital: logical
+    !       flag for whether the orbital or solar dipole is used as the template
+    !
+    !  Returns:
+    !  --------
+    !  s_dip: real (sp)
+    !       output dipole template timestream
     implicit none
     class(comm_tod),                   intent(inout) :: self
     integer(i4b),                      intent(in)    :: scan
@@ -1359,6 +1378,64 @@ contains
     deallocate(P)
 
   end subroutine construct_dipole_template
+
+  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, s_dip)
+    !construct a CMB dipole template in the time domain for differential data
+    !
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !  orbital: logical
+    !       flag for whether the orbital or solar dipole is used as the template
+    !
+    !  Returns:
+    !  --------
+    !  s_dip: real (sp)
+    !       output dipole template timestream
+    implicit none
+    class(comm_tod),                   intent(inout) :: self
+    integer(i4b),                      intent(in)    :: scan
+    integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
+    logical(lgt),                      intent(in)    :: orbital
+    real(sp),        dimension(:,:),   intent(out)   :: s_dip
+
+    integer(i4b) :: i, j, ntod
+    real(dp)     :: v_ref(3)
+    real(dp), allocatable, dimension(:,:) :: P
+
+    ntod = self%scans(scan)%ntod
+
+    allocate(P(3,ntod))
+    j = 1
+    if (orbital) then
+       v_ref = self%scans(scan)%v_sun
+       do i = 1, ntod
+          P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
+                  & self%ind2ang(1,self%pix2ind(pix(i,j))), &
+                  & self%psi(psi(i,j))] ! [phi, theta, psi7]
+       end do
+    else
+       v_ref = v_solar
+       do i = 1, ntod
+          P(:,i) =  self%pix2vec(:,pix(i,j)) ! [v_x, v_y, v_z]
+       end do
+    end if
+
+    do j = 1, self%ndet
+       call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
+            & orbital, self%orb_4pi_beam, P, s_dip(:,j))
+    end do
+    deallocate(P)
+
+  end subroutine construct_dipole_template_diff
 
   subroutine output_scan_list(self, slist)
     implicit none
@@ -1576,7 +1653,7 @@ contains
     real(sp),          dimension(:), intent(in)     :: n_corr
     real(sp),          dimension(:), intent(in), optional :: s_jump
     logical(lgt),                    intent(in), optional :: absbp, verbose
-    integer(i4b),     dimension(:,:), intent(in), optional :: tod_arr
+    real(sp),        dimension(:,:), intent(in), optional :: tod_arr
 
     
     real(dp)     :: chisq, d0, g, b
@@ -1706,13 +1783,38 @@ contains
 
 
   subroutine decompress_tod(self, scan, det, tod)
+    !
+    ! decompresses huffman coded tods 
+    !
+    ! Argumnets:
+    ! ----------
+    ! self: comm_tod
+    !
+    ! scan: integer
+    !     scan integer label
+    ! det: integer
+    !     detector number
+    !
+    ! Returns:
+    ! --------
+    ! tod: real(sp)
+    !    full raw TOD values
+    !
     implicit none
     class(comm_tod),                    intent(in)  :: self
     integer(i4b),                       intent(in)  :: scan, det
-    integer(i4b),         dimension(:),  intent(out) :: tod
+    real(sp),            dimension(:),  intent(out) :: tod
+
+    integer(i4b), allocatable, dimension(:) :: tod_int
     integer(i4b) :: i
 
-    call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
+    allocate(tod_int(size(tod)))
+
+    call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
+
+    tod = real(tod_int, sp)
+
+    deallocate(tod_int)
 
   end subroutine decompress_tod
 

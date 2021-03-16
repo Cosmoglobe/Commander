@@ -29,9 +29,37 @@ module comm_tod_noise_mod
 
 contains
 
- ! Compute correlated noise term, n_corr from eq:
-  ! ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
   subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike)
+    ! 
+    ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
+    !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
+    ! 
+    ! Arguments
+    ! ---------
+    ! self:    derived type (comm_tod)
+    !          TOD object used for meta-data
+    ! tod:     sp (ntod x ndet array)
+    !          Decompressed TOD data
+    ! handle:  type(planck_rng)
+    !          Healpix random number type
+    ! scan:    int (scalar)
+    !          Scan number ID for local core
+    ! mask:    sp (ntod x ndet array)
+    !          TOD mask (0 = masked, 1 = included)
+    ! s_sub:   sp (ntod x ndet array)
+    !          TOD-domain signal template to be subtracted from tod to generate a residual
+    ! pix:     int (ntod x ndet array)
+    !          Pointing array in terms of pixel number per sample
+    ! freqmask: sp (nfreq x ndet array)
+    !          TOD frequency mask used to remove bad frequencies; these are re-filled with random noise
+    ! dospike: lgt (scalar)
+    !          Flag to identify spikes and output debug information (HKE: This is currently very non-intuitive...)
+    !
+    ! Returns
+    ! -------
+    ! n_corr:  sp (ntod x ndet array)
+    !          TOD-domain correlated noise realization
+    ! 
     implicit none
     class(comm_tod),                    intent(in)     :: self
     real(sp),         dimension(1:,1:), intent(in)     :: tod
@@ -376,7 +404,7 @@ contains
     integer(i4b),                       intent(in)     :: scan
     real(sp),         dimension(:,:),   intent(in)     :: mask, s_tot, n_corr
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
-    
+
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar
     integer(i4b) :: ndet

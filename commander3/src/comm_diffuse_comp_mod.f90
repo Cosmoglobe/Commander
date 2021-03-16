@@ -1059,6 +1059,24 @@ contains
   end subroutine initPixregSampling
 
   subroutine initSpecindProp(self,cpar, id, id_abs)
+    !
+    !  Subroutine that initializes the spectral index proposal matrix
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_diffuse_component
+    !       Object that contains all of the diffuse component properties
+    !  cpar: comm_params
+    !       Object that contains parameters input to Commander from parameter
+    !       file.
+    !  id: int
+    !       index of the components, out of only the ones being used
+    !  id_abs: int
+    !       index of the component, out of all, whether they are used or not. 
+    !  Returns:
+    !  --------
+    !  None, but modifies self by changing the proposal matrices.
+    !
     implicit none
     class(comm_diffuse_comp)            :: self
     type(comm_params),       intent(in) :: cpar
@@ -1068,10 +1086,14 @@ contains
     integer(i4b) :: i, j, l, m, ntot, nloc, p, q
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
+    real(dp),     allocatable, dimension(:)   :: L_arr
+    integer(i4b), allocatable, dimension(:)   :: corrlen_arr     
     
     ! Init alm sampling params (Trygve)
     allocate(self%corrlen(self%npar, self%nmaps))
     self%corrlen    = 0     ! Init correlation length
+    allocate(corrlen_arr(self%nmaps))
+    corrlen_arr     = 0     ! Init correlation length
     
     ! Init bool for L-flags
     allocate(self%L_read(self%npar), self%L_calculated(self%npar))
@@ -1110,8 +1132,10 @@ contains
     ! Initialize cholesky matrix
     if (cpar%almsamp_pixreg)  then
        allocate(self%L(0:maxval(self%npixreg), 0:maxval(self%npixreg), self%nmaps, self%npar)) ! Set arbitrary number of max regions
+       allocate(L_arr(0:maxval(self%npixreg))) ! Set arbitrary number of max regions
     else
        allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))
+       allocate(L_arr(0:self%nalm_tot-1))
     end if
 
     allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
@@ -1136,20 +1160,21 @@ contains
           if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
           !write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs)), j
           open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
-          read(11,*) self%corrlen(j,:)
-          ! forrtl: warning (406): fort: (1): In call to I/O Read routine,
-          ! an array temporary was created for argument #1
+          read(11,*) corrlen_arr
+          self%corrlen(j,:) = corrlen_arr
+
           do p = 1, self%nmaps
              read(11,*)
              do q = 0, size(self%L(:,1,p,j))-1
-                read(11,*) self%L(q,:,p,j)
-                ! forrtl: warning (406): fort: (1): In call to I/O Read routine,
-                ! an array temporary was created for argument #1
+                read(11,*) L_arr
+                self%L(q,:,p,j) = L_arr
              end do
           end do
           close(11)
        end if
     end do
+
+    deallocate(corrlen_arr, L_arr)
     
   end subroutine initSpecindProp
 
