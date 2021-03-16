@@ -45,6 +45,7 @@ module comm_diffuse_comp_mod
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg, priorsamp_local
+     logical(lgt)       :: output_localsamp_maps
      integer(i4b)       :: lmin_amp, lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
@@ -156,6 +157,27 @@ module comm_diffuse_comp_mod
 contains
 
   subroutine initDiffuse(self, cpar, id, id_abs)
+    !
+    ! Routine that initializes a diffuse type component. 
+    !
+    ! Arguments:
+    ! self: comm_diffuse_comp 
+    !       Diffuse type component
+    !
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! id: integer
+    !       Integer ID of the diffuse component with respect to the activ components
+    !
+    ! id_abs: integer
+    !       Integer ID of the diffuse component with respect to all components defined in the parameter file
+    !       (and also the id in the 'cpar' parameter)
+    !
+    ! Returns:
+    !       The diffuse component parameter is returned (self).
+    !       Any other changes are done internally
+    !
     implicit none
     class(comm_diffuse_comp)            :: self
     type(comm_params),       intent(in) :: cpar
@@ -193,6 +215,7 @@ contains
     self%latmask       = cpar%cs_latmask(id_abs)
     self%apply_jeffreys = .false.
     self%sample_first_niter = cpar%cs_local_burn_in
+    self%output_localsamp_maps = cpar%cs_output_localsamp_maps
 
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
@@ -2411,6 +2434,33 @@ contains
   
   ! Dump current sample to HEALPix FITS file
   subroutine dumpDiffuseToFITS(self, iter, chainfile, output_hdf, postfix, dir)
+    !
+    ! Routine that writes a diffuce component to FITS (and HDF) files. 
+    !
+    ! Arguments:
+    ! self: comm_diffuse_comp 
+    !       Diffuse type component
+    !
+    ! iter: integer
+    !       Sample number in the Gibb's chain.
+    !
+    ! chainfile: hdf_file
+    !       HDF file to write the component to
+    !
+    ! output_hdf: logical
+    !       Logical parameter to tell whether or not to write the component to the specified HDF file
+    !
+    ! postfix: string
+    !       A string label to be added to the end of FITS-files.
+    !       (default format: cXXXX_kYYYYYY; XXXX = chain number, YYYYYY = sample number)
+    !
+    ! dir: string
+    !       Output directory to which output is written
+    !
+    ! Returns:
+    !       The diffuse component parameter is returned (self).
+    !       Any other changes are done internally
+    !
     implicit none
     class(comm_diffuse_comp),                intent(inout)        :: self
     integer(i4b),                            intent(in)           :: iter
@@ -2610,7 +2660,7 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+          if (self%output_localsamp_maps .and. any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
                & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
              filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
                   & '_proplen_'  // trim(postfix) // '.fits'
@@ -2623,7 +2673,7 @@ contains
           end if
 
           !if pixelregions, create map without smoothed thetas (for input in new runs)
-          if (any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
+          if (self%output_localsamp_maps .and. any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
              
              info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
                   & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
