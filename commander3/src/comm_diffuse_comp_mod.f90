@@ -157,6 +157,27 @@ module comm_diffuse_comp_mod
 contains
 
   subroutine initDiffuse(self, cpar, id, id_abs)
+    !
+    ! Routine that initializes a diffuse type component. 
+    !
+    ! Arguments:
+    ! self: comm_diffuse_comp 
+    !       Diffuse type component
+    !
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! id: integer
+    !       Integer ID of the diffuse component with respect to the activ components
+    !
+    ! id_abs: integer
+    !       Integer ID of the diffuse component with respect to all components defined in the parameter file
+    !       (and also the id in the 'cpar' parameter)
+    !
+    ! Returns:
+    !       The diffuse component parameter is returned (self).
+    !       Any other changes are done internally
+    !
     implicit none
     class(comm_diffuse_comp)            :: self
     type(comm_params),       intent(in) :: cpar
@@ -2413,6 +2434,33 @@ contains
   
   ! Dump current sample to HEALPix FITS file
   subroutine dumpDiffuseToFITS(self, iter, chainfile, output_hdf, postfix, dir)
+    !
+    ! Routine that writes a diffuce component to FITS (and HDF) files. 
+    !
+    ! Arguments:
+    ! self: comm_diffuse_comp 
+    !       Diffuse type component
+    !
+    ! iter: integer
+    !       Sample number in the Gibb's chain.
+    !
+    ! chainfile: hdf_file
+    !       HDF file to write the component to
+    !
+    ! output_hdf: logical
+    !       Logical parameter to tell whether or not to write the component to the specified HDF file
+    !
+    ! postfix: string
+    !       A string label to be added to the end of FITS-files.
+    !       (default format: cXXXX_kYYYYYY; XXXX = chain number, YYYYYY = sample number)
+    !
+    ! dir: string
+    !       Output directory to which output is written
+    !
+    ! Returns:
+    !       The diffuse component parameter is returned (self).
+    !       Any other changes are done internally
+    !
     implicit none
     class(comm_diffuse_comp),                intent(inout)        :: self
     integer(i4b),                            intent(in)           :: iter
