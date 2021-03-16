@@ -57,11 +57,11 @@ contains
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
     nomp     = 1 !omp_get_max_threads()
-    n        = nfft / 2 + 1
     samprate = self%samprate
     !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
     nfft     = 2 * ntod
     fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
+    n        = nfft / 2 + 1
 
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
@@ -431,8 +431,7 @@ contains
        end do
 
        ! Perform sampling over all non-linear parameters
-       write(*,*) 'xi = ', self%scans(scan)%d(i)%N_psd%xi_n
-       do j = 2, 1!self%scans(scan)%d(i)%N_psd%npar
+       do j = 2, self%scans(scan)%d(i)%N_psd%npar
           currpar = j
           xi_n    = self%scans(scan)%d(i)%N_psd%xi_n(j)
           P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
@@ -443,7 +442,6 @@ contains
           xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni)
           xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
           self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
-          write(*,*) 'xi = ', self%scans(scan)%d(i)%N_psd%xi_n
        end do
     end do
     deallocate(dt, dv)
