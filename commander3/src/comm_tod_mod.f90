@@ -54,7 +54,6 @@ module comm_tod_mod
      byte,               allocatable, dimension(:)    :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      type(byte_pointer), allocatable, dimension(:)    :: pix            ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
-     real(sp),           allocatable, dimension(:)    :: xi_n           ! Noise PSD parameters
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
@@ -114,6 +113,9 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: nu_c                                        ! Center frequency
      real(dp), allocatable, dimension(:,:,:) :: prop_bp         ! proposal matrix, L(ndet,ndet,ndelta),  for bandpass sampler
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
+     real(sp), allocatable, dimension(:,:)   :: xi_n_P_uni      ! Uniform prior for noise PSD parameters
+     real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
+     real(sp),              dimension(2)     :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
@@ -311,9 +313,9 @@ contains
     self%enable_tod_simulations = cpar%enable_tod_simulations
 
     if (trim(self%noise_psd_model) == 'oof') then
-       self%n_xi = 3  ! {sigma0, alpha, fknee}
+       self%n_xi = 3  ! {sigma0, fknee, alpha}
     else if (trim(self%noise_psd_model) == '2oof') then
-       self%n_xi = 5  ! {sigma0, alpha, fknee, alpha2, fknee2}
+       self%n_xi = 5  ! {sigma0, fknee, alpha, fknee2, alpha2}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
        stop
@@ -708,7 +710,7 @@ contains
     character(len=128) :: field
     type(hdf_file)     :: file
     integer(i4b), allocatable, dimension(:)       :: hsymb
-    real(sp),     allocatable, dimension(:)       :: buffer_sp
+    real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n
     integer(i4b), allocatable, dimension(:)       :: htree
 
     self%chunk_num = scan
@@ -730,13 +732,6 @@ contains
        write(*,*) 'Warning: More than 0.1% of scan', scan, ' removed by FFTW cut'
     end if
 
-    !m = n
-!!$    m         = get_closest_fft_magic_number(2*n)
-!!$    do while (mod(m,2) == 1)
-!!$       m = get_closest_fft_magic_number(m-1)
-!!$    end do
-!!$    m = m/2
-
     self%ntod = m
     self%ext_lowres(1)   = -5    ! Lowres padding
     self%ext_lowres(2)   = int(self%ntod/int(tod%samprate/tod%samprate_lowres)) + 1 + self%ext_lowres(1)
@@ -751,22 +746,23 @@ contains
     allocate(self%d(ndet), buffer_sp(n))
     do i = 1, ndet
        allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
-       allocate(self%d(i)%xi_n(tod%n_xi))
 
-       field = detlabels(i)
-       self%d(i)%label = trim(field)
+       allocate(xi_n(tod%n_xi))
+       field                = detlabels(i)
+       self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
-       self%d(i)%xi_n(1:3)  = scalars(2:4)
-       self%d(i)%xi_n(1)    = self%d(i)%xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+       xi_n(1:3)            = scalars(2:4)
+       xi_n(1)              = xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
 
        if (trim(tod%noise_psd_model) == 'oof') then
-          self%d(i)%N_psd => comm_noise_psd(self%d(i)%xi_n, self%d(i)%xi_n)
+          self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
-          self%d(i)%xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
-          self%d(i)%xi_n(5) = -1.000 ! alpha2; arbitrary value
-          self%d(i)%N_psd => comm_noise_psd_2oof(self%d(i)%xi_n, self%d(i)%xi_n)
+          xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
+          xi_n(5) = -1.000 ! alpha2; arbitrary value
+          self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        end if
+       deallocate(xi_n)
 
        ! Read Huffman coded data arrays
        if (nhorn == 2) then
@@ -1063,13 +1059,12 @@ contains
     output = 0.d0
     do j = 1, self%ndet
        do i = 1, self%nscan
-          k             = self%scanid(i)
-          output(k,j,1) = self%scans(i)%d(j)%gain
-          output(k,j,2) = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,3) = self%scans(i)%d(j)%chisq
-          output(k,j,4) = self%scans(i)%d(j)%baseline
-          call self%scans(i)%d(j)%N_psd%xi_n(self%scans(i)%d(j)%xi_n)
-          output(k,j,5:npar) = self%scans(i)%d(j)%xi_n
+          k                  = self%scanid(i)
+          output(k,j,1)      = self%scans(i)%d(j)%gain
+          output(k,j,2)      = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+          output(k,j,3)      = self%scans(i)%d(j)%chisq
+          output(k,j,4)      = self%scans(i)%d(j)%baseline
+          output(k,j,5:npar) = self%scans(i)%d(j)%N_psd%xi_n
        end do
     end do
 
@@ -1195,14 +1190,10 @@ contains
     do j = 1, self%ndet
        do i = 1, self%nscan
           k             = self%scanid(i)
-          self%scans(i)%d(j)%gain   = output(k,j,1)
-          self%scans(i)%d(j)%dgain  = output(k,j,1)-self%gain0(0)-self%gain0(j)
-          !self%scans(i)%d(j)%sigma0 = output(k,j,2)
-          !self%scans(i)%d(j)%alpha  = output(k,j,3)
-          !self%scans(i)%d(j)%fknee  = output(k,j,4)          
-          self%scans(i)%d(j)%xi_n   = output(k,j,2:4)
-          self%scans(i)%d(j)%accept = .true.  !output(k,j,5) == 1.d0
-          call self%scans(i)%d(j)%N_psd%update(self%scans(i)%d(j)%xi_n)
+          self%scans(i)%d(j)%gain       = output(k,j,1)
+          self%scans(i)%d(j)%dgain      = output(k,j,1)-self%gain0(0)-self%gain0(j)
+          self%scans(i)%d(j)%N_psd%xi_n = output(k,j,2:4)
+          self%scans(i)%d(j)%accept     = .true.  !output(k,j,5) == 1.d0
           if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
           if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do

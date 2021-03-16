@@ -649,7 +649,7 @@ contains
                      s_buf(:,j) = s_tot(:,j)
                   end if
                end do
-               call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, dospike=.false., tod_arr=tod)
+               !call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix, dospike=.false., tod_arr=tod)
                do j = 1, ndet
                   n_corr(:,j) = n_corr(:, j) - sum(n_corr(:,j))/ size(n_corr,1)
                end do
@@ -661,7 +661,7 @@ contains
             ! Compute noise spectrum
             if (do_oper(samp_N_par)) then
                call wall_time(t1)
-               call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_arr=tod)
+               !call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_arr=tod)
                call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
             end if
 

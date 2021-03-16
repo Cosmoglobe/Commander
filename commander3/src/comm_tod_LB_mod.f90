@@ -326,10 +326,10 @@ contains
        end if
 
        ! Sample correlated noise
-       call sample_n_corr(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
