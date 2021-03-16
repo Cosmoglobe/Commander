@@ -333,8 +333,8 @@ contains
     end do
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA)
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA, 1d3)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB, 1d3)
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_orb(:,j)  = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)

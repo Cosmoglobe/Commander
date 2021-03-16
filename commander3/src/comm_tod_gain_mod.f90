@@ -484,10 +484,10 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:,j)-s_sub(:,j)! - tod%scans(scan)%d(j)%baseline
+         r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
          if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod_arr(:,j))), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
        else
-         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j)! - tod%scans(scan)%d(j)%baseline
+         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
          if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
@@ -506,8 +506,9 @@ contains
           b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
        end if
        if (tod%scanid(scan) == 30 .and. out) then
-         write(*,*) 'scan, s N^-1 r/s N^-1 s, sigma, absK, det, sum(abs(s_invN)), sum(abs(s_ref)), sum(abs(mask)), sum(abs(res), sum(s N^-1 ref*mask), sum(s N^-1 res*mask)'
-         write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j, sum(abs(s_invN(:,j))), sum(abs(s_ref(:,j))), sum(abs( mask_lowres(:,j))), sum(abs(residual(:,j))), sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j)), sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+         !write(*,*) 'scan, s N^-1 r/s N^-1 s, sigma, absK, det, sum(abs(s_invN)), sum(abs(s_ref)), sum(abs(mask)), sum(abs(res), sum(s N^-1 ref*mask), sum(s N^-1 res*mask)'
+         !write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j, sum(abs(s_invN(:,j))), sum(abs(s_ref(:,j))), sum(abs( mask_lowres(:,j))), sum(abs(residual(:,j))), sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j)), sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+         write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
        end if
     end do
 

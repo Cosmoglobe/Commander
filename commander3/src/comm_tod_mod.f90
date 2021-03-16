@@ -1388,7 +1388,7 @@ contains
 
   end subroutine construct_dipole_template
 
-  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, s_dip)
+  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, s_dip, factor)
     !construct a CMB dipole template in the time domain for differential data
     !
     !
@@ -1415,24 +1415,29 @@ contains
     integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
     logical(lgt),                      intent(in)    :: orbital
     real(sp),        dimension(:,:),   intent(out)   :: s_dip
+    real(dp),               intent(in), optional     :: factor
 
     integer(i4b) :: i, j, ntod
-    real(dp)     :: v_ref(3)
+    real(dp)     :: v_ref(3), f
     real(dp), allocatable, dimension(:,:) :: P
 
+    f = 1.d0; if (present(factor)) f = factor
     ntod = self%scans(scan)%ntod
 
     allocate(P(3,ntod))
     j = 1
     if (orbital) then
        v_ref = self%scans(scan)%v_sun
+    else
+       v_ref = v_solar
+    end if
+    if (self%orb_4pi_beam) then
        do i = 1, ntod
           P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
                   & self%ind2ang(1,self%pix2ind(pix(i,j))), &
                   & self%psi(psi(i,j))] ! [phi, theta, psi7]
        end do
     else
-       v_ref = v_solar
        do i = 1, ntod
           P(:,i) =  self%pix2vec(:,pix(i,j)) ! [v_x, v_y, v_z]
        end do
@@ -1440,7 +1445,7 @@ contains
 
     do j = 1, self%ndet
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
-            & orbital, self%orb_4pi_beam, P, s_dip(:,j))
+            & orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
     end do
     deallocate(P)
 
