@@ -102,6 +102,7 @@ ALMSAMP_PRIORSAMP_FROZEN_REGIONS       = .true.
 
 #local sampler settings
 LOCALSAMP_BURN_IN                      = 2    # of gibbs iterations with steplength adjustment
+LOCALSAMP_OUTPUT_MAPS                  = .false. # {.true., .false.} output extra maps from local sampler
 
 ##############################################################
 ##              Conventions and global parameters             #

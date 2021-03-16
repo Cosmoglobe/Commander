@@ -2979,8 +2979,8 @@ contains
        write(*,*) ''
     end if
 
-    !debug
-    if (allocated(lr_chisq)) then
+    !debug output
+    if (.false. .and. cpar%cs_output_localsamp_maps .and. allocated(lr_chisq)) then
        call int2string(cpar%mychain, ctext)
        call int2string(iter,         itext)
 
@@ -3017,8 +3017,8 @@ contains
     call int2string(cpar%mychain, ctext)
     postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
 
-    !print MC theta to file
-    if (myid_pix==0) then
+    !print MC theta to file, (partially debug)
+    if (.false. .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
        unit = getlun()
        filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
             & '_theta_MC_'//trim(postfix)//'.dat'
@@ -3035,7 +3035,8 @@ contains
        deallocate(theta_MC_arr)
     end if
 
-    if (.true.) then
+    ! debug output
+    if (cpar%cs_output_localsamp_maps .and. .false.) then
        do i = 1,band_count
           filename=trim(cpar%outdir)//'/'//'reduced_data_band_'//trim(data(band_i(i))%label)//'_'// &
                & trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//'_'//trim(postfix)//'.fits'

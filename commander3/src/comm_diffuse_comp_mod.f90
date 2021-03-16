@@ -45,6 +45,7 @@ module comm_diffuse_comp_mod
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg, priorsamp_local
+     logical(lgt)       :: output_localsamp_maps
      integer(i4b)       :: lmin_amp, lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
@@ -193,6 +194,7 @@ contains
     self%latmask       = cpar%cs_latmask(id_abs)
     self%apply_jeffreys = .false.
     self%sample_first_niter = cpar%cs_local_burn_in
+    self%output_localsamp_maps = cpar%cs_output_localsamp_maps
 
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
@@ -2610,7 +2612,7 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+          if (self%output_localsamp_maps .and. any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
                & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
              filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
                   & '_proplen_'  // trim(postfix) // '.fits'
@@ -2623,7 +2625,7 @@ contains
           end if
 
           !if pixelregions, create map without smoothed thetas (for input in new runs)
-          if (any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
+          if (self%output_localsamp_maps .and. any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
              
              info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
                   & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)

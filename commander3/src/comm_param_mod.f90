@@ -151,6 +151,7 @@ module comm_param_mod
      character(len=512) :: cs_inst_parfile
      character(len=512) :: cs_init_inst_hdf
      integer(i4b)       :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
+     logical(lgt)       :: cs_output_localsamp_maps
      real(dp)           :: cmb_dipole_prior(3)
      character(len=512) :: cmb_dipole_prior_mask
      logical(lgt),       allocatable, dimension(:)     :: cs_include
@@ -651,6 +652,7 @@ contains
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_MAXITER'//itext, par_int=cpar%cg_samp_group_maxiter(i))
     end do
     call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN', par_int=cpar%cs_local_burn_in)
+    call get_parameter_hashtable(htbl, 'LOCALSAMP_OUTPUT_MAPS', par_lgt=cpar%cs_output_localsamp_maps)
 
 
     n = cpar%cs_ncomp_tot
