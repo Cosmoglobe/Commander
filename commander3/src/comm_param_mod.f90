@@ -1,5 +1,5 @@
 !================================================================================
-!
+! 
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
 !
 ! This file is part of Commander3.
@@ -136,6 +136,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask1
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask2
      character(len=512), allocatable, dimension(:)   :: ds_tod_filelist
+     character(len=512), allocatable, dimension(:)   :: ds_tod_jumplist
      character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
      character(len=512), allocatable, dimension(:)   :: ds_tod_dets
      character(len=512), allocatable, dimension(:)   :: ds_tod_bp_init
@@ -150,6 +151,7 @@ module comm_param_mod
      character(len=512) :: cs_inst_parfile
      character(len=512) :: cs_init_inst_hdf
      integer(i4b)       :: cs_ncomp, cs_ncomp_tot, cs_local_burn_in
+     logical(lgt)       :: cs_output_localsamp_maps
      real(dp)           :: cmb_dipole_prior(3)
      character(len=512) :: cmb_dipole_prior_mask
      logical(lgt),       allocatable, dimension(:)     :: cs_include
@@ -202,6 +204,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_amp_def
      real(dp),           allocatable, dimension(:,:)   :: cs_cl_beta_def
+     real(dp),           allocatable, dimension(:,:)   :: cs_cl_theta_def
      integer(i4b),       allocatable, dimension(:)     :: cs_cl_poltype
      logical(lgt),       allocatable, dimension(:)     :: cs_output_EB
      character(len=512), allocatable, dimension(:)     :: cs_input_amp
@@ -506,7 +509,7 @@ contains
     allocate(cpar%ds_gain_lmin(n), cpar%ds_gain_apodmask(n), cpar%ds_gain_fwhm(n))
     allocate(cpar%ds_defaults(n,2))
     allocate(cpar%ds_component_sensitivity(n))
-    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_initHDF(n))
+    allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_jumplist(n), cpar%ds_tod_initHDF(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n), cpar%ds_tod_halfring(n))
@@ -573,6 +576,8 @@ contains
                   & par_string=cpar%ds_tod_procmask2(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_filelist(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_JUMPLIST'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_jumplist(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_START_SCANID'//itext, len_itext=len_itext, &
                   & par_int=cpar%ds_tod_scanrange(i,1))
              call get_parameter_hashtable(htbl, 'BAND_TOD_END_SCANID'//itext, len_itext=len_itext, &
@@ -647,6 +652,7 @@ contains
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_MAXITER'//itext, par_int=cpar%cg_samp_group_maxiter(i))
     end do
     call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN', par_int=cpar%cs_local_burn_in)
+    call get_parameter_hashtable(htbl, 'LOCALSAMP_OUTPUT_MAPS', par_lgt=cpar%cs_output_localsamp_maps)
 
 
     n = cpar%cs_ncomp_tot
@@ -670,7 +676,7 @@ contains
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_mono_prior(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_latmask(n), cpar%cs_defmask(n), cpar%cs_cg_samp_group_maxiter(n))
     allocate(cpar%cs_indmask(n), cpar%cs_amp_rms_scale(n))
-    allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_prior(n,2))
+    allocate(cpar%cs_cl_amp_def(n,3), cpar%cs_cl_beta_def(n,3), cpar%cs_cl_theta_def(n,3), cpar%cs_cl_prior(n,2))
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
@@ -750,6 +756,10 @@ contains
                   & par_dp=cpar%cs_cl_amp_def(i,1))
              call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_T'//itext, len_itext=len_itext, &
                   & par_dp=cpar%cs_cl_beta_def(i,1))
+             if (trim(cpar%cs_cltype(i))=='power_law_gauss') then
+                call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_T'//itext, len_itext=len_itext, &
+                     & par_dp=cpar%cs_cl_theta_def(i,1))
+             end if
              if (cpar%cs_polarization(i)) then
                 call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_AMP_E'//itext, len_itext=len_itext, &
                      & par_dp=cpar%cs_cl_amp_def(i,2))
@@ -759,6 +769,12 @@ contains
                      & par_dp=cpar%cs_cl_amp_def(i,3))
                 call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_BETA_B'//itext, len_itext=len_itext, &  
                 & par_dp=cpar%cs_cl_beta_def(i,3))
+                if (trim(cpar%cs_cltype(i))=='power_law_gauss') then
+                   call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_E'//itext, len_itext=len_itext, &
+                     & par_dp=cpar%cs_cl_theta_def(i,2))
+                   call get_parameter_hashtable(htbl, 'COMP_CL_DEFAULT_THETA_B'//itext, len_itext=len_itext, &
+                        & par_dp=cpar%cs_cl_theta_def(i,3))
+                end if
              end if
              cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(:,i)**2
           end if
@@ -1993,6 +2009,8 @@ contains
           call validate_file(trim(datadir)//trim(cpar%ds_tod_procmask1(i)))  ! Procmask1
           call validate_file(trim(datadir)//trim(cpar%ds_tod_procmask2(i)))  ! Procmask2
           call validate_file(trim(datadir)//trim(cpar%ds_tod_filelist(i)))   ! Filelist
+          if (trim(cpar%ds_tod_jumplist(i)) /= 'none') &
+               & call validate_file(trim(datadir)//trim(cpar%ds_tod_jumplist(i)))   ! Jumplist
           call validate_file(trim(datadir)//trim(cpar%ds_tod_instfile(i)))   ! Instrument file, RIMO
           call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
        end if

@@ -28,6 +28,7 @@ module comm_data_mod
   use comm_tod_LFI_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
+  use comm_tod_LB_mod
   use locate_mod
   implicit none
 
@@ -143,6 +144,9 @@ contains
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
              data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'LB') then
+             data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else

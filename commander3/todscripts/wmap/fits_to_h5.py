@@ -390,13 +390,19 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
 
 
             if version != 'cal':
-              f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                      data=np.void(bytes(h_Tod.byteCode(deltatod))))
-              #f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-              #        data=todi)
+              if compress:
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
+                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
+              else:
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                        data=todi)
             else:
-              f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                      data=todi)
+              if compress:
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
+                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
+              else:
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                        data=todi)
             if label[-2:] == '13':
                 if compress:
                     f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',

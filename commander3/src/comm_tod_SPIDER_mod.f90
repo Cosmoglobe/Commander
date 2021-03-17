@@ -47,9 +47,13 @@ module comm_tod_SPIDER_mod
 
 
   type, extends(comm_tod) :: comm_SPIDER_tod
-  class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
+     !class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
    contains
      procedure     :: process_tod        => process_SPIDER_tod
+     procedure     :: read_tod_inst      => read_tod_inst_SPIDER
+     procedure     :: read_scan_inst     => read_scan_inst_SPIDER
+     procedure     :: initHDF_inst       => initHDF_SPIDER
+     procedure     :: dumpToHDF_inst     => dumpToHDF_SPIDER
   end type comm_SPIDER_tod
 
   interface comm_SPIDER_tod
@@ -597,33 +601,34 @@ contains
           !call update_status(status, "tod_decomp")
           ! Construct sky signal template
           call wall_time(t1)
-          if (do_oper(bin_map) .or. do_oper(prep_relbp)) then 
-             call project_sky(self, map_sky(:,:,:,1), pix, psi, flag, &
-                  & sprocmask%a, i, s_sky, mask, s_bp=s_bp)  
-          else 
-             call project_sky(self, map_sky(:,:,:,1), pix, psi, flag, &
-                  & sprocmask%a, i, s_sky, mask)
-          end if
-          if (do_oper(prep_relbp)) then
-             do j = 2, ndelta
-                call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
-                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
-             end do
-          else if (do_oper(prep_absbp)) then
-             do j = 2, ndelta
-                call project_sky(self, map_sky(:,:,:,j), pix, psi, flag, &
-                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
-             end do
-          end if
+!!$ HKE: commented out this
+!!$          if (do_oper(bin_map) .or. do_oper(prep_relbp)) then 
+!!$             call project_sky(self, map_sky(:,:,:,1), pix(:,:,1), psi(:,:,1), flag, &
+!!$                  & sprocmask%a, i, s_sky, mask, s_bp=s_bp)  
+!!$          else 
+!!$             call project_sky(self, map_sky(:,:,:,1), pix(:,:,1), psi(:,:,1), flag, &
+!!$                  & sprocmask%a, i, s_sky, mask)
+!!$          end if
+!!$          if (do_oper(prep_relbp)) then
+!!$             do j = 2, ndelta
+!!$                call project_sky(self, map_sky(:,:,:,j), pix(:,:,1), psi(:,:,1), flag, &
+!!$                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2, s_bp=s_bp_prop(:,:,j))  
+!!$             end do
+!!$          else if (do_oper(prep_absbp)) then
+!!$             do j = 2, ndelta
+!!$                call project_sky(self, map_sky(:,:,:,j), pix(:,:,1), psi(:,:,1), flag, &
+!!$                     & sprocmask2%a, i, s_sky_prop(:,:,j), mask2)  
+!!$             end do
+!!$          end if
           if (main_iter == 1 .and. self%first_call) then
              do j = 1, ndet
                 if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
-                if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
+                if (self%scans(i)%d(j)%N_psd%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
              end do
           end if
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
+             if (self%scans(i)%d(j)%N_psd%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%N_psd%sigma0
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
@@ -862,7 +867,7 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
-                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
+                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%N_psd%sigma0, sp), handle, self%scans(i)%chunk_num)
                    call self%downsample_tod(s_buf(:,j), ext, &
                         & s_lowres(:,j))!, mask(:,j))
                 else
@@ -919,7 +924,7 @@ contains
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Harald
           if (self%first_call) then
             do j = 1, ndet
-               self%scans(i)%d(j)%sigma0 = 0.0018
+               self%scans(i)%d(j)%N_psd%sigma0 = 0.0018
             end do
           end if
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -935,7 +940,7 @@ contains
                   s_buf(:,j) = s_tot(:,j)
                end if
             end do
-            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), tod_gapfill)
+            !call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), tod_gapfill)
             call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
             n_corr = 0.
@@ -1014,7 +1019,7 @@ contains
          ! Compute noise spectrum
          if (do_oper(samp_N_par)) then
             call wall_time(t1)
-            call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_gapfill)
+            !call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_gapfill)
             call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
          end if
 
@@ -1129,13 +1134,13 @@ contains
              if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-                call int2string(self%scanid(i), scantext)
-                prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
-                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
-                     & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-                     & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-                     & pix(:,:,1), psi(:,:,1)-1, d_calib(1,:,:), iand(flag,self%flag0), &
-                     & self%scans(i)%d(:)%accept)
+!!$                call int2string(self%scanid(i), scantext)
+!!$                prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
+!!$                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
+!!$                     & self%label, self%horn_id, real(self%polang*180/pi,sp), &
+!!$                     & real(self%scans(i)%d%N_psdsigma0/self%scans(i)%d%gain,sp), &
+!!$                     & pix(:,:,1), psi(:,:,1)-1, d_calib(1,:,:), iand(flag,self%flag0), &
+!!$                     & self%scans(i)%d(:)%accept)
              end if
 
 
@@ -1157,13 +1162,14 @@ contains
 
              call wall_time(t1)
 
-             if (do_oper(samp_mono)) then
-                call bin_TOD(self, d_calib, pix(:,:,1), &
-                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
-             else
-                call bin_TOD(self, d_calib, pix(:,:,1), &
-                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp))
-             end if
+!!$ HKE: commented out this
+!!$             if (do_oper(samp_mono)) then
+!!$                call bin_TOD(self, d_calib, pix(:,:,1), &
+!!$                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp), b_mono=b_mono)
+!!$             else
+!!$                call bin_TOD(self, d_calib, pix(:,:,1), &
+!!$                     & psi(:,:,1), flag, A_map, b_map, i, do_oper(prep_relbp))
+!!$             end if
              deallocate(d_calib)
              call wall_time(t2); t_tot(8) = t_tot(8) + t2-t1
           end if
@@ -1282,26 +1288,23 @@ contains
 
        call update_status(status, "finalize1")
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
-       if (do_oper(samp_mono)) then
-          if (do_oper(prep_relbp)) then
-             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
-          else
-             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
-          end if
-!!$          condmap => comm_map(self%info)
-!!$          call self%finalize_binned_map(handle, sA_map, sb_map, outmaps, rms_out, sb_mono=sb_mono, sys_mono=sys_mono, condmap=condmap)
-!!$          call condmap%writeFITS("cond.fits")
-!!$          call condmap%dealloc()
-       else
-          !condmap => comm_map(self%info)
-          if (do_oper(prep_relbp)) then
-             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
-          else
-             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
-          end if
-          !call condmap%writeFITS("cond.fits")
-          !call condmap%dealloc()
-       end if
+!!$ HKE: commented out this
+!!$       if (do_oper(samp_mono)) then
+!!$          if (do_oper(prep_relbp)) then
+!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+!!$          else
+!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
+!!$          end if
+!!$       else
+!!$          !condmap => comm_map(self%info)
+!!$          if (do_oper(prep_relbp)) then
+!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+!!$          else
+!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
+!!$          end if
+!!$          !call condmap%writeFITS("cond.fits")
+!!$          !call condmap%dealloc()
+!!$       end if
 
        if (do_oper(samp_bp)) then
           call wall_time(t1)
@@ -1313,10 +1316,11 @@ contains
        map_out%map = outmaps(1)%p%map
        
        ! Sample monopole coefficients
-       if (do_oper(samp_mono)) then
-          call sample_mono(self, handle, sys_mono, outmaps(2)%p, rms_out, &
-               & self%procmask)
-       end if
+!!$ HKE: Commented out this; no support for monopole sampling anymore
+!!$       if (do_oper(samp_mono)) then
+!!$          call sample_mono(self, handle, sys_mono, outmaps(2)%p, rms_out, &
+!!$               & self%procmask)
+!!$       end if
 
        ! Update bandpass parameters
        self%bp_delta = delta(:,:,1)
@@ -1506,6 +1510,102 @@ subroutine write2file(filename, iter, param)
 
    close(unit)
  end subroutine write2file
+
+
+  subroutine read_tod_inst_SPIDER(self, file)
+    ! 
+    ! Reads SPIDER-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst_SPIDER
+  
+  subroutine read_scan_inst_SPIDER(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads SPIDER-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst_SPIDER
+
+  subroutine initHDF_SPIDER(self, chainfile, path)
+    ! 
+    ! Initializes SPIDER-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_SPIDER
+  
+  subroutine dumpToHDF_SPIDER(self, chainfile, path)
+    ! 
+    ! Writes SPIDER-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_SPIDER
 
 
 

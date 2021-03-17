@@ -75,6 +75,28 @@ contains
   !             Routine definitions
   !**************************************************
   function constructor(cpar, id, id_abs, detlabel, subdets)
+    !
+    ! Initialization routine (constructor) for bandpass objects. Reads in bandpass 
+    ! data, and precomputes default unit conversions etc.
+    !
+    ! Arguments:
+    ! ----------
+    ! cpar: type(comm_params)
+    !    Commander parameter structure
+    ! id: int (scalar)
+    !    Frequency channel ID/counter, only counting active bands
+    ! id_abs: int (scalar)
+    !    Frequency channel ID/counter, counting all bands (as defined in parameter file)
+    ! detlabel: string (scalar; optional)
+    !    Detector label; typically used for full-frequency bands 
+    ! subdets: string (scalar; optional)
+    !    Comma-separated string with sub-detector labels. Used for TOD-type bands
+    !
+    ! Returns:
+    ! --------
+    ! constructor: class(comm_bp)
+    !    Pointer to new comm_bp object
+    ! 
     implicit none
     type(comm_params),                intent(in)           :: cpar
     integer(i4b),                     intent(in)           :: id, id_abs
@@ -112,6 +134,8 @@ contains
     case ('HFI_submm') 
        constructor%threshold = 1.d-5
     case ('dame') 
+       constructor%threshold = 0.d0
+    case ('LB')
        constructor%threshold = 0.d0
     case default
        call report_error('Error -- unsupported bandpass type = '//trim(constructor%type))
@@ -283,6 +307,16 @@ contains
                        !& 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%tau     = 1.0 !self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
 
+    case ('LB')
+       
+       self%a2t     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+       self%a2sz    = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
+       self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
+                   & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+       self%tau     = self%tau / tsum(self%nu, self%tau/a)
+
     end select
     deallocate(a, bnu_prime, bnu_prime_RJ, sz)
 
@@ -313,6 +347,8 @@ contains
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW
        SED2F = f(1) * self%a2t
+    case ('LB')
+       SED2F = tsum(self%nu, self%tau * f)
     case default
        write(*,*) 'Unsupported bandpass type'
        stop

@@ -67,7 +67,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_F_int_0D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_N_rms_mod.f90
 	# TOD processing modules
+	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_psd_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_LFI_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_mod.f90
@@ -75,6 +77,10 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_WMAP_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_SPIDER_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_LB_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
