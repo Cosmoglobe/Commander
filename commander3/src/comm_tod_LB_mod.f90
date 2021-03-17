@@ -102,7 +102,23 @@ contains
 
     ! Allocate object
     allocate(constructor)
+
+    ! Set up noise PSD type and priors
+    constructor%freq            = cpar%ds_label(id_abs)
+    constructor%n_xi            = 3
     constructor%noise_psd_model = 'oof'
+    allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+    allocate(constructor%xi_n_P_rms(constructor%n_xi))
+    
+    constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
+    if (.true.) then
+       constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
+       constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
+       constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
+    else
+       write(*,*) 'Invalid LiteBIRD frequency label = ', trim(constructor%freq)
+       stop
+    end if
 
     ! Initialize common parameters
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
@@ -326,10 +342,10 @@ contains
        end if
 
        ! Sample correlated noise
-       call sample_n_corr(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet

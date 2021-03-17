@@ -808,8 +808,7 @@ contains
     real(sp), allocatable, dimension(:,:) :: tod_per_detector !< simulated tods per detector
     real(sp)                              :: gain   !< detector's gain value
     real(sp)                              :: sigma0
-    real(sp) :: nu_knee
-    real(sp) :: alpha
+    real(sp) :: N_c
     real(sp) :: samprate
     real(sp) :: fft_norm
     integer(i4b)                          :: ntod !< total amount of ODs
@@ -857,7 +856,7 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
-    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu, nu_knee, alpha)
+    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
     allocate(dt(nfft), dv(0:n-1), n_corr(ntod, ndet))
     !$OMP DO SCHEDULE(guided)
     do j = 1, ndet
@@ -868,18 +867,15 @@ contains
       gain   = self%scans(scan_id)%d(j)%gain
       sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
       samprate = self%samprate
-      alpha    = self%scans(scan_id)%d(j)%N_psd%alpha
-      ! knee frequency
-      nu_knee  = self%scans(scan_id)%d(j)%N_psd%fknee
       ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
       fft_norm = sqrt(1.d0 * nfft)
       !
       !dv(0) = dv(0) + fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
-      dv(0) = fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+      dv(0) = 0. ! fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) ! HKE: This expression is not correct for the monopole
       do k = 1, (n - 1)
-        nu = k * (samprate / 2) / (n - 1)
-        !dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(1 + (nu / nu_knee)**alpha) /sqrt(2          .0)
-        dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt((nu / nu_knee)**alpha) /sqrt(2.0)
+        nu    = k * (samprate / 2) / (n - 1)
+        N_c   = self%scans(scan_id)%d(j)%N_psd%eval_corr(nu)
+        dv(k) = cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(N_c) /sqrt(2.0)
       end do
       ! Executing Backward FFT
       call sfftw_execute_dft_c2r(plan_back, dv, dt)

@@ -934,7 +934,7 @@ contains
                   s_buf(:,j) = s_tot(:,j)
                end if
             end do
-            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), tod_gapfill)
+            !call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), tod_gapfill)
             call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
             n_corr = 0.
@@ -1013,7 +1013,7 @@ contains
          ! Compute noise spectrum
          if (do_oper(samp_N_par)) then
             call wall_time(t1)
-            call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_gapfill)
+            !call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_gapfill)
             call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
          end if
 
