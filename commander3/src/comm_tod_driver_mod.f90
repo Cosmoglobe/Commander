@@ -262,6 +262,7 @@ contains
     if (init_s_sky_prop_)   allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)    allocate(self%s_mono(self%ntod, self%ndet))
     if (tod%subtract_zodi)  allocate(self%s_zodi(self%ntod, self%ndet))
+    self%s_tot  = 0.
     self%s_totA = 0.
     self%s_totB = 0.
 
