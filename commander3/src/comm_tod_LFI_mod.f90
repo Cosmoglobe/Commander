@@ -100,7 +100,31 @@ contains
 
     ! Allocate object
     allocate(constructor)
+
+    ! Set up noise PSD type and priors
+    constructor%freq            = cpar%ds_label(id_abs)
+    constructor%n_xi            = 3
     constructor%noise_psd_model = 'oof'
+    allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+    allocate(constructor%xi_n_P_rms(constructor%n_xi))
+    
+    constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    if (trim(constructor%freq) == '030') then
+       constructor%xi_n_nu_fit     = [0.d0, 0.350d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
+       constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+    else if (trim(constructor%freq) == '044') then
+       constructor%xi_n_nu_fit     = [0.d0, 0.200d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
+       constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+    else if (trim(constructor%freq) == '070') then
+       constructor%xi_n_nu_fit     = [0.d0, 0.040d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
+       constructor%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
+    else
+       write(*,*) 'Invalid LFI frequency label = ', trim(constructor%freq)
+       stop
+    end if
 
     ! Initialize common parameters
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
@@ -108,7 +132,6 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
-    constructor%n_xi            = 3
     constructor%compressed_tod  = .false.
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
@@ -324,10 +347,10 @@ contains
        end if
 
        ! Sample correlated noise
-       call sample_n_corr(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
