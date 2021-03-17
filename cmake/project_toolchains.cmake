@@ -154,7 +154,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 			"-O0"# -g -traceback -parallel -qopenmp -C -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
 			"-g" 
       "-debug" "all"
-      "-check" "all"
+      "-check" "all,noarg_temp_created"
       #"-warn" "all"
       "-fp-stack-check"
       "-fstack-protector-all"
