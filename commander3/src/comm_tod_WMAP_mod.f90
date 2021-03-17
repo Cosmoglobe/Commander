@@ -287,7 +287,8 @@ contains
 
       ! Distribute maps
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+      !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
+      call distribute_sky_maps(self, map_in, 1., map_sky) ! K to K?
 
       ! Distribute processing masks
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -317,18 +318,24 @@ contains
       ! Perform main sampling steps
       !------------------------------------
       call sample_baseline(self, handle, map_sky, procmask, procmask2)
-      !do i = 1, self%nscan
-      !  if (self%scanid(i) == 30) then
-      !    call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-      !      & init_s_bp=.true.)
-      !    write(*,*) "S_orb"
-      !    write(*,*) sd%tod(1,1), sd%s_orb(1,1)
-      !    write(*,*) sd%tod(1,2), sd%s_orb(1,2)
-      !    write(*,*) sd%tod(1,3), sd%s_orb(1,3)
-      !    write(*,*) sd%tod(1,4), sd%s_orb(1,4)
-      !    call sd%dealloc
-      !  end if
-      !end do
+      do i = 1, self%nscan
+        if (self%scanid(i) == 30) then
+          call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+            & init_s_bp=.true.)
+          write(*,*) "S_orb"
+          write(*,*) sd%tod(1,1), sd%s_orb(1,1)
+          write(*,*) sd%tod(1,2), sd%s_orb(1,2)
+          write(*,*) sd%tod(1,3), sd%s_orb(1,3)
+          write(*,*) sd%tod(1,4), sd%s_orb(1,4)
+          write(*,*) 'baseline', self%scans(i)%d(1)%baseline
+          do j = 1, 4
+            write(*,*) 'j, sum(sd%s_sky(:,j)', j, sum(sd%s_sky(:,j))
+          end do
+          call sd%dealloc
+        end if
+      end do
+      ! The baseline sampling and the orbital dipole template seem to be exactly
+      ! the same. Something must be strange with the accumulation step.
       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
@@ -405,20 +412,20 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         !if (.true. .and. i==1 .and. self%first_call) then
-         !   call int2string(self%scanid(i), scantext)
-         !   if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
-         !   do k = 1, self%ndet
-         !      open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
-         !      write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
-         !           & " s_orbA (mK)  s_orbB (mK)  mask, baseline, flag"
-         !      do j = 1, sd%ntod
-         !         write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
-         !          &  sd%s_sky(j,k), sd%s_orb(j,k), sd%mask(j, k), self%scans(i)%d(k)%baseline
-         !      end do
-         !      close(78)
-         !   end do
-         !end if
+         if (.true. .and. i==1 .and. self%first_call) then
+            call int2string(self%scanid(i), scantext)
+            if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
+            do k = 1, self%ndet
+               open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
+               write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
+                    & " s_orbA (mK)  s_orbB (mK)  mask, baseline, flag"
+               do j = 1, sd%ntod
+                  write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
+                   &  sd%s_sky(j,k), sd%s_orb(j,k), sd%mask(j, k), self%scans(i)%d(k)%baseline
+               end do
+               close(78)
+            end do
+         end if
          
          ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
          if (self%output_4D_map > 0) then

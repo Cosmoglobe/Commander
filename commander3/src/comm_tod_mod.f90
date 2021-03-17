@@ -1366,8 +1366,13 @@ contains
     allocate(P(3,ntod))
     do j = 1, self%ndet
        if (.not. self%scans(scan)%d(j)%accept) cycle
-
        if (orbital) then
+          v_ref = self%scans(scan)%v_sun
+       else
+          v_ref = v_solar
+       end if
+
+       if (self%orb_4pi_beam) then
           v_ref = self%scans(scan)%v_sun
           do i = 1, ntod
              P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
