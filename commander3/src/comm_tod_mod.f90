@@ -755,6 +755,7 @@ contains
        self%d(i)%gain_def   = scalars(1)
        xi_n(1:3)            = scalars(2:4)
        xi_n(1)              = xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+       self%d(i)%gain       = self%d(i)%gain_def
 
        if (trim(tod%noise_psd_model) == 'oof') then
           self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
