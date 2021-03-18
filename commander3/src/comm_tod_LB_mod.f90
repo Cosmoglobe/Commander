@@ -104,8 +104,8 @@ contains
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
     constructor%compressed_tod  = .false.
-    constructor%correct_sl      = .true.
-    constructor%orb_4pi_beam    = .true.
+    constructor%correct_sl      = .false.
+    constructor%orb_4pi_beam    = .false.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
@@ -204,7 +204,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
+    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
