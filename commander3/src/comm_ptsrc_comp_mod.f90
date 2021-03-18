@@ -1030,6 +1030,34 @@ contains
   
 
   subroutine compute_symmetric_beam(band, glon, glat, T, bl, beamfile)
+    !
+    ! Routine that creates a symmetric beam model centered on input longitude and latitude 
+    ! The beam is defined by one of the two beam inputs
+    !
+    ! Arguments:
+    !
+    !   band: integer
+    !      Band number of the frequency band for which to compute the beam (only indexed of active bands)
+    !
+    !   glon: real dp
+    !      (Galactic) longitude of the point source, in radians
+    !
+    !   glon: real dp
+    !      (Galactic) latitude of the point source, in radians
+    !
+    !   T: Tnu type parameter
+    !      A point source parameter type containing information like the Nside and number of maps of the
+    !      band for which the beam is computed
+    !    
+    !   bl: real dp (array)
+    !      Beam profile B(ell). Dimensions are (0:ell_max,1:nmaps) given by the frequency/data band
+    !
+    !   beamfile: string
+    !      Filename of a file containing the beam profile in ASCII format
+    !
+    ! Returns:
+    !   Returns a beam profile in pixel space around the point source through the T parameter
+    !
     implicit none
     integer(i4b), intent(in)     :: band
     real(dp),     intent(in)     :: glon, glat
@@ -1064,10 +1092,23 @@ contains
     ! Find maximum radius over all polarization modes
     !call wall_time(t3)
     tmax = 0.d0
-    q    = 4            ! Nside ratio between highres and lowres maps
+
+    ! Setting the Nside ratio between highres and lowres maps (Nside highres is max 8192)
+    if (T%nside == 4096) then
+       q = 2 ! can only go to Nside 8192
+    else if (T%nside == 8192) then
+       q = 1 ! can not go to higher Nside
+    else if (T%nside > 8192) then
+       write (*,*) 'pix2vec_ring in the computation of symmetric beam templates for point sources '//&
+            &'does not support HEALPix Nside > 8192. Terminating Commander'
+       call mpi_finalize(ierr)
+    else
+       q    = 4  !standard difference
+    end if
     do i = 1, T%nmaps
        tmax = max(tmax, maxval(br(i)%x))
     end do
+
     nside = q*T%nside                   ! Adopt a twice higher resolution to mimic pixwin
     npix  = 4*(tmax / (pi/3/nside))**2  ! Rough npix estimate for current beam
     call ang2vec(0.5d0*pi-glat, glon, vec0)
