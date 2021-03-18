@@ -460,9 +460,11 @@ contains
 
        ! Perform sampling over all non-linear parameters
        do j = 2, self%scans(scan)%d(i)%N_psd%npar
+          P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
+          if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
+
           currpar = j
           xi_n    = self%scans(scan)%d(i)%N_psd%xi_n(j)
-          P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
           x_in(1) = max(xi_n - 0.5 * abs(xi_n), P_uni(1))
           x_in(3) = min(xi_n + 0.5 * abs(xi_n), P_uni(2))
           x_in(2) = 0.5 * (x_in(1) + x_in(3))
@@ -486,12 +488,16 @@ contains
       real(dp)             :: lnL_xi_n
 
       real(dp) :: sconst, s, N_corr, mu, sigma
-      real(sp) :: f
+      real(sp) :: f, tmp
 
       if (x < P_uni(1) .or. x > P_uni(2)) then
          lnL_xi_n = -1.d30
          return
       end if
+
+      ! Update xi_n with new proposal
+      tmp = self%scans(scan)%d(i)%N_psd%xi_n(currpar) 
+      self%scans(scan)%d(i)%N_psd%xi_n(currpar) = x
 
       ! Add likelihood term
       lnL_xi_n = 0.d0
@@ -514,6 +520,9 @@ contains
          ! Gaussian prior
          lnL_xi_n = lnL_xi_n - 0.5d0 * (x - mu)**2 / sigma**2
       end if
+
+      ! Revert xi_n with old value
+      self%scans(scan)%d(i)%N_psd%xi_n(currpar) = tmp
       
     end function lnL_xi_n
        
