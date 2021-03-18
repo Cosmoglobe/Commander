@@ -505,10 +505,10 @@ contains
           A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
           b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
        end if
-       if (tod%scanid(scan) == 30 .and. out) then
-         !write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
-         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
-       end if
+       !if (tod%scanid(scan) == 30 .and. out) then
+       !  write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+       !  write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
+       !end if
     end do
 
     if (.false. .and. out) then
@@ -678,6 +678,7 @@ contains
     !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})
     !  we have
     !  d = g[(1+x_im)*d_A - (1-x_im)*d_B]
+    !    = g(d_A - d_B) + g*x_im*(d_A + d_B)
     !  Returns x_{im,1} for detectors 13/14, and x_{im,2} for detectors 23/24.
     !
     !
@@ -724,8 +725,8 @@ contains
        tod%x_im(2) = tod%x_im(1)
        tod%x_im(4) = tod%x_im(3)
        if (tod%verbosity > 1) then
-         write(*,*) 'b', sum(b(1:2)), sum(b(3:4))
-         write(*,*) 'A', sum(A(1:2)), sum(A(3:4))
+         write(*,*) 'b', b
+         write(*,*) 'A', A
          write(*,*) 'imbal =', tod%x_im(1), tod%x_im(3)
        end if
     end if

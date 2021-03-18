@@ -491,7 +491,7 @@ contains
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invN(:,j))
           else if (trim(mode) == 'imbal') then
              ! Calibrator = common mode signal
-             s_buf(:,j) = sd%s_totA(:,j) + sd%s_totB(:,j)
+             s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_totA(:,j) + sd%s_totB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
                & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
@@ -502,17 +502,17 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           end if
        end do
-       !do j = 1, tod%ndet
-       !      if (tod%scanid(i) == 30) then
-       !        write(*,*) 'abscaltest1', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
-       !      end if
-       !end do
+       do j = 1, tod%ndet
+             if (tod%scanid(i) == 30) then
+               write(*,*) 'abscaltest1', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
+             end if
+       end do
        call multiply_inv_N(tod, i, s_invN, sampfreq=tod%samprate_lowres, pow=0.5d0)
-       !do j = 1, tod%ndet
-       !      if (tod%scanid(i) == 30) then
-       !        write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
-       !      end if
-       !end do
+       do j = 1, tod%ndet
+             if (tod%scanid(i) == 30) then
+               write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
+             end if
+       end do
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
@@ -531,14 +531,14 @@ contains
                      & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
                      & tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'abscal' .and. .not. tod%orb_abscal) then
-                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)! + &
-                     !& tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'relcal') then
-                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)! + &
-                     !& tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'imbal') then
-                s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))! + &
-                     !& tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
+                if (tod%scanid(i) == 30) then
+                  write(*,*) 'imbaltest_fin', j, sum(s_buf(:,j))
+                end if
              end if
           end do
           if (tod%compressed_tod) then
