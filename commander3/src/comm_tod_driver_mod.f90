@@ -262,6 +262,7 @@ contains
     if (init_s_sky_prop_)   allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)    allocate(self%s_mono(self%ntod, self%ndet))
     if (tod%subtract_zodi)  allocate(self%s_zodi(self%ntod, self%ndet))
+    self%s_tot  = 0.
     self%s_totA = 0.
     self%s_totB = 0.
 
@@ -333,8 +334,8 @@ contains
     end do
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA)
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA, 1d3)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB, 1d3)
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_orb(:,j)  = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
@@ -420,9 +421,25 @@ contains
   !  Sampling drivers etc.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  ! Sample gain
-  ! Supported modes = {abscal, relcal, deltaG, imbal}
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
+    !   Sample calibration modes
+    !   Supported modes = {abscal, relcal, deltaG, imbal}
+    !
+    !   Subroutine that implements gain and horn imbalance sampling, following
+    !   the formalism of Gjerlow et al. 2021
+    !
+    !   Arguments:
+    !   ----------
+    !   tod:      comm_tod derived type
+    !             contains TOD-specific information
+    !   mode:     character array
+    !             specifies sampling mode. currently supports absolute calibration,
+    !             relative calibration, time-variable calibration, and horn
+    !             imbalance.
+    !   handle:   planck_rng derived type
+    !             Healpix definition for random number generation
+    !             so that the same sequence can be resumed later on from that same point
+    !   map_sky:
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     character(len=*),                             intent(in)    :: mode
@@ -485,33 +502,51 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           end if
        end do
+       !do j = 1, tod%ndet
+       !      if (tod%scanid(i) == 30) then
+       !        write(*,*) 'abscaltest1', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
+       !      end if
+       !end do
        call multiply_inv_N(tod, i, s_invN, sampfreq=tod%samprate_lowres, pow=0.5d0)
+       !do j = 1, tod%ndet
+       !      if (tod%scanid(i) == 30) then
+       !        write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
+       !      end if
+       !end do
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
+             !if (trim(mode) == 'abscal') then
+             !  write(*,*) 'test', tod%scanid(i), j, tod%gain0(j), tod%scans(i)%d(j)%dgain, &
+             !             & sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))
+             !end if
+             !if (tod%scanid(i)==30) write(*,*) 'j, tod%gain0(j), tod%scans(i)%d(j)%dgain,'//&
+             !                &' sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))'
+             !if (tod%scanid(i)==30) write(*,*) j, tod%gain0(j), tod%scans(i)%d(j)%dgain, &
+             !                       & sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))
              if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_orb(:,j)) + &
                      & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
                      & tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'abscal' .and. .not. tod%orb_abscal) then
-                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
-                     & tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)! + &
+                     !& tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'relcal') then
-                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
-                     & tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)! + &
+                     !& tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'imbal') then
-                s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j)) + &
-                     & tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))! + &
+                     !& tod%scans(i)%d(j)%baseline
              end if
           end do
           if (tod%compressed_tod) then
             call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, &
-              & out=trim(mode)=='abscal', mask_lowres=mask_lowres, tod_arr=sd%tod)
+              & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
           else
             call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, &
-              & out=trim(mode)=='abscal', mask_lowres=mask_lowres)
+              & out=.true., mask_lowres=mask_lowres)
           end if
        else
           ! Time-variable gain terms

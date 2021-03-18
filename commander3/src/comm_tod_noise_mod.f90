@@ -188,6 +188,21 @@ contains
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
        end if
+
+       !if (.true. .and. mod(self%scanid(scan),100) == 1) then
+       !   write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods_new/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
+       !   open(65,file=trim(filename),status='REPLACE')
+       !   do j = 1, ntod
+       !      if (present(tod_arr)) then
+       !        write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
+       !      else
+       !        write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
+       !      end if
+       !   end do
+       !   close(65)
+       !   !stop
+       !end if
+
     end do
     deallocate(dt, dv)
     deallocate(d_prime)
@@ -460,9 +475,11 @@ contains
 
        ! Perform sampling over all non-linear parameters
        do j = 2, self%scans(scan)%d(i)%N_psd%npar
+          P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
+          if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
+
           currpar = j
           xi_n    = self%scans(scan)%d(i)%N_psd%xi_n(j)
-          P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
           x_in(1) = max(xi_n - 0.5 * abs(xi_n), P_uni(1))
           x_in(3) = min(xi_n + 0.5 * abs(xi_n), P_uni(2))
           x_in(2) = 0.5 * (x_in(1) + x_in(3))
@@ -486,12 +503,16 @@ contains
       real(dp)             :: lnL_xi_n
 
       real(dp) :: sconst, s, N_corr, mu, sigma
-      real(sp) :: f
+      real(sp) :: f, tmp
 
       if (x < P_uni(1) .or. x > P_uni(2)) then
          lnL_xi_n = -1.d30
          return
       end if
+
+      ! Update xi_n with new proposal
+      tmp = self%scans(scan)%d(i)%N_psd%xi_n(currpar) 
+      self%scans(scan)%d(i)%N_psd%xi_n(currpar) = x
 
       ! Add likelihood term
       lnL_xi_n = 0.d0
@@ -514,6 +535,9 @@ contains
          ! Gaussian prior
          lnL_xi_n = lnL_xi_n - 0.5d0 * (x - mu)**2 / sigma**2
       end if
+
+      ! Revert xi_n with old value
+      self%scans(scan)%d(i)%N_psd%xi_n(currpar) = tmp
       
     end function lnL_xi_n
        
@@ -570,7 +594,7 @@ contains
        if (pow_ >= 0.d0) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
        do l = 1, n-1                                                      
           nu      = l*(samprate/2)/(n-1)
-          signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu)**2 * samprate / tod%samprate
+          signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu) * samprate / tod%samprate
           dv(l,j) = dv(l,j) * 1.0/(noise + signal)**pow_
        end do
     end do
