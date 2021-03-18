@@ -502,7 +502,17 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           end if
        end do
+       !do j = 1, tod%ndet
+       !      if (tod%scanid(i) == 30) then
+       !        write(*,*) 'abscaltest1', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
+       !      end if
+       !end do
        call multiply_inv_N(tod, i, s_invN, sampfreq=tod%samprate_lowres, pow=0.5d0)
+       !do j = 1, tod%ndet
+       !      if (tod%scanid(i) == 30) then
+       !        write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
+       !      end if
+       !end do
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
@@ -512,23 +522,23 @@ contains
              !  write(*,*) 'test', tod%scanid(i), j, tod%gain0(j), tod%scans(i)%d(j)%dgain, &
              !             & sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))
              !end if
+             !if (tod%scanid(i)==30) write(*,*) 'j, tod%gain0(j), tod%scans(i)%d(j)%dgain,'//&
+             !                &' sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))'
+             !if (tod%scanid(i)==30) write(*,*) j, tod%gain0(j), tod%scans(i)%d(j)%dgain, &
+             !                       & sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))
              if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_orb(:,j)) + &
                      & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
                      & tod%scans(i)%d(j)%baseline
-                if (tod%scanid(i)==30) write(*,*) 'j, tod%gain0(j), tod%scans(i)%d(j)%dgain,'//&
-                                &' sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))'
-                if (tod%scanid(i)==30) write(*,*) j, tod%gain0(j), tod%scans(i)%d(j)%dgain, &
-                                       & sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))
              else if (trim(mode) == 'abscal' .and. .not. tod%orb_abscal) then
-                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
-                     & tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)! + &
+                     !& tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'relcal') then
-                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
-                     & tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)! + &
+                     !& tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'imbal') then
-                s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j)) + &
-                     & tod%scans(i)%d(j)%baseline
+                s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))! + &
+                     !& tod%scans(i)%d(j)%baseline
              end if
           end do
           if (tod%compressed_tod) then

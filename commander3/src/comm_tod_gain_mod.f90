@@ -506,9 +506,8 @@ contains
           b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
        end if
        if (tod%scanid(scan) == 30 .and. out) then
-         !write(*,*) 'scan, s N^-1 r/s N^-1 s, sigma, absK, det, sum(abs(s_invN)), sum(abs(s_ref)), sum(abs(mask)), sum(abs(res), sum(s N^-1 ref*mask), sum(s N^-1 res*mask)'
-         !write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j, sum(abs(s_invN(:,j))), sum(abs(s_ref(:,j))), sum(abs( mask_lowres(:,j))), sum(abs(residual(:,j))), sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j)), sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
-         write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+         !write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
        end if
     end do
 
@@ -654,6 +653,8 @@ contains
        rhs(tod%ndet+1) = 0.d0
        call solve_system_real(coeff_matrix, x, rhs)
        if (tod%verbosity > 1) then
+         write(*,*) 'A =', A
+         write(*,*) 'b =', b
          write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
@@ -723,6 +724,8 @@ contains
        tod%x_im(2) = tod%x_im(1)
        tod%x_im(4) = tod%x_im(3)
        if (tod%verbosity > 1) then
+         write(*,*) 'b', sum(b(1:2)), sum(b(3:4))
+         write(*,*) 'A', sum(A(1:2)), sum(A(3:4))
          write(*,*) 'imbal =', tod%x_im(1), tod%x_im(3)
        end if
     end if
