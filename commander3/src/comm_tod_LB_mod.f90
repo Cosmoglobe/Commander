@@ -269,7 +269,7 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-    call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+    call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -408,9 +408,9 @@ contains
     ! Solve for maps
     call syncronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
     else
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
+       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0)
     end if
     map_out%map = binmap%outmaps(1)%p%map
 
