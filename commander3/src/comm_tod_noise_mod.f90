@@ -585,7 +585,7 @@ contains
        if (pow_ >= 0.d0) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
        do l = 1, n-1                                                      
           nu      = l*(samprate/2)/(n-1)
-          signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu)**2 * samprate / tod%samprate
+          signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu) * samprate / tod%samprate
           dv(l,j) = dv(l,j) * 1.0/(noise + signal)**pow_
        end do
     end do
