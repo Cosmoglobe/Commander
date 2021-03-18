@@ -753,6 +753,7 @@ contains
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
+       self%d(i)%gain       = scalars(1)
        xi_n(1:3)            = scalars(2:4)
        xi_n(1)              = xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
 
