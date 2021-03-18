@@ -102,6 +102,10 @@ CONTAINS
     INTEGER                                      :: vallen
 
     vallen = 0
+    if (.not. allocated(list%key)) then
+      write(*,*) trim(key)//' not defined'
+      stop
+    end if
     IF (ALLOCATED(list%key) .AND. (list%key == key)) THEN
        vallen = LEN(list%val)
        IF (ALLOCATED(val)) DEALLOCATE(val)

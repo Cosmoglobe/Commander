@@ -50,6 +50,10 @@ module comm_tod_SPIDER_mod
      !class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
    contains
      procedure     :: process_tod        => process_SPIDER_tod
+     procedure     :: read_tod_inst      => read_tod_inst_SPIDER
+     procedure     :: read_scan_inst     => read_scan_inst_SPIDER
+     procedure     :: initHDF_inst       => initHDF_SPIDER
+     procedure     :: dumpToHDF_inst     => dumpToHDF_SPIDER
   end type comm_SPIDER_tod
 
   interface comm_SPIDER_tod
@@ -613,12 +617,12 @@ contains
           if (main_iter == 1 .and. self%first_call) then
              do j = 1, ndet
                 if (all(mask(:,j) == 0)) self%scans(i)%d(j)%accept = .false.
-                if (self%scans(i)%d(j)%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
+                if (self%scans(i)%d(j)%N_psd%sigma0 <= 0.d0) self%scans(i)%d(j)%accept = .false.
              end do
           end if
           do j = 1, ndet
              if (.not. self%scans(i)%d(j)%accept) cycle
-             if (self%scans(i)%d(j)%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%sigma0
+             if (self%scans(i)%d(j)%N_psd%sigma0 <= 0) write(*,*) main_iter, self%scanid(i), j, self%scans(i)%d(j)%N_psd%sigma0
           end do
           call wall_time(t2); t_tot(1) = t_tot(1) + t2-t1
           !call update_status(status, "tod_project")
@@ -857,7 +861,7 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
                    s_buf(:,j) = s_tot(:,j)
-                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
+                   call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%N_psd%sigma0, sp), handle, self%scans(i)%chunk_num)
                    call self%downsample_tod(s_buf(:,j), ext, &
                         & s_lowres(:,j))!, mask(:,j))
                 else
@@ -914,7 +918,7 @@ contains
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Harald
           if (self%first_call) then
             do j = 1, ndet
-               self%scans(i)%d(j)%sigma0 = 0.0018
+               self%scans(i)%d(j)%N_psd%sigma0 = 0.0018
             end do
           end if
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -930,7 +934,7 @@ contains
                   s_buf(:,j) = s_tot(:,j)
                end if
             end do
-            call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), tod_gapfill)
+            !call sample_n_corr(self, handle, i, mask, s_buf, n_corr, pix(:,:,1), tod_gapfill)
             call wall_time(t2); t_tot(3) = t_tot(3) + t2-t1
           else
             n_corr = 0.
@@ -1009,7 +1013,7 @@ contains
          ! Compute noise spectrum
          if (do_oper(samp_N_par)) then
             call wall_time(t1)
-            call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_gapfill)
+            !call sample_noise_psd(self, handle, i, mask, s_tot, n_corr, tod_gapfill)
             call wall_time(t2); t_tot(6) = t_tot(6) + t2-t1
          end if
 
@@ -1124,13 +1128,13 @@ contains
              if (do_oper(bin_map) .and. self%output_4D_map > 0 .and. mod(iter,self%output_4D_map) == 0) then
 
                 ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-                call int2string(self%scanid(i), scantext)
-                prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
-                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
-                     & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-                     & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-                     & pix(:,:,1), psi(:,:,1)-1, d_calib(1,:,:), iand(flag,self%flag0), &
-                     & self%scans(i)%d(:)%accept)
+!!$                call int2string(self%scanid(i), scantext)
+!!$                prefix4D = "!"//trim(prefix) // '4D_pid' // scantext
+!!$                call output_4D_maps(prefix4D, postfix, self%scanid(i), self%nside, self%npsi, &
+!!$                     & self%label, self%horn_id, real(self%polang*180/pi,sp), &
+!!$                     & real(self%scans(i)%d%N_psdsigma0/self%scans(i)%d%gain,sp), &
+!!$                     & pix(:,:,1), psi(:,:,1)-1, d_calib(1,:,:), iand(flag,self%flag0), &
+!!$                     & self%scans(i)%d(:)%accept)
              end if
 
 
@@ -1500,6 +1504,102 @@ subroutine write2file(filename, iter, param)
 
    close(unit)
  end subroutine write2file
+
+
+  subroutine read_tod_inst_SPIDER(self, file)
+    ! 
+    ! Reads SPIDER-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst_SPIDER
+  
+  subroutine read_scan_inst_SPIDER(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads SPIDER-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst_SPIDER
+
+  subroutine initHDF_SPIDER(self, chainfile, path)
+    ! 
+    ! Initializes SPIDER-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_SPIDER
+  
+  subroutine dumpToHDF_SPIDER(self, chainfile, path)
+    ! 
+    ! Writes SPIDER-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_SPIDER_tod)
+    !           SPIDER-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_SPIDER_tod),              intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_SPIDER
 
 
 

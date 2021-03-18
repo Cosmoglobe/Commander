@@ -119,7 +119,7 @@ contains
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (tod%compressed_tod) then
-          !call tod%decompress_tod(scan, j, self%tod(:,j))
+          call tod%decompress_tod(scan, j, self%tod(:,j))
        else
           self%tod(:,j) = tod%scans(scan)%d(j)%tod
        end if
@@ -158,7 +158,7 @@ contains
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
-       if (tod%scans(scan)%d(j)%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
+       if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
@@ -271,14 +271,16 @@ contains
     allocate(s_buf2B(self%ntod, self%ndet))
 
     ! Decompress pointing, psi and flags for current scan
-    call tod%decompress_pointing_and_flags(scan, j, self%pix(:,1,:), &
+    ! Only called for one detector, det=1, since the pointing and polarization
+    ! angles are the same for all detectors
+    call tod%decompress_pointing_and_flags(scan, 1, self%pix(:,1,:), &
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (tod%compressed_tod) then
-          !call tod%decompress_tod(scan, j, self%tod(:,j))
+          call tod%decompress_tod(scan, j, self%tod(:,j))
        else
           self%tod(:,j) = tod%scans(scan)%d(j)%tod
        end if
@@ -327,12 +329,12 @@ contains
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
-       if (tod%scans(scan)%d(j)%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
+       if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA)
-    call tod%construct_dipole_template(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB)
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_orb(:,j)  = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
@@ -419,7 +421,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Sample gain
-  ! Supported modes = {abscal, relcal, deltaG}
+  ! Supported modes = {abscal, relcal, deltaG, imbal}
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
     implicit none
     class(comm_tod),                              intent(inout) :: tod
@@ -437,12 +439,15 @@ contains
 
     if (tod%myid == 0) write(*,*) '   --> Sampling calibration, mode = ', trim(mode)
 
-    if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal') then
+    if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
        allocate(A(tod%ndet), b(tod%ndet))
        A = 0.d0; b = 0.d0
     else if (trim(mode) == 'deltaG') then
        allocate(dipole_mod(tod%nscan_tot, tod%ndet))
        dipole_mod = 0.d0
+    else
+       write(*,*) 'Unsupported sampling mode!'
+       stop
     end if
 
     do i = 1, tod%nscan
@@ -467,32 +472,56 @@ contains
           if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
              ! Calibrator = orbital dipole only
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invN(:,j))
+          else if (trim(mode) == 'imbal') then
+             ! Calibrator = common mode signal
+             s_buf(:,j) = sd%s_totA(:,j) + sd%s_totB(:,j)
+             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
+               & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+             call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           else
-             ! Calibratior = total signal
+             ! Calibrator = total signal
              s_buf(:,j) = sd%s_tot(:,j)
-             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%sigma0, sp), handle, tod%scans(i)%chunk_num)
+             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           end if
        end do
        call multiply_inv_N(tod, i, s_invN, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
-       if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal') then
+       if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_orb(:,j)) + &
-                     & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
+                     & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
+                     & tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'abscal' .and. .not. tod%orb_abscal) then
-                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
+                s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
+                     & tod%scans(i)%d(j)%baseline
              else if (trim(mode) == 'relcal') then
-                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
+                s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
+                     & tod%scans(i)%d(j)%baseline
+             else if (trim(mode) == 'imbal') then
+                s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j)) + &
+                     & tod%scans(i)%d(j)%baseline
              end if
           end do
-          call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, out=trim(mode)=='abscal', mask_lowres=mask_lowres)
+          if (tod%compressed_tod) then
+            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, &
+              & out=trim(mode)=='abscal', mask_lowres=mask_lowres, tod_arr=sd%tod)
+          else
+            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, &
+              & out=trim(mode)=='abscal', mask_lowres=mask_lowres)
+          end if
        else
           ! Time-variable gain terms
-          call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, handle, mask_lowres=mask_lowres)
+          if (tod%compressed_tod) then
+            call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, &
+              & handle, mask_lowres=mask_lowres, tod_arr=sd%tod)
+          else
+            call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, &
+              & handle, mask_lowres=mask_lowres)
+          end if
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))
@@ -515,6 +544,8 @@ contains
     else if (trim(mode) == 'deltaG') then
        call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
        call sample_smooth_gain(tod, handle, dipole_mod)
+    else if (trim(mode) == 'imbal') then
+       call sample_imbal_cal(tod, handle, A, b)
     end if
 
     ! Clean up
@@ -523,6 +554,60 @@ contains
     if (allocated(dipole_mod)) deallocate(dipole_mod)
 
   end subroutine sample_calibration
+
+
+  ! Sample baseline
+  subroutine sample_baseline(tod, handle, map_sky, procmask, procmask2)
+    implicit none
+    class(comm_tod),                              intent(inout) :: tod
+    type(planck_rng),                             intent(inout) :: handle
+    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
+    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+
+    integer(i4b) :: i, j
+    real(dp)     :: t1, t2
+    type(comm_scandata) :: sd
+
+    if (tod%myid == 0) write(*,*) '   --> Sampling baseline'
+
+    do i = 1, tod%nscan
+       if (.not. any(tod%scans(i)%d%accept)) cycle
+       call wall_time(t1)
+
+       ! Prepare data
+       if (tod%nhorn == 1) then
+          call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
+       else
+          call sd%init_differential(tod, i, map_sky, procmask, procmask2)
+       end if
+
+       do j = 1, tod%ndet
+          tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
+            & *sd%mask(:,j))/sum(sd%mask(:,j))
+          if (trim(tod%operation) == 'sample') then
+            tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
+             &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%N_psd%sigma0**2))
+          end if
+       end do
+
+       ! Clean up
+       call wall_time(t2)
+       tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1
+       tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
+       call sd%dealloc
+    end do
+    !do j = 1, tod%ndet
+    !  if (tod%myid == 0) then
+    !    call sd%init_differential(tod, 1, map_sky, procmask, procmask2)
+    !    write(*,*) 'Detector',j
+    !    write(*,*) tod%scans(1)%d(j)%baseline
+    !    write(*,*) sum(sd%tod(:,j))/size(sd%tod(:,j))
+    !    write(*,*) sum(sd%tod(:,j) - tod%scans(1)%d(j)%baseline)/size(sd%tod(:,j))
+    !    call sd%dealloc
+    !  end if
+    !end do
+
+  end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
     implicit none
@@ -580,6 +665,33 @@ contains
   end subroutine compute_chisq_abs_bp
 
   subroutine compute_calibrated_data(tod, scan, sd, d_calib)
+    !
+    !  gets calibrated timestreams
+    !
+    !  Arguments:
+    !  ----------
+    !  tod: comm_tod object
+    !
+    !  scan: integer
+    !     integer label for scan
+    !  sd:  comm_scandata object
+    !
+    !  Returns:
+    !  --------
+    !  d_calib: real(sp) array
+    !     nout x ndet x ntod array of calibrated timestreams
+    !
+    !  d_calib(1,:,:) - best estimate of calibrated data, with all known
+    !    calibrations applied
+    !  d_calib(2,:,:) - calibrated TOD with expected sky signal subtracted,
+    !    i.e., residual
+    !  d_calib(3,:,:) - correlated noise, mean subtracted, in temperature
+    !    units
+    !  d_calib(4,:,:) - bandpass difference contribution
+    !  d_calib(5,:,:) - orbital dipole
+    !  d_calib(6,:,:) - sidelobe
+    !  d_calib(7,:,:) - zodiacal light emission
+    !
     implicit none
     class(comm_tod),                       intent(in)   :: tod
     integer(i4b),                          intent(in)   :: scan
@@ -587,13 +699,19 @@ contains
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
 
     integer(i4b) :: j, nout
-    real(sp)     :: inv_gain
+    real(dp)     :: inv_gain
 
     nout = size(d_calib,1)
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       inv_gain = 1.0 / real(tod%scans(scan)%d(j)%gain,sp)
-       d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+       inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
+       if (tod%compressed_tod) then
+        d_calib(1,:,j) = (sd%tod(:,j) - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+          & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+       else
+        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+          & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+       end if
        if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
        if (nout > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(sd%n_corr(:,j)/sd%ntod)) * inv_gain  ! ncorr
        if (nout > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
@@ -666,8 +784,7 @@ contains
     real(sp), allocatable, dimension(:,:) :: tod_per_detector !< simulated tods per detector
     real(sp)                              :: gain   !< detector's gain value
     real(sp)                              :: sigma0
-    real(sp) :: nu_knee
-    real(sp) :: alpha
+    real(sp) :: N_c
     real(sp) :: samprate
     real(sp) :: fft_norm
     integer(i4b)                          :: ntod !< total amount of ODs
@@ -715,7 +832,7 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
-    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu, nu_knee, alpha)
+    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
     allocate(dt(nfft), dv(0:n-1), n_corr(ntod, ndet))
     !$OMP DO SCHEDULE(guided)
     do j = 1, ndet
@@ -724,20 +841,17 @@ contains
       ! getting gain for each detector (units, V / K)
       ! (gain is assumed to be CONSTANT for EACH SCAN)
       gain   = self%scans(scan_id)%d(j)%gain
-      sigma0 = self%scans(scan_id)%d(j)%sigma0
+      sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
       samprate = self%samprate
-      alpha    = self%scans(scan_id)%d(j)%alpha
-      ! knee frequency
-      nu_knee  = self%scans(scan_id)%d(j)%fknee
       ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
       fft_norm = sqrt(1.d0 * nfft)
       !
       !dv(0) = dv(0) + fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
-      dv(0) = fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
+      dv(0) = 0. ! fft_norm * sigma0 * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0) ! HKE: This expression is not correct for the monopole
       do k = 1, (n - 1)
-        nu = k * (samprate / 2) / (n - 1)
-        !dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(1 + (nu / nu_knee)**alpha) /sqrt(2          .0)
-        dv(k) = sigma0 * cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt((nu / nu_knee)**alpha) /sqrt(2.0)
+        nu    = k * (samprate / 2) / (n - 1)
+        N_c   = self%scans(scan_id)%d(j)%N_psd%eval_corr(nu)
+        dv(k) = cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(N_c) /sqrt(2.0)
       end do
       ! Executing Backward FFT
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
@@ -763,7 +877,7 @@ contains
         ! (gain is assumed to be CONSTANT for EACH SCAN)
         gain   = self%scans(scan_id)%d(j)%gain
         !write(*,*) "gain ", gain
-        sigma0 = self%scans(scan_id)%d(j)%sigma0
+        sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
         !write(*,*) "sigma0 ", sigma0
         ! Simulating tods
         tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)

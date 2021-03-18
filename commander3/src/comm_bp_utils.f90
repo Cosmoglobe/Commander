@@ -94,9 +94,14 @@ contains
 
     real(dp)     :: x
 
-    if (k_b <= 0.d0 .or. T_CMB <= 0.d0) write(*,*) h, nu, k_b, T_CMB
+    if (k_b <= 0.d0 .or. T_CMB <= 0.d0) then
+      write(*,*) 'h, nu, k_b, T_CMB'
+      write(*,*) h, nu, k_b, T_CMB
+    end if
     x = h*nu / (k_B*T_CMB)
-    if (x > 200) write(*,*) 'x = ', h, nu, k_b, T_CMB, x
+    if (x > 200) then
+      write(*,*) 'h, nu, k_B, T_CMB, x = ', h, nu, k_b, T_CMB, x
+    end if
     compute_ant2thermo_single = (exp(x)-1.d0)**2 / (x**2 * exp(x))
     
   end function compute_ant2thermo_single

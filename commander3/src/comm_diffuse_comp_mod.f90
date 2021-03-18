@@ -45,6 +45,7 @@ module comm_diffuse_comp_mod
      character(len=512) :: cltype
      integer(i4b)       :: nside, nx, x0, ndet
      logical(lgt)       :: pol, output_mixmat, output_EB, apply_jeffreys, almsamp_pixreg, priorsamp_local
+     logical(lgt)       :: output_localsamp_maps
      integer(i4b)       :: lmin_amp, lmax_amp, lmax_ind, lmax_prior, lpiv, l_apod, lmax_pre_lowl
      integer(i4b)       :: lmax_def, nside_def, ndef, nalm_tot, sample_first_niter
 
@@ -156,6 +157,27 @@ module comm_diffuse_comp_mod
 contains
 
   subroutine initDiffuse(self, cpar, id, id_abs)
+    !
+    ! Routine that initializes a diffuse type component. 
+    !
+    ! Arguments:
+    ! self: comm_diffuse_comp 
+    !       Diffuse type component
+    !
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! id: integer
+    !       Integer ID of the diffuse component with respect to the activ components
+    !
+    ! id_abs: integer
+    !       Integer ID of the diffuse component with respect to all components defined in the parameter file
+    !       (and also the id in the 'cpar' parameter)
+    !
+    ! Returns:
+    !       The diffuse component parameter is returned (self).
+    !       Any other changes are done internally
+    !
     implicit none
     class(comm_diffuse_comp)            :: self
     type(comm_params),       intent(in) :: cpar
@@ -193,6 +215,7 @@ contains
     self%latmask       = cpar%cs_latmask(id_abs)
     self%apply_jeffreys = .false.
     self%sample_first_niter = cpar%cs_local_burn_in
+    self%output_localsamp_maps = cpar%cs_output_localsamp_maps
 
     only_pol           = cpar%only_pol
     output_cg_eigenvals = cpar%output_cg_eigenvals
@@ -1059,6 +1082,24 @@ contains
   end subroutine initPixregSampling
 
   subroutine initSpecindProp(self,cpar, id, id_abs)
+    !
+    !  Subroutine that initializes the spectral index proposal matrix
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_diffuse_component
+    !       Object that contains all of the diffuse component properties
+    !  cpar: comm_params
+    !       Object that contains parameters input to Commander from parameter
+    !       file.
+    !  id: int
+    !       index of the components, out of only the ones being used
+    !  id_abs: int
+    !       index of the component, out of all, whether they are used or not. 
+    !  Returns:
+    !  --------
+    !  None, but modifies self by changing the proposal matrices.
+    !
     implicit none
     class(comm_diffuse_comp)            :: self
     type(comm_params),       intent(in) :: cpar
@@ -1068,10 +1109,14 @@ contains
     integer(i4b) :: i, j, l, m, ntot, nloc, p, q
     real(dp) :: fwhm_prior, sigma_prior
     logical(lgt) :: exist
+    real(dp),     allocatable, dimension(:)   :: L_arr
+    integer(i4b), allocatable, dimension(:)   :: corrlen_arr     
     
     ! Init alm sampling params (Trygve)
     allocate(self%corrlen(self%npar, self%nmaps))
     self%corrlen    = 0     ! Init correlation length
+    allocate(corrlen_arr(self%nmaps))
+    corrlen_arr     = 0     ! Init correlation length
     
     ! Init bool for L-flags
     allocate(self%L_read(self%npar), self%L_calculated(self%npar))
@@ -1110,8 +1155,10 @@ contains
     ! Initialize cholesky matrix
     if (cpar%almsamp_pixreg)  then
        allocate(self%L(0:maxval(self%npixreg), 0:maxval(self%npixreg), self%nmaps, self%npar)) ! Set arbitrary number of max regions
+       allocate(L_arr(0:maxval(self%npixreg))) ! Set arbitrary number of max regions
     else
        allocate(self%L(0:self%nalm_tot-1, 0:self%nalm_tot-1, self%nmaps, self%npar))
+       allocate(L_arr(0:self%nalm_tot-1))
     end if
 
     allocate(self%steplen(self%nmaps, self%npar)) !a_00 is given by different one              
@@ -1136,20 +1183,21 @@ contains
           if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
           !write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs)), j
           open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
-          read(11,*) self%corrlen(j,:)
-          ! forrtl: warning (406): fort: (1): In call to I/O Read routine,
-          ! an array temporary was created for argument #1
+          read(11,*) corrlen_arr
+          self%corrlen(j,:) = corrlen_arr
+
           do p = 1, self%nmaps
              read(11,*)
              do q = 0, size(self%L(:,1,p,j))-1
-                read(11,*) self%L(q,:,p,j)
-                ! forrtl: warning (406): fort: (1): In call to I/O Read routine,
-                ! an array temporary was created for argument #1
+                read(11,*) L_arr
+                self%L(q,:,p,j) = L_arr
              end do
           end do
           close(11)
        end if
     end do
+
+    deallocate(corrlen_arr, L_arr)
     
   end subroutine initSpecindProp
 
@@ -2386,6 +2434,33 @@ contains
   
   ! Dump current sample to HEALPix FITS file
   subroutine dumpDiffuseToFITS(self, iter, chainfile, output_hdf, postfix, dir)
+    !
+    ! Routine that writes a diffuce component to FITS (and HDF) files. 
+    !
+    ! Arguments:
+    ! self: comm_diffuse_comp 
+    !       Diffuse type component
+    !
+    ! iter: integer
+    !       Sample number in the Gibb's chain.
+    !
+    ! chainfile: hdf_file
+    !       HDF file to write the component to
+    !
+    ! output_hdf: logical
+    !       Logical parameter to tell whether or not to write the component to the specified HDF file
+    !
+    ! postfix: string
+    !       A string label to be added to the end of FITS-files.
+    !       (default format: cXXXX_kYYYYYY; XXXX = chain number, YYYYYY = sample number)
+    !
+    ! dir: string
+    !       Output directory to which output is written
+    !
+    ! Returns:
+    !       The diffuse component parameter is returned (self).
+    !       Any other changes are done internally
+    !
     implicit none
     class(comm_diffuse_comp),                intent(inout)        :: self
     integer(i4b),                            intent(in)           :: iter
@@ -2585,7 +2660,7 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+          if (self%output_localsamp_maps .and. any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
                & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
              filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
                   & '_proplen_'  // trim(postfix) // '.fits'
@@ -2598,7 +2673,7 @@ contains
           end if
 
           !if pixelregions, create map without smoothed thetas (for input in new runs)
-          if (any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
+          if (self%output_localsamp_maps .and. any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
              
              info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
                   & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)

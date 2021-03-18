@@ -53,6 +53,10 @@ module comm_tod_LB_mod
   type, extends(comm_tod) :: comm_LB_tod
    contains
      procedure     :: process_tod        => process_LB_tod
+     procedure     :: read_tod_inst      => read_tod_inst_LB
+     procedure     :: read_scan_inst     => read_scan_inst_LB
+     procedure     :: initHDF_inst       => initHDF_LB
+     procedure     :: dumpToHDF_inst     => dumpToHDF_LB
   end type comm_LB_tod
 
   interface comm_LB_tod
@@ -96,8 +100,27 @@ contains
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
-    ! Initialize common parameters
+    ! Allocate object
     allocate(constructor)
+
+    ! Set up noise PSD type and priors
+    constructor%freq            = cpar%ds_label(id_abs)
+    constructor%n_xi            = 3
+    constructor%noise_psd_model = 'oof'
+    allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+    allocate(constructor%xi_n_P_rms(constructor%n_xi))
+    
+    constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
+    if (.true.) then
+       constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
+       constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
+       constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
+    else
+       write(*,*) 'Invalid LiteBIRD frequency label = ', trim(constructor%freq)
+       stop
+    end if
+
+    ! Initialize common parameters
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
@@ -158,7 +181,7 @@ contains
   subroutine process_LB_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
     ! 
     ! Routine that processes the LiteBIRD time ordered data. 
-    ! Sampels absolute and relative bandpass, gain and correlated noise in time domain, 
+    ! Samples absolute and relative bandpass, gain and correlated noise in time domain, 
     ! perform data selection, correct for sidelobes, compute chisquare  and outputs maps and rms. 
     ! Writes maps to disc in fits format
     ! 
@@ -325,10 +348,10 @@ contains
        end if
 
        ! Sample correlated noise
-       call sample_n_corr(self, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -347,16 +370,16 @@ contains
        call compute_calibrated_data(self, i, sd, d_calib)    
 
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-       if (self%output_4D_map > 0) then
-          if (mod(iter-1,self%output_4D_map) == 0) then
-             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                  & samptext, self%scanid(i), self%nside, self%npsi, &
-                  & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-                  & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                  & self%scans(i)%d(:)%accept)
-          end if
-       end if
+!!$       if (self%output_4D_map > 0) then
+!!$          if (mod(iter-1,self%output_4D_map) == 0) then
+!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
+!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), &
+!!$                  & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
+!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+!!$                  & self%scans(i)%d(:)%accept)
+!!$          end if
+!!$       end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -424,5 +447,103 @@ contains
     call update_status(status, "tod_end"//ctext)
 
   end subroutine process_LB_tod   
+
+
+
+  subroutine read_tod_inst_LB(self, file)
+    ! 
+    ! Reads LB-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_LB_tod),                  intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst_LB
+  
+  subroutine read_scan_inst_LB(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads LB-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_LB_tod),                  intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst_LB
+
+  subroutine initHDF_LB(self, chainfile, path)
+    ! 
+    ! Initializes LB-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_LB_tod),                  intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_LB
+  
+  subroutine dumpToHDF_LB(self, chainfile, path)
+    ! 
+    ! Writes LB-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_LB_tod),                  intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_LB
+
 
 end module comm_tod_LB_mod
