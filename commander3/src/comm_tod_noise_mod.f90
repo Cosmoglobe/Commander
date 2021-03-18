@@ -188,6 +188,21 @@ contains
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
        end if
+
+       !if (.true. .and. mod(self%scanid(scan),100) == 1) then
+       !   write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods_new/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
+       !   open(65,file=trim(filename),status='REPLACE')
+       !   do j = 1, ntod
+       !      if (present(tod_arr)) then
+       !        write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
+       !      else
+       !        write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
+       !      end if
+       !   end do
+       !   close(65)
+       !   !stop
+       !end if
+
     end do
     deallocate(dt, dv)
     deallocate(d_prime)
@@ -579,7 +594,7 @@ contains
        if (pow_ >= 0.d0) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
        do l = 1, n-1                                                      
           nu      = l*(samprate/2)/(n-1)
-          signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu)**2 * samprate / tod%samprate
+          signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu) * samprate / tod%samprate
           dv(l,j) = dv(l,j) * 1.0/(noise + signal)**pow_
        end do
     end do

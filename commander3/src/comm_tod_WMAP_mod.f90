@@ -29,10 +29,6 @@ module comm_tod_WMAP_mod
   !       all data needed for TOD processing
   !   process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
-  !   accumulate_imbal_cal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, tod_arr)
-  !       Submodule that prepares for horn imbalance sampling
-  !   sample_imbal_cal(tod, handle, A_abs, b_abs)
-  !       Submodule that updates the estimate for the horn imbalance
    use comm_tod_mod
    use comm_param_mod
    use comm_map_mod
@@ -138,8 +134,8 @@ contains
       constructor%nhorn           = 2
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
-      constructor%correct_sl      = .true.
-      constructor%orb_4pi_beam    = .true.
+      constructor%correct_sl      = .false.
+      constructor%orb_4pi_beam    = .false.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 400.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -267,7 +263,7 @@ contains
       type(comm_scandata) :: sd
 
       character(len=4)   :: ctext, myid_text
-      character(len=6)   :: samptext
+      character(len=6)   :: samptext, scantext
       character(len=512), allocatable, dimension(:) :: slist
       real(sp),       allocatable, dimension(:)     :: procmask, procmask2, sigma0
       real(sp),  allocatable, dimension(:, :, :, :) :: map_sky
@@ -284,7 +280,7 @@ contains
       call update_status(status, "tod_start"//ctext)
 
       ! Toggle optional operations
-      sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
+      sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       select_data           = self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
@@ -308,7 +304,8 @@ contains
 
       ! Distribute maps
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+      !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
+      call distribute_sky_maps(self, map_in, 1., map_sky) ! K to K?
 
       ! Distribute processing masks
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -323,7 +320,6 @@ contains
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
-         if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
          do i = 1, self%ndet
             !TODO: figure out why this is rotated
             call map_in(i,1)%p%YtW()  ! Compute sky a_lms
@@ -335,14 +331,40 @@ contains
 
       call update_status(status, "tod_init")
 
+      !if (self%myid == 0) then
+      !  write(*,*) 'Input map statistics, I/Q/U'
+      !  write(*,*) minval(map_sky(1,:,:,1)), maxval(map_sky(1,:,:,1)), minval(abs(map_sky(1,:,:,1))), sum(map_sky(1,:,:,1)), sum(abs(map_sky(1,:,:,1)))
+      !  write(*,*) minval(map_sky(2,:,:,1)), maxval(map_sky(2,:,:,1)), minval(abs(map_sky(2,:,:,1))), sum(map_sky(2,:,:,1)), sum(abs(map_sky(2,:,:,1)))
+      !  write(*,*) minval(map_sky(3,:,:,1)), maxval(map_sky(3,:,:,1)), minval(abs(map_sky(3,:,:,1))), sum(map_sky(3,:,:,1)), sum(abs(map_sky(3,:,:,1)))
+      !end if
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
       call sample_baseline(self, handle, map_sky, procmask, procmask2)
+      !do i = 1, self%nscan
+      !  if (self%scanid(i) == 30) then
+      !    call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+      !      & init_s_bp=.true.)
+      !    write(*,*) "S_orb"
+      !    write(*,*) sd%tod(1,1), sd%s_orb(1,1)
+      !    write(*,*) sd%tod(1,2), sd%s_orb(1,2)
+      !    write(*,*) sd%tod(1,3), sd%s_orb(1,3)
+      !    write(*,*) sd%tod(1,4), sd%s_orb(1,4)
+      !    write(*,*) 'baseline', self%scans(i)%d(1)%baseline
+      !    do j = 1, 4
+      !      write(*,*) 'j, sum(sd%s_sky(:,j), sum(sd%s_orb(:,j))', j, sum(sd%s_sky(:,j)), sum(sd%s_orb(:,j))
+      !    end do
+      !    call sd%dealloc
+      !  end if
+      !end do
+      ! The baseline sampling and the orbital dipole template seem to be exactly
+      ! the same. Something must be strange with the accumulation step.
       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2)
+
+
 
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -363,6 +385,8 @@ contains
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
       do i = 1, self%nscan
          
+
+
          ! Skip scan if no accepted data
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
@@ -411,6 +435,20 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
+         if (.false. .and. i==1 .and. self%first_call) then
+            call int2string(self%scanid(i), scantext)
+            if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
+            do k = 1, self%ndet
+               open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
+               write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
+                    & " s_orbA (mK)  s_orbB (mK)  mask, baseline, flag"
+               do j = 1, sd%ntod
+                  write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
+                   &  sd%s_sky(j,k), sd%s_orb(j,k), sd%mask(j, k), self%scans(i)%d(k)%baseline
+               end do
+               close(78)
+            end do
+         end if
          
          ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
          if (self%output_4D_map > 0) then

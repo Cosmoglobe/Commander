@@ -165,7 +165,7 @@ contains
     logical(lgt),                          intent(in)  :: beam_4pi
     real(dp),            dimension(1:,1:), intent(in)  :: P
     real(sp),            dimension(:),     intent(out) :: s_dip
-    real(sp),                              intent(in), optional :: factor
+    real(dp),                              intent(in), optional :: factor
 
     real(dp)     :: b, x, q, b_dot, f
     integer(i4b) :: i, j, k, s_len, ntod
@@ -192,7 +192,7 @@ contains
        do k = 1, s_len !number of subsampled samples
           j        = self%subsample * (k-1) + 1
           X_vec(k) = j
-          y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v_ref) 
+          y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v_ref) * f
        end do
        
        !spline the subsampled dipole to the full resolution
