@@ -130,7 +130,7 @@ contains
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .false.
     constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
+    constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
