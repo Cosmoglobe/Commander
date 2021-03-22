@@ -645,6 +645,17 @@ contains
   end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
+    !   Perform data selection on TOD object
+    !
+    !   Arguments:
+    !   ----------
+    !   tod:      comm_tod derived type
+    !             contains TOD-specific information. Bad data are removed by 
+    !             setting scan%det%accept = .false.
+    !   scan:     int (scalar)
+    !             Local scan ID for the current core 
+    !   flag:     int (ntod x ndet array)
+    !             Array with data quality flags
     implicit none
     class(comm_tod),                   intent(inout) :: tod
     integer(i4b),    dimension(1:,1:), intent(in)    :: flag
