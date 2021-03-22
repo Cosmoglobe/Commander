@@ -645,6 +645,17 @@ contains
   end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
+    !   Perform data selection on TOD object
+    !
+    !   Arguments:
+    !   ----------
+    !   tod:      comm_tod derived type
+    !             contains TOD-specific information. Bad data are removed by 
+    !             setting scan%det%accept = .false.
+    !   scan:     int (scalar)
+    !             Local scan ID for the current core 
+    !   flag:     int (ntod x ndet array)
+    !             Array with data quality flags
     implicit none
     class(comm_tod),                   intent(inout) :: tod
     integer(i4b),    dimension(1:,1:), intent(in)    :: flag
@@ -665,7 +676,7 @@ contains
           tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
-    if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
+       !if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
     end do
