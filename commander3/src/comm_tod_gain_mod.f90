@@ -600,7 +600,7 @@ contains
        end if
        if (tod%verbosity > 1) then
          write(*,*) 'abscal = ', tod%gain0(0)
-         write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
+         !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
@@ -627,12 +627,13 @@ contains
     type(planck_rng),                  intent(inout)  :: handle
     real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
 
-    integer(i4b) :: i, j, ierr
-    real(dp), allocatable, dimension(:) :: A, b, rhs, x
-    real(dp), allocatable, dimension(:, :) :: coeff_matrix
+    integer(i4b) :: i, j, k, ierr
+    integer(i4b), allocatable, dimension(:) :: ind
+    real(dp),     allocatable, dimension(:) :: A, b, rhs, x, tmp
+    real(dp),     allocatable, dimension(:, :) :: coeff_matrix
 
     ! Collect contributions from all cores
-    allocate(A(tod%ndet), b(tod%ndet), rhs(tod%ndet+1), x(tod%ndet+1))
+    allocate(A(tod%ndet), b(tod%ndet), rhs(tod%ndet+1), x(tod%ndet+1), ind(tod%ndet+1), tmp(tod%ndet+1))
     allocate(coeff_matrix(tod%ndet+1, tod%ndet+1))
     call mpi_reduce(A_abs, A, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
          & tod%info%comm, ierr)
@@ -640,7 +641,10 @@ contains
          & tod%info%comm, ierr)
 
     coeff_matrix = 0.d0
-    rhs = 0.d0
+    rhs          = 0.d0
+    x            = 0.d0
+    ind          = 0     ! List of indices for active (non-zero) elements in linear system
+    k            = 0
     if (tod%myid == 0) then
        do j = 1, tod%ndet
          coeff_matrix(j, j) = A(j)
@@ -648,13 +652,20 @@ contains
          if (trim(tod%operation) == 'sample') rhs(j) = rhs(j) + sqrt(A(j)) * rand_gauss(handle)
          coeff_matrix(j, tod%ndet+1) = 0.5d0
          coeff_matrix(tod%ndet+1, j) = 1
+         if (coeff_matrix(j,j) > 0.d0) then
+            k      = k+1
+            ind(k) = j
+         end if
        end do
+       k = k+1
+       ind(k) = tod%ndet+1
        coeff_matrix(tod%ndet+1, tod%ndet+1) = 0.d0
        rhs(tod%ndet+1) = 0.d0
-       call solve_system_real(coeff_matrix, x, rhs)
+       call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
+       x(ind(1:k)) = tmp(1:k)
        if (tod%verbosity > 1) then
-         write(*,*) 'A =', A
-         write(*,*) 'b =', b
+         !write(*,*) 'A =', A
+         !write(*,*) 'b =', b
          write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
@@ -662,7 +673,7 @@ contains
        & tod%info%comm, ierr)
 
     tod%gain0(1:tod%ndet) = x(1:tod%ndet)
-    deallocate(coeff_matrix, rhs, A, b, x)
+    deallocate(coeff_matrix, rhs, A, b, x, ind, tmp)
 
     do j = 1, tod%nscan
        do i = 1, tod%ndet
