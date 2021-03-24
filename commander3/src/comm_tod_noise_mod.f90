@@ -196,7 +196,7 @@ contains
        end if
 
 
-       if (.true. .and. .true.) then !mod(self%scanid(scan),100) == 1) then
+       if (.false. .and. .true.) then !mod(self%scanid(scan),100) == 1) then
          write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods_new/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_test.dat' 
          open(65,file=trim(filename),status='REPLACE')
          do j = 1, ntod
@@ -384,7 +384,7 @@ contains
       
       nbuff = nfft - ntod
       do j=1, nbuff
-         dt(ntod+j) = sum(dt(ntod-20:ntod)) / 20.0 + (sum(dt(1:20)) - sum(dt(ntod-20:ntod))) / 20.0 * (j-1) / (nbuff - 1)
+         dt(ntod+j) = sum(dt(ntod-20:ntod)) / 20.0 + (sum(dt(1:20)) - sum(dt(ntod-20:ntod))) / 20.0 * (j-1.0) / (nbuff - 1.0)
       end do
 
 
