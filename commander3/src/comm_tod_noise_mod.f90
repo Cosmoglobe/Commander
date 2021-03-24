@@ -86,8 +86,8 @@ contains
     ndet     = self%ndet
     nomp     = 1 !omp_get_max_threads()
     samprate = self%samprate
-    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.05d0))
-    nfft     = 2 * ntod
+    nfft = get_closest_fft_magic_number(ceiling(ntod * 1.15d0))
+    !nfft     = 2 * ntod
     fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
     n        = nfft / 2 + 1
 
@@ -144,7 +144,7 @@ contains
        end if
 
        ! Identify spikes
-       if (self%first_call .and. not(present(dospike))) call find_d_prime_spikes(self, scan, i, d_prime, pix)
+       !if (self%first_call .and. dospike) call find_d_prime_spikes(self, scan, i, d_prime, pix)
 
        !alpha    = self%scans(scan)%d(i)%N_psd%alpha
        !nu_knee  = self%scans(scan)%d(i)%N_psd%fknee
@@ -157,7 +157,13 @@ contains
        if (.not. pcg_converged) then
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
-          dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          !dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+
+          nbuff = nfft - ntod
+          do j=1, nbuff
+             dt(ntod+j) = sum(d_prime(ntod-20:ntod)) / 20.0 + (sum(d_prime(1:20)) - sum(d_prime(ntod-20:ntod))) / 20.0 * (j-1) / (nbuff - 1)
+          end do
+
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 
           if (trim(self%operation) == "sample") then
@@ -189,19 +195,21 @@ contains
           n_corr(:,i) = dt(1:ntod) 
        end if
 
-       !if (.true. .and. mod(self%scanid(scan),100) == 1) then
-       !   write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods_new/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_final_hundred.dat' 
-       !   open(65,file=trim(filename),status='REPLACE')
-       !   do j = 1, ntod
-       !      if (present(tod_arr)) then
-       !        write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
-       !      else
-       !        write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
-       !      end if
-       !   end do
-       !   close(65)
-       !   !stop
-       !end if
+
+       if (.true. .and. .true.) then !mod(self%scanid(scan),100) == 1) then
+         write(filename, "(A, I0.3, A, I0.3, 3A)") 'ncorr_tods_new/ncorr_times', self%scanid(scan), '_', i, '_',trim(self%freq),'_test.dat' 
+         open(65,file=trim(filename),status='REPLACE')
+         do j = 1, ntod
+            write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%xi_n(3), self%scans(scan)%d(i)%N_psd%xi_n(2), self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%P_active(3,1), self%scans(scan)%d(i)%N_psd%P_active(2,1), self%samprate, ncorr2(j), nfft 
+            ! if (present(tod_arr)) then
+            !   write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), real(tod_arr(j,i),sp), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
+            ! else
+            !   write(65, '(14(E15.6E3))') n_corr(j,i), s_sub(j,i), mask(j,i), d_prime(j), self%scans(scan)%d(i)%tod(j), self%scans(scan)%d(i)%gain, self%scans(scan)%d(i)%N_psd%alpha, self%scans(scan)%d(i)%N_psd%fknee, self%scans(scan)%d(i)%N_psd%sigma0, self%scans(scan)%d(i)%N_psd%alpha_def, self%scans(scan)%d(i)%N_psd%fknee_def, self%scans(scan)%d(i)%N_psd%sigma0_def, self%samprate, ncorr2(j)
+            ! end if
+         end do
+         close(65)
+         !stop
+       end if
 
     end do
     deallocate(dt, dv)
@@ -215,6 +223,41 @@ contains
 
 
   subroutine get_ncorr_sm_cg(handle, d_prime, ncorr, mask, N_psd, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band)
+    ! 
+    ! Routine implementing the Sherman-Morrison based CG method (from Keihänen et al. 2021 arXiv:2011.06024) to solve the sampling equation for correlated noise in the presence of gaps in the data
+    !
+    ! Arguments
+    ! ---------
+    ! handle:  type(planck_rng)
+    !          Healpix random number type
+    ! d_prime: sp (ntod array) 
+    !          Signal subtracted (and gap-filled) raw timestream
+    ! mask:    sp (ntodt array)
+    !          TOD mask (0 = masked, 1 = included)
+    ! N_psd:   class(comm_noise_psd)
+    !          Class containing the relevant information about the noise model for this detector and scan
+    ! samprate: sp (scalar)
+    !          Sample rate of the current detector
+    ! nfft:    int (scalar) 
+    !          Number of tod points used for fft's. Larger than ntod for padding etc. 
+    ! plan_fwd int*8 (scalar)
+    !          fftw plan for the forward Fourier transform
+    ! plan_back int*8 (scalar)
+    !          fftw plan for the backward Fourier transform
+    ! scan:    int (scalar)
+    !          Scan number
+    ! det:     int (scalar)
+    !          Detector number
+    ! band     string
+    !          String denoting the current band (e.g. '030' for LFI)
+    !
+    ! Returns
+    ! -------
+    ! n_corr:  sp (ntod array)
+    !          TOD-domain correlated noise realization
+    ! converged: lgt (scalar)
+    !          Flag to signify if the CG method converged or not
+    ! 
     implicit none
     type(planck_rng),                intent(inout)  :: handle
     integer*8,                       intent(in)     :: plan_fwd, plan_back
@@ -328,7 +371,7 @@ contains
       integer(i4b),                             intent(in)    :: nfft 
       integer*8,                                intent(in)    :: plan_fwd, plan_back
 
-      integer(i4b) :: i, j, k, l, ntod, n
+      integer(i4b) :: i, j, k, l, ntod, n, nbuff
       real(sp),     allocatable, dimension(:) :: dt
       complex(spc), allocatable, dimension(:) :: dv
 
@@ -337,7 +380,14 @@ contains
 
       allocate(dt(nfft), dv(0:n-1))
       dt(1:ntod)           = vec(:)
-      dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+      !dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+      
+      nbuff = nfft - ntod
+      do j=1, nbuff
+         dt(ntod+j) = sum(d_prime(ntod-20:ntod)) / 20.0 + (sum(d_prime(1:20)) - sum(d_prime(ntod-20:ntod))) / 20.0 * (j-1) / (nbuff - 1)
+      end do
+
+
       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
       dv = dv * mat
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
