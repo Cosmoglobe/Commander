@@ -1197,8 +1197,8 @@ contains
           self%scans(i)%d(j)%dgain      = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%N_psd%xi_n = output(k,j,2:4)
           self%scans(i)%d(j)%accept     = .true.  !output(k,j,5) == 1.d0
-          if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
-          if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
+          !if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
+          !if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
     end do
 
