@@ -384,7 +384,7 @@ contains
       
       nbuff = nfft - ntod
       do j=1, nbuff
-         dt(ntod+j) = sum(d_prime(ntod-20:ntod)) / 20.0 + (sum(d_prime(1:20)) - sum(d_prime(ntod-20:ntod))) / 20.0 * (j-1) / (nbuff - 1)
+         dt(ntod+j) = sum(dt(ntod-20:ntod)) / 20.0 + (sum(dt(1:20)) - sum(dt(ntod-20:ntod))) / 20.0 * (j-1) / (nbuff - 1)
       end do
 
 
