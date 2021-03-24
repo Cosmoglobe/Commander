@@ -355,7 +355,7 @@ contains
 
     self%nmaps    = info%nmaps
     !TODO: this should be changed to not require a really long string
-    self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",", dir=cpar%datadir)
 
     ! Initialize jumplist
     call self%read_jumplist(datadir, cpar%ds_tod_jumplist(id_abs))
@@ -509,7 +509,7 @@ contains
   end subroutine load_instrument_file
 
 
-  subroutine read_tod(self, detlabels)
+  subroutine read_tod(self, detlabels, datadir)
     ! 
     ! Reads common TOD fields into existing TOD object
     ! 
@@ -526,6 +526,8 @@ contains
     implicit none
     class(comm_tod),                intent(inout)  :: self
     character(len=*), dimension(:), intent(in)     :: detlabels
+    character(len=512), optional                   :: datadir
+
 
     integer(i4b) :: i, j, n, det, ierr, ndet_tot
     real(dp)     :: t1, t2
@@ -549,13 +551,14 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       ndet_tot = num_tokens(det_buf(1:n), ",")
+       ndet_tot = num_tokens(det_buf(1:n), ",", dir=datadir)
        allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
        polang_buf = 0
        mbang_buf = 0
        self%polang = 0
        self%mbang = 0
-       call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
+       call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets, dir=datadir)
+
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
 !!$       end do

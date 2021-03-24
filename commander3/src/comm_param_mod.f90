@@ -1835,24 +1835,53 @@ contains
   end function get_token
 
   ! Fill all tokens into toks, and the num filled into num
-  subroutine get_tokens(string, sep, toks, num, group, maxnum, allow_empty)
+  subroutine get_tokens(string, sep, toks, num, group, maxnum, allow_empty, dir)
     implicit none
     character(len=*) :: string, sep
     character(len=*) :: toks(:)
     character(len=*), optional :: group
     integer(i4b),     optional :: num, maxnum
     logical(lgt),     optional :: allow_empty
+    character(len=*), optional :: dir
     integer(i4b) :: n, ext(2), nmax
-    ext = -1
-    n = 0
-    nmax = size(toks); if(present(maxnum)) nmax = maxnum
-    call tokenize(string, sep, ext, group, allow_empty)
-    do while(ext(1) > 0 .and. n < nmax)
-       n = n+1
-       toks(n) = string(ext(1):ext(2))
+
+    character(len=500)           :: filename
+    integer(i4b)                 :: unit,io_error,counter, ndet, i
+    character(len=8)             :: line
+
+    if ((index(string, '.txt') /= 0) .and. present(dir)) then
+       ndet = size(toks)
+       unit = 20
+       filename = trim(adjustl(dir))//'/'//trim(adjustl(string))
+
+       open(unit,file=trim(filename),status='old',action='read',iostat=io_error)
+       if (io_error == 0) then
+          ! Do nothing
+       else
+         stop 'Could not open file.'
+       end if
+
+       do i=1, ndet
+          read(unit,'(a)') line
+          if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+             cycle
+          else
+             toks(i) = line
+          end if
+       end do
+       close(unit)
+    else
+       ext = -1
+       n = 0
+       nmax = size(toks); if(present(maxnum)) nmax = maxnum
        call tokenize(string, sep, ext, group, allow_empty)
-    end do
-    if(present(num)) num = n
+       do while(ext(1) > 0 .and. n < nmax)
+          n = n+1
+          toks(n) = string(ext(1):ext(2))
+          call tokenize(string, sep, ext, group, allow_empty)
+       end do
+       if(present(num)) num = n
+    end if
   end subroutine get_tokens
 
   function has_token(token, string, sep, group, allow_empty) result(res)
@@ -1872,20 +1901,60 @@ contains
     res = .false.
   end function has_token
 
-  function num_tokens(string, sep, group, allow_empty) result(res)
+  function num_tokens(string, sep, group, allow_empty, dir) result(res)
     implicit none
     character(len=*) :: string, sep
     character(len=*), optional :: group
     logical(lgt),     optional :: allow_empty
+    character(len=*), optional :: dir
     integer(i4b)     :: res, ext(2)
-    ext = -1
-    res = 0
-    call tokenize(string, sep, ext, group, allow_empty)
-    do while(ext(1) > 0)
-       res = res+1
-       call tokenize(string, sep, ext, group, allow_empty)
-    end do
+    
+    if (index(string, '.txt') /= 0) then
+        res = count_lines_of_file(trim(adjustl(dir))//'/'//trim(adjustl(string)))
+    else
+        ext = -1
+        res = 0
+        call tokenize(string, sep, ext, group, allow_empty)
+        do while(ext(1) > 0)
+            res = res+1
+            call tokenize(string, sep, ext, group, allow_empty)
+        end do
+     end if
   end function num_tokens
+
+
+  integer(i4b) function count_lines_of_file(filename)
+     implicit none
+     character(len=*), intent(in)           :: filename
+
+     character(len=500)           :: detlist_file
+     integer(i4b)                 :: unit,io_error,counter
+     logical                      :: counting
+     character(len=8)             :: line
+
+     unit = 20
+
+     open(unit,file=filename,status='old',action='read',iostat=io_error)
+     if (io_error == 0) then
+          ! Do nothing
+     else
+          stop 'Could not open file.'
+     end if
+
+     counting = .true.
+     counter = 0
+     do while(counting)
+          read(unit,'(a)',end=1) line
+          if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+          cycle
+          else
+          counter = counter + 1
+          end if
+     end do
+     1  close(unit)
+
+     count_lines_of_file = counter
+   end function count_lines_of_file
 
   subroutine tokenize(string, sep, ext, group, allow_empty)
     implicit none
