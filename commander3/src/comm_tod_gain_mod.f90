@@ -22,6 +22,7 @@ module comm_tod_gain_mod
   use comm_tod_mod
   use comm_tod_noise_mod
   use comm_utils
+  use comm_fft_mod
   implicit none
 
 
@@ -170,8 +171,7 @@ contains
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, ind(1)
     integer(i4b) :: currstart, currend, window, i1, i2, pid_id, range_end
-    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr
-    real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
+    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr, fknee, sigma_0, alpha
     real(dp), allocatable, dimension(:)     :: temp_gain, temp_invsigsquared
     real(dp), allocatable, dimension(:)     :: summed_invsigsquared, smoothed_gain
     real(dp), allocatable, dimension(:,:,:) :: g
@@ -185,7 +185,7 @@ contains
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
-    allocate(lhs(nscan_tot), rhs(nscan_tot))
+    allocate(temp_gain(nscan_tot))
     g = 0.d0
     do j = 1, ndet
        do i = 1, tod%nscan
@@ -240,195 +240,22 @@ contains
        end do
        close(58)
 
-       allocate(window_sizes(tod%ndet, tod%nscan_tot))
-       call get_smoothing_windows(tod, window_sizes, dipole_mods)
-!!$       open(58, file='smoothing_windows' // trim(tod%freq) // '.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$         do k = 1, size(window_sizes(j, :))
-!!$            if (window_sizes(j, k) == 0) cycle
-!!$            write(58, *) j, k, window_sizes(j, k)
-!!$         end do
-!!$       end do
-!!$       close(58)
-
-
        do j = 1, ndet
-         lhs = 0.d0
-         rhs = 0.d0
-         pid_id = 1
-         k = 0
-         !write(*,*) "PIDRANGE: ", tod%jumplist(j, :)
-         do while (pid_id < size(tod%jumplist(j, :)))
-            if (tod%jumplist(j, pid_id) == 0) exit
-            currstart = tod%jumplist(j, pid_id)
-            if (tod%jumplist(j, pid_id+1) == 0) then
-               currend = nscan_tot
-            else
-               !currend = tod%jumplist(j, pid_id +1)
-               currend = tod%jumplist(j, pid_id +1) - 1
-            end if
-            !write(*,*) j, pid_id, currstart, currend
-            sum_weighted_gain = 0.d0
-            sum_inv_sigma_squared = 0.d0
-            allocate(temp_gain(currend - currstart + 1))
-            allocate(temp_invsigsquared(currend - currstart + 1))
-            allocate(summed_invsigsquared(currend-currstart + 1))
-            allocate(smoothed_gain(currend-currstart + 1))
-            do k = currstart, currend
-               if (g(k,j,2) /= g(k,j,2)) then
-                  write(*,*) 'GAIN IS NAN', k, j
-                  temp_gain(k-currstart + 1) = 0.d0
-               else if (g(k,j,2) > 0.d0) then
-                  temp_gain(k-currstart + 1) = g(k, j, 1) / g(k, j, 2)
-                  if (trim(tod%operation) == 'sample') then
-                     temp_gain(k-currstart+1) = temp_gain(k-currstart+1) + rand_gauss(handle) / g(k, j, 2)
-                  end if
-               else
-                  temp_gain(k-currstart + 1) = 0.d0
-               end if
-               temp_invsigsquared(k - currstart + 1) = max(g(k, j, 2),0.d0)
-            end do
-!            write(*, *) 'FREQ:', trim(tod%freq)
-!            write(*, *) 'TEMP_INVSIGSQUARED:', temp_invsigsquared
-!!$            write(*,*) 't', j, currstart, currend
-!!$            if (j == 4 .and. currstart == 8684) then
-!!$               write(*,*) temp_gain
-!!$               write(*,*) temp_invsigsquared
-!!$            end if
-!!$            call moving_average_padded_variable_window(temp_gain, smoothed_gain, &
-            kernel_type = 'boxcar'
-            call moving_average_variable_window(temp_gain, smoothed_gain, &
-               & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared, kernel_type)
-            if (any(summed_invsigsquared < 0)) then
-               write(*, *) 'WHOOOOPS'
-               write(*, *) 'currstart', currstart
-               write(*, *) 'currend', currend
-               write(*, *) 'temp_invsigsquared', temp_invsigsquared
-               stop
-            end if
-            !write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
-            !write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
-            do k = currstart, currend
-               g(k, j, 1) = smoothed_gain(k - currstart + 1)
-!               if (trim(tod%operation) == 'sample' .and. summed_invsigsquared(k-currstart+1) > 0.d0) then
-!                  g(k, j, 1) = smoothed_gain(k - currstart + 1) + &
-!                     & rand_gauss(handle) / &
-!                     & sqrt(summed_invsigsquared(k - currstart + 1))
-!               else
-!                  g(k, j, 1) = smoothed_gain(k - currstart + 1)
-!               end if
-               if (summed_invsigsquared(k - currstart + 1) > 0) then
-                  g(k, j, 2) = 1.d0 / sqrt(summed_invsigsquared(k - currstart + 1))
-               else
-                  g(k, j, 2) = 0.d0
-               end if
-            end do
-            pid_id = pid_id + 1
-
-            deallocate(temp_gain)
-            deallocate(temp_invsigsquared)
-            deallocate(summed_invsigsquared)
-            deallocate(smoothed_gain)
-         end do
-
-         ! Doing binning for now, but should use proper covariance sampling
-!         do i = 1, nbin
-!            b1 = (i-1) * binsize + 1
-!            b2 = min(i * binsize, nscan_tot)
-!            if (count(g(b1:b2, j, 2) > 0) <= 1) cycle
-!            n = 0
-!            do k = b1, b2
-!               if (g(k,j,2) <= 0.d0) then
-!                  g(k,j,1) = 0.d0
-!                  cycle
-!               end if
-!               if (g(k,j,1) == 0) cycle
-!               n = n + 1
-!               ! To be replaced by proper matrix multiplications
-!               lhs(k) = g(k, j, 2)
-!   !            rhs(k) = rhs(k) + g(k, j, 1) + sqrt(inv_gain_covar(j, k)) * rand_gauss(handle) + sqrt(g(k, j, 2)) * rand_gauss(handle) this is proper when we have the covariance matrix
-!               ! HKE: Disabling fluctuations for now 
-!               rhs(k) = g(k, j, 1) !+ sqrt(g(k, j, 2)) * rand_gauss(handle)
-!!               g(k, j, 1) = rhs(k) / lhs(k)
-!               vals(n) = rhs(k) / lhs(k)
-!               if (abs(vals(n)) > 0.05d0) vals(n) = 0.d0
-!            end do
-!            where (g(b1:b2, j, 2) > 0)
-!               g(b1:b2, j, 1) = median(vals(1:n))
-!            end where
-!         end do
-
-         ! Apply running average smoothing
-!         allocate(g_smooth(nscan_tot))
-!         window = 500
-!         do k = 1, nscan_tot
-!            i1 = max(k-window,1)
-!            i2 = min(k+window,nscan_tot)
-!            g_smooth(k) = sum(g(i1:i2,j,1)) / (i2-i1)
-!            !g_smooth(k) = median(g(i1:i2,j,1)) 
-!         end do
-!         g(:,j,1) = g_smooth - mean(g_smooth)
-!         deallocate(g_smooth)
- 
-!!$         ! Apply running average smoothing
-!!$         allocate(g_smooth(nscan_tot))
-!!$         window = 10000
-!!$         do k = 1, nscan_tot
-!!$            i1 = max(k-window,1)
-!!$            i2 = min(k+window,nscan_tot)
-!!$            ind = minloc(g(i1:i2,j,2))
-!!$            g_smooth(k) = g(ind(1),j,1)
-!!$            !g_smooth(k) = median(g(i1:i2,j,1)) 
-!!$         end do
-!!$         g(:,j,1) = g_smooth - mean(g_smooth)
-!!$         deallocate(g_smooth)
-
-         mu  = 0.d0
-         denom = 0.d0
-         do k = 1, nscan_tot
-            if (g(k, j, 2) <= 0.d0) cycle
-            mu         = mu + g(k, j, 1)! * g(k,j,2)
-            denom      = denom + 1.d0! * g(k,j,2)
-!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
-         end do
-         if (denom > 0) then
-            mu = mu / denom
-
-            ! Make sure fluctuations sum up to zero
-            !         if (tod%verbosity > 1) then
-            !           write(*,*) 'mu = ', mu
-            !         end if
-            g(:,j,1) = g(:,j,1) - mu
-         end if
-       end do
-!       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
+          fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
+          alpha = -1.d0
+          temp_gain = 0.d0
+          ! This is not completely correct - should probably truncate, or
+          ! something.
           do k = 1, nscan_tot
-             !if (g(k,j,2) /= 0) then
-             if (g(k,j,2) > 0) then
-                if (abs(g(k, j, 1)) > 1e10) then
-                   write(*, *) 'G1_postsmooth'
-                   write(*, *) g(k, j, 1)
-                end if
-                if (abs(g(k, j, 2)) > 1e10) then
-                   write(*, *) 'G2_postsmooth'
-                   write(*, *) g(k, j, 2)
-                end if
-                if (abs(dipole_mods(k, j) > 1e10)) then
-                   write(*, *) 'DIPOLE_MODS'
-                   write(*, *) dipole_mods(k, j)
-                else
-!                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-                end if
-             else
-!                write(58,*) j, k, 0., 0.0, 0., 0.
-             end if
+            if (g(k, j, 2) > 0.d0) then
+               temp_gain(k) = g(k, j, 1) / g(k, j, 2)
+            end if
           end do
-!          write(58,*)
+          sigma_0 = calc_sigma_0(temp_gain)
+!          sigma_0 = 0.002d0
+          call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), fknee, alpha, &
+             & sigma_0, trim(tod%operation)=='sample', handle)
        end do
-       close(58)
-
-       deallocate(window_sizes)
     end if
 
     ! Distribute and update results
@@ -446,7 +273,7 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
-    deallocate(g, lhs, rhs)
+    deallocate(g)
 
   end subroutine sample_smooth_gain
 
@@ -813,6 +640,222 @@ contains
   end subroutine get_smoothing_windows
 
 
+  subroutine wiener_filtered_gain(b, inv_N_wn, sigma_0, alpha, fknee, sample, &
+     & handle)
+     implicit none
 
+     real(dp), dimension(:), intent(inout)   :: b
+     real(dp), dimension(:), intent(in)      :: inv_N_wn
+     real(dp), intent(in)                    :: sigma_0, alpha, fknee
+     logical(lgt), intent(in)                :: sample
+     type(planck_rng)                        :: handle
+
+     real(dp), allocatable, dimension(:)     :: freqs, dt, inv_N_corr
+     complex(dpc), allocatable, dimension(:) :: dv
+     real(dp), allocatable, dimension(:)     :: fluctuations
+     complex(dpc), allocatable, dimension(:) :: fourier_fluctuations
+     integer*8          :: plan_fwd, plan_back
+     integer(i4b)       :: nscan, nfft, n, nomp, err
+     real(dp)           :: samprate
+
+     integer(i4b)   :: i
+
+
+     nscan = size(b)
+     nfft = 2 * nscan
+     n = nfft / 2 + 1
+     samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
+     allocate(freqs(n-1))
+     do i = 1, n - 1
+        freqs(i) = i * (samprate * 0.5) / (n - 1)
+     end do
+
+     nomp = 1
+     call dfftw_init_threads(err)
+     call dfftw_plan_with_nthreads(nomp)
+     allocate(dt(nfft), dv(0:n-1))
+     call dfftw_plan_dft_r2c_1d(plan_fwd, nfft, dt, dv, fftw_estimate + fftw_unaligned)
+     call dfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+     ! We use temporary arrays inside the transformation function, so no need
+     ! for these anymore
+     deallocate(dt, dv)
+
+     allocate(inv_N_corr(n))
+     allocate(fluctuations(nscan))
+     allocate(fourier_fluctuations(n))
+     inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
+     if (sample) then
+        do i = 1, nscan
+            fluctuations(i) = rand_gauss(handle)
+        end do
+        call timev_to_fourier(fluctuations, fourier_fluctuations, plan_fwd)
+        do i = 1, n
+            fourier_fluctuations(i) = fourier_fluctuations(i) * sqrt(inv_N_corr(i))
+        end do
+        call fourierv_to_time(fourier_fluctuations, fluctuations, plan_back)
+
+        do i = 1, nscan
+            fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
+            b(i) = b(i) + fluctuations(i)
+         end do
+      end if
+
+      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, plan_fwd, plan_back)
+      deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations)
+
+  end subroutine wiener_filtered_gain
+
+  subroutine timev_to_fourier(vector, fourier_vector, plan_fwd)
+     implicit none
+     real(dp), dimension(:), intent(in)         :: vector
+     complex(dpc), dimension(:), intent(out)    :: fourier_vector
+     integer*8             , intent(in)     :: plan_fwd
+
+     real(dp), allocatable, dimension(:)                 :: dt
+     complex(dpc), allocatable, dimension(:)             :: dv
+     integer(i4b)   :: nfft, n
+
+     nfft = size(vector) * 2
+     n = nfft / 2 + 1
+
+     allocate(dt(nfft), dv(0:n-1))
+     dt(1:nfft/2) = vector
+     dt(nfft:nfft/2+1:-1) = dt(1:nfft/2)
+     call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
+     !Normalization
+     dv = dv / sqrt(real(nfft, dp))
+     fourier_vector(1:n) = dv(0:n-1)
+
+  end subroutine timev_to_fourier
+
+  subroutine fourierv_to_time(fourier_vector, vector, plan_back)
+     implicit none
+     complex(dpc), dimension(:), intent(in)     :: fourier_vector
+     real(dp), dimension(:), intent(out)    :: vector
+     integer*8             , intent(in)     :: plan_back
+
+     real(dp), allocatable, dimension(:)                 :: dt
+     complex(dpc), allocatable, dimension(:)             :: dv
+     integer(i4b)   :: nfft, n
+
+     nfft = size(vector) * 2
+     n = nfft / 2 + 1
+
+     allocate(dt(nfft), dv(0:n-1))
+     dv(0:n-1) = fourier_vector(1:n)
+     call dfftw_execute_dft_r2c(plan_back, dt, dv)
+     ! Normalization
+     dt = dt / sqrt(real(nfft, dp))
+     vector = dt(1:nfft/2)
+
+  end subroutine fourierv_to_time
+
+  function solve_cg_gain(inv_N_wn, inv_N_corr, b, plan_fwd, plan_back)
+     implicit none
+     real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b
+     integer*8             , intent(in) :: plan_fwd, plan_back
+
+     real(dp), dimension(size(b))       :: solve_cg_gain
+     real(dp), allocatable, dimension(:)    :: initial_guess, prop_sol, residual
+     real(dp), allocatable, dimension(:)    :: p, Abyp, new_residual
+     real(dp)       :: alpha, beta
+     integer(i4b)   :: iterations, nscan
+     logical(lgt)   :: converged
+
+     nscan = size(b)
+     allocate(initial_guess(nscan), prop_sol(nscan), residual(nscan), p(nscan))
+     allocate(Abyp(nscan), new_residual(nscan))
+
+     initial_guess = 0.d0
+     prop_sol = initial_guess
+     residual = b - tot_mat_mul_by_vector(inv_N_wn, inv_N_corr, prop_sol, &
+        & plan_fwd, plan_back)
+     p = residual
+     iterations = 0
+     converged = .false.
+     do while ((.not. converged) .and. (iterations < 100000))
+         Abyp = tot_mat_mul_by_vector(inv_N_wn, inv_N_corr, p, plan_fwd, &
+            & plan_back)
+         alpha = sum(residual**2) / sum(p * Abyp) 
+         prop_sol = prop_sol + alpha * p
+         new_residual = residual - alpha * Abyp
+         if (sum(abs(new_residual)) < 1e-12) then 
+            converged = .true.
+            exit
+         end if
+         beta = sum(new_residual ** 2) / sum(residual ** 2)
+         p = new_residual + beta * p
+         residual = new_residual
+         iterations = iterations + 1
+         if (mod(iterations, 100) == 0) then
+            write(*, *) "Gain CG search res: ", sum(abs(new_residual))
+         end if
+     end do
+     if (.not. converged) then
+        write(*, *) "Gain CG search did not converge."
+     end if
+     solve_cg_gain = prop_sol
+
+     deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual)
+
+  end function solve_cg_gain
+
+  function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
+     & plan_back)
+     implicit none
+
+     real(dp), dimension(:)                            :: vector
+     real(dp), dimension(size(vector))                 :: tot_mat_mul_by_vector
+     real(dp), dimension(size(vector)), intent(in)     :: time_mat
+     real(dp), dimension(:) , intent(in)     :: fourier_mat
+     integer*8              , intent(in)     :: plan_fwd, plan_back
+
+     real(dp), dimension(size(vector))       :: temp_vector
+     complex(dpc), dimension(size(fourier_mat))        :: fourier_vector
+
+     if (all(vector .eq. 0)) then
+        tot_mat_mul_by_vector = 0.d0
+        return
+     end if
+
+     call timev_to_fourier(vector, fourier_vector, plan_fwd)
+     fourier_vector = fourier_vector * fourier_mat
+     call fourierv_to_time(fourier_vector, temp_vector, plan_back)
+     tot_mat_mul_by_vector = vector * time_mat + temp_vector
+
+  end function tot_mat_mul_by_vector
+
+  function calculate_invcov(sigma_0, alpha, fknee, freqs)
+     implicit none
+     real(dp), dimension(:), intent(in)     :: freqs
+     real(dp), intent(in)                   :: sigma_0, fknee, alpha
+     real(dp), dimension(size(freqs)+1)     :: calculate_invcov
+
+     calculate_invcov(1) = 0.d0
+     calculate_invcov(2:size(freqs)+1) = 1.d0 / (sigma_0 ** 2 * (freqs/fknee) ** alpha)
+
+  end function calculate_invcov
+
+  function calc_sigma_0(gain)
+     implicit none
+     real(dp)       :: calc_sigma_0
+     real(dp), dimension(:) :: gain
+
+     real(dp), dimension(size(gain))    :: res
+     real(dp)   :: std, mean
+     integer(i4b)   :: i
+
+     mean = gain(1) 
+     do i = 2, size(gain)
+         res(i) = gain(i) - gain(i-1)
+         mean = mean + res(i)
+      end do
+      mean = mean / size(gain)
+      std = 0.d0
+      do i = 1, size(gain)
+         std = std + (res(i) - mean) ** 2
+      end do
+      calc_sigma_0 = sqrt(std / (2 * (size(gain) - 1)))
+  end function calc_sigma_0
 
 end module comm_tod_gain_mod
