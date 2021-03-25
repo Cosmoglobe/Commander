@@ -266,16 +266,29 @@ INCLUDE_COMP07                = .true.  # Low-freq AME
 INCLUDE_COMP08                = .true.  # CMB relativistic quadrupole
 
 
-NUM_CG_SAMPLING_GROUPS = 3
+NUM_CG_SAMPLING_GROUPS = 5
 CG_SAMPLING_GROUP01          = cmb,ff,ame
 CG_SAMPLING_GROUP_MASK01     = fullsky
 CG_SAMPLING_GROUP_MAXITER01  = 50
-CG_SAMPLING_GROUP02          = md
+
+CG_SAMPLING_GROUP02          = md  #fit monopoles and draw new Haslam monopole from prior, mono-/dipoles are labeled by data band label! If only Haslam monopole to be drawn, exchange 'md' with '0.4-Haslam'
 CG_SAMPLING_GROUP_MASK02     = mask_common_dx12_n1024_TQU.fits
 CG_SAMPLING_GROUP_MAXITER02  = 3
-CG_SAMPLING_GROUP03          = dust,synch
+
+CG_SAMPLING_GROUP03          = synch
 CG_SAMPLING_GROUP_MASK03     = fullsky
 CG_SAMPLING_GROUP_MAXITER03  = 50
+
+# fit all monopoles, except for Haslam. mono-/dipoles are labeled by data band label!
+# This is dangerous praxis and should not be used normally.
+# We need to do this now to split up the mono-/dipole sampling so that the new Halsam monopole do not break the chain
+CG_SAMPLING_GROUP04          = 030,044,070,857,030-WMAP_Ka,040-WMAP_Q1,040-WMAP_Q2,060-WMAP_V1,060-WMAP_V2
+CG_SAMPLING_GROUP_MASK04     = mask_common_dx12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER04  = 3
+
+CG_SAMPLING_GROUP05          = dust,synch
+CG_SAMPLING_GROUP_MASK05     = fullsky
+CG_SAMPLING_GROUP_MAXITER05  = 50
 
 # CMB
 @START 01
