@@ -1835,54 +1835,56 @@ contains
   end function get_token
 
   ! Fill all tokens into toks, and the num filled into num
-  subroutine get_tokens(string, sep, toks, num, group, maxnum, allow_empty, dir)
+  subroutine get_tokens(string, sep, toks, num, group, maxnum, allow_empty)
     implicit none
     character(len=*) :: string, sep
     character(len=*) :: toks(:)
     character(len=*), optional :: group
     integer(i4b),     optional :: num, maxnum
     logical(lgt),     optional :: allow_empty
-    character(len=*), optional :: dir
     integer(i4b) :: n, ext(2), nmax
-
-    character(len=500)           :: filename
-    integer(i4b)                 :: unit,io_error,counter, ndet, i
-    character(len=8)             :: line
-
-    if ((index(string, '.txt') /= 0) .and. present(dir)) then
-       ndet = size(toks)
-       unit = 20
-       filename = trim(adjustl(dir))//'/'//trim(adjustl(string))
-
-       open(unit,file=trim(filename),status='old',action='read',iostat=io_error)
-       if (io_error == 0) then
-          ! Do nothing
-       else
-         stop 'Could not open file.'
-       end if
-
-       do i=1, ndet
-          read(unit,'(a)') line
-          if ((line(1:1) == '#') .or. (line(1:1) == '')) then
-             cycle
-          else
-             toks(i) = line
-          end if
-       end do
-       close(unit)
-    else
-       ext = -1
-       n = 0
-       nmax = size(toks); if(present(maxnum)) nmax = maxnum
+    ext = -1
+    n = 0
+    nmax = size(toks); if(present(maxnum)) nmax = maxnum
+    call tokenize(string, sep, ext, group, allow_empty)
+    do while(ext(1) > 0 .and. n < nmax)
+       n = n+1
+       toks(n) = string(ext(1):ext(2))
        call tokenize(string, sep, ext, group, allow_empty)
-       do while(ext(1) > 0 .and. n < nmax)
-          n = n+1
-          toks(n) = string(ext(1):ext(2))
-          call tokenize(string, sep, ext, group, allow_empty)
-       end do
-       if(present(num)) num = n
-    end if
+    end do
+    if(present(num)) num = n
   end subroutine get_tokens
+
+  subroutine get_detectors(filename, directory, detectors)
+     implicit none
+     character(len=*), intent(in)    :: filename, directory
+     character(len=*), intent(inout) :: detectors(:)
+
+     character(len=500)           :: detector_list_file
+     integer(i4b)                 :: unit,io_error,counter, ndet, i
+     character(len=8)             :: line
+
+     ndet = size(detectors)
+     unit = 20
+     detector_list_file = trim(adjustl(directory))//'/'//trim(adjustl(filename))
+
+     open(unit,file=trim(detector_list_file),status='old',action='read',iostat=io_error)
+     if (io_error == 0) then
+     ! Do nothing
+     else
+         stop 'Could not open file.'
+     end if
+
+     do i=1, ndet
+         read(unit,'(a)') line
+         if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+            cycle
+         else
+            detectors(i) = line
+         end if
+     end do
+     close(unit)
+  end subroutine get_detectors
 
   function has_token(token, string, sep, group, allow_empty) result(res)
     implicit none
@@ -1901,40 +1903,34 @@ contains
     res = .false.
   end function has_token
 
-  function num_tokens(string, sep, group, allow_empty, dir) result(res)
+  function num_tokens(string, sep, group, allow_empty) result(res)
     implicit none
     character(len=*) :: string, sep
     character(len=*), optional :: group
     logical(lgt),     optional :: allow_empty
-    character(len=*), optional :: dir
     integer(i4b)     :: res, ext(2)
-    
-    if (index(string, '.txt') /= 0) then
-        res = count_lines_of_file(trim(adjustl(dir))//'/'//trim(adjustl(string)))
-    else
-        ext = -1
-        res = 0
-        call tokenize(string, sep, ext, group, allow_empty)
-        do while(ext(1) > 0)
-            res = res+1
-            call tokenize(string, sep, ext, group, allow_empty)
-        end do
-     end if
+    ext = -1
+    res = 0
+    call tokenize(string, sep, ext, group, allow_empty)
+    do while(ext(1) > 0)
+       res = res+1
+       call tokenize(string, sep, ext, group, allow_empty)
+    end do
   end function num_tokens
 
-
-  integer(i4b) function count_lines_of_file(filename)
+  integer(i4b) function count_detectors(filename, directory)
      implicit none
-     character(len=*), intent(in)           :: filename
+     character(len=*) :: filename, directory
 
-     character(len=500)           :: detlist_file
+     character(len=500)           :: detector_list_file
      integer(i4b)                 :: unit,io_error,counter
      logical                      :: counting
      character(len=8)             :: line
 
      unit = 20
+     detector_list_file = trim(adjustl(directory))//'/'//trim(adjustl(filename))
 
-     open(unit,file=filename,status='old',action='read',iostat=io_error)
+     open(unit,file=detector_list_file, status='old', action='read', iostat=io_error)
      if (io_error == 0) then
           ! Do nothing
      else
@@ -1953,8 +1949,8 @@ contains
      end do
      1  close(unit)
 
-     count_lines_of_file = counter
-   end function count_lines_of_file
+     count_detectors = counter
+  end function count_detectors
 
   subroutine tokenize(string, sep, ext, group, allow_empty)
     implicit none

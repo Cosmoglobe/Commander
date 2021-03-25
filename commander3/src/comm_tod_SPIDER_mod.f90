@@ -143,7 +143,11 @@ module comm_tod_SPIDER_mod
      constructor%nside_beam      = nside_beam
  
      ! Get detector labels
-     call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", constructor%label, dir=cpar%datadir)
+     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+        call get_detectors(cpar%ds_tod_dets(id_abs), cpar%datadir, constructor%label)
+     else
+        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", constructor%label)
+     end if
 
      ! Define detector partners
      do i = 1, constructor%ndet

@@ -355,7 +355,12 @@ contains
 
     self%nmaps    = info%nmaps
     !TODO: this should be changed to not require a really long string
-    self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",", dir=cpar%datadir)
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+      self%ndet = count_detectors(cpar%ds_tod_dets(id_abs), cpar%datadir)
+    else
+      self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    end if
+
 
     ! Initialize jumplist
     call self%read_jumplist(datadir, cpar%ds_tod_jumplist(id_abs))
@@ -551,13 +556,23 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       ndet_tot = num_tokens(det_buf(1:n), ",", dir=datadir)
+       
+       if (index(det_buf(1:n), '.txt') /= 0) then
+         ndet_tot = count_detectors(det_buf(1:n), datadir)
+       else
+         ndet_tot = num_tokens(det_buf(1:n), ",")
+       end if
+
        allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
        polang_buf = 0
        mbang_buf = 0
        self%polang = 0
        self%mbang = 0
-       call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets, dir=datadir)
+       if (index(det_buf(1:n), '.txt') /= 0) then
+         call get_detectors(det_buf(1:n), datadir, dets)
+       else
+         call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
+       end if
 
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
