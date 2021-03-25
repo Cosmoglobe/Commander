@@ -504,7 +504,7 @@ contains
        end do
        do j = 1, tod%ndet
              if (tod%scanid(i) == 30) then
-               write(*,*) 'abscaltest1', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
+               write(*,*) 'abscaltest1', j, 'sum(s(:,j))', sum(s_invN(:,j))
              end if
        end do
        call multiply_inv_N(tod, i, s_invN, sampfreq=tod%samprate_lowres, pow=0.5d0)
@@ -538,6 +538,7 @@ contains
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
                 if (tod%scanid(i) == 30) then
                   write(*,*) 'imbaltest_fin', j, sum(s_buf(:,j))
+                  write(*,*) 'gain', tod%scans(i)%d(j)%gain
                 end if
              end if
           end do

@@ -648,7 +648,7 @@ end subroutine bin_differential_TOD
            bicg_sol(:,:,l) = bicg_sol(:,:,l) + alpha*phat
 
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
-              write(*,*) 'Reached bicg-stap tolerance'
+              write(*,*) 'Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
@@ -683,7 +683,7 @@ end subroutine bin_differential_TOD
 102           format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
            end if
            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
-              write(*,*) 'Reached bicg-stap tolerance'
+              write(*,*) 'Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg

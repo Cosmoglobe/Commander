@@ -485,7 +485,8 @@ contains
        end if
        if (present(tod_arr)) then
          r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod_arr(:,j))), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
+         if (tod%scanid(scan) == 30 .and. out) write(*,*) 'scan, tod(1,j), s_sub(1,j), baseline'
+         if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), tod_arr(1,j), s_sub(1,j), tod%scans(scan)%d(j)%baseline
        else
          r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
          !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
@@ -600,7 +601,7 @@ contains
        end if
        if (tod%verbosity > 1) then
          write(*,*) 'abscal = ', tod%gain0(0)
-         !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
+         write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
@@ -664,8 +665,8 @@ contains
        call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
        x(ind(1:k)) = tmp(1:k)
        if (tod%verbosity > 1) then
-         !write(*,*) 'A =', A
-         !write(*,*) 'b =', b
+         write(*,*) 'A =', A
+         write(*,*) 'b =', b
          write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
