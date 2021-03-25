@@ -1558,7 +1558,7 @@ contains
     if (trim(operation) == 'optimize') then
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
-          if (self%myid == 0 .and. k<20) write(*,*) 'iter', iter2, n_gibbs
+          if (self%myid == 0) write(*,*) 'iter', iter2, n_gibbs
           do p = 1, self%nmaps
              do k = 1, self%nsrc             
                 p_lnL       = p
