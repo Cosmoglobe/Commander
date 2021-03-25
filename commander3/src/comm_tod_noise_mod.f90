@@ -86,8 +86,8 @@ contains
     ndet     = self%ndet
     nomp     = 1 !omp_get_max_threads()
     samprate = self%samprate
-    nfft = get_closest_fft_magic_number(ceiling(ntod * 1.15d0))
-    !nfft     = 2 * ntod
+    !nfft = get_closest_fft_magic_number(ceiling(ntod * 1.15d0))
+    nfft     = 2 * ntod
     fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
     n        = nfft / 2 + 1
 
@@ -161,7 +161,9 @@ contains
 
           nbuff = nfft - ntod
           do j=1, nbuff
-             dt(ntod+j) = sum(d_prime(ntod-20:ntod)) / 20.0 + (sum(d_prime(1:20)) - sum(d_prime(ntod-20:ntod))) / 20.0 * (j-1) / (nbuff - 1)
+             !dt(ntod+j) = sum(d_prime(ntod-20:ntod)) / 20.0 + (sum(d_prime(1:20)) - sum(d_prime(ntod-20:ntod))) / 20.0 * (j-1) / (nbuff - 1)
+             !dt(ntod+j) = dt(max(ntod - int(j*ntod/real(nbuff,sp)),1))
+             dt(ntod+j) = dt(ntod-j+1)
           end do
 
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
@@ -384,7 +386,9 @@ contains
       
       nbuff = nfft - ntod
       do j=1, nbuff
-         dt(ntod+j) = sum(dt(ntod-20:ntod)) / 20.0 + (sum(dt(1:20)) - sum(dt(ntod-20:ntod))) / 20.0 * (j-1.0) / (nbuff - 1.0)
+         !dt(ntod+j) = sum(dt(ntod-20:ntod)) / 20.0 + (sum(dt(1:20)) - sum(dt(ntod-20:ntod))) / 20.0 * (j-1.0) / (nbuff - 1.0)
+         !dt(ntod+j) = dt(max(ntod - int(j*ntod/real(nbuff,sp)),1))
+         dt(ntod+j) = dt(ntod-j+1)
       end do
 
 
