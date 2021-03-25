@@ -241,6 +241,7 @@ contains
        close(58)
 
        do j = 1, ndet
+         if (all(g(:, j, 1) == 0)) continue
           fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
           alpha = -1.d0
           temp_gain = 0.d0
@@ -253,8 +254,9 @@ contains
           end do
           sigma_0 = calc_sigma_0(temp_gain)
 !          sigma_0 = 0.002d0
-          call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), fknee, alpha, &
-             & sigma_0, trim(tod%operation)=='sample', handle)
+          call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), sigma_0, alpha, &
+!             & fknee, trim(tod%operation)=='sample', handle)
+             & fknee, .false., handle)
        end do
     end if
 
@@ -662,7 +664,8 @@ contains
 
 
      nscan = size(b)
-     nfft = 2 * nscan
+!     nfft = 2 * nscan
+     nfft = nscan
      n = nfft / 2 + 1
      samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
      allocate(freqs(n-1))
@@ -683,6 +686,11 @@ contains
      allocate(inv_N_corr(n))
      allocate(fluctuations(nscan))
      allocate(fourier_fluctuations(n))
+
+     write(*, *) 'Sigma_0: ', sigma_0
+     write(*, *) 'alpha: ', alpha
+     write(*, *) 'fknee: ', fknee
+
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
      if (sample) then
         do i = 1, nscan
@@ -715,12 +723,13 @@ contains
      complex(dpc), allocatable, dimension(:)             :: dv
      integer(i4b)   :: nfft, n
 
-     nfft = size(vector) * 2
+!     nfft = size(vector) * 2
+     nfft = size(vector)
      n = nfft / 2 + 1
 
      allocate(dt(nfft), dv(0:n-1))
-     dt(1:nfft/2) = vector
-     dt(nfft:nfft/2+1:-1) = dt(1:nfft/2)
+     dt(1:nfft) = vector
+!     dt(nfft:nfft/2+1:-1) = dt(1:nfft/2)
      call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
      !Normalization
      dv = dv / sqrt(real(nfft, dp))
@@ -738,15 +747,15 @@ contains
      complex(dpc), allocatable, dimension(:)             :: dv
      integer(i4b)   :: nfft, n
 
-     nfft = size(vector) * 2
+     nfft = size(vector)
      n = nfft / 2 + 1
 
      allocate(dt(nfft), dv(0:n-1))
      dv(0:n-1) = fourier_vector(1:n)
-     call dfftw_execute_dft_r2c(plan_back, dt, dv)
+     call dfftw_execute_dft_c2r(plan_back, dv, dt)
      ! Normalization
      dt = dt / sqrt(real(nfft, dp))
-     vector = dt(1:nfft/2)
+     vector = dt(1:nfft)
 
   end subroutine fourierv_to_time
 
@@ -759,8 +768,21 @@ contains
      real(dp), allocatable, dimension(:)    :: initial_guess, prop_sol, residual
      real(dp), allocatable, dimension(:)    :: p, Abyp, new_residual
      real(dp)       :: alpha, beta
-     integer(i4b)   :: iterations, nscan
+     integer(i4b)   :: iterations, nscan, i
      logical(lgt)   :: converged
+     character(len=8)   :: itext
+
+!      open(58, file='gain_cg_invcov.dat')
+!      do i = 1, size(inv_N_corr)
+!         write(58, *) inv_N_corr(i)
+!      end do
+!      close(58)
+!      open(58, file='gain_cg_invnwn.dat')
+!      do i = 1, size(inv_N_wn)
+!         write(58, *) inv_N_wn(i)
+!      end do
+!      close(58)
+
 
      nscan = size(b)
      allocate(initial_guess(nscan), prop_sol(nscan), residual(nscan), p(nscan))
@@ -770,26 +792,80 @@ contains
      prop_sol = initial_guess
      residual = b - tot_mat_mul_by_vector(inv_N_wn, inv_N_corr, prop_sol, &
         & plan_fwd, plan_back)
+!      open(58, file='gain_cg_residual.dat')
+!      do i = 1, nscan
+!         write(58, *) residual(i)
+!      end do
+!      close(58)
+
      p = residual
      iterations = 0
      converged = .false.
      do while ((.not. converged) .and. (iterations < 100000))
          Abyp = tot_mat_mul_by_vector(inv_N_wn, inv_N_corr, p, plan_fwd, &
-            & plan_back)
+            & plan_back, filewrite=(iterations == 0))
+!         if (iterations == 0) then
+!            open(58, file='gain_cg_abyp.dat')
+!            do i = 1, nscan
+!               write(58, *) Abyp(i)
+!            end do
+!            close(58)
+!         end if
+
          alpha = sum(residual**2) / sum(p * Abyp) 
          prop_sol = prop_sol + alpha * p
+!         if (iterations == 0) then
+!            write(*,*) 'Alpha:', alpha
+!            open(58, file='gain_cg_prop_sol.dat')
+!            do i = 1, nscan
+!               write(58, *) prop_sol(i)
+!            end do
+!            close(58)
+!         end if
+
          new_residual = residual - alpha * Abyp
+!         if (iterations == 0) then
+!            open(58, file='gain_cg_new_residual.dat')
+!            do i = 1, nscan
+!               write(58, *) new_residual(i)
+!            end do
+!            close(58)
+!         end if
+
          if (sum(abs(new_residual)) < 1e-12) then 
             converged = .true.
             exit
          end if
          beta = sum(new_residual ** 2) / sum(residual ** 2)
          p = new_residual + beta * p
+!         if (iterations == 0) then
+!            write(*,*) 'Beta:', beta
+!            open(58, file='gain_cg_p.dat')
+!            do i = 1, nscan
+!               write(58, *) p(i)
+!            end do
+!            close(58)
+!         end if
+
          residual = new_residual
          iterations = iterations + 1
          if (mod(iterations, 100) == 0) then
             write(*, *) "Gain CG search res: ", sum(abs(new_residual))
+!            call int2string(iterations, itext)
+!            open(58, file='gain_cg_' // itext // '.dat')
+!            do i = 1, nscan
+!               write(58, *) prop_sol(i)
+!            end do
+!            close(58)
          end if
+!         if (iterations == 1) then
+!            open(58, file='gain_cg_' // itext // '.dat')
+!            call int2string(iterations, itext)
+!            do i = 1, nscan
+!               write(58, *) prop_sol(i)
+!            end do
+!            close(58)
+!         end if
      end do
      if (.not. converged) then
         write(*, *) "Gain CG search did not converge."
@@ -801,7 +877,7 @@ contains
   end function solve_cg_gain
 
   function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
-     & plan_back)
+     & plan_back, filewrite)
      implicit none
 
      real(dp), dimension(:)                            :: vector
@@ -809,18 +885,66 @@ contains
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
      real(dp), dimension(:) , intent(in)     :: fourier_mat
      integer*8              , intent(in)     :: plan_fwd, plan_back
+     logical(lgt)           , optional       :: filewrite
 
+     logical(lgt)       :: write_file
+     integer(i4b)       :: i
      real(dp), dimension(size(vector))       :: temp_vector
      complex(dpc), dimension(size(fourier_mat))        :: fourier_vector
+
+     write_file = .false.
+     if (present(filewrite)) then
+         write_file = filewrite
+      end if
 
      if (all(vector .eq. 0)) then
         tot_mat_mul_by_vector = 0.d0
         return
      end if
+!     if (write_file) then
+!         open(58, file='gain_cg_vector_in.dat')
+!         do i = 1, size(vector)
+!            write(58, *) vector(i)
+!         end do
+!         close(58)
+!      end if
 
      call timev_to_fourier(vector, fourier_vector, plan_fwd)
+!     if (write_file) then
+!         open(58, file='gain_cg_fourier_vector.dat')
+!         do i = 1, size(fourier_vector)
+!            write(58, *) abs(fourier_vector(i))
+!         end do
+!         close(58)
+!      end if
+
      fourier_vector = fourier_vector * fourier_mat
+!     if (write_file) then
+!         open(58, file='gain_cg_matmul_fourier_vector.dat')
+!         do i = 1, size(fourier_vector)
+!            write(58, *) abs(fourier_vector(i))
+!         end do
+!         close(58)
+!      end if
+
+
      call fourierv_to_time(fourier_vector, temp_vector, plan_back)
+!     if (write_file) then
+!         open(58, file='gain_cg_vector_after_fourier.dat')
+!         do i = 1, size(temp_vector)
+!            write(58, *) temp_vector(i)
+!         end do
+!         close(58)
+!      end if
+
+!     if (write_file) then
+!         open(58, file='gain_cg_vector_time_matmul.dat')
+!         do i = 1, size(vector)
+!            write(58, *) vector(i) * time_mat(i)
+!         end do
+!         close(58)
+!      end if
+
      tot_mat_mul_by_vector = vector * time_mat + temp_vector
 
   end function tot_mat_mul_by_vector
@@ -855,6 +979,14 @@ contains
       do i = 1, size(gain)
          std = std + (res(i) - mean) ** 2
       end do
+      if (std == 0) then
+         open(58, file='gain_cg_std_gain.dat')
+         do i = 1, size(gain)
+            write(58, *) gain(i)
+         end do
+         close(58)
+      end if
+         
       calc_sigma_0 = sqrt(std / (2 * (size(gain) - 1)))
   end function calc_sigma_0
 
