@@ -721,6 +721,7 @@ contains
 
     ! Find array sizes
     call read_hdf(file, slabel // "/" // "common/ntod",   n)
+
     if (tod%halfring_split == 0) then
       m = get_closest_fft_magic_number(n)
     else if (tod%halfring_split == 1 .or. tod%halfring_split == 2) then
