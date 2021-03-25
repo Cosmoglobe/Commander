@@ -267,6 +267,7 @@ contains
                !currend = tod%jumplist(j, pid_id +1)
                currend = tod%jumplist(j, pid_id +1) - 1
             end if
+            !write(*,*) j, pid_id, currstart, currend
             sum_weighted_gain = 0.d0
             sum_inv_sigma_squared = 0.d0
             allocate(temp_gain(currend - currstart + 1))
@@ -390,13 +391,15 @@ contains
             denom      = denom + 1.d0! * g(k,j,2)
 !            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
          end do
-         mu = mu / denom
+         if (denom > 0) then
+            mu = mu / denom
 
-         ! Make sure fluctuations sum up to zero
-!         if (tod%verbosity > 1) then
-!           write(*,*) 'mu = ', mu
-!         end if
-         g(:,j,1) = g(:,j,1) - mu
+            ! Make sure fluctuations sum up to zero
+            !         if (tod%verbosity > 1) then
+            !           write(*,*) 'mu = ', mu
+            !         end if
+            g(:,j,1) = g(:,j,1) - mu
+         end if
        end do
 !       open(58,file='gain_postsmooth' // trim(tod%freq) // '.dat', recl=1024)
        do j = 1, ndet
