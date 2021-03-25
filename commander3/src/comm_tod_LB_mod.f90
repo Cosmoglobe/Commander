@@ -329,6 +329,8 @@ contains
        if (.not. any(self%scans(i)%d%accept)) cycle
        call wall_time(t1)
 
+       write(*,*) 'a', self%myid, self%scanid(i)
+
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
@@ -340,24 +342,30 @@ contains
        end if
        allocate(s_buf(sd%ntod,sd%ndet))
 
+       write(*,*) 'b', self%myid, self%scanid(i)
+
        ! Calling Simulation Routine
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, handle)
           call sd%dealloc
           cycle
        end if
+       write(*,*) 'c', self%myid, self%scanid(i)
 
        ! Sample correlated noise
        call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       write(*,*) 'd', self%myid, self%scanid(i)
 
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       write(*,*) 'e', self%myid, self%scanid(i)
 
        ! Compute chisquare
-       do j = 1, sd%ndet
-          if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
-       end do
+!!$       do j = 1, sd%ndet
+!!$          if (.not. self%scans(i)%d(j)%accept) cycle
+!!$          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
+!!$       end do
+       write(*,*) 'f', self%myid, self%scanid(i)
 
        ! Select data
        if (select_data) call remove_bad_data(self, i, sd%flag)
@@ -365,9 +373,13 @@ contains
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
+       write(*,*) 'g', self%myid, self%scanid(i)
+
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)    
+
+       write(*,*) 'h', self%myid, self%scanid(i)
 
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
 !!$       if (self%output_4D_map > 0) then
@@ -393,6 +405,8 @@ contains
                & '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp),&
                & real(self%spinaxis(i,:),sp)
        end if
+
+       write(*,*) 'i', self%myid, self%scanid(i)
 
        ! Clean up
        call sd%dealloc

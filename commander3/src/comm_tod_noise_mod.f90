@@ -161,7 +161,7 @@ contains
 
           nbuff = nfft - ntod
           do j=1, nbuff
-             !dt(ntod+j) = sum(d_prime(ntod-20:ntod)) / 20.0 + (sum(d_prime(1:20)) - sum(d_prime(ntod-20:ntod))) / 20.0 * (j-1) / (nbuff - 1)
+             !dt(ntod+j) = sum(d_prime(ntod-20:ntod)) / 20.0 + (sum(d_prime(1:20)) - sum(d_prime(ntod-20:ntod))) / 20.0 * (j-1.0) / (nbuff - 1.0)
              !dt(ntod+j) = dt(max(ntod - int(j*ntod/real(nbuff,sp)),1))
              dt(ntod+j) = dt(ntod-j+1)
           end do
@@ -226,7 +226,7 @@ contains
 
   subroutine get_ncorr_sm_cg(handle, d_prime, ncorr, mask, N_psd, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band)
     ! 
-    ! Routine implementing the Sherman-Morrison based CG method (from Keihänen et al. 2021 arXiv:2011.06024) to solve the sampling equation for correlated noise in the presence of gaps in the data
+    ! Routine implementing the Sherman-Morrison based CG method (from Keihänen et al. 2021 arXiv:2011.06024) to solve the sampling equation for correlated noise in the presence of gaps in the data
     !
     ! Arguments
     ! ---------
