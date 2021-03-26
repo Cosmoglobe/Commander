@@ -110,15 +110,15 @@ contains
     
     constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
     if (trim(constructor%freq) == '030') then
-       constructor%xi_n_nu_fit     = [0.d0, 0.350d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_nu_fit     = [0.d0, 1.225d0]    ! More than max(7*fknee_DPC)
        constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
     else if (trim(constructor%freq) == '044') then
-       constructor%xi_n_nu_fit     = [0.d0, 0.200d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_nu_fit     = [0.d0, 1.00d0]    ! More than max(2*fknee_DPC)
        constructor%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
     else if (trim(constructor%freq) == '070') then
-       constructor%xi_n_nu_fit     = [0.d0, 0.040d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
        constructor%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
     else
