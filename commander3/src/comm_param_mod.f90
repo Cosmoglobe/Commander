@@ -1856,6 +1856,21 @@ contains
   end subroutine get_tokens
 
   subroutine get_detectors(filename, directory, detectors)
+     !
+     ! Reads detector names from a text file and saves them in a character array.
+     !
+     ! Arguments:
+     ! ----------
+     ! filename:  character string
+     !            Filename of the file where detector names are stored.
+     ! directory: character string
+     !            Drectory where file is stored.
+     !
+     ! Return:
+     ! -------
+     ! detectors: character array
+     !            Initially empty array is filled with detector names. 
+     ! 
      implicit none
      character(len=*), intent(in)    :: filename, directory
      character(len=*), intent(inout) :: detectors(:)
@@ -1872,7 +1887,8 @@ contains
      if (io_error == 0) then
      ! Do nothing
      else
-         stop 'Could not open file.'
+         write(*,*) 'Could not open file: ', trim(adjustl(detector_list_file))
+         stop
      end if
 
      do i=1, ndet
@@ -1919,6 +1935,23 @@ contains
   end function num_tokens
 
   integer(i4b) function count_detectors(filename, directory)
+     ! 
+     ! Takes in the filename and directory of a detector list and returns the number of 
+     ! detectors in that list. Each detector has to be written on a separate line, as 
+     ! the function simply counts the lines of the file that don't start in '#'.
+     !
+     ! Arguments:
+     ! ----------
+     ! filename:    character string
+     !              Filename of the detector list             
+     ! directory:   character string
+     !              Directory where file is located
+     !
+     ! Returns:
+     ! --------
+     ! count_detectors: integer
+     !                  Number of lines in the file that are not commented out using '#'.
+     !
      implicit none
      character(len=*) :: filename, directory
 
@@ -1934,7 +1967,8 @@ contains
      if (io_error == 0) then
           ! Do nothing
      else
-          stop 'Could not open file.'
+          write(*,*) 'Could not open file: ', trim(adjustl(detector_list_file))
+          stop
      end if
 
      counting = .true.
