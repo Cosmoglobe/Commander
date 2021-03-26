@@ -244,7 +244,7 @@ contains
 
     real(dp),          allocatable, dimension(:,:,:)  :: alms, regs, buffer3
     real(dp),          allocatable, dimension(:,:)    :: m
-    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop, theta_delta_prop
+    real(dp),          allocatable, dimension(:)      :: buffer, buffer2, rgs, chisq, theta_pixreg_prop, theta_delta_prop
     integer(c_int),    allocatable, dimension(:)      :: maxit
 
 
@@ -316,11 +316,12 @@ contains
        ! Gather alms from threads to alms array with correct indices
        do pl = 1, c%theta(j)%p%info%nmaps
           call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, 0, pl, pl)
-          allocate(buffer(c%nalm_tot))
-          call mpi_allreduce(alms(0,:,pl), buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          allocate(buffer(c%nalm_tot), buffer2(c%nalm_tot))
+          buffer2 = alms(0,:,pl)
+          call mpi_allreduce(buffer2, buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
           alms(0,:,pl) = buffer
           if (cpar%almsamp_pixreg) regs(0,:,pl) = c%theta_pixreg(:,pl,j)
-          deallocate(buffer)
+          deallocate(buffer, buffer2)
        end do
 
        ! uniform fix
@@ -350,7 +351,12 @@ contains
              ! Formatter for region output
              write(regfmt,'(I0)') size(c%theta_pixreg(1:,pl,j))
              regfmt = '(a,'//adjustl(trim(regfmt))//'(f7.3))'
-             if (cpar%myid_chain == 0) write(*,regfmt) ' using region priors', c%pixreg_priors(:c%npixreg(pl,j),pl,j)
+             if (cpar%myid_chain == 0) then
+               allocate(buffer(c%npixreg(pl,j)))
+               buffer = c%pixreg_priors(:c%npixreg(pl,j),pl,j)
+               write(*,regfmt) ' using region priors', buffer
+               deallocate(buffer)
+             end if
           else 
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
           end if
@@ -434,10 +440,11 @@ contains
              call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
 
              ! Send all alms to 0 (Dont allreduce because only root will do calculation)
-             allocate(buffer(c%nalm_tot))
-             call mpi_reduce(alms(i,:,pl), buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, 0, info%comm, ierr)
+             allocate(buffer(c%nalm_tot), buffer2(c%nalm_tot))
+             buffer2 = alms(i,:,pl)
+             call mpi_reduce(buffer2, buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, 0, info%comm, ierr)
              alms(i,:,pl) = buffer
-             deallocate(buffer)
+             deallocate(buffer, buffer2)
 
              if (.not. cpar%almsamp_pixreg) then
                 ! Propose new alms
@@ -658,7 +665,10 @@ contains
 
              if (info%myid == 0) then 
                 ! Output log to file
-                write(69, *) iter, tag, i, chisq(i), alms(i,:,pl)
+                allocate(buffer2(c%nalm_tot))
+                buffer2 = alms(i,:,pl)
+                write(69, *) iter, tag, i, chisq(i), buffer2
+                deallocate(buffer2)
                 write(66, *) iter, tag, i, chisq(i), c%theta_pixreg(:, pl, j)
 
                 ! Write to screen every out_every'th

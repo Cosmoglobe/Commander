@@ -427,7 +427,7 @@ contains
          end do
 
          ! Select data
-         if (select_data) call remove_bad_data(self, i, sd%flag)
+         !if (select_data) call remove_bad_data(self, i, sd%flag)
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)

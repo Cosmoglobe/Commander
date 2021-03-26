@@ -240,6 +240,7 @@ program commander
            if (cpar%myid_chain == 0) then
               write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                    & samp_group, ' of ', cpar%cg_num_user_samp_groups
+              write(*,*) trim(cpa%cg_samp_group(samp_group))
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
 
