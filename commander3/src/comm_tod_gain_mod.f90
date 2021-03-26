@@ -255,8 +255,7 @@ contains
           sigma_0 = calc_sigma_0(temp_gain)
 !          sigma_0 = 0.002d0
           call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), sigma_0, alpha, &
-!             & fknee, trim(tod%operation)=='sample', handle)
-             & fknee, .false., handle)
+             & fknee, trim(tod%operation)=='sample', handle)
        end do
     end if
 
