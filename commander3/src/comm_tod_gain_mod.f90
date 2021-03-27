@@ -195,52 +195,52 @@ contains
           g(k,j,2) = tod%scans(i)%d(j)%gain_invsigma
        end do
     end do
-    if (tod%myid == 0) then
-       call mpi_reduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
-            & 0, tod%comm, ierr)
-    else
-       call mpi_reduce(g,            g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
-            & 0, tod%comm, ierr)
-    end if
+!    if (tod%myid == 0) then
+       call mpi_allreduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
+            & tod%comm, ierr)
+!    else
+!       call mpi_reduce(g,            g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
+!            & 0, tod%comm, ierr)
+!    end if
 
-    if (tod%myid == 0) then
+!    if (tod%myid == 0) then
 !!$       open(58,file='tmp.unf', form='unformatted')
 !!$       read(58) g
 !!$       close(58)
 
-        count = count+1
+ !       count = count+1
         !write(*, *) "FREQ IS ", trim(tod%freq), count
        !nbin = nscan_tot / binsize + 1
 
-        open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
-          do k = 1, nscan_tot
-             !if (g(k,j,2) /= 0) then
-             !if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
-             if (g(k,j,2) > 0) then
-                if (abs(g(k, j, 1)) > 1e10) then
-                   write(*, *) 'G1'
-                   write(*, *) g(k, j, 1)
-                end if
-                if (abs(g(k, j, 2)) > 1e10) then
-                   write(*, *) 'G2'
-                   write(*, *) g(k, j, 2)
-                end if
-                !if (abs(dipole_mods(k, j) > 1e10)) then
-                !   write(*, *) 'DIPOLE_MODS'
-                !   write(*, *) dipole_mods(k, j)
-                !else
-                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-                !end if
-             else
-                write(58,*) j, k, 0., 0.0, 0., 0.
-             end if
-          end do
-          write(58,*)
-       end do
-       close(58)
+!!$!        open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$          do k = 1, nscan_tot
+!!$             !if (g(k,j,2) /= 0) then
+!!$             !if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
+!!$             if (g(k,j,2) > 0) then
+!!$                if (abs(g(k, j, 1)) > 1e10) then
+!!$                   write(*, *) 'G1'
+!!$                   write(*, *) g(k, j, 1)
+!!$                end if
+!!$                if (abs(g(k, j, 2)) > 1e10) then
+!!$                   write(*, *) 'G2'
+!!$                   write(*, *) g(k, j, 2)
+!!$                end if
+!!$                !if (abs(dipole_mods(k, j) > 1e10)) then
+!!$                !   write(*, *) 'DIPOLE_MODS'
+!!$                !   write(*, *) dipole_mods(k, j)
+!!$                !else
+!!$                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+!!$                !end if
+!!$             else
+!!$                write(58,*) j, k, 0., 0.0, 0., 0.
+!!$             end if
+!!$          end do
+!!$          write(58,*)
+!!$       end do
+!!$       close(58)
 
-       do j = 1, ndet
+       do j = 1+tod%myid, ndet, tod%numprocs
          if (all(g(:, j, 1) == 0)) continue
           fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
           alpha = -1.d0
@@ -257,10 +257,12 @@ contains
           call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), sigma_0, alpha, &
              & fknee, trim(tod%operation)=='sample', handle)
        end do
-    end if
+!    end if
 
     ! Distribute and update results
-    call mpi_bcast(g, size(g),  MPI_DOUBLE_PRECISION, 0, tod%comm, ierr)    
+       do j = 1, ndet
+          call mpi_bcast(g(:,j,:), size(g(:,j,:)),  MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
+       end do
     do j = 1, ndet
        do i = 1, tod%nscan
           k        = tod%scanid(i)
