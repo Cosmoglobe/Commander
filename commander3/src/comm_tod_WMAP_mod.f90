@@ -119,8 +119,8 @@ contains
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       if (.true.) then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.001, 0.250]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.4]    ! alpha
+         constructor%xi_n_P_uni(2,:) = [0.001, 0.1]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.8]    ! alpha
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
          stop
@@ -522,7 +522,8 @@ contains
            write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          end if
          call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                          & epsil(l), procmask, map_full, M_diag, b_map, l)
+                          & epsil(l), procmask, map_full, M_diag, b_map, l, &
+                          & prefix, postfix)
       end do
       if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
 

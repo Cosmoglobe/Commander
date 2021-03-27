@@ -551,7 +551,7 @@ end subroutine bin_differential_TOD
    end subroutine finalize_binned_map
 
 
-   subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l)
+   subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l, prefix, postfix)
      !
      !
      !  Subroutine that runs the biconjugate gradient-stabilized mapmaking
@@ -598,6 +598,9 @@ end subroutine bin_differential_TOD
      real(dp),                dimension(:,:), intent(in) :: M_diag
      real(dp),              dimension(:,:,:), intent(in) :: b_map
      integer(i4b),                            intent(in) :: l
+     character(len=512),                      intent(in) :: prefix
+     character(len=512),                      intent(in) :: postfix
+
 
 
 
@@ -607,11 +610,14 @@ end subroutine bin_differential_TOD
      real(dp)                                   :: alpha, beta, sigma_mono
      real(dp),     allocatable, dimension(:, :) :: r, s, q
      real(dp)                                   :: monopole
-     logical(lgt)                               :: finished
+     logical(lgt)                               :: finished, write_cg
      real(dp)                                   :: rho_old, rho_new
      real(dp)                                   :: omega, delta_r, delta_s
      real(dp),     allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
      real(dp),        allocatable, dimension(:) :: determ
+     character(len=512)                         :: iter_str
+
+     write_cg = .true.
 
      if (tod%myid==0) then
         allocate (r     (0:npix-1, nmaps))
@@ -687,6 +693,11 @@ end subroutine bin_differential_TOD
 
            bicg_sol(:,:,l) = bicg_sol(:,:,l) + alpha*phat
 
+           if (write_cg) then
+             write(unit=iter_str, fmt='(I0.3)') 2*i-1
+             call write_map(trim(prefix)//'bicg_'//trim(iter_str)//trim(postfix), bicg_sol(:,:,l))
+           end if
+
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
               write(*,*) 'Reached bicg-stab tolerance'
               finished = .true.
@@ -698,6 +709,12 @@ end subroutine bin_differential_TOD
 
            omega         = sum(q*s)/sum(q*q)
            bicg_sol(:,:,l) = bicg_sol(:,:,l) + omega*shat
+
+           if (write_cg) then
+             write(unit=iter_str, fmt='(I0.3)') 2*i
+             call write_map(trim(prefix)//'bicg_'//trim(iter_str)//trim(postfix), bicg_sol(:,:,l))
+           end if
+
            if (omega == 0d0) then
              write(*,*) 'omega is zero'
              finished = .true.
@@ -740,7 +757,6 @@ end subroutine bin_differential_TOD
            ! Maximum likelihood monopole
            monopole = sum((bicg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
                   & / sum(M_diag(:,1)*procmask)
-           write(*,*) monopole
            if (trim(tod%operation) == 'sample') then
               ! Add fluctuation term if requested
               sigma_mono = sum(M_diag(:,1) * procmask)
@@ -751,9 +767,7 @@ end subroutine bin_differential_TOD
               end if
               monopole = monopole + sigma_mono * rand_gauss(handle)
            end if
-           write(*,*) 'sampled final monopole = ', monopole
            bicg_sol(:,1,1) = bicg_sol(:,1,1) - monopole
-           write(*,*) 'bicg_sol monopole', sum(bicg_sol(:,1,1)*procmask)/sum(procmask)
         end if
      else
         loop: do while (.true.) 
