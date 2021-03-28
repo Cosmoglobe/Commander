@@ -655,7 +655,8 @@ contains
 
      real(dp), allocatable, dimension(:)     :: freqs, dt, inv_N_corr
      complex(dpc), allocatable, dimension(:) :: dv
-     real(dp), allocatable, dimension(:)     :: fluctuations
+     real(dp), allocatable, dimension(:)     :: fluctuations, temp
+     real(dp), allocatable, dimension(:)     :: precond
      complex(dpc), allocatable, dimension(:) :: fourier_fluctuations
      integer*8          :: plan_fwd, plan_back
      integer(i4b)       :: nscan, nfft, n, nomp, err
@@ -686,6 +687,8 @@ contains
 
      allocate(inv_N_corr(n))
      allocate(fluctuations(nscan))
+!     allocate(temp(nscan))
+     allocate(precond(nscan))
      allocate(fourier_fluctuations(n))
 
      write(*, *) 'Sigma_0: ', sigma_0
@@ -706,11 +709,15 @@ contains
         do i = 1, nscan
             fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
             b(i) = b(i) + fluctuations(i)
+            precond(i) = inv_N_wn(i) + 1 / sigma_0 ** 2
          end do
       end if
 
-      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, plan_fwd, plan_back)
-      deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations)
+!      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)
+!      precond = 1.d0
+!      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .false.)
+      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)
+      deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations, precond)
 
   end subroutine wiener_filtered_gain
 
@@ -760,15 +767,17 @@ contains
 
   end subroutine fourierv_to_time
 
-  function solve_cg_gain(inv_N_wn, inv_N_corr, b, plan_fwd, plan_back)
+  function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
+!     & with_precond)
      implicit none
-     real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b
+     real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b, precond
      integer*8             , intent(in) :: plan_fwd, plan_back
+!     logical(lgt)                       :: with_precond
 
      real(dp), dimension(size(b))       :: solve_cg_gain
      real(dp), allocatable, dimension(:)    :: initial_guess, prop_sol, residual
-     real(dp), allocatable, dimension(:)    :: p, Abyp, new_residual
-     real(dp)       :: alpha, beta
+     real(dp), allocatable, dimension(:)    :: p, Abyp, new_residual, z, new_z
+     real(dp)       :: alpha, beta, orig_residual
      integer(i4b)   :: iterations, nscan, i
      logical(lgt)   :: converged
      character(len=8)   :: itext
@@ -787,19 +796,21 @@ contains
 
      nscan = size(b)
      allocate(initial_guess(nscan), prop_sol(nscan), residual(nscan), p(nscan))
-     allocate(Abyp(nscan), new_residual(nscan))
+     allocate(Abyp(nscan), new_residual(nscan), z(nscan), new_z(nscan))
 
      initial_guess = 0.d0
      prop_sol = initial_guess
      residual = b - tot_mat_mul_by_vector(inv_N_wn, inv_N_corr, prop_sol, &
         & plan_fwd, plan_back)
+     orig_residual = sum(abs(residual))
+     z = residual / precond
 !      open(58, file='gain_cg_residual.dat')
 !      do i = 1, nscan
 !         write(58, *) residual(i)
 !      end do
 !      close(58)
 
-     p = residual
+     p = z
      iterations = 0
      converged = .false.
      do while ((.not. converged) .and. (iterations < 100000))
@@ -813,7 +824,7 @@ contains
 !            close(58)
 !         end if
 
-         alpha = sum(residual**2) / sum(p * Abyp) 
+         alpha = sum(residual * z) / sum(p * Abyp) 
          prop_sol = prop_sol + alpha * p
 !         if (iterations == 0) then
 !            write(*,*) 'Alpha:', alpha
@@ -833,12 +844,13 @@ contains
 !            close(58)
 !         end if
 
-         if (sum(abs(new_residual)) < 1e-12) then 
+         if (sum(abs(new_residual))/orig_residual < 1e-12) then 
             converged = .true.
             exit
          end if
-         beta = sum(new_residual ** 2) / sum(residual ** 2)
-         p = new_residual + beta * p
+         new_z = new_residual / precond
+         beta = sum(new_residual * new_z) / sum(residual * z)
+         p = new_z + beta * p
 !         if (iterations == 0) then
 !            write(*,*) 'Beta:', beta
 !            open(58, file='gain_cg_p.dat')
@@ -849,9 +861,10 @@ contains
 !         end if
 
          residual = new_residual
+         z = new_z
          iterations = iterations + 1
          if (mod(iterations, 100) == 0) then
-            write(*, *) "Gain CG search res: ", sum(abs(new_residual))
+            write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
 !            call int2string(iterations, itext)
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            do i = 1, nscan
@@ -871,9 +884,15 @@ contains
      if (.not. converged) then
         write(*, *) "Gain CG search did not converge."
      end if
+!     if (with_precond) then
+!        write(*, *) "With preconditioner"
+!     else
+!        write(*, *) "Without preconditioner"
+!     end if
+     write(*, *) "Gain CG iterations: ", iterations
      solve_cg_gain = prop_sol
 
-     deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual)
+     deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)
 
   end function solve_cg_gain
 
