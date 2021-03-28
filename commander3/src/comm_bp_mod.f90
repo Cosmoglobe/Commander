@@ -158,13 +158,12 @@ contains
        constructor%tau0(1) = 1.d0
     else
        if (present(detlabel)) then
-          write(*,*) 'a', trim(detlabel)
           call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), detlabel, &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
           call get_tokens(subdets, ",", dets, ndet)
-          write(*,*) 'b', trim(subdets), trim(dets(1))
+          write(*,*) 'HKE: This needs to be generalized for txt files', trim(subdets)
           call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
