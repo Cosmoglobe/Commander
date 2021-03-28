@@ -130,9 +130,9 @@ module comm_tod_SPIDER_mod
      constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
      constructor%nhorn           = 1
      constructor%compressed_tod  = .false.
-     constructor%correct_sl      = .true.
-     constructor%orb_4pi_beam    = .true.
-     constructor%symm_flags      = .true.
+     constructor%correct_sl      = .false.
+     constructor%orb_4pi_beam    = .false.
+     constructor%symm_flags      = .false.
      constructor%chisq_threshold = 20.d0 ! 9.d0
      constructor%nmaps           = info%nmaps
    !   constructor%ndet            = num_tokens(trim(cpar%datadir)//'/'//trim(adjustl(cpar%ds_tod_dets(id_abs))), ",")
@@ -169,7 +169,7 @@ module comm_tod_SPIDER_mod
  
      ! Allocate sidelobe convolution data structures
      allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-     constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+     if (constructor%orb_4pi_beam) constructor%orb_dp => comm_orbdipole(constructor%mbeam)
  
      ! Initialize all baseline corrections to zero
      do i = 1, constructor%nscan

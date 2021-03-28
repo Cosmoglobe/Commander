@@ -480,12 +480,17 @@ contains
     allocate(self%mb_eff(self%ndet))
     allocate(self%nu_c(self%ndet))
 
-    allocate(self%slbeam(self%ndet))
-    allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
 
-    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+    if (self%orb_4pi_beam) then
+       allocate(self%mbeam(self%ndet))
+    end if
+
+    if (self%correct_sl) then
+       allocate(self%slbeam(self%ndet))
+       call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
+       self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+    end if
 
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
@@ -493,9 +498,13 @@ contains
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'mbeam_eff', self%mb_eff(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
-       call self%mbeam(i)%p%Y()
+       if (self%correct_sl) then
+          self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       end if
+       if (self%orb_4pi_beam) then
+          self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
+          call self%mbeam(i)%p%Y()
+       end if
     end do
 
     call close_hdf_file(h5_file)
