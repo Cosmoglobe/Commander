@@ -23,6 +23,7 @@ module comm_tod_mapmaking_mod
    use comm_utils
    use comm_shared_arr_mod
    use comm_map_mod
+   use comm_param_mod
    implicit none
 
    type comm_binmap
@@ -36,7 +37,7 @@ module comm_tod_mapmaking_mod
     contains
       procedure :: init    => init_binmap
       procedure :: dealloc => dealloc_binmap
-      procedure :: synchronize => syncronize_binmap
+      procedure :: synchronize => synchronize_binmap
    end type comm_binmap
 
 contains
@@ -108,7 +109,7 @@ contains
 
   end subroutine dealloc_binmap
 
-  subroutine syncronize_binmap(self, tod)
+  subroutine synchronize_binmap(self, tod)
     implicit none
     class(comm_binmap),  intent(inout) :: self
     class(comm_tod),     intent(in)    :: tod
@@ -143,7 +144,7 @@ contains
     call mpi_win_fence(0, self%sA_map%win, ierr)
     call mpi_win_fence(0, self%sb_map%win, ierr)
 
-  end subroutine syncronize_binmap
+  end subroutine synchronize_binmap
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
@@ -615,9 +616,11 @@ end subroutine bin_differential_TOD
      real(dp)                                   :: omega, delta_r, delta_s
      real(dp),     allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
      real(dp),        allocatable, dimension(:) :: determ
-     character(len=512)                         :: iter_str
+     character(len=512)                         :: i_str, l_str
 
-     write_cg = .true.
+     ! Maybe udpate so that it's only output the first time?
+     !write_cg = .true.
+     write_cg = tod%first_call
 
      if (tod%myid==0) then
         allocate (r     (0:npix-1, nmaps))
@@ -633,7 +636,7 @@ end subroutine bin_differential_TOD
         allocate (determ(0:npix-1))
         determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
 
-        i_max = 200
+        i_max = 500
         i_min = 0
 
         if (.false. .and. l == 1) then
@@ -658,9 +661,11 @@ end subroutine bin_differential_TOD
         bicg: do
            i = i + 1
            rho_old = rho_new
+           call update_status(status, 'dot product')
            rho_new = sum(r0*r)
+           call update_status(status, 'done dot product')
            if (rho_new == 0d0) then
-             write(*,*) 'rho_i is zero'
+             if (tod%verbosity > 1) write(*,*) 'rho_i is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
@@ -676,7 +681,9 @@ end subroutine bin_differential_TOD
            phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
            phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
            
+           call update_status(status, 'v=A phat')
            call compute_Ax(tod, tod%x_im, procmask, phat, v)
+           call update_status(status, 'done')
            num_cg_iters = num_cg_iters + 1
 
            alpha         = rho_new/sum(r0*v)
@@ -694,39 +701,52 @@ end subroutine bin_differential_TOD
            bicg_sol(:,:,l) = bicg_sol(:,:,l) + alpha*phat
 
            if (write_cg) then
-             write(unit=iter_str, fmt='(I0.3)') 2*i-1
-             call write_map(trim(prefix)//'bicg_'//trim(iter_str)//trim(postfix), bicg_sol(:,:,l))
+             write(i_str, '(I0.3)') 2*i-1
+             write(l_str, '(I1)') l
+             call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                          & bicg_sol(:,:,l))
+             call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                          & r)
            end if
 
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
-              write(*,*) 'Reached bicg-stab tolerance'
+              if (tod%verbosity > 1) write(*,*) 'Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
            end if
 
+           call update_status(status, 'q=A shat')
            call compute_Ax(tod, tod%x_im, procmask, shat, q)
+           call update_status(status, 'done')
 
            omega         = sum(q*s)/sum(q*q)
            bicg_sol(:,:,l) = bicg_sol(:,:,l) + omega*shat
 
-           if (write_cg) then
-             write(unit=iter_str, fmt='(I0.3)') 2*i
-             call write_map(trim(prefix)//'bicg_'//trim(iter_str)//trim(postfix), bicg_sol(:,:,l))
-           end if
 
            if (omega == 0d0) then
-             write(*,*) 'omega is zero'
+             if (tod%verbosity > 1) write(*,*) 'omega is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
            end if
 
            if (mod(i, 10) == 1 .or. beta > 1.d8) then
+              call update_status(status, 'A xhat')
               call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,l), r)
+              call update_status(status, 'done')
               r = b_map(:, :, l) - r
            else
               r = s - omega*q
+           end if
+
+           if (write_cg) then
+             write(i_str, '(I0.3)') 2*i
+             write(l_str, '(I1)') l
+             call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                          & bicg_sol(:,:,l))
+             call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                          & r)
            end if
 
            rhat(:,1) =  r(:,1)/M_diag(:,1)
@@ -740,13 +760,13 @@ end subroutine bin_differential_TOD
 102           format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
            end if
            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
-              write(*,*) 'Reached bicg-stab tolerance'
+              if (tod%verbosity > 1) write(*,*) 'Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
            end if
            if (i==i_max) then
-             write(*,*) 'Reached maximum number of iterations'
+             if (tod%verbosity > 1) write(*,*) 'Reached maximum number of iterations'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg

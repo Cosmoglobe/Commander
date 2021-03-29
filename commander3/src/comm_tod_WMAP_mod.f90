@@ -120,7 +120,7 @@ contains
       if (.true.) then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
          constructor%xi_n_P_uni(2,:) = [0.001, 0.1]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.8]    ! alpha
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
          stop
@@ -435,7 +435,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.false. .and. i==1 .and. self%first_call) then
+         if (.true. .and. i==1 .and. iter == 10) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
@@ -451,20 +451,20 @@ contains
          end if
          
          ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-         if (self%output_4D_map > 0) then
-            if (mod(iter-1,self%output_4D_map) == 0) then
-               allocate(sigma0(sd%ndet))
-               do j = 1, sd%ndet
-                  sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
-               end do
-               call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                    & samptext, self%scanid(i), self%nside, self%npsi, &
-                    & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-                    & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                    & self%scans(i)%d(:)%accept)
-               deallocate(sigma0)
-            end if
-         end if
+         ! if (self%output_4D_map > 0) then
+         !    if (mod(iter-1,self%output_4D_map) == 0) then
+         !       allocate(sigma0(sd%ndet))
+         !       do j = 1, sd%ndet
+         !          sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
+         !       end do
+         !       call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+         !            & samptext, self%scanid(i), self%nside, self%npsi, &
+         !            & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
+         !            & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+         !            & self%scans(i)%d(:)%accept)
+         !       deallocate(sigma0)
+         !    end if
+         ! end if
 
          ! Bin TOD
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
@@ -509,7 +509,7 @@ contains
       allocate (bicg_sol(0:npix-1, nmaps, self%output_n_maps))
       if (self%myid == 0) then 
          bicg_sol = 0.0d0
-         epsil(1)   = 1d-10
+         epsil(1)   = 1d-12
          epsil(2:6) = 1d-6
          num_cg_iters = 0
          if (self%verbosity > 0) write(*,*) '  Running BiCG'
