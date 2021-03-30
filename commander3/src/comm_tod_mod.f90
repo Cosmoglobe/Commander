@@ -953,45 +953,45 @@ contains
          end do
 
        ! Sort according to weight
-       pweight = 0.d0
-       w_tot = sum(weight)
-       call QuickSort(id, weight)
-       do i = n_tot, 1, -1
-          ind             = minloc(pweight)-1
-          proc(id(i))     = ind(1)
-          pweight(ind(1)) = pweight(ind(1)) + weight(i)
-       end do
+!!$       pweight = 0.d0
+!!$       w_tot = sum(weight)
+!!$       call QuickSort(id, weight)
+!!$       do i = n_tot, 1, -1
+!!$          ind             = minloc(pweight)-1
+!!$          proc(id(i))     = ind(1)
+!!$          pweight(ind(1)) = pweight(ind(1)) + weight(i)
+!!$       end do
 !!$       deallocate(id, pweight, weight)
 
        ! Sort according to scan id
-!!$         proc    = -1
-!!$         call QuickSort(id, sid)
-!!$         w_tot = sum(weight)
-!!$         w_curr = 0.d0
-!!$         j     = 1
-!!$         do i = np-1, 1, -1
-!!$            w = 0.d0
-!!$            do k = 1, n_tot
-!!$               if (proc(k) == i) w = w + weight(k) 
-!!$            end do
-!!$            do while (w < real(np-1,sp)/real(np,sp)*w_tot/np .and. j <= n_tot)
-!!$               proc(id(j)) = i
-!!$               w           = w + weight(id(j))
-!!$               if (w > 1.2d0*w_tot/np) then
-!!$                  ! Assign large scans to next core
-!!$                  proc(id(j)) = i-1
-!!$                  w           = w - weight(id(j))
-!!$               end if
-!!$               j           = j+1
-!!$            end do
+         proc    = -1
+         call QuickSort(id, sid)
+         w_tot = sum(weight)
+         w_curr = 0.d0
+         j     = 1
+         do i = np-1, 1, -1
+            w = 0.d0
+            do k = 1, n_tot
+               if (proc(k) == i) w = w + weight(k) 
+            end do
+            do while (w < w_tot/np .and. j <= n_tot)
+               proc(id(j)) = i
+               w           = w + weight(id(j))
+               if (w > 1.2d0*w_tot/np) then
+                  ! Assign large scans to next core
+                  proc(id(j)) = i-1
+                  w           = w - weight(id(j))
+               end if
+               j           = j+1
+            end do
 !!$            if (w_curr > i*w_tot/np) then
 !!$               proc(id(j-1)) = i-1
 !!$            end if
-!!$         end do
-!!$         do while (j <= n_tot)
-!!$            proc(id(j)) = 0
-!!$            j = j+1
-!!$         end do
+         end do
+         do while (j <= n_tot)
+            proc(id(j)) = 0
+            j = j+1
+         end do
          pweight = 0.d0
          do k = 1, n_tot
             pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
