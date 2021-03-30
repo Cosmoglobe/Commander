@@ -718,6 +718,9 @@ contains
 !      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .false.)
       b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)
       deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations, precond)
+          
+      call dfftw_destroy_plan(plan_fwd)                                           
+      call dfftw_destroy_plan(plan_back) 
 
   end subroutine wiener_filtered_gain
 
@@ -742,6 +745,7 @@ contains
      !Normalization
      dv = dv / sqrt(real(nfft, dp))
      fourier_vector(1:n) = dv(0:n-1)
+     deallocate(dt, dv)
 
   end subroutine timev_to_fourier
 
@@ -764,6 +768,7 @@ contains
      ! Normalization
      dt = dt / sqrt(real(nfft, dp))
      vector = dt(1:nfft)
+     deallocate(dt, dv)
 
   end subroutine fourierv_to_time
 
