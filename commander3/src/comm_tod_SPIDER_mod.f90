@@ -49,11 +49,12 @@ module comm_tod_SPIDER_mod
   type, extends(comm_tod) :: comm_SPIDER_tod
      !class(orbdipole_pointer), allocatable :: orb_dp !orbital dipole calculator
    contains
-     procedure     :: process_tod        => process_SPIDER_tod
-     procedure     :: read_tod_inst      => read_tod_inst_SPIDER
-     procedure     :: read_scan_inst     => read_scan_inst_SPIDER
-     procedure     :: initHDF_inst       => initHDF_SPIDER
-     procedure     :: dumpToHDF_inst     => dumpToHDF_SPIDER
+     procedure     :: process_tod          => process_SPIDER_tod
+     procedure     :: read_tod_inst        => read_tod_inst_SPIDER
+     procedure     :: read_scan_inst       => read_scan_inst_SPIDER
+     procedure     :: initHDF_inst         => initHDF_SPIDER
+     procedure     :: load_instrument_inst => load_instrument_SPIDER
+     procedure     :: dumpToHDF_inst       => dumpToHDF_SPIDER
   end type comm_SPIDER_tod
 
   interface comm_SPIDER_tod
@@ -143,6 +144,7 @@ contains
    !  constructor%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",") ! Harald
     constructor%ndet     = count_lines(cpar%ds_tod_dets(id_abs),datadir)
     constructor%nhorn    = 1
+    constructor%ndiode   = 1
     allocate(constructor%stokes(constructor%nmaps))
     allocate(constructor%w(constructor%nmaps,constructor%nhorn,constructor%ndet))
     allocate(constructor%label(constructor%ndet))
@@ -183,7 +185,6 @@ contains
     allocate(constructor%fwhm(constructor%ndet))
     allocate(constructor%elip(constructor%ndet))
     allocate(constructor%psi_ell(constructor%ndet))
-    allocate(constructor%mb_eff(constructor%ndet))
     allocate(constructor%nu_c(constructor%ndet))
     
     call open_hdf_file(constructor%instfile, h5_file, 'r')
@@ -242,12 +243,9 @@ contains
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'fwhm', constructor%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'elip', constructor%elip(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'psi_ell', constructor%psi_ell(i))
-       call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'mbeam_eff', constructor%mb_eff(i))
        call read_hdf(h5_file, trim(adjustl(constructor%label(i)))//'/'//'centFreq', constructor%nu_c(i))
     end do
 
-    constructor%mb_eff = 1.d0 
-    constructor%mb_eff = constructor%mb_eff / mean(constructor%mb_eff)
     constructor%nu_c   = constructor%nu_c * 1d9
 
     call close_hdf_file(h5_file)
@@ -1577,6 +1575,28 @@ subroutine write2file(filename, iter, param)
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine initHDF_SPIDER
+
+  subroutine load_instrument_SPIDER(self, instfile, band)
+    !
+    ! Reads the LFI specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_SPIDER_tod
+    !    the spider tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_SPIDER_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+  end subroutine load_instrument_SPIDER
+
   
   subroutine dumpToHDF_SPIDER(self, chainfile, path)
     ! 

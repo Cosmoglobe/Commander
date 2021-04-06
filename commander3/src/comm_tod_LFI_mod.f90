@@ -44,18 +44,24 @@ module comm_tod_LFI_mod
   use comm_4D_map_mod
   use comm_tod_driver_mod
   use comm_utils
+  use comm_tod_adc_mod
   implicit none
 
   private
   public comm_LFI_tod
 
   type, extends(comm_tod) :: comm_LFI_tod
+     real(dp), allocatable, dimension(:)  :: mb_eff
+     real(dp), allocatable, dimension(:,:):: diode_weights
+     type(adc_pointer), allocatable, dimension(:,:,:,:) :: adc_corrections !ndet, n_diodes, nadc_templates, (sky, load)
+     real(dp), allocatable, dimension(:,:,:,:) :: spike_templates ! n_det, n_diode, 3 entries, 80 spikes
    contains
-     procedure     :: process_tod        => process_LFI_tod
-     procedure     :: read_tod_inst      => read_tod_inst_LFI
-     procedure     :: read_scan_inst     => read_scan_inst_LFI
-     procedure     :: initHDF_inst       => initHDF_LFI
-     procedure     :: dumpToHDF_inst     => dumpToHDF_LFI
+     procedure     :: process_tod          => process_LFI_tod
+     procedure     :: read_tod_inst        => read_tod_inst_LFI
+     procedure     :: read_scan_inst       => read_scan_inst_LFI
+     procedure     :: initHDF_inst         => initHDF_LFI
+     procedure     :: dumpToHDF_inst       => dumpToHDF_LFI
+     procedure     :: load_instrument_inst => load_instrument_LFI
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -132,6 +138,7 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
+    constructor%ndiode          = 4
     constructor%compressed_tod  = .false.
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
@@ -166,6 +173,12 @@ contains
 
     ! Construct lookup tables
     call constructor%precompute_lookups()
+
+    ! allocate LFI specific instrument file data
+    allocate(constructor%mb_eff(constructor%ndet))
+    allocate(constructor%diode_weights(constructor%ndet, 2))
+    allocate(constructor%spike_templates(constructor%ndet, 2, 3, 80))
+    allocate(constructor%adc_corrections(constructor%ndet, 2, 2, 2))
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -498,6 +511,9 @@ contains
     character(len=*),                    intent(in)    :: slabel
     character(len=*), dimension(:),      intent(in)    :: detlabels
     class(comm_scan),                    intent(inout) :: scan
+
+    ! read the undifferenced data
+
   end subroutine read_scan_inst_LFI
 
   subroutine initHDF_LFI(self, chainfile, path)
@@ -523,6 +539,80 @@ contains
     character(len=*),                    intent(in)     :: path
   end subroutine initHDF_LFI
   
+  subroutine load_instrument_LFI(self, instfile, band)
+    !
+    ! Reads the LFI specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_LFI_tod
+    !    the LFI tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_LFI_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+
+    integer(i4b) :: i
+    character(len=2) :: diode_name
+    real(dp), dimension(:,:), allocatable :: adc_buffer 
+
+    ! Read in mainbeam_eff
+    call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'mbeam_eff', self%mb_eff(band))
+
+    ! read in the diode weights
+    call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', self%diode_weights(band,1:1))
+    self%diode_weights(band,2:2) = 1.d0 - self%diode_weights(band,1:1)    
+
+    do i=0, 1
+      if(index(self%label(band), 'M') /= 0) then
+        if(i == 0) then
+          diode_name = '00'
+        else
+          diode_name = '01'
+        end if
+      else
+        if(i == 0) then
+          diode_name = '10'
+        else
+          diode_name = '11'
+        end if
+      end if
+      write(self%diode_names(band,i+1), 'sky'//diode_name)
+      write(self%diode_names(band,i+3), 'ref'//diode_name)
+
+      ! read in adc correction templates
+      ! TODO: determine if read_hdf allocates the array when reading
+      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc_91-'//diode_name, adc_buffer)
+
+      
+      self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for first half, sky
+
+      self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc correction for first half, load
+
+      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc_953-'//diode_name, adc_buffer)
+
+      self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for second half, sky
+
+      self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc corrections for second half, load
+
+    
+      if (index(self%label(band), '44') /= 0) then ! read spike templates
+
+        call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
+
+      end if     
+ 
+    end do
+      
+  end subroutine load_instrument_LFI
+
   subroutine dumpToHDF_LFI(self, chainfile, path)
     ! 
     ! Writes LFI-specific TOD parameters to existing chain file

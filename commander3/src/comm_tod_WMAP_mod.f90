@@ -56,11 +56,12 @@ module comm_tod_WMAP_mod
    type, extends(comm_tod) :: comm_WMAP_tod
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
    contains
-      procedure     :: process_tod    => process_WMAP_tod
-      procedure     :: read_tod_inst  => read_tod_inst_WMAP
-      procedure     :: read_scan_inst => read_scan_inst_WMAP
-      procedure     :: initHDF_inst   => initHDF_WMAP
-      procedure     :: dumpToHDF_inst => dumpToHDF_WMAP
+      procedure     :: process_tod           => process_WMAP_tod
+      procedure     :: read_tod_inst         => read_tod_inst_WMAP
+      procedure     :: read_scan_inst        => read_scan_inst_WMAP
+      procedure     :: initHDF_inst          => initHDF_WMAP
+      procedure     :: load_instrument_inst  => load_instrument_WMAP
+      procedure     :: dumpToHDF_inst        => dumpToHDF_WMAP
    end type comm_WMAP_tod
 
    interface comm_WMAP_tod
@@ -132,6 +133,7 @@ contains
       ! Set up WMAP specific parameters
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn           = 2
+      constructor%ndiode          = 1
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
       constructor%correct_sl      = .false.
@@ -657,6 +659,28 @@ contains
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine initHDF_WMAP
+
+  subroutine load_instrument_WMAP(self, instfile, band)
+    !
+    ! Reads the LFI specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_WMAP_tod
+    !    the WMAP tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_WMAP_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+  end subroutine load_instrument_WMAP
+
   
   subroutine dumpToHDF_WMAP(self, chainfile, path)
     ! 

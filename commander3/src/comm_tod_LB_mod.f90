@@ -52,11 +52,12 @@ module comm_tod_LB_mod
 
   type, extends(comm_tod) :: comm_LB_tod
    contains
-     procedure     :: process_tod        => process_LB_tod
-     procedure     :: read_tod_inst      => read_tod_inst_LB
-     procedure     :: read_scan_inst     => read_scan_inst_LB
-     procedure     :: initHDF_inst       => initHDF_LB
-     procedure     :: dumpToHDF_inst     => dumpToHDF_LB
+     procedure     :: process_tod          => process_LB_tod
+     procedure     :: read_tod_inst        => read_tod_inst_LB
+     procedure     :: read_scan_inst       => read_scan_inst_LB
+     procedure     :: initHDF_inst         => initHDF_LB
+     procedure     :: load_instrument_inst => load_instrument_LB
+     procedure     :: dumpToHDF_inst       => dumpToHDF_LB
   end type comm_LB_tod
 
   interface comm_LB_tod
@@ -126,6 +127,7 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
+    constructor%ndiode          = 1
     constructor%compressed_tod  = .false.
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .false.
@@ -521,6 +523,28 @@ contains
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine initHDF_LB
+
+  subroutine load_instrument_LB(self, instfile, band)
+    !
+    ! Reads the LiteBIRD specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_LB_tod
+    !    the LiteBIRD tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_LB_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+  end subroutine load_instrument_LB
+
   
   subroutine dumpToHDF_LB(self, chainfile, path)
     ! 

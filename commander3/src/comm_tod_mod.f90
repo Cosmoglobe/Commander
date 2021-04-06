@@ -51,6 +51,8 @@ module comm_tod_mod
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)    :: ztod           ! compressed values in time domain, (ntod)
+     real(sp),           allocatable, dimension(:,:)  :: diode          ! (ndiode, ntod) array of undifferenced data
+     type(byte_pointer), allocatable, dimension(:)    :: zdiode         ! pointers to the compressed undeifferenced diode data, len (ndiode)
      byte,               allocatable, dimension(:)    :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      type(byte_pointer), allocatable, dimension(:)    :: pix            ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
@@ -92,6 +94,8 @@ module comm_tod_mod
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
+     integer(i4b) :: ndiode                                      ! Number of diodes that makeup each detector
+     character(len=10), allocatable, dimension(:,:)  :: diode_names  ! Names of each diode, (ndet, ndiode)
      integer(i4b) :: nscan, nscan_tot                             ! Number of scans
      integer(i4b) :: first_scan, last_scan
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
@@ -109,7 +113,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
-     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell, mb_eff                         ! Beam parameter
+     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
      real(dp), allocatable, dimension(:)     :: nu_c                                        ! Center frequency
      real(dp), allocatable, dimension(:,:,:) :: prop_bp         ! proposal matrix, L(ndet,ndet,ndelta),  for bandpass sampler
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
@@ -179,8 +183,10 @@ module comm_tod_mod
      procedure                           :: symmetrize_flags
      procedure                           :: decompress_pointing_and_flags
      procedure                           :: decompress_tod
+     procedure                           :: decompress_diodes
      procedure                           :: tod_constructor
      procedure                           :: load_instrument_file
+     procedure(load_instrument_inst), deferred :: load_instrument_inst
      procedure                           :: precompute_lookups
      procedure                           :: read_jumplist
   end type comm_tod
@@ -231,6 +237,29 @@ module comm_tod_mod
        type(hdf_file),                      intent(in)     :: chainfile
        character(len=*),                    intent(in)     :: path
      end subroutine dumpToHDF_inst
+
+     subroutine load_instrument_inst(self, instfile, band)
+
+     ! Abstract method that gets called to read instrument specific fields in 
+     !  the instrument file, should be extended by each tod class
+     !
+     ! Parameters:
+     ! 
+     ! self : comm_tod
+     !    the comm_tod object that this call is coming from
+     ! file : hdf_file
+     !    the open file handle for the instrument file
+     ! band : int
+     !    the index of the current detector that is being read in
+     !
+     ! Returns : None
+
+       import i4b, comm_tod, hdf_file
+       implicit none
+       class(comm_tod),                     intent(inout) :: self
+       type(hdf_file),                      intent(in)    :: instfile
+       integer(i4b),                        intent(in)    :: band
+     end subroutine load_instrument_inst
   end interface
 
   type tod_pointer
@@ -365,6 +394,7 @@ contains
     allocate(self%label(self%ndet))
     allocate(self%partner(self%ndet))
     allocate(self%horn_id(self%ndet))
+    allocate(self%diode_names(self%ndet, self%ndiode))
     self%stokes = [1,2,3]
     self%w      = 1.d0
     self%x_im   = 0d0
@@ -477,7 +507,6 @@ contains
     allocate(self%fwhm(self%ndet))
     allocate(self%elip(self%ndet))
     allocate(self%psi_ell(self%ndet))
-    allocate(self%mb_eff(self%ndet))
     allocate(self%nu_c(self%ndet))
 
     allocate(self%slbeam(self%ndet))
@@ -491,18 +520,15 @@ contains
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
-       call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'mbeam_eff', self%mb_eff(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
        self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
        self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
        call self%mbeam(i)%p%Y()
+
+       call self%load_instrument_inst(h5_file, i)
     end do
 
     call close_hdf_file(h5_file)
-
-    !mb_eff isn't used at the moment
-    self%mb_eff = 1.d0
-    self%mb_eff = self%mb_eff / mean(self%mb_eff)
 
     self%nu_c   = self%nu_c * 1d9
 
@@ -606,7 +632,7 @@ contains
     allocate(self%scans(self%nscan))
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
-            & detlabels, self%nhorn)
+            & detlabels, self%nhorn, self%ndiode, self%diode_names)
        do det = 1, self%ndet
           if (self%compressed_tod) then
             self%scans(i)%d(det)%accept = .true.
@@ -667,7 +693,7 @@ contains
 
   end subroutine read_tod
 
-  subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels, nhorn)
+  subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels, nhorn, ndiode, diode_names)
     ! 
     ! Reads common scan information from TOD fileset
     ! 
@@ -687,6 +713,11 @@ contains
     !           Number of horns
     ! detlabels: string (array)
     !           Array of detector labels, e.g., ["27M", "27S"]
+    ! ndiode:   int 
+    !           Number of diodes per combined tod
+    ! diode_names : string (array (ndet, ndiode)
+    !           Array of diode labels, eg. [['sky00', 'sky01', 'load00',
+    !           'load01'], ['sky10', 'sky11', 'load10', 'load11'], ...]
     ! scan:     derived class (comm_scan)
     !           
     !
@@ -702,10 +733,11 @@ contains
     class(comm_scan),               intent(inout) :: self
     class(comm_tod),                intent(in)    :: tod
     character(len=*),               intent(in)    :: filename
-    integer(i4b),                   intent(in)    :: scan, ndet, nhorn
-    character(len=*), dimension(:), intent(in)     :: detlabels
+    integer(i4b),                   intent(in)    :: scan, ndet, nhorn, ndiode
+    character(len=*), dimension(:), intent(in)    :: detlabels
+    character(len=*), dimension(:,:), intent(in)  :: diode_names
 
-    integer(i4b)       :: i,j, n, m, ext(1)
+    integer(i4b)       :: i,j,k, n, m, ext(1)
     real(dp)           :: scalars(4)
     character(len=6)   :: slabel
     character(len=128) :: field
@@ -782,16 +814,32 @@ contains
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
-       if (tod%compressed_tod) then
-          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
-       else
-          allocate(self%d(i)%tod(m))
-          call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-          if (tod%halfring_split == 2 )then
-             self%d(i)%tod = buffer_sp(m+1:2*m)
-          else
-             self%d(i)%tod = buffer_sp(1:m)
-          end if
+       if(ndiode == 1) then
+         if (tod%compressed_tod) then
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+         else
+            allocate(self%d(i)%tod(m))
+            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+            if (tod%halfring_split == 2 )then
+               self%d(i)%tod = buffer_sp(m+1:2*m)
+            else
+               self%d(i)%tod = buffer_sp(1:m)
+            end if
+         end if
+       else ! ndiode > 1 per tod
+          if(tod%compressed_tod == .false.) allocate(self%d(i)%diode(ndiode, m))
+          do k = 1, ndiode
+            if (tod%compressed_tod) then
+               call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
+            else
+               call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
+               if (tod%halfring_split == 2 )then
+                 self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
+               else
+                 self%d(i)%diode(k, :) = buffer_sp(1:m)
+               end if
+            end if
+          end do
        end if
     end do
     deallocate(buffer_sp)
@@ -1794,6 +1842,44 @@ contains
 
   end subroutine decompress_pointing_and_flags
 
+  subroutine decompress_diodes(self, scan, det, diodes)
+    ! Decompress per-diode tod information
+    ! 
+    ! Inputs:
+    ! ----------
+    ! self: comm_tod
+    !
+    ! scan: integer
+    !     scan integer label
+    ! det: integer
+    !     detector number
+    !
+    ! Returns:
+    ! --------
+    ! diodes : real(sp) (ntod, ndiode)
+    !    full raw diode values
+
+    implicit none
+    class(comm_tod),                    intent(in)  :: self
+    integer(i4b),                       intent(in)  :: scan, det
+    real(sp),          dimension(:,:),  intent(out) :: diodes
+
+    integer(i4b) :: i
+    integer(i4b), allocatable, dimension(:) :: tod_int
+
+    allocate(tod_int(size(diodes(:,1))))
+
+    do i = 1, self%ndiode
+
+        call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, tod_int)
+
+        diodes(:,i) = real(tod_int, sp)
+    end do
+ 
+    deallocate(tod_int)
+
+  end subroutine decompress_diodes
+
 
   subroutine decompress_tod(self, scan, det, tod)
     !
@@ -1830,8 +1916,7 @@ contains
     deallocate(tod_int)
 
   end subroutine decompress_tod
-
-
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Subroutine to save time-ordered-data chunk
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
