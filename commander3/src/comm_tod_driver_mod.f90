@@ -35,6 +35,8 @@ module comm_tod_driver_mod
 
      real(sp),     allocatable, dimension(:,:)     :: s_totA     ! Total signal, horn A (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_totB     ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbA     ! Orbital signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbB     ! Orbital signal, horn B (differential only)
    contains
      procedure  :: init_singlehorn   => init_scan_data_singlehorn
      procedure  :: init_differential => init_scan_data_differential
@@ -253,6 +255,8 @@ contains
     allocate(self%s_tot(self%ntod, self%ndet))
     allocate(self%s_totA(self%ntod, self%ndet))
     allocate(self%s_totB(self%ntod, self%ndet))
+    allocate(self%s_orbA(self%ntod, self%ndet))
+    allocate(self%s_orbB(self%ntod, self%ndet))
     allocate(self%mask(self%ntod, self%ndet))
     allocate(self%pix(self%ntod, 1, self%nhorn))
     allocate(self%psi(self%ntod, 1, self%nhorn))
@@ -265,6 +269,9 @@ contains
     self%s_tot  = 0.
     self%s_totA = 0.
     self%s_totB = 0.
+    self%s_orb  = 0.
+    self%s_orbA = 0.
+    self%s_orbB = 0.
 
     allocate(s_bufA(self%ntod, self%ndet))
     allocate(s_bufB(self%ntod, self%ndet))
@@ -336,11 +343,13 @@ contains
     ! Construct orbital dipole template
     call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA, 1d3)
     call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB, 1d3)
+    self%s_orbA = s_bufA
+    self%s_orbB = s_bufB
+    self%s_totA = self%s_totA + self%s_orbA
+    self%s_totB = self%s_totB + self%s_orbB
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       self%s_orb(:,j)  = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
-       self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
-       self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
+       self%s_orb(:,j)  = (1.+tod%x_im(j))*self%s_orbA(:,j)  - (1.-tod%x_im(j))*self%s_orbB(:,j)
        self%s_tot(:,j)  = self%s_tot(:,j)  + self%s_orb(:,j)
     end do
 
@@ -413,6 +422,8 @@ contains
     if (allocated(self%s_zodi))      deallocate(self%s_zodi)
     if (allocated(self%s_totA))      deallocate(self%s_totA)
     if (allocated(self%s_totB))      deallocate(self%s_totB)
+    if (allocated(self%s_orbA))      deallocate(self%s_orbA)
+    if (allocated(self%s_orbB))      deallocate(self%s_orbB)
 
   end subroutine dealloc_scan_data
 
@@ -489,7 +500,14 @@ contains
           if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
              ! Calibrator = orbital dipole only
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invN(:,j))
-          else if (trim(mode) == 'imbal') then
+          else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
+             ! Calibrator = common mode signal
+             ! Jarosik uses the orbital dipole for this.
+             s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_orbA(:,j) + sd%s_orbB(:,j))
+             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
+               & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+             call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
+          else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
              ! Calibrator = common mode signal
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_totA(:,j) + sd%s_totB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
@@ -502,30 +520,22 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
           end if
        end do
-       do j = 1, tod%ndet
-             if (tod%scanid(i) == 30) then
-               write(*,*) 'abscaltest1', j, 'sum(s(:,j))', sum(s_invN(:,j))
-             end if
-       end do
+       !do j = 1, tod%ndet
+       !      if (tod%scanid(i) == 30) then
+       !        write(*,*) 'abscaltest1', j, 'sum(s(:,j))', sum(s_invN(:,j))
+       !      end if
+       !end do
        call multiply_inv_N(tod, i, s_invN, sampfreq=tod%samprate_lowres, pow=0.5d0)
-       do j = 1, tod%ndet
-             if (tod%scanid(i) == 30) then
-               write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
-             end if
-       end do
+       !do j = 1, tod%ndet
+       !      if (tod%scanid(i) == 30) then
+       !        write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
+       !      end if
+       !end do
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
-             !if (trim(mode) == 'abscal') then
-             !  write(*,*) 'test', tod%scanid(i), j, tod%gain0(j), tod%scans(i)%d(j)%dgain, &
-             !             & sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))
-             !end if
-             !if (tod%scanid(i)==30) write(*,*) 'j, tod%gain0(j), tod%scans(i)%d(j)%dgain,'//&
-             !                &' sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))'
-             !if (tod%scanid(i)==30) write(*,*) j, tod%gain0(j), tod%scans(i)%d(j)%dgain, &
-             !                       & sum(abs(1.d0*sd%s_tot(:, j))), sum(1.d0*abs(sd%s_orb(:,j)))
              if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_orb(:,j)) + &
                      & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
@@ -534,12 +544,14 @@ contains
                 s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'relcal') then
                 s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
-             else if (trim(mode) == 'imbal') then
+             else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
+                 s_buf(:,j) = real(tod%scans(i)%d(j)%gain,sp) * (  &
+             &   sd%s_totA(:,j) - sd%s_totB(:,j) + &
+             &   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j))  &
+             & - real(tod%x_im(j),sp)*(sd%s_orbA(:,j) + sd%s_orbB(:,j))  &
+             &   )
+             else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
-                if (tod%scanid(i) == 30) then
-                  write(*,*) 'imbaltest_fin', j, sum(s_buf(:,j))
-                  write(*,*) 'gain', tod%scans(i)%d(j)%gain
-                end if
              end if
           end do
           if (tod%compressed_tod) then

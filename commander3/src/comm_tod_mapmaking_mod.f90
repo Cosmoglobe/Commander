@@ -403,6 +403,7 @@ end subroutine bin_differential_TOD
 
    end subroutine compute_Ax
 
+
   subroutine finalize_binned_map(tod, binmap, handle, rms, scale, chisq_S, mask)
     !
     ! Routine to finalize the binned maps
@@ -551,7 +552,6 @@ end subroutine bin_differential_TOD
 
    end subroutine finalize_binned_map
 
-
    subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l, prefix, postfix)
      !
      !
@@ -618,7 +618,7 @@ end subroutine bin_differential_TOD
      real(dp),        allocatable, dimension(:) :: determ
      character(len=512)                         :: i_str, l_str
 
-     ! Maybe udpate so that it's only output the first time?
+     ! Maybe update so that it's only output the first time?
      !write_cg = .true.
      write_cg = tod%first_call
 
@@ -639,7 +639,7 @@ end subroutine bin_differential_TOD
         i_max = 500
         i_min = 0
 
-        if (.false. .and. l == 1) then
+        if (.true. .and. l == 1) then
            call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,1), v)
            r = b_map(:, :, l) - v 
         else
@@ -799,5 +799,6 @@ end subroutine bin_differential_TOD
      if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
 
    end subroutine run_bicgstab
+
 
 end module comm_tod_mapmaking_mod

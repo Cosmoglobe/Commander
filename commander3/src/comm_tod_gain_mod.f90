@@ -315,9 +315,9 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         if (tod%scanid(scan) == 30 .and. out) write(*,*) 'scan, tod(1,j), s_sub(1,j), baseline'
-         if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), tod_arr(1,j), s_sub(1,j), tod%scans(scan)%d(j)%baseline
+         r_fill = tod_arr(:,j) - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
+         !if (tod%scanid(scan) == 30 .and. out) write(*,*) 'scan, tod(1,j), s_sub(1,j), baseline'
+         !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), tod_arr(1,j), s_sub(1,j), tod%scans(scan)%d(j)%baseline
        else
          r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
          !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
@@ -571,6 +571,28 @@ contains
          write(*,*) 'b', b
          write(*,*) 'A', A
          write(*,*) 'imbal =', tod%x_im(1), tod%x_im(3)
+         ! WMAP has only used the orbital dipole alone to solve for the
+         ! transmission imbalance terms. For K11 and K12, the results they have
+         ! are
+         ! 1-year: -0.00204             -0.00542
+         ! 3-year:  0.0000  \pm 0.0007   0.0056  \pm 0.0001
+         ! 5-year:  0.00012              0.00589
+         ! 7-year: -0.00063 \pm 0.00022  0.00539 \pm 0.00010
+         ! 9-year: -0.00067 \pm 0.00017  0.00536 \pm 0.00014
+         !
+         ! The values that I have been getting using Commander are closer to
+         !         -0.00483              0.00439
+         ! There are certainly some differences in how the WMAP analysis
+         ! proceeded versus the Commander analysis. My thoughts currently are:
+         ! 1. Calibrating against the total sky signal versus orbital dipole
+         ! 2. A difference in how x_im is determined algorithmically
+         ! 3. A typo in my implementation of the imbalance sampling.
+         ! 
+         ! To me, these are in reverse order of likelihood. I also wonder if
+         ! there is some degeneracy with x_im and the gain. The best way to
+         ! determine this is to see if this difference still exists with
+         ! identical gain solutions.
+
        end if
     end if
     call mpi_bcast(tod%x_im, 4,  MPI_DOUBLE_PRECISION, 0, &
@@ -688,9 +710,9 @@ contains
      allocate(fluctuations(nscan))
      allocate(fourier_fluctuations(n))
 
-     write(*, *) 'Sigma_0: ', sigma_0
-     write(*, *) 'alpha: ', alpha
-     write(*, *) 'fknee: ', fknee
+     !write(*, *) 'Sigma_0: ', sigma_0
+     !write(*, *) 'alpha: ', alpha
+     !write(*, *) 'fknee: ', fknee
 
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
      if (sample) then
@@ -850,15 +872,15 @@ contains
 
          residual = new_residual
          iterations = iterations + 1
-         if (mod(iterations, 100) == 0) then
-            write(*, *) "Gain CG search res: ", sum(abs(new_residual))
+!         if (mod(iterations, 100) == 0) then
+!            write(*, *) "Gain CG search res: ", sum(abs(new_residual))
 !            call int2string(iterations, itext)
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            do i = 1, nscan
 !               write(58, *) prop_sol(i)
 !            end do
 !            close(58)
-         end if
+!         end if
 !         if (iterations == 1) then
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            call int2string(iterations, itext)

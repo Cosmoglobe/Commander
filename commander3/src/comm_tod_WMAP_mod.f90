@@ -282,7 +282,9 @@ contains
       ! Toggle optional operations
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-      select_data           = self%first_call        ! only perform data selection the first time
+      select_data           = .false.                ! only perform data selection the first time
+      ! The first couple of iterations have quite bad chi-square for certain
+      ! detectors, but it quickly settles down.
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
       ! Initialize local variables
@@ -291,7 +293,7 @@ contains
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
-      self%output_n_maps = 3
+      self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
       end if
@@ -313,6 +315,9 @@ contains
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
       deallocate(m_buf)
 
+
+
+
       ! Allocate total map (for monopole sampling)
       allocate(map_full(0:npix-1))
       map_full = 0.d0
@@ -331,38 +336,15 @@ contains
 
       call update_status(status, "tod_init")
 
-      !if (self%myid == 0) then
-      !  write(*,*) 'Input map statistics, I/Q/U'
-      !  write(*,*) minval(map_sky(1,:,:,1)), maxval(map_sky(1,:,:,1)), minval(abs(map_sky(1,:,:,1))), sum(map_sky(1,:,:,1)), sum(abs(map_sky(1,:,:,1)))
-      !  write(*,*) minval(map_sky(2,:,:,1)), maxval(map_sky(2,:,:,1)), minval(abs(map_sky(2,:,:,1))), sum(map_sky(2,:,:,1)), sum(abs(map_sky(2,:,:,1)))
-      !  write(*,*) minval(map_sky(3,:,:,1)), maxval(map_sky(3,:,:,1)), minval(abs(map_sky(3,:,:,1))), sum(map_sky(3,:,:,1)), sum(abs(map_sky(3,:,:,1)))
-      !end if
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
       call sample_baseline(self, handle, map_sky, procmask, procmask2)
-      !do i = 1, self%nscan
-      !  if (self%scanid(i) == 30) then
-      !    call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-      !      & init_s_bp=.true.)
-      !    write(*,*) "S_orb"
-      !    write(*,*) sd%tod(1,1), sd%s_orb(1,1)
-      !    write(*,*) sd%tod(1,2), sd%s_orb(1,2)
-      !    write(*,*) sd%tod(1,3), sd%s_orb(1,3)
-      !    write(*,*) sd%tod(1,4), sd%s_orb(1,4)
-      !    write(*,*) 'baseline', self%scans(i)%d(1)%baseline
-      !    do j = 1, 4
-      !      write(*,*) 'j, sum(sd%s_sky(:,j), sum(sd%s_orb(:,j))', j, sum(sd%s_sky(:,j)), sum(sd%s_orb(:,j))
-      !    end do
-      !    call sd%dealloc
-      !  end if
-      !end do
-      ! The baseline sampling and the orbital dipole template seem to be exactly
-      ! the same. Something must be strange with the accumulation step.
       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2)
+      ! Write out the way that WMAP calculated the imbalance parameters.
 
 
 
@@ -425,9 +407,12 @@ contains
             call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
               & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
          end do
+         ! Should we be computing the chisq of the sums and differences?
+         ! I also think I just need to double check the chisq calculation,
+         ! because to me, the fit looks quite good.
 
          ! Select data
-         !if (select_data) call remove_bad_data(self, i, sd%flag)
+         if (select_data) call remove_bad_data(self, i, sd%flag)
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
@@ -440,11 +425,15 @@ contains
             if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
                open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
-               write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
-                    & " s_orbA (mK)  s_orbB (mK)  mask, baseline, flag"
+               write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  sky (mK)  "// &
+                    & " s_orb (mK),  mask, baseline, sl, bp, gain, sigma0"
                do j = 1, sd%ntod
                   write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
-                   &  sd%s_sky(j,k), sd%s_orb(j,k), sd%mask(j, k), self%scans(i)%d(k)%baseline
+                   &  sd%s_totA(j,k), sd%s_orbA(j,k), &
+                   &  sd%s_totB(j,k), sd%s_orbB(j,k), &
+                   &  sd%mask(j, k), self%scans(i)%d(k)%baseline, &
+                   &  sd%s_sl(j,k),  sd%s_bp(j,k), real(self%scans(i)%d(k)%gain, sp), &
+                   &  real(self%scans(i)%d(k)%N_psd%sigma0, sp)
                end do
                close(78)
             end do
@@ -503,15 +492,23 @@ contains
       where (M_diag == 0d0)
          M_diag = 1d0
       end where
+      ! If we want to not do the "better preconditioning"
+      M_diag(:,4) = 0d0
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       allocate (bicg_sol(0:npix-1, nmaps, self%output_n_maps))
+      allocate(m_buf(0:npix-1,nmaps))
+      call map_in(1,1)%p%bcast_fullsky_map(m_buf)
+      bicg_sol = 0.0d0
+      !bicg_sol(:,:,1) = m_buf
+      deallocate(m_buf)
+
+      epsil(1)   = 1d-12
+      !epsil(1)   = 1d-8
+      epsil(2:6) = 1d-6
+      num_cg_iters = 0
       if (self%myid == 0) then 
-         bicg_sol = 0.0d0
-         epsil(1)   = 1d-12
-         epsil(2:6) = 1d-6
-         num_cg_iters = 0
          if (self%verbosity > 0) write(*,*) '  Running BiCG'
       end if
 
