@@ -637,7 +637,11 @@ end subroutine bin_differential_TOD
         determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
 
         i_max = 500
-        i_min = 0
+        if (write_cg) then
+          i_min = 400
+        else
+          i_min = 0
+        end if
 
         if (.true. .and. l == 1) then
            call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,1), v)
