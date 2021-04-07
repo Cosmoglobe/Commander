@@ -139,7 +139,7 @@ contains
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
     constructor%ndiode          = 4
-    constructor%compressed_tod  = .false.
+    constructor%compressed_tod  = .true.
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
     constructor%symm_flags      = .true.
@@ -164,7 +164,22 @@ contains
        end if
        constructor%horn_id(i) = (i+1)/2
     end do
-      
+
+    ! Define diode labels
+    do i = 1, constructor%ndet
+       if (index(constructor%label(i), 'M') /= 0) then
+          constructor%diode_names(i,1) = 'sky00'
+          constructor%diode_names(i,2) = 'sky01'
+          constructor%diode_names(i,3) = 'ref00'
+          constructor%diode_names(i,4) = 'ref01'
+       else
+          constructor%diode_names(i,1) = 'sky10'
+          constructor%diode_names(i,2) = 'sky11'
+          constructor%diode_names(i,3) = 'ref10'
+          constructor%diode_names(i,4) = 'ref11'
+       end if
+    end do
+
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
 
@@ -584,8 +599,8 @@ contains
           diode_name = '11'
         end if
       end if
-      write(self%diode_names(band,i+1), 'sky'//diode_name)
-      write(self%diode_names(band,i+3), 'ref'//diode_name)
+!      write(self%diode_names(band,i+1), 'sky'//diode_name)
+!      write(self%diode_names(band,i+3), 'ref'//diode_name)
 
       ! read in adc correction templates
       ! TODO: determine if read_hdf allocates the array when reading
@@ -610,7 +625,7 @@ contains
       end if     
  
     end do
-      
+
   end subroutine load_instrument_LFI
 
   subroutine dumpToHDF_LFI(self, chainfile, path)
