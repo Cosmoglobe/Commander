@@ -498,12 +498,13 @@ contains
     integer(i4b),      intent(in)    :: comm_chain 
 
     type(hdf_file) :: h5_file
-    integer(i4b) :: lmax_beam, i
+    integer(i4b) :: lmax_beam, lmax_sl, i
+    type(comm_mapinfo), pointer :: info_beam
 
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
     end if
-
+write(*,*) 't1'
     allocate(self%fwhm(self%ndet))
     allocate(self%elip(self%ndet))
     allocate(self%psi_ell(self%ndet))
@@ -513,25 +514,31 @@ contains
     allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
 
-    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
-
+    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
+    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
+    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl,   nmaps_beam, pol_beam)
+    info_beam   => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+write(*,*) 't2', lmax_sl, lmax_beam
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
+write(*,*) 't3'
        self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
+write(*,*) 't4'
+       self%mbeam(i)%p => comm_map(info_beam, h5_file, .true., "beam", trim(self%label(i)))
+write(*,*) 't5'
        call self%mbeam(i)%p%Y()
-
+write(*,*) 't6'
        call self%load_instrument_inst(h5_file, i)
+write(*,*) 't7'
     end do
 
     call close_hdf_file(h5_file)
 
     self%nu_c   = self%nu_c * 1d9
-
+write(*,*) 't8'
   end subroutine load_instrument_file
 
 
@@ -563,13 +570,11 @@ contains
     character(len=100000)                         :: det_buf
     character(len=128), dimension(:), allocatable :: dets
 
-
     ! Read common fields
     allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(0:self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
-
        !TODO: figure out how to make this work
        call read_hdf_string2(file, "/common/det",    det_buf, n)
        !call read_hdf(file, "/common/det",    det_buf)
@@ -595,7 +600,6 @@ contains
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
-
 !!$          do j = 1, ndet_tot
 !!$             write(*,*) j, trim(dets(j))
 !!$          end do
@@ -614,7 +618,6 @@ contains
           self%mbang(i) = mbang_buf(j)
        end do
        deallocate(polang_buf, mbang_buf, dets)
-
        ! Read instrument specific parameters
        call self%read_tod_inst(file)
 
@@ -827,7 +830,11 @@ contains
             end if
          end if
        else ! ndiode > 1 per tod
-          if(tod%compressed_tod == .false.) allocate(self%d(i)%diode(ndiode, m))
+          if(tod%compressed_tod == .false.) then
+             allocate(self%d(i)%diode(ndiode, m))
+          else
+             allocate(self%d(i)%zdiode(ndiode))
+          end if
           do k = 1, ndiode
             if (tod%compressed_tod) then
                call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
@@ -849,8 +856,10 @@ contains
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
     if (tod%compressed_tod) then
-       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+       call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
        call hufmak_precomp(hsymb,htree,self%todkey)
     end if
     deallocate(hsymb, htree)

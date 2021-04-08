@@ -132,9 +132,6 @@ contains
        stop
     end if
 
-    ! Initialize common parameters
-    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
-
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
@@ -151,6 +148,9 @@ contains
     nmaps_beam                  = 3
     pol_beam                    = .true.
     constructor%nside_beam      = nside_beam
+
+    ! Initialize common parameters
+    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
@@ -183,11 +183,14 @@ contains
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
 
+write(*,*) 'q1'
     ! Initialize bandpass mean and proposal matrix
     call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+write(*,*) 'q2'
 
     ! Construct lookup tables
     call constructor%precompute_lookups()
+write(*,*) 'q3'
 
     ! allocate LFI specific instrument file data
     allocate(constructor%mb_eff(constructor%ndet))
@@ -197,15 +200,19 @@ contains
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+write(*,*) 'q4'
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
     constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+write(*,*) 'q5'
 
     ! Initialize all baseline corrections to zero
     do i = 1, constructor%nscan
        constructor%scans(i)%d%baseline = 0.d0
     end do
+
+write(*,*) 'q6'
 
   end function constructor
 
@@ -578,11 +585,14 @@ contains
     character(len=2) :: diode_name
     real(dp), dimension(:,:), allocatable :: adc_buffer 
 
+write(*,*) 's1'
     ! Read in mainbeam_eff
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'mbeam_eff', self%mb_eff(band))
+write(*,*) 's2'
 
     ! read in the diode weights
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', self%diode_weights(band,1:1))
+write(*,*) 's3'
     self%diode_weights(band,2:2) = 1.d0 - self%diode_weights(band,1:1)    
 
     do i=0, 1
@@ -601,31 +611,31 @@ contains
       end if
 !      write(self%diode_names(band,i+1), 'sky'//diode_name)
 !      write(self%diode_names(band,i+3), 'ref'//diode_name)
-
+write(*,*) 's4'
       ! read in adc correction templates
       ! TODO: determine if read_hdf allocates the array when reading
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc_91-'//diode_name, adc_buffer)
-
+write(*,*) 's5'
       
       self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for first half, sky
 
       self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc correction for first half, load
-
+write(*,*) 's6'
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc_953-'//diode_name, adc_buffer)
-
+write(*,*) 's7'
       self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for second half, sky
 
       self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc corrections for second half, load
 
-    
+    write(*,*) 's8'
       if (index(self%label(band), '44') /= 0) then ! read spike templates
-
+write(*,*) 's9'
         call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
-
+write(*,*) 's10'
       end if     
  
     end do
-
+write(*,*) 's11'
   end subroutine load_instrument_LFI
 
   subroutine dumpToHDF_LFI(self, chainfile, path)

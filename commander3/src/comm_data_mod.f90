@@ -135,6 +135,7 @@ contains
 
        ! Initialize TOD structures
        data(n)%ndet = 0
+          write(*,*) 'a'
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
              data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
@@ -154,10 +155,11 @@ contains
              stop
           end if
 
+          write(*,*) 'b'
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
           end if
-
+          write(*,*) 'c'
        end if
 
        ! Initialize beam structures
@@ -174,7 +176,7 @@ contains
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
        end select
        call update_status(status, "data_beam")
-   
+             write(*,*) 'd'
  
        ! Read default gain from instrument parameter file
        call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
