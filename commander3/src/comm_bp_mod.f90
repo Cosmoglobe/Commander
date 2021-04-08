@@ -105,7 +105,7 @@ contains
 
     integer(i4b)       :: i, j, ndet
     character(len=512) :: dir, label
-    character(len=16)  :: dets(1000)
+    character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
 
     label = cpar%ds_label(id_abs)
@@ -137,6 +137,8 @@ contains
        constructor%threshold = 0.d0
     case ('LB')
        constructor%threshold = 0.d0
+    case ('SPIDER')
+       constructor%threshold = 0.d0
     case default
        call report_error('Error -- unsupported bandpass type = '//trim(constructor%type))
     end select
@@ -162,8 +164,13 @@ contains
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
-          call get_tokens(subdets, ",", dets, ndet)
-          write(*,*) 'HKE: This needs to be generalized for txt files', trim(subdets)
+          if (index(subdets, '.txt') /=0) then
+             ndet = count_detectors(subdets, cpar%datadir)
+             call get_detectors(subdets, cpar%datadir, dets, ndet)
+          else
+             call get_tokens(subdets, ",", dets, ndet)
+          end if
+
           call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
@@ -316,6 +323,16 @@ contains
                        & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
                    & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+       self%tau     = self%tau / tsum(self%nu, self%tau/a)
+
+    case ('SPIDER') 
+
+       self%a2t     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+                         & tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+       self%a2sz    = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+                         & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
+       self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
+                         & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
     end select

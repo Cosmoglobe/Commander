@@ -1855,7 +1855,7 @@ contains
     if(present(num)) num = n
   end subroutine get_tokens
 
-  subroutine get_detectors(filename, directory, detectors)
+  subroutine get_detectors(filename, directory, detectors, num_dets)
      !
      ! Reads detector names from a text file and saves them in a character array.
      !
@@ -1864,7 +1864,9 @@ contains
      ! filename:  character string
      !            Filename of the file where detector names are stored.
      ! directory: character string
-     !            Drectory where file is stored.
+     !            Directory where file is stored.
+     ! num_dets:  integer (optional)
+     !            Number of detectors
      !
      ! Return:
      ! -------
@@ -1872,14 +1874,20 @@ contains
      !            Initially empty array is filled with detector names. 
      ! 
      implicit none
-     character(len=*), intent(in)    :: filename, directory
-     character(len=*), intent(inout) :: detectors(:)
+     character(len=*), intent(in)           :: filename, directory
+     character(len=*), intent(inout)        :: detectors(:)
+     integer(i4b),     intent(in), optional :: num_dets
 
      character(len=500)           :: detector_list_file
      integer(i4b)                 :: unit,io_error,counter, ndet, i
      character(len=8)             :: line
 
-     ndet = size(detectors)
+     if (present(num_dets)) then
+          ndet = num_dets
+     else
+          ndet = size(detectors)
+     end if
+
      unit = 20
      detector_list_file = trim(adjustl(directory))//'/'//trim(adjustl(filename))
 

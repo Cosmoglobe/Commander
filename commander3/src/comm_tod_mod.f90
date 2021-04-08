@@ -1310,6 +1310,7 @@ contains
                 k = self%get_det_id(det2)
              end if
              if (k < 0) cycle
+             
              self%prop_bp(j,k,par) = val
              self%prop_bp(k,j,par) = val
           end if
@@ -1323,7 +1324,9 @@ contains
 
     ! Compute square root; mean will be projected out after proposal generation
     do par = 1, npar
-       call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
+      call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
+      write(*,*) 'prop_bp(1,1,par) = ', self%prop_bp(1,1,par)
+      write(*,*) 'IT GOES WRONG HERE: comm_tod_mod - Line 1329'
     end do
 
   end subroutine initialize_bp_covar
