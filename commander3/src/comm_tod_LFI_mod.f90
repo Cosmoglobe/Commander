@@ -582,6 +582,7 @@ write(*,*) 'q6'
     integer(i4b),                        intent(in)    :: band
 
     integer(i4b) :: i
+    integer(i4b) :: ext(2)
     character(len=2) :: diode_name
     real(dp), dimension(:,:), allocatable :: adc_buffer 
 
@@ -614,18 +615,21 @@ write(*,*) 's3'
 write(*,*) 's4'
       ! read in adc correction templates
       ! TODO: determine if read_hdf allocates the array when reading
-      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc_91-'//diode_name, adc_buffer)
+      call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
+      allocate(adc_buffer(4, ext(2)))
+      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)
 write(*,*) 's5'
       
       self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for first half, sky
 
       self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc correction for first half, load
 write(*,*) 's6'
-      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc_953-'//diode_name, adc_buffer)
+      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, adc_buffer)
 write(*,*) 's7'
       self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for second half, sky
 
       self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc corrections for second half, load
+      deallocate(adc_buffer)
 
     write(*,*) 's8'
       if (index(self%label(band), '44') /= 0) then ! read spike templates
