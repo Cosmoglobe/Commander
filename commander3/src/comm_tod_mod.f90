@@ -517,8 +517,7 @@ write(*,*) 't1'
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
     self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl,   nmaps_beam, pol_beam)
-    info_beam   => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
-write(*,*) 't2', lmax_sl, lmax_beam
+write(*,*) 't2', lmax_sl, lmax_beam, nside_beam, nmaps_beam, pol_beam
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
@@ -526,8 +525,9 @@ write(*,*) 't2', lmax_sl, lmax_beam
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
 write(*,*) 't3'
        self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       call self%slbeam(i)%p%Y()
 write(*,*) 't4'
-       self%mbeam(i)%p => comm_map(info_beam, h5_file, .true., "beam", trim(self%label(i)))
+       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)), lmax_file=lmax_beam)
 write(*,*) 't5'
        call self%mbeam(i)%p%Y()
 write(*,*) 't6'
