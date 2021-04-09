@@ -15,9 +15,8 @@ module comm_tod_driver_mod
 
   ! Class for uncompressed data for a given scan
   type :: comm_scandata
-     integer(i4b) :: ntod, ndet, nhorn, ndiode, ndelta
+     integer(i4b) :: ntod, ndet, nhorn, ndelta
      real(sp),     allocatable, dimension(:,:)     :: tod        ! Raw data
-     real(sp),     allocatable, dimension(:,:,:)   :: diode      ! Raw, per-diode data (ntod, nhorn, ndiode)
      real(sp),     allocatable, dimension(:,:)     :: n_corr     ! Correlated noise in V
      real(sp),     allocatable, dimension(:,:)     :: s_sl       ! Sidelobe correction
      real(sp),     allocatable, dimension(:,:)     :: s_sky      ! Stationary sky signal
@@ -84,12 +83,10 @@ contains
     self%ntod   = tod%scans(scan)%ntod
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
-    self%ndiode = tod%ndiode
     self%ndelta = 0; if (present(init_s_sky_prop)) self%ndelta = size(map_sky,4)
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
-    if(self%ndiode /= 1) allocate(self%diode(self%ntod, self%ndet, self%ndiode))
     allocate(self%n_corr(self%ntod, self%ndet))
     allocate(self%s_sl(self%ntod, self%ndet))
     allocate(self%s_sky(self%ntod, self%ndet))
@@ -119,19 +116,18 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c4', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Prepare TOD
-    do j = 1, self%ndet
-       if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (tod%compressed_tod) then
-          if (tod%ndiode == 1) then
-            call tod%decompress_tod(scan, j, self%tod(:,j))
+    if (tod%ndiode == 1) then
+       do j = 1, self%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          if (tod%compressed_tod) then
+             call tod%decompress_tod(scan, j, self%tod(:,j))
           else
-            call tod%decompress_diodes(scan, j, self%diode(:,j,:))
+             self%tod(:,j) = tod%scans(scan)%d(j)%tod
           end if
-       else
-          self%tod(:,j) = tod%scans(scan)%d(j)%tod
-          self%diode(:,j,:) = tod%scans(scan)%d(j)%diode
-       end if
-    end do
+       end do
+    else
+       call tod%diode2tod_inst(scan, self%tod)
+    end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
@@ -253,7 +249,6 @@ contains
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
-    if(self%ndiode /= 1) allocate(self%diode(self%ntod, self%ndet, self%ndiode))
     allocate(self%n_corr(self%ntod, self%ndet))
     allocate(self%s_sl(self%ntod, self%ndet))
     allocate(self%s_sky(self%ntod, self%ndet))
@@ -287,19 +282,18 @@ contains
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
-    do j = 1, self%ndet
-       if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (self%ndiode == 1) then
-         if (tod%compressed_tod) then
-            call tod%decompress_tod(scan, j, self%tod(:,j))
-         else
-            self%tod(:,j) = tod%scans(scan)%d(j)%tod
-         end if
-       else
-         write(*,*) "support for ndiode/=1 and nhorn/=1 needs to be implemented still in comm_tod_driver"
-         stop
-       end if
-    end do
+    if (tod%ndiode == 1) then
+       do j = 1, self%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          if (tod%compressed_tod) then
+             call tod%decompress_tod(scan, j, self%tod(:,j))
+          else
+             self%tod(:,j) = tod%scans(scan)%d(j)%tod
+          end if
+       end do
+    else
+       call tod%diode2tod_inst(scan, self%tod)
+    end if
 
     ! Construct sky signal template
     if (init_s_bp_) then

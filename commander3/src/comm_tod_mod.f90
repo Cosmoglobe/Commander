@@ -163,13 +163,14 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
    contains
      procedure                           :: read_tod
-     procedure(read_tod_inst), deferred  :: read_tod_inst
-     procedure(read_scan_inst), deferred :: read_scan_inst
+     procedure                           :: diode2tod_inst
+     procedure                           :: read_tod_inst
+     procedure                           :: read_scan_inst
      procedure                           :: get_scan_ids
      procedure                           :: dumpToHDF
-     procedure(dumpToHDF_inst), deferred :: dumpToHDF_inst
+     procedure                           :: dumpToHDF_inst
      procedure                           :: initHDF
-     procedure(initHDF_inst), deferred   :: initHDF_inst
+     procedure                           :: initHDF_inst
      procedure                           :: get_det_id
      procedure                           :: initialize_bp_covar
      procedure(process_tod), deferred    :: process_tod
@@ -186,7 +187,7 @@ module comm_tod_mod
      procedure                           :: decompress_diodes
      procedure                           :: tod_constructor
      procedure                           :: load_instrument_file
-     procedure(load_instrument_inst), deferred :: load_instrument_inst
+     procedure                           :: load_instrument_inst
      procedure                           :: precompute_lookups
      procedure                           :: read_jumplist
   end type comm_tod
@@ -204,62 +205,6 @@ module comm_tod_mod
        class(comm_map),                     intent(inout) :: map_out
        class(comm_map),                     intent(inout) :: rms_out
      end subroutine process_tod
-
-     subroutine read_tod_inst(self, file)
-       import comm_tod, hdf_file
-       implicit none
-       class(comm_tod),                     intent(inout)          :: self
-       type(hdf_file),                      intent(in),   optional :: file
-     end subroutine read_tod_inst
-
-     subroutine read_scan_inst(self, file, slabel, detlabels, scan)
-       import comm_tod, hdf_file, comm_scan
-       implicit none
-       class(comm_tod),                     intent(in)    :: self
-       type(hdf_file),                      intent(in)    :: file
-       character(len=*),                    intent(in)    :: slabel
-       character(len=*), dimension(:),      intent(in)    :: detlabels
-       class(comm_scan),                    intent(inout) :: scan
-     end subroutine read_scan_inst
-
-     subroutine initHDF_inst(self, chainfile, path)
-       import comm_tod, hdf_file
-       implicit none
-       class(comm_tod),                     intent(inout)  :: self
-       type(hdf_file),                      intent(in)     :: chainfile
-       character(len=*),                    intent(in)     :: path
-     end subroutine initHDF_inst
-
-     subroutine dumpToHDF_inst(self, chainfile, path)
-       import comm_tod, hdf_file
-       implicit none
-       class(comm_tod),                     intent(in)     :: self
-       type(hdf_file),                      intent(in)     :: chainfile
-       character(len=*),                    intent(in)     :: path
-     end subroutine dumpToHDF_inst
-
-     subroutine load_instrument_inst(self, instfile, band)
-
-     ! Abstract method that gets called to read instrument specific fields in 
-     !  the instrument file, should be extended by each tod class
-     !
-     ! Parameters:
-     ! 
-     ! self : comm_tod
-     !    the comm_tod object that this call is coming from
-     ! file : hdf_file
-     !    the open file handle for the instrument file
-     ! band : int
-     !    the index of the current detector that is being read in
-     !
-     ! Returns : None
-
-       import i4b, comm_tod, hdf_file
-       implicit none
-       class(comm_tod),                     intent(inout) :: self
-       type(hdf_file),                      intent(in)    :: instfile
-       integer(i4b),                        intent(in)    :: band
-     end subroutine load_instrument_inst
   end interface
 
   type tod_pointer
@@ -1982,5 +1927,151 @@ write(*,*) 't8'
     call outmaps(1)%p%writeFITS(filename)
 
   end subroutine write_fits_file_iqu
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Generic deferred routines that do not do anything
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine diode2tod_inst(self, scan, tod)
+    ! 
+    ! Generates detector-coadded TOD from low-level diode data
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! scan:     int
+    !           Scan ID number
+    !
+    ! Returns
+    ! ----------
+    ! tod:      ntod x ndet sp array
+    !           Output detector TOD generated from raw diode data
+    !
+    implicit none
+    class(comm_tod),                     intent(in)    :: self
+    integer(i4b),                        intent(in)    :: scan
+    real(sp),          dimension(:,:),   intent(out)   :: tod
+    tod = 0.
+  end subroutine diode2tod_inst
+
+  subroutine read_tod_inst(self, file)
+    ! 
+    ! Reads instrument-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_tod),                     intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst
+  
+  subroutine read_scan_inst(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads instrument-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_tod),                     intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst
+
+  subroutine initHDF_inst(self, chainfile, path)
+    ! 
+    ! Initializes instrument-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_tod),                     intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_inst
+
+  subroutine load_instrument_inst(self, instfile, band)
+    !
+    ! Reads the instrument specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_tod
+    !    the tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_tod),                     intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+  end subroutine load_instrument_inst
+
+  
+  subroutine dumpToHDF_inst(self, chainfile, path)
+    ! 
+    ! Writes instrument-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_tod),                     intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_inst
+
 
 end module comm_tod_mod

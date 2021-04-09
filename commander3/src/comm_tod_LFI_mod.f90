@@ -57,10 +57,7 @@ module comm_tod_LFI_mod
      real(dp), allocatable, dimension(:,:,:,:) :: spike_templates ! n_det, n_diode, 3 entries, 80 spikes
    contains
      procedure     :: process_tod          => process_LFI_tod
-     procedure     :: read_tod_inst        => read_tod_inst_LFI
-     procedure     :: read_scan_inst       => read_scan_inst_LFI
-     procedure     :: initHDF_inst         => initHDF_LFI
-     procedure     :: dumpToHDF_inst       => dumpToHDF_LFI
+     procedure     :: diode2tod_inst       => diode2tod_LFI
      procedure     :: load_instrument_inst => load_instrument_LFI
   end type comm_LFI_tod
 
@@ -183,14 +180,11 @@ contains
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
 
-write(*,*) 'q1'
     ! Initialize bandpass mean and proposal matrix
     call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
-write(*,*) 'q2'
 
     ! Construct lookup tables
     call constructor%precompute_lookups()
-write(*,*) 'q3'
 
     ! allocate LFI specific instrument file data
     allocate(constructor%mb_eff(constructor%ndet))
@@ -200,19 +194,16 @@ write(*,*) 'q3'
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
-write(*,*) 'q4'
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
     constructor%orb_dp => comm_orbdipole(constructor%mbeam)
-write(*,*) 'q5'
 
     ! Initialize all baseline corrections to zero
     do i = 1, constructor%nscan
        constructor%scans(i)%d%baseline = 0.d0
     end do
 
-write(*,*) 'q6'
 
   end function constructor
 
@@ -484,82 +475,7 @@ write(*,*) 'q6'
     call update_status(status, "tod_end"//ctext)
 
   end subroutine process_LFI_tod
-
   
-  subroutine read_tod_inst_LFI(self, file)
-    ! 
-    ! Reads LFI-specific common fields from TOD fileset
-    ! 
-    ! Arguments:
-    ! ----------
-    ! self:     derived class (comm_LFI_tod)
-    !           LFI-specific TOD object
-    ! file:     derived type (hdf_file)
-    !           Already open HDF file handle; only root includes this
-    !
-    ! Returns
-    ! ----------
-    ! None, but updates self
-    !
-    implicit none
-    class(comm_LFI_tod),                 intent(inout)          :: self
-    type(hdf_file),                      intent(in),   optional :: file
-  end subroutine read_tod_inst_LFI
-  
-  subroutine read_scan_inst_LFI(self, file, slabel, detlabels, scan)
-    ! 
-    ! Reads LFI-specific scan information from TOD fileset
-    ! 
-    ! Arguments:
-    ! ----------
-    ! self:     derived class (comm_LFI_tod)
-    !           LFI-specific TOD object
-    ! file:     derived type (hdf_file)
-    !           Already open HDF file handle
-    ! slabel:   string
-    !           Scan label, e.g., "000001/"
-    ! detlabels: string (array)
-    !           Array of detector labels, e.g., ["27M", "27S"]
-    ! scan:     derived class (comm_scan)
-    !           Scan object
-    !
-    ! Returns
-    ! ----------
-    ! None, but updates scan object
-    !
-    implicit none
-    class(comm_LFI_tod),                 intent(in)    :: self
-    type(hdf_file),                      intent(in)    :: file
-    character(len=*),                    intent(in)    :: slabel
-    character(len=*), dimension(:),      intent(in)    :: detlabels
-    class(comm_scan),                    intent(inout) :: scan
-
-    ! read the undifferenced data
-
-  end subroutine read_scan_inst_LFI
-
-  subroutine initHDF_LFI(self, chainfile, path)
-    ! 
-    ! Initializes LFI-specific TOD parameters from existing chain file
-    ! 
-    ! Arguments:
-    ! ----------
-    ! self:     derived class (comm_LFI_tod)
-    !           LFI-specific TOD object
-    ! chainfile: derived type (hdf_file)
-    !           Already open HDF file handle to existing chainfile
-    ! path:   string
-    !           HDF path to current dataset, e.g., "000001/tod/030"
-    !
-    ! Returns
-    ! ----------
-    ! None
-    !
-    implicit none
-    class(comm_LFI_tod),                 intent(inout)  :: self
-    type(hdf_file),                      intent(in)     :: chainfile
-    character(len=*),                    intent(in)     :: path
-  end subroutine initHDF_LFI
   
   subroutine load_instrument_LFI(self, instfile, band)
     !
@@ -586,14 +502,11 @@ write(*,*) 'q6'
     character(len=2) :: diode_name
     real(dp), dimension(:,:), allocatable :: adc_buffer 
 
-write(*,*) 's1'
     ! Read in mainbeam_eff
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'mbeam_eff', self%mb_eff(band))
-write(*,*) 's2'
 
     ! read in the diode weights
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', self%diode_weights(band,1:1))
-write(*,*) 's3'
     self%diode_weights(band,2:2) = 1.d0 - self%diode_weights(band,1:1)    
 
     do i=0, 1
@@ -612,57 +525,53 @@ write(*,*) 's3'
       end if
 !      write(self%diode_names(band,i+1), 'sky'//diode_name)
 !      write(self%diode_names(band,i+3), 'ref'//diode_name)
-write(*,*) 's4'
       ! read in adc correction templates
       ! TODO: determine if read_hdf allocates the array when reading
       call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
       allocate(adc_buffer(4, ext(2)))
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)
-write(*,*) 's5'
-      
+
       self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for first half, sky
 
       self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc correction for first half, load
-write(*,*) 's6'
+
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, adc_buffer)
-write(*,*) 's7'
+
       self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for second half, sky
 
       self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc corrections for second half, load
       deallocate(adc_buffer)
 
-    write(*,*) 's8'
+
       if (index(self%label(band), '44') /= 0) then ! read spike templates
-write(*,*) 's9'
         call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
-write(*,*) 's10'
       end if     
  
     end do
-write(*,*) 's11'
-  end subroutine load_instrument_LFI
 
-  subroutine dumpToHDF_LFI(self, chainfile, path)
+  end subroutine load_instrument_LFI
+  
+  subroutine diode2tod_LFI(self, scan, tod)
     ! 
-    ! Writes LFI-specific TOD parameters to existing chain file
+    ! Generates detector-coadded TOD from low-level diode data
     ! 
     ! Arguments:
     ! ----------
-    ! self:     derived class (comm_LFI_tod)
-    !           LFI-specific TOD object
-    ! chainfile: derived type (hdf_file)
-    !           Already open HDF file handle to existing chainfile
-    ! path:   string
-    !           HDF path to current dataset, e.g., "000001/tod/030"
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! scan:     int
+    !           Scan ID number
     !
     ! Returns
     ! ----------
-    ! None
+    ! tod:      ntod x ndet sp array
+    !           Output detector TOD generated from raw diode data
     !
     implicit none
-    class(comm_LFI_tod),                 intent(in)     :: self
-    type(hdf_file),                      intent(in)     :: chainfile
-    character(len=*),                    intent(in)     :: path
-  end subroutine dumpToHDF_LFI
+    class(comm_LFI_tod),                 intent(in)    :: self
+    integer(i4b),                        intent(in)    :: scan
+    real(sp),          dimension(:,:),   intent(out)   :: tod
+    tod = 0.
+  end subroutine diode2tod_LFI
 
 end module comm_tod_LFI_mod
