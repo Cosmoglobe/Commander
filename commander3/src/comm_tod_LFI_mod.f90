@@ -51,14 +51,17 @@ module comm_tod_LFI_mod
   public comm_LFI_tod
 
   type, extends(comm_tod) :: comm_LFI_tod
-     real(dp), allocatable, dimension(:)  :: mb_eff
-     real(dp), allocatable, dimension(:,:):: diode_weights
-     type(adc_pointer), allocatable, dimension(:,:,:,:) :: adc_corrections !ndet, n_diodes, nadc_templates, (sky, load)
-     real(dp), allocatable, dimension(:,:,:,:) :: spike_templates ! n_det, n_diode, 3 entries, 80 spikes
+     integer(i4b) :: nbin_spike
+     real(dp),          allocatable, dimension(:)       :: mb_eff
+     real(dp),          allocatable, dimension(:,:)     :: diode_weights
+     type(adc_pointer), allocatable, dimension(:,:,:,:) :: adc_corrections ! ndet, n_diode, nadc_templates, (sky, load)
+     real(dp),          allocatable, dimension(:,:,:,:) :: spike_templates ! ndet, n_diode, 3 entries, nbin
    contains
      procedure     :: process_tod          => process_LFI_tod
      procedure     :: diode2tod_inst       => diode2tod_LFI
      procedure     :: load_instrument_inst => load_instrument_LFI
+     procedure     :: generate_1Hz_template
+     procedure     :: subtract_1Hz_template
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -187,9 +190,10 @@ contains
     call constructor%precompute_lookups()
 
     ! allocate LFI specific instrument file data
+    constructor%nbin_spike      = nint(constructor%samprate*sqrt(3.d0))
     allocate(constructor%mb_eff(constructor%ndet))
     allocate(constructor%diode_weights(constructor%ndet, 2))
-    allocate(constructor%spike_templates(constructor%ndet, 2, 3, 80))
+    allocate(constructor%spike_templates(constructor%ndet, 2, 3, constructor%nbin_spike))
     allocate(constructor%adc_corrections(constructor%ndet, 2, 2, 2))
 
     ! Load the instrument file
@@ -472,6 +476,9 @@ contains
     ! Parameter to check if this is first time routine has been
     self%first_call = .false.
 
+    ! Precompute 1Hz templates
+    call self%generate_1Hz_template()
+
     call update_status(status, "tod_end"//ctext)
 
   end subroutine process_LFI_tod
@@ -595,6 +602,7 @@ contains
         end do
 
         ! Apply 1Hz corrections
+        call self%subtract_1Hz_template(scan, i, corrected_data)
 
         ! Wiener-filter load data 
         
@@ -609,5 +617,85 @@ contains
     deallocate(diode_data, corrected_data)
 
   end subroutine diode2tod_LFI
+
+
+  subroutine subtract_1Hz_template(self, scan, det, tod)
+    ! 
+    ! Fits amplitude and subtracts 1Hz template for each detector and given scan
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! scan:     int
+    !           Scan ID number
+    ! det:      int
+    !           Detector ID
+    !
+    ! Returns
+    ! ----------
+    ! tod:      ntod x ndiode sp array (inout)
+    !           Diode TOD before and after 1Hz corrections
+    !
+    implicit none
+    class(comm_LFI_tod),                 intent(in)    :: self
+    integer(i4b),                        intent(in)    :: scan, det
+    real(sp),            dimension(:,:), intent(inout) :: tod
+
+  end subroutine subtract_1Hz_template
+
+
+  subroutine generate_1Hz_template(self)
+    ! 
+    ! Generates 1Hz template for each detector, coadded over full mission
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! scan:     int
+    !           Scan ID number
+    !
+    ! Returns
+    ! ----------
+    ! tod:      ntod x ndet sp array
+    !           Output detector TOD generated from raw diode data
+    !
+    implicit none
+    class(comm_LFI_tod), intent(inout)    :: self
+
+    integer(i4b) :: i, j, nbin, det, diode, b, ierr
+    integer(i8b) :: nbin_spike
+    real(dp)     :: dt, t_tot
+    integer(i4b), allocatable, dimension(:) :: tod    
+    integer(i8b), allocatable, dimension(:) :: nval, nval_tot, acc, acc_tot
+
+    dt    = 1.d0/self%samprate   ! Sample time
+    t_tot = 1.d0                 ! Time range in sec
+    nbin  = self%nbin_spike      ! Number of bins in 64bit integers
+
+    allocate(acc(nbin), acc_tot(nbin), nval(nbin), nval_tot(nbin))
+    do det = 1, self%ndet
+       do diode = 2, self%ndiode, 2 ! Only loop over load data
+          acc  = 0.d0
+          nval = 0
+          do i = 1, self%nscan
+             allocate(tod(self%scans(i)%ntod))
+             call huffman_decode2(self%scans(i)%todkey, self%scans(i)%d(det)%zdiode(diode)%p, tod)
+             do j = 1, self%scans(i)%ntod
+                b = min(int(modulo((j-0.5d0)*dt,t_tot)*nbin),nbin-1_i8b)
+                acc(b)  = acc(b)  + tod(i)
+                nval(b) = nval(b) + 1_i8b
+             end do
+             deallocate(tod)
+          end do
+          call mpi_allreduce(acc,  acc_tot,  size(acc),  MPI_INTEGER8, MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(nval, nval_tot, size(nval), MPI_INTEGER8, MPI_SUM, self%info%comm, ierr)
+          self%spike_templates(det,diode/2,1,:) = real(acc_tot,dp) / real(nval,dp)
+       end do
+    end do
+    deallocate(acc, acc_tot, nval, nval_tot)
+
+  end subroutine generate_1Hz_template
 
 end module comm_tod_LFI_mod
