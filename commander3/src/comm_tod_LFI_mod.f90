@@ -571,7 +571,19 @@ contains
     class(comm_LFI_tod),                 intent(in)    :: self
     integer(i4b),                        intent(in)    :: scan
     real(sp),          dimension(:,:),   intent(out)   :: tod
+
     tod = 0.
+
+    ! Decompress diode TOD for current scan
+
+    ! Apply ADC corrections
+
+    ! Apply 1Hz corrections
+
+    ! Wiener-filter load data
+
+    ! Compute output differenced TOD
+
   end subroutine diode2tod_LFI
 
 end module comm_tod_LFI_mod
