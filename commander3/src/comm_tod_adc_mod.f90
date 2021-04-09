@@ -91,8 +91,8 @@ contains
 
      implicit none
      class(comm_adc),                 intent(inout) :: self
-     real(dp), dimension(:),          intent(in)    :: tod_in
-     real(dp), dimension(:),          intent(out)   :: correct_tod
+     real(sp), dimension(:),          intent(in)    :: tod_in
+     real(sp), dimension(:),          intent(out)   :: correct_tod
 
      !TODO: figure out the correct algorithm and implement it
      correct_tod = tod_in

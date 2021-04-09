@@ -449,7 +449,6 @@ contains
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
     end if
-write(*,*) 't1'
     allocate(self%fwhm(self%ndet))
     allocate(self%elip(self%ndet))
     allocate(self%psi_ell(self%ndet))
@@ -462,28 +461,21 @@ write(*,*) 't1'
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
     self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl,   nmaps_beam, pol_beam)
-write(*,*) 't2', lmax_sl, lmax_beam, nside_beam, nmaps_beam, pol_beam
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-write(*,*) 't3'
        self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
        call self%slbeam(i)%p%Y()
-write(*,*) 't4'
        self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)), lmax_file=lmax_beam)
-write(*,*) 't5'
        call self%mbeam(i)%p%Y()
-write(*,*) 't6'
        call self%load_instrument_inst(h5_file, i)
-write(*,*) 't7'
     end do
 
     call close_hdf_file(h5_file)
 
     self%nu_c   = self%nu_c * 1d9
-write(*,*) 't8'
   end subroutine load_instrument_file
 
 

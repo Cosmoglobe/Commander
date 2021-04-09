@@ -526,22 +526,18 @@ contains
 !      write(self%diode_names(band,i+1), 'sky'//diode_name)
 !      write(self%diode_names(band,i+3), 'ref'//diode_name)
       ! read in adc correction templates
-      ! TODO: determine if read_hdf allocates the array when reading
       call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
-      allocate(adc_buffer(4, ext(2)))
+      allocate(adc_buffer(ext(1), ext(2)))
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)
-
+      
       self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for first half, sky
 
       self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc correction for first half, load
-
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, adc_buffer)
-
       self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for second half, sky
 
       self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc corrections for second half, load
       deallocate(adc_buffer)
-
 
       if (index(self%label(band), '44') /= 0) then ! read spike templates
         call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
@@ -572,17 +568,45 @@ contains
     integer(i4b),                        intent(in)    :: scan
     real(sp),          dimension(:,:),   intent(out)   :: tod
 
-    tod = 0.
+    integer(i4b) :: i,j,half,horn
+    real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data
 
-    ! Decompress diode TOD for current scan
+    allocate(diode_data(self%scans(scan)%ntod, self%ndiode))
+    allocate(corrected_data(self%scans(scan)%ntod, self%ndiode))
 
-    ! Apply ADC corrections
+    !determine which of the two adc templates we should use
+    half = 1
+    if(scan >= 25822) half = 2 !first scan of day 953
 
-    ! Apply 1Hz corrections
 
-    ! Wiener-filter load data
+    do i=1, self%ndet
 
-    ! Compute output differenced TOD
+        ! Decompress diode TOD for current scan
+        call self%decompress_diodes(scan, i, diode_data)
+
+        ! Apply ADC corrections
+
+        do j=1, self%ndiode
+          horn=1
+          if(index('ref', self%diode_names(i,j)) /= 0) horn=2
+          
+          call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+
+        end do
+
+        ! Apply 1Hz corrections
+
+        ! Wiener-filter load data 
+        
+
+        ! Compute output differenced TOD
+
+        !w1(sky00 - ref00) + w2(sky01 - ref01)
+        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,1) - corrected_data(:,3)) + self%diode_weights(i,2)*( corrected_data(:,2) - corrected_data(:,4))
+
+    end do
+
+    deallocate(diode_data, corrected_data)
 
   end subroutine diode2tod_LFI
 
