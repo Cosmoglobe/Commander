@@ -995,13 +995,14 @@ contains
      integer(i4b)   :: i
 
      mean = gain(1) 
+     res = 0.d0
      do i = 2, size(gain)
          res(i) = gain(i) - gain(i-1)
          mean = mean + res(i)
       end do
       mean = mean / size(gain)
       std = 0.d0
-      do i = 1, size(gain)
+      do i = 2, size(gain)
          std = std + (res(i) - mean) ** 2
       end do
       if (std == 0) then
