@@ -597,8 +597,8 @@ contains
           horn=1
           if(index('ref', self%diode_names(i,j)) /= 0) horn=2
           
-          call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
-
+          !call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+          corrected_data(:,j) = diode_data(:,j)
         end do
 
         ! Apply 1Hz corrections
