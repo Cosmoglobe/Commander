@@ -51,6 +51,8 @@ module comm_tod_mod
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)    :: ztod           ! compressed values in time domain, (ntod)
+     real(sp),           allocatable, dimension(:,:)  :: diode          ! (ndiode, ntod) array of undifferenced data
+     type(byte_pointer), allocatable, dimension(:)    :: zdiode         ! pointers to the compressed undeifferenced diode data, len (ndiode)
      byte,               allocatable, dimension(:)    :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      type(byte_pointer), allocatable, dimension(:)    :: pix            ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
@@ -92,6 +94,8 @@ module comm_tod_mod
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
+     integer(i4b) :: ndiode                                      ! Number of diodes that makeup each detector
+     character(len=10), allocatable, dimension(:,:)  :: diode_names  ! Names of each diode, (ndet, ndiode)
      integer(i4b) :: nscan, nscan_tot                             ! Number of scans
      integer(i4b) :: first_scan, last_scan
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
@@ -109,7 +113,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
-     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell, mb_eff                         ! Beam parameter
+     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
      real(dp), allocatable, dimension(:)     :: nu_c                                        ! Center frequency
      real(dp), allocatable, dimension(:,:,:) :: prop_bp         ! proposal matrix, L(ndet,ndet,ndelta),  for bandpass sampler
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
@@ -159,13 +163,14 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
    contains
      procedure                           :: read_tod
-     procedure(read_tod_inst), deferred  :: read_tod_inst
-     procedure(read_scan_inst), deferred :: read_scan_inst
+     procedure                           :: diode2tod_inst
+     procedure                           :: read_tod_inst
+     procedure                           :: read_scan_inst
      procedure                           :: get_scan_ids
      procedure                           :: dumpToHDF
-     procedure(dumpToHDF_inst), deferred :: dumpToHDF_inst
+     procedure                           :: dumpToHDF_inst
      procedure                           :: initHDF
-     procedure(initHDF_inst), deferred   :: initHDF_inst
+     procedure                           :: initHDF_inst
      procedure                           :: get_det_id
      procedure                           :: initialize_bp_covar
      procedure(process_tod), deferred    :: process_tod
@@ -179,8 +184,10 @@ module comm_tod_mod
      procedure                           :: symmetrize_flags
      procedure                           :: decompress_pointing_and_flags
      procedure                           :: decompress_tod
+     procedure                           :: decompress_diodes
      procedure                           :: tod_constructor
      procedure                           :: load_instrument_file
+     procedure                           :: load_instrument_inst
      procedure                           :: precompute_lookups
      procedure                           :: read_jumplist
   end type comm_tod
@@ -198,39 +205,6 @@ module comm_tod_mod
        class(comm_map),                     intent(inout) :: map_out
        class(comm_map),                     intent(inout) :: rms_out
      end subroutine process_tod
-
-     subroutine read_tod_inst(self, file)
-       import comm_tod, hdf_file
-       implicit none
-       class(comm_tod),                     intent(inout)          :: self
-       type(hdf_file),                      intent(in),   optional :: file
-     end subroutine read_tod_inst
-
-     subroutine read_scan_inst(self, file, slabel, detlabels, scan)
-       import comm_tod, hdf_file, comm_scan
-       implicit none
-       class(comm_tod),                     intent(in)    :: self
-       type(hdf_file),                      intent(in)    :: file
-       character(len=*),                    intent(in)    :: slabel
-       character(len=*), dimension(:),      intent(in)    :: detlabels
-       class(comm_scan),                    intent(inout) :: scan
-     end subroutine read_scan_inst
-
-     subroutine initHDF_inst(self, chainfile, path)
-       import comm_tod, hdf_file
-       implicit none
-       class(comm_tod),                     intent(inout)  :: self
-       type(hdf_file),                      intent(in)     :: chainfile
-       character(len=*),                    intent(in)     :: path
-     end subroutine initHDF_inst
-
-     subroutine dumpToHDF_inst(self, chainfile, path)
-       import comm_tod, hdf_file
-       implicit none
-       class(comm_tod),                     intent(in)     :: self
-       type(hdf_file),                      intent(in)     :: chainfile
-       character(len=*),                    intent(in)     :: path
-     end subroutine dumpToHDF_inst
   end interface
 
   type tod_pointer
@@ -365,6 +339,7 @@ contains
     allocate(self%label(self%ndet))
     allocate(self%partner(self%ndet))
     allocate(self%horn_id(self%ndet))
+    allocate(self%diode_names(self%ndet, self%ndiode))
     self%stokes = [1,2,3]
     self%w      = 1.d0
     self%x_im   = 0d0
@@ -468,44 +443,39 @@ contains
     integer(i4b),      intent(in)    :: comm_chain 
 
     type(hdf_file) :: h5_file
-    integer(i4b) :: lmax_beam, i
+    integer(i4b) :: lmax_beam, lmax_sl, i
+    type(comm_mapinfo), pointer :: info_beam
 
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
     end if
-
     allocate(self%fwhm(self%ndet))
     allocate(self%elip(self%ndet))
     allocate(self%psi_ell(self%ndet))
-    allocate(self%mb_eff(self%ndet))
     allocate(self%nu_c(self%ndet))
 
     allocate(self%slbeam(self%ndet))
     allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
 
-    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
-
+    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
+    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
+    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl,   nmaps_beam, pol_beam)
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
-       call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'mbeam_eff', self%mb_eff(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
        self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
+       call self%slbeam(i)%p%Y()
+       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)), lmax_file=lmax_beam)
        call self%mbeam(i)%p%Y()
+       call self%load_instrument_inst(h5_file, i)
     end do
 
     call close_hdf_file(h5_file)
 
-    !mb_eff isn't used at the moment
-    self%mb_eff = 1.d0
-    self%mb_eff = self%mb_eff / mean(self%mb_eff)
-
     self%nu_c   = self%nu_c * 1d9
-
   end subroutine load_instrument_file
 
 
@@ -537,13 +507,11 @@ contains
     character(len=100000)                         :: det_buf
     character(len=128), dimension(:), allocatable :: dets
 
-
     ! Read common fields
     allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(0:self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
-
        !TODO: figure out how to make this work
        call read_hdf_string2(file, "/common/det",    det_buf, n)
        !call read_hdf(file, "/common/det",    det_buf)
@@ -569,7 +537,6 @@ contains
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
-
 !!$          do j = 1, ndet_tot
 !!$             write(*,*) j, trim(dets(j))
 !!$          end do
@@ -588,7 +555,6 @@ contains
           self%mbang(i) = mbang_buf(j)
        end do
        deallocate(polang_buf, mbang_buf, dets)
-
        ! Read instrument specific parameters
        call self%read_tod_inst(file)
 
@@ -606,7 +572,7 @@ contains
     allocate(self%scans(self%nscan))
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
-            & detlabels, self%nhorn)
+            & detlabels, self%nhorn, self%ndiode, self%diode_names)
        do det = 1, self%ndet
           if (self%compressed_tod) then
             self%scans(i)%d(det)%accept = .true.
@@ -667,7 +633,7 @@ contains
 
   end subroutine read_tod
 
-  subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels, nhorn)
+  subroutine read_hdf_scan(self, tod, filename, scan, ndet, detlabels, nhorn, ndiode, diode_names)
     ! 
     ! Reads common scan information from TOD fileset
     ! 
@@ -687,6 +653,11 @@ contains
     !           Number of horns
     ! detlabels: string (array)
     !           Array of detector labels, e.g., ["27M", "27S"]
+    ! ndiode:   int 
+    !           Number of diodes per combined tod
+    ! diode_names : string (array (ndet, ndiode)
+    !           Array of diode labels, eg. [['sky00', 'sky01', 'load00',
+    !           'load01'], ['sky10', 'sky11', 'load10', 'load11'], ...]
     ! scan:     derived class (comm_scan)
     !           
     !
@@ -702,10 +673,11 @@ contains
     class(comm_scan),               intent(inout) :: self
     class(comm_tod),                intent(in)    :: tod
     character(len=*),               intent(in)    :: filename
-    integer(i4b),                   intent(in)    :: scan, ndet, nhorn
-    character(len=*), dimension(:), intent(in)     :: detlabels
+    integer(i4b),                   intent(in)    :: scan, ndet, nhorn, ndiode
+    character(len=*), dimension(:), intent(in)    :: detlabels
+    character(len=*), dimension(:,:), intent(in)  :: diode_names
 
-    integer(i4b)       :: i,j, n, m, ext(1)
+    integer(i4b)       :: i,j,k, n, m, ext(1)
     real(dp)           :: scalars(4)
     character(len=6)   :: slabel
     character(len=128) :: field
@@ -782,16 +754,36 @@ contains
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
-       if (tod%compressed_tod) then
-          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
-       else
-          allocate(self%d(i)%tod(m))
-          call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-          if (tod%halfring_split == 2 )then
-             self%d(i)%tod = buffer_sp(m+1:2*m)
+       if(ndiode == 1) then
+         if (tod%compressed_tod) then
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+         else
+            allocate(self%d(i)%tod(m))
+            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+            if (tod%halfring_split == 2 )then
+               self%d(i)%tod = buffer_sp(m+1:2*m)
+            else
+               self%d(i)%tod = buffer_sp(1:m)
+            end if
+         end if
+       else ! ndiode > 1 per tod
+          if(tod%compressed_tod == .false.) then
+             allocate(self%d(i)%diode(ndiode, m))
           else
-             self%d(i)%tod = buffer_sp(1:m)
+             allocate(self%d(i)%zdiode(ndiode))
           end if
+          do k = 1, ndiode
+            if (tod%compressed_tod) then
+               call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
+            else
+               call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
+               if (tod%halfring_split == 2 )then
+                 self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
+               else
+                 self%d(i)%diode(k, :) = buffer_sp(1:m)
+               end if
+            end if
+          end do
        end if
     end do
     deallocate(buffer_sp)
@@ -801,8 +793,10 @@ contains
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
     if (tod%compressed_tod) then
-       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+       call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
        call hufmak_precomp(hsymb,htree,self%todkey)
     end if
     deallocate(hsymb, htree)
@@ -953,45 +947,45 @@ contains
          end do
 
        ! Sort according to weight
-       pweight = 0.d0
-       w_tot = sum(weight)
-       call QuickSort(id, weight)
-       do i = n_tot, 1, -1
-          ind             = minloc(pweight)-1
-          proc(id(i))     = ind(1)
-          pweight(ind(1)) = pweight(ind(1)) + weight(i)
-       end do
+!!$       pweight = 0.d0
+!!$       w_tot = sum(weight)
+!!$       call QuickSort(id, weight)
+!!$       do i = n_tot, 1, -1
+!!$          ind             = minloc(pweight)-1
+!!$          proc(id(i))     = ind(1)
+!!$          pweight(ind(1)) = pweight(ind(1)) + weight(i)
+!!$       end do
 !!$       deallocate(id, pweight, weight)
 
        ! Sort according to scan id
-!!$         proc    = -1
-!!$         call QuickSort(id, sid)
-!!$         w_tot = sum(weight)
-!!$         w_curr = 0.d0
-!!$         j     = 1
-!!$         do i = np-1, 1, -1
-!!$            w = 0.d0
-!!$            do k = 1, n_tot
-!!$               if (proc(k) == i) w = w + weight(k) 
-!!$            end do
-!!$            do while (w < real(np-1,sp)/real(np,sp)*w_tot/np .and. j <= n_tot)
-!!$               proc(id(j)) = i
-!!$               w           = w + weight(id(j))
-!!$               if (w > 1.2d0*w_tot/np) then
-!!$                  ! Assign large scans to next core
-!!$                  proc(id(j)) = i-1
-!!$                  w           = w - weight(id(j))
-!!$               end if
-!!$               j           = j+1
-!!$            end do
+         proc    = -1
+         call QuickSort(id, sid)
+         w_tot = sum(weight)
+         w_curr = 0.d0
+         j     = 1
+         do i = np-1, 1, -1
+            w = 0.d0
+            do k = 1, n_tot
+               if (proc(k) == i) w = w + weight(k) 
+            end do
+            do while (w < w_tot/np .and. j <= n_tot)
+               proc(id(j)) = i
+               w           = w + weight(id(j))
+               if (w > 1.2d0*w_tot/np) then
+                  ! Assign large scans to next core
+                  proc(id(j)) = i-1
+                  w           = w - weight(id(j))
+               end if
+               j           = j+1
+            end do
 !!$            if (w_curr > i*w_tot/np) then
 !!$               proc(id(j-1)) = i-1
 !!$            end if
-!!$         end do
-!!$         do while (j <= n_tot)
-!!$            proc(id(j)) = 0
-!!$            j = j+1
-!!$         end do
+         end do
+         do while (j <= n_tot)
+            proc(id(j)) = 0
+            j = j+1
+         end do
          pweight = 0.d0
          do k = 1, n_tot
             pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
@@ -1658,15 +1652,15 @@ contains
 
   ! Compute chisquare
   subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
-       & n_corr, s_jump, absbp, verbose, tod_arr)
+       & n_corr, tod, s_jump, absbp, verbose)
     implicit none
     class(comm_tod),                 intent(inout)  :: self
     integer(i4b),                    intent(in)     :: scan, det
     real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
     real(sp),          dimension(:), intent(in)     :: n_corr
+    real(sp),          dimension(:), intent(in)     :: tod
     real(sp),          dimension(:), intent(in), optional :: s_jump
     logical(lgt),                    intent(in), optional :: absbp, verbose
-    real(sp),        dimension(:,:), intent(in), optional :: tod_arr
 
     
     real(dp)     :: chisq, d0, g, b
@@ -1679,15 +1673,9 @@ contains
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
-       if (present(tod_arr)) then
-         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i) + b)
-       else
-         d0    = self%scans(scan)%d(det)%tod(i) - &
-           &  (g * s_spur(i) + n_corr(i) + b)
-       end if
+       d0    = tod(i) - (g * s_spur(i) + n_corr(i) + b)
        if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2
-
     end do
 
     if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0) then
@@ -1794,6 +1782,44 @@ contains
 
   end subroutine decompress_pointing_and_flags
 
+  subroutine decompress_diodes(self, scan, det, diodes)
+    ! Decompress per-diode tod information
+    ! 
+    ! Inputs:
+    ! ----------
+    ! self: comm_tod
+    !
+    ! scan: integer
+    !     scan integer label
+    ! det: integer
+    !     detector number
+    !
+    ! Returns:
+    ! --------
+    ! diodes : real(sp) (ntod, ndiode)
+    !    full raw diode values
+
+    implicit none
+    class(comm_tod),                    intent(in)  :: self
+    integer(i4b),                       intent(in)  :: scan, det
+    real(sp),          dimension(:,:),  intent(out) :: diodes
+
+    integer(i4b) :: i
+    integer(i4b), allocatable, dimension(:) :: tod_int
+
+    allocate(tod_int(size(diodes(:,1))))
+
+    do i = 1, self%ndiode
+
+        call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, tod_int)
+
+        diodes(:,i) = real(tod_int, sp)
+    end do
+ 
+    deallocate(tod_int)
+
+  end subroutine decompress_diodes
+
 
   subroutine decompress_tod(self, scan, det, tod)
     !
@@ -1830,8 +1856,7 @@ contains
     deallocate(tod_int)
 
   end subroutine decompress_tod
-
-
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Subroutine to save time-ordered-data chunk
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1888,5 +1913,151 @@ contains
     call outmaps(1)%p%writeFITS(filename)
 
   end subroutine write_fits_file_iqu
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Generic deferred routines that do not do anything
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine diode2tod_inst(self, scan, tod)
+    ! 
+    ! Generates detector-coadded TOD from low-level diode data
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! scan:     int
+    !           Scan ID number
+    !
+    ! Returns
+    ! ----------
+    ! tod:      ntod x ndet sp array
+    !           Output detector TOD generated from raw diode data
+    !
+    implicit none
+    class(comm_tod),                     intent(in)    :: self
+    integer(i4b),                        intent(in)    :: scan
+    real(sp),          dimension(:,:),   intent(out)   :: tod
+    tod = 0.
+  end subroutine diode2tod_inst
+
+  subroutine read_tod_inst(self, file)
+    ! 
+    ! Reads instrument-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_LB_tod)
+    !           LB-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_tod),                     intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst
+  
+  subroutine read_scan_inst(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads instrument-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_tod),                     intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst
+
+  subroutine initHDF_inst(self, chainfile, path)
+    ! 
+    ! Initializes instrument-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_tod),                     intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_inst
+
+  subroutine load_instrument_inst(self, instfile, band)
+    !
+    ! Reads the instrument specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_tod
+    !    the tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_tod),                     intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+  end subroutine load_instrument_inst
+
+  
+  subroutine dumpToHDF_inst(self, chainfile, path)
+    ! 
+    ! Writes instrument-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_tod),                     intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_inst
+
 
 end module comm_tod_mod

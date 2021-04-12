@@ -21,6 +21,7 @@
 
 import h5py
 import commander_tools.tod_tools.huffman as huffman
+import commander_tools.tod_tools.rice as rice
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
@@ -29,10 +30,11 @@ import sys
 
 class commander_tod:
 
-    def __init__(self, outPath, version=None, dicts=None, overwrite=False):
+    def __init__(self, outPath, name, version=None, dicts=None, overwrite=False):
         self.outPath = outPath
         self.filelists = dicts
         self.version = version
+        self.name = name
         #TODO: something with the version number
         self.overwrite = overwrite
 
@@ -45,7 +47,7 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        self.outName = os.path.join(self.outPath, 'LFI_0' + str(freq) + '_' + str(od).zfill(6) + '.h5')
+        self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq).zfill(3) + '_' + str(od).zfill(6) + '.h5')
 
         self.exists = False
         if os.path.exists(self.outName):
@@ -90,7 +92,7 @@ class commander_tod:
                     metaName = '/common/n' + fieldName.split('/')[-1] + 'sigma'
                     self.encodings[metaName] = compArr[1]['nsigma']
                     self.add_attribute(fieldName, 'nsigma', compArr[1]['nsigma'])
-                    self .add_attribute(fieldName, 'sigma0', compArr[1]['sigma0'])
+                    self.add_attribute(fieldName, 'sigma0', compArr[1]['sigma0'])
 
                 elif compArr[0] == 'digitize':
                     bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
@@ -102,15 +104,23 @@ class commander_tod:
                     self.add_attribute(fieldName, 'nbins', compArr[1]['nbins'])
                 
 
-                elif compArr[0] == 'huffman':
+                elif compArr[0] == 'huffman': #differenced huffman
                     dictNum = compArr[1]['dictNum']
                     if dictNum not in self.huffDict.keys():
                         self.huffDict[dictNum] = {}
                     delta = np.diff(data)
                     delta = np.insert(delta, 0, data[0])
                     self.huffDict[dictNum][fieldName] = delta
+                    #print("adding " + fieldName + " to dict, contents ", delta)
                     self.add_attribute(fieldName, 'huffmanDictNumber', dictNum)
                     writeField = False 
+
+                elif compArr[0] == 'rice': #rice encoding
+                    k = compArr[1]['k']
+                    data, k = rice.encode(data, k)
+                    data = np.void(bytes(data))
+                    self.add_encoding(fieldName.rsplit('/',1)[0] + '/riceK', k)
+                    self.add_attribute(fieldName, 'riceK', k)
 
                 else:
                     raise ValueError('Compression type ' + compArr[0] + ' is not a recognized compression')
@@ -146,10 +156,10 @@ class commander_tod:
 
     def finalize_file(self):
 
-        if(not self.exists):
+        if(not self.exists or self.overwrite):
             for encoding in self.encodings.keys():
                 self.add_field(encoding, [self.encodings[encoding]])
-                print('adding ' + encoding + ' to file ' + self.outPath)
+                #print('adding ' + encoding + ' to file ' + self.outName)
 
             self.add_field('/common/version', self.version)
             self.add_field('/common/pids', list(self.pids.keys()))
@@ -247,6 +257,13 @@ class commander_tod:
                 huffSymb = self.load_field('/' + pid + '/common/huffsymb' + huffNum)
                 h = huffman.Huffman(tree=huffTree, symb=huffSymb)
                 data = h.Decoder(np.array(data))
+
+            elif comp == 'rice':
+                k = self.load_field(field.rsplit('/', 1)[0] + '/riceK')
+                data = np.array(rice.decode(np.array(data), k))
+                offset = data[0]
+                data += offset
+                data = data[1:]                
                 
             else:
                 raise ValueError('Decompression type ' + comp + ' is not a recognized operation')

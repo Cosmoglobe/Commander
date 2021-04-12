@@ -139,6 +139,7 @@ class Huffman:
         text_bin = "".join(self.encoding[d] for d in array)
         padding = 8 - len(text_bin) % 8
         text_bin += padding*"0"
+        # this tells you how many bits of padding there is apparently
         text_bin = "{0:08b}".format(padding) + text_bin
 
         b = bytearray()

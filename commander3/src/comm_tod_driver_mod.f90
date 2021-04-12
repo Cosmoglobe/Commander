@@ -116,14 +116,18 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c4', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Prepare TOD
-    do j = 1, self%ndet
-       if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (tod%compressed_tod) then
-          call tod%decompress_tod(scan, j, self%tod(:,j))
-       else
-          self%tod(:,j) = tod%scans(scan)%d(j)%tod
-       end if
-    end do
+    if (tod%ndiode == 1) then
+       do j = 1, self%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          if (tod%compressed_tod) then
+             call tod%decompress_tod(scan, j, self%tod(:,j))
+          else
+             self%tod(:,j) = tod%scans(scan)%d(j)%tod
+          end if
+       end do
+    else
+       call tod%diode2tod_inst(scan, self%tod)
+    end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
@@ -278,14 +282,18 @@ contains
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
-    do j = 1, self%ndet
-       if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (tod%compressed_tod) then
-          call tod%decompress_tod(scan, j, self%tod(:,j))
-       else
-          self%tod(:,j) = tod%scans(scan)%d(j)%tod
-       end if
-    end do
+    if (tod%ndiode == 1) then
+       do j = 1, self%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          if (tod%compressed_tod) then
+             call tod%decompress_tod(scan, j, self%tod(:,j))
+          else
+             self%tod(:,j) = tod%scans(scan)%d(j)%tod
+          end if
+       end do
+    else
+       call tod%diode2tod_inst(scan, self%tod)
+    end if
 
     ! Construct sky signal template
     if (init_s_bp_) then
@@ -698,11 +706,11 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        s_buf(:,j) =  sd%s_sl(:,j) + sd%s_orb(:,j)
        call tod%compute_chisq(scan, j, sd%mask2(:,j), sd%s_sky(:,j), &
-            & s_buf(:,j), sd%n_corr(:,j), absbp=.true.)
+            & s_buf(:,j), sd%n_corr(:,j), sd%tod(:,j), absbp=.true.)
        chisq(j,1) = chisq(j,1) + tod%scans(scan)%d(j)%chisq_prop
        do k = 2, size(sd%s_sky_prop)
           call tod%compute_chisq(scan, j, sd%mask2(:,j), sd%s_sky_prop(:,j,k), &
-               & s_buf(:,j), sd%n_corr(:,j), absbp=.true.)
+               & s_buf(:,j), sd%n_corr(:,j), sd%tod(:,j), absbp=.true.)
           chisq(j,k) = chisq(j,k) + tod%scans(scan)%d(j)%chisq_prop
        end do
     end do
