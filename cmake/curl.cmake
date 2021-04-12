@@ -55,16 +55,17 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Getting cURL from source
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(${project}_src
-			DEPENDS required_libraries 
-							zlib
-			GIT_REPOSITORY "${${project}_git_url}"
-			GIT_TAG "${${project}_git_tag}"
+		ExternalProject_Add(curl_src
+			#DEPENDS required_libraries 
+			#				zlib
+			GIT_REPOSITORY "${curl_git_url}"
+			GIT_TAG "${xurl_git_tag}"
 			# PREFIX should be present, otherwise it will pull it into "build" dir
 			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
 			LOG_DIR "${CMAKE_LOG_DIR}"
 			LOG_DOWNLOAD ON
+			# commands how to build the project
 			CONFIGURE_COMMAND ""
 			BUILD_COMMAND ""
 			INSTALL_COMMAND ""
@@ -73,13 +74,14 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Building Static cURL
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(${project}_static
+		ExternalProject_Add(
+			curl_static
 			DEPENDS required_libraries
 							zlib 
 							mbedtls
 							libssh2 
-							${project}_src
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
+							curl_src
+			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/curl"
 			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_src"
 			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
 			LOG_DIR "${CMAKE_LOG_DIR}"
@@ -123,13 +125,13 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Building Shared cURL
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(${project}_shared
+		ExternalProject_Add(
+			curl_shared
 			DEPENDS required_libraries
 							zlib 
 							mbedtls
 							libssh2 
-							${project}_src
-							#${project}_static	
+							curl_src
 			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
 			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_src"
 			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
@@ -188,10 +190,10 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		include_directories(${CURL_INCLUDE_DIR})
 		# Adding new target -- libssh2 -- to ensure that only after all libraries built
 		# the project can use this target.
-		add_custom_target(${project} 
+		add_custom_target(curl 
 			ALL ""
-			DEPENDS ${project}_static
-							${project}_shared
+			DEPENDS curl_static
+							curl_shared
 			)
 		#------------------------------------------------------------------------------
 		message(STATUS "cURL LIBRARIES will be ${CURL_LIBRARIES}")
