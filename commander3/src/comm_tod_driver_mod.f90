@@ -547,8 +547,8 @@ contains
              else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
                  s_buf(:,j) = real(tod%scans(i)%d(j)%gain,sp) * (  &
              &   sd%s_totA(:,j) - sd%s_totB(:,j) + &
-             &   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j))  &
-             & - real(tod%x_im(j),sp)*(sd%s_orbA(:,j) + sd%s_orbB(:,j))  &
+             &   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j)   &
+             &                       -(sd%s_orbA(:,j) + sd%s_orbB(:,j))) &
              &   )
              else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))

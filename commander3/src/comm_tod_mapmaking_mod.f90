@@ -638,7 +638,7 @@ end subroutine bin_differential_TOD
 
         i_max = 500
         if (write_cg) then
-          i_min = 400
+          i_min = 200
         else
           i_min = 0
         end if

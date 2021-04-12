@@ -115,11 +115,13 @@ contains
       constructor%noise_psd_model = 'oof'
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
-    
+  
+     ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
+     ! 46.5 mHz. 
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       if (.true.) then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.001, 0.1]  ! fknee
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.05]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
@@ -293,7 +295,7 @@ contains
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
-      self%output_n_maps = 1
+      self%output_n_maps = 3
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
       end if
@@ -420,7 +422,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.true. .and. i==1 .and. iter == 10) then
+         if (.false. .and. i==1 .and. iter == 10) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
@@ -504,7 +506,7 @@ contains
       !bicg_sol(:,:,1) = m_buf
       deallocate(m_buf)
 
-      epsil(1)   = 1d-12
+      epsil(1)   = 1d-10
       !epsil(1)   = 1d-8
       epsil(2:6) = 1d-6
       num_cg_iters = 0
