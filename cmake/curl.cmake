@@ -55,20 +55,19 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Getting cURL from source
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(curl_src
-			#DEPENDS required_libraries 
-			#				zlib
-			GIT_REPOSITORY "${curl_git_url}"
-			GIT_TAG "${xurl_git_tag}"
-			# PREFIX should be present, otherwise it will pull it into "build" dir
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-			LOG_DIR "${CMAKE_LOG_DIR}"
-			LOG_DOWNLOAD ON
+		ExternalProject_Add(
+			curl_src
+			GIT_REPOSITORY		"${curl_git_url}"
+			GIT_TAG						"${curl_git_tag}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${CURL_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
 			# commands how to build the project
 			CONFIGURE_COMMAND ""
-			BUILD_COMMAND ""
-			INSTALL_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
 			)
 		# Splitting project into to 2 to compile static and shared libraries in parallel
 		#------------------------------------------------------------------------------
@@ -76,21 +75,20 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		ExternalProject_Add(
 			curl_static
-			DEPENDS required_libraries
-							zlib 
-							mbedtls
-							libssh2 
-							curl_src
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/curl"
-			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_src"
-			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
-			LOG_DIR "${CMAKE_LOG_DIR}"
-			LOG_CONFIGURE ON
-			LOG_BUILD ON
-			LOG_INSTALL ON
+			DEPENDS						required_libraries
+												zlib 
+												mbedtls
+												libssh2 
+												curl_src
+			PREFIX						"${LIBS_BUILD_DIR}"
+			SOURCE_DIR				"${CURL_SOURCE_DIR}"
+			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_CONFIGURE			ON
+			LOG_BUILD					ON
+			LOG_INSTALL				ON
 			# Disabling download
-			DOWNLOAD_COMMAND ""
-			#CONFIGURE_COMMAND "${${project}_configure_command}"
+			DOWNLOAD_COMMAND	""
 			# commands how to build the project
 			CMAKE_ARGS
 				-DCMAKE_BUILD_TYPE=Release
@@ -127,21 +125,20 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		ExternalProject_Add(
 			curl_shared
-			DEPENDS required_libraries
-							zlib 
-							mbedtls
-							libssh2 
-							curl_src
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_src"
-			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" #"${out_install_dir}"
-			LOG_DIR "${CMAKE_LOG_DIR}"
-			LOG_CONFIGURE ON
-			LOG_BUILD ON
-			LOG_INSTALL ON
+			DEPENDS						required_libraries
+												zlib 
+												mbedtls
+												libssh2 
+												curl_src
+			PREFIX						"${LIBS_BUILD_DIR}"
+			SOURCE_DIR				"${CURL_SOURCE_DIR}"
+			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_CONFIGURE			ON
+			LOG_BUILD					ON
+			LOG_INSTALL				ON
 			# Disabling download
-			DOWNLOAD_COMMAND ""
-			#CONFIGURE_COMMAND "${${project}_configure_command}"
+			DOWNLOAD_COMMAND	""
 			# commands how to build the project
 			CMAKE_ARGS
 				-DCMAKE_BUILD_TYPE=Release

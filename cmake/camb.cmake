@@ -23,7 +23,7 @@
 # Description: This script installs CAMB as Commander3 subproject. 
 #================================================================================
 
-
+#[==[
 #------------------------------------------------------------------------------
 # Note: the explicit splitting for download and install step is done on purpose
 # to avoid errors when you want to recompile libraries for different owls etc.
@@ -49,27 +49,28 @@ ExternalProject_Add(
 #------------------------------------------------------------------------------
 # Compiling and installing CAMB
 #------------------------------------------------------------------------------
+#]==]
+#------------------------------------------------------------------------------
+# Getting CAMB from source
+#------------------------------------------------------------------------------
 ExternalProject_Add(
 	camb
-	DEPENDS required_libraries 
-					curl
-					cfitsio
-					healpix	
-					camb_src
-	#GIT_REPOSITORY "${camb_git_url}"
-	#GIT_TAG "${camb_git_tag}"
-	# PREFIX should be present, otherwise it will pull it into "build" dir
-	#PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/camb"
-	PREFIX "${LIBS_BUILD_DIR}"
-	#DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-	SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/camb/src/camb"
-	INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" 
-	LOG_DIR "${CMAKE_LOG_DIR}"
-	LOG_CONFIGURE ON 
-	LOG_BUILD ON 
-	LOG_INSTALL ON 
-	# commadns to build the project
-	DOWNLOAD_COMMAND ""
+	DEPENDS					required_libraries 
+									curl
+									cfitsio
+									healpix	
+	GIT_REPOSITORY	"${camb_git_url}"
+	GIT_TAG					"${camb_git_tag}"
+	PREFIX					"${LIBS_BUILD_DIR}"
+	DOWNLOAD_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}"
+	SOURCE_DIR			"${CAMB_SOURCE_DIR}"
+	INSTALL_DIR			"${CMAKE_INSTALL_PREFIX}" 
+	LOG_DIR					"${CMAKE_LOG_DIR}"
+	LOG_DOWNLOAD		ON
+	LOG_CONFIGURE		ON 
+	LOG_BUILD				ON 
+	LOG_INSTALL			ON 
+	# Commadns to build the project
 	CMAKE_ARGS
 		-DCMAKE_BUILD_TYPE=Release
 		# Specifying installations paths for binaries and libraries

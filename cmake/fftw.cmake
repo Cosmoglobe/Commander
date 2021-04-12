@@ -107,7 +107,8 @@ if(NOT FFTW_FOUND)
 	#------------------------------------------------------------------------------
 	# Splitting external project add into 3 steps:
 	# 1. To download the project
-	# 2. To compile with single and double precision - requires by GNU compilers
+	# 2. To compile with single 
+	# 3. and double precision - requires by GNU compilers
 	ExternalProject_Add(fftw
 		DEPENDS required_libraries
 		URL "${fftw_url}"

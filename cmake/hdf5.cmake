@@ -58,49 +58,22 @@ if(NOT HDF5_FOUND)
 	# Getting HDF5 from source
 	#------------------------------------------------------------------------------
 	ExternalProject_Add(
-		hdf5_src
-		#DEPENDS required_libraries 
-		#				zlib 
-		#				libaec
-		URL "${hdf5_url}"
-		URL_MD5 "${hdf5_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/hdf5"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/hdf5/src/hdf5"
-		#BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hdf5-1.12.0/"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
-		# commands how to build the project
-		CONFIGURE_COMMAND ""
-		BUILD_COMMAND ""
-		INSTALL_COMMAND ""
-		)
-	#------------------------------------------------------------------------------
-	# Compiling and installing HDF5
-	#------------------------------------------------------------------------------
-	ExternalProject_Add(
 		hdf5
-		DEPENDS required_libraries 
-						zlib 
-						libaec
-						hdf5_src
-		# TODO: Specify this prefix so all cmake oputputs for libraries 
-		# will inside build folder -- easier to remove and recompile in this way
-		#PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/hdf5"
-		PREFIX "${LIBS_BUILD_DIR}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/hdf5/src/hdf5"
-		#BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hdf5-1.12.0/"
-		# Directory where to store outputs from build <= put a separate one so it will be easier to clean
-		#BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/subbuild/hdf5"
-		#BINARY_DIR "${LIBS_BUILD_DIR}/hdf5-build"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
+		DEPENDS				required_libraries 
+									zlib 
+									libaec
+		URL						"${hdf5_url}"
+		URL_MD5				"${hdf5_md5}"
+		PREFIX				"${LIBS_BUILD_DIR}"
+		DOWNLOAD_DIR	"${CMAKE_DOWNLOAD_DIRECTORY}"
+		SOURCE_DIR		"${HDF5_SOURCE_DIR}"
+		INSTALL_DIR		"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR				"${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD	ON
 		LOG_CONFIGURE	ON 
-		LOG_BUILD ON 
-		LOG_INSTALL ON 
+		LOG_BUILD			ON 
+		LOG_INSTALL		ON 
 		# commands how to build the project
-		DOWNLOAD_COMMAND ""
 		CMAKE_ARGS
 			-DCMAKE_BUILD_TYPE=Release
 			# Specifying installations paths for binaries and libraries

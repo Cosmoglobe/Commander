@@ -81,19 +81,20 @@ if(NOT (BLAS_FOUND OR LAPACK_FOUND))
 		#"PREFIX=${CMAKE_INSTALL_PREFIX}"
 		#"install"
 		#)
-	ExternalProject_Add(blas
-		DEPENDS required_libraries
-		URL "${blas_url}"
-		URL_MD5 "${blas_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/blas"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/blas/src/blas"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
+	ExternalProject_Add(
+		blas
+		DEPENDS				required_libraries
+		URL						"${blas_url}"
+		URL_MD5				"${blas_md5}"
+		PREFIX				"${CMAKE_DOWNLOAD_DIRECTORY}/blas"
+		DOWNLOAD_DIR	"${CMAKE_DOWNLOAD_DIRECTORY}"
+		SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/blas/src/blas"
+		INSTALL_DIR		"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR				"${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD	ON
 		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+		LOG_BUILD			ON
+		LOG_INSTALL		ON
 		# commands how to build the project
 		#COMMAND "${${project}_configure_command}" 
 		#CONFIGURE_COMMAND "${${project}_configure_command}"

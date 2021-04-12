@@ -46,7 +46,7 @@ if(NOT ZLIB_FOUND) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_acce
 	#------------------------------------------------------------------------------
 	# Getting ZLib from source.
 	#------------------------------------------------------------------------------
-	set(ZLIB_SOURCE_DIR)
+	#[==[
 	ExternalProject_Add(
 		zlib_src
 		URL "${zlib_url}"
@@ -88,20 +88,24 @@ if(NOT ZLIB_FOUND) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_acce
 			# Specifying compilers
 			-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 	)
-	#[==[
-	ExternalProject_Add(zlib
-		DEPENDS required_libraries
-		URL "${zlib_url}"
-		URL_MD5 "${zlib_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/zlib"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/zlib/src/zlib"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
+	#]==]
+	#------------------------------------------------------------------------------
+	# Getting ZLib from source.
+	#------------------------------------------------------------------------------
+	ExternalProject_Add(
+		zlib
+		DEPENDS				required_libraries
+		URL						"${zlib_url}"
+		URL_MD5				"${zlib_md5}"
+		PREFIX				"${LIBS_BUILD_DIR}"
+		DOWNLOAD_DIR	"${CMAKE_DOWNLOAD_DIRECTORY}"
+		SOURCE_DIR		"${ZLIB_SOURCE_DIR}"
+		INSTALL_DIR		"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR				"${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD	ON
 		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+		LOG_BUILD			ON
+		LOG_INSTALL		ON
 		# commands how to build the project
 		CMAKE_ARGS
 			-DCMAKE_BUILD_TYPE=Release
@@ -110,7 +114,6 @@ if(NOT ZLIB_FOUND) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_acce
 			# Specifying compilers
 			-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 		)
-	#]==]
 	#------------------------------------------------------------------------------
 	# Defining the variable which will show the path to the compiled libraries
 	set(ZLIB_INCLUDE_DIRS

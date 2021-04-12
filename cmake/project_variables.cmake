@@ -193,7 +193,15 @@ set(LIBS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/subbuilds")
 # The following variables' purpose is to keep source directory separate from
 # build directory etc. In such way we are able to safely remove the build dir
 # without removing sources; thus, can easily recompile, no need to redownload.
-set(ZLIB_SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/zlib")
+set(ZLIB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/zlib")
+set(HDF5_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/hdf5")
+set(LIBAEC_SOURCE_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}/libaec")
+set(MBEDTLS_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/mbedtls")
+set(LIBSSH2_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/libssh2")
+set(CURL_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/curl")
+set(CFITSIO_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/cfitsio")
+set(HEALPIX_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/healpix")
+set(CAMB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/camb")
 #
 #------------------------------------------------------------------------------
 # output of the summary into the screen

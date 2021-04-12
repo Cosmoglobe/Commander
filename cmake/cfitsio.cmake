@@ -25,11 +25,6 @@
 # Together with cURL, CFitsio is required to successfully compile HEALPix.
 #================================================================================
 
-#message(STATUS "---------------------------------------------------------------")
-#if(NOT (CFITSIO_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-#	find_package(CFITSIO 3.470)
-#endif()
-
 # TODO: change cfitsio version to 3.49 and figure out how to link cURL correctly.
 # Also, try again to switch to cmake build and try to install healpix on top of it.
 message(STATUS "---------------------------------------------------------------")
@@ -39,7 +34,9 @@ if(USE_SYSTEM_CFITSIO AND USE_SYSTEM_LIBS)
 endif()
 
 if(NOT CFITSIO_FOUND)
+	#------------------------------------------------------------------------------
 	# Creating configure command for CFITSIO
+	#------------------------------------------------------------------------------
 	list(APPEND cfitsio_configure_command
 		"${CMAKE_COMMAND}" "-E" "env" 
 		)
@@ -60,7 +57,7 @@ if(NOT CFITSIO_FOUND)
 		"CXX=${MPI_CXX_COMPILER}" 
 		"CPP=${COMMANDER3_CPP_COMPILER}" 
 		"CC=${MPI_C_COMPILER}" 
-		"./configure" 
+		"${CFITSIO_SOURCE_DIR}/configure" 
 		"--prefix=<INSTALL_DIR>" 
 		)
 	if(CFITSIO_USE_CURL)
@@ -72,25 +69,27 @@ if(NOT CFITSIO_FOUND)
 			"--disable-curl"
 			)
 	endif()
-	#message("${cfitsio_configure_command}")
 	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(cfitsio
-		# specifying that cfitsio depends on the curl project and should be built after it
-		# Note: I have removed curl support from cfitsio, but curl is left here for now
-		DEPENDS required_libraries
-						curl
-		URL "${cfitsio_url}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/cfitsio"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/cfitsio/src/cfitsio"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
-		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+	# Note: For now CFitsIO is compiled with configure, which should be used inside
+	# source(!) directory; thus, we use `CMAKE_BINARY_DIR` variable to point to it.
+	ExternalProject_Add(
+		cfitsio
+		# Specifying that cfitsio depends on the curl project and should be built after it
+		DEPENDS						required_libraries
+											curl
+		URL								"${cfitsio_url}"
+		PREFIX						"${LIBS_BUILD_DIR}"
+		DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+		SOURCE_DIR				"${CFITSIO_SOURCE_DIR}"
+		BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD			ON
+		LOG_CONFIGURE			ON
+		LOG_BUILD					ON
+		LOG_INSTALL				ON
 		# commands how to build the project
 		CONFIGURE_COMMAND "${cfitsio_configure_command}"
 		)
@@ -99,12 +98,12 @@ if(NOT CFITSIO_FOUND)
 	# Note: for some reason, only set() works but not list(APPEND)
 	if(CFITSIO_USE_CURL)
 		set(CFITSIO_LIBRARIES 
-			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}cfitsio${CMAKE_STATIC_LIBRARY_SUFFIX}"
 			"${CURL_LIBRARIES}"
 			)
 	else()
 		set(CFITSIO_LIBRARIES 
-			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}cfitsio${CMAKE_STATIC_LIBRARY_SUFFIX}"
 			)
 	endif()
 	set(CFITSIO_INCLUDE_DIRS
