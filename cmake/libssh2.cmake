@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Description: This script determines the location of LibSSH2 on the host system.
 # If it fails to do so, it will download, compile and install LibSSH2 from source.
 # LibSSH2 is (not strictly) required by cURL.

@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Description: This script determines the location of SZip on the host system.
 # If it fails to do so, it will download, compile and install SZip from source.
 # LibAEC is (not strictly) required by HDF5.
