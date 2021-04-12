@@ -206,41 +206,7 @@ contains
     end if
 
     if (tod%myid == 0) then
-!!$       open(58,file='tmp.unf', form='unformatted')
-!!$       read(58) g
-!!$       close(58)
-
         count = count+1
-        !write(*, *) "FREQ IS ", trim(tod%freq), count
-       !nbin = nscan_tot / binsize + 1
-
-        open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
-          do k = 1, nscan_tot
-             !if (g(k,j,2) /= 0) then
-             !if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
-             if (g(k,j,2) > 0) then
-                if (abs(g(k, j, 1)) > 1e10) then
-                   write(*, *) 'G1'
-                   write(*, *) g(k, j, 1)
-                end if
-                if (abs(g(k, j, 2)) > 1e10) then
-                   write(*, *) 'G2'
-                   write(*, *) g(k, j, 2)
-                end if
-                !if (abs(dipole_mods(k, j) > 1e10)) then
-                !   write(*, *) 'DIPOLE_MODS'
-                !   write(*, *) dipole_mods(k, j)
-                !else
-                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-                !end if
-             else
-                write(58,*) j, k, 0., 0.0, 0., 0.
-             end if
-          end do
-          write(58,*)
-       end do
-       close(58)
 
 
        allocate(window_sizes(tod%ndet, tod%nscan_tot))
@@ -314,7 +280,6 @@ contains
             if (g(k, j, 2) <= 0.d0) cycle
             mu         = mu + g(k, j, 1)! * g(k,j,2)
             denom      = denom + 1.d0! * g(k,j,2)
-!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
          end do
          if (denom > 0) then
             mu = mu / denom
@@ -342,12 +307,10 @@ contains
                    write(*, *) 'DIPOLE_MODS'
                    write(*, *) dipole_mods(k, j)
                 else
-!                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
                 end if
-             else
-!                write(58,*) j, k, 0., 0.0, 0., 0.
              end if
           end do
+       end do
 
        !do j = 1, ndet
        !  if (all(g(:, j, 1) == 0)) continue
