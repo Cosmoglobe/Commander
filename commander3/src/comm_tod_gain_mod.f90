@@ -172,6 +172,7 @@ contains
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, ind(1)
     integer(i4b) :: currstart, currend, window, i1, i2, pid_id, range_end
     real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr, fknee, sigma_0, alpha
+    real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
     real(dp), allocatable, dimension(:)     :: temp_gain, temp_invsigsquared
     real(dp), allocatable, dimension(:)     :: summed_invsigsquared, smoothed_gain
     real(dp), allocatable, dimension(:,:,:) :: g
@@ -185,6 +186,7 @@ contains
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
+    allocate(lhs(nscan_tot), rhs(nscan_tot))
     allocate(temp_gain(nscan_tot))
     g = 0.d0
     do j = 1, ndet
@@ -240,23 +242,131 @@ contains
        end do
        close(58)
 
+
+       allocate(window_sizes(tod%ndet, tod%nscan_tot))
+       call get_smoothing_windows(tod, window_sizes, dipole_mods)
        do j = 1, ndet
-         if (all(g(:, j, 1) == 0)) continue
-          fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
-          alpha = -1.d0
-          temp_gain = 0.d0
-          ! This is not completely correct - should probably truncate, or
-          ! something.
-          do k = 1, nscan_tot
-            if (g(k, j, 2) > 0.d0) then
-               temp_gain(k) = g(k, j, 1) / g(k, j, 2)
+         lhs = 0.d0
+         rhs = 0.d0
+         pid_id = 1
+         k = 0
+         !write(*,*) "PIDRANGE: ", tod%jumplist(j, :)
+         do while (pid_id < size(tod%jumplist(j, :)))
+            if (tod%jumplist(j, pid_id) == 0) exit
+            currstart = tod%jumplist(j, pid_id)
+            if (tod%jumplist(j, pid_id+1) == 0) then
+               currend = nscan_tot
+            else
+               !currend = tod%jumplist(j, pid_id +1)
+               currend = tod%jumplist(j, pid_id +1) - 1
             end if
-          end do
-          sigma_0 = calc_sigma_0(temp_gain)
-!          sigma_0 = 0.002d0
-          call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), sigma_0, alpha, &
-             & fknee, trim(tod%operation)=='sample', handle)
+            !write(*,*) j, pid_id, currstart, currend
+            sum_weighted_gain = 0.d0
+            sum_inv_sigma_squared = 0.d0
+            allocate(temp_gain(currend - currstart + 1))
+            allocate(temp_invsigsquared(currend - currstart + 1))
+            allocate(summed_invsigsquared(currend-currstart + 1))
+            allocate(smoothed_gain(currend-currstart + 1))
+            do k = currstart, currend
+               if (g(k,j,2) /= g(k,j,2)) then
+                  write(*,*) 'GAIN IS NAN', k, j
+                  temp_gain(k-currstart + 1) = 0.d0
+               else if (g(k,j,2) > 0.d0) then
+                  temp_gain(k-currstart + 1) = g(k, j, 1) / g(k, j, 2)
+                  if (trim(tod%operation) == 'sample') then
+                     temp_gain(k-currstart+1) = temp_gain(k-currstart+1) + rand_gauss(handle) / g(k, j, 2)
+                  end if
+               else
+                  temp_gain(k-currstart + 1) = 0.d0
+               end if
+               temp_invsigsquared(k - currstart + 1) = max(g(k, j, 2),0.d0)
+            end do
+            kernel_type = 'boxcar'
+            call moving_average_variable_window(temp_gain, smoothed_gain, &
+               & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared, kernel_type)
+            if (any(summed_invsigsquared < 0)) then
+               write(*, *) 'WHOOOOPS'
+               write(*, *) 'currstart', currstart
+               write(*, *) 'currend', currend
+               write(*, *) 'temp_invsigsquared', temp_invsigsquared
+               stop
+            end if
+            !write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
+            !write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
+            do k = currstart, currend
+               g(k, j, 1) = smoothed_gain(k - currstart + 1)
+              if (summed_invsigsquared(k - currstart + 1) > 0) then
+                  g(k, j, 2) = 1.d0 / sqrt(summed_invsigsquared(k - currstart + 1))
+               else
+                  g(k, j, 2) = 0.d0
+               end if
+            end do
+            pid_id = pid_id + 1
+
+            deallocate(temp_gain)
+            deallocate(temp_invsigsquared)
+            deallocate(summed_invsigsquared)
+            deallocate(smoothed_gain)
+         end do
+         mu  = 0.d0
+         denom = 0.d0
+         do k = 1, nscan_tot
+            if (g(k, j, 2) <= 0.d0) cycle
+            mu         = mu + g(k, j, 1)! * g(k,j,2)
+            denom      = denom + 1.d0! * g(k,j,2)
+!            write(*,*) j, k, g(k,j,1), rhs(k)/lhs(k)
+         end do
+         if (denom > 0) then
+            mu = mu / denom
+
+            ! Make sure fluctuations sum up to zero
+            !         if (tod%verbosity > 1) then
+            !           write(*,*) 'mu = ', mu
+            !         end if
+            g(:,j,1) = g(:,j,1) - mu
+         end if
        end do
+       do j = 1, ndet
+          do k = 1, nscan_tot
+             !if (g(k,j,2) /= 0) then
+             if (g(k,j,2) > 0) then
+                if (abs(g(k, j, 1)) > 1e10) then
+                   write(*, *) 'G1_postsmooth'
+                   write(*, *) g(k, j, 1)
+                end if
+                if (abs(g(k, j, 2)) > 1e10) then
+                   write(*, *) 'G2_postsmooth'
+                   write(*, *) g(k, j, 2)
+                end if
+                if (abs(dipole_mods(k, j) > 1e10)) then
+                   write(*, *) 'DIPOLE_MODS'
+                   write(*, *) dipole_mods(k, j)
+                else
+!                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+                end if
+             else
+!                write(58,*) j, k, 0., 0.0, 0., 0.
+             end if
+          end do
+
+       !do j = 1, ndet
+       !  if (all(g(:, j, 1) == 0)) continue
+       !   fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
+       !   alpha = -1.d0
+       !   temp_gain = 0.d0
+       !   ! This is not completely correct - should probably truncate, or
+       !   ! something.
+       !   do k = 1, nscan_tot
+       !     if (g(k, j, 2) > 0.d0) then
+       !        temp_gain(k) = g(k, j, 1) / g(k, j, 2)
+       !     end if
+       !   end do
+       !   sigma_0 = calc_sigma_0(temp_gain)
+!      !    sigma_0 = 0.002d0
+       !   call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), sigma_0, alpha, &
+       !      & fknee, trim(tod%operation)=='sample', handle)
+       !end do
+       deallocate(window_sizes)
     end if
 
     ! Distribute and update results
@@ -274,7 +384,7 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
-    deallocate(g)
+    deallocate(g, lhs, rhs)
 
   end subroutine sample_smooth_gain
 

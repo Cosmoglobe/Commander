@@ -515,16 +515,16 @@ contains
       end if
 
       ! Solve for maps
-      call update_status(status, "Starting bicg-stab")
-      do l=1, self%output_n_maps
-         if (self%verbosity > 0 .and. self%myid == 0) then
-           write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
-         end if
-         call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                          & epsil(l), procmask, map_full, M_diag, b_map, l, &
-                          & prefix, postfix)
-      end do
-      if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
+      !call update_status(status, "Starting bicg-stab")
+      !do l=1, self%output_n_maps
+      !   if (self%verbosity > 0 .and. self%myid == 0) then
+      !     write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+      !   end if
+      !   call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+      !                    & epsil(l), procmask, map_full, M_diag, b_map, l, &
+      !                    & prefix, postfix)
+      !end do
+      !if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
