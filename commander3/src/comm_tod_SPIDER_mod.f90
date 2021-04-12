@@ -1029,8 +1029,8 @@ contains
                if (.not. self%scans(i)%d(j)%accept) cycle
                s_buf(:,j) =  s_sl(:,j) + s_orb(:,j) 
                 if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
-                call self%compute_chisq(i, j, 1.0-flag(:,j), s_sky(:,j), &
-                     & s_buf(:,j), n_corr(:,j), s_jump(:,j))
+!!$                call self%compute_chisq(i, j, 1.0-flag(:,j), s_sky(:,j), &
+!!$                     & s_buf(:,j), n_corr(:,j), s_jump(:,j))
 
                 call write2file(trim(chaindir)//'/chisq_'//trim(run_label)//'.txt',  iter, self%scans(i)%d(j)%chisq) 
                !  call write2file(trim(dir_name)//'sigma0_'//trim(run_label)//'.txt', iter, self%scans(i)%d(j)%sigma0) 
@@ -1081,12 +1081,12 @@ contains
                 if (.not. self%scans(i)%d(j)%accept) cycle
                 s_buf(:,j) =  s_sl(:,j) + s_orb(:,j)
                 if (do_oper(samp_mono)) s_buf(:,j) =  s_buf(:,j) + s_mono(:,j)
-                call self%compute_chisq(i, j, mask2(:,j), s_sky(:,j), &
-                     & s_buf(:,j), n_corr(:,j), absbp=.true.)
+!!$                call self%compute_chisq(i, j, mask2(:,j), s_sky(:,j), &
+!!$                     & s_buf(:,j), n_corr(:,j), absbp=.true.)
                 chisq_S(j,1) = chisq_S(j,1) + self%scans(i)%d(j)%chisq_prop
                 do k = 2, ndelta
-                   call self%compute_chisq(i, j, mask2(:,j), s_sky_prop(:,j,k), &
-                        & s_buf(:,j), n_corr(:,j), absbp=.true.)
+!!$                   call self%compute_chisq(i, j, mask2(:,j), s_sky_prop(:,j,k), &
+!!$                        & s_buf(:,j), n_corr(:,j), absbp=.true.)
                    chisq_S(j,k) = chisq_S(j,k) + self%scans(i)%d(j)%chisq_prop
                 end do
              end do

@@ -140,7 +140,7 @@ contains
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
     constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 20.d0 ! 9.d0
+    constructor%chisq_threshold = 20.d6 ! 9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
@@ -208,6 +208,8 @@ contains
        constructor%scans(i)%d%baseline = 0.d0
     end do
 
+    ! Precompute 1Hz templates
+    call constructor%generate_1Hz_template()
 
   end function constructor
 
@@ -385,7 +387,7 @@ contains
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
+          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
        end do
 
        ! Select data
@@ -475,9 +477,6 @@ contains
 
     ! Parameter to check if this is first time routine has been
     self%first_call = .false.
-
-    ! Precompute 1Hz templates
-    call self%generate_1Hz_template()
 
     call update_status(status, "tod_end"//ctext)
 
@@ -583,7 +582,7 @@ contains
 
     !determine which of the two adc templates we should use
     half = 1
-    if(scan >= 25822) half = 2 !first scan of day 953
+    if (self%scanid(scan) >= 25822) half = 2 !first scan of day 953
 
 
     do i=1, self%ndet
@@ -674,7 +673,7 @@ contains
     t_tot = 1.d0                 ! Time range in sec
     nbin  = self%nbin_spike      ! Number of bins in 64bit integers
 
-    allocate(acc(nbin), acc_tot(nbin), nval(nbin), nval_tot(nbin))
+    allocate(acc(0:nbin-1), acc_tot(0:nbin-1), nval(0:nbin-1), nval_tot(0:nbin-1))
     do det = 1, self%ndet
        do diode = 2, self%ndiode, 2 ! Only loop over load data
           acc  = 0.d0

@@ -1652,15 +1652,15 @@ contains
 
   ! Compute chisquare
   subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
-       & n_corr, s_jump, absbp, verbose, tod_arr)
+       & n_corr, tod, s_jump, absbp, verbose)
     implicit none
     class(comm_tod),                 intent(inout)  :: self
     integer(i4b),                    intent(in)     :: scan, det
     real(sp),          dimension(:), intent(in)     :: mask, s_sky, s_spur
     real(sp),          dimension(:), intent(in)     :: n_corr
+    real(sp),          dimension(:), intent(in)     :: tod
     real(sp),          dimension(:), intent(in), optional :: s_jump
     logical(lgt),                    intent(in), optional :: absbp, verbose
-    real(sp),        dimension(:,:), intent(in), optional :: tod_arr
 
     
     real(dp)     :: chisq, d0, g, b
@@ -1673,15 +1673,9 @@ contains
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
-       if (present(tod_arr)) then
-         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i) + b)
-       else
-         d0    = self%scans(scan)%d(det)%tod(i) - &
-           &  (g * s_spur(i) + n_corr(i) + b)
-       end if
+       d0    = tod(i) - (g * s_spur(i) + n_corr(i) + b)
        if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2
-
     end do
 
     if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0) then

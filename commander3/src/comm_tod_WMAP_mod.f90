@@ -420,7 +420,7 @@ contains
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
             call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
-              & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
+              & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
          end do
 
          ! Select data

@@ -706,11 +706,11 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        s_buf(:,j) =  sd%s_sl(:,j) + sd%s_orb(:,j)
        call tod%compute_chisq(scan, j, sd%mask2(:,j), sd%s_sky(:,j), &
-            & s_buf(:,j), sd%n_corr(:,j), absbp=.true.)
+            & s_buf(:,j), sd%n_corr(:,j), sd%tod(:,j), absbp=.true.)
        chisq(j,1) = chisq(j,1) + tod%scans(scan)%d(j)%chisq_prop
        do k = 2, size(sd%s_sky_prop)
           call tod%compute_chisq(scan, j, sd%mask2(:,j), sd%s_sky_prop(:,j,k), &
-               & s_buf(:,j), sd%n_corr(:,j), absbp=.true.)
+               & s_buf(:,j), sd%n_corr(:,j), sd%tod(:,j), absbp=.true.)
           chisq(j,k) = chisq(j,k) + tod%scans(scan)%d(j)%chisq_prop
        end do
     end do
