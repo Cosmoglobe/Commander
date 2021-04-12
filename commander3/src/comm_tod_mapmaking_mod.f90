@@ -148,6 +148,31 @@ contains
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
   subroutine bin_TOD(tod, scan, pix, psi, flag, data, binmap)
+    !        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+    ! Routine to bin time ordered data
+    ! Assumes white noise after correctiom from correlated noise and calibrated data
+    ! 
+    ! Arguments:
+    ! ----------
+    ! tod:    
+    !         
+    ! scan:   integer
+    !         scan number
+    ! pix:    2-dimentional array
+    !         Number of pixels from scandata
+    ! psi:    2-dimentional array
+    !         Pointing angle pr pixel
+    ! flag:   2-dimentional array
+    !         Flagged data to be excluded from the mapmaking
+    ! data:   2-dim array
+    !         Array of calibrated data
+    !
+    ! Returns:
+    ! ----------
+    ! binmap: pointer
+    !         Pointer to array of binned map?
+    ! 
+
     implicit none
     class(comm_tod),                             intent(in)    :: tod
     integer(i4b),                                intent(in)    :: scan
@@ -159,15 +184,15 @@ contains
     real(dp)     :: inv_sigmasq
 
     nout = size(data,1) 
-    do det = 1, size(pix,2)
+    do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = 6 + 4*(det-1)
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
        do t = 1, size(pix,1)
           
-          if (iand(flag(t,det),tod%flag0) .ne. 0) cycle
+          if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
           
-          pix_    = tod%pix2ind(pix(t,det))
+          pix_    = tod%pix2ind(pix(t,det))  ! pixel index for pix t and detector det
           psi_    = psi(t,det)
           
           binmap%A_map(1,pix_) = binmap%A_map(1,pix_) + 1.d0                                 * inv_sigmasq
@@ -176,7 +201,8 @@ contains
           binmap%A_map(4,pix_) = binmap%A_map(4,pix_) + tod%sin2psi(psi_)                    * inv_sigmasq
           binmap%A_map(5,pix_) = binmap%A_map(5,pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_) * inv_sigmasq
           binmap%A_map(6,pix_) = binmap%A_map(6,pix_) + tod%sin2psi(psi_)**2                 * inv_sigmasq
-          
+          !binmap%A_map(1,pix_) = binmap%A_map(8,pix_) + 1.d0
+
           do i = 1, nout
              binmap%b_map(i,1,pix_) = binmap%b_map(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
              binmap%b_map(i,2,pix_) = binmap%b_map(i,2,pix_) + data(i,t,det) * tod%cos2psi(psi_) * inv_sigmasq
@@ -377,6 +403,20 @@ end subroutine bin_differential_TOD
    end subroutine compute_Ax
 
   subroutine finalize_binned_map(tod, binmap, handle, rms, scale, chisq_S, mask)
+    !
+    ! Routine to finalize the binned maps
+    ! 
+    ! Arguments:
+    ! ----------
+    ! tod:
+    ! binmap:
+    ! handle:  planck_rng derived type
+    !          Healpix definition for random number generation
+    ! rms:
+    ! scale
+    ! chisq_S
+    ! mask
+    !
     implicit none
     class(comm_tod),                      intent(in)    :: tod
     type(comm_binmap),                    intent(inout) :: binmap
