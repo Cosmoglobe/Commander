@@ -108,7 +108,7 @@ if(NOT HEALPIX_FOUND)
 	if(NOT EXISTS "${HEALPIX_SOURCE_DIR}/configure")
 		message(STATUS "No HEALPIX sources were found; thus, will download it from source:\n${healpix_url}")
 		ExternalProject_Add(
-			healpix
+			healpix_src
 			URL								"${healpix_url}"
 			URL_MD5						"${healpix_md5}"
 			PREFIX						"${LIBS_BUILD_DIR}"
