@@ -42,6 +42,11 @@ then
 		echo "$comm3_root_dir/$build_dir does not exist! Creating..."
 		mkdir $comm3_root_dir/$build_dir
 	fi
+	# We need to delete CMakeCache in order 
+	if [[ -e "$comm3_root_dir/$build_diri/CMakeCache.txt" ]];
+	then
+		rm "$comm3_root_dir/$build_diri/CMakeCache.txt"
+	fi
 	# Executing CMake command to compile Commander3
 	# Documentation reference:
 	# https://cmake.org/cmake/help/v3.17/manual/cmake.1.html

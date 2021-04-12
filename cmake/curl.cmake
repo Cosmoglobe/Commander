@@ -55,20 +55,29 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Getting cURL from source
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(
-			curl_src
-			GIT_REPOSITORY		"${curl_git_url}"
-			GIT_TAG						"${curl_git_tag}"
-			PREFIX						"${LIBS_BUILD_DIR}"
-			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
-			SOURCE_DIR				"${CURL_SOURCE_DIR}"
-			LOG_DIR						"${CMAKE_LOG_DIR}"
-			LOG_DOWNLOAD			ON
-			# commands how to build the project
-			CONFIGURE_COMMAND ""
-			BUILD_COMMAND			""
-			INSTALL_COMMAND		""
-			)
+		# Checking whether we have source directory and this directory is not empty.
+		if(NOT EXISTS "${CURL_SOURCE_DIR}/CMakeLists.txt")
+			message(STATUS "No CURL sources were found; thus, will download it from source:\n${curl_git_url}")
+			ExternalProject_Add(
+				curl_src
+				GIT_REPOSITORY		"${curl_git_url}"
+				GIT_TAG						"${curl_git_tag}"
+				PREFIX						"${LIBS_BUILD_DIR}"
+				DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+				SOURCE_DIR				"${CURL_SOURCE_DIR}"
+				LOG_DIR						"${CMAKE_LOG_DIR}"
+				LOG_DOWNLOAD			ON
+				# commands how to build the project
+				CONFIGURE_COMMAND ""
+				BUILD_COMMAND			""
+				INSTALL_COMMAND		""
+				)
+		else()
+			message(STATUS "Found an existing CURL sources inside:\n${CURL_SOURCE_DIR}")
+			add_custom_target(curl_src
+				ALL ""
+				)
+		endif()
 		# Splitting project into to 2 to compile static and shared libraries in parallel
 		#------------------------------------------------------------------------------
 		# Building Static cURL

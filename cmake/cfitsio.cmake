@@ -72,25 +72,50 @@ if(NOT CFITSIO_FOUND)
 	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
 	#------------------------------------------------------------------------------
+	# Checking whether we have source directory and this directory is not empty.
+	if(NOT EXISTS "${CFITSIO_SOURCE_DIR}/CMakeLists.txt")
+		message(STATUS "No CFITSIO sources were found; thus, will download it from source:\n${cfitsio_url}")
+		ExternalProject_Add(
+			cfitsio_src
+			URL								"${cfitsio_url}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${CFITSIO_SOURCE_DIR}"
+			BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+		message(STATUS "Found an existing CFITSIO sources inside:\n${CFITSIO_SOURCE_DIR}")
+		add_custom_target(cfitsio_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+	# Compiling and installing CFitsIO
+	#------------------------------------------------------------------------------
 	# Note: For now CFitsIO is compiled with configure, which should be used inside
-	# source(!) directory; thus, we use `CMAKE_BINARY_DIR` variable to point to it.
+	# source(!) directory; thus, we use `BINARY_DIR` variable to point to it.
 	ExternalProject_Add(
 		cfitsio
 		# Specifying that cfitsio depends on the curl project and should be built after it
 		DEPENDS						required_libraries
 											curl
-		URL								"${cfitsio_url}"
+											cfitsio_src
 		PREFIX						"${LIBS_BUILD_DIR}"
-		DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 		SOURCE_DIR				"${CFITSIO_SOURCE_DIR}"
 		BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
 		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
 		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD			ON
 		LOG_CONFIGURE			ON
 		LOG_BUILD					ON
 		LOG_INSTALL				ON
 		# commands how to build the project
+		DOWNLOAD_COMMAND	""
 		CONFIGURE_COMMAND "${cfitsio_configure_command}"
 		)
 	#------------------------------------------------------------------------------

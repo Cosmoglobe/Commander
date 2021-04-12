@@ -54,26 +54,55 @@ if(NOT HDF5_FOUND)
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.
+	# In addition, this will allow us to download sources only once and then just 
+	# reuse it whenever possible.
 	#------------------------------------------------------------------------------
 	# Getting HDF5 from source
 	#------------------------------------------------------------------------------
+	# Checking whether we have source directory and this directory is not empty.
+	if(NOT EXISTS "${HDF5_SOURCE_DIR}/CMakeLists.txt")
+		message(STATUS "No HDF5 sources were found; thus, will download it from source:\n${hdf5_url}")
+		ExternalProject_Add(
+			hdf5_src
+			DEPENDS						required_libraries 
+												zlib 
+												libaec
+			URL								"${hdf5_url}"
+			URL_MD5						"${hdf5_md5}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${HDF5_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+		message(STATUS "Found an existing HDF5 sources inside:\n${HDF5_SOURCE_DIR}")
+		add_custom_target(hdf5_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+	# Compiling and installing HDF5
+	#------------------------------------------------------------------------------
 	ExternalProject_Add(
 		hdf5
-		DEPENDS				required_libraries 
-									zlib 
-									libaec
-		URL						"${hdf5_url}"
-		URL_MD5				"${hdf5_md5}"
-		PREFIX				"${LIBS_BUILD_DIR}"
-		DOWNLOAD_DIR	"${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR		"${HDF5_SOURCE_DIR}"
-		INSTALL_DIR		"${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR				"${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD	ON
-		LOG_CONFIGURE	ON 
-		LOG_BUILD			ON 
-		LOG_INSTALL		ON 
+		DEPENDS						required_libraries 
+											zlib 
+											libaec
+											hdf5_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${HDF5_SOURCE_DIR}"
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE			ON 
+		LOG_BUILD					ON 
+		LOG_INSTALL				ON 
 		# commands how to build the project
+		DOWNLOAD_COMMAND	""
 		CMAKE_ARGS
 			-DCMAKE_BUILD_TYPE=Release
 			# Specifying installations paths for binaries and libraries

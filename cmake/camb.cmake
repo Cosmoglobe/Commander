@@ -23,33 +23,77 @@
 # Description: This script installs CAMB as Commander3 subproject. 
 #================================================================================
 
-#[==[
 #------------------------------------------------------------------------------
 # Note: the explicit splitting for download and install step is done on purpose
 # to avoid errors when you want to recompile libraries for different owls etc.
+# In addition, this will allow us to download sources only once and then just 
+# reuse it whenever possible.
 #------------------------------------------------------------------------------
 # Getting CAMB from source
 #------------------------------------------------------------------------------
-# We need to build CAMB as only either static or shared library for this to work
-ExternalProject_Add(
-	camb_src
-	GIT_REPOSITORY "${camb_git_url}"
-	GIT_TAG "${camb_git_tag}"
-	# PREFIX should be present, otherwise it will pull it into "build" dir
-	PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/camb"
-	DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-	SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/camb/src/camb"
-	LOG_DIR "${CMAKE_LOG_DIR}"
-	LOG_DOWNLOAD ON
-	# commands how to build the project
-	CONFIGURE_COMMAND ""
-	BUILD_COMMAND ""
-	INSTALL_COMMAND ""
-	)
+# Checking whether we have source directory and this directory is not empty.
+if(NOT EXISTS "${CAMB_SOURCE_DIR}/CMakeLists.txt")
+	message(STATUS "No CAMB sources were found; thus, will download it from source:\n${camb_git_url}")
+	ExternalProject_Add(
+		camb_src
+		GIT_REPOSITORY		"${camb_git_url}"
+		GIT_TAG						"${camb_git_tag}"
+		PREFIX						"${LIBS_BUILD_DIR}"
+		DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+		SOURCE_DIR				"${CAMB_SOURCE_DIR}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD			ON
+		# commands how to build the project
+		CONFIGURE_COMMAND ""
+		BUILD_COMMAND			""
+		INSTALL_COMMAND		""
+		)
+else()
+	message(STATUS "Found an existing CAMB sources inside:\n${CAMB_SOURCE_DIR}")
+	add_custom_target(camb_src
+		ALL ""
+		)
+endif()
 #------------------------------------------------------------------------------
 # Compiling and installing CAMB
 #------------------------------------------------------------------------------
-#]==]
+ExternalProject_Add(
+	camb
+	DEPENDS						required_libraries 
+										curl
+										cfitsio
+										healpix	
+										camb_src
+	PREFIX						"${LIBS_BUILD_DIR}"
+	SOURCE_DIR				"${CAMB_SOURCE_DIR}"
+	INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}" 
+	LOG_DIR						"${CMAKE_LOG_DIR}"
+	LOG_CONFIGURE			ON 
+	LOG_BUILD					ON 
+	LOG_INSTALL				ON 
+	# Commadns to build the project
+	DOWNLOAD_COMMAND	""
+	CMAKE_ARGS
+		-DCMAKE_BUILD_TYPE=Release
+		# Specifying installations paths for binaries and libraries
+		-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+		-DBUILD_SHARED_LIBS:BOOL=OFF
+		# Specifying compilers
+		-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+		-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+		-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+		-DBUILD_SHARED_LIBS:BOOL=OFF
+		# Check submodules during build
+		-DGIT_SUBMODULE:BOOL=ON
+		# CFitsIO paths
+		#-DCFITSIO_FOUND:BOOL=TRUE
+		-DCFITSIO_LIBRARIES:FILEPATH=${CFITSIO_LIBRARIES}
+		-DCFITSIO_INCLUDE_DIRS:PATH=${CFITSIO_INCLUDE_DIRS}
+		# HEALPix Paths
+		-DHEALPIX_LIBRARIES:FILEPATH=${HEALPIX_LIBRARIES}
+		-DHEALPIX_INCLUDE_DIRS:PATH=${HEALPIX_INCLUDE_DIRS}
+	)
+#[==[
 #------------------------------------------------------------------------------
 # Getting CAMB from source
 #------------------------------------------------------------------------------
@@ -91,3 +135,4 @@ ExternalProject_Add(
 		-DHEALPIX_LIBRARIES:FILEPATH=${HEALPIX_LIBRARIES}
 		-DHEALPIX_INCLUDE_DIRS:PATH=${HEALPIX_INCLUDE_DIRS}
 	)
+#]==]

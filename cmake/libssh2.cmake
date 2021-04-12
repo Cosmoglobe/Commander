@@ -36,19 +36,28 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Getting LibSSH2 from source.
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(
-			libssh2_src
-			GIT_REPOSITORY		"${libssh2_git_url}"
-			GIT_TAG						"${libssh2_git_tag}"
-			PREFIX						"${LIBS_BUILD_DIR}"
-			SOURCE_DIR				"${LIBSSH2_SOURCE_DIR}"
-			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
-			LOG_DIR						"${CMAKE_LOG_DIR}"
-			LOG_DOWNLOAD			ON
-			CONFIGURE_COMMAND ""
-			BUILD_COMMAND			""
-			INSTALL_COMMAND		""
-			)
+		# Checking whether we have source directory and this directory is not empty.
+		if(NOT EXISTS "${LIBSSH2_SOURCE_DIR}/CMakeLists.txt")
+			message(STATUS "No LIBSSH2 sources were found; thus, will download it from source:\n${libssh2_git_url}")
+			ExternalProject_Add(
+				libssh2_src
+				GIT_REPOSITORY		"${libssh2_git_url}"
+				GIT_TAG						"${libssh2_git_tag}"
+				PREFIX						"${LIBS_BUILD_DIR}"
+				SOURCE_DIR				"${LIBSSH2_SOURCE_DIR}"
+				DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+				LOG_DIR						"${CMAKE_LOG_DIR}"
+				LOG_DOWNLOAD			ON
+				CONFIGURE_COMMAND ""
+				BUILD_COMMAND			""
+				INSTALL_COMMAND		""
+				)
+		else()
+			message(STATUS "Found an existing LIBSSH2 sources inside:\n${LIBSSH2_SOURCE_DIR}")
+			add_custom_target(libssh2_src
+				ALL ""
+				)
+		endif()
 		#------------------------------------------------------------------------------
 		# Building both -- static and shared -- versions of the library.
 		# Building is done consequently, i.e. first it will install static
