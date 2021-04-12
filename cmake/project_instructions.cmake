@@ -156,6 +156,12 @@ set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #------------------------------------------------------------------------------
+# CAMB
+#------------------------------------------------------------------------------
+# CAMB with custom CMake support
+set(camb_git_url "https://github.com/maksymbrl/CAMB.git")
+set(camb_git_tag "36cc4e546427b9b30359473be628d506b09eb658")
+#------------------------------------------------------------------------------
 # Doxygen
 #------------------------------------------------------------------------------
 # there is some weird errors appearing for doxygen v1.8.17 and above, so will stick with this one
