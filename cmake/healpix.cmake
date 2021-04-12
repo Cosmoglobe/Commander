@@ -25,7 +25,6 @@
 #================================================================================
 
 message(STATUS "---------------------------------------------------------------")
-#if(NOT (HEALPIX_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 if(USE_SYSTEM_HEALPIX AND USE_SYSTEM_LIBS)
 	find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
 endif()
@@ -50,7 +49,8 @@ if(NOT HEALPIX_FOUND)
 	list(APPEND healpix_copy_configure_script 
 		"${CMAKE_COMMAND}" "-E" "copy"
 		"${CMAKE_SOURCE_DIR}/cmake/third_party/healpix/hpxconfig_functions.sh"
-		"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
+		#"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
+		"${HEALPIX_SOURCE_DIR}/hpxconfig_functions.sh" 
 		#"&&"
 		)
 	# Creating configure command for HEALPix
@@ -104,37 +104,60 @@ if(NOT HEALPIX_FOUND)
 	#------------------------------------------------------------------------------
 	# Getting HEALPix from source
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(${project}
-		# making healpix to be installed the last before commander3
-		DEPENDS cfitsio 
-		URL "${${project}_url}"
-		URL_MD5 "${${project}_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		#SOURCE_DIR "${download_dir}/${project}/src/${project}"
-		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" 
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		#INSTALL_DIR "${HEALPIX_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
-		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
-		#BUILD_ALWAYS FALSE
-		#BUILD_ALWAYS TRUE 
+	# Checking whether we have source directory and this directory is not empty.
+	if(NOT EXISTS "${HEALPIX_SOURCE_DIR}/configure")
+		message(STATUS "No HEALPIX sources were found; thus, will download it from source:\n${healpix_url}")
+		ExternalProject_Add(
+			healpix
+			URL								"${healpix_url}"
+			URL_MD5						"${healpix_md5}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${HEALPIX_SOURCE_DIR}"
+			BINARY_DIR				"${HEALPIX_SOURCE_DIR}" 
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+		message(STATUS "Found an existing HEALPIX sources inside:\n${HEALPIX_SOURCE_DIR}")
+		add_custom_target(healpix_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+	# Compiling and installing HEALPix
+	#------------------------------------------------------------------------------
+	# Note: HEALPix doesn't have an install command
+	ExternalProject_Add(
+		healpix
+		DEPENDS						required_libraries
+											curl
+											cfitsio 
+											healpix_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${HEALPIX_SOURCE_DIR}"
+		BINARY_DIR				"${HEALPIX_SOURCE_DIR}" 
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE			ON
+		LOG_BUILD					ON
 		# commands how to build the project
+		DOWNLOAD_COMMAND	""
 		CONFIGURE_COMMAND "${healpix_copy_configure_script}"
-		COMMAND "${${project}_configure_command}"
+		COMMAND						"${healpix_configure_command}"
 		# HEALPix doesn't have an install command 
-		INSTALL_COMMAND ""
+		INSTALL_COMMAND		""
 		# copying Healpix and all its files (src and compiled) into CMAKE_INSTALL_PREFIX directory
-		#COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${CMAKE_INSTALL_PREFIX}/healpix"
-		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${HEALPIX_INSTALL_PREFIX}"
+		COMMAND ${CMAKE_COMMAND} -E copy_directory "${HEALPIX_SOURCE_DIR}" "${HEALPIX_INSTALL_PREFIX}"
 		)
-
+	#------------------------------------------------------------------------------
 	set(HEALPIX_LIBRARIES 
 		${HEALPIX_INSTALL_PREFIX}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}sharp${CMAKE_STATIC_LIBRARY_SUFFIX}
-		${HEALPIX_INSTALL_PREFIX}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}${project}${CMAKE_STATIC_LIBRARY_SUFFIX}
+		${HEALPIX_INSTALL_PREFIX}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}healpix${CMAKE_STATIC_LIBRARY_SUFFIX}
 		)
 	set(HEALPIX_INCLUDE_DIRS
 		"${HEALPIX_INSTALL_PREFIX}/include"
@@ -146,7 +169,7 @@ if(NOT HEALPIX_FOUND)
 	#------------------------------------------------------------------------------
 	message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
 else()
-	add_custom_target(${project} ALL "")
+	add_custom_target(healpix ALL "")
 	message(STATUS "HEALPIX LIBRARIES are: ${HEALPIX_LIBRARIES}")
 	#------------------------------------------------------------------------------
 	include_directories("${HEALPIX_INCLUDE_DIRS}")
