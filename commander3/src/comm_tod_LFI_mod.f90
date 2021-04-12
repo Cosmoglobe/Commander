@@ -613,6 +613,13 @@ contains
 
     end do
 
+!!$    open(58,file='comm3_L2fromL1_27M_1670.dat')
+!!$    do i = 1, size(tod,1)
+!!$       write(58,*) tod(i,1)
+!!$    end do
+!!$    close(58)
+!!$    stop
+
     deallocate(diode_data, corrected_data)
 
   end subroutine diode2tod_LFI
@@ -690,7 +697,7 @@ contains
           end do
           call mpi_allreduce(acc,  acc_tot,  size(acc),  MPI_INTEGER8, MPI_SUM, self%info%comm, ierr)
           call mpi_allreduce(nval, nval_tot, size(nval), MPI_INTEGER8, MPI_SUM, self%info%comm, ierr)
-          self%spike_templates(det,diode/2,1,:) = real(acc_tot,dp) / real(nval,dp)
+          self%spike_templates(det,diode/2,1,:) = real(acc_tot,dp) / real(nval_tot,dp)
        end do
     end do
     deallocate(acc, acc_tot, nval, nval_tot)
