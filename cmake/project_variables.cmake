@@ -43,10 +43,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib"
 	CACHE STRING
 	"Directory where to install all the libraries."
 	)
-set(CMAKE_LIBRARY64_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/lib64"
-	CACHE STRING
-	"Directory where to install all the libraries for 64."
-	)
 # Where to output executable(s)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_INSTALL_PREFIX}/bin"
 	CACHE STRING
@@ -67,6 +63,12 @@ set(CMAKE_LOG_DIR "${CMAKE_INSTALL_PREFIX}/logs"
 	CACHE STRING
 	"Derictory where to output logs of each step (download, configure, build, install)."
 	)
+# To avoid errors such as "file doesn't exists" during
+# configuration/build/installation of an external project,
+# we need to manually recreate this folder (during configure time).
+if(NOT EXISTS "${CMAKE_LOG_DIR}")
+  file(MAKE_DIRECTORY "${CMAKE_LOG_DIR}")
+endif()
 set(DOXYGEN_BUILD_DOCS OFF 
 	CACHE BOOL
 	"Determine whether to use doxygen or not."
@@ -183,10 +185,26 @@ option(USE_SYSTEM_DOXYGEN "Enables search for DOXYGEN on the system."     ON)
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
 # tempita source dir
 set(TEMPITA_DIR ${CMAKE_SOURCE_DIR}/commander3/python)
-# adding custom cmake modules directory, e.g. for FindSomething.cmake
-# Note: It should be already inside root CmakeLists.txt, so 
-# don't need to include in here
-#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+# Some projects are build with configure and others are build with CMake. 
+# To avoid errors when compiling on different owls (or other machines),
+# we put special variable prefix for all subprojects' builds to be located 
+# inside build directory.
+set(LIBS_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/subbuilds")
+# The following variables' purpose is to keep source directory separate from
+# build directory etc. In such way we are able to safely remove the build dir
+# without removing sources; thus, can easily recompile, no need to redownload.
+set(ZLIB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/zlib")
+set(LIBAEC_SOURCE_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}/libaec")
+set(HDF5_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/hdf5")
+set(MBEDTLS_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/mbedtls")
+set(LIBSSH2_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/libssh2")
+set(CURL_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/curl")
+set(CFITSIO_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/cfitsio")
+set(HEALPIX_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/healpix")
+set(CAMB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/camb")
+set(FFTW_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/fftw")
+set(BLAS_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/blas")
+#
 #------------------------------------------------------------------------------
 # output of the summary into the screen
 message(STATUS "---------------------------------------------------------------")
