@@ -187,7 +187,6 @@ contains
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
     allocate(lhs(nscan_tot), rhs(nscan_tot))
-    allocate(temp_gain(nscan_tot))
     g = 0.d0
     do j = 1, ndet
        do i = 1, tod%nscan
@@ -226,7 +225,7 @@ contains
                !currend = tod%jumplist(j, pid_id +1)
                currend = tod%jumplist(j, pid_id +1) - 1
             end if
-            !write(*,*) j, pid_id, currstart, currend
+            !write(*,*) 'j, pid_id, currstart, currend:', j, pid_id, currstart, currend
             sum_weighted_gain = 0.d0
             sum_inv_sigma_squared = 0.d0
             allocate(temp_gain(currend - currstart + 1))
