@@ -88,11 +88,14 @@ class commander_tod:
                     data=np.array(data, dtype=compArr[1]['dtype'])
 
                 elif compArr[0] == 'sigma':
-                    data = np.int32(compArr[1]['nsigma'] * data/(compArr[1]['sigma0']))
+                    data = np.int32(compArr[1]['nsigma'] * (data-compArr[1]['offset'])/(compArr[1]['sigma0']))
                     metaName = '/common/n' + fieldName.split('/')[-1] + 'sigma'
                     self.encodings[metaName] = compArr[1]['nsigma']
+                    self.encodings[metaName] = compArr[1]['offset']                  
+ 
                     self.add_attribute(fieldName, 'nsigma', compArr[1]['nsigma'])
                     self.add_attribute(fieldName, 'sigma0', compArr[1]['sigma0'])
+                    self.add_attribute(fieldName, 'offset', compArr[1]['offset'])
 
                 elif compArr[0] == 'digitize':
                     bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
@@ -111,7 +114,7 @@ class commander_tod:
                     delta = np.diff(data)
                     delta = np.insert(delta, 0, data[0])
                     self.huffDict[dictNum][fieldName] = delta
-                    #print("adding " + fieldName + " to dict, contents ", delta)
+                    #print("adding " + fieldName + " to dict, contents ", delta[delta != 0], data[data != 0])
                     self.add_attribute(fieldName, 'huffmanDictNumber', dictNum)
                     writeField = False 
 
@@ -187,7 +190,7 @@ class commander_tod:
             #    print(huffArray, len(huffArray), len(h.symbols))
             for field in self.huffDict[key].keys():
                 self.add_field(field, np.void(bytes(h.byteCode(self.huffDict[key][field]))))
-                #print(self.huffDict[key][field], bin(int.from_bytes(h.byteCode(self.huffDict[key][field]), byteorder=sys.byteorder)))
+                #print(self.huffDict[key][field], len(h.byteCode(self.huffDict[key][field])))
 
         self.huffDict = {}
         self.add_field('/' + str(pid).zfill(6) + '/common/load', loadBalance)

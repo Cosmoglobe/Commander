@@ -37,6 +37,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('planck_dir', type=str, action='store', help='path to the legacy planck data in hdf format')
+    #/mn/stornext/d16/cmbco/bp/data
 
     parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d16/cmbco/bp/data/npipe_gains')
 
@@ -170,6 +171,7 @@ def make_od(comm_tod, freq, od, args):
     for pid, index in zip(exFile['AHF_info/PID'], range(len(exFile['AHF_info/PID']))):
         startIndex = np.where(exFile['Time/OBT'] > exFile['AHF_info/PID_start'][index])
         endIndex = np.where(exFile['Time/OBT'] > exFile['AHF_info/PID_end'][index])
+        #print(pid)
         if len(startIndex[0]) > 0:
             pid_start = startIndex[0][0]
         else:#catch days with no pids
@@ -179,6 +181,7 @@ def make_od(comm_tod, freq, od, args):
         else:#catch final pid per od
             pid_end = len(exFile['Time/OBT'])
         if pid_start == pid_end:#catch chunks with no data like od 1007
+            print('skipping pid ' + str(pid) + ' because it is empty')
             continue
 
         obt = exFile['Time/OBT'][pid_start]
@@ -222,6 +225,7 @@ def make_od(comm_tod, freq, od, args):
                 undiffFile = h5py.File(os.path.join(args.planck_dir, 'L1Data', 'LFI_0' + str(freq) + '_' + str(horn) + '_L1_OD' + str(od).zfill(4) + '.h5'), 'r')
  
             for hornType in lfi.hornTypes:
+                #print(horn, hornType)
                 prefix = str(pid).zfill(6) + '/' + str(horn) + hornType
 
                 #get RIMO index
@@ -307,15 +311,52 @@ def make_od(comm_tod, freq, od, args):
                 
                     for diode in lfi.diodeTypes[hornType]:
                         ref = undiffFile[str(horn) + diode + '/REF'][pid_start:pid_end]
-                        sky = undiffFile[str(horn) + diode + '/SKY'][pid_start:pid_end]
                         todSigma = lfi.todSigma
-                        todSigma[1]['sigma0'] = 0.0000001 #this is a complete guess
+                        '''offset = min(ref)
+                        ref = ref - offset
+                        diff = ref[1:] - ref[:-1]
+                        diff[diff == 0] = 1000
+                        todSigma[1]['sigma0'] =  min(abs(diff))
+                        todSigma[1]['offset'] = offset
+
+                        check = ref/min(abs(diff))
+                        if(max(abs(check - check.astype(int))) > 0.0001):
+                            print('issue with ref sigma in ', horn, hornType, pid, diode)
+                            print(max(abs(check - check.astype(int))))
+                            return
+
+                        print(min(abs(diff)), offset)
+                        '''
+                        todSigma[1]['sigma0'] = 0.000001
+                        todSigma[1]['offset'] = 0
                         compArray = [lfi.todDtype, todSigma, lfi.huffTod]
                         if(args.no_compress or args.no_compress_tod):
                             compArray = [lfi.todDtype] 
 
                         comm_tod.add_field(prefix + '/ref' + diode, ref, compArray)
-                        comm_tod.add_field(prefix + '/sky' + diode, ref, compArray)
+                       
+                        sky = undiffFile[str(horn) + diode + '/SKY'][pid_start:pid_end]
+                        '''
+                        todSigma = lfi.todSigma
+                        offset = min(sky)
+                        sky = sky - offset
+                        diff = sky[1:] - sky[:-1]
+                        diff[diff == 0] = 1000
+                        todSigma[1]['sigma0'] =  min(abs(diff))
+                        todSigma[1]['offset'] = offset
+
+                        check = sky/min(abs(diff))
+                        if(max(abs(check - check.astype(int))) > 0.0001):
+                            print('issue with sky sigma in ', horn, hornType, pid, diode)
+                            print(check - check.astype(int), offset, diff, min(abs(diff)), check)
+                            return
+                        '''
+                        
+                        compArray = [lfi.todDtype, todSigma, lfi.huffTod]
+                        if(args.no_compress or args.no_compress_tod):
+                            compArray = [lfi.todDtype]
+                        comm_tod.add_field(prefix + '/sky' + diode, sky, compArray)
+
  
         comm_tod.finalize_chunk(pid, loadBalance=outAng)
     comm_tod.finalize_file()

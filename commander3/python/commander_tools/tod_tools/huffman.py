@@ -174,7 +174,10 @@ class Huffman:
             self.right_nodes.append(right_child.node_number)
 
         node = heapq.heappop(self.queue)
-        self.PrintCode(node)
+        if(node.left == None and node.right == None): #case where there was just one symbol
+            self.PrintCode(node, code='0')
+        else:
+            self.PrintCode(node)
 
         self.node_max = node.node_number
         _node_number = 0
