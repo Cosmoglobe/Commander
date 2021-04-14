@@ -708,7 +708,7 @@ contains
              call huffman_decode2(self%scans(i)%todkey, self%scans(i)%d(det)%zdiode(diode)%p, tod)
              do j = 1, self%scans(i)%ntod
                 b = min(int(modulo((j-0.5d0)*dt,t_tot)*nbin),nbin-1_i8b)
-                acc(b)  = acc(b)  + tod(i)
+                acc(b)  = acc(b)  + tod(j)
                 nval(b) = nval(b) + 1_i8b
              end do
              deallocate(tod)
