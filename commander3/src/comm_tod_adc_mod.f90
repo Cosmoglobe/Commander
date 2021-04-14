@@ -68,7 +68,7 @@ contains
 
      allocate(constructor%adc_in(size(adc_i)), constructor%adc_out(size(adc_o)))
 
-     constructor%adc_in = adc_i
+     constructor%adc_in  = adc_i
      constructor%adc_out = adc_o
  
    end function constructor

@@ -535,14 +535,26 @@ contains
       call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
       allocate(adc_buffer(ext(1), ext(2)))
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)
-      
+
+      write(*,*) shape(adc_buffer)
+
       self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for first half, sky
 
       self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc correction for first half, load
+
+      open(34,file=trim(self%label(band))//'_adc91-'//diode_name//'.dat')
+      write(34,fmt='(2(E12.4))') self%adc_corrections(band, i+1, 1, 1)%p%adc_in, self%adc_corrections(band, i+1, 1, 1)%p%adc_out
+      close(34)
+
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, adc_buffer)
       self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for second half, sky
 
       self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc corrections for second half, load
+
+      open(35,file=trim(self%label(band))//'_adc953-'//diode_name//'.dat')
+      write(35,fmt='(2(E12.4))') self%adc_corrections(band, i+1, 2, 1)%p%adc_in, self%adc_corrections(band, i+1, 2, 1)%p%adc_out
+      close(35)
+
       deallocate(adc_buffer)
 
       if (index(self%label(band), '44') /= 0) then ! read spike templates
@@ -595,8 +607,14 @@ contains
         do j=1, self%ndiode
           horn=1
           if(index('ref', self%diode_names(i,j)) /= 0) horn=2
+
+          write(*,*) diode_data(:10,j)
           
-          !call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+          call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+
+          write(*,*) corrected_data(:10,j)
+          stop
+
           corrected_data(:,j) = diode_data(:,j)
         end do
 
