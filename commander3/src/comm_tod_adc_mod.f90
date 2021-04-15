@@ -93,8 +93,24 @@ contains
      class(comm_adc),                 intent(inout) :: self
      real(sp), dimension(:),          intent(in)    :: tod_in
      real(sp), dimension(:),          intent(out)   :: correct_tod
+     type(spline_type)                              :: sadc
+     integer(i4b)                                   :: i, len
+
+     len = size(self%adc_in)
+
+     call spline(sadc, self%adc_in, self%adc_out)
+
+     write(*,*) tod_in
+
+     stop
 
      !TODO: figure out the correct algorithm and implement it
+     !-------------------------------------------------------
+
+     ! To start we'll the just spline the DPC adc correction table
+     ! Must check units!!
+
+     ! correct_tod = splint(sadc,tod_in)
      correct_tod = tod_in
 
    end subroutine adc_correct
