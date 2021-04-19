@@ -670,7 +670,7 @@ end subroutine bin_differential_TOD
            rho_new = sum(r0*r)
            call update_status(status, 'done dot product')
            if (rho_new == 0d0) then
-             if (tod%verbosity > 1) write(*,*) 'rho_i is zero'
+             if (tod%verbosity > 1) write(*,*) 'Residual norm is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg

@@ -4,6 +4,7 @@ import healpy as hp
 
 
 d = hp.read_map('data/wmap_sidelobe_map_K1_9yr_v5.fits')
+d = hp.read_map('data/wmap_sidelobe_map_W4_9yr_v5.fits')
 slAB = hp.reorder(d, n2r=True)
 
 # The normalization is sum(abs(slAB)) = 2*Npix, which would be true if they hadn't cut out the main beam.
@@ -22,6 +23,7 @@ npix_old = hp.nside2npix(128)
 slA *= npix_new/npix_old
 
 beam = hp.read_map('freq0_hornA.fits')
+beam = hp.read_map('freq9_hornA.fits')
 
 beam = beam*(npix_new - sum(slA))/sum(beam)
 
@@ -31,6 +33,29 @@ slA  = slA/npix_new
 
 bl = hp.anafast(beam)
 sl = hp.anafast(slA)
-plt.semilogy(bl)
-plt.semilogy(sl)
+plt.semilogy(bl, label='Beam')
+plt.semilogy(sl, label='Sidelobe')
+plt.xscale('log')
+plt.legend(loc='best')
+plt.xlabel(r'$\ell$')
+#plt.show()
+
+plt.figure()
+theta = np.linspace(0.01*np.pi/180, 2*np.pi,10000)
+plt.loglog(theta*180/np.pi, abs(hp.bl2beam(bl, theta)))
+plt.plot(theta*180/np.pi, abs(hp.bl2beam(sl, theta)))
+
+plt.ylim([3e-20, 3e-9])
+plt.xlim([0.1, 200])
+
+
+
+# I know this isn't totally right, but if I just do a single rotation in
+# mollview, it seems to look okay...
+hp.mollview(beam, rot=(0,0,90+22.19))
+hp.mollview(slA, rot=(0,0,-90-22.19))
+
+beam = hp.ud_grade(beam, 128)
+
+hp.mollview(beam + slA, rot=(0,0,-90-22.19))
 plt.show()

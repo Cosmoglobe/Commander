@@ -136,8 +136,8 @@ contains
       constructor%nhorn           = 2
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
-      constructor%correct_sl      = .false.
-      constructor%orb_4pi_beam    = .false.
+      constructor%correct_sl      = .true.
+      constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 400.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -422,7 +422,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.false. .and. i==1 .and. iter == 10) then
+         if (.true. .and. i==1 .and. iter == 10) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
@@ -515,16 +515,16 @@ contains
       end if
 
       ! Solve for maps
-      !call update_status(status, "Starting bicg-stab")
-      !do l=1, self%output_n_maps
-      !   if (self%verbosity > 0 .and. self%myid == 0) then
-      !     write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
-      !   end if
-      !   call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-      !                    & epsil(l), procmask, map_full, M_diag, b_map, l, &
-      !                    & prefix, postfix)
-      !end do
-      !if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
+      call update_status(status, "Starting bicg-stab")
+      do l=1, self%output_n_maps
+         if (self%verbosity > 0 .and. self%myid == 0) then
+           write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+         end if
+         call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+                          & epsil(l), procmask, map_full, M_diag, b_map, l, &
+                          & prefix, postfix)
+      end do
+      if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
