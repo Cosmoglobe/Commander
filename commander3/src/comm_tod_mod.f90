@@ -107,6 +107,7 @@ module comm_tod_mod
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
      logical(lgt) :: orb_abscal
      logical(lgt) :: compressed_tod               
+     logical(lgt) :: apply_inst_corr               
      logical(lgt) :: symm_flags               
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
@@ -175,6 +176,7 @@ module comm_tod_mod
      procedure                           :: initialize_bp_covar
      procedure(process_tod), deferred    :: process_tod
      procedure                           :: construct_sl_template
+     procedure                           :: construct_corrtemp_inst
      procedure                           :: construct_dipole_template
      procedure                           :: construct_dipole_template_diff
      procedure                           :: output_scan_list
@@ -285,6 +287,7 @@ contains
     self%nside_param   = cpar%ds_nside(id_abs)
     self%verbosity     = cpar%verbosity
     self%sims_output_dir = cpar%sims_output_dir
+    self%apply_inst_corr = .false.
     self%enable_tod_simulations = cpar%enable_tod_simulations
 
     if (trim(self%noise_psd_model) == 'oof') then
@@ -551,7 +554,7 @@ contains
              write(*,*) ' Error -- detector not found in HDF file: ', trim(adjustl(detlabels(i)))
              stop
           end if
-          self%polang(i) = polang_buf(j)
+          self%polang(i) = 0.d0 !polang_buf(j)
           self%mbang(i) = mbang_buf(j)
        end do
        deallocate(polang_buf, mbang_buf, dets)
@@ -1161,7 +1164,7 @@ contains
 !       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
        call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,2:4))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,5))
-       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
+!       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
@@ -1178,8 +1181,8 @@ contains
          & self%comm, ierr)
     call mpi_bcast(self%bp_delta, size(self%bp_delta), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
-    call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
-         & self%comm, ierr)
+!    call mpi_bcast(self%polang, size(self%polang), MPI_DOUBLE_PRECISION, 0, &
+!         & self%comm, ierr)
     call mpi_bcast(self%mono, size(self%mono), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
     call mpi_bcast(self%gain0, size(self%gain0), MPI_DOUBLE_PRECISION, 0, &
@@ -1317,6 +1320,35 @@ contains
     end do
 
   end subroutine construct_sl_template
+
+
+  subroutine construct_corrtemp_inst(self, scan, pix, psi, s)
+    !  Construct an instrument-specific correction template
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !
+    !  Returns:
+    !  --------
+    !  s:   real (sp)
+    !       output template timestream
+    implicit none
+    class(comm_tod),                       intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
+    real(sp),            dimension(:,:),   intent(out)   :: s
+
+    s = 0.d0
+
+  end subroutine construct_corrtemp_inst
 
   subroutine construct_dipole_template(self, scan, pix, psi, orbital, s_dip)
     !  construct a CMB dipole template in the time domain
@@ -1750,11 +1782,21 @@ contains
     integer(i4b),                       intent(in)  :: scan, det
     integer(i4b),        dimension(:),  intent(out) :: flag
     integer(i4b),        dimension(:,:),intent(out) :: psi, pix
-    integer(i4b) :: i
+    integer(i4b) :: i, j
 
     do i=1, self%nhorn
       call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
       call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
+      if (self%polang(det) /= 0.) then
+         do j = 1, size(psi,1)
+            psi(j,i) = psi(j,i) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
+            if (psi(j,i) < 1) then
+               psi(j,i) = psi(j,i) + self%npsi
+            else if (psi(j,i) > self%npsi) then
+               psi(j,i) = psi(j,i) - self%npsi
+            end if
+         end do
+      end if
     end do
     call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
@@ -1804,19 +1846,29 @@ contains
     integer(i4b),                       intent(in)  :: scan, det
     real(sp),          dimension(:,:),  intent(out) :: diodes
 
-    integer(i4b) :: i
-    integer(i4b), allocatable, dimension(:) :: tod_int
+    integer(i4b) :: i, j
+    real(sp)     :: tot
+    integer(i4b), allocatable, dimension(:) :: buff
 
-    allocate(tod_int(size(diodes(:,1))))
-
+!    allocate(buff(size(diodes,1)))
     do i = 1, self%ndiode
-
-        call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, tod_int)
-
-        diodes(:,i) = real(tod_int, sp)
+        call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, diodes(:,i))
+        !tot = sum(diodes(:,i))
+        !call huffman_decode3(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, buff)
+!        write(*,*) sum(abs(diodes(:,i)-buff)), maxval(abs(diodes(:,i)-buff))
+        !diodes(:,i) = buff
+        !write(*,*) diodes(1:2,i), buff(1:2)
+!!$        if (self%myid ==0) then
+!!$           open(58,file='test2.dat')
+!!$           do j = 1, size(buff)
+!!$              write(58,*) diodes(j,i), buff(j)
+!!$           end do
+!!$           close(58)
+!!$        end if
+!!$        call mpi_finalize(j)
+!!$        stop
     end do
- 
-    deallocate(tod_int)
+!    deallocate(buff)
 
   end subroutine decompress_diodes
 

@@ -55,13 +55,14 @@ module comm_tod_LFI_mod
      real(dp),          allocatable, dimension(:)       :: mb_eff
      real(dp),          allocatable, dimension(:,:)     :: diode_weights
      type(adc_pointer), allocatable, dimension(:,:,:,:) :: adc_corrections ! ndet, n_diode, nadc_templates, (sky, load)
-     real(dp),          allocatable, dimension(:,:,:,:) :: spike_templates ! ndet, n_diode, 3 entries, nbin
+     real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
+     real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
    contains
-     procedure     :: process_tod          => process_LFI_tod
-     procedure     :: diode2tod_inst       => diode2tod_LFI
-     procedure     :: load_instrument_inst => load_instrument_LFI
-     procedure     :: generate_1Hz_template
-     procedure     :: subtract_1Hz_template
+     procedure     :: process_tod             => process_LFI_tod
+     procedure     :: diode2tod_inst          => diode2tod_LFI
+     procedure     :: load_instrument_inst    => load_instrument_LFI
+     procedure     :: dumpToHDF_inst          => dumpToHDF_LFI
+     procedure     :: construct_corrtemp_inst => construct_corrtemp_LFI
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -183,6 +184,14 @@ contains
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
 
+    if (trim(constructor%freq) == '030') then
+       constructor%polang = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
+    else if (trim(constructor%freq) == '044') then
+       constructor%polang = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
+    else if (trim(constructor%freq) == '070') then
+       constructor%polang = -[ 0.543, 0.543,  1.366, 1.366,  -1.811, -1.811, -1.045, -1.045,  -2.152, -2.152,  -0.960, -0.960]*pi/180.
+    end if
+
     ! Initialize bandpass mean and proposal matrix
     call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
 
@@ -193,11 +202,13 @@ contains
     constructor%nbin_spike      = nint(constructor%samprate*sqrt(3.d0))
     allocate(constructor%mb_eff(constructor%ndet))
     allocate(constructor%diode_weights(constructor%ndet, 2))
-    allocate(constructor%spike_templates(constructor%ndet, 2, 3, constructor%nbin_spike))
+    allocate(constructor%spike_templates(constructor%nbin_spike, constructor%ndet))
+    allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
     allocate(constructor%adc_corrections(constructor%ndet, 2, 2, 2))
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    constructor%spike_amplitude = 0.d0
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
@@ -207,9 +218,6 @@ contains
     do i = 1, constructor%nscan
        constructor%scans(i)%d%baseline = 0.d0
     end do
-
-    ! Precompute 1Hz templates
-    call constructor%generate_1Hz_template()
 
   end function constructor
 
@@ -335,6 +343,9 @@ contains
     !------------------------------------
     ! Perform main sampling steps
     !------------------------------------
+
+    ! Sample 1Hz spikes
+    call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2)
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
@@ -534,19 +545,21 @@ contains
       ! read in adc correction templates
       call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
       allocate(adc_buffer(ext(1), ext(2)))
-      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)
-      
+      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)      
       self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for first half, sky
-
       self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc correction for first half, load
+      deallocate(adc_buffer)
+
+      call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, ext)
+      allocate(adc_buffer(ext(1), ext(2)))
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, adc_buffer)
       self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(1,:), adc_buffer(2,:)) !adc correction for second half, sky
-
       self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(3,:), adc_buffer(4,:)) !adc corrections for second half, load
       deallocate(adc_buffer)
 
       if (index(self%label(band), '44') /= 0) then ! read spike templates
-        call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
+         !call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
+         self%spike_templates = 0.d0
       end if     
  
     end do
@@ -600,9 +613,6 @@ contains
           corrected_data(:,j) = diode_data(:,j)
         end do
 
-        ! Apply 1Hz corrections
-        call self%subtract_1Hz_template(scan, i, corrected_data)
-
         ! Wiener-filter load data 
         
 
@@ -610,98 +620,222 @@ contains
 
         !w1(sky00 - ref00) + w2(sky01 - ref01)
         tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,1) - corrected_data(:,3)) + self%diode_weights(i,2)*( corrected_data(:,2) - corrected_data(:,4))
-
+        
+!!$        open(58,file='comm3_L2fromL1_27M_1670.dat', recl=1024)
+!!$        do j = 1, size(tod,1)
+!!$           write(58,*) tod(j,1), diode_data(j,:), corrected_data(j,:)
+!!$        end do
+!!$        close(58)
+!!$        stop
+        
     end do
-
-!!$    open(58,file='comm3_L2fromL1_27M_1670.dat')
-!!$    do i = 1, size(tod,1)
-!!$       write(58,*) tod(i,1)
-!!$    end do
-!!$    close(58)
-!!$    stop
 
     deallocate(diode_data, corrected_data)
 
   end subroutine diode2tod_LFI
 
 
-  subroutine subtract_1Hz_template(self, scan, det, tod)
+  subroutine dumpToHDF_LFI(self, chainfile, path)
     ! 
-    ! Fits amplitude and subtracts 1Hz template for each detector and given scan
-    ! 
-    ! Arguments:
-    ! ----------
-    ! self:     derived class (comm_tod)
-    !           TOD object
-    ! scan:     int
-    !           Scan ID number
-    ! det:      int
-    !           Detector ID
-    !
-    ! Returns
-    ! ----------
-    ! tod:      ntod x ndiode sp array (inout)
-    !           Diode TOD before and after 1Hz corrections
-    !
-    implicit none
-    class(comm_LFI_tod),                 intent(in)    :: self
-    integer(i4b),                        intent(in)    :: scan, det
-    real(sp),            dimension(:,:), intent(inout) :: tod
-
-  end subroutine subtract_1Hz_template
-
-
-  subroutine generate_1Hz_template(self)
-    ! 
-    ! Generates 1Hz template for each detector, coadded over full mission
+    ! Writes instrument-specific TOD parameters to existing chain file
     ! 
     ! Arguments:
     ! ----------
     ! self:     derived class (comm_tod)
     !           TOD object
-    ! scan:     int
-    !           Scan ID number
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
     !
     ! Returns
     ! ----------
-    ! tod:      ntod x ndet sp array
-    !           Output detector TOD generated from raw diode data
+    ! None
     !
     implicit none
-    class(comm_LFI_tod), intent(inout)    :: self
+    class(comm_LFI_tod),                 intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
 
-    integer(i4b) :: i, j, nbin, det, diode, b, ierr
-    integer(i8b) :: nbin_spike
-    real(dp)     :: dt, t_tot
-    integer(i4b), allocatable, dimension(:) :: tod    
-    integer(i8b), allocatable, dimension(:) :: nval, nval_tot, acc, acc_tot
+    integer(i4b) :: ierr
+    real(dp), allocatable, dimension(:,:) :: amp, amp_tot
 
-    dt    = 1.d0/self%samprate   ! Sample time
+    allocate(amp(self%nscan_tot,self%ndet), amp_tot(self%nscan_tot,self%ndet))
+    amp = 0.d0
+    amp(self%scanid,:) = self%spike_amplitude
+    call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+
+    if (self%myid == 0) then
+       call write_hdf(chainfile, trim(adjustl(path))//'1Hz_temp', self%spike_templates)
+       call write_hdf(chainfile, trim(adjustl(path))//'1Hz_ampl', amp_tot)
+    end if
+
+    deallocate(amp, amp_tot)
+
+  end subroutine dumpToHDF_LFI
+
+  subroutine sample_1Hz_spikes(tod, handle, map_sky, procmask, procmask2)
+    !   Sample LFI specific 1Hz spikes shapes and amplitudes
+    !
+    !   Arguments:
+    !   ----------
+    !   tod:      comm_tod derived type
+    !             contains TOD-specific information
+    !   handle:   planck_rng derived type
+    !             Healpix definition for random number generation
+    !             so that the same sequence can be resumed later on from that same point
+    !   map_sky:
+    implicit none
+    class(comm_LFI_tod),                          intent(inout) :: tod
+    type(planck_rng),                             intent(inout) :: handle
+    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
+    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+
+    integer(i4b) :: i, j, k, b, ierr, nbin
+    real(dp)     :: dt, t_tot, t
+    real(dp)     :: t1, t2
+    character(len=6) :: scantext
+    real(dp), allocatable, dimension(:)     :: nval
+    real(sp), allocatable, dimension(:)     :: res
+    real(dp), allocatable, dimension(:,:)   :: s_sum
+    real(dp), allocatable, dimension(:,:,:) :: s_bin
+    type(comm_scandata) :: sd
+
+    if (tod%myid == 0) write(*,*) '   --> Sampling 1Hz spikes'
+
+    dt    = 1.d0/tod%samprate   ! Sample time
     t_tot = 1.d0                 ! Time range in sec
-    nbin  = self%nbin_spike      ! Number of bins in 64bit integers
+    nbin  = tod%nbin_spike      ! Number of bins 
 
-    allocate(acc(0:nbin-1), acc_tot(0:nbin-1), nval(0:nbin-1), nval_tot(0:nbin-1))
-    do det = 1, self%ndet
-       do diode = 2, self%ndiode, 2 ! Only loop over load data
-          acc  = 0.d0
-          nval = 0
-          do i = 1, self%nscan
-             allocate(tod(self%scans(i)%ntod))
-             call huffman_decode2(self%scans(i)%todkey, self%scans(i)%d(det)%zdiode(diode)%p, tod)
-             do j = 1, self%scans(i)%ntod
-                b = min(int(modulo((j-0.5d0)*dt,t_tot)*nbin),nbin-1_i8b)
-                acc(b)  = acc(b)  + tod(j)
-                nval(b) = nval(b) + 1_i8b
-             end do
-             deallocate(tod)
+    allocate(s_bin(0:nbin-1,tod%ndet,tod%nscan), s_sum(0:nbin-1,tod%ndet), nval(0:nbin-1))
+
+    ! Compute template per scan
+    s_bin = 0.d0
+    do i = 1, tod%nscan
+       if (.not. any(tod%scans(i)%d%accept)) cycle
+       call wall_time(t1)
+
+       ! Prepare data
+       tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
+       call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
+       tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
+
+       allocate(res(tod%scans(i)%ntod))
+       do j = 1, tod%ndet
+          if (.not. tod%scans(i)%d(j)%accept) cycle
+
+          res = sd%tod(:,j)/tod%scans(i)%d(j)%gain - (sd%s_sky(:,j) + &
+               & sd%s_sl(:,j) + sd%s_orb(:,j))
+
+          nval = 0.d0
+          do k = 1, tod%scans(i)%ntod
+             if (sd%mask(k,j) == 0.) cycle
+             t = modulo(tod%scans(i)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
+             b = min(int(t*nbin),nbin-1)
+             s_bin(b,j,i) = s_bin(b,j,i)  + res(k)
+             nval(b)      = nval(b)       + 1.d0
           end do
-          call mpi_allreduce(acc,  acc_tot,  size(acc),  MPI_INTEGER8, MPI_SUM, self%info%comm, ierr)
-          call mpi_allreduce(nval, nval_tot, size(nval), MPI_INTEGER8, MPI_SUM, self%info%comm, ierr)
-          self%spike_templates(det,diode/2,1,:) = real(acc_tot,dp) / real(nval_tot,dp)
+          s_bin(:,j,i) = s_bin(:,j,i) / nval
+          s_bin(:,j,i) = s_bin(:,j,i) - mean(s_bin(1:nbin/3,j,i))
+       end do
+
+!!$       if (trim(tod%freq) == '070') then 
+!!$          call int2string(tod%scanid(i),scantext)
+!!$          open(58,file='temp_1Hz_22S_PID'//scantext//'.dat')
+!!$          do k = 0, nbin-1
+!!$             write(58,*) s_bin(k,10,i)
+!!$          end do
+!!$          close(58)
+!!$       end if
+!!$
+!!$       if (trim(tod%freq) == '044') then 
+!!$          call int2string(tod%scanid(i),scantext)
+!!$          open(58,file='temp_1Hz_26S_PID'//scantext//'.dat')
+!!$          do k = 0, nbin-1
+!!$             write(58,*) s_bin(k,6,i)
+!!$          end do
+!!$          close(58)
+!!$       end if
+
+       ! Clean up
+        call sd%dealloc
+       deallocate(res)
+    end do
+
+    ! Compute smoothed templates
+    s_sum = 0.d0
+    do i = 1, tod%nscan
+       if (.not. any(tod%scans(i)%d%accept)) cycle
+       do j = 1, tod%ndet
+          s_sum(:,j) = s_sum(:,j) + s_bin(:,j,i)
        end do
     end do
-    deallocate(acc, acc_tot, nval, nval_tot)
+    call mpi_allreduce(mpi_in_place, s_sum,  size(s_sum),  &
+         & MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
 
-  end subroutine generate_1Hz_template
+    ! Normalize to maximum of unity
+    do j = 1, tod%ndet
+       !s_sum(:,j) = s_sum(:,j) - median(s_sum(:,j)) 
+       s_sum(:,j) = s_sum(:,j) / maxval(abs(s_sum(:,j))) 
+       tod%spike_templates(:,j) = s_sum(:,j) 
+    end do
+
+    ! Compute amplitudes per scan and detector
+    tod%spike_amplitude = 0.
+    do i = 1, tod%nscan
+       if (.not. any(tod%scans(i)%d%accept)) cycle
+       do j = 1, tod%ndet
+          tod%spike_amplitude(i,j) = sum(s_sum(:,j)*s_bin(:,j,i))/sum(s_sum(:,j)**2)
+       end do
+    end do
+
+    ! Clean up
+    deallocate(s_bin, s_sum, nval)
+
+  end subroutine sample_1Hz_spikes
+
+  subroutine construct_corrtemp_LFI(self, scan, pix, psi, s)
+    !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !
+    !  Returns:
+    !  --------
+    !  s:   real (sp)
+    !       output template timestream
+    implicit none
+    class(comm_LFI_tod),                   intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
+    real(sp),            dimension(:,:),   intent(out)   :: s
+
+    integer(i4b) :: i, j, k, nbin, b
+    real(dp)     :: dt, t_tot, t
+
+    dt    = 1.d0/self%samprate   ! Sample time
+    t_tot = 1.d0                ! Time range in sec
+    nbin  = self%nbin_spike      ! Number of bins 
+
+    do j = 1, self%ndet
+       if (.not. self%scans(scan)%d(j)%accept) cycle
+       do k = 1, self%scans(scan)%ntod
+          t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
+          b = min(int(t*nbin),nbin-1)
+          s(k,j) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
+       end do
+    end do
+
+  end subroutine construct_corrtemp_LFI
+
+
 
 end module comm_tod_LFI_mod
