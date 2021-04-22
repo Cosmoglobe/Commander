@@ -151,7 +151,10 @@ def make_od(comm_tod, freq, od, args):
         compArr = None
 
     #make detector names lookup
-    comm_tod.add_field(prefix + '/det', np.string_(detNames[0:-2]))
+    comm_tod.add_field(prefix + '/det', np.string_(detNames))
+
+    diodeNames = 'M:sky00,ref00,sky01,ref01.S:sky10,ref10,sky11,ref11'
+    comm_tod.add_field(prefix + '/diodes', np.string_(diodeNames))
 
     #make polarization angle
     comm_tod.add_field(prefix + '/polang', polangs)
@@ -308,54 +311,24 @@ def make_od(comm_tod, freq, od, args):
                         compArray = [lfi.todDtype] 
                     comm_tod.add_field(prefix + '/tod', tod, compArray)
                 else: #undifferenced data
-                
+               
+                    diode_list = []
+                    name_list = []
+ 
                     for diode in lfi.diodeTypes[hornType]:
                         ref = undiffFile[str(horn) + diode + '/REF'][pid_start:pid_end]
-                        todSigma = lfi.todSigma
-                        '''offset = min(ref)
-                        ref = ref - offset
-                        diff = ref[1:] - ref[:-1]
-                        diff[diff == 0] = 1000
-                        todSigma[1]['sigma0'] =  min(abs(diff))
-                        todSigma[1]['offset'] = offset
+                        diode_list.append(ref)
+                        name_list.append('ref'+diode)
+                        sky = undiffFile[str(horn) + diode + '/SKY'][pid_start:pid_end] 
+                        diode_list.append(sky)
+                        name_list.append('sky'+diode)
 
-                        check = ref/min(abs(diff))
-                        if(max(abs(check - check.astype(int))) > 0.0001):
-                            print('issue with ref sigma in ', horn, hornType, pid, diode)
-                            print(max(abs(check - check.astype(int))))
-                            return
-
-                        print(min(abs(diff)), offset)
-                        '''
-                        todSigma[1]['sigma0'] = 0.000001
-                        todSigma[1]['offset'] = 0
-                        compArray = [lfi.todDtype, todSigma, lfi.huffTod]
-                        if(args.no_compress or args.no_compress_tod):
-                            compArray = [lfi.todDtype] 
-
-                        comm_tod.add_field(prefix + '/ref' + diode, ref, compArray)
-                       
-                        sky = undiffFile[str(horn) + diode + '/SKY'][pid_start:pid_end]
-                        '''
-                        todSigma = lfi.todSigma
-                        offset = min(sky)
-                        sky = sky - offset
-                        diff = sky[1:] - sky[:-1]
-                        diff[diff == 0] = 1000
-                        todSigma[1]['sigma0'] =  min(abs(diff))
-                        todSigma[1]['offset'] = offset
-
-                        check = sky/min(abs(diff))
-                        if(max(abs(check - check.astype(int))) > 0.0001):
-                            print('issue with sky sigma in ', horn, hornType, pid, diode)
-                            print(check - check.astype(int), offset, diff, min(abs(diff)), check)
-                            return
-                        '''
-                        
-                        compArray = [lfi.todDtype, todSigma, lfi.huffTod]
-                        if(args.no_compress or args.no_compress_tod):
-                            compArray = [lfi.todDtype]
-                        comm_tod.add_field(prefix + '/sky' + diode, sky, compArray)
+                    compArray = [lfi.todDtype, lfi.huffTod]
+                    if(args.no_compress or args.no_compress_tod):
+                        compArray = [lfi.todDtype]
+                    
+                    comm_tod.add_matrix(prefix + '/diodes', diode_list, name_list, compArray)
+                    
 
  
         comm_tod.finalize_chunk(pid, loadBalance=outAng)

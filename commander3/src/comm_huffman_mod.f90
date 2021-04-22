@@ -200,7 +200,15 @@ contains
           else
              node=hcode%left(node)
           end if
-          if (node <= hcode%nch) then
+          if (node == 0) then ! case where there was a single entry ie. all 0
+             buf(k) = 0
+             k = k+1
+             if (k > n+offset_) then
+               x_out(1:n) = buf(1+offset_:n+offset_)
+               return
+             end if
+             node = hcode%nodemax
+          else if (node <= hcode%nch) then
              buf(k) = hcode%symbols(node)
              if (k > 1)         buf(k) = buf(k-1) + buf(k)
              if (present(imod)) buf(k) = iand(buf(k),imod)
