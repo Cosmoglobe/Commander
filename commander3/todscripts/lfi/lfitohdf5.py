@@ -151,7 +151,7 @@ def make_od(comm_tod, freq, od, args):
         compArr = None
 
     #make detector names lookup
-    comm_tod.add_field(prefix + '/det', np.string_(detNames))
+    comm_tod.add_field(prefix + '/det', np.string_(detNames[0:-2]))
 
     diodeNames = 'M:sky00,ref00,sky01,ref01.S:sky10,ref10,sky11,ref11'
     comm_tod.add_field(prefix + '/diodes', np.string_(diodeNames))

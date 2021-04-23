@@ -45,7 +45,6 @@ module comm_tod_mod
      real(dp)          :: chisq_masked
      real(sp)          :: baseline
      logical(lgt)      :: accept
-     byte, dimension(:,:), allocatable :: zdiode_                          ! pointer to the stacked and compressed undifferenced diode data
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)    :: ztod           ! compressed values in time domain, (ntod)
@@ -726,7 +725,6 @@ contains
        allocate(xi_n(tod%n_xi))
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
-       write(*,*) trim(self%d(i)%label)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
@@ -775,8 +773,8 @@ contains
           else
           end if
           if (tod%compressed_tod) then
-             !allocate(self%d(i)%zdiode(ndiode))
-             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode_)
+             allocate(self%d(i)%zdiode(ndiode))
+             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
              !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
           else
              allocate(self%d(i)%diode(ndiode, m))
@@ -1870,6 +1868,12 @@ contains
 !!$        end if
 !!$        call mpi_finalize(j)
 !!$        stop
+
+        !TODO: we need to back out the sigma compression here
+        !It would be great if we could read attributes...
+
+        ! This is terrible and should be fixed once we settle on a data format
+        diodes(:,i) = diodes(:,i) * 0.000001
     end do
 !    deallocate(buff)
 
@@ -1991,7 +1995,7 @@ contains
     !           Output detector TOD generated from raw diode data
     !
     implicit none
-    class(comm_tod),                     intent(in)    :: self
+    class(comm_tod),                     intent(inout) :: self
     integer(i4b),                        intent(in)    :: scan
     real(sp),          dimension(:,:),   intent(out)   :: tod
     tod = 0.

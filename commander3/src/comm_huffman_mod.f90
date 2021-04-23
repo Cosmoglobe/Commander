@@ -25,6 +25,8 @@ module comm_huffman_mod
   private
   public huffcode, huffman_decode, huffman_decode2, hufmak, get_bitstring, hufmak_precomp, huffman_decode3
 
+
+  !TODO: this needs to be generalized somehow to support a sp symbols case 
   type huffcode
      integer(i4b) :: nch, nodemax
      integer(i4b), allocatable, dimension(:) :: icode,left,iright,ncode,symbols,nfreq
@@ -72,6 +74,15 @@ contains
 
   end subroutine huffman_decode2_int
 
+  !subroutine huffman_decode_vlen(hcode, x_in, x_out)
+  !  implicit none
+  !  type(huffcode),               intent(in)  :: hcode
+  !  
+  !  real(sp),       dimension(:), intent(out) :: x_out
+
+
+  !end subroutine huffman_decode_vlen
+
   subroutine huffman_decode2_sp(hcode, x_in, x_out)
     implicit none
     type(huffcode),               intent(in)  :: hcode
@@ -82,7 +93,9 @@ contains
     integer(i4b), allocatable, dimension(:) :: buf
 
     n  = size(x_out)
-    
+   
+    write(*,*) x_in(1:100), hcode%nodemax, hcode%symbols(1:100)
+ 
     i = 2 ! Byte counter
     j = 7 ! Bit counter
     curr = 0
@@ -100,7 +113,7 @@ contains
              j = 7
           end if
        end do
-       x_out(k) = hcode%symbols(node) 
+       x_out(k) = hcode%symbols(node)
        if (k > 1) x_out(k) = x_out(k-1) + x_out(k)
     end do
 
