@@ -33,11 +33,8 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, byte_pointer
+  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
-  type :: byte_pointer
-   byte, dimension(:), allocatable :: p 
-  end type byte_pointer
 
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
@@ -48,6 +45,7 @@ module comm_tod_mod
      real(dp)          :: chisq_masked
      real(sp)          :: baseline
      logical(lgt)      :: accept
+     byte, dimension(:,:), allocatable :: zdiode_                          ! pointer to the stacked and compressed undifferenced diode data
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)    :: ztod           ! compressed values in time domain, (ntod)
@@ -504,6 +502,7 @@ contains
     real(dp)     :: t1, t2
     real(sp)     :: psi
     type(hdf_file)     :: file
+    character(len=128) :: buff_s
 
     integer(i4b), dimension(:), allocatable       :: ns
     real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
@@ -520,8 +519,8 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       ndet_tot = num_tokens(det_buf(1:n), ",")
-       allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
+       ndet_tot = num_tokens(det_buf(1:n), ",")-1
+       allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot),dets(ndet_tot))
        polang_buf = 0
        mbang_buf = 0
        self%polang = 0
@@ -727,6 +726,7 @@ contains
        allocate(xi_n(tod%n_xi))
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
+       write(*,*) trim(self%d(i)%label)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
@@ -771,22 +771,25 @@ contains
          end if
        else ! ndiode > 1 per tod
           if(tod%compressed_tod == .false.) then
-             allocate(self%d(i)%diode(ndiode, m))
+             
           else
-             allocate(self%d(i)%zdiode(ndiode))
           end if
-          do k = 1, ndiode
-            if (tod%compressed_tod) then
-               call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
-            else
-               call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
-               if (tod%halfring_split == 2 )then
-                 self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
-               else
-                 self%d(i)%diode(k, :) = buffer_sp(1:m)
-               end if
-            end if
-          end do
+          if (tod%compressed_tod) then
+             !allocate(self%d(i)%zdiode(ndiode))
+             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode_)
+             !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
+          else
+             allocate(self%d(i)%diode(ndiode, m))
+             do k = 1, ndiode
+                
+                call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
+                if (tod%halfring_split == 2 )then
+                   self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
+                else
+                   self%d(i)%diode(k, :) = buffer_sp(1:m)
+                end if
+             end do
+          end if
        end if
     end do
     deallocate(buffer_sp)
