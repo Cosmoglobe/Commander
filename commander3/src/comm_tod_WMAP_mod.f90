@@ -136,8 +136,8 @@ contains
       constructor%nhorn           = 2
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
-      constructor%correct_sl      = .true.
-      constructor%orb_4pi_beam    = .true.
+      constructor%correct_sl      = .false.
+      constructor%orb_4pi_beam    = .false.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 400.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -323,6 +323,7 @@ contains
       ! Allocate total map (for monopole sampling)
       allocate(map_full(0:npix-1))
       map_full = 0.d0
+      map_full = map_sky(1, :, 0, 1)
 
 
       ! Precompute far sidelobe Conviqt structures
@@ -422,7 +423,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.true. .and. i==1 .and. iter == 10) then
+         if (.false. .and. i==1 .and. iter == 10) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
