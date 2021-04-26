@@ -308,8 +308,10 @@ contains
 
       ! Distribute maps
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+      allocate(map_full(0:npix-1))
+      map_full = 0.d0
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
-      call distribute_sky_maps(self, map_in, 1., map_sky) ! K to K?
+      call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
 
       ! Distribute processing masks
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -321,9 +323,6 @@ contains
 
 
       ! Allocate total map (for monopole sampling)
-      allocate(map_full(0:npix-1))
-      map_full = 0.d0
-      map_full = map_sky(1, :, 0, 1)
 
 
       ! Precompute far sidelobe Conviqt structures
