@@ -25,9 +25,6 @@
 #================================================================================
 
 message(STATUS "---------------------------------------------------------------")
-# TODO: make it so components will matter because now it install everything because 
-# I gave the command to add appropriate configure suboptions to configure command
-#if(NOT (FFTW_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 if(USE_SYSTEM_FFTW AND USE_SYSTEM_LIBS)
 	find_package(FFTW 
 		COMPONENTS 
@@ -50,7 +47,8 @@ if(NOT FFTW_FOUND)
 		"CPP=${COMMANDER3_CPP_COMPILER}" 
 		"CC=${MPI_C_COMPILER}" 
 		"MPICC=${MPI_C_COMPILER}" 
-		"./configure" 
+		#"./configure" 
+		"${FFTW_SOURCE_DIR}/configure" 
 		"--prefix=<INSTALL_DIR>")
 	# FLOAT
 	list(APPEND fftw_float_configure_command 
@@ -60,7 +58,8 @@ if(NOT FFTW_FOUND)
 		"CPP=${COMMANDER3_CPP_COMPILER}" 
 		"CC=${MPI_C_COMPILER}" 
 		"MPICC=${MPI_C_COMPILER}" 
-		"./configure" 
+		#"./configure" 
+		"${FFTW_SOURCE_DIR}/configure" 
 		"--prefix=<INSTALL_DIR>")
 	# First, we determine which component were found, so we can link them
 	# others will be compiled from source
@@ -101,70 +100,81 @@ if(NOT FFTW_FOUND)
 		message(STATUS "Found FFTW_FLOAT_MPI_LIB: ${FFTW_FLOAT_MPI_LIB}")
 	endif()
 	#------------------------------------------------------------------------------
+	# Note: the explicit splitting for download and install step is done on purpose
+	# to avoid errors when you want to recompile libraries for different owls etc.
+	# In addition, this will allow us to download sources only once and then just 
+	# reuse it whenever possible.
+	#------------------------------------------------------------------------------
 	# Getting FFTW from source
 	#------------------------------------------------------------------------------
 	# Splitting external project add into 3 steps:
 	# 1. To download the project
-	# 2. To compile with single and double precision - requiores by GNU compilers
-	ExternalProject_Add(fftw
-		DEPENDS required_libraries
-		URL "${fftw_url}"
-		URL_MD5 "${fftw_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/fftw"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/fftw/src/fftw"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
-		# Ommiting Configuration, build and install steps
-		CONFIGURE_COMMAND ""
-		BUILD_COMMAND ""
-		INSTALL_COMMAND ""
-		COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}" "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_float" 
-		)
-
+	# 2. To compile with single 
+	# 3. and double precision - requires by GNU compilers
+	# Checking whether we have source directory and this directory is not empty.
+	if(NOT EXISTS "${FFTW_SOURCE_DIR}/CMakeLists.txt")
+		message(STATUS "No FFTW sources were found; thus, will download it from source:\n${fftw_url}")
+		ExternalProject_Add(
+			fftw_src
+			URL								"${fftw_url}"
+			URL_MD5						"${fftw_md5}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${FFTW_SOURCE_DIR}"
+			BINARY_DIR				"${FFTW_SOURCE_DIR}" 
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			# Ommiting Configuration, build and install steps
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+		message(STATUS "Found an existing FFTW sources inside:\n${FFTW_SOURCE_DIR}")
+		add_custom_target(fftw_src
+			ALL ""
+			)
+	endif()
 	#------------------------------------------------------------------------------
 	# FFTW Float precision
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(fftw_float
-		DEPENDS fftw #${project}_copy_step	
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_float"
-		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_float"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE ON 
-		LOG_BUILD ON 
-		LOG_INSTALL ON
+	ExternalProject_Add(
+		fftw_float
+		DEPENDS						fftw_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${FFTW_SOURCE_DIR}"
+		BINARY_DIR				"${FFTW_SOURCE_DIR}" 
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE			ON 
+		LOG_BUILD					ON 
+		LOG_INSTALL				ON
 		# Disabling download
-		DOWNLOAD_COMMAND ""
-		BUILD_ALWAYS FALSE
+		DOWNLOAD_COMMAND	""
 		# Commands to configure, build and install the project
-		CONFIGURE_COMMAND "${${project}_float_configure_command}"
+		CONFIGURE_COMMAND "${fftw_float_configure_command}"
 		)
-	
 	#------------------------------------------------------------------------------
 	# FFTW Double precision
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(fftw_double
-		# specifying that this project depends on the previous one
-		DEPENDS fftw #${project}_copy_step
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE ON 
-		LOG_BUILD ON 
-		LOG_INSTALL ON
+	ExternalProject_Add(
+		fftw_double
+		DEPENDS						fftw_src
+											fftw_float
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${FFTW_SOURCE_DIR}"
+		BINARY_DIR				"${FFTW_SOURCE_DIR}" 
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE			ON 
+		LOG_BUILD					ON 
+		LOG_INSTALL				ON
 		# Disabling download
-		DOWNLOAD_COMMAND ""
-		BUILD_ALWAYS FALSE
+		DOWNLOAD_COMMAND	""
 		# Commands to configure, build and install the project
-		CONFIGURE_COMMAND "${${project}_double_configure_command}"
+		CONFIGURE_COMMAND "${fftw_double_configure_command}"
 		)
-
-	# adding fftw3, fftw3_threads, fftw3_mpi and fftws3_omp into a library variable
+	# Adding fftw3, fftw3_threads, fftw3_mpi and fftws3_omp into a library variable
 	# Defining this variable just to not to overwrite FFTW_LIBRARIES created by FindFFTW
 	if(NOT FFTW_DOUBLE_FOUND)
 		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3${CMAKE_STATIC_LIBRARY_SUFFIX}")
@@ -196,11 +206,17 @@ if(NOT FFTW_FOUND)
 	else()
 		list(APPEND FFTW3_LIBRARIES "${FFTW_FLOAT_MPI_LIB}")
 	endif()
+	#------------------------------------------------------------------------------
+	add_custom_target(fftw 
+		ALL ""
+		DEPENDS fftw_float
+						fftw_double
+		)
 else()
 	# adding empty targets in case FFTW was found on the system
 	add_custom_target(fftw ALL "")
-	add_custom_target(fftw_double ALL "")
-	add_custom_target(fftw_float ALL "")
+	#add_custom_target(fftw_double ALL "")
+	#add_custom_target(fftw_float ALL "")
 	set(FFTW3_LIBRARIES
 		${FFTW_DOUBLE_LIB}
 		${FFTW_DOUBLE_THREADS_LIB}
