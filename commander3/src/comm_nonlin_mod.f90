@@ -90,6 +90,28 @@ contains
 !!$  end subroutine sample_mono_dipole_with_mask
 
   subroutine sample_nonlin_params(cpar, iter, handle, handle_noise)
+    !
+    ! Routine that loops through all components and samples the spectral parameters that are defined with
+    ! non-zero RMS values
+    !
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    !
+    ! handle_noise: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    !
+    ! Returns:
+    !       No explicit parameter is returned.
+    !       The RNG handles are updated as they are used and returned from the routine
+    !       All other changes are done internally
+    !
     implicit none
     type(comm_params),  intent(in)    :: cpar
     integer(i4b),       intent(in)    :: iter
@@ -489,7 +511,7 @@ contains
                 
                 call gather_alms(theta_smooth%alm, buffer3, theta_smooth%info%nalm, theta_smooth%info%lm, 0, 1, 1)
                 call mpi_allreduce(MPI_IN_PLACE, buffer3, nalm_tot_reg, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-                alms(i,:,pl) = buffer3(0,:c%nalm_tot,1)
+                alms(i,:,pl) = buffer3(0,0:c%nalm_tot-1,1)
                 deallocate(buffer3)
 
                 call theta_smooth%dealloc(); deallocate(theta_smooth)
@@ -873,6 +895,33 @@ contains
   end subroutine sample_specind_alm
 
   subroutine sample_specind_local(cpar, iter, handle, comp_id, par_id)
+    !
+    ! Routine that sets up the sampling using the local sampling routine  for the spectral parameter given by
+    ! par_id for the component given by the comp_id parameter. 
+    ! Then it calls on the specific sampling routine and finally updates the components spectral parameter map
+    ! 
+    !
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    !
+    ! comp_id: integer
+    !       integer ID for the specific component to be sampled (in the list of the active components)
+    !
+    ! par_id: integer
+    !       integer ID for the specific spectral parameter to be sampled in the component given by 'comp_id'
+    !
+    ! Returns:
+    !       No explicit parameter is returned.
+    !       The RNG handle is updated as it is used and returned from the routine.
+    !       All other changes are done internally.
+    !
     implicit none
     type(comm_params),  intent(in)    :: cpar
     integer(i4b),       intent(in)    :: iter
@@ -1252,6 +1301,33 @@ contains
   !Here comes all subroutines for sampling diffuse components locally
   ! Sample spectral parameters
   subroutine sampleDiffuseSpecInd_nonlin(cpar, handle, comp_id, par_id, iter)
+    !
+    ! Overarching routine that sets up the sampling of diffuse type component spectral parameters
+    ! 
+    ! Calls on the specific sampling routine and finally updates the component's spectral parameter map
+    ! 
+    !
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    !
+    ! comp_id: integer
+    !       integer ID for the specific component to be sampled (in the list of the active components)
+    !
+    ! par_id: integer
+    !       integer ID for the specific spectral parameter to be sampled in the component given by 'comp_id'
+    !
+    ! Returns:
+    !       No explicit parameter is returned.
+    !       The RNG handle is updated as they are used and returned from the routine
+    !       All other changes are done internally
+    !
     implicit none
     type(comm_params),                       intent(in)           :: cpar
     type(planck_rng),                        intent(inout)        :: handle
@@ -2158,6 +2234,40 @@ contains
 
 
   subroutine sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
+    !
+    ! Routine that samples diffuse type component spectral parameters in pixel regions
+    ! 
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       A parameter for the RNG to produce random numbers
+    !
+    ! comp_id: integer
+    !       Integer ID for the specific component to be sampled (in the list of the active components)
+    !
+    ! par_id: integer
+    !       Integer ID for the specific spectral parameter to be sampled in the component given by 'comp_id'
+    !
+    ! buffer_lnL: double precision array
+    !       An array copy of the current spectral parameter map, truncated by the absolute parameter limits.
+    !       Array with dimension (0:npix-1,nmaps), where npix is the number of pixels given by the components 
+    !       resolution parameter (Nside, see HEALPix), and nmaps is the number of polarizations (1 if only Temperature;
+    !       3 if polarization is included, TQU)
+    !
+    ! p: integer
+    !       Index counter for the polarization type that is to be sampled. Sets what map polarization(s) to be sampled.
+    !
+    ! Returns:
+    !       No explicit parameter is returned, except for the sampled spectral parameter through the 
+    !       'buffer_lnL' parameter.
+    !       The RNG handle is updated as it is used and returned from the routine.
+    !       All other changes are done internally.
+    !
     implicit none
     type(comm_params),                       intent(in)           :: cpar
     real(dp),               dimension(0:,:), intent(inout)        :: buffer_lnL
@@ -2979,8 +3089,8 @@ contains
        write(*,*) ''
     end if
 
-    !debug
-    if (allocated(lr_chisq)) then
+    !debug output
+    if (.false. .and. cpar%cs_output_localsamp_maps .and. allocated(lr_chisq)) then
        call int2string(cpar%mychain, ctext)
        call int2string(iter,         itext)
 
@@ -3017,8 +3127,8 @@ contains
     call int2string(cpar%mychain, ctext)
     postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
 
-    !print MC theta to file
-    if (myid_pix==0) then
+    !print MC theta to file, (partially debug)
+    if (.false. .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
        unit = getlun()
        filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
             & '_theta_MC_'//trim(postfix)//'.dat'
@@ -3035,7 +3145,8 @@ contains
        deallocate(theta_MC_arr)
     end if
 
-    if (.true.) then
+    ! debug output
+    if (cpar%cs_output_localsamp_maps .and. .false.) then
        do i = 1,band_count
           filename=trim(cpar%outdir)//'/'//'reduced_data_band_'//trim(data(band_i(i))%label)//'_'// &
                & trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//'_'//trim(postfix)//'.fits'

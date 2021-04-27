@@ -16,7 +16,7 @@ module comm_tod_simulations_mod
   use spline_1D_mod
   use comm_param_mod
   use comm_utils
-  use comm_tod_LFI_mod
+  !use comm_tod_LFI_mod
   implicit none
 
 contains

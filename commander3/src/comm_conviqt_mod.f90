@@ -197,6 +197,7 @@ contains
     ! y = (y_0 (x_1 - x) + y_1 (x - x_0))/(x_1 - x_0)
     x0     = psii * self%psires
     x1     = psiu * self%psires
+    !write(*,*) psii+1, psiu+1, self%psisteps
     interp = (self%c%a(pixnum+1, psii+1) * (x1 - unwrap) + &
          & self%c%a(pixnum+1, psiu+1) * (unwrap - x0))/(x1 - x0)
 
