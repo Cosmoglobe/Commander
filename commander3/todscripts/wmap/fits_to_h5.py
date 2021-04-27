@@ -78,6 +78,7 @@ fknees *= 1e-3
 # version 39 uses weeklong scans
 # version 40 computes the polarization angles in a different way
 # version 41 fixes the unit vectors in the polarization angle calculation
+# version 42 uses the radius-based planet flag, changes tipped TOD to ztod
 
 from time import sleep
 from time import time as timer
@@ -217,7 +218,7 @@ def test_flags(band=0):
     distance from the planet for both of the horns, so you need 2 n_planets x
     n_tod x n_bands to account for the distances.
 
-    THe final product will be n_tod x n_bands, and each element will be a flag
+    The final product will be n_tod x n_bands, and each element will be a flag
     2**(i+1) where i is the planet index from 0 to nplanets - 1.
     '''
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
@@ -929,7 +930,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
         # v14: add genflags somehow.
         genflags = data[2].data['genflags']*2**11
         daflags = data[2].data['daflags']
-        #daflags = get_flags(data)
+        daflags = get_flags(data)
         for i in range(10):
             daflags[:,i] += genflags
             if len(flags_all[i]) == 0:
@@ -1039,7 +1040,8 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
 
 
     if par:
-        nprocs = 72
+        nprocs = 64
+        nprocs = 128
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -1065,5 +1067,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=38, center=True)
     #main(par=True, plot=False, compress=True, version=39, center=True)
     #main(par=True, plot=False, compress=True, version=40, center=True)
-    main(par=True, plot=False, compress=True, version=41, center=True)
+    #main(par=True, plot=False, compress=True, version=41, center=True)
+    main(par=True, plot=False, compress=True, version=42, center=True)
     #test_flags()

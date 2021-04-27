@@ -48,6 +48,16 @@ from scipy.optimize import curve_fit, minimize
 def getOutidx(l, m):
     return l**2 + l + m
 
+def padAlms(data, lmax, mmax):
+    outData = np.zeros((lmax+1)**2, dtype='complex64')
+
+    for l in range(0, lmax):
+        for m in range(0, mmax):
+            healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
+            outData[healpixI] = data[healpixI]
+
+    return outData
+
 def complex2realAlms(data, lmax, mmax):
     outData = np.zeros((lmax+1)**2)
 
@@ -67,10 +77,45 @@ def complex2realAlms(data, lmax, mmax):
 
     return outData
 
+def cl2realAlms(data, lmax, mmax):
+    outData = np.zeros((lmax+1)**2)
+
+    for l in range(0, min(lmax, len(data))):
+        for m in range(0, mmax):
+            if(m > l):
+                continue
+            scaling = np.sqrt(2)
+            scaling = 1
+            if(m == 0):
+                scaling = 1
+            #healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
+            outI = getOutidx(l, m)
+            outJ = getOutidx(l, -1*m)
+            outData[outI] = np.real(data[l]) * scaling
+            if(m != 0):
+                outData[outJ] = np.imag(data[l]) * scaling
+
+    return outData
+
 def gauss(x, sigma):
     return np.exp(-x**2/(2*sigma**2))
 
 
+def real2complexAlms(data, lmax, mmax):
+    outData = np.zeros((lmax+1)**2, dtype='complex64')
+    for l in range(0, lmax):
+        for m in range(0, mmax):
+            if(m > l):
+                continue
+            healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
+            realI = getOutidx(l, m)
+            realJ = getOutidx(l, -1*m)
+            if (m == 0):
+                outData[healpixI] = data[realI]
+            else:
+                outData[healpixI] = (data[realI] + 1j*data[realJ])/np.sqrt(2)
+
+    return outData
 
 
 dir_A_los = np.array([
@@ -101,8 +146,8 @@ rots = np.arange(0, 360, 45)
 rots = [0]
 for rot in rots:
   #fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
-  #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v8.h5'
-  fname_out = 'test.h5'
+  fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
+  #fname_out = 'test.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
@@ -259,8 +304,8 @@ for rot in rots:
           mA[~np.isfinite(mA)] = 0
           mB[~np.isfinite(mB)] = 0
 
-          hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
-          hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
+          #hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
+          #hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
 
 
           ind = np.argmax(mA)
@@ -296,6 +341,16 @@ for rot in rots:
           
           alm_A = hp.map2alm(mA, lmax=lmax, mmax=mmax)
           b_lm_A = complex2realAlms(alm_A, lmax, mmax)
+
+          # # Test the real2complexAlms function
+          # alm_A_test = real2complexAlms(b_lm_A, lmax, mmax)
+          # padded_alm = padAlms(alm_A, lmax, mmax)
+          # inds = (abs(padded_alm) > 0)
+          # print(np.mean(abs(alm_A_test[inds] - padded_alm[inds])))
+          # print(np.std(abs(alm_A_test[inds] - padded_alm[inds])))
+          # print(np.mean(padded_alm[inds] - alm_A))
+          # print(asdf)
+
           alm_B = hp.map2alm(mB, lmax=lmax, mmax=mmax)
           b_lm_B = complex2realAlms(alm_B, lmax, mmax)
 
@@ -308,22 +363,33 @@ for rot in rots:
           #axs[beam_ind].set_ylim([0,1])
           #axs[beam_ind].set_xlim([0, lmaxes[beam_ind]])
           #axs[1].legend()
+
+      fnames = glob('data/wmap_ampl_bl*.txt')
+      fnames.sort()
+      for beam_ind, fname in enumerate(fnames):
+
+          l, b_lA, sl = np.loadtxt(fname).T
+
+          b_lm_A = cl2realAlms(b_lA, lmax, lmax)
+
+          #b_lm_A = b_lm_A*0 + 1
+          #b_lm_B = b_lm_B*0 + 1
       
-          DA = fname.split('_')[4]
+          DA = fname.split('_')[3]
            
           with h5py.File(fname_out, 'a') as f:
               f.create_dataset(DA + '13/beam/T', data=b_lm_A)
               f.create_dataset(DA + '14/beam/T', data=b_lm_A)
-              f.create_dataset(DA + '23/beam/T', data=b_lm_B)
-              f.create_dataset(DA + '24/beam/T', data=b_lm_B)
+              f.create_dataset(DA + '23/beam/T', data=b_lm_A)
+              f.create_dataset(DA + '24/beam/T', data=b_lm_A)
               f.create_dataset(DA + '13/beam/E', data=b_lm_A*0)
               f.create_dataset(DA + '14/beam/E', data=b_lm_A*0)
-              f.create_dataset(DA + '23/beam/E', data=b_lm_B*0)
-              f.create_dataset(DA + '24/beam/E', data=b_lm_B*0)
+              f.create_dataset(DA + '23/beam/E', data=b_lm_A*0)
+              f.create_dataset(DA + '24/beam/E', data=b_lm_A*0)
               f.create_dataset(DA + '13/beam/B', data=b_lm_A*0)
               f.create_dataset(DA + '14/beam/B', data=b_lm_A*0)
-              f.create_dataset(DA + '23/beam/B', data=b_lm_B*0)
-              f.create_dataset(DA + '24/beam/B', data=b_lm_B*0)
+              f.create_dataset(DA + '23/beam/B', data=b_lm_A*0)
+              f.create_dataset(DA + '24/beam/B', data=b_lm_A*0)
               f.create_dataset(DA + '13/beamlmax', data=[lmax])
               f.create_dataset(DA + '14/beamlmax', data=[lmax])
               f.create_dataset(DA + '23/beamlmax', data=[lmax])
@@ -357,8 +423,9 @@ for rot in rots:
             break
         
         print(lab, fname)
-        # Beam is normalized such that \int B(\Omega)\,d\Omega = 4\pi, Commander
-        # expects \int B\,d\Omega = 1.
+        # Beam is normalized such that sum(slAB) = Npix, or
+        #                              \int B(\Omega)\,d\Omega = 4\pi
+        # Commander expects \int B\,d\Omega = 1.
         # Not sure if this factor is needed...
         beamtot = hp.reorder(data, n2r=True)
         
