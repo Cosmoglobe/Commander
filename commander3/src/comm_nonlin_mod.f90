@@ -789,7 +789,7 @@ contains
 
                 call gather_alms(theta_smooth%alm, buffer3, theta_smooth%info%nalm, theta_smooth%info%lm, 0, 1, 1)
                 call mpi_allreduce(MPI_IN_PLACE, buffer3, nalm_tot_reg, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-                alms(i,:,pl) = buffer3(0,:c%nalm_tot,1)
+                alms(i,:,pl) = buffer3(0,0:c%nalm_tot-1,1)
                 deallocate(buffer3)
 
                 call theta_smooth%dealloc(); deallocate(theta_smooth)
