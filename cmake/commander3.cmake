@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script compiles/installs Commander3 on host system and it also 
 # links Commander3 to external dependencies (such as HDF5, CFitsio, HEALPix etc.)
 #================================================================================
