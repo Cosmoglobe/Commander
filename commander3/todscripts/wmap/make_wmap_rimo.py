@@ -71,9 +71,11 @@ def complex2realAlms(data, lmax, mmax):
             healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
             outI = getOutidx(l, m)
             outJ = getOutidx(l, -1*m)
-            outData[outI] = np.real(data[healpixI]) * scaling
             if(m != 0):
-                outData[outJ] = np.imag(data[healpixI]) * scaling
+                outData[outI] = np.real(data[healpixI]) * 2**0.5
+                outData[outJ] = np.imag(data[healpixI]) * 2**0.5
+            else:
+                outData[outI] = np.real(data[healpixI])
 
     return outData
 
@@ -147,7 +149,7 @@ rots = [0]
 for rot in rots:
   #fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
   fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
-  #fname_out = 'test.h5'
+  fname_out = 'test.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
@@ -364,18 +366,20 @@ for rot in rots:
           #axs[beam_ind].set_xlim([0, lmaxes[beam_ind]])
           #axs[1].legend()
 
-      fnames = glob('data/wmap_ampl_bl*.txt')
-      fnames.sort()
-      for beam_ind, fname in enumerate(fnames):
+      #fnames = glob('data/wmap_ampl_bl*.txt')
+      #fnames.sort()
+      #for beam_ind, fname in enumerate(fnames):
 
-          l, b_lA, sl = np.loadtxt(fname).T
+      #    l, b_lA, sl = np.loadtxt(fname).T
 
-          b_lm_A = cl2realAlms(b_lA, lmax, lmax)
+      #    b_lm_A = cl2realAlms(b_lA, lmax, lmax)
 
-          #b_lm_A = b_lm_A*0 + 1
-          #b_lm_B = b_lm_B*0 + 1
-      
-          DA = fname.split('_')[3]
+      #    #b_lm_A = b_lm_A*0 + 1
+      #    #b_lm_B = b_lm_B*0 + 1
+      #
+      #    DA = fname.split('_')[3]
+
+          DA = fname.split('_')[4]
            
           with h5py.File(fname_out, 'a') as f:
               f.create_dataset(DA + '13/beam/T', data=b_lm_A)
@@ -410,8 +414,8 @@ for rot in rots:
       
      
       plt.show()
-      nside = 2**7
-      sllmax = 512
+      nside  = 2**7     # 128
+      sllmax = 2*nside  # 256
       slmmax = 100
       labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
       fnames = glob('data/wmap_sidelobe*.fits')
@@ -419,7 +423,7 @@ for rot in rots:
         lab = labels[i]
         for fname in fnames:
           if lab in fname:
-            data = hp.read_map(fname, nest=True)
+            data = hp.read_map(fname)
             break
         
         print(lab, fname)
