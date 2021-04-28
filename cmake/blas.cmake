@@ -18,7 +18,9 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Description: This script determines the location of BLAS/LAPACK on the host system.
+# Author: Maksym Brilenkov
+#================================================================================
+# Description: This script determines the location of MKL/OpenBLAS on the host system.
 # If it fails to do so, it will download, compile and install OpenBLAS from source.
 #================================================================================
 message(STATUS "---------------------------------------------------------------")
@@ -64,38 +66,56 @@ endif()
 # Download OpenBLAS from source if neither MKL or OpenBLAS
 # were found on the host system.
 if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-	#list(APPEND blas_configure_command
-		#"${CMAKE_COMMAND}" "-E" "env" 
-		#"FC=${COMMANDER3_Fortran_COMPILER}" 
-		#"CXX=${COMMANDER3_CXX_COMPILER}" 
-		#"CPP=${COMMANDER3_CPP_COMPILER}" 
-		#"CC=${COMMANDER3_C_COMPILER}" 
-		#"export USE_OPENMP=1"
-		#"export USE_THREADS=1"
-		#"PREFIX=${CMAKE_INSTALL_PREFIX}"
-		#)
-	#list(APPEND blas_install_command
-		#"make"
-		#"PREFIX=${CMAKE_INSTALL_PREFIX}"
-		#"install"
-		#)
-	ExternalProject_Add(blas
-		DEPENDS required_libraries
-		URL "${blas_url}"
-		URL_MD5 "${blas_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/blas"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/blas/src/blas"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
-		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+	#------------------------------------------------------------------------------
+	# Note: the explicit splitting for download and install step is done on purpose
+	# to avoid errors when you want to recompile libraries for different owls etc.
+	# In addition, this will allow us to download sources only once and then just 
+	# reuse it whenever possible.
+	#------------------------------------------------------------------------------
+	# Getting OpenBLAS from source
+	#------------------------------------------------------------------------------
+	# Checking whether we have source directory and this directory is not empty.
+	if(NOT EXISTS "${BLAS_SOURCE_DIR}/CMakeLists.txt")
+		message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
+		ExternalProject_Add(
+			blas_src
+			DEPENDS						required_libraries
+			URL								"${blas_url}"
+			URL_MD5						"${blas_md5}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${BLAS_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+		message(STATUS "Found an existing BLAS sources inside:\n${BLAS_SOURCE_DIR}")
+		add_custom_target(blas_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+	# Compiling and installing OpenBLAS
+	#------------------------------------------------------------------------------
+	ExternalProject_Add(
+		blas
+		DEPENDS						required_libraries
+											blas_src
+		URL								"${blas_url}"
+		URL_MD5						"${blas_md5}"
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${BLAS_SOURCE_DIR}"
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE 		ON
+		LOG_BUILD					ON
+		LOG_INSTALL				ON
 		# commands how to build the project
-		#COMMAND "${${project}_configure_command}" 
-		#CONFIGURE_COMMAND "${${project}_configure_command}"
-		#INSTALL_COMMAND "${blas_install_command}"	
+		DOWNLOAD_COMMAND	""
 		CMAKE_ARGS
 			-DCMAKE_BUILD_TYPE=Release
 			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
@@ -104,10 +124,8 @@ if(NOT (BLAS_FOUND OR LAPACK_FOUND))
 			-DCMAKE_CXX_COMPILER=${MPI_CXX_COMPILER}
 			-DCMAKE_C_COMPILER=${MPI_C_COMPILER}
 			-DCMAKE_INSTALL_LIBDIR=lib
-			#-DCMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-			#-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
 		)
-	#message(${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+	#------------------------------------------------------------------------------
 	# In case of static linking, we do not need to specify linker flags.
 	# NOTE: If OpenBLAS 0.3.12 is installed with CMake, there is a special
 	# variable, which controls the installation of libraries and it is 
@@ -116,19 +134,18 @@ if(NOT (BLAS_FOUND OR LAPACK_FOUND))
 	# "lib64".
 	set(BLAS_LINKER_FLAGS "")
 	set(BLAS_LIBRARIES
-		#"${CMAKE_LIBRARY64_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
 	set(LAPACK_LINKER_FLAGS "")
 	set(LAPACK_LIBRARIES
-		#"${CMAKE_LIBRARY64_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
-	#message(${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX})
+	#------------------------------------------------------------------------------
 	message(STATUS "BLAS LINKER FLAGS will be:   ${BLAS_LINKER_FLAGS}")
 	message(STATUS "BLAS LIBRARIES will be:      ${BLAS_LIBRARIES}")
 	message(STATUS "LAPACK LINKER FLAGS will be: ${LAPACK_LINKER_FLAGS}")
 	message(STATUS "LAPACK LIBRARIES will be:    ${LAPACK_LIBRARIES}")
+	#------------------------------------------------------------------------------
 else()
 	# to avoid cmake errors we create and empty target
 	add_custom_target(blas 
@@ -136,8 +153,10 @@ else()
 		DEPENDS required_libraries
 		)
 	set(blas_lib ${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES} ${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES})
+	#------------------------------------------------------------------------------
 	message(STATUS "BLAS LINKER FLAGS:   ${BLAS_LINKER_FLAGS}")
 	message(STATUS "BLAS LIBRARIES:      ${BLAS_LIBRARIES}")
 	message(STATUS "LAPACK LINKER FLAGS: ${LAPACK_LINKER_FLAGS}")
 	message(STATUS "LAPACK LIBRARIES:    ${LAPACK_LIBRARIES}")
+	#------------------------------------------------------------------------------
 endif()

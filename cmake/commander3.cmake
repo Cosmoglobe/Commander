@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script compiles/installs Commander3 on host system and it also 
 # links Commander3 to external dependencies (such as HDF5, CFitsio, HEALPix etc.)
 #================================================================================
@@ -67,7 +69,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_F_int_0D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_N_rms_mod.f90
 	# TOD processing modules
+	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_psd_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_LFI_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_mod.f90
@@ -78,6 +82,7 @@ set(sources
   ${COMMANDER3_SOURCE_DIR}/comm_tod_SPIDER_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_LB_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
@@ -167,7 +172,7 @@ set(sources
 set(commander3 commander3)
 add_executable(${commander3} "")
 # make sure that commander executable will be built last
-add_dependencies(${commander3} ${projects} fftw_float fftw_double)
+add_dependencies(${commander3} ${projects}) #fftw_float fftw_double)
 target_sources(${commander3}
 	PUBLIC	
 	${sources}
