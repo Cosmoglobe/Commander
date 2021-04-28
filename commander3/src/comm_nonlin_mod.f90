@@ -1074,8 +1074,8 @@ contains
           info  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(smooth_scale), cpar%lmax_smooth(smooth_scale), &
                & c%x%info%nmaps, c%x%info%pol)
           call smooth_map(info, .true., &
-               & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%x, &  
-               & data(1)%B_smooth(smooth_scale)%p%b_l,           c%x_smooth)
+               & data(i)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%x, &  
+               & data(i)%B_smooth(smooth_scale)%p%b_l,           c%x_smooth)
        end if
 
        ! Compute smoothed spectral index maps
@@ -1092,8 +1092,8 @@ contains
              info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
                   & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
              call smooth_map(info, .false., &
-                  & data(1)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
-                  & data(1)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
+                  & data(i)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                  & data(i)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
           end if
        end do
 
