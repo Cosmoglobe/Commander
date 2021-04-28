@@ -31,6 +31,7 @@ module comm_signal_mod
   use comm_MBB_comp_mod
   use comm_freefree_comp_mod
   use comm_line_comp_mod
+  use comm_line2_comp_mod
   use comm_md_comp_mod
   use comm_template_comp_mod
   use comm_ptsrc_comp_mod
@@ -80,6 +81,8 @@ contains
              c => comm_freefree_comp(cpar, ncomp, i)
           case ("line")
              c => comm_line_comp(cpar, ncomp, i)
+          case ("line2")
+             c => comm_line2_comp(cpar, ncomp, i)
           case ("md")
              c => initialize_md_comps(cpar, ncomp, i, n)
              ncomp = ncomp + n - 1

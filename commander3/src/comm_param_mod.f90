@@ -211,6 +211,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_prior_amp
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
+     character(len=512), allocatable, dimension(:)     :: cs_vmap
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
@@ -680,6 +681,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
+    allocate(cpar%cs_vmap(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
@@ -1570,6 +1572,15 @@ contains
                   & par_string=cpar%cs_band_ref(i))
              call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
              call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
+          case ('line2')
+             call get_parameter_hashtable(htbl, 'COMP_LINE_TEMPLATE'//itext, len_itext=len_itext,  &
+                  & par_string=cpar%cs_SED_template(1,i))
+             call get_parameter_hashtable(htbl, 'COMP_VELOCITY_MAP'//itext, len_itext=len_itext,  &
+                  & par_string=cpar%cs_vmap(i))
+             call get_parameter_hashtable(htbl, 'COMP_BAND_REF'//itext, len_itext=len_itext, &
+                  & par_string=cpar%cs_band_ref(i))
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
           end select
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
@@ -2078,6 +2089,10 @@ contains
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))             
           case ('line')
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
+          case ('line2')
+             call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
+             if (trim(cpar%cs_vmap(i)) /= 'none') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_vmap(i)))
           end select
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then

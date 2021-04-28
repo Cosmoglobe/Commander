@@ -298,6 +298,12 @@ contains
           S = self%S(band=i, theta=self%theta_def(1:self%npar))
           if (S /= 0.d0) write(unit,*) data(i)%bp(0)%p%nu_c*1d-9, S
        end do
+    else if (trim(self%type) == 'line2') then
+       !we only write the SED based on the Line ratio (not the velocity+tilt)
+       do i = 1, numband
+          S = self%S(band=i, theta=self%theta_def(1:self%npar))
+          if (S /= 0.d0) write(unit,*) data(i)%bp(0)%p%nu_c*1d-9, S
+       end do
     else
        nu = nu_dump(1)
        dnu = (nu_dump(2)/nu_dump(1))**(1.d0/(n_dump-1))

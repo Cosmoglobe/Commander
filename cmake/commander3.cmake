@@ -118,6 +118,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/InvSamp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_line_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_line2_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_status_mod.f90
 	${COMMANDER3_SOURCE_DIR}/locate_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_conviqt_mod.f90

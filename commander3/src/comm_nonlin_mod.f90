@@ -25,6 +25,7 @@ module comm_nonlin_mod
   use comm_chisq_mod
   use comm_gain_mod
   use comm_line_comp_mod
+  use comm_line2_comp_mod
   use comm_diffuse_comp_mod
   use comm_signal_mod
   implicit none
@@ -177,6 +178,9 @@ contains
              end if !any local sampling
 
           class is (comm_line_comp) !these codes should (maybe) not need to change
+             call sample_specind_local(cpar, iter, handle, c%id, j)
+
+          class is (comm_line2_comp) !this code needs to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
 
           class is (comm_ptsrc_comp)
@@ -986,6 +990,12 @@ contains
        ! Sample spectral parameters
        call c%sampleSpecInd(cpar, handle, par_id, iter)
 
+    class is (comm_line2_comp)
+       if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
+
+       ! Sample spectral parameters
+       call c%sampleSpecInd(cpar, handle, par_id, iter)
+
     class is (comm_ptsrc_comp)
        if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label)
 
@@ -1096,6 +1106,7 @@ contains
     ! Clean up temporary data structures
     select type (c)
     class is (comm_line_comp)
+    class is (comm_line2_comp)
     class is (comm_diffuse_comp)
        
        if (associated(c%x_smooth)) then
