@@ -182,6 +182,8 @@ contains
        constructor%lmax_ind_mix = 0 
        constructor%lmax_ind = 0 
 
+       if (info%myid == 0) write(*,*) 'No non-zero tilt parameter or the velocity map is zero. Setting lmax = 0'
+
        !update the info pointer with the new lmax
        info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
             & constructor%nmaps, constructor%pol)
