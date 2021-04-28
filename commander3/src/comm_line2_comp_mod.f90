@@ -40,7 +40,9 @@ module comm_line2_comp_mod
      real(dp),     allocatable, dimension(:) :: line2RJ        ! K km/s to uK_RJ ratio 
      real(dp),     allocatable, dimension(:) :: lineratio      !line ratio parameter
      real(dp),     allocatable, dimension(:) :: tilt           !bandpass tilt parameter
-     class(comm_map),            pointer     :: vmap => null() !velocity/frequency shift map
+     real(dp),     allocatable, dimension(:) :: vmap_uni       !limits on velocity map
+     class(comm_map),            pointer     :: vmap => null()  !velocity shift map
+     class(comm_map),            pointer     :: numap => null() !frequency shift map
    contains
      procedure :: S    => evalSED
      procedure :: sampleSpecInd => sampleLineRatios
@@ -136,6 +138,9 @@ contains
 
     no_spatial=.false.
     !read velocity map
+    allocate(constructor%vmap_uni(2))
+    constructor%vmap_uni(1)=-3000.d0 !lower limit of vmap in km/s, 1% of c
+    constructor%vmap_uni(2)=3000.d0  !upper limit of vmap in km/s, 1% of c
     if (trim(cpar%cs_vmap(id_abs)) == 'none') then
        no_spatial=.true.
        constructor%vmap => comm_map(info)
@@ -143,16 +148,19 @@ contains
     else
        constructor%vmap => comm_map(info, trim(cpar%datadir) // '/' // &
             & trim(cpar%cs_vmap(id_abs)))
+       !truncate vmap on global limits
+       constructor%vmap%map = min(constructor%vmap_uni(2),max(constructor%vmap_uni(1), &
+            & constructor%vmap%map))
     end if
-
+    
     !transform velocity map from km/s to total frequency shift
+    constructor%numap => comm_map(info)
     light_speed = 299792.458d0 !speed of light in km/s
 
-    if (info%myid==0) write(*,*) 'nu_ref =',constructor%nu_ref
-
+    !loop all maps and transform velocity into frequency shift [km/s -> GHz]. 
     do i = 1, info%nmaps
-       constructor%vmap%map(:,i) = ( sqrt((1.d0-constructor%vmap%map(:,i)/light_speed)/ &
-            & (1+constructor%vmap%map(:,i)/light_speed))-1.d0 )*constructor%nu_ref(i)
+       constructor%numap%map(:,i) = ( sqrt((1.d0-constructor%vmap%map(:,i)/light_speed)/ &
+            & (1+constructor%vmap%map(:,i)/light_speed))-1.d0 )*(constructor%nu_ref(i)/1.d9)
     end do
 
     allocate(constructor%lmax_ind_pol(3,constructor%npar))
@@ -162,7 +170,6 @@ contains
     constructor%lmax_ind_mix = -1 !Default is pixel domain for line2 component
     allocate(constructor%pol_pixreg_type(3,constructor%npar))
     constructor%pol_pixreg_type = 0 !to not write unnecessary/non-allocated maps during FITS-dump
-
     !check if tilts are zero and not to be sampled. If so there is no spatial structure
     if (all( abs( constructor%theta_def(constructor%npar+1:) ) < 1.d-8 ) .and. &
          all( constructor%p_gauss(2,constructor%npar+1:) == 0.d0 )) then
@@ -174,15 +181,19 @@ contains
        constructor%lmax_ind_pol = 0 
        constructor%lmax_ind_mix = 0 
        constructor%lmax_ind = 0 
+
+       !update the info pointer with the new lmax
+       info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
+            & constructor%nmaps, constructor%pol)
     end if
-    
+
+
     allocate(constructor%theta(n))
     do i = 1, n
        constructor%theta(i)%p     => comm_map(info)
-       constructor%theta(i)%p%map = constructor%theta_def(i) + constructor%theta_def(i+constructor%npar) * constructor%vmap%map 
+       constructor%theta(i)%p%map = constructor%theta_def(i) + constructor%theta_def(i+constructor%npar) * constructor%numap%map 
        if (constructor%lmax_ind >= 0) call constructor%theta(i)%p%YtW_scalar
     end do
-
 
     ! Precompute mixmat integrator for each band
     allocate(constructor%F_int(3,numband,0:constructor%ndet))
@@ -208,7 +219,7 @@ contains
           end if
        end do
     end do
-    
+
     ! Initialize mixing matrix
     if (trim(cpar%init_chain_prefix) == 'none' &
          & .or. trim(constructor%init_from_HDF) == 'none') &
