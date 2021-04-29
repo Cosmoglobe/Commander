@@ -940,7 +940,7 @@ contains
     integer(i4b),       intent(in)    :: par_id      !parameter index, 1 -> npar (per component)
 
     integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, p_ind, p_min, p_max
-    integer(i4b) :: nsamp, out_every, num_accepted, smooth_scale, id_native, ierr, ind
+    integer(i4b) :: nsamp, out_every, num_accepted, smooth_scale, id_native, ierr, ind, ind_pol
     real(dp)     :: t1, t2, ts, dalm, fwhm_prior, temp_theta
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
@@ -1015,6 +1015,9 @@ contains
        status_fit   = 0
        smooth_scale = c%smooth_scale(par_id)
        do i = 1, numband
+          ! Chooses an index that is polarized so that smoothing can be done
+          ! correctly later on.
+          if (data(i)%info%nmaps == 3) ind_pol = i
           if (cpar%num_smooth_scales == 0) then
              status_fit(i)   = 1    ! Native
           else
@@ -1074,8 +1077,8 @@ contains
           info  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(smooth_scale), cpar%lmax_smooth(smooth_scale), &
                & c%x%info%nmaps, c%x%info%pol)
           call smooth_map(info, .true., &
-               & data(i)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%x, &  
-               & data(i)%B_smooth(smooth_scale)%p%b_l,           c%x_smooth)
+               & data(ind_pol)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%x, &  
+               & data(ind_pol)%B_smooth(smooth_scale)%p%b_l,           c%x_smooth)
        end if
 
        ! Compute smoothed spectral index maps
@@ -1092,8 +1095,8 @@ contains
              info  => comm_mapinfo(c%theta(k)%p%info%comm, cpar%nside_smooth(smooth_scale), &
                   & cpar%lmax_smooth(smooth_scale), c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
              call smooth_map(info, .false., &
-                  & data(i)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
-                  & data(i)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
+                  & data(ind_pol)%B_smooth(smooth_scale)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                  & data(ind_pol)%B_smooth(smooth_scale)%p%b_l,           c%theta_smooth(k)%p)
           end if
        end do
 
@@ -2286,7 +2289,7 @@ contains
     integer(i4b),                            intent(in)           :: p       !incoming polarization
     integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
 
-    integer(i4b) :: i, j, k, l, m, n, q, pr, max_pr, pix, ierr, ind(1), counter, n_ok, id
+    integer(i4b) :: i, j, k, l, m, n, q, pr, max_pr, pix, ierr, ind(1), counter, n_ok, id, ind_pol
     integer(i4b) :: i_min, i_max, status, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps, nsamp
     real(dp)     :: a, b, a_tot, b_tot, s, t0, t1, t2, t3, t4, x_min, x_max, delta_lnL_threshold
     real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
@@ -2433,6 +2436,9 @@ contains
 
     band_count=0
     do k = 1,numband !run over all active bands
+       ! Chooses an index that is polarized so that smoothing can be done
+       ! correctly later on.
+       if (data(k)%info%nmaps == 3) ind_pol = k
        !check if the band is associated with the smoothed component, and if band frequencies are within 
        !freq. limits for the component
        if (.not. associated(rms_smooth(k)%p)) cycle
@@ -2589,11 +2595,11 @@ contains
        if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
           if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then !smooth to correct resolution
              call smooth_map(info_lr_single, .false., &
-                  & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, theta_fr, &  
-                  & data(1)%B_postproc(smooth_scale)%p%b_l, theta_lr_hole)
+                  & data(ind_pol)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, theta_fr, &  
+                  & data(ind_pol)%B_postproc(smooth_scale)%p%b_l, theta_lr_hole)
              call smooth_map(info_lr_single, .false., &
-                  & data(1)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, theta_single_fr, &  
-                  & data(1)%B_postproc(smooth_scale)%p%b_l, theta_single_lr)
+                  & data(ind_pol)%B_postproc(smooth_scale)%p%b_l*0.d0+1.d0, theta_single_fr, &  
+                  & data(ind_pol)%B_postproc(smooth_scale)%p%b_l, theta_single_lr)
           else !no postproc smoothing, ud_grade to correct resolution
              theta_single_lr => comm_map(info_lr_single)
              theta_lr_hole => comm_map(info_lr_single)

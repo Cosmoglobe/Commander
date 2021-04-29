@@ -644,7 +644,7 @@ end subroutine bin_differential_TOD
           i_min = 0
         end if
 
-        if (.true. .and. l == 1) then
+        if (.false. .and. l == 1) then
            call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,1), v)
            r = b_map(:, :, l) - v 
         else
