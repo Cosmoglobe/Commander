@@ -295,7 +295,7 @@ contains
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
-      self%output_n_maps = 3
+      self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
       end if
@@ -506,8 +506,8 @@ contains
       !bicg_sol(:,:,1) = m_buf
       deallocate(m_buf)
 
-      epsil(1)   = 1d-10
-      !epsil(1)   = 1d-8
+      !epsil(1)   = 1d-10
+      epsil(1)   = 1d-8
       epsil(2:6) = 1d-6
       num_cg_iters = 0
       if (self%myid == 0) then 

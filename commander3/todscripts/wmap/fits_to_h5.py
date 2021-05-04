@@ -78,7 +78,8 @@ fknees *= 1e-3
 # version 39 uses weeklong scans
 # version 40 computes the polarization angles in a different way
 # version 41 fixes the unit vectors in the polarization angle calculation
-# version 42 uses the radius-based planet flag, changes tipped TOD to ztod
+# version 42 uses the radius-based planet flag, changes zipped TOD to ztod
+# version 43 uses default flags, changes tipped TOD to ztod
 
 from time import sleep
 from time import time as timer
@@ -930,7 +931,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
         # v14: add genflags somehow.
         genflags = data[2].data['genflags']*2**11
         daflags = data[2].data['daflags']
-        daflags = get_flags(data)
+        #daflags = get_flags(data)
         for i in range(10):
             daflags[:,i] += genflags
             if len(flags_all[i]) == 0:
@@ -1041,7 +1042,7 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
 
     if par:
         nprocs = 64
-        nprocs = 128
+        nprocs = 16
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -1068,5 +1069,6 @@ if __name__ == '__main__':
     #main(par=True, plot=False, compress=True, version=39, center=True)
     #main(par=True, plot=False, compress=True, version=40, center=True)
     #main(par=True, plot=False, compress=True, version=41, center=True)
-    main(par=True, plot=False, compress=True, version=42, center=True)
+    #main(par=True, plot=False, compress=True, version=42, center=True)
+    main(par=True, plot=False, compress=True, version=43, center=True)
     #test_flags()

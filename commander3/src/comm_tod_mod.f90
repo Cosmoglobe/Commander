@@ -770,6 +770,10 @@ contains
 
        ! Read Huffman coded data arrays
        if (nhorn == 2) then
+         ! For a single DA, this is redundant, so we are loading 4 times the
+         ! necessary pointing (and flags) information. Strictly speaking, this
+         ! would involve needing to have a self%pixA and self%pixB attribute for
+         ! WMAP only and not allocate self%d(i)%pix(j)
          do j = 1, nhorn 
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
