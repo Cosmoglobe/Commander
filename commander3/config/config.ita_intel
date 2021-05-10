@@ -125,3 +125,8 @@ export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
 export HDF_LINK := -L$(LOCAL)/lib -lhdf5_fortran -lhdf5
 export HDF_LINK_CPP := -L$(LOCAL)/lib -lhdf5_cpp -lhdf5
 export HDF_INCLUDE := -I$(LOCAL)/include
+
+# =============== CAMB ============================                              
+export CAMB_LINK := -L/mn/stornext/d16/cmbco/bp/mathew/commander3/install/lib -lcamb
+export CAMB_INCLUDE := -I/mn/stornext/d16/cmbco/bp/mathew/commander3/install/mod
+#

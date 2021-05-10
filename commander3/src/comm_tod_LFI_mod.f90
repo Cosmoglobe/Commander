@@ -63,6 +63,7 @@ module comm_tod_LFI_mod
      procedure     :: load_instrument_inst    => load_instrument_LFI
      procedure     :: dumpToHDF_inst          => dumpToHDF_LFI
      procedure     :: construct_corrtemp_inst => construct_corrtemp_LFI
+     procedure     :: filter_reference_load
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -516,6 +517,7 @@ contains
 
     integer(i4b) :: i, j
     integer(i4b) :: ext(2)
+    real(dp) :: weight
     character(len=2) :: diode_name
     real(dp), dimension(:,:), allocatable :: adc_buffer
 
@@ -523,8 +525,9 @@ contains
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'mbeam_eff', self%mb_eff(band))
 
     ! read in the diode weights
-    call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', self%diode_weights(band,1:1))
-    self%diode_weights(band,2:2) = 1.d0 - self%diode_weights(band,1:1)    
+    call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', weight)
+    self%diode_weights(band,1:1) = weight
+    self%diode_weights(band,2:2) = 1.d0 - weight
 
     do i=0, 1
       if(index(self%label(band), 'M') /= 0) then
@@ -583,15 +586,17 @@ contains
     !           Output detector TOD generated from raw diode data
     !
     implicit none
-    class(comm_LFI_tod),                 intent(in)    :: self
+    class(comm_LFI_tod),                 intent(inout) :: self
     integer(i4b),                        intent(in)    :: scan
     real(sp),          dimension(:,:),   intent(out)   :: tod
 
-    integer(i4b) :: i,j,half,horn,k
-    real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data
+    integer(i4b) :: i,j,k,half,horn
+    real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data, filtered_data
 
     allocate(diode_data(self%scans(scan)%ntod, self%ndiode))
     allocate(corrected_data(self%scans(scan)%ntod, self%ndiode))
+    allocate(filtered_data(self%scans(scan)%ntod, self%ndiode))
+
 
     !determine which of the two adc templates we should use
     half = 1
@@ -609,7 +614,7 @@ contains
           horn=1
           if(index('ref', self%diode_names(i,j)) /= 0) horn=2
 
-          call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+          !call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
 
           ! do k = 1, 10
           !    write(*,*) diode_data(k,j), corrected_data(k,j)
@@ -619,9 +624,9 @@ contains
           corrected_data(:,j) = diode_data(:,j)
         end do
 
-        ! Wiener-filter load data 
+        ! Wiener-filter load data         
+        call self%filter_reference_load(corrected_data, filtered_data, self%diode_weights(i,:))
         
-
         ! Compute output differenced TOD
 
         !w1(sky00 - ref00) + w2(sky01 - ref01)
@@ -640,6 +645,92 @@ contains
 
   end subroutine diode2tod_LFI
 
+  subroutine filter_reference_load(self, data_in, data_out, weights)
+    ! 
+    ! Wiener filters the reference load data to minimize noise
+    !
+    ! Arguments:
+    ! ----------
+    ! 
+    ! self:     comm_tod_LFI object
+    !           TOD processing class
+    ! data_in:  float array (ntod, ndiode)
+    !           input diode timestreams
+    !
+    ! Returns:
+    ! --------
+    !
+    ! data_out: float array (ntod, ndiode)
+    !           filtered output timestreams
+    ! weights:  float array (2)
+    !           output weights for radiometer 1,2
+    implicit none
+    class(comm_LFI_tod),               intent(in)   :: self
+    real(sp), dimension(:,:),          intent(in)   :: data_in
+    real(sp), dimension(:,:),          intent(out)  :: data_out
+    real(dp), dimension(:),            intent(inout):: weights    
+
+    integer(i4b) :: i, j, nfft, n
+    integer*8    :: plan_fwd, plan_back
+
+    real(dp),     allocatable, dimension(:) :: dt_sky, dt_ref
+    real(dp),     allocatable, dimension(:) :: filter
+    complex(dpc), allocatable, dimension(:) :: dv_sky, dv_ref
+
+    data_out = data_in
+
+    nfft = size(data_in(:,1))
+
+    allocate(dt_sky(nfft), dt_ref(nfft), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(nfft))
+    
+    call sfftw_plan_dft_r2c_1d(plan_fwd, nfft, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
+
+    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv_ref, dt_ref, fftw_estimate + fftw_unaligned)
+
+    do i = 1, self%ndiode/2
+
+      ! Check if data is all zeros
+      dt_ref = data_in(:, 2*i -1)
+      dt_sky = data_in(:, 2*i)
+      if(all(dt_ref == 0) .or. all(dt_sky == 0)) return
+
+      ! FFT of ref signal
+      call dfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
+
+      ! FFT of sky signal
+      call dfftw_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
+
+      if(self%myid == 1) write(*,*) dt_sky(1:100), dv_sky(1:100)
+      if(self%myid == 1) write(*,*) dt_sky(nfft-100:nfft-1), dv_sky(nfft-100:nfft-1)
+  
+ 
+      ! Compute cross correlation
+      filter = 0.5*(dv_sky*conjg(dv_ref) + dv_ref*conjg(dv_sky))/sqrt(dv_sky*conjg(dv_sky) * dv_ref*conjg(dv_ref))
+
+      filter(1) = 1
+
+      do j = 2, size(filter) -1
+        if (filter(j+1) > filter(j)) then
+          filter(j) = 0.5*(filter(j-1) + filter(j+1))
+        end if
+
+        write(*,*) filter(j)
+
+      end do
+
+      stop
+
+      ! Filter ref with cross correlation transfer function
+      dv_ref = dv_ref * filter
+
+      ! IFFT ref signal
+      call dfftw_execute_dft_c2r(plan_back, dv_ref, dt_ref)
+
+      data_out(:, 2*i-1) = dt_ref/nfft
+
+    end do
+
+  end subroutine filter_reference_load
 
   subroutine dumpToHDF_LFI(self, chainfile, path)
     ! 

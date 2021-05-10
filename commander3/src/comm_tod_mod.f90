@@ -33,11 +33,8 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, byte_pointer
+  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
-  type :: byte_pointer
-   byte, dimension(:), allocatable :: p 
-  end type byte_pointer
 
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
@@ -504,6 +501,7 @@ contains
     real(dp)     :: t1, t2
     real(sp)     :: psi
     type(hdf_file)     :: file
+    character(len=128) :: buff_s
 
     integer(i4b), dimension(:), allocatable       :: ns
     real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
@@ -520,8 +518,8 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       ndet_tot = num_tokens(det_buf(1:n), ",")
-       allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
+       ndet_tot = num_tokens(det_buf(1:n), ",")-1
+       allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot),dets(ndet_tot))
        polang_buf = 0
        mbang_buf = 0
        self%polang = 0
@@ -771,22 +769,25 @@ contains
          end if
        else ! ndiode > 1 per tod
           if(tod%compressed_tod == .false.) then
-             allocate(self%d(i)%diode(ndiode, m))
+             
           else
-             allocate(self%d(i)%zdiode(ndiode))
           end if
-          do k = 1, ndiode
-            if (tod%compressed_tod) then
-               call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
-            else
-               call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
-               if (tod%halfring_split == 2 )then
-                 self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
-               else
-                 self%d(i)%diode(k, :) = buffer_sp(1:m)
-               end if
-            end if
-          end do
+          if (tod%compressed_tod) then
+             allocate(self%d(i)%zdiode(ndiode))
+             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
+             !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
+          else
+             allocate(self%d(i)%diode(ndiode, m))
+             do k = 1, ndiode
+                
+                call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
+                if (tod%halfring_split == 2 )then
+                   self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
+                else
+                   self%d(i)%diode(k, :) = buffer_sp(1:m)
+                end if
+             end do
+          end if
        end if
     end do
     deallocate(buffer_sp)
@@ -1867,6 +1868,12 @@ contains
 !!$        end if
 !!$        call mpi_finalize(j)
 !!$        stop
+
+        !TODO: we need to back out the sigma compression here
+        !It would be great if we could read attributes...
+
+        ! This is terrible and should be fixed once we settle on a data format
+        diodes(:,i) = diodes(:,i) * 0.000001
     end do
 !    deallocate(buff)
 
@@ -1988,7 +1995,7 @@ contains
     !           Output detector TOD generated from raw diode data
     !
     implicit none
-    class(comm_tod),                     intent(in)    :: self
+    class(comm_tod),                     intent(inout) :: self
     integer(i4b),                        intent(in)    :: scan
     real(sp),          dimension(:,:),   intent(out)   :: tod
     tod = 0.
