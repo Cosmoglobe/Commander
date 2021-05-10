@@ -98,11 +98,11 @@ contains
 
      len = size(self%adc_in)
 
-     call spline(sadc, self%adc_in, self%adc_out)
+     call spline(sadc, self%adc_in, self%adc_out, regular=.true.)
 
-     write(*,*) tod_in
+     ! write(*,*) tod_in
 
-     stop
+     ! stop
 
      !TODO: figure out the correct algorithm and implement it
      !-------------------------------------------------------

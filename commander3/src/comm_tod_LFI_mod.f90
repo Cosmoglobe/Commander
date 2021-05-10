@@ -611,10 +611,10 @@ contains
 
           call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
 
-          do k = 1, 10
-             write(*,*) diode_data(k,j), corrected_data(k,j)
-          end do
-          stop
+          ! do k = 1, 10
+          !    write(*,*) diode_data(k,j), corrected_data(k,j)
+          ! end do
+          ! stop
 
           corrected_data(:,j) = diode_data(:,j)
         end do
