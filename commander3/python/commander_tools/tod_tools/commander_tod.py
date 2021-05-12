@@ -92,7 +92,6 @@ class commander_tod:
                 raise ValueError('Data is shape ' + str(shape) + ' but column headers have length ' + str(len(columnInfo)))  
 
         if compression == None or compression == []:
-            print(type(data))
             if type(data) == np.ndarray:
                 self.outFile.create_dataset(fieldName, data=data)
             else: #ragged array
@@ -109,6 +108,7 @@ class commander_tod:
 
     #Single field write
     def add_field(self, fieldName, data, compression=None):
+        data = np.nan_to_num(data)
         writeField = True
         if(compression is not None and compression is not []):
             compInfo = ''
@@ -227,7 +227,7 @@ class commander_tod:
             self.add_field('/' + str(pid).zfill(6) + '/common/hufftree' + numStr, huffArray)
             self.add_field('/' + str(pid).zfill(6) + '/common/huffsymb' + numStr, h.symbols)
             #with np.printoptions(threshold=np.inf):
-            #    print(huffArray, len(huffArray), len(h.symbols))
+            #print(huffArray, len(huffArray), len(h.symbols))
             for field in self.huffDict[key].keys():
                 if ':' not in field:
                     self.add_field(field, np.void(bytes(h.byteCode(self.huffDict[key][field]))))

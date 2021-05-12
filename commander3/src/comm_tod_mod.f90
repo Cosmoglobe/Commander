@@ -395,7 +395,7 @@ contains
        allocate(pix(self%scans(i)%ntod))
        do j = 1, self%ndet
          do l = 1, self%nhorn
-          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+          call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              pix(k)  = pix(k-1)  + pix(k)
@@ -684,7 +684,7 @@ contains
     character(len=128) :: field
     type(hdf_file)     :: file
     integer(i4b), allocatable, dimension(:)       :: hsymb
-    real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n
+    real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n, hsymb_sp
     integer(i4b), allocatable, dimension(:)       :: htree
 
     self%chunk_num = scan
@@ -795,13 +795,13 @@ contains
     ! Initialize Huffman key
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
-    call hufmak_precomp(hsymb,htree,self%hkey)
+    call hufmak_precomp_int(hsymb,htree,self%hkey)
     if (tod%compressed_tod) then
 !!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
 !!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-       call hufmak_precomp(hsymb,htree,self%todkey)
+       call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
     end if
     deallocate(hsymb, htree)
 
@@ -1786,8 +1786,8 @@ contains
     integer(i4b) :: i, j
 
     do i=1, self%nhorn
-      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
-      call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
+      call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
+      call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
       if (self%polang(det) /= 0.) then
          do j = 1, size(psi,1)
             psi(j,i) = psi(j,i) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
@@ -1799,7 +1799,7 @@ contains
          end do
       end if
     end do
-    call huffman_decode2(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
 !!$    if (det == 2) psi = modulo(psi + 20,self%npsi)
@@ -1853,7 +1853,7 @@ contains
 
 !    allocate(buff(size(diodes,1)))
     do i = 1, self%ndiode
-        call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, diodes(:,i))
+        call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, diodes(:,i))
         !tot = sum(diodes(:,i))
         !call huffman_decode3(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, buff)
 !        write(*,*) sum(abs(diodes(:,i)-buff)), maxval(abs(diodes(:,i)-buff))
@@ -1908,7 +1908,7 @@ contains
 
     allocate(tod_int(size(tod)))
 
-    call huffman_decode2(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
+    call huffman_decode2_int(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
 
     tod = real(tod_int, sp)
 
