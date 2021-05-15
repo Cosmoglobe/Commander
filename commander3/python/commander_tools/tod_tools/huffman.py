@@ -160,7 +160,6 @@ class Huffman:
             heapq.heappush(self.queue, node)
             self.symbols.append(d)
     
-
         while(len(self.queue)>1):
             left_child = heapq.heappop(self.queue)
             right_child = heapq.heappop(self.queue)

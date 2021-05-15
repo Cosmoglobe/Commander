@@ -311,7 +311,7 @@ def make_od(comm_tod, freq, od, args):
                         compArray = [lfi.todDtype] 
                     comm_tod.add_field(prefix + '/tod', tod, compArray)
                 else: #undifferenced data
-               
+
                     diode_list = []
                     name_list = []
  
@@ -327,10 +327,10 @@ def make_od(comm_tod, freq, od, args):
                     if(args.no_compress or args.no_compress_tod):
                         compArray = [lfi.todDtype]
                     
+                    #print('adding tod, contains', np.count_nonzero(np.isnan(diode_list)), 'nans')
                     comm_tod.add_matrix(prefix + '/diodes', diode_list, name_list, compArray)
-                    
+                         
 
- 
         comm_tod.finalize_chunk(pid, loadBalance=outAng)
     comm_tod.finalize_file()
 
