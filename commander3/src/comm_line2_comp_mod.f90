@@ -96,12 +96,13 @@ contains
        if (trim(data(i)%label) == trim(cpar%cs_band_ref(id_abs))) ref_exist = .true.
     end do
     if (.not. ref_exist) call report_error("Line component reference band does not exist")
-
+    
     allocate(constructor%ind2band(n))
     constructor%npar = n
 
     allocate(constructor%theta_def(2*n), constructor%p_gauss(2,2*n), constructor%p_uni(2,2*n))
     allocate(constructor%poltype(n), constructor%indlabel(n), constructor%line2RJ(n))
+    allocate(constructor%tilt(n), constructor%lineratio(n))
     n         = 0
     do i = 1, numband
        do j = 1, nline
@@ -109,9 +110,11 @@ contains
              n = n+1
              constructor%ind2band(n)  = i
              constructor%theta_def(n) = lr_init(j)
+             constructor%lineratio(n) = lr_init(j) !this is a fall-back-parameter for the line ratio
              constructor%p_gauss(1,n) = lr_mu(j)
              constructor%p_gauss(2,n) = lr_sigma(j)
              constructor%theta_def(n+constructor%npar) = tilt_init(j)
+             constructor%tilt(n)      = tilt_init(j) !this is a fall-back-parameter for the bandpass gradient/tilt
              constructor%p_gauss(1,n+constructor%npar) = tilt_mu(j)
              constructor%p_gauss(2,n+constructor%npar) = tilt_sigma(j)
              constructor%p_uni(1,n)   = 0.d0     !lower limit for line ratio
@@ -127,6 +130,8 @@ contains
        if (trim(data(i)%label) == trim(cpar%cs_band_ref(id_abs))) then
           constructor%ref_band    = i
           constructor%line2RJ_ref = constructor%line2RJ(n)
+          !constructor%theta_def(n) = 1.d0 !should we force LR on ref to 1.0 ?
+          !constructor%lineratio(n) = 1.d0
        end if
     end do
 
@@ -197,7 +202,9 @@ contains
        if (constructor%lmax_ind >= 0) call constructor%theta(i)%p%YtW_scalar
     end do
 
-    ! Precompute mixmat integrator for each band
+    ! Precompute mixmat integrator for each band. 
+    ! From what we did in Commander1, the RJ2data scaling should be that of 
+    ! the reference band, not the band itself.
     allocate(constructor%F_int(3,numband,0:constructor%ndet))
     j = 1
     do l = 1, 3
@@ -211,7 +218,7 @@ contains
           if (any(constructor%ind2band == i)) then
              do k = 0, data(i)%ndet
                 constructor%F_int(l,i,k)%p => comm_F_line(constructor, data(i)%bp(k)%p, .true., &
-                     & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(k), j)
+                     & constructor%line2RJ(j) / constructor%line2RJ_ref * data(constructor%ref_band)%RJ2data(k), j)
              end do
              j = j+1
           else
@@ -234,7 +241,7 @@ contains
   ! Definition:
   !    SED  = delta_{band,
   function evalSED(self, nu, band, pol, theta)
-    class(comm_line2_comp),    intent(in)           :: self
+    class(comm_line2_comp),  intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
     integer(i4b),            intent(in), optional :: pol
@@ -302,7 +309,8 @@ contains
 
   end subroutine read_line2_template
 
-  ! Sample line ratios
+  ! Sample line ratios subroutine 
+  ! Copied from "line" component, not yet edited for "line2" (as of May 2021)
   subroutine sampleLineRatios(self, cpar, handle, id, iter)
     implicit none
     class(comm_line2_comp),                   intent(inout)        :: self

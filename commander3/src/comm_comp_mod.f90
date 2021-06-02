@@ -257,7 +257,7 @@ contains
        case ('MJy/sr') 
           self%RJ2unit_(i) = comp_bnu_prime_RJ(self%nu_ref(i)) * 1e14
        case ('K km/s') 
-          self%RJ2unit_(i) = 1.d0 !-1.d30
+          self%RJ2unit_(i) = 1.d0 !-1.d30 
        case ('y_SZ') 
           self%RJ2unit_(i) = 2.d0*self%nu_ref(i)**2*k_b/c**2 / &
                & (comp_bnu_prime(self%nu_ref(i)) * comp_sz_thermo(self%nu_ref(i)))
