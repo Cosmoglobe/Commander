@@ -491,7 +491,7 @@ contains
                 if (info%myid == 0) then
                    q = 0 
                    outside_limit = .true.
-                   do while (outside_limit) then 
+                   do while (outside_limit) 
                       q = q + 1
                       ! Save old values
                       theta_pixreg_prop = c%theta_pixreg(:c%npixreg(pl,j),pl,j)
