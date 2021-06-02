@@ -96,8 +96,6 @@ contains
 
     n  = size(x_out)
    
-    write(*,*) x_in(1:100), hcode%nodemax, hcode%sp_symbs(1:100)
- 
     i = 2 ! Byte counter
     j = 7 ! Bit counter
     curr = 0
