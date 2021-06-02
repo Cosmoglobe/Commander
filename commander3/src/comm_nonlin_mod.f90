@@ -778,7 +778,21 @@ contains
 
                    do p = 1, c%npixreg(pl,j)
                       !if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%p_gauss(1,j) + rand_gauss(handle)*c%p_gauss(2,j)
-                      if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%pixreg_priors(p,pl,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                      if (c%fix_pixreg(p,pl,j)) then
+                         q = 0
+                         outside_limit=.true.
+                         do while (outside_limit)
+                            q = q + 1
+                            !draw a new pixel region value from prior
+                            theta_pixreg_prop(p) = c%pixreg_priors(p,pl,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                            !check if we are outside hard priors, if so, draw new sample
+                            if (theta_pixreg_prop(p) < theta_max .and. theta_pixreg_prop(p) > theta_min) outside_limit = .false.
+                            if (q > 1000) then !in case the prior RMS is high and we constantly end up outside hard limits
+                               theta_pixreg_prop(p) = c%pixreg_priors(p,pl,j) !set to prior value
+                               outside_limit = .false.
+                            end if
+                         end do
+                      end if
                    end do
                 end if
 
