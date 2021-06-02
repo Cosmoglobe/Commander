@@ -398,7 +398,6 @@ contains
           call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
-             pix(k)  = pix(k-1)  + pix(k)
              self%pix2ind(pix(k)) = 1
           end do
         end do
@@ -518,7 +517,7 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       ndet_tot = num_tokens(det_buf(1:n), ",")-1
+       ndet_tot = num_tokens(det_buf(1:n), ",")
        allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot),dets(ndet_tot))
        polang_buf = 0
        mbang_buf = 0
@@ -1869,11 +1868,6 @@ contains
 !!$        call mpi_finalize(j)
 !!$        stop
 
-        !TODO: we need to back out the sigma compression here
-        !It would be great if we could read attributes...
-
-        ! This is terrible and should be fixed once we settle on a data format
-        diodes(:,i) = diodes(:,i) * 0.000001
     end do
 !    deallocate(buff)
 

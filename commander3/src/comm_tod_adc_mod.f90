@@ -443,9 +443,10 @@ contains
      integer(i4b),                    intent(in)    :: window
      real(sp),     dimension(:),      intent(out)   :: tod_out
      type(spline_type)                              :: sresponse
-     real(sp),     dimension(:),      allocatable   :: tod_trim, idrf, rirf
-     real(sp),     dimension(:),      allocatable   :: rt, rms, bins, binval, bin_edges
+     real(sp),     dimension(:),      allocatable   :: tod_trim, idrf, rirf, bins
+     real(sp),     dimension(:),      allocatable   :: rt, rms, binval, bin_edges
      real(sp),     dimension(:),      allocatable   :: binned_rms, linrms, flatrms
+     real(dp),     dimension(:),      allocatable   :: tod_buf, spline_buf, bins_buf, tod_out_buf
      integer(i4b), dimension(:),      allocatable   :: nval, binmask
      integer(i4b)                                   :: i, j, len, vrange
      integer(i4b)                                   :: nbins
@@ -565,8 +566,21 @@ contains
      !    close(52)
      ! end if
 
-     call spline(sresponse, bins, rirf + bins, regular=.true.)
-     tod_out = splint(sresponse, tod_in)
+     allocate(tod_buf(size(tod_in)), tod_out_buf(size(tod_out)), spline_buf(size(bins)), bins_buf(size(bins)))     
+
+     spline_buf = bins + rirf
+     bins_buf = bins
+
+     call spline(sresponse, bins_buf, spline_buf, regular=.true.)
+
+     tod_buf = tod_in
+
+     call splint_simple_multi(sresponse, tod_buf, tod_out_buf)
+
+     tod_out = tod_out_buf
+
+     call free_spline(sresponse)
+     deallocate(tod_buf, spline_buf, bins_buf, tod_out_buf)
      
    end subroutine return_diode_response_function
 
@@ -595,7 +609,7 @@ contains
 
      len = size(self%adc_in)
 
-     call spline(sadc, self%adc_in, self%adc_out, regular=.true.)
+     !call spline(sadc, self%adc_in, self%adc_out, regular=.true.)
 
      ! write(*,*) tod_in
 
@@ -607,7 +621,7 @@ contains
      ! To start we'll the just spline the DPC adc correction table
      ! Must check units!!
 
-     ! correct_tod = splint(sadc,tod_in)
+     !correct_tod = splint(sadc,tod_in)
      correct_tod = tod_in
 
    end subroutine adc_correct

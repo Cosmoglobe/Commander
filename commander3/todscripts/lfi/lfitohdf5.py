@@ -323,7 +323,10 @@ def make_od(comm_tod, freq, od, args):
                         diode_list.append(sky)
                         name_list.append('sky'+diode)
 
-                    compArray = [lfi.todDtype, lfi.huffTod]
+                    huffTod = lfi.huffTod
+                    huffTod[1]['dictNum'] = str(horn) + hornType
+
+                    compArray = [lfi.todDtype, huffTod]
                     if(args.no_compress or args.no_compress_tod):
                         compArray = [lfi.todDtype]
                     
