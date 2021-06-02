@@ -1,4 +1,4 @@
-!===============================================================================
++!===============================================================================
 !
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University
 ! of Oslo.
@@ -91,6 +91,7 @@ contains
 
      ! Mask out bins that have no entries
      do i = 1, len
+        if (mask(i) == 0) cycle
         sumx  = sumx  + x(i)
         sumy  = sumy  + y(i)
         sumxy = sumxy + x(i)*y(i)
@@ -239,6 +240,7 @@ contains
      ! so dips are identified first by finding y-values where y < -1.0*y_std
 
      do i = 1, len
+        if (binmask(i) == 0) cycle
         ! Only consider variations
         if (y(i) < -1.0*y_std) then
            truths(:) = .false.
@@ -497,7 +499,7 @@ contains
         end do
      end do
 
-     ! Mask out bins that have no entries
+     ! Mask out bins that have no entries - otherwise return mean rms for each bin
      do j = 1, nbins
         if(nval(j) == 0) then
            ! write(*,*) "YELL VERY LOUDLY"
@@ -508,6 +510,7 @@ contains
         binned_rms(j) = binval(j)/nval(j)
      end do
 
+     ! Remove the linear term from V vs RMS 
      call return_linreg(bins, binned_rms, binmask, slope, offset)
      
      linrms  = slope*bins + offset
@@ -527,6 +530,7 @@ contains
         end if
      end do
 
+     ! Return voltage spacing between dips (v_off)
      call return_v_off(bins, flatrms, binmask, vrange, dip1, v_off)
 
      ! Return the Inverse Differential Response Function (idrf)
