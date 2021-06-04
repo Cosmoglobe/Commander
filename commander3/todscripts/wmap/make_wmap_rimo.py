@@ -149,7 +149,7 @@ rots = [0]
 for rot in rots:
   #fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
   fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
-  fname_out = 'test.h5'
+  #fname_out = 'test.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
@@ -245,8 +245,8 @@ for rot in rots:
       mmax = 100
       
       
-      X = np.arange(-11.98, 12, 0.04)*np.pi/180
-      Y = np.arange(-11.98, 12, 0.04)*np.pi/180
+      X = np.arange(-11.98, 11.98+0.04, 0.04)*np.pi/180
+      Y = np.arange(11.98, -11.98-0.04, -0.04)*np.pi/180
       X2 = np.linspace(X[0], X[-1], len(X)*5)
       Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
       xx, yy = np.meshgrid(X,Y)
@@ -284,7 +284,7 @@ for rot in rots:
           f = interpolate.interp2d(X, Y, beamB)
           beamB_2 = f(X2, Y2)
 
-          nside = 4096//4
+          nside = 4096
           mA = np.zeros(12*nside**2)
           mB = np.zeros(12*nside**2)
           N = np.zeros(12*nside**2)
@@ -306,8 +306,8 @@ for rot in rots:
           mA[~np.isfinite(mA)] = 0
           mB[~np.isfinite(mB)] = 0
 
-          #hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
-          #hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
+          hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
+          hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
 
 
           ind = np.argmax(mA)
