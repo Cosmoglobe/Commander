@@ -105,7 +105,7 @@ contains
     character(len=128),      intent(in) :: tod_type
     class(comm_LFI_tod),     pointer    :: constructor
 
-    real(dp), dimension(:), allocatable :: tod_in
+    real(sp), dimension(:), allocatable :: tod_in
 
     integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
