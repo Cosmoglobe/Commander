@@ -119,15 +119,50 @@ contains
      ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
      ! 46.5 mHz. 
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      if (.true.) then
+      if (trim(constructor%freq) == '023-WMAP_K') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.05]  ! fknee
+         constructor%xi_n_P_uni(2,:) = [0.001, 0.05]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '030-WMAP_Ka') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.001, 0.01]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '040-WMAP_Q1') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.001, 0.02]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '040-WMAP_Q2') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.003, 0.02]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '060-WMAP_V1') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '060-WMAP_V2') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '090-WMAP_W1') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '090-WMAP_W2') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '090-WMAP_W3') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+      else if (trim(constructor%freq) == '090-WMAP_W4') then
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
          stop
       end if
-
 
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
@@ -422,11 +457,11 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.false. .and. i==1 .and. iter == 10) then
+         if (.false. .and. i==1 .and. mod(iter,10) == 0) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
-               open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
+               open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'_samp'//samptext//'.dat', recl=1024)
                write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  sky (mK)  "// &
                     & " s_orb (mK),  mask, baseline, sl, bp, gain, sigma0"
                do j = 1, sd%ntod
@@ -506,25 +541,28 @@ contains
       !bicg_sol(:,:,1) = m_buf
       deallocate(m_buf)
 
-      !epsil(1)   = 1d-10
-      epsil(1)   = 1d-8
+      epsil(1)   = 1d-10
+      !epsil(1)   = 1d-8
       epsil(2:6) = 1d-6
       num_cg_iters = 0
       if (self%myid == 0) then 
          if (self%verbosity > 0) write(*,*) '  Running BiCG'
       end if
 
-      ! Solve for maps
-      call update_status(status, "Starting bicg-stab")
-      do l=1, self%output_n_maps
-         if (self%verbosity > 0 .and. self%myid == 0) then
-           write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
-         end if
-         call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+      ! Doing this now because it's still burning in...
+      if (mod(iter-1,self%output_aux_maps) == 0) then
+        ! Solve for maps
+        call update_status(status, "Starting bicg-stab")
+        do l=1, self%output_n_maps
+           if (self%verbosity > 0 .and. self%myid == 0) then
+             write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+           end if
+           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                           & epsil(l), procmask, map_full, M_diag, b_map, l, &
                           & prefix, postfix)
-      end do
-      if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
+        end do
+        if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
+      end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
