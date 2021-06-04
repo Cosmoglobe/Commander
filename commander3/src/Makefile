@@ -130,7 +130,7 @@ comm_tod_WMAP_mod.o :      comm_tod_mod.o comm_shared_arr_mod.o comm_conviqt_mod
 			   comm_tod_orbdipole_mod.o comm_tod_gain_mod.o comm_tod_noise_mod.o
 comm_tod_simulations_mod.o: comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o \
 														spline_1D_mod.o comm_param_mod.o comm_utils.o
-comm_tod_adc_mod.o: spline_1D_mod.o
+comm_tod_adc_mod.o: spline_1D_mod.o comm_tod_mod.o
 
 
 commander.o :              comm_signal_mod.o comm_data_mod.o comm_cr_mod.o comm_chisq_mod.o \

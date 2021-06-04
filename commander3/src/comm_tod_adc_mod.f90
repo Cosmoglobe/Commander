@@ -1,4 +1,4 @@
-+!===============================================================================
+!===============================================================================
 !
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University
 ! of Oslo.
@@ -25,6 +25,10 @@
 module comm_tod_adc_mod
 
   use spline_1D_mod
+  use comm_tod_mod
+  use comm_map_mod
+  use comm_param_mod
+  ! use mpi
 
   implicit none
 
@@ -32,9 +36,12 @@ module comm_tod_adc_mod
   public comm_adc, adc_pointer
 
   type :: comm_adc
-    real(dp), dimension(:), allocatable :: adc_in, adc_out
+    real(sp), dimension(:), allocatable :: adc_in, adc_out
+    integer(i4b)                        :: comm, myid, nbins
+    class(comm_mapinfo), pointer        :: info => null()    ! Map definition
   contains
     procedure :: adc_correct
+    procedure :: build_table
   end type comm_adc
 
   interface comm_adc
@@ -47,29 +54,47 @@ module comm_tod_adc_mod
 
 contains
 
-   function constructor(adc_i, adc_o)
+  function constructor(tod_in, cpar, info)
+  ! function constructor(tod_in, cpar, info, nbins)
      ! ====================================================================
      ! Sets up an adc correction object that maps input and output voltages
      !
      ! Inputs:
      ! 
-     ! adc_i : float array
-     !   The array of input voltages
+     ! tod_in : float array
+     !          The array of input voltages
      !
-     ! adc_o : float array
-     !   The array of output voltages
+     ! comm   : integer
+     !          mpi communicator
+     !
+     ! myid   : integer
+     !          mpi identifier
+     !
+     ! nbins  : integer
+     !          number of bins used for building the adc correction tables
+     !
      ! ====================================================================
 
      implicit none
-     real(dp), dimension(:), intent(in)          :: adc_i, adc_o
-     class(comm_adc), pointer                    :: constructor    
+     real(sp),            dimension(:), intent(in) :: tod_in
+     ! integer(i4b),                      intent(in) :: nbins
+     class(comm_mapinfo),                  target  :: info
+     class(comm_adc),                      pointer :: constructor    
+     type(comm_params),                 intent(in) :: cpar
+
+     integer(i4b) :: window
 
      allocate(constructor)
 
-     allocate(constructor%adc_in(size(adc_i)), constructor%adc_out(size(adc_o)))
+     window              =  10
+     constructor%info    => info
+     constructor%myid    =  cpar%myid_chain
+     constructor%comm    =  cpar%comm_chain
+     constructor%nbins   =  1000
 
-     constructor%adc_in  = adc_i
-     constructor%adc_out = adc_o
+     allocate(constructor%adc_in(constructor%nbins), constructor%adc_out(constructor%nbins))
+
+     call constructor%build_table(tod_in,window,constructor%nbins,constructor%adc_in,constructor%adc_out)
  
    end function constructor
 
@@ -416,32 +441,38 @@ contains
 
    end function return_gaussian_idrf
 
-   subroutine return_diode_response_function(self,tod_in,window,tod_out)
+   subroutine build_table(self,tod_in,window,nbins,volt_in,volt_out)
      !=========================================================================
      ! Adc corrects a timestream 
      ! 
      ! Inputs:
      !
-     ! self : comm_adc object
+     ! self     : comm_adc object
      !    Defines the adc correction that should be applied
-     ! tod_in : float array
-     !    The tod that is to be corrected
-     ! window : integer
+     !
+     ! tod_in   : float array
+     !    The tod used to determine the adc correction table
+     !
+     ! window   : integer
      !    Window size for the sliding mean used to determine the data RMS
      ! 
      ! Outputs : 
      !
-     ! response_function : float array
-     !    Reconstructed inverse response function correcting the non-linearity 
-     !    identified by the dips in the white-noise level
+     ! volt_in  : float array
+     !            Array of the input voltages
+     !
+     ! volt_out : float
+     !            array of the corrected voltages
      !=========================================================================
      
 
      implicit none
      class(comm_adc),                 intent(inout) :: self
      real(sp),     dimension(:),      intent(in)    :: tod_in
-     integer(i4b),                    intent(in)    :: window
-     real(sp),     dimension(:),      intent(out)   :: tod_out
+     integer(i4b),                    intent(in)    :: window, nbins
+     real(sp),     dimension(:),      intent(out)   :: volt_in
+     real(sp),     dimension(:),      intent(out)   :: volt_out
+
      type(spline_type)                              :: sresponse
      real(sp),     dimension(:),      allocatable   :: tod_trim, idrf, rirf, bins
      real(sp),     dimension(:),      allocatable   :: rt, rms, binval, bin_edges
@@ -449,10 +480,9 @@ contains
      real(dp),     dimension(:),      allocatable   :: tod_buf, spline_buf, bins_buf, tod_out_buf
      integer(i4b), dimension(:),      allocatable   :: nval, binmask
      integer(i4b)                                   :: i, j, len, vrange
-     integer(i4b)                                   :: nbins
+     integer(i4b)                                   :: ierr
      real(sp)                                       :: dip1, sum, v_off, slope, offset
-
-     reaL(sp) :: dummy
+     real(sp)                                       :: v_min, v_max
 
      len = size(tod_in)
 
@@ -465,9 +495,18 @@ contains
      allocate(nval(nbins))
      allocate(binned_rms(nbins),linrms(nbins),flatrms(nbins))
 
+     !----------------------------------
+     ! Want to run this individually on each core the allreduce
+
+     v_min = minval(tod_in)
+     v_max = maxval(tod_in)
+
+     call mpi_allreduce(mpi_in_place, v_min, 1, MPI_DOUBLE_PRECISION, MPI_MIN, self%comm, ierr) 
+     call mpi_allreduce(mpi_in_place, v_max, 1, MPI_DOUBLE_PRECISION, MPI_MAX, self%comm, ierr) 
+
      ! Declare bin edges
      do i = 1, nbins+1
-        bin_edges(i) = (maxval(tod_in)-minval(tod_in))*(i-1)/nbins + minval(tod_in)
+        bin_edges(i) = (v_max-v_min)*(i-1)/nbins + v_min
      end do
 
      ! Declare bins
@@ -500,89 +539,84 @@ contains
         end do
      end do
 
-     ! Mask out bins that have no entries - otherwise return mean rms for each bin
-     do j = 1, nbins
-        if(nval(j) == 0) then
-           ! write(*,*) "YELL VERY LOUDLY"
-           binmask(i) = 0
-           cycle
-        end if
-        binmask(j)    = 1
-        binned_rms(j) = binval(j)/nval(j)
-     end do
+     call mpi_allreduce(mpi_in_place,binval,size(binval),MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+     call mpi_allreduce(mpi_in_place,nval,size(nval),MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
 
-     ! Remove the linear term from V vs RMS 
-     call return_linreg(bins, binned_rms, binmask, slope, offset)
-     
-     linrms  = slope*bins + offset
-     flatrms = binned_rms - linrms
+     ! End parallelization
+     !--------------------------------------
 
-     ! After we remove the linear term, let's fit Gaussians to return the
-     ! inverse differential resposne function
+     ! The rest should be light enough to do on a single core
 
-     ! First step here is to estimate the voltage space between the dips
-     
-     ! Let's look over a window of ~1mV
-     ! Define this range in terms of indices
-     do i = 1, nbins
-        if (bins(i) - bins(1) > 0.001) then
-           vrange = i
-           exit
-        end if
-     end do
+     if (self%myid == 0) then
 
-     ! Return voltage spacing between dips (v_off)
-     call return_v_off(bins, flatrms, binmask, vrange, dip1, v_off)
-
-     ! Return the Inverse Differential Response Function (idrf)
-     idrf = return_gaussian_idrf(bins, flatrms, binmask, dip1, v_off)
-
-     ! Integrate up that idrf to receive the Reconstructed Inverse Response Function (rirf)
-     ! This function is what we actually use as our correction function
-     do i = 1, nbins
-        do j = 1, i
-           rirf(i) = rirf(i) + idrf(j)
+        ! Mask out bins that have no entries - otherwise return mean rms for each bin
+        do j = 1, nbins
+           if(nval(j) == 0) then
+              ! write(*,*) "YELL VERY LOUDLY"
+              binmask(i) = 0
+              cycle
+           end if
+           binmask(j)    = 1
+           binned_rms(j) = binval(j)/nval(j)
         end do
-     end do
 
-     ! Can't forget to remove the linear part of rirf so as to not be degenerate in gain
-
-     call return_linreg(bins, rirf, binmask, slope, offset)
-
-     rirf = rirf - slope*bins
-
-     ! Write to file binned rms, voltages, and response function to files
-     ! if (self%myid == 0) then
-     !    open(50, file='adc_binned_rms.dat')
-     !    open(51, file='adc_voltage_bins.dat')
-     !    open(52, file='adc_response_function.dat')
-     !    do i = 1, nbins
-     !       write(50, fmt='(f16.8)') binned_rms(i)
-     !       write(51, fmt='(f16.8)') bins(i)
-     !       write(52, fmt='(f16.8)') rirf(i)
-     !    end do
-     !    close(50)
-     !    close(51)
-     !    close(52)
-     ! end if
-
-     allocate(tod_buf(size(tod_in)), tod_out_buf(size(tod_out)), spline_buf(size(bins)), bins_buf(size(bins)))     
-
-     spline_buf = bins + rirf
-     bins_buf = bins
-
-     call spline(sresponse, bins_buf, spline_buf, regular=.true.)
-
-     tod_buf = tod_in
-
-     call splint_simple_multi(sresponse, tod_buf, tod_out_buf)
-
-     tod_out = tod_out_buf
-
-     call free_spline(sresponse)
-     deallocate(tod_buf, spline_buf, bins_buf, tod_out_buf)
+        ! Remove the linear term from V vs RMS 
+        call return_linreg(bins, binned_rms, binmask, slope, offset)
      
-   end subroutine return_diode_response_function
+        linrms  = slope*bins + offset
+        flatrms = binned_rms - linrms
+
+        ! After we remove the linear term, let's fit Gaussians to return the
+        ! inverse differential resposne function
+        
+        ! First step here is to estimate the voltage space between the dips
+        
+        ! Let's look over a window of ~1mV
+        ! Define this range in terms of indices
+        do i = 1, nbins
+           if (bins(i) - bins(1) > 0.001) then
+              vrange = i
+              exit
+           end if
+        end do
+
+        ! Return voltage spacing between dips (v_off)
+        call return_v_off(bins, flatrms, binmask, vrange, dip1, v_off)
+        
+        ! Return the Inverse Differential Response Function (idrf)
+        idrf = return_gaussian_idrf(bins, flatrms, binmask, dip1, v_off)
+        
+        ! Integrate up that idrf to receive the Reconstructed Inverse Response Function (rirf)
+        ! This function is what we actually use as our correction function
+        do i = 1, nbins
+           do j = 1, i
+              rirf(i) = rirf(i) + idrf(j)
+           end do
+        end do
+
+        ! Can't forget to remove the linear part of rirf so as to not be degenerate in gain
+
+        call return_linreg(bins, rirf, binmask, slope, offset)
+        
+        volt_in  = bins
+        volt_out = rirf - slope*bins + bins
+
+        ! Write to file binned rms, voltages, and response function to files
+        ! if (self%myid == 0) then
+        open(50, file='adc_binned_rms.dat')
+        open(51, file='adc_voltage_bins.dat')
+        open(52, file='adc_response_function.dat')
+        do i = 1, nbins
+           write(50, fmt='(f16.8)') binned_rms(i)
+           write(51, fmt='(f16.8)') bins(i)
+           write(52, fmt='(f16.8)') rirf(i)
+        end do
+        close(50)
+        close(51)
+        close(52)
+     end if
+
+   end subroutine build_table
 
    subroutine adc_correct(self, tod_in, correct_tod)
      !=========================================================================

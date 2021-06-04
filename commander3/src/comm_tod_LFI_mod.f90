@@ -52,9 +52,11 @@ module comm_tod_LFI_mod
 
   type, extends(comm_tod) :: comm_LFI_tod
      integer(i4b) :: nbin_spike
+     integer(i4b) :: nbin_adc
      real(dp),          allocatable, dimension(:)       :: mb_eff
      real(dp),          allocatable, dimension(:,:)     :: diode_weights
-     type(adc_pointer), allocatable, dimension(:,:,:,:) :: adc_corrections ! ndet, n_diode, nadc_templates, (sky, load)
+     type(adc_pointer), allocatable, dimension(:,:,:)   :: adc_corrections ! ndet, n_diode, (sky, load)
+     ! type(adc_pointer), allocatable, dimension(:,:,:,:)   :: adc_corrections ! ndet, n_diode, (sky, load)
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
    contains
@@ -103,8 +105,12 @@ contains
     character(len=128),      intent(in) :: tod_type
     class(comm_LFI_tod),     pointer    :: constructor
 
-    integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
+    real(dp), dimension(:), allocatable :: tod_in
+
+    integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
+
+    integer(i4b) :: horn
 
     ! Allocate object
     allocate(constructor)
@@ -205,11 +211,27 @@ contains
     allocate(constructor%diode_weights(constructor%ndet, 2))
     allocate(constructor%spike_templates(constructor%nbin_spike, constructor%ndet))
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
-    allocate(constructor%adc_corrections(constructor%ndet, 2, 2, 2))
+    ! allocate(constructor%adc_corrections(constructor%ndet, 2, 2,2))
+    allocate(constructor%adc_corrections(constructor%ndet, 2, 2))
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
     constructor%spike_amplitude = 0.d0
+
+    ! Compute ADC correction tables for each diode
+
+    !!!!! Including the number of adc bins as an input gives a weird error!
+    ! assume nbins == 1000
+    ! constructor%nbin_adc = 1000
+
+    do i = 1, constructor%ndet
+       do j = 1, constructor%ndiode
+          horn=1
+          if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
+          constructor%adc_corrections(i,j,horn)%p => comm_adc(tod_in,cpar,info)
+          ! constructor%adc_corrections(i,j,horn)%p => comm_adc(tod_in,cpar,info,constructor%nbin_adc)
+       end do
+    end do
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
@@ -546,19 +568,19 @@ contains
 !      write(self%diode_names(band,i+1), 'sky'//diode_name)
 !      write(self%diode_names(band,i+3), 'ref'//diode_name)
       ! read in adc correction templates
-      call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
-      allocate(adc_buffer(ext(1), ext(2)))
-      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)      
-      self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(:,1), adc_buffer(:,2)) !adc correction for first half, sky
-      self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(:,3), adc_buffer(:,4)) !adc correction for first half, load
-      deallocate(adc_buffer)
+      ! call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
+      ! allocate(adc_buffer(ext(1), ext(2)))
+      ! call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)      
+      ! self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(:,1), adc_buffer(:,2)) !adc correction for first half, sky
+      ! self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(:,3), adc_buffer(:,4)) !adc correction for first half, load
+      ! deallocate(adc_buffer)
 
-      call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, ext)
-      allocate(adc_buffer(ext(1), ext(2)))
-      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, adc_buffer)
-      self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(:,1), adc_buffer(:,2)) !adc correction for second half, sky
-      self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(:,3), adc_buffer(:,4)) !adc corrections for second half, load
-      deallocate(adc_buffer)
+      ! call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, ext)
+      ! allocate(adc_buffer(ext(1), ext(2)))
+      ! call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, adc_buffer)
+      ! self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(:,1), adc_buffer(:,2)) !adc correction for second half, sky
+      ! self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(:,3), adc_buffer(:,4)) !adc corrections for second half, load
+      ! deallocate(adc_buffer)
 
       if (index(self%label(band), '44') /= 0) then ! read spike templates
          !call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
