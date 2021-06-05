@@ -121,19 +121,19 @@ contains
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       if (trim(constructor%freq) == '023-WMAP_K') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.001, 0.05]  ! fknee
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.05]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.001, 0.01]  ! fknee
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.001, 0.02]  ! fknee
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.003, 0.02]  ! fknee
+         constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V1') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
