@@ -702,7 +702,7 @@ stop
     real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
     real(dp),     allocatable, dimension(:) :: filter, smoothed, nu_smooth
     complex(spc), allocatable, dimension(:) :: dv_sky, dv_ref
-    
+     
     data_out = data_in
 
     n       = size(data_in(:,1))
