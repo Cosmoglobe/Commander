@@ -99,17 +99,17 @@ contains
     !              Pointer that contains all instrument data
 
     implicit none
-    type(comm_params),       intent(in) :: cpar
-    integer(i4b),            intent(in) :: id_abs
-    class(comm_mapinfo),     target     :: info
-    character(len=128),      intent(in) :: tod_type
-    class(comm_LFI_tod),     pointer    :: constructor
+    type(comm_params),         intent(in)  :: cpar
+    integer(i4b),              intent(in)  :: id_abs
+    class(comm_mapinfo),       target      :: info
+    character(len=128),        intent(in)  :: tod_type
+    class(comm_LFI_tod),       pointer     :: constructor
 
-    real(sp), dimension(:), allocatable :: tod_in
+    real(sp), dimension(:,:),  allocatable :: diode_data
 
-    integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
-
+    character(len=50) :: name
     integer(i4b) :: horn
 
     ! Allocate object
@@ -220,18 +220,32 @@ contains
 
     ! Compute ADC correction tables for each diode
 
-    !!!!! Including the number of adc bins as an input gives a weird error!
-    ! assume nbins == 1000
-    ! constructor%nbin_adc = 1000
+    if (constructor%myid == 0) write(*,*) 'Building ADC correction tables'
+
+    constructor%nbin_adc = 100
 
     do i = 1, constructor%ndet
        do j = 1, constructor%ndiode
+          name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+          
           horn=1
           if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-          constructor%adc_corrections(i,j,horn)%p => comm_adc(tod_in,cpar,info)
-          ! constructor%adc_corrections(i,j,horn)%p => comm_adc(tod_in,cpar,info,constructor%nbin_adc)
+          
+          constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc,name)
+          
+          ! if (constructor%myid == 0) write(*,*) "add all relevant chunks for "//trim(name)
+          ! stop
+          do k = 1, constructor%nscan
+             allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
+             call constructor%decompress_diodes(k, i, diode_data)
+             call constructor%adc_corrections(i,j,horn)%p%add_chunk(diode_data(:,j)) 
+             deallocate(diode_data)
+          end do
+          if (constructor%myid == 0) write(*,*) 'Build adc correction table for '//trim(name)
+          call constructor%adc_corrections(i,j,horn)%p%build_table(name)
        end do
     end do
+    ! stop
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
