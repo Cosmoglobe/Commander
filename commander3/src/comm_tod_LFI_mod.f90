@@ -668,7 +668,7 @@ contains
         !w1(sky00 - ref00) + w2(sky01 - ref01)
         tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,1) - corrected_data(:,3)) + self%diode_weights(i,2)*( corrected_data(:,2) - corrected_data(:,4))
         
-!!$        open(58,file='comm3_L2fromL1_27M_1670.dat', recl=1024)
+!!$        open(58,file='comm3_L2fromL1.dat', recl=1024)
 !!$        do j = 1, size(tod,1)
 !!$           write(58,*) tod(j,1), diode_data(j,:), corrected_data(j,:)
 !!$        end do
@@ -678,6 +678,9 @@ contains
     end do
 
     deallocate(diode_data, corrected_data)
+
+!call mpi_finalize(i)
+stop
 
   end subroutine diode2tod_LFI
 
@@ -706,22 +709,26 @@ contains
     real(sp), dimension(:,:),          intent(out)  :: data_out
     real(dp), dimension(:),            intent(inout):: weights    
 
-    integer(i4b) :: i, j, nfft, n
+    integer(i4b) :: i, j, k, nfft, n, nsmooth
+    real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum
     integer*8    :: plan_fwd, plan_back
 
-    real(dp),     allocatable, dimension(:) :: dt_sky, dt_ref
-    real(dp),     allocatable, dimension(:) :: filter
-    complex(dpc), allocatable, dimension(:) :: dv_sky, dv_ref
-
+    real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
+    real(dp),     allocatable, dimension(:) :: filter, smoothed, nu_smooth
+    complex(spc), allocatable, dimension(:) :: dv_sky, dv_ref
+     
     data_out = data_in
 
-    nfft = size(data_in(:,1))
+    n       = size(data_in(:,1))
+    nfft    = n/2+1
+    fsamp   = self%samprate
+    nsmooth = 1000
 
-    allocate(dt_sky(nfft), dt_ref(nfft), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(nfft))
+    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1), smoothed(nsmooth), nu_smooth(nsmooth))
     
-    call sfftw_plan_dft_r2c_1d(plan_fwd, nfft, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
 
-    call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv_ref, dt_ref, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, n, dv_ref, dt_ref, fftw_estimate + fftw_unaligned)
 
     do i = 1, self%ndiode/2
 
@@ -731,28 +738,66 @@ contains
       if(all(dt_ref == 0) .or. all(dt_sky == 0)) return
 
       ! FFT of ref signal
-      call dfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
+      call sfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
 
       ! FFT of sky signal
-      call dfftw_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
+      call sfftw_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
 
       if(self%myid == 1) write(*,*) dt_sky(1:100), dv_sky(1:100)
       if(self%myid == 1) write(*,*) dt_sky(nfft-100:nfft-1), dv_sky(nfft-100:nfft-1)
   
  
       ! Compute cross correlation
-      filter = 0.5*(dv_sky*conjg(dv_ref) + dv_ref*conjg(dv_sky))/sqrt(dv_sky*conjg(dv_sky) * dv_ref*conjg(dv_ref))
-
-      filter(1) = 1
-
-      do j = 2, size(filter) -1
-        if (filter(j+1) > filter(j)) then
-          filter(j) = 0.5*(filter(j-1) + filter(j+1))
-        end if
-
-        write(*,*) filter(j)
-
+      do j = 0, nfft-1
+         num = real(dv_sky(j)*conjg(dv_ref(j)) + dv_ref(j)*conjg(dv_sky(j)),dp)
+         denom = sqrt(real(dv_sky(j)*conjg(dv_sky(j)) * dv_ref(j)*conjg(dv_ref(j)),dp))
+         !write(*,*) j, num, denom
+         if (denom < 1d-100) then
+            filter(j) = 0.
+         else 
+            filter(j) = 0.5*num/denom
+         end if
       end do
+
+      ! Bin with logarithmic bin width
+      fbin         = 1.2 ! multiplicative bin scaling factor
+      j            = 2
+      nu           = ind2freq(j, fsamp, nfft)
+      nu_smooth(1) = nu
+      j            = nint(0.01d0/nu)
+      nu           = ind2freq(j, fsamp, nfft)
+      upper        = nu
+      nsmooth      = 1
+      do while (nu < fsamp/2)
+         upper = min(upper*fbin, fsamp/2)
+         !if (upper > fsamp/2) exit
+         subsum = 0
+         k      = 0
+         do while (nu <= upper .and. nu <= fsamp/2)
+            if (j >= nfft) write(*,*) j, k, nu, upper
+            subsum = subsum + filter(k)
+            k      = k+1
+            j      = j+1
+            nu     = ind2freq(j, fsamp, nfft)
+         end do
+         if (k > 0) then
+            smoothed(nsmooth) = subsum/k
+            nu_smooth(nsmooth) = sqrt(nu_smooth(nsmooth) * nu)
+         end if
+         nsmooth = nsmooth+1
+         nu_smooth(nsmooth) = nu
+      end do
+      nsmooth = nsmooth-1
+      smoothed(1) = 1.d0
+
+      write(*,*) nu_smooth(1:nsmooth)
+      write(*,*) smoothed(1:nsmooth)
+
+      open(58,file='filter.dat')
+      do j = 1, nsmooth
+         write(58,*) nu_smooth(j), smoothed(j) 
+      end do
+      close(58)
 
       stop
 
@@ -760,7 +805,7 @@ contains
       dv_ref = dv_ref * filter
 
       ! IFFT ref signal
-      call dfftw_execute_dft_c2r(plan_back, dv_ref, dt_ref)
+      call sfftw_execute_dft_c2r(plan_back, dv_ref, dt_ref)
 
       data_out(:, 2*i-1) = dt_ref/nfft
 
