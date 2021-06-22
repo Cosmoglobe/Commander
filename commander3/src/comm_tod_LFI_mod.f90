@@ -106,6 +106,7 @@ contains
     class(comm_LFI_tod),       pointer     :: constructor
 
     real(sp), dimension(:,:),  allocatable :: diode_data
+    integer(i4b), dimension(:),    allocatable :: flag
 
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
@@ -237,9 +238,10 @@ contains
           ! stop
           do k = 1, constructor%nscan
              allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
-             call constructor%decompress_diodes(k, i, diode_data)
-             call constructor%adc_corrections(i,j,horn)%p%add_chunk(diode_data(:,j)) 
-             deallocate(diode_data)
+             allocate(flag(constructor%scans(k)%ntod))
+             call constructor%decompress_diodes(k, i, diode_data, flag)
+             call constructor%adc_corrections(i,j,horn)%p%add_chunk(diode_data(:,j), flag,constructor%flag0) 
+             deallocate(diode_data, flag)
           end do
           if (constructor%myid == 0) write(*,*) 'Build adc correction table for '//trim(name)
           call constructor%adc_corrections(i,j,horn)%p%build_table(name)

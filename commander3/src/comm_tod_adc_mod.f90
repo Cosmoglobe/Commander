@@ -430,7 +430,7 @@ contains
 
   end function constructor
   
-  subroutine add_chunk(self,tod_in)
+  subroutine add_chunk(self,tod_in,flag,flag0)
     ! ====================================================================
     ! This subroutine takes in a chunk of data (from wherever it lives) and puts
     ! it in the appropriate bins
@@ -454,11 +454,14 @@ contains
     ! ====================================================================
     
     implicit none
-    class(comm_adc),               intent(inout) :: self
-    real(sp), dimension(:),        intent(in)    :: tod_in
+    class(comm_adc),                   intent(inout) :: self
+    real(sp),     dimension(:),        intent(in)    :: tod_in
+    integer(i4b), dimension(:),        intent(in)    :: flag
+    integer(i4b),                      intent(in)    :: flag0
+
     real(sp)                                     :: sum
     real(sp), allocatable,          dimension(:) :: rt, rms, tod_trim
-    integer(i4b)                                 :: len, i, j
+    integer(i4b)                                 :: len, i, j, j_min, j_max
     
     len = size(tod_in)
 
@@ -483,10 +486,13 @@ contains
     ! Compute the rms within a window around each rt sample (excluding the ends)
     do i = int(self%window/2), len-1-int(self%window/2)
        sum = 0.d0
-       do j = i-int(self%window/2), i+int(self%window/2)
+       j_min = max(i-int(self%window/2),1)
+       j_max = min(i+int(self%window/2), len-1)
+       do j = j_min, j_max
+          if (iand(flag(j),flag0) .ne. 0 .or. iand(flag(j+1),flag0) .ne. 0) cycle 
           sum = sum + rt(j)**2
        end do
-       rms(i) = sqrt(sum/self%window)
+       rms(i) = sqrt(sum/(j_max-j_min+1))
     end do
     
     ! Bin the rms values as a function of input voltage, and take the mean
