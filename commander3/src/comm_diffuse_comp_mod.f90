@@ -80,6 +80,8 @@ module comm_diffuse_comp_mod
      class(map_ptr),     allocatable, dimension(:)     :: pol_proplen
      class(map_ptr),     allocatable, dimension(:)     :: ind_pixreg_map   !map with defined pixelregions
      class(map_ptr),     allocatable, dimension(:)     :: pol_nprop
+     class(map_ptr),     allocatable, dimension(:)     :: spec_mono_mask
+     logical(lgt),       allocatable, dimension(:)     :: spec_mono_combined
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_pp_fr
 
      character(len=512) :: mono_prior_type
@@ -168,7 +170,7 @@ contains
     !       Incudes all information from the parameter file
     !
     ! id: integer
-    !       Integer ID of the diffuse component with respect to the activ components
+    !       Integer ID of the diffuse component with respect to the active components
     !
     ! id_abs: integer
     !       Integer ID of the diffuse component with respect to all components defined in the parameter file
@@ -491,6 +493,29 @@ contains
     class(comm_map),     pointer :: tp_smooth => null() 
 
 
+    ! A routine that initializes all parameters needed to perform spectral index sampling for the pixel based
+    ! parameters, such as synchrotron beta,dust temperature ect. parameters not included are CO line ratios and
+    ! others which use different sampling routines
+    !
+    ! Arguments:
+    ! self: comm_diffuse_comp 
+    !       Diffuse type component
+    !
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! id: integer
+    !       Integer ID of the diffuse component with respect to the active components
+    !
+    ! id_abs: integer
+    !       Integer ID of the diffuse component with respect to all components defined in the parameter file
+    !       (and also the id in the 'cpar' parameter)
+    !
+    ! Returns:
+    !       The diffuse component parameter is returned (self).
+    !       Any other changes are done internally
+    !
+
     call update_status(status, "initPixreg_specind_start")
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
@@ -519,8 +544,7 @@ contains
     self%npixreg = 0
     self%pol_pixreg_type = 0
     self%priorsamp_local=.false.
-    do i = 1,self%npar
-       
+    do i = 1,self%npar       
        do j = 1,self%poltype(i)
           if (j > self%nmaps) cycle
           if (cpar%only_pol .and. j == 1 .and. self%poltype(i) > 1) cycle
@@ -665,6 +689,8 @@ contains
     allocate(self%pol_nprop(self%npar))    ! nprop map per spectral index (all poltypes
     allocate(self%pol_proplen(self%npar))  ! proplen map per spectral index (all poltypes)
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
+    allocate(self%spec_mono_combined(self%npar)) !logical array, combined monopole and spectral parameter sampling
+    allocate(self%spec_mono_mask(self%npar)) !map pointer array, monopole sampling mask
 
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
@@ -681,6 +707,45 @@ contains
     if (self%priorsamp_local) allocate(self%theta_prior(2,3,self%npar))
 
     do i = 1,self%npar
+       call update_status(status, "initPixreg_spec_monopole_mask")
+       self%spec_mono_combined(i)=cpar%cs_spec_mono_combined(id_abs,i)
+       if (self%spec_mono_combined(i)) then
+          if (self%smooth_scale(i)==0) then          
+             info2 => comm_mapinfo(cpar%comm_chain, self%nside, -1, &
+                  & self%nmaps, self%pol)
+          else
+             info2 => comm_mapinfo(cpar%comm_chain, cpar%nside_smooth(self%smooth_scale(i)), -1, &
+                  & self%nmaps, self%pol)
+          end if
+
+          if (trim(cpar%cs_spec_mono_mask(id_abs,i)) == 'fullsky') then
+             self%spec_mono_mask(i)%p => comm_map(info2)
+             self%spec_mono_mask(i)%p%map = 1.d0
+          else
+             self%spec_mono_mask(i)%p => comm_map(info2, trim(cpar%datadir)// '/' //trim(cpar%cs_spec_mono_mask(id_abs,i)))
+
+             if (min(self%poltype(i),self%nmaps) > &
+                  & self%spec_mono_mask(i)%p%info%nmaps) then
+                write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' monopole mask has fewer maps (', & 
+                     & self%spec_mono_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
+                     & ') for component nr. ',id_abs
+                call mpi_finalize(ierr)
+             else if (info2%nside /= self%spec_mono_mask(i)%p%info%nside) then
+                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' monopole mask has different nside (', & 
+                     & self%spec_mono_mask(i)%p%info%nside,') than the smoothing scale (', &
+                     & info2%nside, ') for component nr. ',id_abs
+                call mpi_finalize(ierr)
+             end if
+
+          end if
+          
+          where (self%spec_mono_mask(i)%p%map > 0.5d0)
+             self%spec_mono_mask(i)%p%map = 1.d0
+          elsewhere
+             self%spec_mono_mask(i)%p%map = 0.d0
+          end where
+       end if
+
        if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
             & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
           call update_status(status, "initPixreg_specind_mask")
