@@ -226,6 +226,8 @@ contains
 
     do i = 1, constructor%ndet
        do j = 1, constructor%ndiode
+    ! i = 4
+    ! j = 4
           name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
           
           horn=1
@@ -233,10 +235,10 @@ contains
           
           constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc,name)
           
-          ! if (constructor%myid == 0) write(*,*) "add all relevant chunks for "//trim(name)
-          ! stop
+          if (constructor%myid == 0) write(*,*) "add all relevant chunks for "//trim(name)
           do k = 1, constructor%nscan
              allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
+             ! if (constructor%myid == 0) write(*,*) 'scan ', k
              call constructor%decompress_diodes(k, i, diode_data)
              call constructor%adc_corrections(i,j,horn)%p%add_chunk(diode_data(:,j)) 
              deallocate(diode_data)
@@ -245,7 +247,7 @@ contains
           call constructor%adc_corrections(i,j,horn)%p%build_table(name)
        end do
     end do
-    ! stop
+    stop
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
