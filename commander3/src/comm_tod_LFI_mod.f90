@@ -55,6 +55,7 @@ module comm_tod_LFI_mod
      integer(i4b) :: nbin_adc
      real(dp),          allocatable, dimension(:)       :: mb_eff
      real(dp),          allocatable, dimension(:,:)     :: diode_weights
+     type(spline_type), allocatable, dimension(:)       :: ref_splint ! ndet
      type(adc_pointer), allocatable, dimension(:,:,:)   :: adc_corrections ! ndet, n_diode, (sky, load)
      ! type(adc_pointer), allocatable, dimension(:,:,:,:)   :: adc_corrections ! ndet, n_diode, (sky, load)
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
@@ -66,6 +67,7 @@ module comm_tod_LFI_mod
      procedure     :: dumpToHDF_inst          => dumpToHDF_LFI
      procedure     :: construct_corrtemp_inst => construct_corrtemp_LFI
      procedure     :: filter_reference_load
+     procedure     :: compute_ref_load_filter
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -105,12 +107,17 @@ contains
     character(len=128),        intent(in)  :: tod_type
     class(comm_LFI_tod),       pointer     :: constructor
 
-    real(sp), dimension(:,:),  allocatable :: diode_data
+    real(sp), dimension(:,:),  allocatable :: diode_data, corrected_data
 
-    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count
     logical(lgt) :: pol_beam
     character(len=50) :: name
     integer(i4b) :: horn
+
+    real(sp), dimension(:),   allocatable :: nus
+    real(sp), dimension(:,:), allocatable :: filtered
+    real(dp), dimension(:),   allocatable :: nu_saved
+    real(dp), dimension(:,:), allocatable :: filter_sum
 
     ! Allocate object
     allocate(constructor)
@@ -211,8 +218,9 @@ contains
     allocate(constructor%diode_weights(constructor%ndet, 2))
     allocate(constructor%spike_templates(constructor%nbin_spike, constructor%ndet))
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
-    ! allocate(constructor%adc_corrections(constructor%ndet, 2, 2,2))
-    allocate(constructor%adc_corrections(constructor%ndet, 2, 2))
+    allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode, 2))
+    allocate(constructor%ref_splint(constructor%ndet))
+
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -225,27 +233,86 @@ contains
     constructor%nbin_adc = 100
 
     do i = 1, constructor%ndet
-       do j = 1, constructor%ndiode
-          name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
-          
+
+      do j=1, constructor%ndiode ! init the adc correction structures
+        name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+        horn=1
+        if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
+
+        constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc,name)
+      end do
+
+      do k = 1, constructor%nscan
+        allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
+        call constructor%decompress_diodes(k, i, diode_data)
+
+        do j = 1, constructor%ndiode
           horn=1
           if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-          
-          constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc,name)
-          
-          ! if (constructor%myid == 0) write(*,*) "add all relevant chunks for "//trim(name)
-          ! stop
-          do k = 1, constructor%nscan
-             allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
-             call constructor%decompress_diodes(k, i, diode_data)
-             call constructor%adc_corrections(i,j,horn)%p%add_chunk(diode_data(:,j)) 
-             deallocate(diode_data)
-          end do
-          if (constructor%myid == 0) write(*,*) 'Build adc correction table for '//trim(name)
-          call constructor%adc_corrections(i,j,horn)%p%build_table(name)
-       end do
+          call constructor%adc_corrections(i,j,horn)%p%add_chunk(diode_data(:,j)) 
+        end do
+        deallocate(diode_data)
+
+      end do ! end loop over scans
+
+      do j = 1, constructor%ndiode ! build adc corrections
+        name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+        horn=1
+        if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
+        if (constructor%myid == 0) write(*,*) 'Build adc correction table for'//trim(name)
+        call constructor%adc_corrections(i,j,horn)%p%build_table(name)
+      end do
+
     end do
+
     ! stop
+
+    ! Compute reference load filter spline
+    do i=1, constructor%ndet
+
+      do k = 1, constructor%nscan
+
+        allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
+        call constructor%decompress_diodes(k, i, diode_data)
+
+        do j = 1, constructor%ndiode
+
+          call constructor%adc_corrections(i,j,horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+
+        end do
+
+        ! compute the ref load transfer function
+        call constructor%compute_ref_load_filter(corrected_data, filtered, nus)
+
+        if(.not. allocated(filter_sum)) then
+            allocate(filter_sum(size(filtered, 1), size(filtered, 2)))
+            allocate(nu_saved(size(nus)))
+            filter_count = 1
+            filter_sum = filtered
+            nu_saved = nus
+        else
+            filter_sum = filter_sum + filtered
+            filter_count = filter_count + 1
+        end if
+
+        deallocate(diode_data, corrected_data, filtered, nus)
+
+
+      end do
+
+      ! Mpi average the load filter over all cores, save as a spline
+      call mpi_allreduce(MPI_IN_PLACE, filter_count, 1, MPI_INTEGER, MPI_SUM, constructor%info%comm, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, filter_sum, size(filter_sum, 1) * size(filter_sum, 2), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
+
+      filter_sum = filter_sum/filter_count
+      do j=1, constructor%ndiode/2
+        call spline_simple(constructor%ref_splint(i), nu_saved, filter_sum(j,:))
+      end do
+
+      deallocate(nu_saved, filter_sum)
+
+    end do
+
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
@@ -634,11 +701,6 @@ contains
     allocate(filtered_data(self%scans(scan)%ntod, self%ndiode))
 
 
-    !determine which of the two adc templates we should use
-    half = 1
-    if (self%scanid(scan) >= 25822) half = 2 !first scan of day 953
-
-
     do i=1, self%ndet
 
         ! Decompress diode TOD for current scan
@@ -652,22 +714,24 @@ contains
 
           !call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
 
-          ! do k = 1, 10
-          !    write(*,*) diode_data(k,j), corrected_data(k,j)
-          ! end do
-          ! stop
+          !do k = 1, 10
+          !   write(*,*) diode_data(k,j), corrected_data(k,j)
+          !end do
+          !stop
 
           corrected_data(:,j) = diode_data(:,j)
         end do
 
         ! Wiener-filter load data         
-        call self%filter_reference_load(corrected_data, filtered_data, self%diode_weights(i,:))
+        call self%filter_reference_load(corrected_data, filtered_data)
         
         ! Compute output differenced TOD
 
         !w1(sky00 - ref00) + w2(sky01 - ref01)
-        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,1) - corrected_data(:,3)) + self%diode_weights(i,2)*( corrected_data(:,2) - corrected_data(:,4))
+        !tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,1) - corrected_data(:,3)) + self%diode_weights(i,2)*( corrected_data(:,2) - corrected_data(:,4))
+        tod(:,i) = (corrected_data(:,1) - corrected_data(:,3)) + (corrected_data(:,2) - corrected_data(:,4))
         
+
 !!$        open(58,file='comm3_L2fromL1.dat', recl=1024)
 !!$        do j = 1, size(tod,1)
 !!$           write(58,*) tod(j,1), diode_data(j,:), corrected_data(j,:)
@@ -684,9 +748,9 @@ stop
 
   end subroutine diode2tod_LFI
 
-  subroutine filter_reference_load(self, data_in, data_out, weights)
+  subroutine compute_ref_load_filter(self, data_in, binned_out, nu_out)
     ! 
-    ! Wiener filters the reference load data to minimize noise
+    ! Computes the binned weiner filter for the reference load
     !
     ! Arguments:
     ! ----------
@@ -699,32 +763,30 @@ stop
     ! Returns:
     ! --------
     !
-    ! data_out: float array (ntod, ndiode)
-    !           filtered output timestreams
-    ! weights:  float array (2)
-    !           output weights for radiometer 1,2
+    ! binned_out : float array
+    !              array of filter transfer function for ref load
+    ! nu_out     : float_array
+    !              frequencies that index binned_out
     implicit none
-    class(comm_LFI_tod),               intent(in)   :: self
-    real(sp), dimension(:,:),          intent(in)   :: data_in
-    real(sp), dimension(:,:),          intent(out)  :: data_out
-    real(dp), dimension(:),            intent(inout):: weights    
+    class(comm_LFI_tod),                   intent(in)   :: self
+    real(sp), dimension(:,:),              intent(in)   :: data_in
+    real(sp), dimension(:,:), allocatable, intent(inout):: binned_out
+    real(sp), dimension(:),   allocatable, intent(inout):: nu_out
 
     integer(i4b) :: i, j, k, nfft, n, nsmooth
     real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum
     integer*8    :: plan_fwd, plan_back
 
     real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
-    real(dp),     allocatable, dimension(:) :: filter, smoothed, nu_smooth
+    real(dp),     allocatable, dimension(:) :: filter
     complex(spc), allocatable, dimension(:) :: dv_sky, dv_ref
-     
-    data_out = data_in
 
     n       = size(data_in(:,1))
     nfft    = n/2+1
     fsamp   = self%samprate
-    nsmooth = 1000
+    nsmooth = 42
 
-    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1), smoothed(nsmooth), nu_smooth(nsmooth))
+    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1), binned_out(self%ndiode/2, nsmooth), nu_out(nsmooth))
     
     call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
 
@@ -733,8 +795,11 @@ stop
     do i = 1, self%ndiode/2
 
       ! Check if data is all zeros
-      dt_ref = data_in(:, 2*i -1)
+      dt_ref = data_in(:, 2*i -1) 
+
       dt_sky = data_in(:, 2*i)
+      
+
       if(all(dt_ref == 0) .or. all(dt_sky == 0)) return
 
       ! FFT of ref signal
@@ -743,10 +808,6 @@ stop
       ! FFT of sky signal
       call sfftw_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
 
-      if(self%myid == 1) write(*,*) dt_sky(1:100), dv_sky(1:100)
-      if(self%myid == 1) write(*,*) dt_sky(nfft-100:nfft-1), dv_sky(nfft-100:nfft-1)
-  
- 
       ! Compute cross correlation
       do j = 0, nfft-1
          num = real(dv_sky(j)*conjg(dv_ref(j)) + dv_ref(j)*conjg(dv_sky(j)),dp)
@@ -763,7 +824,7 @@ stop
       fbin         = 1.2 ! multiplicative bin scaling factor
       j            = 2
       nu           = ind2freq(j, fsamp, nfft)
-      nu_smooth(1) = nu
+      nu_out(1)    = nu
       j            = nint(0.01d0/nu)
       nu           = ind2freq(j, fsamp, nfft)
       upper        = nu
@@ -774,32 +835,73 @@ stop
          subsum = 0
          k      = 0
          do while (nu <= upper .and. nu <= fsamp/2)
-            if (j >= nfft) write(*,*) j, k, nu, upper
+            !if (j >= nfft) write(*,*) j, k, nu, upper
             subsum = subsum + filter(k)
             k      = k+1
             j      = j+1
             nu     = ind2freq(j, fsamp, nfft)
          end do
          if (k > 0) then
-            smoothed(nsmooth) = subsum/k
-            nu_smooth(nsmooth) = sqrt(nu_smooth(nsmooth) * nu)
+            binned_out(i, nsmooth) = subsum/k
+            nu_out(nsmooth) = sqrt(nu_out(nsmooth) * nu)
          end if
          nsmooth = nsmooth+1
-         nu_smooth(nsmooth) = nu
+         nu_out(nsmooth) = nu
       end do
-      nsmooth = nsmooth-1
-      smoothed(1) = 1.d0
+      binned_out(i,1) = 1.d0
 
-      write(*,*) nu_smooth(1:nsmooth)
-      write(*,*) smoothed(1:nsmooth)
+    end do
 
-      open(58,file='filter.dat')
-      do j = 1, nsmooth
-         write(58,*) nu_smooth(j), smoothed(j) 
+    call sfftw_destroy_plan(plan_fwd)
+
+    deallocate(dt_sky, dt_ref, dv_sky, dv_ref, filter)
+
+  end subroutine compute_ref_load_filter
+
+
+  subroutine filter_reference_load(self, data_in, data_out)
+    class(comm_LFI_tod),               intent(in)   :: self
+    real(sp), dimension(:,:),          intent(in)   :: data_in
+    real(sp), dimension(:,:),          intent(out)  :: data_out
+
+    integer(i4b) :: i, j, k, nfft, n, nsmooth
+    real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum
+    integer*8    :: plan_fwd, plan_back
+
+    real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
+    real(dp),     allocatable, dimension(:) :: filter
+    complex(spc), allocatable, dimension(:) :: dv_sky, dv_ref
+
+    data_out = data_in
+
+    n       = size(data_in(:,1))
+    nfft    = n/2+1
+    fsamp   = self%samprate
+    nsmooth = 1000
+
+    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1))
+
+
+    call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
+
+    call sfftw_plan_dft_c2r_1d(plan_back, n, dv_ref, dt_ref, fftw_estimate + fftw_unaligned)
+
+    do i = 1, self%ndiode/2
+
+      ! Check if data is all zeros
+      dt_ref = data_in(:, 2*i -1)
+
+      dt_sky = data_in(:, 2*i)
+
+
+      if(all(dt_ref == 0) .or. all(dt_sky == 0)) return
+
+      ! FFT of ref signal
+      call sfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
+
+      do j=0, size(dv_ref) -1
+        filter(j) = splint(self%ref_splint(i), ind2freq(j, fsamp, nfft))
       end do
-      close(58)
-
-      stop
 
       ! Filter ref with cross correlation transfer function
       dv_ref = dv_ref * filter
@@ -810,6 +912,11 @@ stop
       data_out(:, 2*i-1) = dt_ref/nfft
 
     end do
+
+    call sfftw_destroy_plan(plan_fwd)
+    call sfftw_destroy_plan(plan_back)
+
+    deallocate(dt_sky, dt_ref, dv_sky, dv_ref, filter)
 
   end subroutine filter_reference_load
 
@@ -1008,6 +1115,9 @@ stop
        do k = 1, self%scans(scan)%ntod
           t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
           b = min(int(t*nbin),nbin-1)
+          if(b == 0) then
+            write(*,*) b, t, nbin
+          end if
           s(k,j) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
        end do
     end do
@@ -1017,3 +1127,4 @@ stop
 
 
 end module comm_tod_LFI_mod
+

@@ -483,10 +483,10 @@ contains
     ! Compute the rms within a window around each rt sample (excluding the ends)
     do i = int(self%window/2), len-1-int(self%window/2)
        sum = 0.d0
-       do j = i-int(self%window/2), i+int(self%window/2)
+       do j = i-int(self%window/2)+1, i+int(self%window/2)
           sum = sum + rt(j)**2
        end do
-       rms(i) = sqrt(sum/self%window)
+       rms(i-int(self%window/2)+1) = sqrt(sum/self%window)
     end do
     
     ! Bin the rms values as a function of input voltage, and take the mean
