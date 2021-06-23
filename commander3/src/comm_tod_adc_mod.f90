@@ -46,7 +46,9 @@ module comm_tod_adc_mod
   contains
     procedure :: adc_correct
     procedure :: build_table
-    procedure :: add_chunk
+    procedure :: bin_scan_rms
+    procedure :: find_horn_min_max
+    procedure :: construct_voltage_bins
   end type comm_adc
 
   interface comm_adc
@@ -114,323 +116,56 @@ contains
     constructor%rms_bins(:)   = 0.0
     constructor%nval(:)       = 0
 
-    ! 30 GHz
-    if (trim(name) == '27M_sky00') then
-       constructor%v_max = 1.41079104
-       constructor%v_min = 1.37849653
-    else if (trim(name) == '27M_sky01') then
-       constructor%v_max = 1.23033690
-       constructor%v_min = 1.20120287
-    else if (trim(name) == '27M_ref00') then
-       constructor%v_max = 1.53085816
-       constructor%v_min = 1.49491036
-    else if (trim(name) == '27M_ref01') then
-       constructor%v_max = 1.33352757
-       constructor%v_min = 1.30119038
-       
-    else if (trim(name) == '27S_sky10') then
-       constructor%v_max = 1.44773328
-       constructor%v_min = 1.41548549
-    else if (trim(name) == '27S_sky11') then
-       constructor%v_max = 1.27056265
-       constructor%v_min = 1.24161363
-    else if (trim(name) == '27S_ref10') then
-       constructor%v_max = 1.18038058
-       constructor%v_min = 1.15460539
-    else if (trim(name) == '27S_ref11') then
-       constructor%v_max = 1.03827775
-       constructor%v_min = 1.01487565
+    ! Initialize v_min and v_max on obscenely wrong numbers
+    constructor%v_max = 0.0
+    constructor%v_min = 100000.0
 
-    else if (trim(name) == '28M_sky00') then
-       constructor%v_max = 1.16051328
-       constructor%v_min = 1.13324904
-    else if (trim(name) == '28M_sky01') then
-       constructor%v_max = 1.13270783
-       constructor%v_min = 1.10546649
-    else if (trim(name) == '28M_ref00') then
-       constructor%v_max = 1.48931456
-       constructor%v_min = 1.45670331
-    else if (trim(name) == '28M_ref01') then
-       constructor%v_max = 1.43845558
-       constructor%v_min = 1.40572739
-       
-    else if (trim(name) == '28S_sky10') then
-       constructor%v_max = 1.10663617
-       constructor%v_min = 1.08139324
-    else if (trim(name) == '28S_sky11') then
-       constructor%v_max = 1.02604461
-       constructor%v_min = 1.00224364
-    else if (trim(name) == '28S_ref10') then
-       constructor%v_max = 0.97452980
-       constructor%v_min = 0.95478797
-    else if (trim(name) == '28S_ref11') then
-       constructor%v_max = 0.89550239
-       constructor%v_min = 0.87662333
+  end function constructor
 
-    ! 44 GHz
-    else if (trim(name) == '24M_sky00') then
-       constructor%v_max = 0.08860216
-       constructor%v_min = 0.08677549
-    else if (trim(name) == '24M_sky01') then
-       constructor%v_max = 0.08091517
-       constructor%v_min = 0.07915267
-    else if (trim(name) == '24M_ref00') then
-       constructor%v_max = 0.09125267
-       constructor%v_min = 0.08924393
-    else if (trim(name) == '24M_ref01') then
-       constructor%v_max = 0.08466324
-       constructor%v_min = 0.08266987
+  subroutine construct_voltage_bins(self)
 
-    else if (trim(name) == '24S_sky10') then
-       constructor%v_max = 0.14184508
-       constructor%v_min = 0.13830779
-    else if (trim(name) == '24S_sky11') then
-       constructor%v_max = 0.12782212
-       constructor%v_min = 0.12452714
-    else if (trim(name) == '24S_ref10') then
-       constructor%v_max = 0.14575808
-       constructor%v_min = 0.14247340
-    else if (trim(name) == '24S_ref11') then
-       constructor%v_max = 0.13551658
-       constructor%v_min = 0.13240343
+    implicit none
+    class(comm_adc), intent(inout) :: self
+    integer(i4b)                   :: i, ierr
 
-    else if (trim(name) == '25M_sky00') then
-       constructor%v_max = 0.20967779
-       constructor%v_min = 0.20565829
-    else if (trim(name) == '25M_sky01') then
-       constructor%v_max = 0.18407351
-       constructor%v_min = 0.18028948
-    else if (trim(name) == '25M_ref00') then
-       constructor%v_max = 0.19529010
-       constructor%v_min = 0.19138740
-    else if (trim(name) == '25M_ref01') then
-       constructor%v_max = 0.18201575
-       constructor%v_min = 0.17823440
-
-    else if (trim(name) == '25S_sky10') then
-       constructor%v_max = 0.21455683
-       constructor%v_min = 0.21040088
-    else if (trim(name) == '25S_sky11') then
-       constructor%v_max = 0.18771163
-       constructor%v_min = 0.18395413
-    else if (trim(name) == '25S_ref10') then
-       constructor%v_max = 0.17884579
-       constructor%v_min = 0.17496473
-    else if (trim(name) == '25S_ref11') then
-       constructor%v_max = 0.16220972
-       constructor%v_min = 0.15857713
-
-    else if (trim(name) == '26M_sky00') then
-       constructor%v_max = 0.15469757
-       constructor%v_min = 0.15149315
-    else if (trim(name) == '26M_sky01') then
-       constructor%v_max = 0.13029572
-       constructor%v_min = 0.12750053
-    else if (trim(name) == '26M_ref00') then
-       constructor%v_max = 0.18254007
-       constructor%v_min = 0.17760707
-    else if (trim(name) == '26M_ref01') then
-       constructor%v_max = 0.15936488
-       constructor%v_min = 0.15494090
-
-    else if (trim(name) == '26S_sky10') then
-       constructor%v_max = 0.17308727
-       constructor%v_min = 0.16920704
-    else if (trim(name) == '26S_sky11') then
-       constructor%v_max = 0.15360653
-       constructor%v_min = 0.15004155
-    else if (trim(name) == '26S_ref10') then
-       constructor%v_max = 0.18382685
-       constructor%v_min = 0.18013462
-    else if (trim(name) == '26S_ref11') then
-       constructor%v_max = 0.16638321
-       constructor%v_min = 0.16296829
-
-       ! 70 GHz
-
-    else if (trim(name) == '18M_sky00') then
-       constructor%v_max = 2.44729733
-       constructor%v_min = 2.36473298
-    else if (trim(name) == '18M_sky01') then
-       constructor%v_max = 2.35681868
-       constructor%v_min = 2.27718639
-    else if (trim(name) == '18M_ref00') then
-       constructor%v_max = 3.22461700
-       constructor%v_min = 3.11929989
-    else if (trim(name) == '18M_ref01') then
-       constructor%v_max = 3.09131670
-       constructor%v_min = 2.99023104
-
-    else if (trim(name) == '18S_sky10') then
-       constructor%v_max = 2.01609325
-       constructor%v_min = 1.98833239
-    else if (trim(name) == '18S_sky11') then
-       constructor%v_max = 1.88040376
-       constructor%v_min = 1.85447013
-    else if (trim(name) == '18S_ref10') then
-       constructor%v_max = 1.66532779
-       constructor%v_min = 1.64501107
-    else if (trim(name) == '18S_ref11') then
-       constructor%v_max = 1.60538340
-       constructor%v_min = 1.58540297
-
-    else if (trim(name) == '19M_sky00') then
-       constructor%v_max = 1.49724972
-       constructor%v_min = 1.47141552
-    else if (trim(name) == '19M_sky01') then
-       constructor%v_max = 1.45425808
-       constructor%v_min = 1.42903984
-    else if (trim(name) == '19M_ref00') then
-       constructor%v_max = 1.61040568
-       constructor%v_min = 1.58999074
-    else if (trim(name) == '19M_ref01') then
-       constructor%v_max = 1.53182018
-       constructor%v_min = 1.51238441
-
-    else if (trim(name) == '19S_sky10') then
-       constructor%v_max = 0.91107213
-       constructor%v_min = 0.89390266
-    else if (trim(name) == '19S_sky11') then
-       constructor%v_max = 0.86438745
-       constructor%v_min = 0.84775126
-    else if (trim(name) == '19S_ref10') then
-       constructor%v_max = 1.17068386
-       constructor%v_min = 1.15067554
-    else if (trim(name) == '19S_ref11') then
-       constructor%v_max = 1.2994945
-       constructor%v_min = 1.11072981
-
-    else if (trim(name) == '20M_sky00') then
-       constructor%v_max = 1.80223370
-       constructor%v_min = 1.77364111
-    else if (trim(name) == '20M_sky01') then
-       constructor%v_max = 1.73565030
-       constructor%v_min = 1.70772374
-    else if (trim(name) == '20M_ref00') then
-       constructor%v_max = 1.67181623
-       constructor%v_min = 1.62364054
-    else if (trim(name) == '20M_ref01') then
-       constructor%v_max = 1.64587462
-       constructor%v_min = 1.57220590
-
-    else if (trim(name) == '20S_sky10') then
-       constructor%v_max = 1.64613628
-       constructor%v_min = 1.62069726
-    else if (trim(name) == '20S_sky11') then
-       constructor%v_max = 1.59836006
-       constructor%v_min = 1.57328069
-    else if (trim(name) == '20S_ref10') then
-       constructor%v_max = 1.45610452
-       constructor%v_min = 1.39242613
-    else if (trim(name) == '20S_ref11') then
-       constructor%v_max = 1.41221488
-       constructor%v_min = 1.35039353
-
-    else if (trim(name) == '21M_sky00') then
-       constructor%v_max = 0.87603551
-       constructor%v_min = 0.84598839
-    else if (trim(name) == '21M_sky01') then
-       constructor%v_max = 0.82572019
-       constructor%v_min = 0.79695278
-    else if (trim(name) == '21M_ref00') then
-       constructor%v_max = 0.78558350
-       constructor%v_min = 0.76137888
-    else if (trim(name) == '21M_ref01') then
-       constructor%v_max = 0.75773686
-       constructor%v_min = 0.73425156
-
-    else if (trim(name) == '21S_sky10') then
-       constructor%v_max = 1.06443954
-       constructor%v_min = 1.01153290
-    else if (trim(name) == '21S_sky11') then
-       constructor%v_max = 1.02521384
-       constructor%v_min = 0.97397506
-    else if (trim(name) == '21S_ref10') then
-       constructor%v_max = 1.09398615
-       constructor%v_min = 1.06860185
-    else if (trim(name) == '21S_ref11') then
-       constructor%v_max = 1.07034397
-       constructor%v_min = 1.04579973
-
-    else if (trim(name) == '22M_sky00') then
-       constructor%v_max = 0.60142654
-       constructor%v_min = 0.58586097
-    else if (trim(name) == '22M_sky01') then
-       constructor%v_max = 0.58684325
-       constructor%v_min = 0.57164413
-    else if (trim(name) == '22M_ref00') then
-       constructor%v_max = 0.68220353
-       constructor%v_min = 0.66908807
-    else if (trim(name) == '22M_ref01') then
-       constructor%v_max = 0.66923100
-       constructor%v_min = 0.65610933
-
-    else if (trim(name) == '22S_sky10') then
-       constructor%v_max = 0.68383294
-       constructor%v_min = 0.66700757
-    else if (trim(name) == '22S_sky11') then
-       constructor%v_max = 0.68076408
-       constructor%v_min = 0.66411918
-    else if (trim(name) == '22S_ref10') then
-       constructor%v_max = 0.83463514
-       constructor%v_min = 0.81442976
-    else if (trim(name) == '22S_ref11') then
-       constructor%v_max = 0.84039581
-       constructor%v_min = 0.82008243
-
-    else if (trim(name) == '23M_sky00') then
-       constructor%v_max = 1.12137735
-       constructor%v_min = 1.09768844
-    else if (trim(name) == '23M_sky01') then
-       constructor%v_max = 1.10213685
-       constructor%v_min = 1.07908881
-    else if (trim(name) == '23M_ref00') then
-       constructor%v_max = 1.35768914
-       constructor%v_min = 1.33401024
-    else if (trim(name) == '23M_ref01') then
-       constructor%v_max = 1.28595769
-       constructor%v_min = 1.26331747
-
-    else if (trim(name) == '23S_sky10') then
-       constructor%v_max = 1.27635324
-       constructor%v_min = 1.24950850
-    else if (trim(name) == '23S_sky11') then
-       constructor%v_max = 1.22643089
-       constructor%v_min = 1.20046425
-    else if (trim(name) == '23S_ref10') then
-       constructor%v_max = 0.67111343
-       constructor%v_min = 0.65714240
-    else if (trim(name) == '23S_ref11') then
-       constructor%v_max = 0.64851855
-       constructor%v_min = 0.63607562
-    end if
-       
-    ! grid out the voltage bins
-
-    if (constructor%myid == 0) then
+    if (self%myid == 0) then
 
        ! Declare bin edges
-       do i = 1, constructor%nbins+1
-          constructor%vbin_edges(i) = (constructor%v_max-constructor%v_min)*(i-1)/constructor%nbins + constructor%v_min
+       do i = 1, self%nbins+1
+          self%vbin_edges(i) = (self%v_max-self%v_min)*(i-1)/self%nbins + self%v_min
        end do
-
-       ! diff = constructor%vbin_edges(2)-constructor%vbin_edges(1)
-
-       ! constructor%v_bins(1) = constructor%vbin_edges(1) + diff/2.0
-       
        ! Declare bins
-       do i = 1, constructor%nbins
-          constructor%v_bins(i) = (constructor%vbin_edges(i) + constructor%vbin_edges(i+1))/2.0
-          ! constructor%v_bins(i) = constructor%v_bins(1) + (i-1)*diff
+       do i = 1, self%nbins
+          self%v_bins(i) = (self%vbin_edges(i) + self%vbin_edges(i+1))/2.0
        end do
     end if
     
-    call mpi_bcast(constructor%vbin_edges,constructor%nbins, MPI_REAL, 0, constructor%comm, ierr)
-    call mpi_bcast(constructor%v_bins,constructor%nbins, MPI_REAL, 0, constructor%comm, ierr)
+    call mpi_bcast(self%vbin_edges,self%nbins, MPI_REAL, 0, self%comm, ierr)
+    call mpi_bcast(self%v_bins,    self%nbins, MPI_REAL, 0, self%comm, ierr)
 
-  end function constructor
+  end subroutine construct_voltage_bins
   
-  subroutine add_chunk(self,tod_in)
+  subroutine find_horn_min_max(self,tod_in,flag,flag0)
+
+    implicit none
+    class(comm_adc),                   intent(inout) :: self
+    real(sp),     dimension(:),        intent(in)    :: tod_in
+    integer(i4b), dimension(:),        intent(in)    :: flag
+    integer(i4b),                      intent(in)    :: flag0
+
+    integer(i4b)                                     :: i, ierr, len
+
+    len = size(tod_in)
+
+    do i = 1, len
+       if (iand(flag(i),flag0) .ne. 0) cycle 
+       if (tod_in(i) < self%v_min) self%v_min = tod_in(i)
+       if (tod_in(i) > self%v_max) self%v_max = tod_in(i)
+    end do
+
+  end subroutine find_horn_min_max
+
+  subroutine bin_scan_rms(self,tod_in,flag,flag0)
     ! ====================================================================
     ! This subroutine takes in a chunk of data (from wherever it lives) and puts
     ! it in the appropriate bins
@@ -454,18 +189,16 @@ contains
     ! ====================================================================
     
     implicit none
-    class(comm_adc),               intent(inout) :: self
-    real(sp), dimension(:),        intent(in)    :: tod_in
+    class(comm_adc),                   intent(inout) :: self
+    real(sp),     dimension(:),        intent(in)    :: tod_in
+    integer(i4b), dimension(:),        intent(in)    :: flag
+    integer(i4b),                      intent(in)    :: flag0
+
     real(sp)                                     :: sum
     real(sp), allocatable,          dimension(:) :: rt, rms, tod_trim
-    integer(i4b)                                 :: len, i, j
+    integer(i4b)                                 :: len, i, j, j_min, j_max
     
     len = size(tod_in)
-
-    ! if (self%myid == 0) write(*,*) len, maxval(tod_in),minval(tod_in)
-
-    ! self%min2 = minval(tod_in)
-    ! self%max2 = maxval(tod_in)
     
     allocate(rt(len-1))
     allocate(rms(len-1-self%window))
@@ -483,10 +216,13 @@ contains
     ! Compute the rms within a window around each rt sample (excluding the ends)
     do i = int(self%window/2), len-1-int(self%window/2)
        sum = 0.d0
-       do j = i-int(self%window/2)+1, i+int(self%window/2)
+       j_min = max(i-int(self%window/2),1)
+       j_max = min(i+int(self%window/2), len-1)
+       do j = j_min, j_max
+          if (iand(flag(j),flag0) .ne. 0 .or. iand(flag(j+1),flag0) .ne. 0) cycle 
           sum = sum + rt(j)**2
        end do
-       rms(i-int(self%window/2)+1) = sqrt(sum/self%window)
+       rms(i-(j_max-j_min+1)) = sqrt(sum/(j_max-j_min+1))
     end do
     
     ! Bin the rms values as a function of input voltage, and take the mean
@@ -499,7 +235,7 @@ contains
        end do
     end do
     
-  end subroutine add_chunk
+  end subroutine bin_scan_rms
 
   subroutine build_table(self,name)
     !=========================================================================
@@ -543,11 +279,7 @@ contains
     call mpi_allreduce(mpi_in_place,self%rms_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(mpi_in_place,self%nval,self%nbins,MPI_INTEGER, MPI_SUM, self%comm, ierr)
 
-    ! call mpi_allreduce(mpi_in_place,self%min2,1,MPI_REAL,MPI_MIN,self%comm,ierr)
-    ! call mpi_allreduce(mpi_in_place,self%max2,1,MPI_REAL,MPI_MAX,self%comm,ierr)
-
     if (self%myid == 0) then
-       ! write(*,fmt='(2(f16.8))') self%min2, self%max2
        open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
        open(51, file=trim(self%outdir)//'/adc_voltage_bins_'//trim(name)//'.dat')
        open(52, file=trim(self%outdir)//'/adc_nval_bins_'//trim(name)//'.dat')
