@@ -1824,7 +1824,7 @@ contains
 
   end subroutine decompress_pointing_and_flags
 
-  subroutine decompress_diodes(self, scan, det, diodes)
+  subroutine decompress_diodes(self, scan, det, diodes, flag)
     ! Decompress per-diode tod information
     ! 
     ! Inputs:
@@ -1845,6 +1845,7 @@ contains
     class(comm_tod),                    intent(in)  :: self
     integer(i4b),                       intent(in)  :: scan, det
     real(sp),          dimension(:,:),  intent(out) :: diodes
+    integer(i4b),      dimension(:),    intent(out), optional :: flag
 
     integer(i4b) :: i, j
     real(sp)     :: tot
@@ -1870,6 +1871,10 @@ contains
 
     end do
 !    deallocate(buff)
+
+    if (present(flag)) then
+       call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    end if
 
   end subroutine decompress_diodes
 
