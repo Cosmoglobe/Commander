@@ -231,17 +231,17 @@ contains
 
     if (constructor%myid == 0) write(*,*) 'Building ADC correction tables'
 
-    constructor%nbin_adc = 100
+    constructor%nbin_adc = 500
 
+    if (constructor%myid == 0) write(*,*) 'Determine vmin and vmax'
     ! Determine v_min and v_max for each diode
-    do i = 1, constructor%ndet
+    do i = 3, 3!1, constructor%ndet
 
       do j=1, constructor%ndiode ! init the adc correction structures
-        name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
         horn=1
         if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
 
-        constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc,name)
+        constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc)
       end do
 
       do k = 1, constructor%nscan
@@ -262,6 +262,9 @@ contains
 
       do j =1, constructor%ndiode
 
+        horn=1
+        if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
+
         ! All reduce min and max
         call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j,horn)%p%v_min,1,MPI_REAL,MPI_MIN,constructor%comm,ierr)
         call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j,horn)%p%v_max,1,MPI_REAL,MPI_MAX,constructor%comm,ierr)
@@ -270,13 +273,16 @@ contains
       end do
     end do
 
+    if (constructor%myid == 0) write(*,*) 'Bins rms and build tables'
     ! Now bin rms for all scans and compute the correction table
-    do i = 1, constructor%ndet
+    do i = 3, 3 !1, constructor%ndet
        do j = 1, constructor%ndiode
           name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
           horn=1
           if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
           do k = 1, constructor%nscan
+             if (constructor%myid == 0) write(*,*) 'Scan ', k
+
              allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
              allocate(flag(constructor%scans(k)%ntod))
              call constructor%decompress_diodes(k, i, diode_data, flag)
@@ -288,7 +294,7 @@ contains
        end do
     end do
 
-    ! stop
+    stop
 
     ! Compute reference load filter spline
     do i=1, constructor%ndet

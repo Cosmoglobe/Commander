@@ -61,7 +61,7 @@ module comm_tod_adc_mod
 
 contains
 
-  function constructor(cpar, info, nbins, name)
+  function constructor(cpar, info, nbins)
     ! ====================================================================
     ! Sets up an adc correction object that maps input and output voltages
     ! Also initializes the bins used for the actual correction model
@@ -90,7 +90,6 @@ contains
     class(comm_mapinfo),    target     :: info
     class(comm_adc),        pointer    :: constructor
     type(comm_params),      intent(in) :: cpar
-    character(len=50),      intent(in) :: name
     
     real(sp)     :: diff
 
