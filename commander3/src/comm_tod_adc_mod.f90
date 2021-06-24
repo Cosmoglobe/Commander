@@ -214,7 +214,7 @@ contains
     end do
        
     ! Compute the rms within a window around each rt sample (excluding the ends)
-    do i = int(self%window/2), len-1-int(self%window/2)
+    do i = int(self%window/2)+1, len-1-int(self%window/2)
        sum = 0.d0
        j_min = max(i-int(self%window/2),1)
        j_max = min(i+int(self%window/2), len-1)
@@ -222,7 +222,7 @@ contains
           if (iand(flag(j),flag0) .ne. 0 .or. iand(flag(j+1),flag0) .ne. 0) cycle 
           sum = sum + rt(j)**2
        end do
-       rms(i-(j_max-j_min+1)) = sqrt(sum/(j_max-j_min+1))
+       rms(i-int(self%window/2)) = sqrt(sum/(j_max-j_min+1))
     end do
     
     ! Bin the rms values as a function of input voltage, and take the mean
