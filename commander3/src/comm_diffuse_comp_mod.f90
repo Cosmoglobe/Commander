@@ -710,13 +710,8 @@ contains
        call update_status(status, "initPixreg_spec_monopole_mask")
        self%spec_mono_combined(i)=cpar%cs_spec_mono_combined(id_abs,i)
        if (self%spec_mono_combined(i)) then
-          if (self%smooth_scale(i)==0) then          
-             info2 => comm_mapinfo(cpar%comm_chain, self%nside, -1, &
-                  & self%nmaps, self%pol)
-          else
-             info2 => comm_mapinfo(cpar%comm_chain, cpar%nside_smooth(self%smooth_scale(i)), -1, &
-                  & self%nmaps, self%pol)
-          end if
+          info2 => comm_mapinfo(cpar%comm_chain, self%nside, -1, &
+               & self%nmaps, self%pol)
 
           if (trim(cpar%cs_spec_mono_mask(id_abs,i)) == 'fullsky') then
              self%spec_mono_mask(i)%p => comm_map(info2)
@@ -730,9 +725,10 @@ contains
                      & self%spec_mono_mask(i)%p%info%nmaps,') than poltype (',self%poltype(i), &
                      & ') for component nr. ',id_abs
                 call mpi_finalize(ierr)
-             else if (info2%nside /= self%spec_mono_mask(i)%p%info%nside) then
-                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//' monopole mask has different nside (', & 
-                     & self%spec_mono_mask(i)%p%info%nside,') than the smoothing scale (', &
+             else if (self%nside /= self%spec_mono_mask(i)%p%info%nside) then
+                write(*,fmt='(a,i4,a,i4,a,i2)') trim(self%indlabel(i))//&
+                     & ' monopole mask (combined sampler) has different nside (', & 
+                     & self%spec_mono_mask(i)%p%info%nside,') than the spectral parameter (', &
                      & info2%nside, ') for component nr. ',id_abs
                 call mpi_finalize(ierr)
              end if

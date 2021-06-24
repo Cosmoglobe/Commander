@@ -2370,8 +2370,10 @@ contains
     class(comm_map),                 pointer :: theta_lr_hole => null() ! smoothed spec. ind. of polt_id index
     class(comm_map),                 pointer :: theta_fr => null() ! smoothed spec. ind. of polt_id index
     class(comm_map),                 pointer :: mask_lr => null() ! lowres mask
+    class(comm_map),                 pointer :: mask_mono => null() ! lowres mask
     class(comm_map),                 pointer :: res_map => null() ! lowres  residual map
     class(comm_map),                 pointer :: temp_res => null() 
+    class(comm_map),                 pointer :: temp_map => null() 
     type(map_ptr), allocatable, dimension(:) :: lr_chisq
     type(map_ptr), allocatable, dimension(:) :: df
     real(dp),      allocatable, dimension(:) :: monopole_val, monopole_rms, monopole_mu, monopole_mixing
@@ -2598,12 +2600,12 @@ contains
           end if
 
           !ud_grade monopole mask (if it is not same nside as smoothing scale)
-          mask_lr => comm_map(info_lr)
-          call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_lr)
-          where (mask_lr%map > 0.5d0)
-             mask_lr%map=1.d0
+          mask_mono => comm_map(info_lr)
+          call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
+          where (mask_mono%map > 0.5d0)
+             mask_mono%map=1.d0
           elsewhere
-             mask_lr%map=0.d0
+             mask_mono%map=0.d0
           end where
 
           ! produce reduced data sets of the active bands in Temperature with active monopole
@@ -2619,7 +2621,7 @@ contains
 
           do j = 1,numband
              if (monopole_active(j)) then
-                do pix = 0,np_lr
+                do pix = 0,np_lr-1
                    do i = 1, npar
                       if (i == id) cycle
                       all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
@@ -2632,15 +2634,17 @@ contains
 
                    !remove the parameter signal (given new theta) and add monopole back into map
                    reduced_data(pix,1) = res_smooth(j)%p%map(pix,1) - mixing_old* &
-                        & c_lnL%x_smooth%map(pix,pol_j(k)) + monopole_mixing(j)*monopole_val(j)
+                        & c_lnL%x_smooth%map(pix,1) + monopole_mixing(j)*monopole_val(j)
                 end do
 
                 ! resample the monopole given the new reduced data
                 a=0.d0
                 b=0.d0
-                do pix = 0,np_lr
-                   a = a + (monopole_mixing(j) / rms_smooth(j)%p%siN%map(pix,1))**2
-                   b = b + monopole_mixing(j)*reduced_data(pix,1) / (rms_smooth(j)%p%siN%map(pix,1))**2
+                do pix = 0,np_lr-1
+                   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                      b = b + monopole_mixing(j)*reduced_data(pix,1) * (rms_smooth(j)%p%siN%map(pix,1))**2
+                   end if
                 end do
 
                 !gather a and b
@@ -2652,18 +2656,18 @@ contains
                 if (info_lr%myid == 0) then
                    if (a > 0.d0) then
                       mu = b/a
-                      sigma=sqrt(1.d0/a)
-                   else if (monopole_rms(j) > 0.d0) then
+                      sigma=sqrt(a)
+                   else if (monopole_rms(j) > 0.d0) then !this will effectively set monopole to prior mean
                       mu = 0
-                      sigma = 1.d30
+                      sigma = 0.d0
                    else
-                      mu = monopole_mu(j)
+                      mu = monopole_mu(j) !just set to prior mean
                       sigma = 0.d0
                    end if
 
-                   ! adding prior 
+                   ! applying prior 
                    if (monopole_rms(j) > 0.d0) then
-                      sigma_p = monopole_rms(j)
+                      sigma_p = 1.d0/monopole_rms(j)
                       mu_p = monopole_mu(j)
                       mu = (mu*sigma**2 + mu_p*sigma_p**2)/(sigma**2 + sigma_p**2)
                    end if
@@ -2707,8 +2711,8 @@ contains
           theta_lr_hole => null()
           call theta_fr%dealloc(); deallocate(theta_fr)
           theta_fr => null()
-          call mask_lr%dealloc(); deallocate(mask_lr)
-          mask_lr => null()
+          call mask_mono%dealloc(); deallocate(mask_mono)
+          mask_mono => null()
           
        end if
 
@@ -2779,6 +2783,14 @@ contains
        allocate(old_mono(numband),new_mono(numband))
        old_mono=monopole_val
        new_mono=old_mono
+       !ud_grade monopole mask (if it is not same nside as smoothing scale)
+       mask_mono => comm_map(info_lr)
+       call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono)
+       where (mask_mono%map > 0.5d0)
+          mask_mono%map=1.d0
+       elsewhere
+          mask_mono%map=0.d0
+       end where
     end if
 
     !This is used for fullres chisq
@@ -2962,6 +2974,7 @@ contains
              ! i.e. conditional sampling
              if (c_lnL%spec_mono_combined(par_id)) then
                 ! Need to update the reduced data maps for the k's with active monopoles
+
                 do k = 1,band_count
                    if (monopole_active(band_i(k)) .and. pol_j(k)==1) then
                       do pix = 0, np_lr-1
@@ -2985,10 +2998,12 @@ contains
                       !calculate new monopole value
                       a=0.d0
                       b=0.d0
-                      do pix = 0,np_lr
-                         a = a + (monopole_mixing(band_i(k)) / rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                         b = b + monopole_mixing(band_i(k))*reduced_data(pix,k) / &
-                              & (rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+                      do pix = 0,np_lr-1
+                         if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                            a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+                            b = b + monopole_mixing(band_i(k))*reduced_data(pix,k) * &
+                                 & (rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
+                         end if
                       end do
 
                       !gather a and b
@@ -3000,10 +3015,10 @@ contains
                       if (info_lr%myid == 0) then
                          if (a > 0.d0) then
                             mu = b/a
-                            sigma=sqrt(1.d0/a)
+                            sigma=sqrt(a)
                          else if (monopole_rms(band_i(k)) > 0.d0) then
                             mu = 0
-                            sigma = 1.d30
+                            sigma = 0.d0
                          else
                             mu = monopole_mu(band_i(k))
                             sigma = 0.d0
@@ -3011,7 +3026,7 @@ contains
 
                          ! adding prior 
                          if (monopole_rms(band_i(k)) > 0.d0) then
-                            sigma_p = monopole_rms(band_i(k))
+                            sigma_p = 1.d0/monopole_rms(band_i(k))
                             mu_p = monopole_mu(band_i(k))
                             mu = (mu*sigma**2 + mu_p*sigma_p**2)/(sigma**2 + sigma_p**2)
                          end if
@@ -3025,6 +3040,62 @@ contains
                       reduced_data(:,k) = reduced_data(:,k) + &
                            & monopole_mixing(band_i(k))*(monopole_val(band_i(k))-new_mono(band_i(k)))
                       
+
+                      if (first_sample .and. .false.) then !debugging
+                         !we want to compare the power of the smoothing scale nside to pull monopole away from prior compared to the full resolution of the data band
+                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
+                              & 0, 1, .false.)
+                         temp_map => comm_map(info_fr_single)
+                         temp_map%map(:,1) = c_lnL%spec_mono_mask(par_id)%p%map(:,1)
+                         temp_res => comm_map(info_data) !reusing temp_res as a ud_graded monopole mask
+                         if (info_data%nside /= c_lnL%nside) then
+                            call temp_map%udgrade(temp_res)
+                            where (temp_res%map > 0.5d0)
+                               temp_res%map=1.d0
+                            elsewhere 
+                               temp_res%map = 0.d0
+                            end where
+                         else
+                            temp_res%map = temp_map%map
+                         end if
+                         
+                         call temp_map%dealloc(); deallocate(temp_map)
+                         temp_map => null()
+                         a = 0.d0
+
+                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
+                              & 0, data(band_i(k))%info%nmaps, data(band_i(k))%info%nmaps==3)
+                         temp_map => comm_map(info_data)
+                         temp_map%map = 1.d0
+                         call data(band_i(k))%N%invN(temp_map) !get inverse Noise matrix of data band
+                         
+                         do pix = 0,info_data%np-1
+                            if (temp_res%map(pix,1) > 0.5d0) a = a + monopole_mixing(band_i(k))**2 * &
+                                 & temp_map%map(pix,1)
+                         end do
+
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+                         sigma_p=sqrt(a)
+
+                         call temp_map%dealloc(); deallocate(temp_map)
+                         temp_map => null()
+                         call temp_res%dealloc(); deallocate(temp_res)
+                         temp_res => null()
+
+                         if (myid_pix == 0) then
+                            write(*,fmt='(a15,e15.5,e15.5,e15.5)') trim(data(band_i(k))%label), &
+                                 & monopole_val(band_i(k))*monopole_mixing(band_i(k)), &
+                                 & new_mono(band_i(k))*monopole_mixing(band_i(k)), &
+                                 & monopole_mu(band_i(k))*monopole_mixing(band_i(k))
+
+                            write(*,fmt='(a15,e15.5,e15.5,e15.5)') ' ', &
+                                 & sigma*monopole_mixing(band_i(k)), & !the low resolution(smoothscale) sigma
+                                 & sigma_p*monopole_mixing(band_i(k)), & ! the full data sigma
+                                 & monopole_rms(band_i(k))*monopole_mixing(band_i(k)) ! the prior sigma
+                         end if
+                      end if
+
                    end if !monopole_active(band_i(k) .and. pol_j(k)==1
                 end do !band_count
 
@@ -3440,7 +3511,7 @@ contains
     postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
 
     !print MC theta to file, (partially debug)
-    if (.false. .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
+    if (.true. .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
        unit = getlun()
        filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
             & '_theta_MC_'//trim(postfix)//'.dat'
@@ -3530,6 +3601,12 @@ contains
     call theta_single_fr%dealloc(); deallocate(theta_single_fr); theta_single_fr => null()
     call mask_lr%dealloc();         deallocate(mask_lr);         mask_lr => null()
     call res_map%dealloc();         deallocate(res_map);         res_map => null()
+    
+    if (c_lnL%spec_mono_combined(par_id)) then
+       call mask_mono%dealloc() 
+       deallocate(mask_mono)
+       mask_mono => null()
+    end if
 
     if (allocated(monopole_val)) deallocate(monopole_val)
     if (allocated(monopole_mu)) deallocate(monopole_mu)

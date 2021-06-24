@@ -2102,6 +2102,8 @@ contains
           case ('power_law')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
           case ('physdust')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
@@ -2113,22 +2115,34 @@ contains
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))             
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
           case ('spindust2')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
+             if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,2)))
           case ('MBB')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
+             if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,2)))
           case ('freefree')
 !!$             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
 !!$                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))             
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
           case ('line')
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
           end select
