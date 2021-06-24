@@ -68,6 +68,7 @@ module comm_tod_LFI_mod
      procedure     :: construct_corrtemp_inst => construct_corrtemp_LFI
      procedure     :: filter_reference_load
      procedure     :: compute_ref_load_filter
+     procedure     :: get_nsmooth
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -110,12 +111,12 @@ contains
     real(sp), dimension(:,:),  allocatable :: diode_data, corrected_data
     integer(i4b), dimension(:),    allocatable :: flag
 
-    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count, nsmooth
     logical(lgt) :: pol_beam
     character(len=50) :: name
     integer(i4b) :: horn
 
-    real(sp), dimension(:),   allocatable :: nus
+    real(dp), dimension(:),   allocatable :: nus
     real(sp), dimension(:,:), allocatable :: filtered
     real(dp), dimension(:),   allocatable :: nu_saved
     real(dp), dimension(:,:), allocatable :: filter_sum
@@ -217,7 +218,7 @@ contains
     constructor%nbin_spike      = nint(constructor%samprate*sqrt(3.d0))
     allocate(constructor%mb_eff(constructor%ndet))
     allocate(constructor%diode_weights(constructor%ndet, 2))
-    allocate(constructor%spike_templates(constructor%nbin_spike, constructor%ndet))
+    allocate(constructor%spike_templates(0:constructor%nbin_spike-1, constructor%ndet))
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
     allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode, 2))
     allocate(constructor%ref_splint(constructor%ndet))
@@ -291,8 +292,12 @@ contains
     ! stop
 
     ! Compute reference load filter spline
+    nsmooth = constructor%get_nsmooth()
+    allocate(filter_sum(constructor%ndiode/2,nsmooth))
+    allocate(nu_saved(nsmooth))
     do i=1, constructor%ndet
-
+       filter_count = 0
+       filter_sum   = 0.d0
       do k = 1, constructor%nscan
 
         allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
@@ -305,37 +310,25 @@ contains
         end do
 
         ! compute the ref load transfer function
-        call constructor%compute_ref_load_filter(corrected_data, filtered, nus)
-
-        if(.not. allocated(filter_sum)) then
-            allocate(filter_sum(size(filtered, 1), size(filtered, 2)))
-            allocate(nu_saved(size(nus)))
-            filter_count = 1
-            filter_sum = filtered
-            nu_saved = nus
-        else
-            filter_sum = filter_sum + filtered
-            filter_count = filter_count + 1
-        end if
-
-        deallocate(diode_data, corrected_data, filtered, nus)
-
+        call constructor%compute_ref_load_filter(corrected_data, filter_sum, nu_saved)
+        filter_count = filter_count + 1
+     
+        deallocate(diode_data, corrected_data)
 
       end do
 
       ! Mpi average the load filter over all cores, save as a spline
       call mpi_allreduce(MPI_IN_PLACE, filter_count, 1, MPI_INTEGER, MPI_SUM, constructor%info%comm, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, filter_sum, size(filter_sum, 1) * size(filter_sum, 2), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, filter_sum, size(filter_sum), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, nu_saved,   size(nu_saved), MPI_DOUBLE_PRECISION, MPI_MAX, constructor%info%comm, ierr)
 
       filter_sum = filter_sum/filter_count
       do j=1, constructor%ndiode/2
         call spline_simple(constructor%ref_splint(i), nu_saved, filter_sum(j,:))
       end do
 
-      deallocate(nu_saved, filter_sum)
-
     end do
-
+    deallocate(nu_saved, filter_sum)
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
@@ -767,9 +760,25 @@ contains
     deallocate(diode_data, corrected_data)
 
 !call mpi_finalize(i)
-stop
+!stop
 
   end subroutine diode2tod_LFI
+
+  function get_nsmooth(self)
+    implicit none
+    class(comm_LFI_tod),  intent(in)   :: self
+    integer(i4b)                       :: get_nsmooth  
+    integer(i4b) :: j
+    real(sp)     :: fbin, nu
+
+    fbin         = 1.2 ! multiplicative bin scaling factor
+    get_nsmooth  = 1
+    nu           = 0.01
+    do while (nu <= self%samprate/2)
+       get_nsmooth = get_nsmooth + 1
+       nu          = nu * fbin
+    end do
+  end function get_nsmooth
 
   subroutine compute_ref_load_filter(self, data_in, binned_out, nu_out)
     ! 
@@ -791,10 +800,10 @@ stop
     ! nu_out     : float_array
     !              frequencies that index binned_out
     implicit none
-    class(comm_LFI_tod),                   intent(in)   :: self
-    real(sp), dimension(:,:),              intent(in)   :: data_in
-    real(sp), dimension(:,:), allocatable, intent(inout):: binned_out
-    real(sp), dimension(:),   allocatable, intent(inout):: nu_out
+    class(comm_LFI_tod),      intent(in)   :: self
+    real(sp), dimension(:,:), intent(in)   :: data_in
+    real(dp), dimension(:,:), intent(inout):: binned_out
+    real(dp), dimension(:),   intent(inout):: nu_out
 
     integer(i4b) :: i, j, k, nfft, n, nsmooth
     real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum
@@ -807,9 +816,9 @@ stop
     n       = size(data_in(:,1))
     nfft    = n/2+1
     fsamp   = self%samprate
-    nsmooth = 42
+    nsmooth = self%get_nsmooth()
 
-    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1), binned_out(self%ndiode/2, nsmooth), nu_out(nsmooth))
+    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1))
     
     call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
 
@@ -865,13 +874,13 @@ stop
             nu     = ind2freq(j, fsamp, nfft)
          end do
          if (k > 0) then
-            binned_out(i, nsmooth) = subsum/k
+            binned_out(i, nsmooth) = binned_out(i, nsmooth) + subsum/k
             nu_out(nsmooth) = sqrt(nu_out(nsmooth) * nu)
          end if
          nsmooth = nsmooth+1
          nu_out(nsmooth) = nu
       end do
-      binned_out(i,1) = 1.d0
+      binned_out(i,1) = binned_out(i,1) + 1.d0
 
     end do
 
@@ -1138,9 +1147,6 @@ stop
        do k = 1, self%scans(scan)%ntod
           t = modulo(self%scans(scan)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
           b = min(int(t*nbin),nbin-1)
-          if(b == 0) then
-            write(*,*) b, t, nbin
-          end if
           s(k,j) = self%spike_amplitude(scan,j) * self%spike_templates(b,j)
        end do
     end do
