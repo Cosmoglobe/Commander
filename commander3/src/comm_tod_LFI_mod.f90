@@ -465,14 +465,12 @@ contains
     !------------------------------------
 
     ! Sample 1Hz spikes
-    call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2)
-    call update_status(status, "tod_1Hz")
+    call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
-    call update_status(status, "tod_gain")
+    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
+    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
+    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -741,12 +739,12 @@ contains
         end do
 
         ! Wiener-filter load data         
-        call self%filter_reference_load(corrected_data, filtered_data)
+        call self%fiLter_reference_load(corrected_data, filtered_data)
         
         ! Compute output differenced TOD
 
         !w1(sky00 - ref00) + w2(sky01 - ref01)
-        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,1) - filtered_data(:,3)) + self%diode_weights(i,2)*( corrected_data(:,2) - filtered_data(:,4))
+        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - filtered_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - filtered_data(:,3))
         !tod(:,i) = (corrected_data(:,1) - corrected_data(:,3)) + (corrected_data(:,2) - corrected_data(:,4))
         
 
@@ -755,9 +753,10 @@ contains
 !!$           write(58,*) tod(j,1), diode_data(j,:), corrected_data(j,:)
 !!$        end do
 !!$        close(58)
-!!$        stop
+        !stop
         
     end do
+!    stop
 
     deallocate(diode_data, corrected_data, filtered_data)
 
