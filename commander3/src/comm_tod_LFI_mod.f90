@@ -466,11 +466,13 @@ contains
 
     ! Sample 1Hz spikes
     call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2)
+    call update_status(status, "tod_1Hz")
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
     call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
     call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+    call update_status(status, "tod_gain")
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -744,8 +746,8 @@ contains
         ! Compute output differenced TOD
 
         !w1(sky00 - ref00) + w2(sky01 - ref01)
-        !tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,1) - corrected_data(:,3)) + self%diode_weights(i,2)*( corrected_data(:,2) - corrected_data(:,4))
-        tod(:,i) = (corrected_data(:,1) - corrected_data(:,3)) + (corrected_data(:,2) - corrected_data(:,4))
+        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,1) - filtered_data(:,3)) + self%diode_weights(i,2)*( corrected_data(:,2) - filtered_data(:,4))
+        !tod(:,i) = (corrected_data(:,1) - corrected_data(:,3)) + (corrected_data(:,2) - corrected_data(:,4))
         
 
 !!$        open(58,file='comm3_L2fromL1.dat', recl=1024)
@@ -757,7 +759,7 @@ contains
         
     end do
 
-    deallocate(diode_data, corrected_data)
+    deallocate(diode_data, corrected_data, filtered_data)
 
 !call mpi_finalize(i)
 !stop
