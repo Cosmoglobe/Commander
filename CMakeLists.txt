@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Ensure out-of-source build
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 	message(FATAL_ERROR 

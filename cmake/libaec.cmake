@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script determines the location of SZip on the host system.
 # If it fails to do so, it will download, compile and install SZip from source.
 # LibAEC is (not strictly) required by HDF5.
@@ -37,42 +39,47 @@ if(USE_SYSTEM_LIBAEC AND USE_SYSTEM_LIBS AND NOT USE_SYSTEM_HDF5)
 	#endif()
 endif()
 
-if(NOT (HDF5_FOUND AND LIBAEC_FOUND)) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_accepted_version)) 
-	#message(STATUS "Required version -- 1.2.11 -- will be compiled from source.")
+if(NOT (HDF5_FOUND AND LIBAEC_FOUND))
 	#------------------------------------------------------------------------------
 	# Getting LIBAEC from source.
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(${project}_src
-		DEPENDS required_libraries 
-		GIT_REPOSITORY "${${project}_git_url}"
-		GIT_TAG "${${project}_git_tag}"
-		#URL "${${project}_url}"
-		#URL_MD5 "${${project}_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		#SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		#INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
-		CONFIGURE_COMMAND ""
-		BUILD_COMMAND ""
-		INSTALL_COMMAND ""
-		)
+	if(NOT EXISTS "${LIBAEC_SOURCE_DIR}/CMakeLists.txt")
+		message(STATUS "No LIBAEC sources were found; thus, will download it from source:\n${libaec_git_url}")
+		ExternalProject_Add(
+			libaec_src
+			GIT_REPOSITORY		"${libaec_git_url}"
+			GIT_TAG						"${libaec_git_tag}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${LIBAEC_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+		message(STATUS "Found an existing LIBAEC sources inside:\n${LIBAEC_SOURCE_DIR}")
+		add_custom_target(libaec_src
+			ALL ""
+			)
+	endif()
 	#------------------------------------------------------------------------------
 	# Building Static LibAEC
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(${project}_static
-		DEPENDS required_libraries 
-						${project}_src
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_src"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+	ExternalProject_Add(
+		libaec_static
+		DEPENDS						required_libraries 
+											libaec_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${LIBAEC_SOURCE_DIR}"
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE			ON
+		LOG_BUILD					ON
+		LOG_INSTALL				ON
 		# Disabling download
-		DOWNLOAD_COMMAND ""
+		DOWNLOAD_COMMAND	""
 		# commands how to build the project
 		CMAKE_ARGS
 			-DCMAKE_BUILD_TYPE=Release
@@ -90,18 +97,19 @@ if(NOT (HDF5_FOUND AND LIBAEC_FOUND)) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUA
 	#------------------------------------------------------------------------------
 	# Building Shared LibAEC
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(${project}_shared
-		DEPENDS required_libraries 
-						${project}_src
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}_src"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+	ExternalProject_Add(
+		libaec_shared
+		DEPENDS						required_libraries 
+											libaec_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${LIBAEC_SOURCE_DIR}"
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE			ON
+		LOG_BUILD					ON
+		LOG_INSTALL				ON
 		# Disabling download
-		DOWNLOAD_COMMAND ""
+		DOWNLOAD_COMMAND	""
 		# commands how to build the project
 		CMAKE_ARGS
 			-DCMAKE_BUILD_TYPE=Release
@@ -131,10 +139,10 @@ if(NOT (HDF5_FOUND AND LIBAEC_FOUND)) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUA
 		)
 	# Adding new target -- libaec -- to ensure that only after all libraries built
 	# the project can use this target.
-	add_custom_target(${project} 
+	add_custom_target(libaec 
 		ALL ""
-		DEPENDS ${project}_static
-						${project}_shared
+		DEPENDS libaec_static
+						libaec_shared
 		)
 	#------------------------------------------------------------------------------
 	message(STATUS "LIBAEC LIBRARIES will be: ${LIBAEC_LIBRARIES}")
