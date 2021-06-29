@@ -125,22 +125,39 @@ contains
     allocate(constructor)
 
     ! Set up noise PSD type and priors
-    constructor%freq            = cpar%ds_label(id_abs)
-    constructor%n_xi            = 3
-    constructor%noise_psd_model = 'oof'
-    allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-    allocate(constructor%xi_n_P_rms(constructor%n_xi))
-    
-    constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    constructor%freq            = cpar%ds_label(id_abs)    
     if (trim(constructor%freq) == '030') then
-       constructor%xi_n_nu_fit     = [0.d0, 1.225d0]    ! More than max(7*fknee_DPC)
+       constructor%n_xi            = 6
+       constructor%noise_psd_model = 'oof_gauss'    
+       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+       allocate(constructor%xi_n_P_rms(constructor%n_xi))
+       constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
+
+       constructor%xi_n_nu_fit     = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
        constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+       constructor%xi_n_P_uni(4,:) = [0.0d0,   1d0]     ! g_amp
+       constructor%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
+       constructor%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig
     else if (trim(constructor%freq) == '044') then
-       constructor%xi_n_nu_fit     = [0.d0, 1.00d0]    ! More than max(2*fknee_DPC)
+       constructor%n_xi            = 6
+       constructor%noise_psd_model = 'oof_gauss'
+       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+       allocate(constructor%xi_n_P_rms(constructor%n_xi))
+       constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
+
+       constructor%xi_n_nu_fit     = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
        constructor%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+       constructor%xi_n_P_uni(4,:) = [0.0d0,   1d0]     ! g_amp
+       constructor%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
+       constructor%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig
     else if (trim(constructor%freq) == '070') then
+       constructor%n_xi            = 3
+       constructor%noise_psd_model = 'oof'
+       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+       allocate(constructor%xi_n_P_rms(constructor%n_xi))
+       constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
        constructor%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
        constructor%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
@@ -200,6 +217,7 @@ contains
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
 
+    ! Setting polarization angles to DPC post-analysis values
     if (trim(constructor%freq) == '030') then
        constructor%polang = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
     else if (trim(constructor%freq) == '044') then
@@ -222,7 +240,6 @@ contains
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
     allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode, 2))
     allocate(constructor%ref_splint(constructor%ndet))
-
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -296,17 +313,15 @@ contains
     allocate(filter_sum(constructor%ndiode/2,nsmooth))
     allocate(nu_saved(nsmooth))
     do i=1, constructor%ndet
-       filter_count = 0
-       filter_sum   = 0.d0
+      filter_count = 0
+      filter_sum   = 0.d0
       do k = 1, constructor%nscan
 
         allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
         call constructor%decompress_diodes(k, i, diode_data)
 
         do j = 1, constructor%ndiode
-
           call constructor%adc_corrections(i,j,horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
-
         end do
 
         ! compute the ref load transfer function
@@ -710,13 +725,10 @@ contains
     real(sp),          dimension(:,:),   intent(out)   :: tod
 
     integer(i4b) :: i,j,k,half,horn
-    real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data, filtered_data
+    real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data
 
     allocate(diode_data(self%scans(scan)%ntod, self%ndiode))
     allocate(corrected_data(self%scans(scan)%ntod, self%ndiode))
-    allocate(filtered_data(self%scans(scan)%ntod, self%ndiode))
-
-
     do i=1, self%ndet
 
         ! Decompress diode TOD for current scan
@@ -739,12 +751,13 @@ contains
         end do
 
         ! Wiener-filter load data         
-        call self%fiLter_reference_load(corrected_data, filtered_data)
+        call self%filter_reference_load(corrected_data)
         
         ! Compute output differenced TOD
 
         !w1(sky00 - ref00) + w2(sky01 - ref01)
-        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - filtered_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - filtered_data(:,3))
+        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - corrected_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - corrected_data(:,3))
+        !tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - filtered_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - filtered_data(:,3))
         !tod(:,i) = (corrected_data(:,1) - corrected_data(:,3)) + (corrected_data(:,2) - corrected_data(:,4))
         
 
@@ -758,7 +771,7 @@ contains
     end do
 !    stop
 
-    deallocate(diode_data, corrected_data, filtered_data)
+    deallocate(diode_data, corrected_data)
 
 !call mpi_finalize(i)
 !stop
@@ -892,64 +905,50 @@ contains
   end subroutine compute_ref_load_filter
 
 
-  subroutine filter_reference_load(self, data_in, data_out)
-    class(comm_LFI_tod),               intent(in)   :: self
-    real(sp), dimension(:,:),          intent(in)   :: data_in
-    real(sp), dimension(:,:),          intent(out)  :: data_out
+  subroutine filter_reference_load(self, data)
+    class(comm_LFI_tod),               intent(in)      :: self
+    real(sp), dimension(:,:),          intent(inout)   :: data
 
-    integer(i4b) :: i, j, k, nfft, n, nsmooth
-    real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum
+    integer(i4b) :: i, j, nfft, n
     integer*8    :: plan_fwd, plan_back
 
-    real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
-    real(dp),     allocatable, dimension(:) :: filter
-    complex(spc), allocatable, dimension(:) :: dv_sky, dv_ref
+    real(sp),     allocatable, dimension(:) :: dt
+    complex(spc), allocatable, dimension(:) :: dv
 
-    data_out = data_in
-
-    n       = size(data_in(:,1))
+    n       = size(data(:,1))
     nfft    = n/2+1
-    fsamp   = self%samprate
-    nsmooth = 1000
 
-    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1))
+    allocate(dt(n), dv(0:nfft-1))
 
-
-    call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
-
-    call sfftw_plan_dft_c2r_1d(plan_back, n, dv_ref, dt_ref, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_r2c_1d(plan_fwd,  n, dt, dv, fftw_estimate + fftw_unaligned)
+    call sfftw_plan_dft_c2r_1d(plan_back, n, dv, dt, fftw_estimate + fftw_unaligned)
 
     do i = 1, self%ndiode/2
 
       ! Check if data is all zeros
-      dt_ref = data_in(:, 2*i -1)
-
-      dt_sky = data_in(:, 2*i)
-
-
-      if(all(dt_ref == 0) .or. all(dt_sky == 0)) return
+      dt = data(:, 2*i -1)
+      if(all(dt == 0)) cycle
 
       ! FFT of ref signal
-      call sfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
-
-      do j=0, size(dv_ref) -1
-        filter(j) = splint(self%ref_splint(i), ind2freq(j, fsamp, nfft))
-      end do
+      call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
 
       ! Filter ref with cross correlation transfer function
-      dv_ref = dv_ref * filter
+      do j=1, size(dv) -1
+        dv(j) = dv(j) * splint(self%ref_splint(i), ind2freq(j, self%samprate, nfft))
+      end do
 
       ! IFFT ref signal
-      call sfftw_execute_dft_c2r(plan_back, dv_ref, dt_ref)
-
-      data_out(:, 2*i-1) = dt_ref/nfft
+      call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      
+      ! Normalize
+      data(:, 2*i-1) = dt/nfft
 
     end do
 
     call sfftw_destroy_plan(plan_fwd)
     call sfftw_destroy_plan(plan_back)
 
-    deallocate(dt_sky, dt_ref, dv_sky, dv_ref, filter)
+    deallocate(dt, dv)
 
   end subroutine filter_reference_load
 
@@ -1022,7 +1021,7 @@ contains
     if (tod%myid == 0) write(*,*) '   --> Sampling 1Hz spikes'
 
     dt    = 1.d0/tod%samprate   ! Sample time
-    t_tot = 1.d0                 ! Time range in sec
+    t_tot = 1.d0                ! Time range in sec
     nbin  = tod%nbin_spike      ! Number of bins 
 
     allocate(s_bin(0:nbin-1,tod%ndet,tod%nscan), s_sum(0:nbin-1,tod%ndet), nval(0:nbin-1))
