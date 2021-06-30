@@ -66,11 +66,9 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:, j) - tod%scans(scan_id)%d(j)%baseline & 
-           & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
+         r_fill = tod_arr(:, j) - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        else
-         r_fill = tod%scans(scan_id)%d(j)%tod - tod%scans(scan_id)%d(j)%baseline & 
-           & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
+         r_fill = tod%scans(scan_id)%d(j)%tod - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -134,19 +132,17 @@ contains
        write(58,*)
        do i = 1, size(s_tot,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline &
-            & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+            write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
           else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline &
-            & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
           end if
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline
+            write(58,*) i, tod_arr(i, 1)
           else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline
+            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i)
           end if
        end do
        close(58)
@@ -387,12 +383,9 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:,j) - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 30 .and. out) write(*,*) 'scan, tod(1,j), s_sub(1,j), baseline'
-         !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), tod_arr(1,j), s_sub(1,j), tod%scans(scan)%d(j)%baseline
+         r_fill = tod_arr(:,j) - s_sub(:,j)
        else
-         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
+         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j)
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -444,9 +437,9 @@ contains
        open(58,file='gainfit4_'//itext//'.dat')       
        do i = 1, size(s_sub,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 4) - tod%scans(scan)%d(4)%baseline
+            write(58,*) i, tod_arr(i, 4)
           else
-            write(58,*) i, tod%scans(scan)%d(4)%tod(i) - tod%scans(scan)%d(4)%baseline
+            write(58,*) i, tod%scans(scan)%d(4)%tod(i)
           end if
        end do
        write(58,*)

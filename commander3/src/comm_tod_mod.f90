@@ -1686,21 +1686,20 @@ contains
     real(sp),        dimension(:,:), intent(in), optional :: tod_arr
 
     
-    real(dp)     :: chisq, d0, g, b
+    real(dp)     :: chisq, d0, g
     integer(i4b) :: i, n
 
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain
-    b           = self%scans(scan)%d(det)%baseline
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
        if (present(tod_arr)) then
-         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i) + b)
+         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i))
        else
          d0    = self%scans(scan)%d(det)%tod(i) - &
-           &  (g * s_spur(i) + n_corr(i) + b)
+           &  (g * s_spur(i) + n_corr(i))
        end if
        if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2

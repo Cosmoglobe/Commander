@@ -292,6 +292,7 @@ contains
        else
           self%tod(:,j) = tod%scans(scan)%d(j)%tod
        end if
+       self%tod(:,j) = self%tod(:,j) - tod%scans(scan)%d(j)%baseline
     end do
 
     ! Construct sky signal template
@@ -540,8 +541,7 @@ contains
              if (.not. tod%scans(i)%d(j)%accept) cycle
              if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_orb(:,j)) + &
-                     & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
-                     & tod%scans(i)%d(j)%baseline
+                     & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'abscal' .and. .not. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'relcal') then
@@ -632,6 +632,10 @@ contains
        end if
 
        do j = 1, tod%ndet
+          ! Return the data to its raw state
+          sd%tod(:,j) = sd%tod(:,j) + tod%scans(i)%d(j)%baseline
+
+          ! Estimate the baseline and sample it if requested
           tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
             & *sd%mask(:,j))/sum(sd%mask(:,j))
           if (trim(tod%operation) == 'sample') then
@@ -646,16 +650,6 @@ contains
        tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
        call sd%dealloc
     end do
-    !do j = 1, tod%ndet
-    !  if (tod%myid == 0) then
-    !    call sd%init_differential(tod, 1, map_sky, procmask, procmask2)
-    !    write(*,*) 'Detector',j
-    !    write(*,*) tod%scans(1)%d(j)%baseline
-    !    write(*,*) sum(sd%tod(:,j))/size(sd%tod(:,j))
-    !    write(*,*) sum(sd%tod(:,j) - tod%scans(1)%d(j)%baseline)/size(sd%tod(:,j))
-    !    call sd%dealloc
-    !  end if
-    !end do
 
   end subroutine sample_baseline
 
@@ -767,10 +761,10 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
        if (tod%compressed_tod) then
-        d_calib(1,:,j) = (sd%tod(:,j) - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+        d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        else
-        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        end if
        if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
