@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script determines the location of MbedTLS on the host system.
 # If it fails to do so, it will download, compile and install MbedTLS from source.
 # MbedTLS is (not strictly) required by cURL. If either CFITSIO and/or cURL were 

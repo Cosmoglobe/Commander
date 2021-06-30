@@ -418,27 +418,16 @@ contains
     self%pix2ind = -1
     do i = 1, self%nscan
        allocate(pix(self%scans(i)%ntod))
-       if (self%nhorn == 2) then
+       do j = 1, self%ndet
          do l = 1, self%nhorn
-          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
+          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              pix(k)  = pix(k-1)  + pix(k)
              self%pix2ind(pix(k)) = 1
           end do
         end do
-       else
-         do j = 1, self%ndet
-           do l = 1, self%nhorn
-            call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-            self%pix2ind(pix(1)) = 1
-            do k = 2, self%scans(i)%ntod
-               pix(k)  = pix(k-1)  + pix(k)
-               self%pix2ind(pix(k)) = 1
-            end do
-          end do
-         end do
-       end if
+       end do
        deallocate(pix)
     end do
     self%nobs = count(self%pix2ind == 1)
@@ -758,9 +747,7 @@ contains
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
     do i = 1, ndet
-       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
-       end if
+       allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
 
        allocate(xi_n(tod%n_xi))
        field                = detlabels(i)
@@ -782,16 +769,12 @@ contains
        deallocate(xi_n)
 
        ! Read Huffman coded data arrays
-       if (nhorn == 2 .and. i == 1) then
-         ! For a single DA, this is redundant, so we are loading 4 times the
-         ! necessary pointing (and flags) information. Strictly speaking, this
-         ! would involve needing to have a self%pixA and self%pixB attribute for
-         ! WMAP only and not allocate self%d(i)%pix(j)
+       if (nhorn == 2) then
          do j = 1, nhorn 
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
          end do
-       else if (nhorn .ne. 2) then
+       else
          do j = 1, nhorn
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
@@ -800,7 +783,7 @@ contains
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
        if (tod%compressed_tod) then
-          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
+          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
        else
           allocate(self%d(i)%tod(m))
           call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -1686,20 +1669,21 @@ contains
     real(sp),        dimension(:,:), intent(in), optional :: tod_arr
 
     
-    real(dp)     :: chisq, d0, g
+    real(dp)     :: chisq, d0, g, b
     integer(i4b) :: i, n
 
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain
+    b           = self%scans(scan)%d(det)%baseline
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
        if (present(tod_arr)) then
-         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i))
+         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i) + b)
        else
          d0    = self%scans(scan)%d(det)%tod(i) - &
-           &  (g * s_spur(i) + n_corr(i))
+           &  (g * s_spur(i) + n_corr(i) + b)
        end if
        if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2

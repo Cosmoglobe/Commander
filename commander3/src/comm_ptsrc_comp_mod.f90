@@ -520,8 +520,7 @@ contains
              end if
           else
              if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
-                !write(unit,fmt='(2f10.4,2f16.3,4f8.3,f12.3,2a)') &
-                write(unit, *) &
+                write(unit,fmt='(2f10.4,2f16.3,4f8.3,f12.3,2a)') &
                      & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
                      & self%x(i,1)*self%cg_scale, self%src(i)%amp_rms(1), self%src(i)%theta(:,1), &
                      & self%src(i)%theta_rms(:,1), min(self%src(i)%red_chisq,10000.d0), '  ', &
@@ -1560,7 +1559,7 @@ contains
     if (trim(operation) == 'optimize') then
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
-          if (self%myid == 0) write(*,*) 'iter', iter2, n_gibbs
+          if (self%myid == 0 .and. k<20) write(*,*) 'iter', iter2, n_gibbs
           do p = 1, self%nmaps
              do k = 1, self%nsrc             
                 p_lnL       = p

@@ -386,15 +386,7 @@ contains
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
-
-       if (cpar%myid_chain == 0) then
-         write(*,*) 'Processing ', trim(data(i)%label)
-       end if
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
-       if (cpar%myid_chain == 0) then
-         write(*,*) 'Finished processing ', trim(data(i)%label)
-         write(*,*) ''
-       end if
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
