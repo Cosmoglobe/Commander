@@ -840,7 +840,8 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 
 
-    alpha = -1
+    # From Jarosik et al. 2003, Figure 3.
+    alpha = -1.7
 
     nside = 512
     ntodsigma = 100
