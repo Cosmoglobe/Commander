@@ -246,7 +246,33 @@ contains
     real(dp),          allocatable, dimension(:,:)    :: m
     real(dp),          allocatable, dimension(:)      :: buffer, buffer2, rgs, chisq, theta_pixreg_prop, theta_delta_prop
     integer(c_int),    allocatable, dimension(:)      :: maxit
+    real(dp)     :: theta_max, theta_min
+    logical      :: outside_limit
 
+
+    !  Subroutine to sample the (non-linear) diffuse component spectral parameters
+    !  using an MCMC alm sampler, rather than pixel-by-pixel (or local) sampling.
+    !
+    !  Some specifications of the behaviour of the alm-sampler is defined in the 
+    !  Commander parameter file, see documentation.
+    !
+    !  Returns the sampled alms of the diffuse component's spectral parameter.
+    !  This is done internally through updating the component's alm directly.
+    !  There are no return arguments in this routine, except for the RNG handle.
+    !
+    !  Arguments (fixed):
+    !  ------------------
+    !  cpar: comm_params
+    !     a class containing all parameters read in from the Commander parameter file 
+    !  iter: integer(i4b)
+    !     Gibbs chain sample number.
+    !  handle: planck_rng
+    !     Random number generator handle (or current seed)
+    !  comp_id: integer(i4b)
+    !     Component id number of the component being sampled. Reference in the compList
+    !  par_id: integer(i4b)
+    !     id number for the spectral parameter to be sampled in the given component.
+    
 
     ! Sample spectral parameter (parid) for the given signal component
     allocate(status_fit(numband))
@@ -288,6 +314,8 @@ contains
        optimize = cpar%almsamp_optimize
        apply_prior = cpar%almsamp_apply_prior
        thresh = FLOAT(check_every)*0.8d0 !40.d0 ! 40.d0
+       theta_min = c%p_uni(1,par_id) !hard lower prior on theta (i.e. parameter) 
+       theta_max = c%p_uni(2,par_id) !hard upper prior on theta (i.e. parameter) 
 
        if (info%myid == 0 .and. c%L_read(j)) then
           write(*,*) "Sampling with cholesky matrix"
@@ -468,18 +496,30 @@ contains
                 ! --------- region sampling start
                 !c%theta_pixreg(c%npixreg(pl,j),pl,j) = 0.d0 ! Just remove the last one for safe measure
                 if (info%myid == 0) then
-                   ! Save old values
-                   theta_pixreg_prop = c%theta_pixreg(:c%npixreg(pl,j),pl,j)
+                   q = 0 
+                   outside_limit = .true.
+                   do while (outside_limit) 
+                      q = q + 1
+                      ! Save old values
+                      theta_pixreg_prop = c%theta_pixreg(:c%npixreg(pl,j),pl,j)
                    
-                   rgs = 0.d0
-                   do p = 1, c%npixreg(pl,j)
-                      rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
-                   end do
+                      rgs = 0.d0
+                      do p = 1, c%npixreg(pl,j)
+                         rgs(p) = c%steplen(pl,j)*rand_gauss(handle)     
+                      end do
                    
-                   ! Only propose change to regions not frozen
-                   theta_delta_prop = matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
-                   do p = 1, c%npixreg(pl,j)
-                      if (.not. c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = theta_pixreg_prop(p) + theta_delta_prop(p)
+                      ! Only propose change to regions not frozen
+                      theta_delta_prop = matmul(c%L(:c%npixreg(pl,j), :c%npixreg(pl,j), pl, j), rgs)  !0.05d0*rgs
+                      do p = 1, c%npixreg(pl,j)
+                         if (.not. c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = theta_pixreg_prop(p) + theta_delta_prop(p)
+                      end do
+                      
+                      if (all(theta_pixreg_prop < theta_max) .and. all(theta_pixreg_prop > theta_min)) outside_limit = .false.
+                      
+                      if (q >= 1000) then !just to not get stucked close to a hard limit
+                         theta_pixreg_prop = c%theta_pixreg(:c%npixreg(pl,j),pl,j) !no proposed change
+                         outside_limit = .false.
+                      end if
                    end do
                 end if
 
@@ -748,7 +788,21 @@ contains
 
                    do p = 1, c%npixreg(pl,j)
                       !if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%p_gauss(1,j) + rand_gauss(handle)*c%p_gauss(2,j)
-                      if (c%fix_pixreg(p,pl,j)) theta_pixreg_prop(p) = c%pixreg_priors(p,pl,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                      if (c%fix_pixreg(p,pl,j)) then
+                         q = 0
+                         outside_limit=.true.
+                         do while (outside_limit)
+                            q = q + 1
+                            !draw a new pixel region value from prior
+                            theta_pixreg_prop(p) = c%pixreg_priors(p,pl,j) + rand_gauss(handle)*c%p_gauss(2,j)
+                            !check if we are outside hard priors, if so, draw new sample
+                            if (theta_pixreg_prop(p) < theta_max .and. theta_pixreg_prop(p) > theta_min) outside_limit = .false.
+                            if (q > 1000) then !in case the prior RMS is high and we constantly end up outside hard limits
+                               theta_pixreg_prop(p) = c%pixreg_priors(p,pl,j) !set to prior value
+                               outside_limit = .false.
+                            end if
+                         end do
+                      end if
                    end do
                 end if
 
