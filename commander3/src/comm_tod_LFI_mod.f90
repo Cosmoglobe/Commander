@@ -60,6 +60,7 @@ module comm_tod_LFI_mod
      ! type(adc_pointer), allocatable, dimension(:,:,:,:)   :: adc_corrections ! ndet, n_diode, (sky, load)
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
+     real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
    contains
      procedure     :: process_tod             => process_LFI_tod
      procedure     :: diode2tod_inst          => diode2tod_LFI
@@ -240,6 +241,7 @@ contains
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
     allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode, 2))
     allocate(constructor%ref_splint(constructor%ndet,constructor%ndiode/2))
+    allocate(constructor%R(constructor%nscan,constructor%ndet,constructor%ndiode/2))
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -688,8 +690,8 @@ contains
 
     ! read in the diode weights
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', weight)
-    self%diode_weights(band,1:1) = weight
-    self%diode_weights(band,2:2) = 1.d0 - weight
+    self%diode_weights(band,1) = weight
+    self%diode_weights(band,2) = 1.d0 - weight
 
     do i=0, 1
       if(index(self%label(band), 'M') /= 0) then
@@ -765,6 +767,8 @@ contains
     allocate(pix(self%scans(scan)%ntod), mask(self%scans(scan)%ntod))
     do i=1, self%ndet
 
+       if (.not. self%scans(scan)%d(i)%accept) cycle
+
         ! Decompress diode TOD for current scan
         call self%decompress_diodes(scan, i, diode_data, pix=pix)
 
@@ -807,16 +811,22 @@ contains
           end if
 
         end do
+
+        if (r1 == 0.d0 .or. r2 == 0.d0 .or. sum1 == 0.d0 .or. sum2 == 0.d0) then
+           self%scans(scan)%d(i)%accept = .false.
+           cycle
+        end if
               
         ! average sky value/average load value
-        r1 = (r1/n_mask)/(sum1/size(corrected_data(:,1)))
-        r2 = (r2/n_mask)/(sum2/size(corrected_data(:,1)))
+        self%R(scan,i,1) = (r1/n_mask)/(sum1/size(corrected_data(:,1)))
+        self%R(scan,i,2) = (r2/n_mask)/(sum2/size(corrected_data(:,1)))
+        
 
         ! Compute output differenced TOD
 
         !w1(sky00 - R*ref00) + w2(sky01 - R*ref01)
         !if(self%myid == 0) write(*,*) r1, r2, n_mask, size(diode_data(:,1))
-        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - r1 * corrected_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - r2 * corrected_data(:,3))
+        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - self%R(scan,i,1) * corrected_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - self%R(scan,i,2) * corrected_data(:,3))
         !tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - filtered_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - filtered_data(:,3))
         !tod(:,i) = (corrected_data(:,1) - corrected_data(:,3)) + (corrected_data(:,2) - corrected_data(:,4))
         
@@ -1058,19 +1068,27 @@ contains
     character(len=*),                    intent(in)     :: path
 
     integer(i4b) :: ierr
-    real(dp), allocatable, dimension(:,:) :: amp, amp_tot
+    real(dp), allocatable, dimension(:,:)   :: amp, amp_tot
+    real(dp), allocatable, dimension(:,:,:) :: R, R_tot
 
     allocate(amp(self%nscan_tot,self%ndet), amp_tot(self%nscan_tot,self%ndet))
     amp = 0.d0
     amp(self%scanid,:) = self%spike_amplitude
     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
+    allocate(R(self%nscan_tot,self%ndet,self%ndiode/2), R_tot(self%nscan_tot,self%ndet,self%ndiode/2))
+    R = 0.d0
+    R(self%scanid,:,:) = self%R
+    call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+
     if (self%myid == 0) then
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_temp', self%spike_templates)
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_ampl', amp_tot)
+       call write_hdf(chainfile, trim(adjustl(path))//'R_factor', R_tot)
+       call write_hdf(chainfile, trim(adjustl(path))//'w_diode', self%diode_weights)
     end if
 
-    deallocate(amp, amp_tot)
+    deallocate(amp, amp_tot, R, R_tot)
 
   end subroutine dumpToHDF_LFI
 
