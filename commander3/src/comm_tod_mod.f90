@@ -1846,7 +1846,7 @@ contains
 
   end subroutine decompress_pointing_and_flags
 
-  subroutine decompress_diodes(self, scan, det, diodes, flag)
+  subroutine decompress_diodes(self, scan, det, diodes, flag, pix)
     ! Decompress per-diode tod information
     ! 
     ! Inputs:
@@ -1868,6 +1868,7 @@ contains
     integer(i4b),                       intent(in)  :: scan, det
     real(sp),          dimension(:,:),  intent(out) :: diodes
     integer(i4b),      dimension(:),    intent(out), optional :: flag
+    integer(i4b),      dimension(:),    intent(out), optional :: pix
 
     integer(i4b) :: i, j
     real(sp)     :: tot
@@ -1896,6 +1897,10 @@ contains
 
     if (present(flag)) then
        call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    end if
+
+    if (present(pix)) then ! this assumes nhorn = 1, sorry future person
+      call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(1)%p, pix)
     end if
 
   end subroutine decompress_diodes
@@ -1999,7 +2004,7 @@ contains
   ! Generic deferred routines that do not do anything
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine diode2tod_inst(self, scan, tod)
+  subroutine diode2tod_inst(self, scan, procmask, tod)
     ! 
     ! Generates detector-coadded TOD from low-level diode data
     ! 
@@ -2018,6 +2023,7 @@ contains
     implicit none
     class(comm_tod),                     intent(inout) :: self
     integer(i4b),                        intent(in)    :: scan
+    real(sp),          dimension(:),     intent(in)    :: procmask
     real(sp),          dimension(:,:),   intent(out)   :: tod
     tod = 0.
   end subroutine diode2tod_inst

@@ -266,7 +266,7 @@ contains
         allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
         allocate(flag(constructor%scans(k)%ntod))
 
-        call constructor%decompress_diodes(k, i, diode_data)
+        call constructor%decompress_diodes(k, i, diode_data, flag=flag)
 
         do j = 1, constructor%ndiode
           horn=1
@@ -336,6 +336,8 @@ contains
 
       end do
 
+      !if(constructor%myid == 0) write(*,*) filter_sum, filter_count
+
       ! Mpi average the load filter over all cores, save as a spline
       call mpi_allreduce(MPI_IN_PLACE, filter_count, 1, MPI_INTEGER, MPI_SUM, constructor%info%comm, ierr)
       call mpi_allreduce(MPI_IN_PLACE, filter_sum, size(filter_sum), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
@@ -355,9 +357,17 @@ contains
 
       ! HKE: Should probably manually add a regularization bin at the end, so that the spline doesn't go crazy for frequencies between the last bin center and fsamp/2
       filter_sum = filter_sum/filter_count
-      if (constructor%myid == 0) write(*,*) nu_saved
+      !if (constructor%myid == 0) write(*,*) nu_saved
       do j=1, constructor%ndiode/2
         call spline_simple(constructor%ref_splint(i,j), nu_saved, filter_sum(j,:))
+        !if (constructor%myid == 0) then
+        !  open(100, file=trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j+2))//'.dat')
+        !  do k = 1, size(nu_saved)
+        !    write(100, fmt='(f30.8,f30.8)') nu_saved(k), filter_sum(j,k)
+        !  end do
+        !  close(100)
+        !  write(*,*) 'Writing file ', trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))//'.dat'
+        !end if
       end do
 
     end do
@@ -721,7 +731,7 @@ contains
 
   end subroutine load_instrument_LFI
   
-  subroutine diode2tod_LFI(self, scan, tod)
+  subroutine diode2tod_LFI(self, scan, procmask, tod)
     ! 
     ! Generates detector-coadded TOD from low-level diode data
     ! 
@@ -731,6 +741,8 @@ contains
     !           TOD object
     ! scan:     int
     !           Scan ID number
+    ! procmask: array of sp
+    !           processing mask that cuts out the galaxy
     !
     ! Returns
     ! ----------
@@ -740,17 +752,21 @@ contains
     implicit none
     class(comm_LFI_tod),                 intent(inout) :: self
     integer(i4b),                        intent(in)    :: scan
+    real(sp),          dimension(0:),    intent(in)    :: procmask
     real(sp),          dimension(:,:),   intent(out)   :: tod
 
-    integer(i4b) :: i,j,k,half,horn
+    integer(i4b) :: i,j,k,half,horn,n_mask
     real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data
+    integer(i4b), allocatable, dimension(:) :: pix, mask
+    real(dp) :: r1, r2, sum1, sum2
 
     allocate(diode_data(self%scans(scan)%ntod, self%ndiode))
     allocate(corrected_data(self%scans(scan)%ntod, self%ndiode))
+    allocate(pix(self%scans(scan)%ntod), mask(self%scans(scan)%ntod))
     do i=1, self%ndet
 
         ! Decompress diode TOD for current scan
-        call self%decompress_diodes(scan, i, diode_data)
+        call self%decompress_diodes(scan, i, diode_data, pix=pix)
 
         ! Apply ADC corrections
 
@@ -771,10 +787,36 @@ contains
         ! Wiener-filter load data         
         call self%filter_reference_load(i, corrected_data)
         
+        ! Compute the gain modulation factors
+
+        r1 = 0.d0
+        r2 = 0.d0
+        sum1 = 0.d0
+        sum2 = 0.d0
+        n_mask = 0
+
+        do k = 1, size(corrected_data(:,1))
+
+          sum1 = sum1 + corrected_data(k,1)
+          sum2 = sum2 + corrected_data(k,3)
+
+          if (procmask(pix(k)) .ne. 0) then 
+            r1 = r1 + corrected_data(k,2)
+            r2 = r2 + corrected_data(k,4)
+            n_mask = n_mask + 1
+          end if
+
+        end do
+              
+        ! average sky value/average load value
+        r1 = (r1/n_mask)/(sum1/size(corrected_data(:,1)))
+        r2 = (r2/n_mask)/(sum2/size(corrected_data(:,1)))
+
         ! Compute output differenced TOD
 
-        !w1(sky00 - ref00) + w2(sky01 - ref01)
-        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - corrected_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - corrected_data(:,3))
+        !w1(sky00 - R*ref00) + w2(sky01 - R*ref01)
+        !if(self%myid == 0) write(*,*) r1, r2, n_mask, size(diode_data(:,1))
+        tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - r1 * corrected_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - r2 * corrected_data(:,3))
         !tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - filtered_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - filtered_data(:,3))
         !tod(:,i) = (corrected_data(:,1) - corrected_data(:,3)) + (corrected_data(:,2) - corrected_data(:,4))
         
@@ -907,18 +949,20 @@ contains
          subsum          = 0.d0  ! Summing variable
          k               = 0     ! Number of frequencies in current bin
          do while (nu <= upper)
-            subsum = subsum + filter(j)
+            subsum = subsum + filter(j-1)
             k      = k+1
             j      = j+1
             nu     = nu + delta_nu
          end do
-         !write(*,*) nsmooth, nu_out(nsmooth), nu, sqrt(nu_out(nsmooth)*nu)
+         !write(*,*) nsmooth, nu_out(nsmooth), nu, fsamp/2, sqrt(nu_out(nsmooth)*nu)
          nu_out(nsmooth) = sqrt(nu_out(nsmooth) * nu)
          if (k > 0) binned_out(i, nsmooth) = binned_out(i, nsmooth) + subsum/k
          nsmooth = nsmooth+1
       end do
 
     end do
+
+    !if(self%myid == 0) write(*,*) binned_out, size(binned_out), size(nu_out)
 
     call sfftw_destroy_plan(plan_fwd)
 
