@@ -121,7 +121,7 @@ contains
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       if (trim(constructor%freq) == '023-WMAP_K') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.05]  ! fknee
+         constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
@@ -550,7 +550,7 @@ contains
       end if
 
       ! Doing this now because it's still burning in...
-      if (mod(iter-1,self%output_aux_maps) == 0) then
+      !if (mod(iter-1,10*self%output_aux_maps) == 0) then
         ! Solve for maps
         call update_status(status, "Starting bicg-stab")
         do l=1, self%output_n_maps
@@ -562,7 +562,7 @@ contains
                           & prefix, postfix)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
-      end if
+      !end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
