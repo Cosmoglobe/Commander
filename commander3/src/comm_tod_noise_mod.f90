@@ -105,7 +105,7 @@ contains
        N_wn     = sigma_0**2  ! white noise power spectrum
 
        ! Prepare TOD residual
-       d_prime = tod(:,i) - gain * S_sub(:,i)
+       d_prime = tod(:,i) - self%scans(scan)%d(i)%baseline - gain * S_sub(:,i)
 
        ! Fill gaps in data 
        init_masked_region = .true.

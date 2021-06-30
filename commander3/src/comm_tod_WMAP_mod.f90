@@ -115,54 +115,17 @@ contains
       constructor%noise_psd_model = 'oof'
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
-  
-     ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
-     ! 46.5 mHz. 
+    
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      if (trim(constructor%freq) == '023-WMAP_K') then
+      if (.true.) then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '060-WMAP_V2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
-      else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_P_uni(2,:) = [0.001, 0.250]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.4]    ! alpha
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
          stop
       end if
+
 
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
@@ -319,9 +282,7 @@ contains
       ! Toggle optional operations
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-      select_data           = .false.                ! only perform data selection the first time
-      ! The first couple of iterations have quite bad chi-square for certain
-      ! detectors, but it quickly settles down.
+      select_data           = self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
       ! Initialize local variables
@@ -330,7 +291,7 @@ contains
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
-      self%output_n_maps = 1
+      self%output_n_maps = 3
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
       end if
@@ -343,10 +304,8 @@ contains
 
       ! Distribute maps
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      allocate(map_full(0:npix-1))
-      map_full = 0.d0
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
-      call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
+      call distribute_sky_maps(self, map_in, 1., map_sky) ! K to K?
 
       ! Distribute processing masks
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -354,10 +313,9 @@ contains
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
       deallocate(m_buf)
 
-
-
-
       ! Allocate total map (for monopole sampling)
+      allocate(map_full(0:npix-1))
+      map_full = 0.d0
 
 
       ! Precompute far sidelobe Conviqt structures
@@ -373,15 +331,38 @@ contains
 
       call update_status(status, "tod_init")
 
+      !if (self%myid == 0) then
+      !  write(*,*) 'Input map statistics, I/Q/U'
+      !  write(*,*) minval(map_sky(1,:,:,1)), maxval(map_sky(1,:,:,1)), minval(abs(map_sky(1,:,:,1))), sum(map_sky(1,:,:,1)), sum(abs(map_sky(1,:,:,1)))
+      !  write(*,*) minval(map_sky(2,:,:,1)), maxval(map_sky(2,:,:,1)), minval(abs(map_sky(2,:,:,1))), sum(map_sky(2,:,:,1)), sum(abs(map_sky(2,:,:,1)))
+      !  write(*,*) minval(map_sky(3,:,:,1)), maxval(map_sky(3,:,:,1)), minval(abs(map_sky(3,:,:,1))), sum(map_sky(3,:,:,1)), sum(abs(map_sky(3,:,:,1)))
+      !end if
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
       call sample_baseline(self, handle, map_sky, procmask, procmask2)
+      !do i = 1, self%nscan
+      !  if (self%scanid(i) == 30) then
+      !    call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+      !      & init_s_bp=.true.)
+      !    write(*,*) "S_orb"
+      !    write(*,*) sd%tod(1,1), sd%s_orb(1,1)
+      !    write(*,*) sd%tod(1,2), sd%s_orb(1,2)
+      !    write(*,*) sd%tod(1,3), sd%s_orb(1,3)
+      !    write(*,*) sd%tod(1,4), sd%s_orb(1,4)
+      !    write(*,*) 'baseline', self%scans(i)%d(1)%baseline
+      !    do j = 1, 4
+      !      write(*,*) 'j, sum(sd%s_sky(:,j), sum(sd%s_orb(:,j))', j, sum(sd%s_sky(:,j)), sum(sd%s_orb(:,j))
+      !    end do
+      !    call sd%dealloc
+      !  end if
+      !end do
+      ! The baseline sampling and the orbital dipole template seem to be exactly
+      ! the same. Something must be strange with the accumulation step.
       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2)
-      ! Write out the way that WMAP calculated the imbalance parameters.
 
 
 
@@ -444,12 +425,9 @@ contains
             call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
               & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
          end do
-         ! Should we be computing the chisq of the sums and differences?
-         ! I also think I just need to double check the chisq calculation,
-         ! because to me, the fit looks quite good.
 
          ! Select data
-         if (select_data) call remove_bad_data(self, i, sd%flag)
+         ! if (select_data) call remove_bad_data(self, i, sd%flag)
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
@@ -457,40 +435,36 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.false. .and. i==1 .and. mod(iter,10) == 0) then
+         if (.false. .and. i==1 .and. self%first_call) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
-               open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'_samp'//samptext//'.dat', recl=1024)
-               write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  sky (mK)  "// &
-                    & " s_orb (mK),  mask, baseline, sl, bp, gain, sigma0"
+               open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'.dat', recl=1024)
+               write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  skyA (mK)  skyB (mK)"// &
+                    & " s_orbA (mK)  s_orbB (mK)  mask, baseline, flag"
                do j = 1, sd%ntod
                   write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
-                   &  sd%s_totA(j,k), sd%s_orbA(j,k), &
-                   &  sd%s_totB(j,k), sd%s_orbB(j,k), &
-                   &  sd%mask(j, k), self%scans(i)%d(k)%baseline, &
-                   &  sd%s_sl(j,k),  sd%s_bp(j,k), real(self%scans(i)%d(k)%gain, sp), &
-                   &  real(self%scans(i)%d(k)%N_psd%sigma0, sp)
+                   &  sd%s_sky(j,k), sd%s_orb(j,k), sd%mask(j, k), self%scans(i)%d(k)%baseline
                end do
                close(78)
             end do
          end if
          
          ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-         ! if (self%output_4D_map > 0) then
-         !    if (mod(iter-1,self%output_4D_map) == 0) then
-         !       allocate(sigma0(sd%ndet))
-         !       do j = 1, sd%ndet
-         !          sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
-         !       end do
-         !       call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-         !            & samptext, self%scanid(i), self%nside, self%npsi, &
-         !            & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-         !            & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-         !            & self%scans(i)%d(:)%accept)
-         !       deallocate(sigma0)
-         !    end if
-         ! end if
+         if (self%output_4D_map > 0) then
+            if (mod(iter-1,self%output_4D_map) == 0) then
+               allocate(sigma0(sd%ndet))
+               do j = 1, sd%ndet
+                  sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
+               end do
+               call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+                    & samptext, self%scanid(i), self%nside, self%npsi, &
+                    & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
+                    & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+                    & self%scans(i)%d(:)%accept)
+               deallocate(sigma0)
+            end if
+         end if
 
          ! Bin TOD
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
@@ -529,40 +503,28 @@ contains
       where (M_diag == 0d0)
          M_diag = 1d0
       end where
-      ! If we want to not do the "better preconditioning"
-      M_diag(:,4) = 0d0
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
       allocate (bicg_sol(0:npix-1, nmaps, self%output_n_maps))
-      allocate(m_buf(0:npix-1,nmaps))
-      call map_in(1,1)%p%bcast_fullsky_map(m_buf)
-      bicg_sol = 0.0d0
-      !bicg_sol(:,:,1) = m_buf
-      deallocate(m_buf)
-
-      epsil(1)   = 1d-10
-      !epsil(1)   = 1d-8
-      epsil(2:6) = 1d-6
-      num_cg_iters = 0
       if (self%myid == 0) then 
+         bicg_sol = 0.0d0
+         epsil(1)   = 1d-10
+         epsil(2:6) = 1d-6
+         num_cg_iters = 0
          if (self%verbosity > 0) write(*,*) '  Running BiCG'
       end if
 
-      ! Doing this now because it's still burning in...
-      !if (mod(iter-1,10*self%output_aux_maps) == 0) then
-        ! Solve for maps
-        call update_status(status, "Starting bicg-stab")
-        do l=1, self%output_n_maps
-           if (self%verbosity > 0 .and. self%myid == 0) then
-             write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
-           end if
-           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                          & epsil(l), procmask, map_full, M_diag, b_map, l, &
-                          & prefix, postfix)
-        end do
-        if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
-      !end if
+      ! Solve for maps
+      call update_status(status, "Starting bicg-stab")
+      do l=1, self%output_n_maps
+         if (self%verbosity > 0 .and. self%myid == 0) then
+           write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+         end if
+         call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+                          & epsil(l), procmask, map_full, M_diag, b_map, l)
+      end do
+      if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)

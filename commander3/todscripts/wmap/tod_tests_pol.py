@@ -47,7 +47,7 @@ files = glob(prefix + 'tods/uncalibrated/*.fits')
 files.sort()
 data = fits.open(files[file_num])
 
-version=41
+version=24
 
 allbands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
