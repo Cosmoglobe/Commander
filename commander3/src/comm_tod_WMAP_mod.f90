@@ -120,45 +120,45 @@ contains
      ! 46.5 mHz. 
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200]   
+         constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200]  
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200] 
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200]
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200]
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200] 
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    ! More than max(2*fknee_DPC)
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]    ! alpha
+         constructor%xi_n_nu_fit     = [0.0, 0.200]  
+         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
          stop
