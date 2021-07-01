@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Module to find FFTW3 on the system
 # It looks for DOUBLE, FLOAT and LONG components, such as:
 # serial, openmp, threads and mpi

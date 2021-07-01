@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Description: This script contains general instructions on how to fetch and build 
 # Commander3 and all its dependencies. It is split into three parts, each containing 
 # its set of instaructions/variables. It is done for easier maintenance. 
@@ -30,7 +28,7 @@
 # [ ] Change URL_MD5 to URL_HASH of every project;
 # [x] Change compiler variables from list to string (but leave APPEND); <= doesn't work this way
 # [ ] Remove include_directory() and use target_include_directory() instead (for commander3 target);
-# [x] Add one variable which will force all libraries to be recompiled;
+# [ ] Add one variable which will force all libraries to be recompiled;
 
 #------------------------------------------------------------------------------
 # including compiler definitions
@@ -59,7 +57,6 @@ list(APPEND projects
 	hdf5
 	doxygen
 	healpix
-	camb
 	commander3
 	)
 #==============================================================================
