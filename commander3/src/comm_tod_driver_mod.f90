@@ -128,7 +128,7 @@ contains
           end if
        end do
     else
-       call tod%diode2tod_inst(scan, self%tod)
+       call tod%diode2tod_inst(scan, procmask, self%tod)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
@@ -303,7 +303,7 @@ contains
           end if
        end do
     else
-       call tod%diode2tod_inst(scan, self%tod)
+       call tod%diode2tod_inst(scan, procmask, self%tod)
     end if
 
     ! Construct sky signal template

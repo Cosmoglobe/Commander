@@ -691,9 +691,9 @@ contains
      allocate(precond(nscan))
      allocate(fourier_fluctuations(n))
 
-     write(*, *) 'Sigma_0: ', sigma_0
-     write(*, *) 'alpha: ', alpha
-     write(*, *) 'fknee: ', fknee
+!!$     write(*, *) 'Sigma_0: ', sigma_0
+!!$     write(*, *) 'alpha: ', alpha
+!!$     write(*, *) 'fknee: ', fknee
 
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
      if (sample) then
@@ -868,7 +868,7 @@ contains
          residual = new_residual
          z = new_z
          iterations = iterations + 1
-         if (mod(iterations, 100) == 0) then
+         if (.false. .and. mod(iterations, 100) == 0) then
             write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
 !            call int2string(iterations, itext)
 !            open(58, file='gain_cg_' // itext // '.dat')
@@ -894,7 +894,7 @@ contains
 !     else
 !        write(*, *) "Without preconditioner"
 !     end if
-     write(*, *) "Gain CG iterations: ", iterations
+     !write(*, *) "Gain CG iterations: ", iterations
      solve_cg_gain = prop_sol
 
      deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)

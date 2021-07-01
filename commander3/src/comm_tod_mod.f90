@@ -291,6 +291,8 @@ contains
        self%n_xi = 3  ! {sigma0, fknee, alpha}
     else if (trim(self%noise_psd_model) == '2oof') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, fknee2, alpha2}
+    else if (trim(self%noise_psd_model) == 'oof_gauss') then
+       self%n_xi = 6  ! {sigma0, fknee, alpha, amp, loc, sigma}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
        stop
@@ -678,6 +680,7 @@ contains
     character(len=*), dimension(:,:), intent(in)  :: diode_names
 
     integer(i4b)       :: i,j,k, n, m, ext(1)
+    real(sp)           :: nu
     real(dp)           :: scalars(4)
     character(len=6)   :: slabel
     character(len=128) :: field
@@ -737,6 +740,23 @@ contains
           xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
           xi_n(5) = -1.000 ! alpha2; arbitrary value
           self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+
+       else if (trim(tod%noise_psd_model) == 'oof_gauss') then
+          xi_n(4) =  0.00d0
+          xi_n(5) =  1.35d0
+          xi_n(6) =  0.40d0
+          self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+
+!!$          open(58,file='noise.dat')
+!!$          nu = 0.001d0 
+!!$          do while (.true.)
+!!$             write(58,*) nu, self%d(i)%N_psd%eval_full(nu)
+!!$             nu = nu * 1.2d0
+!!$             if (nu > tod%samprate) exit
+!!$          end do
+!!$          close(58)
+!!$          stop
+
        end if
        deallocate(xi_n)
 
@@ -1147,23 +1167,25 @@ contains
     type(hdf_file),                    intent(in)    :: chainfile
     class(comm_map),                   intent(inout) :: map, rms
 
-    integer(i4b)       :: i, j, k, npar, ierr
+    integer(i4b)       :: i, j, k, npar, ierr, ext(3)
     character(len=6)   :: itext
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
 
-    npar = 2+self%n_xi
-    allocate(output(self%nscan_tot,self%ndet,npar))
-
     call int2string(iter, itext)
     path = trim(adjustl(itext))//'/tod/'//trim(adjustl(self%freq))//'/'
+
+    call get_size_hdf(chainfile, trim(adjustl(path))//'xi_n', ext)
+    npar = 2+ext(3)
+    allocate(output(self%nscan_tot,self%ndet,npar))
+
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
 !       call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
 !       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
 !       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
-       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,2:4))
-       call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,5))
+       call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,2))
+       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,3:npar))
 !       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
@@ -1191,10 +1213,10 @@ contains
     do j = 1, self%ndet
        do i = 1, self%nscan
           k             = self%scanid(i)
-          self%scans(i)%d(j)%gain       = output(k,j,1)
-          self%scans(i)%d(j)%dgain      = output(k,j,1)-self%gain0(0)-self%gain0(j)
-          self%scans(i)%d(j)%N_psd%xi_n = output(k,j,2:4)
-          self%scans(i)%d(j)%accept     = .true.  !output(k,j,5) == 1.d0
+          self%scans(i)%d(j)%gain                 = output(k,j,1)
+          self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
+          self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:npar)
+          self%scans(i)%d(j)%accept               = .true.  !output(k,j,5) == 1.d0
           !if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
           !if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
@@ -1824,7 +1846,7 @@ contains
 
   end subroutine decompress_pointing_and_flags
 
-  subroutine decompress_diodes(self, scan, det, diodes, flag)
+  subroutine decompress_diodes(self, scan, det, diodes, flag, pix)
     ! Decompress per-diode tod information
     ! 
     ! Inputs:
@@ -1846,6 +1868,7 @@ contains
     integer(i4b),                       intent(in)  :: scan, det
     real(sp),          dimension(:,:),  intent(out) :: diodes
     integer(i4b),      dimension(:),    intent(out), optional :: flag
+    integer(i4b),      dimension(:),    intent(out), optional :: pix
 
     integer(i4b) :: i, j
     real(sp)     :: tot
@@ -1874,6 +1897,10 @@ contains
 
     if (present(flag)) then
        call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    end if
+
+    if (present(pix)) then ! this assumes nhorn = 1, sorry future person
+      call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(1)%p, pix)
     end if
 
   end subroutine decompress_diodes
@@ -1977,7 +2004,7 @@ contains
   ! Generic deferred routines that do not do anything
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine diode2tod_inst(self, scan, tod)
+  subroutine diode2tod_inst(self, scan, procmask, tod)
     ! 
     ! Generates detector-coadded TOD from low-level diode data
     ! 
@@ -1996,6 +2023,7 @@ contains
     implicit none
     class(comm_tod),                     intent(inout) :: self
     integer(i4b),                        intent(in)    :: scan
+    real(sp),          dimension(:),     intent(in)    :: procmask
     real(sp),          dimension(:,:),   intent(out)   :: tod
     tod = 0.
   end subroutine diode2tod_inst
