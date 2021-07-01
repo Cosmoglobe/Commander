@@ -292,6 +292,7 @@ contains
        else
           self%tod(:,j) = tod%scans(scan)%d(j)%tod
        end if
+       self%tod(:,j) = self%tod(:,j) - tod%scans(scan)%d(j)%baseline
     end do
 
     ! Construct sky signal template
@@ -373,8 +374,10 @@ contains
     if (tod%correct_sl) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 0d0)
-          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), 0d0)
+          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
+          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
+          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 0d0)
+          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), 0d0)
           self%s_sl(:,j)  = 2.*((1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j))
           self%s_tot(:,j) = self%s_tot(:,j) + self%s_sl(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + 2.*s_bufA(:,j)
@@ -538,8 +541,7 @@ contains
              if (.not. tod%scans(i)%d(j)%accept) cycle
              if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_orb(:,j)) + &
-                     & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j) + &
-                     & tod%scans(i)%d(j)%baseline
+                     & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'abscal' .and. .not. tod%orb_abscal) then
                 s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'relcal') then
@@ -547,8 +549,8 @@ contains
              else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
                  s_buf(:,j) = real(tod%scans(i)%d(j)%gain,sp) * (  &
              &   sd%s_totA(:,j) - sd%s_totB(:,j) + &
-             &   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j))  &
-             & - real(tod%x_im(j),sp)*(sd%s_orbA(:,j) + sd%s_orbB(:,j))  &
+             &   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j)   &
+             &                       -(sd%s_orbA(:,j) + sd%s_orbB(:,j))) &
              &   )
              else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
@@ -630,6 +632,10 @@ contains
        end if
 
        do j = 1, tod%ndet
+          ! Return the data to its raw state
+          sd%tod(:,j) = sd%tod(:,j) + tod%scans(i)%d(j)%baseline
+
+          ! Estimate the baseline and sample it if requested
           tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
             & *sd%mask(:,j))/sum(sd%mask(:,j))
           if (trim(tod%operation) == 'sample') then
@@ -644,16 +650,6 @@ contains
        tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
        call sd%dealloc
     end do
-    !do j = 1, tod%ndet
-    !  if (tod%myid == 0) then
-    !    call sd%init_differential(tod, 1, map_sky, procmask, procmask2)
-    !    write(*,*) 'Detector',j
-    !    write(*,*) tod%scans(1)%d(j)%baseline
-    !    write(*,*) sum(sd%tod(:,j))/size(sd%tod(:,j))
-    !    write(*,*) sum(sd%tod(:,j) - tod%scans(1)%d(j)%baseline)/size(sd%tod(:,j))
-    !    call sd%dealloc
-    !  end if
-    !end do
 
   end subroutine sample_baseline
 
@@ -765,10 +761,10 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        inv_gain = 1.0 / tod%scans(scan)%d(j)%gain
        if (tod%compressed_tod) then
-        d_calib(1,:,j) = (sd%tod(:,j) - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+        d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        else
-        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        end if
        if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
@@ -787,12 +783,13 @@ contains
 
   end subroutine compute_calibrated_data
 
-  subroutine distribute_sky_maps(tod, map_in, scale, map_out)
+  subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
     implicit none
     class(comm_tod),                       intent(in)     :: tod
     type(map_ptr), dimension(1:,1:),       intent(inout)  :: map_in       ! (ndet,ndelta)    
     real(sp),                              intent(in)     :: scale
     real(sp),      dimension(1:,1:,0:,1:), intent(out)    :: map_out
+    real(dp),      dimension(0:), intent(out), optional   :: map_full
 
     integer(i4b) :: i, j, k, l, npix, nmaps
     real(dp),     allocatable, dimension(:,:) :: m_buf
@@ -807,6 +804,7 @@ contains
           do k = 1, tod%nobs
              map_out(:,k,i,j) = m_buf(tod%ind2pix(k),:)
           end do
+          if (j == 1 .and. present(map_full)) map_full = map_full + m_buf(:,1)
        end do
        do k = 1, tod%nobs
           do l = 1, tod%nmaps
