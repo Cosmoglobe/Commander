@@ -2606,6 +2606,15 @@ contains
 end subroutine read_hdf_vlen
 
 
+subroutine deallocate_hdf_vlen(val)
+  implicit none
+  type(byte_pointer), dimension(:), allocatable, intent(inout) :: val
+
+  ! Deallocate val pointer structure
+
+  !CALL h5dvlen_reclaim_f(memtype, space, H5P_DEFAULT_F, f_ptr, hdferr)
+
+end subroutine deallocate_hdf_vlen
 
 
 

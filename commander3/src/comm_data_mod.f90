@@ -158,6 +158,7 @@ contains
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
           end if
        end if
+       call update_status(status, "data_tod")
 
        ! Initialize beam structures
        allocate(data(n)%B(0:data(n)%ndet)) 

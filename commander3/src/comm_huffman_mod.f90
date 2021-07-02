@@ -23,7 +23,7 @@ module comm_huffman_mod
   implicit none
 
   private get_symbol_int, get_symbol_sp, set_symbols_int, set_symbols_sp, alloc_symbols_int, alloc_symbols_sp
-  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, huffman_decode3
+  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, huffman_decode3, huff_deallocate
 
 
   !TODO: this needs to be generalized somehow to support a sp symbols case 

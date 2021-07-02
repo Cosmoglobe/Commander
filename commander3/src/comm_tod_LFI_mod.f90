@@ -70,6 +70,7 @@ module comm_tod_LFI_mod
      procedure     :: filter_reference_load
      procedure     :: compute_ref_load_filter
      procedure     :: get_nsmooth
+     procedure     :: preprocess_L1_to_L2
   end type comm_LFI_tod
 
   interface comm_LFI_tod
@@ -171,6 +172,7 @@ contains
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
     constructor%ndiode          = 4
+    constructor%sample_L1_par   = .false.
     constructor%compressed_tod  = .true.
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
@@ -375,6 +377,13 @@ contains
 
     end do
     deallocate(nu_saved, filter_sum)
+
+    ! Pre-process L1 data into L2 data if requested, and set ndiode = 1 to skip directly to L2 later on
+    if (.not. constructor%sample_L1_par) then
+       call constructor%preprocess_L1_to_L2
+       constructor%ndiode = 1
+       constructor%compressed_tod = .false.
+    end if
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
@@ -842,7 +851,7 @@ contains
     end do
 !    stop
 
-    deallocate(diode_data, corrected_data)
+    deallocate(diode_data, corrected_data, pix, mask)
 
 !call mpi_finalize(i)
 !stop
@@ -894,7 +903,7 @@ contains
 
     integer(i4b) :: i, j, k, nfft, n, nsmooth
     real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum, nu_low, delta_nu
-    integer*8    :: plan_fwd, plan_back
+    integer*8    :: plan_fwd
 
     real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
     real(dp),     allocatable, dimension(:) :: filter
@@ -916,7 +925,6 @@ contains
     allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1))
     
     call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
-    call sfftw_plan_dft_c2r_1d(plan_back, n, dv_ref, dt_ref, fftw_estimate + fftw_unaligned)
 
     do i = 1, self%ndiode/2
 
@@ -1110,8 +1118,8 @@ contains
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
-    integer(i4b) :: i, j, k, b, ierr, nbin
-    real(dp)     :: dt, t_tot, t
+    integer(i4b) :: i, j, k, bin, ierr, nbin
+    real(dp)     :: dt, t_tot, t, A, b
     real(dp)     :: t1, t2
     character(len=6) :: scantext
     real(dp), allocatable, dimension(:)     :: nval
@@ -1150,9 +1158,9 @@ contains
           do k = 1, tod%scans(i)%ntod
              if (sd%mask(k,j) == 0.) cycle
              t = modulo(tod%scans(i)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
-             b = min(int(t*nbin),nbin-1)
-             s_bin(b,j,i) = s_bin(b,j,i)  + res(k)
-             nval(b)      = nval(b)       + 1.d0
+             bin = min(int(t*nbin),nbin-1)
+             s_bin(bin,j,i) = s_bin(bin,j,i)  + res(k)
+             nval(bin)      = nval(bin)       + 1.d0
           end do
           s_bin(:,j,i) = s_bin(:,j,i) / nval
           s_bin(:,j,i) = s_bin(:,j,i) - mean(s_bin(1:nbin/3,j,i))
@@ -1204,7 +1212,16 @@ contains
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        do j = 1, tod%ndet
-          tod%spike_amplitude(i,j) = sum(s_sum(:,j)*s_bin(:,j,i))/sum(s_sum(:,j)**2)
+          b = sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
+          A = sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
+          if (A == 0.d0) then
+             tod%spike_amplitude(i,j) = 0.d0
+          else
+             tod%spike_amplitude(i,j) = b/A
+             if (trim(tod%operation) == 'sample') &
+                  & tod%spike_amplitude(i,j) = tod%spike_amplitude(i,j) + &
+                  &                            rand_gauss(handle) / sqrt(A)
+          end if
        end do
     end do
 
@@ -1256,6 +1273,67 @@ contains
   end subroutine construct_corrtemp_LFI
 
 
+  subroutine preprocess_L1_to_L2(self)
+    implicit none
+    class(comm_LFI_tod),                   intent(inout)    :: self
+
+    integer(i4b) :: i, j, k, m, n, npix
+    real(dp), allocatable, dimension(:,:)     :: m_buf
+    real(sp), allocatable, dimension(:)       :: procmask
+    real(sp), allocatable, dimension(:,:)     :: tod
+
+    npix = 12*self%nside**2
+
+    ! Distribute processing masks
+    allocate(m_buf(0:npix-1,self%nmaps), procmask(0:npix-1))
+    call self%procmask%bcast_fullsky_map(m_buf); procmask  = m_buf(:,1)
+    deallocate(m_buf)
+    
+    ! Reduce all scans
+    do i = 1, self%nscan
+       if (self%myid == 0) write(*,*) i
+       call update_status(status, "L1_to_L2")
+
+       ! Generate detector TOD
+       n = self%scans(i)%ntod
+       allocate(tod(n, self%ndet))
+       call self%diode2tod_inst(i, procmask, tod)
+
+       ! Find effective TOD length
+       if (self%halfring_split == 0) then
+          m = get_closest_fft_magic_number(n)
+       else if (self%halfring_split == 1 .or. self%halfring_split == 2) then
+          m = get_closest_fft_magic_number(n/2)
+       else 
+          write(*,*) "Unknown halfring_split value in read_hdf_scan"
+          stop
+       end if
+       if (real(m-n,dp)/real(n,dp) > 0.001d0) then
+          write(*,*) 'Warning: More than 0.1% of scan', self%scanid(i), ' removed by FFTW cut'
+       end if
+       
+       ! Copy data, and free up old arrays
+       do j = 1, self%ndet 
+          allocate(self%scans(i)%d(j)%tod(m))
+          if (self%halfring_split == 2) then
+             self%scans(i)%d(j)%tod = tod(m+1:2*m,j)
+          else
+             self%scans(i)%d(j)%tod = tod(1:m,j)
+          end if
+          if (allocated(self%scans(i)%d(j)%ztod))   deallocate(self%scans(i)%d(j)%ztod)
+          if (allocated(self%scans(i)%d(j)%diode))  deallocate(self%scans(i)%d(j)%diode)
+          if (allocated(self%scans(i)%d(j)%zdiode)) then
+             call deallocate_hdf_vlen(self%scans(i)%d(j)%zdiode)  ! HKE: Can Mathew implement this routine? Right now, we have a massive memory leak!
+             deallocate(self%scans(i)%d(j)%zdiode)
+          end if
+        end do
+        call huff_deallocate(self%scans(i)%todkey)
+        deallocate(tod)
+     end do
+
+    deallocate(procmask)
+
+  end subroutine preprocess_L1_to_L2
 
 end module comm_tod_LFI_mod
 
