@@ -1117,8 +1117,8 @@ contains
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
-    integer(i4b) :: i, j, k, b, ierr, nbin
-    real(dp)     :: dt, t_tot, t
+    integer(i4b) :: i, j, k, bin, ierr, nbin
+    real(dp)     :: dt, t_tot, t, A, b
     real(dp)     :: t1, t2
     character(len=6) :: scantext
     real(dp), allocatable, dimension(:)     :: nval
@@ -1157,9 +1157,9 @@ contains
           do k = 1, tod%scans(i)%ntod
              if (sd%mask(k,j) == 0.) cycle
              t = modulo(tod%scans(i)%t0(2)/65536.d0 + (k-1)*dt,t_tot)    ! OBT is stored in units of 2**-16 = 1/65536 sec
-             b = min(int(t*nbin),nbin-1)
-             s_bin(b,j,i) = s_bin(b,j,i)  + res(k)
-             nval(b)      = nval(b)       + 1.d0
+             bin = min(int(t*nbin),nbin-1)
+             s_bin(bin,j,i) = s_bin(bin,j,i)  + res(k)
+             nval(bin)      = nval(bin)       + 1.d0
           end do
           s_bin(:,j,i) = s_bin(:,j,i) / nval
           s_bin(:,j,i) = s_bin(:,j,i) - mean(s_bin(1:nbin/3,j,i))
@@ -1211,7 +1211,12 @@ contains
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        do j = 1, tod%ndet
-          tod%spike_amplitude(i,j) = sum(s_sum(:,j)*s_bin(:,j,i))/sum(s_sum(:,j)**2)
+          A = sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
+          b = sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
+          tod%spike_amplitude(i,j) = b/A
+          if (trim(tod%operation) == 'sample') &
+               & tod%spike_amplitude(i,j) = tod%spike_amplitude(i,j) + &
+               &                            rand_gauss(handle) / sqrt(A)
        end do
     end do
 
