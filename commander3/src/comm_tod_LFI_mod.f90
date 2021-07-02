@@ -253,25 +253,22 @@ contains
 
     if (constructor%myid == 0) write(*,*) 'Building ADC correction tables'
 
-    constructor%nbin_adc = 100
+    constructor%nbin_adc = 500
 
     ! Determine v_min and v_max for each diode
     do i = 1, 0!constructor%ndet
 
       do j=1, constructor%ndiode ! init the adc correction structures
-        name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
         horn=1
         if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
 
-        constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc,name)
+        constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc)
       end do
 
-      do k = 1, constructor%nscan
+      do k = 1, constructor%nscan ! determine vmin and vmax for each diode
         allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
         allocate(flag(constructor%scans(k)%ntod))
-
         call constructor%decompress_diodes(k, i, diode_data, flag=flag)
-
         do j = 1, constructor%ndiode
           horn=1
           if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
@@ -282,7 +279,10 @@ contains
 
       end do ! end loop over scans
 
-      do j =1, constructor%ndiode
+      do j =1, constructor%ndiode ! allreduce vmin and vmax
+
+        horn=1
+        if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
 
         ! All reduce min and max
         call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j,horn)%p%v_min,1,MPI_REAL,MPI_MIN,constructor%comm,ierr)
@@ -298,19 +298,19 @@ contains
           name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
           horn=1
           if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-          do k = 1, constructor%nscan
+          do k = 1, constructor%nscan ! compute and bin the rms as a function of voltage for each scan
              allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
              allocate(flag(constructor%scans(k)%ntod))
              call constructor%decompress_diodes(k, i, diode_data, flag)
              call constructor%adc_corrections(i,j,horn)%p%bin_scan_rms(diode_data(:,j), flag,constructor%flag0) 
              deallocate(diode_data, flag)
           end do
+          ! Build the actual adc correction tables (adc_in, adc_out)
           if (constructor%myid == 0) write(*,*) 'Build adc correction table for '//trim(name)
           call constructor%adc_corrections(i,j,horn)%p%build_table(name)
+          if (constructor%myid == 0) write(*,*) ''
        end do
     end do
-
-    ! stop
 
     ! Compute reference load filter spline
     nsmooth = constructor%get_nsmooth()
