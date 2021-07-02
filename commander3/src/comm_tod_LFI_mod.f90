@@ -254,7 +254,7 @@ contains
     constructor%nbin_adc = 500
 
     ! Determine v_min and v_max for each diode
-    do i = 1, 0!constructor%ndet
+    do i = 1, constructor%ndet
 
       do j=1, constructor%ndiode ! init the adc correction structures
         horn=1
@@ -277,7 +277,7 @@ contains
 
       end do ! end loop over scans
 
-      do j =1, constructor%ndiode ! allreduce vmin and vmax
+      do j = 1, constructor%ndiode ! allreduce vmin and vmax
 
         horn=1
         if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
@@ -290,8 +290,9 @@ contains
       end do
     end do
 
+
     ! Now bin rms for all scans and compute the correction table
-    do i = 1, 0!constructor%ndet
+    do i = 1, constructor%ndet
        do j = 1, constructor%ndiode
           name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
           horn=1
@@ -323,12 +324,12 @@ contains
         allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
         call constructor%decompress_diodes(k, i, diode_data)
 
-        corrected_data = diode_data
-!!$        do j = 1, constructor%ndiode
-!!$          horn=1
-!!$          if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-!!$          call constructor%adc_corrections(i,j,horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
-!!$        end do
+        ! corrected_data = diode_data
+        do j = 1, constructor%ndiode
+          horn=1
+          if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
+          call constructor%adc_corrections(i,j,horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+        end do
 
         ! compute the ref load transfer function
         call constructor%compute_ref_load_filter(corrected_data, filter_sum, nu_saved, ierr)
