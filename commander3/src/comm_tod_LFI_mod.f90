@@ -1213,10 +1213,14 @@ contains
        do j = 1, tod%ndet
           b = sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
           A = sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
-          tod%spike_amplitude(i,j) = b/A
-          if (trim(tod%operation) == 'sample') &
-               & tod%spike_amplitude(i,j) = tod%spike_amplitude(i,j) + &
-               &                            rand_gauss(handle) / sqrt(A)
+          if (A == 0.d0) then
+             tod%spike_amplitude(i,j) = 0.d0
+          else
+             tod%spike_amplitude(i,j) = b/A
+             if (trim(tod%operation) == 'sample') &
+                  & tod%spike_amplitude(i,j) = tod%spike_amplitude(i,j) + &
+                  &                            rand_gauss(handle) / sqrt(A)
+          end if
        end do
     end do
 
