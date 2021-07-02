@@ -1211,8 +1211,8 @@ contains
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        do j = 1, tod%ndet
-          A = sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
-          b = sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
+          b = sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
+          A = sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
           tod%spike_amplitude(i,j) = b/A
           if (trim(tod%operation) == 'sample') &
                & tod%spike_amplitude(i,j) = tod%spike_amplitude(i,j) + &
