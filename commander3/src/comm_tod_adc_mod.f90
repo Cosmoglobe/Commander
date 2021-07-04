@@ -367,9 +367,6 @@ contains
        end do
        middle_std = sqrt(middle_std/i)
 
-       write(*,*) 'Middle mean: ', middle_mean
-       write(*,*) 'Middle std: ', middle_std
-
        ! Mask out large deviations
        do j = 1, self%nbins
           if (self%rms_bins(j) < middle_mean-0.2*middle_mean) binmask(j) = 0
@@ -452,7 +449,6 @@ contains
        ! Can't forget to remove the linear part of rirf so as to not be degenerate in gain       
        if (dip1 /= 0) then 
           call return_linreg(self%v_bins, rirf, binmask, slope, offset)
-          write(*,*) slope, offset
           do i = 1, self%nbins
              flatrirf(i) = rirf(i) - slope*self%v_bins(i) - offset
           end do
@@ -721,9 +717,9 @@ contains
           v_off = v_off + dips(i+1) - dips(i)
        end do
        v_off = v_off
-       write(*,fmt='(a,i2,a,i4)') 'ndips = ', ndips, ', v_off = ', v_off
+       ! write(*,fmt='(a,i2,a,i4)') 'ndips = ', ndips, ', v_off = ', v_off
     else
-       write(*,*) 'ndips = 1, v_off = 0.0'
+       ! write(*,*) 'ndips = 1, v_off = 0.0'
        v_off = 0
     end if
   end subroutine return_v_off
