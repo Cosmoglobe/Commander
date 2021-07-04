@@ -379,6 +379,9 @@ contains
 
     ! Pre-process L1 data into L2 data if requested, and set ndiode = 1 to skip directly to L2 later on
     if (.not. constructor%sample_L1_par) then
+       if (constructor%myid == 0) then
+          write(*,*) "Preprocessing L1 to L2"
+       end if
        call constructor%preprocess_L1_to_L2
        constructor%ndiode = 1
        constructor%compressed_tod = .false.
@@ -787,14 +790,14 @@ contains
           horn=1
           if(index('ref', self%diode_names(i,j)) /= 0) horn=2
 
-          !call self%adc_corrections(i, j, half, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+          call self%adc_corrections(i, j, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
 
           !do k = 1, 10
           !   write(*,*) diode_data(k,j), corrected_data(k,j)
           !end do
           !stop
 
-          corrected_data(:,j) = diode_data(:,j)
+          !corrected_data(:,j) = diode_data(:,j)
         end do
 
         ! Wiener-filter load data         
