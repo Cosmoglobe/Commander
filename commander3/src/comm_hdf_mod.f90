@@ -34,7 +34,7 @@ module comm_hdf_mod
   end type hdf_file
 
   type :: byte_pointer
-   byte, dimension(:), allocatable :: p 
+     byte, dimension(:), allocatable :: p 
   end type byte_pointer
 
   interface read_hdf
@@ -2565,6 +2565,7 @@ contains
     ! vl data
     TYPE(hvl_t), dimension(:), allocatable, target :: rdata ! Pointer to vlen structures
     TYPE(C_PTR) :: f_ptr
+    type(byte_pointer), allocatable, dimension(:) :: r_ptr
  
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, filetype, hdferr)
@@ -2580,10 +2581,13 @@ contains
   !
   ! Output the variable-length data to the screen.
   !
-
+    allocate(r_ptr(dims(1)))
     DO i = 1, dims(1)
      !WRITE(*,'(A,"(",I0,"):",/,"{")', ADVANCE="no") setname,i
-     CALL c_f_pointer(rdata(i)%p, val(i)%p, [rdata(i)%len] )
+     CALL c_f_pointer(rdata(i)%p, r_ptr(i)%p, [rdata(i)%len] )
+     allocate(val(i)%p(size(r_ptr(i)%p)))
+     val(i)%p(:) = r_ptr(i)%p(:)
+
      !DO j = 1, rdata(i)%len
      !   WRITE(*,'(1X,I0)', ADVANCE='no') val(i)%p(j)
      !   IF ( j .LT. rdata(i)%len) WRITE(*,'(",")', ADVANCE='no')
@@ -2598,23 +2602,24 @@ contains
   !
   ! Not clear if this line is good or not. It could be de-allocating the read
   ! memory that we are now pointing to, but I am not sure
-  !CALL h5dvlen_reclaim_f(memtype, space, H5P_DEFAULT_F, f_ptr, hdferr)
+  CALL h5dvlen_reclaim_f(memtype, space, H5P_DEFAULT_F, f_ptr, hdferr)
   CALL h5dclose_f(dset , hdferr)
   CALL h5sclose_f(space, hdferr)
   CALL h5tclose_f(memtype, hdferr)
+  deallocate(r_ptr)
 
 end subroutine read_hdf_vlen
 
 
-subroutine deallocate_hdf_vlen(val)
-  implicit none
-  type(byte_pointer), dimension(:), allocatable, intent(inout) :: val
-
-  ! Deallocate val pointer structure
-
-  !CALL h5dvlen_reclaim_f(memtype, space, H5P_DEFAULT_F, f_ptr, hdferr)
-
-end subroutine deallocate_hdf_vlen
+!!$subroutine deallocate_hdf_vlen(val)
+!!$  implicit none
+!!$  type(byte_pointer), dimension(:), allocatable, intent(inout) :: val
+!!$
+!!$  ! Deallocate val pointer structure
+!!$
+!!$  !CALL h5dvlen_reclaim_f(memtype, space, H5P_DEFAULT_F, f_ptr, hdferr)
+!!$
+!!$end subroutine deallocate_hdf_vlen
 
 
 

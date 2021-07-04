@@ -1220,8 +1220,8 @@ contains
     ! Compute amplitudes per scan and detector
     tod%spike_amplitude = 0.
     do i = 1, tod%nscan
-       if (.not. any(tod%scans(i)%d%accept)) cycle
        do j = 1, tod%ndet
+          if (.not. tod%scans(i)%d(j)%accept) cycle
           b = sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
           A = sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
           if (A == 0.d0) then
@@ -1333,7 +1333,9 @@ contains
           if (allocated(self%scans(i)%d(j)%ztod))   deallocate(self%scans(i)%d(j)%ztod)
           if (allocated(self%scans(i)%d(j)%diode))  deallocate(self%scans(i)%d(j)%diode)
           if (allocated(self%scans(i)%d(j)%zdiode)) then
-             call deallocate_hdf_vlen(self%scans(i)%d(j)%zdiode)  ! HKE: Can Mathew implement this routine? Right now, we have a massive memory leak!
+             do k = 1, self%ndiode
+                deallocate(self%scans(i)%d(j)%zdiode(k)%p) 
+             end do
              deallocate(self%scans(i)%d(j)%zdiode)
           end if
         end do
