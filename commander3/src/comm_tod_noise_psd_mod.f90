@@ -54,10 +54,6 @@ module comm_tod_noise_psd_mod
      real(sp),     allocatable, dimension(:,:)  :: P_uni             ! Uniform prior on xi_n (n_xi,lower/upper)
      real(sp),     allocatable, dimension(:,:)  :: P_active          ! Informative prior on xi_n (n_xi, mean/rms)
      logical(lgt), allocatable, dimension(:)    :: P_lognorm         ! true = lognorm prior; false = Gaussian prior
-
-     real(dp),     allocatable, dimension(:)    :: log_n_psd         ! Noise power spectrum density; in uncalibrated units
-     real(dp),     allocatable, dimension(:)    :: log_n_psd2        ! Second derivative (for spline)
-     real(dp),     allocatable, dimension(:)    :: log_nu            ! Noise power spectrum bins; in Hz
    contains
      procedure :: eval_full   => eval_noise_psd_full
      procedure :: eval_corr   => eval_noise_psd_corr

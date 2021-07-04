@@ -467,7 +467,7 @@ contains
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
-    output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
+    output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -1310,6 +1310,8 @@ contains
        if (real(m-n,dp)/real(n,dp) > 0.001d0) then
           write(*,*) 'Warning: More than 0.1% of scan', self%scanid(i), ' removed by FFTW cut'
        end if
+
+       if (m /= n) write(*,*) 'ERROR', self%scanid(i), m, n
        
        ! Copy data, and free up old arrays
        do j = 1, self%ndet 
