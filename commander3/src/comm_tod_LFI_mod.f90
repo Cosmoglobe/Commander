@@ -256,7 +256,7 @@ contains
     constructor%nbin_adc = 500
 
     ! Determine v_min and v_max for each diode
-    do i = 1, 0!constructor%ndet
+    do i = 1, constructor%ndet
 
       do j=1, constructor%ndiode ! init the adc correction structures
         horn=1
@@ -279,7 +279,7 @@ contains
 
       end do ! end loop over scans
 
-      do j =1, constructor%ndiode ! allreduce vmin and vmax
+      do j = 1, constructor%ndiode ! allreduce vmin and vmax
 
         horn=1
         if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
@@ -292,8 +292,9 @@ contains
       end do
     end do
 
+
     ! Now bin rms for all scans and compute the correction table
-    do i = 1, 0!constructor%ndet
+    do i = 1, constructor%ndet
        do j = 1, constructor%ndiode
           name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
           horn=1
@@ -308,7 +309,6 @@ contains
           ! Build the actual adc correction tables (adc_in, adc_out)
           if (constructor%myid == 0) write(*,*) 'Build adc correction table for '//trim(name)
           call constructor%adc_corrections(i,j,horn)%p%build_table(name)
-          if (constructor%myid == 0) write(*,*) ''
        end do
     end do
 
@@ -325,12 +325,12 @@ contains
         allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
         call constructor%decompress_diodes(k, i, diode_data)
 
-        corrected_data = diode_data
-!!$        do j = 1, constructor%ndiode
-!!$          horn=1
-!!$          if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-!!$          call constructor%adc_corrections(i,j,horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
-!!$        end do
+        ! corrected_data = diode_data
+        do j = 1, constructor%ndiode
+          horn=1
+          if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
+          call constructor%adc_corrections(i,j,horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+        end do
 
         ! compute the ref load transfer function
         call constructor%compute_ref_load_filter(corrected_data, filter_sum, nu_saved, ierr)
@@ -1075,7 +1075,8 @@ contains
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
 
-    integer(i4b) :: ierr
+    character(len=10) :: diode_name
+    integer(i4b) :: ierr, i, j, horn
     real(dp), allocatable, dimension(:,:)   :: amp, amp_tot
     real(dp), allocatable, dimension(:,:,:) :: R, R_tot
 
@@ -1094,6 +1095,16 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_ampl', amp_tot)
        call write_hdf(chainfile, trim(adjustl(path))//'R_factor', R_tot)
        call write_hdf(chainfile, trim(adjustl(path))//'w_diode', self%diode_weights)
+       do i = 1, self%ndet
+          do j = 1, self%ndiode
+             diode_name = trim(self%label(i))//'_'//trim(self%diode_names(i,j))
+             horn=1
+             if(index('ref', self%diode_names(i,j)) /= 0) horn=2
+
+             call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'_in',self%adc_corrections(i,j,horn)%p%adc_in)
+             call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'_out',self%adc_corrections(i,j,horn)%p%adc_out)
+          end do
+       end do
     end if
 
     deallocate(amp, amp_tot, R, R_tot)

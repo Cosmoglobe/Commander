@@ -318,7 +318,7 @@ contains
     integer(i4b), dimension(:),      allocatable   :: binmask
     integer(i4b)                                   :: i, j, len
     integer(i4b)                                   :: ierr, trims
-    integer(i4b)                                   :: dip1, v_off
+    integer(i4b)                                   :: dip1, v_off, diprange
     real(sp)                                       :: sum, slope, offset
     real(sp)                                       :: middle_mean, middle_std
     
@@ -337,6 +337,7 @@ contains
        middle_std  = 0.0
 
        ! Mask out bins that have no entries - otherwise return mean rms for each bin
+       i = 0
        do j = 1, self%nbins
           if(self%nval(j) == 0) then
              binmask(j) = 0
@@ -351,19 +352,24 @@ contains
           
           ! Calculate the mean and std of the middle 200 bins
           if (j > 150 .and. j < 350) then
+             if (binmask(j) == 0) cycle
+             i = i + 1
              middle_mean = middle_mean + self%rms_bins(j)
           end if
        end do
-       middle_mean = middle_mean/200
-
+       middle_mean = middle_mean/i
+       
+       i = 0
        do j = 150, 350
+          if (binmask(j) == 0) cycle
+          i = i + 1
           middle_std = middle_std + (middle_mean-self%rms_bins(j))**2
        end do
-       middle_std = sqrt(middle_std/200)
+       middle_std = sqrt(middle_std/i)
 
        ! Mask out large deviations
        do j = 1, self%nbins
-          if (self%rms_bins(j) < middle_mean-7.5*middle_std) binmask(j) = 0
+          if (self%rms_bins(j) < middle_mean-0.2*middle_mean) binmask(j) = 0
           if (self%rms_bins(j) > middle_mean+7.5*middle_std) binmask(j) = 0
           ! if (self%rms_bins(j) < middle_mean-10.0*middle_std) binmask(j) = 0
           ! if (self%rms_bins(j) > middle_mean+10.0*middle_std) binmask(j) = 0
@@ -374,10 +380,6 @@ contains
 
        ! How many edge bins do we remove for our fit?
        trims = 10
-
-       ! Trim up the bins that we'll use
-
-
 
        ! Trim 10 off the "bottom"
        i = 0
@@ -427,8 +429,9 @@ contains
        ! First step is to identify dips
        dip1  = 0
        v_off = 0
+       diprange = 10
 
-       call return_v_off(self%v_bins, flatrms, binmask, dip1, v_off)
+       call return_v_off(self%v_bins, flatrms, binmask, dip1, v_off, diprange)
 
        ! Return the Inverse Differential Response Function (idrf)
        if (dip1 /= 0) then 
@@ -446,7 +449,6 @@ contains
        ! Can't forget to remove the linear part of rirf so as to not be degenerate in gain       
        if (dip1 /= 0) then 
           call return_linreg(self%v_bins, rirf, binmask, slope, offset)
-          write(*,*) slope, offset
           do i = 1, self%nbins
              flatrirf(i) = rirf(i) - slope*self%v_bins(i) - offset
           end do
@@ -608,7 +610,7 @@ contains
     
   end subroutine return_linreg
     
-  subroutine return_v_off(x,y,mask,dip1,v_off)
+  subroutine return_v_off(x,y,mask,dip1,v_off,diprange)
     ! ====================================================================
     ! Dip identifying subroutine that returns the first dip location and
     ! the distance between dips in the RMS
@@ -640,14 +642,14 @@ contains
     
     real(sp),     dimension(:), intent(in)    :: x, y
     integer(i4b), dimension(:), intent(in)    :: mask
+    integer(i4b),               intent(in)    :: diprange
     integer(i4b),               intent(inout) :: dip1, v_off
     logical(lgt), dimension(:), allocatable   :: truths
     integer(i4b), dimension(:), allocatable   :: dips
     integer(i4b)                              :: len, i, j, count
-    integer(i4b)                              :: diprange, ndips
+    integer(i4b)                              :: ndips
     real(dp)                                  :: y_mean, y_var, y_std
     
-    diprange = 10
     len = size(x)
     
     allocate(truths(diprange))
@@ -715,9 +717,9 @@ contains
           v_off = v_off + dips(i+1) - dips(i)
        end do
        v_off = v_off
-       write(*,fmt='(a,i2,a,i4)') 'ndips = ', ndips, ', v_off = ', v_off
+       ! write(*,fmt='(a,i2,a,i4)') 'ndips = ', ndips, ', v_off = ', v_off
     else
-       write(*,*) 'ndips = 1, v_off = 0.0'
+       ! write(*,*) 'ndips = 1, v_off = 0.0'
        v_off = 0
     end if
   end subroutine return_v_off
@@ -835,7 +837,7 @@ contains
              exit
           end if
        end do
-       sigma = 2.0*(fwhm/2.355)
+       sigma = fwhm
 
        mean = x(dip1+(j-1)*v_off)
 
