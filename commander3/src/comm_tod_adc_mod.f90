@@ -826,6 +826,7 @@ contains
        sigma        = 0.0
        mean         = 0.0
        amp          = 0.0
+       fwhm         = 0.0
     
        do i = dip1+(j-1)*v_off-fit_range, dip1+(j-1)*v_off+fit_range
           if (mask(i) == 0) cycle
@@ -840,7 +841,7 @@ contains
              exit
           end if
        end do
-       sigma = max(fwhm, 0.001d0)
+       sigma = max(2.0*(fwhm/2.355), 0.001d0)
 
        mean = x(dip1+(j-1)*v_off)
 
