@@ -1088,7 +1088,7 @@ contains
     amp(self%scanid,:) = self%spike_amplitude
     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
-    allocate(R(self%nscan_tot,self%ndet,self%ndiode/2), R_tot(self%nscan_tot,self%ndet,self%ndiode/2))
+    allocate(R(self%nscan_tot,self%ndet,size(self%R,3)),R_tot(self%nscan_tot,self%ndet,size(self%R,3)))
     R = 0.d0
     R(self%scanid,:,:) = self%R
     call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)

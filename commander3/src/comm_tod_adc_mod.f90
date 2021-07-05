@@ -800,7 +800,7 @@ contains
     real(sp), allocatable, dimension(:)       :: idrf, newy, model
     real(sp)                                  :: sigma, amp, mean, fwhm
     integer(i4b)                              :: len, i, j, ndips
-    integer(i4b)                              :: fit_range
+    integer(i4b)                              :: fit_range, start_range, end_range
     
     len = size(x)
 
@@ -827,21 +827,24 @@ contains
        mean         = 0.0
        amp          = 0.0
        fwhm         = 0.0
+       start_range  = max(dip1+(j-1)*v_off-fit_range,1)
+       end_range    = min(dip1+(j-1)*v_off+fit_range,len)
     
-       do i = dip1+(j-1)*v_off-fit_range, dip1+(j-1)*v_off+fit_range
+       do i = start_range, end_range
           if (mask(i) == 0) cycle
           newy(i) = -1.0*y(i)
        end do
 
        amp = maxval(newy)
-       do i = dip1+(j-1)*v_off, dip1+(j-1)*v_off+fit_range
+       do i = dip1+(j-1)*v_off, end_range
           if (mask(i) == 0) cycle
           if (newy(i) < newy(dip1+(j-1)*v_off)/2.0) then
              fwhm = x(i)-x(dip1+(j-1)*v_off)
              exit
           end if
        end do
-       sigma = max(2.0*(fwhm/2.355), 0.001d0)
+       if (fwhm == 0.d0) fwhm = 0.001d0
+       sigma = 2.0*(fwhm/2.355)
 
        mean = x(dip1+(j-1)*v_off)
 
