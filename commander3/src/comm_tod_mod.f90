@@ -680,7 +680,7 @@ contains
     character(len=*), dimension(:), intent(in)    :: detlabels
     character(len=*), dimension(:,:), intent(in)  :: diode_names
 
-    integer(i4b)       :: i,j,k, n, m, ext(1)
+    integer(i4b)       :: i,j,k,l, n, m, ext(1)
     real(sp)           :: nu
     real(dp)           :: scalars(4)
     character(len=6)   :: slabel
@@ -817,14 +817,15 @@ contains
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp_int(hsymb,htree,self%hkey)
+    deallocate(hsymb, htree)
     if (tod%compressed_tod) then
 !!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
 !!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
        call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
+       deallocate(hsymb_sp, htree)
     end if
-    deallocate(hsymb, htree)
 
     ! Read instrument-specific infomation
     call tod%read_scan_inst(file, slabel, detlabels, self)

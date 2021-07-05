@@ -104,7 +104,7 @@ contains
     if (tod%sample_mono)     allocate(self%s_mono(self%ntod, self%ndet))
     if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, self%ndet))
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
-    call update_status(status, "todinit_alloc")
+    !call update_status(status, "todinit_alloc")
 
     !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
@@ -114,10 +114,10 @@ contains
        call tod%decompress_pointing_and_flags(scan, j, self%pix(:,j,:), &
             & self%psi(:,j,:), self%flag(:,j))
     end do
-    call update_status(status, "todinit_decomp")
+    !call update_status(status, "todinit_decomp")
     !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%symm_flags) call tod%symmetrize_flags(self%flag)
-    call update_status(status, "todinit_symmflag")
+    !call update_status(status, "todinit_symmflag")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c4', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Prepare TOD
@@ -133,7 +133,7 @@ contains
     else
        call tod%diode2tod_inst(scan, procmask, self%tod)
     end if
-    call update_status(status, "todinit_tod")
+    !call update_status(status, "todinit_tod")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
@@ -144,7 +144,7 @@ contains
        call project_sky(tod, map_sky(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_sky, self%mask)
     end if
-    call update_status(status, "todinit_sky")
+    !call update_status(status, "todinit_sky")
     !if (tod%myid == 78) write(*,*) 'c6', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
@@ -161,7 +161,7 @@ contains
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
        end do
     end if
-    call update_status(status, "todinit_bp")
+    !call update_status(status, "todinit_bp")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
     !if (.true. .or. tod%myid == 78) write(*,*) 'c72', tod%myid, tod%ndet
     !if (.true. .or. tod%myid == 78) write(*,*) 'c73', tod%myid, tod%slconv(1)%p%psires
@@ -172,12 +172,12 @@ contains
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
        if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
-    call update_status(status, "todinit_sanity")
+    !call update_status(status, "todinit_sanity")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
     call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., self%s_orb)
-    call update_status(status, "todinit_dipole")
+    !call update_status(status, "todinit_dipole")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
@@ -202,7 +202,7 @@ contains
           self%s_sl(:,j) = 0.
        end do
     end if
-    call update_status(status, "todinit_sl")
+    !call update_status(status, "todinit_sl")
 
     ! Construct monopole correction template
     if (tod%sample_mono) then
@@ -221,7 +221,7 @@ contains
           self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
        end do
     end if
-    call update_status(status, "todinit_instcorr")
+    !call update_status(status, "todinit_instcorr")
 
     ! Construct total sky signal
     do j = 1, self%ndet
@@ -229,7 +229,7 @@ contains
        self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j)
        if (tod%sample_mono) self%s_tot(:,j) = self%s_tot(:,j) + self%s_mono(:,j)
     end do
-    call update_status(status, "todinit_stot")
+    !call update_status(status, "todinit_stot")
 
   end subroutine init_scan_data_singlehorn
 

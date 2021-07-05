@@ -838,7 +838,7 @@ contains
              exit
           end if
        end do
-       sigma = 2.0*(fwhm/2.355)
+       sigma = max(2.0*(fwhm/2.355), 0.001d0)
 
        mean = x(dip1+(j-1)*v_off)
 
