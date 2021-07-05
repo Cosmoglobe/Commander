@@ -313,7 +313,7 @@ class commander_tod:
     def decompress(self, field, compression=''):
         comps = compression.split(' ')
         data = self.outFile[field][:]
-        print(data, len(data), len(data[0]), len(data[1]), comps)
+        #print(data, len(data), len(data[0]), len(data[1]), comps)
         ndim = 1
         try:
             matrix = self.outFile[field].attrs['matrix']
@@ -355,7 +355,7 @@ class commander_tod:
                     try:
                         huffNum = str(self.outFile[field].attrs['huffmanDictNumber'])
                     except KeyError:
-                        huffNum = ""
+                        huffNum = ''
                     if huffNum == '1':
                         huffNum = ''
                     huffTree = self.load_field('/' + pid + '/common/hufftree' + huffNum)

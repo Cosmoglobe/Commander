@@ -769,20 +769,20 @@ contains
     real(sp),          dimension(0:),    intent(in)    :: procmask
     real(sp),          dimension(:,:),   intent(out)   :: tod
 
-    integer(i4b) :: i,j,k,half,horn,n_mask
+    integer(i4b) :: i,j,k,half,horn,n_mask, n_unmask
     real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data
-    integer(i4b), allocatable, dimension(:) :: pix, mask
+    integer(i4b), allocatable, dimension(:) :: pix, flag
     real(dp) :: r1, r2, sum1, sum2
 
     allocate(diode_data(self%scans(scan)%ntod, self%ndiode))
     allocate(corrected_data(self%scans(scan)%ntod, self%ndiode))
-    allocate(pix(self%scans(scan)%ntod), mask(self%scans(scan)%ntod))
+    allocate(pix(self%scans(scan)%ntod), flag(self%scans(scan)%ntod))
     do i=1, self%ndet
 
        if (.not. self%scans(scan)%d(i)%accept) cycle
 
         ! Decompress diode TOD for current scan
-        call self%decompress_diodes(scan, i, diode_data, pix=pix)
+        call self%decompress_diodes(scan, i, diode_data, pix=pix, flag=flag)
 
         ! Apply ADC corrections
 
@@ -810,11 +810,14 @@ contains
         sum1 = 0.d0
         sum2 = 0.d0
         n_mask = 0
+        n_unmask = 0
 
         do k = 1, size(corrected_data(:,1))
+          if (iand(flag(k), self%flag0) .ne. 0) cycle
 
           sum1 = sum1 + corrected_data(k,1)
           sum2 = sum2 + corrected_data(k,3)
+          n_unmask = n_unmask + 1
 
           if (procmask(pix(k)) .ne. 0) then 
             r1 = r1 + corrected_data(k,2)
@@ -830,8 +833,8 @@ contains
         end if
               
         ! average sky value/average load value
-        self%R(scan,i,1) = (r1/n_mask)/(sum1/size(corrected_data(:,1)))
-        self%R(scan,i,2) = (r2/n_mask)/(sum2/size(corrected_data(:,1)))
+        self%R(scan,i,1) = (r1/n_mask)/(sum1/n_unmask)
+        self%R(scan,i,2) = (r2/n_mask)/(sum2/n_unmask)
         
 
         ! Compute output differenced TOD
@@ -853,7 +856,7 @@ contains
     end do
 !    stop
 
-    deallocate(diode_data, corrected_data, pix, mask)
+    deallocate(diode_data, corrected_data, pix, flag)
 
 !call mpi_finalize(i)
 !stop
@@ -1102,7 +1105,11 @@ contains
           do j = 1, self%ndiode
              diode_name = trim(self%label(i))//'_'//trim(self%diode_names(i,j))
              horn=1
-             if(index('ref', self%diode_names(i,j)) /= 0) horn=2
+             if(index('ref', self%diode_names(i,j)) /= 0) then 
+               horn=2
+               call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'/ref_spline', self%ref_splint(i, (j+1)/2)%y)
+               call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'/ref_spline_x', self%ref_splint(i, (j+1)/2)%x)
+             end if
 
              call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'_in',self%adc_corrections(i,j,horn)%p%adc_in)
              call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'_out',self%adc_corrections(i,j,horn)%p%adc_out)

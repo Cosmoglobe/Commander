@@ -25,6 +25,8 @@ module comm_hdf_mod
   use healpix_types
   use comm_utils
   use hdf5
+  use iso_c_binding
+
   implicit none
 
   type hdf_file
@@ -2561,6 +2563,7 @@ contains
     INTEGER :: hdferr
     INTEGER(HSIZE_T), DIMENSION(1:1)  :: maxdims, dims
     INTEGER :: i, j
+    integer, dimension(:), pointer :: ptr_r
 
     ! vl data
     TYPE(hvl_t), dimension(:), allocatable, target :: rdata ! Pointer to vlen structures
@@ -2579,7 +2582,7 @@ contains
     f_ptr = C_LOC(rdata(1))
     CALL h5dread_f(file%sethandle, memtype, f_ptr, hdferr)
   !
-  ! Output the variable-length data to the screen.
+  ! Write the variable-length data to the fortran array
   !
     allocate(r_ptr(dims(1)))
     DO i = 1, dims(1)
@@ -2593,7 +2596,7 @@ contains
      !   IF ( j .LT. rdata(i)%len) WRITE(*,'(",")', ADVANCE='no')
      !ENDDO
      !WRITE(*,'( " }")')
-    
+ 
     ENDDO
   !
   ! Close and release resources.  Note the use of H5Dvlen_reclaim
@@ -2612,21 +2615,6 @@ contains
 !  deallocate(rdata)
 
 end subroutine read_hdf_vlen
-
-
-!!$subroutine deallocate_hdf_vlen(val)
-!!$  implicit none
-!!$  type(byte_pointer), dimension(:), allocatable, intent(inout) :: val
-!!$
-!!$  ! Deallocate val pointer structure
-!!$
-!!$  !CALL h5dvlen_reclaim_f(memtype, space, H5P_DEFAULT_F, f_ptr, hdferr)
-!!$
-!!$end subroutine deallocate_hdf_vlen
-
-
-
-
 
 
   subroutine read_hdf_string(file, setname, val)
