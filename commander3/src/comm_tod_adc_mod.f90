@@ -663,6 +663,7 @@ contains
     
     ! Determine mean and standard deviation of the input y-array
     count = 0
+    y_mean = 0.d0
     do i = 1, len
        if (mask(i) == 0) cycle
        count = count + 1
@@ -671,6 +672,7 @@ contains
     y_mean = y_mean/count
     
     count = 0
+    y_var = 0.d0
     do i = 1, len
        if (mask(i) == 0) cycle
        count = count + 1
@@ -713,6 +715,7 @@ contains
     dip1 = dips(1)
 
     if (ndips .ne. 1) then
+       v_off = 0.d0
        do i = 1, ndips-1
           v_off = v_off + dips(i+1) - dips(i)
        end do
