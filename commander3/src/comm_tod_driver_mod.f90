@@ -374,10 +374,11 @@ contains
     if (tod%correct_sl) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
-          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
-          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 0d0)
-          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), 0d0)
+          ! Perhaps experiment with different rotations.
+          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
+          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
+          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 0d0)
+          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), 0d0)
           self%s_sl(:,j)  = 2.*((1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j))
           self%s_tot(:,j) = self%s_tot(:,j) + self%s_sl(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + 2.*s_bufA(:,j)

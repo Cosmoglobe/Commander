@@ -230,14 +230,14 @@ contains
 
     ! Equation C.5 in NPIPE paper
     prod = vnorm(1)*self%orb_dp_s(det,1)+ &
-          &vnorm(2)*self%orb_dp_s(det,2)+ &
-          &vnorm(3)*self%orb_dp_s(det,3)+ &
-          & q*(vnorm(1)*vnorm(1)*self%orb_dp_s(det,4) + &
-          &    vnorm(1)*vnorm(2)*self%orb_dp_s(det,5) + &
-          &    vnorm(1)*vnorm(3)*self%orb_dp_s(det,6) + &
-          &    vnorm(2)*vnorm(2)*self%orb_dp_s(det,7) + &
-          &    vnorm(2)*vnorm(3)*self%orb_dp_s(det,8) + &
-          &    vnorm(3)*vnorm(3)*self%orb_dp_s(det,9))
+         & vnorm(2)*self%orb_dp_s(det,2)+ &
+         & vnorm(3)*self%orb_dp_s(det,3)+ &
+         &  q*(vnorm(1)*vnorm(1)*self%orb_dp_s(det,4) + &
+         &     vnorm(1)*vnorm(2)*self%orb_dp_s(det,5) + &
+         &     vnorm(1)*vnorm(3)*self%orb_dp_s(det,6) + &
+         &     vnorm(2)*vnorm(2)*self%orb_dp_s(det,7) + &
+         &     vnorm(2)*vnorm(3)*self%orb_dp_s(det,8) + &
+         &     vnorm(3)*vnorm(3)*self%orb_dp_s(det,9))
 
     prod = T_CMB*prod/self%orb_dp_s(det,10)
 

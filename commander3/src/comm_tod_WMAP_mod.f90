@@ -172,7 +172,7 @@ contains
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
       constructor%correct_sl      = .false.
-      constructor%orb_4pi_beam    = .false.
+      constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 400.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -201,6 +201,7 @@ contains
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
 
       ! Define detector partners
+      ! I don't think this is necessary for WMAP...
       do i = 1, constructor%ndet
          if (mod(i,2) == 1) then
             constructor%partner(i) = i+1
@@ -230,7 +231,7 @@ contains
 
       ! Initialize all baseline corrections to zero
       do i = 1, constructor%nscan
-         constructor%scans(i)%d%baseline = 0.d0
+         constructor%scans(i)%d%baseline = 0.
       end do
 
    end function constructor
@@ -342,6 +343,7 @@ contains
       postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
       ! Distribute maps
+      ! Allocate total map (for monopole sampling)
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
       allocate(map_full(0:npix-1))
       map_full = 0.d0
@@ -357,19 +359,21 @@ contains
 
 
 
-      ! Allocate total map (for monopole sampling)
 
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
          do i = 1, self%ndet
-            !TODO: figure out why this is rotated
             call map_in(i,1)%p%YtW()  ! Compute sky a_lms
             self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
                  & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                  & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
+                 ! lmax nmaps, bmax, beam, map, optim
          end do
       end if
+      ! In order to not completely break the rest of Commander, I am making the
+      ! notation a little different for the beam indexing. Essentially, when it
+      ! indexes 113, 114, 123, 124, the actual output will be A/A/B/B
 
       call update_status(status, "tod_init")
 
@@ -444,9 +448,6 @@ contains
             call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
               & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
          end do
-         ! Should we be computing the chisq of the sums and differences?
-         ! I also think I just need to double check the chisq calculation,
-         ! because to me, the fit looks quite good.
 
          ! Select data
          if (select_data) call remove_bad_data(self, i, sd%flag)
@@ -457,7 +458,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.false. .and. i==1 .and. mod(iter,10) == 0) then
+         if (.true. .and. i==1 .and. mod(iter,10) == 5) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
