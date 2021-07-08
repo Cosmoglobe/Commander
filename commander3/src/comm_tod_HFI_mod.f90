@@ -109,22 +109,6 @@ contains
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
     
     constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-    if (trim(constructor%freq) == '030') then
-       constructor%xi_n_nu_fit     = [0.d0, 1.225d0]    ! More than max(7*fknee_DPC)
-       constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
-       constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    else if (trim(constructor%freq) == '044') then
-       constructor%xi_n_nu_fit     = [0.d0, 1.00d0]    ! More than max(2*fknee_DPC)
-       constructor%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
-       constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    else if (trim(constructor%freq) == '070') then
-       constructor%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
-       constructor%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
-       constructor%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
-    else
-       write(*,*) 'Invalid HFI frequency label = ', trim(constructor%freq)
-       stop
-    end if
 
     ! Initialize common parameters
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
@@ -132,10 +116,10 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
-    constructor%compressed_tod  = .false.
-    constructor%correct_sl      = .true.
-    constructor%orb_4pi_beam    = .true.
-    constructor%symm_flags      = .true.
+    constructor%compressed_tod  = .true.
+    constructor%correct_sl      = .false.
+    constructor%orb_4pi_beam    = .false.
+    constructor%symm_flags      = .false.
     constructor%chisq_threshold = 20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
@@ -148,21 +132,11 @@ contains
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
     
-    ! Define detector partners
-    do i = 1, constructor%ndet
-       if (mod(i,2) == 1) then
-          constructor%partner(i) = i+1
-       else
-          constructor%partner(i) = i-1
-       end if
-       constructor%horn_id(i) = (i+1)/2
-    end do
-      
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
 
     ! Initialize bandpass mean and proposal matrix
-    call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    !call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
     call constructor%precompute_lookups()
@@ -171,8 +145,8 @@ contains
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Allocate sidelobe convolution data structures
-    allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    !allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
+    !constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
     ! Initialize all baseline corrections to zero
     do i = 1, constructor%nscan
@@ -283,16 +257,16 @@ contains
     deallocate(m_buf)
 
     ! Precompute far sidelobe Conviqt structures
-    if (self%correct_sl) then
-       if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
-       do i = 1, self%ndet
+    !if (self%correct_sl) then
+    !   if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
+    !   do i = 1, self%ndet
           !TODO: figure out why this is rotated
-          call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-          self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-               & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
-               & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
-       end do
-    end if
+    !      call map_in(i,1)%p%YtW()  ! Compute sky a_lms
+    !      self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+    !           & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
+    !           & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
+    !   end do
+    !end if
 !    write(*,*) 'qqq', self%myid
 !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
 !!$    call mpi_finalize(ierr)
