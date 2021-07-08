@@ -420,13 +420,13 @@ contains
        ! Allocate and intialize everything
        allocate(linrms(self%nbins))
        allocate(flatrms(self%nbins))
-       !allocate(idrf(self%nbins),rirf(self%nbins),model(self%nbins))
-       allocate(rirf(self%nbins),model(self%nbins))
+       allocate(idrf(self%nbins),rirf(self%nbins),model(self%nbins))
+       !allocate(rirf(self%nbins),model(self%nbins))
        allocate(flatrirf(self%nbins))
 
        linrms(:)   = 0.0
        flatrms(:)  = 0.0
-       !idrf(:)     = 0.0
+       idrf(:)     = 0.0
        rirf(:)     = 0.0
        model(:)    = 0.0
        flatrirf(:) = 0.0
