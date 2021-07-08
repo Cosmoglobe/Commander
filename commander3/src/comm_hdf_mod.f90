@@ -24,6 +24,7 @@
 module comm_hdf_mod
   use healpix_types
   use comm_utils
+  use comm_param_mod
   use hdf5
   use iso_c_binding
 
@@ -37,6 +38,8 @@ module comm_hdf_mod
 
   type :: byte_pointer
      byte, dimension(:), allocatable :: p 
+   contains
+     final :: dealloc_byte_pointer
   end type byte_pointer
 
   interface read_hdf
@@ -216,6 +219,13 @@ module comm_hdf_mod
   end interface
 
 contains
+
+  subroutine dealloc_byte_pointer(val)
+    implicit none
+    type(byte_pointer), intent(inout) :: val
+    write(*,*) 'deallocating', size(val%p)
+    if (allocated(val%p)) deallocate(val%p)
+  end subroutine dealloc_byte_pointer
 
   ! *****************************************************
   ! Initialization and cleanup routines
@@ -2557,7 +2567,7 @@ contains
     implicit none
     type(hdf_file) :: file
     character(len=*),                 intent(in)  :: setname
-    type(byte_pointer), dimension(:), allocatable, intent(inout) :: val
+    type(byte_pointer), dimension(:), intent(inout) :: val
 
     INTEGER(HID_T)  :: filetype, memtype, space, dset ! Handles
     INTEGER :: hdferr
@@ -2615,6 +2625,46 @@ contains
 !  deallocate(rdata)
 
 end subroutine read_hdf_vlen
+
+
+
+
+  subroutine get_hdf_vlen_ext(file, setname, ext)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*),                 intent(in)  :: setname
+    integer(i4b),     dimension(:),   intent(out) :: ext
+
+    INTEGER(HID_T)  :: filetype, memtype, space, dset ! Handles
+    INTEGER :: hdferr
+    INTEGER(HSIZE_T), DIMENSION(1:1)  :: maxdims, dims
+    INTEGER :: i, j
+    integer, dimension(:), pointer :: ptr_r
+
+    ! vl data
+    TYPE(hvl_t), dimension(:), allocatable, target :: rdata ! Pointer to vlen structures
+    TYPE(C_PTR) :: f_ptr
+ 
+    call open_hdf_set(file, setname)
+    call h5dget_type_f(file%sethandle, filetype, hdferr)
+    CALL h5dget_space_f(file%sethandle, space, hdferr)
+    CALL h5sget_simple_extent_dims_f(space, dims, maxdims, hdferr) 
+
+    allocate(rdata(dims(1)))    
+    CALL h5tvlen_create_f(H5T_STD_U8LE, memtype, hdferr)
+    f_ptr = C_LOC(rdata(1))
+    CALL h5dread_f(file%sethandle, memtype, f_ptr, hdferr)
+    ext(:) = rdata(:)%len
+
+    CALL h5dvlen_reclaim_f(memtype, space, H5P_DEFAULT_F, f_ptr, hdferr)
+    CALL h5dclose_f(dset , hdferr)
+    CALL h5sclose_f(space, hdferr)
+    CALL h5tclose_f(filetype, hdferr)
+    call close_hdf_set(file)
+    CALL h5tclose_f(memtype, hdferr)
+    deallocate(rdata)
+
+  end subroutine get_hdf_vlen_ext
 
 
   subroutine read_hdf_string(file, setname, val)

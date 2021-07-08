@@ -143,29 +143,29 @@ contains
     class(comm_adc),                 intent(inout) :: self
     real(sp), dimension(:),          intent(in)    :: tod_in
     real(sp), dimension(:),          intent(out)   :: tod_out
-    integer(i4b)                                   :: i, len
+    integer(i4b)                                   :: i!, len
 
-    real(dp), dimension(:), allocatable            :: dbl_in, dbl_out
-    real(dp), dimension(:), allocatable            :: in_buff, out_buff
+    !real(dp), dimension(:), allocatable            :: dbl_in, dbl_out
+    !real(dp), dimension(:), allocatable            :: in_buff, out_buff
     
-    len = size(tod_in)
+    !len = size(tod_in)
 
     ! allocate(self%sadc(len))
-    allocate(dbl_in(self%nbins),dbl_out(self%nbins))
+    !allocate(dbl_in(self%nbins),dbl_out(self%nbins))
 
-    allocate(in_buff(len),out_buff(len))
+    !allocate(in_buff(len),out_buff(len))
 
-    in_buff  = dble(tod_in)
-    out_buff = 0.d0
-    dbl_in   = dble(self%adc_in)
-    dbl_out  = dble(self%adc_out)
+    !in_buff  = dble(tod_in)
+    !out_buff = 0.d0
+    !dbl_in   = dble(self%adc_in)
+    !dbl_out  = dble(self%adc_out)
 
-    call spline(self%sadc, dbl_in, dbl_out, regular=.true.)
-    do i = 1, len
-       out_buff(i) = splint(self%sadc,in_buff(i))
+    do i = 1, size(tod_in) !len
+       tod_out(i) = splint(self%sadc,real(tod_in(i),dp))
+       !out_buff(i) = splint(self%sadc,in_buff(i))
     end do
 
-    tod_out = real(out_buff)
+    !tod_out = real(out_buff)
 
     ! If adc_correct_type == 'dpc' then
     ! tod_out = tod_in
@@ -284,6 +284,8 @@ contains
           end if
        end do
     end do
+
+    deallocate(rt, rms, tod_trim)
     
   end subroutine bin_scan_rms
 
@@ -357,7 +359,11 @@ contains
              middle_mean = middle_mean + self%rms_bins(j)
           end if
        end do
-       middle_mean = middle_mean/i
+       if (i == 0) then
+          middle_mean = 0.d0
+       else
+          middle_mean = middle_mean/i
+       end if
        
        i = 0
        do j = 150, 350
@@ -365,7 +371,11 @@ contains
           i = i + 1
           middle_std = middle_std + (middle_mean-self%rms_bins(j))**2
        end do
-       middle_std = sqrt(middle_std/i)
+       if (i == 0) then
+          middle_std = 0.d0
+       else
+          middle_std = sqrt(middle_std/i)
+       end if
 
        ! Mask out large deviations
        do j = 1, self%nbins
@@ -410,12 +420,13 @@ contains
        ! Allocate and intialize everything
        allocate(linrms(self%nbins))
        allocate(flatrms(self%nbins))
-       allocate(idrf(self%nbins),rirf(self%nbins),model(self%nbins))
+       !allocate(idrf(self%nbins),rirf(self%nbins),model(self%nbins))
+       allocate(rirf(self%nbins),model(self%nbins))
        allocate(flatrirf(self%nbins))
 
        linrms(:)   = 0.0
        flatrms(:)  = 0.0
-       idrf(:)     = 0.0
+       !idrf(:)     = 0.0
        rirf(:)     = 0.0
        model(:)    = 0.0
        flatrirf(:) = 0.0
@@ -500,11 +511,18 @@ contains
        close(51)
        close(53)
        close(54)
+
+       deallocate(linrms, flatrms, idrf, rirf, model, flatrirf)
     end if
 
     ! mpi_bcast the tables to all other cores
     call mpi_bcast(self%adc_in,  self%nbins, MPI_REAL, 0, self%comm, ierr) 
     call mpi_bcast(self%adc_out, self%nbins, MPI_REAL, 0, self%comm, ierr) 
+
+    ! Compute spline
+    call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp), regular=.true.)
+
+    deallocate(binmask)
     
   end subroutine build_table
     
@@ -557,15 +575,17 @@ contains
     y_var  = 0.0
     y_std  = 0.0
 
-    slope  = 0.0
-    offset = 0.0
-
     count = 0
     do i = 1, len
        if (mask(i) == 0) cycle
        count = count + 1
        y_mean = y_mean + y(i)
     end do
+    if (count == 0) then
+       slope = 0.d0
+       offset = 0.d0
+       return
+    end if
     y_mean = y_mean/count
     
     do i = 1, len
@@ -608,6 +628,8 @@ contains
     slope  = bdata(2,1)
     offset = bdata(1,1)
     
+    deallocate(x2, y2, adata, bdata, work)
+
   end subroutine return_linreg
     
   subroutine return_v_off(x,y,mask,dip1,v_off,diprange)
@@ -669,6 +691,12 @@ contains
        count = count + 1
        y_mean  = y_mean + y(i)
     end do
+    if (count == 0) then
+       dip1 = 0.d0
+       v_off = 0.d0
+       deallocate(truths, dips)
+       return
+    end if
     y_mean = y_mean/count
     
     count = 0
@@ -725,6 +753,9 @@ contains
        ! write(*,*) 'ndips = 1, v_off = 0.0'
        v_off = 0
     end if
+
+    deallocate(truths, dips)
+
   end subroutine return_v_off
   
   function return_gaussian(x, mu, sigma, amp) result(y)
@@ -808,7 +839,7 @@ contains
     ! allocate all relevant arrays
     allocate(idrf(len))
     allocate(newy(len))
-    allocate(model(len))
+    !allocate(model(len))
 
     ! how large of a range do we want to fit the dip to?
     fit_range = 30
@@ -850,7 +881,12 @@ contains
 
        model = return_gaussian(x,mean,sigma,amp)
        idrf  = idrf + model
+       
+       deallocate(model)
     end do    
+
+    deallocate(newy)
+
   end function return_gaussian_idrf
   
 end module comm_tod_adc_mod
