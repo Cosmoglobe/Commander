@@ -298,10 +298,10 @@ contains
     ! Now bin rms for all scans and compute the correction table
     if (constructor%myid == 0) write(*,*) '    Bin RMS for ADC corrections'
     do k = 1, constructor%nscan ! compute and bin the rms as a function of voltage for each scan
-       if (.not. constructor%scans(k)%d(i)%accept) cycle
        allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
        allocate(flag(constructor%scans(k)%ntod))
        do i = 1, constructor%ndet
+          if (.not. constructor%scans(k)%d(i)%accept) cycle
           call constructor%decompress_diodes(k, i, diode_data, flag)
           do j = 1, constructor%ndiode
              name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
@@ -900,7 +900,7 @@ contains
     real(sp)     :: fbin, nu
 
     fbin         = 1.2 ! multiplicative bin scaling factor
-    get_nsmooth  = 1
+    get_nsmooth  = 2
     nu           = 0.01
     do while (nu <= self%samprate/2)
        get_nsmooth = get_nsmooth + 1

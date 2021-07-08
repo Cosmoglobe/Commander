@@ -1370,7 +1370,9 @@ contains
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:npar)
-          self%scans(i)%d(j)%accept               = .true.  !output(k,j,5) == 1.d0
+          if (output(k,j,5) == 0) then
+             self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
+          end if
           !if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
           !if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
