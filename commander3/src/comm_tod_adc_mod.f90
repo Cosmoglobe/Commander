@@ -852,7 +852,7 @@ contains
        ndips = 1 + int((maxval(x)-x(dip1))/(x(v_off+dip1)-x(dip1)))
     end if
     do j = 1, ndips
-       model(:)     = 0.0
+       !model(:)     = 0.0
        newy(:)      = 0.0
        sigma        = 0.0
        mean         = 0.0
