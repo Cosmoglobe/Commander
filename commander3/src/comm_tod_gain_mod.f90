@@ -33,10 +33,10 @@ contains
   ! estimate of the stationary sky
   !  subroutine sample_gain_per_scan(self, handle, det, scan_id, n_corr, mask, s_ref)
   !  subroutine calculate_gain_mean_std_per_scan(self, det, scan_id, s_tot, invn, mask)
-   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invN, mask, s_ref, s_tot, handle, mask_lowres, tod_arr)
+   subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invsqrtN, mask, s_tot, handle, mask_lowres, tod_arr)
     implicit none
     class(comm_tod),                      intent(inout) :: tod
-    real(sp),             dimension(:,:), intent(in)    :: s_invN, mask, s_ref, s_tot
+    real(sp),             dimension(:,:), intent(in)    :: s_invsqrtN, mask, s_tot
     integer(i4b),                         intent(in)    :: scan_id
     type(planck_rng),                     intent(inout)  :: handle
     real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
@@ -82,11 +82,11 @@ contains
           tod%scans(scan_id)%d(j)%dgain = 0.d0
        else
           if (present(mask_lowres)) then
-             tod%scans(scan_id)%d(j)%dgain         = sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
-             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
+             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
+             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2  * mask_lowres(:,j))
           else
-             tod%scans(scan_id)%d(j)%dgain         = sum(s_invN(:,j) * residual(:,j))
-             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invN(:,j) * s_ref(:,j))
+             tod%scans(scan_id)%d(j)%dgain         = sum(s_invsqrtN(:,j) * residual(:,j))
+             tod%scans(scan_id)%d(j)%gain_invsigma = sum(s_invsqrtN(:,j) ** 2)
           end if
           if (tod%scans(scan_id)%d(j)%gain_invsigma < 0.d0) then
              write(*,*) 'Warning: Not positive definite invN = ', tod%scanid(scan_id), j, tod%scans(scan_id)%d(j)%gain_invsigma
@@ -126,8 +126,8 @@ contains
           write(58,*) i, s_ref(i,1)
        end do
        write(58,*)
-       do i = 1, size(s_ref,1)
-          write(58,*) i, s_invN(i,1)
+       do i = 1, size(s_invsqrtN,1)
+          write(58,*) i, s_invsqrtN(i,1)
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
@@ -283,12 +283,12 @@ contains
 !       & s_orb, A_abs, b_abs)
    ! This is implementing equation 16, adding up all the terms over all the sums
    ! the sum i is over the detector.
-   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres, mask_lowres, tod_arr)
+   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_invsqrtN, A_abs, b_abs, handle, out, s_highres, mask_lowres, tod_arr)
     implicit none
     class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
-    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
-    real(sp),          dimension(:,:), intent(in)     :: s_invN
+    real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
+    real(sp),          dimension(:,:), intent(in)     :: s_invsqrtN
     real(dp),          dimension(:),   intent(inout)  :: A_abs, b_abs
     type(planck_rng),                  intent(inout)  :: handle
     logical(lgt), intent(in) :: out
@@ -327,11 +327,11 @@ contains
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (present(mask_lowres)) then
-          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
-          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+          A_abs(j) = A_abs(j) + sum(s_invsqrtN(:,j) ** 2    * mask_lowres(:,j))
+          b_abs(j) = b_abs(j) + sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
        else
-          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
-          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+          A_abs(j) = A_abs(j) + sum(s_invsqrtN(:,j) ** 2)
+          b_abs(j) = b_abs(j) + sum(s_invsqrtN(:,j) * residual(:,j))
        end if
        !if (tod%scanid(scan) == 30 .and. out) then
        !  write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
