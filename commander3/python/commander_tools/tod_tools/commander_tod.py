@@ -20,7 +20,8 @@
 #================================================================================
 
 import h5py
-import commander_tools.tod_tools.huffman as huffman
+#import commander_tools.tod_tools.huffman as huffman
+import tod_tools.huffman as huffman
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
