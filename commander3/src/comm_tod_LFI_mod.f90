@@ -1211,8 +1211,13 @@ contains
              s_bin(bin,j,i) = s_bin(bin,j,i)  + res(k)
              nval(bin)      = nval(bin)       + 1.d0
           end do
-          s_bin(:,j,i) = s_bin(:,j,i) / nval
-          s_bin(:,j,i) = s_bin(:,j,i) - mean(s_bin(1:nbin/3,j,i))
+          if (all(nval > 0)) then
+             s_bin(:,j,i) = s_bin(:,j,i) / nval
+             s_bin(:,j,i) = s_bin(:,j,i) - mean(s_bin(1:nbin/3,j,i))
+          else
+             s_bin(:,j,i) = 0.d0
+             tod%scans(i)%d(j)%accept = .false.
+          end if
        end do
 
 !!$       if (trim(tod%freq) == '070') then 
