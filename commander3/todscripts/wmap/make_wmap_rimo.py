@@ -104,29 +104,29 @@ def gauss(x, sigma):
 
 
 def gaussian2d(xieta, a, xi0, eta0, fwhm_xi, fwhm_eta, phi):
-  '''
-  xieta is a 2D array of floats in the detecter-centered coordinate system
-  a is the amplitude of the beam
-  xi0, eta0 are the center position of the Gaussian beam
-  fwhm_xi, fwhm_eta, phi are the fwhm along the xi and eta axes, and phi is the
-  rotation angle in radians.
-  '''
-  xi, eta  = xieta
-  xi_rot   = xi*np.cos(phi)  - eta*np.sin(phi)
-  eta_rot  = xi*np.sin(phi)  + eta*np.cos(phi)
-  xi0_rot  = xi0*np.cos(phi) - eta0*np.sin(phi)
-  eta0_rot = xi0*np.sin(phi) + eta0*np.cos(phi)
-  factor   = 2*np.sqrt(2*np.log(2))
-  xi_coef  = -0.5*(xi_rot -xi0_rot)**2 /(fwhm_xi/factor)**2
-  eta_coef = -0.5*(eta_rot-eta0_rot)**2/(fwhm_eta/factor)**2
-  sim_data = a*np.exp(xi_coef+eta_coef)
-  return sim_data
+    '''
+    xieta is a 2D array of floats in the detecter-centered coordinate system
+    a is the amplitude of the beam
+    xi0, eta0 are the center position of the Gaussian beam
+    fwhm_xi, fwhm_eta, phi are the fwhm along the xi and eta axes, and phi is the
+    rotation angle in radians.
+    '''
+    xi, eta  = xieta
+    xi_rot   = xi*np.cos(phi)  - eta*np.sin(phi)
+    eta_rot  = xi*np.sin(phi)  + eta*np.cos(phi)
+    xi0_rot  = xi0*np.cos(phi) - eta0*np.sin(phi)
+    eta0_rot = xi0*np.sin(phi) + eta0*np.cos(phi)
+    factor   = 2*np.sqrt(2*np.log(2))
+    xi_coef  = -0.5*(xi_rot -xi0_rot)**2 /(fwhm_xi/factor)**2
+    eta_coef = -0.5*(eta_rot-eta0_rot)**2/(fwhm_eta/factor)**2
+    sim_data = a*np.exp(xi_coef+eta_coef)
+    return sim_data
 
 
 def real2complexAlms(data, lmax, mmax):
     outData = np.zeros((lmax+1)**2, dtype='complex64')
     for l in range(0, lmax):
-        for m in range(0, mmax):
+        for m in range(0, max(mmax,l)):
             if(m > l):
                 continue
             healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
@@ -164,13 +164,8 @@ dir_B_los = np.array([
             [  0.00751408106677, -0.93889226303920, -0.34412912836731  ]])
 
 
-rots = np.arange(0, 360, 45)
-rots = [0]
-for rot in rots:
-  #fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
-  fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
-  fname_out = 'test.h5'
-  #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
+
+def create_rimo(fname, rot=0):
   
   
   with h5py.File(fname_out, 'a') as f:
@@ -269,15 +264,20 @@ for rot in rots:
       
       X = np.arange(-11.98, 11.98+0.04, 0.04)*np.pi/180
       Y = np.arange(11.98, -11.98-0.04, -0.04)*np.pi/180
+
+      nside = 8192
       X2 = np.linspace(X[0], X[-1], len(X)*10)
       Y2 = np.linspace(Y[0], Y[-1], len(Y)*10)
+
+      nside = 1024
+      X2 = np.linspace(X[0], X[-1], len(X)*5)
+      Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
       xx, yy = np.meshgrid(X,Y)
       theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
       phi = np.arctan2(yy, xx)
 
 
 
-      nside = 8192
       for beam_ind, fname in enumerate(fnames):
           data = fits.open(fname)
           beamA = data[0].data[0]
@@ -291,7 +291,6 @@ for rot in rots:
 
 
           # 2D Gaussian fits
-          ind = np.argmax(beamA_2)
           beamA[~np.isfinite(beamA)] = 0
           mu_x = (beamA*xx).sum()/(beamA).sum()
           mu_y = (beamA*yy).sum()/(beamA).sum()
@@ -325,12 +324,13 @@ for rot in rots:
 
             source_idx = np.delete(source_idx, idx_t)
             fluxA = np.delete(fluxA, idx_t)
-          mA = mA/N
-          mA[~np.isfinite(mA)] = 0
+          mA[N > 0] = mA[N > 0]/N[N > 0]
+          #hp.write_map('testA.fits', mA)
+          #mA = mA/N
+          #mA[~np.isfinite(mA)] = 0
 
 
           # 2D Gaussian fits
-          ind = np.argmax(beamA_2)
           beamB[~np.isfinite(beamB)] = 0
           mu_x = (beamB*xx).sum()/(beamB).sum()
           mu_y = (beamB*yy).sum()/(beamB).sum()
@@ -362,13 +362,7 @@ for rot in rots:
 
             source_idx = np.delete(source_idx, idx_t)
             fluxB = np.delete(fluxB, idx_t)
-          mB = mB/N
-          mB[~np.isfinite(mB)] = 0
-
-          hp.gnomview(mA, rot=(0,90,0), reso=2, title='Beam A')
-          hp.graticule()
-          hp.gnomview(mB, rot=(0,90,0), reso=2, title='Beam B')
-          hp.graticule()
+          mB[N > 0] = mB[N > 0]/N[N > 0]
 
 
 
@@ -379,8 +373,8 @@ for rot in rots:
           alm_B = hp.map2alm(mB, lmax=lmax, mmax=mmax)
           b_lm_B = complex2realAlms(alm_B, lmax, mmax)
 
-          b_lA = hp.alm2cl(alm_A, lmax=lmax, mmax=mmax)**0.5
-          b_lB = hp.alm2cl(alm_B, lmax=lmax, mmax=mmax)**0.5
+          b_lA = (4*np.pi*hp.alm2cl(alm_A, lmax=lmax, mmax=mmax))**0.5
+          b_lB = (4*np.pi*hp.alm2cl(alm_B, lmax=lmax, mmax=mmax))**0.5
           b_lm_A /= max(b_lA)
           b_lm_B /= max(b_lB)
 
@@ -506,3 +500,9 @@ for rot in rots:
             f.create_dataset(DA + '14/slmmax', data=[slmmax])
             f.create_dataset(DA + '23/slmmax', data=[slmmax])
             f.create_dataset(DA + '24/slmmax', data=[slmmax])
+
+if __name__ == '__main__':
+    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
+    fname_out = 'test.h5'
+    #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
+    create_rimo(fname_out)
