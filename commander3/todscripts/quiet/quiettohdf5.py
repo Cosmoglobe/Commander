@@ -45,9 +45,15 @@ def make_od():
     level3_ces = [int("".join(compiled_pattern.findall(data_file))) for data_file in level3_data_files] 
 
     # TODO: 
-    # [ ] Retrieve polarization angle from `pointings` and stored together with `pixels` in 
-    #     Huffmann compressed form 
+    # [x] Retrieve polarization angle from `pointings` 
+    # [ ] Store these together with `pixels_idx` in Huffmann compression form 
+    # [x] Change the `commander_tod.py` so it will now write not only numeric 
+    #     frequencies in the name of the file
     # [ ] Scale this to the entire `patch_gc`, i.e. include looping in parallel
+    # [ ] Scale this even further to include all patches for the same frequency 
+    #     (just dump all CES into one dir? Each CES seems to be unique anyway)
+    # [ ] Include W band as well
+    # [ ] Include `filelist`s production
     # Retrieving data from old Level3 files 
     readin_file = h5py.File(level3_dir / level3_data_files[0], 'r')
     # Things to include per detector
@@ -96,9 +102,9 @@ def make_od():
     # Creating new file
     #for ces in level3_ces:
     #    comm_tod.init_file(1, ces, mode='w')
-    ctod.init_file(1, 1, mode='w')
+    ctod.init_file('Q', 1, mode='w')
     # TODO: figure out whether this is the correct interpretation/nomenclature
-    diode_labels = ['Q+', 'U+', 'U-', 'Q-']
+    diode_labels = ['Qp', 'Up', 'Um', 'Qm']
     # Adding new fields to a file
     for det in tqdm(range(0, 19, 1)):
         prefix = str(det+1).zfill(2)

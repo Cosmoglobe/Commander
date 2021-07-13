@@ -48,7 +48,11 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq).zfill(3) + '_' + str(od).zfill(6) + '.h5')
+        # Checking whether `freq` is the number or not to get the correct file name in the end 
+        if str(freq).isnumeric():
+            self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq).zfill(3) + '_' + str(od).zfill(6) + '.h5')
+        else:
+            self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq) + '_' + str(od).zfill(6) + '.h5')
 
         self.exists = False
         if os.path.exists(self.outName):
