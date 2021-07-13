@@ -82,13 +82,15 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(cpar, id_abs, info, tod_type)
+  function constructor(handle, cpar, id_abs, info, tod_type)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
     !
     ! Arguments:
     ! ----------
+    ! handle:   type(planck_rng)
+    !           Healpix random number type
     ! cpar:     derived type
     !           Object containing parameters from the parameterfile.
     ! id_abs:   integer
@@ -104,14 +106,15 @@ contains
     !              Pointer that contains all instrument data
 
     implicit none
-    type(comm_params),         intent(in)  :: cpar
-    integer(i4b),              intent(in)  :: id_abs
-    class(comm_mapinfo),       target      :: info
-    character(len=128),        intent(in)  :: tod_type
-    class(comm_LFI_tod),       pointer     :: constructor
+    type(planck_rng),          intent(inout) :: handle
+    type(comm_params),         intent(in)    :: cpar
+    integer(i4b),              intent(in)    :: id_abs
+    class(comm_mapinfo),       target        :: info
+    character(len=128),        intent(in)    :: tod_type
+    class(comm_LFI_tod),       pointer       :: constructor
 
-    real(sp), dimension(:,:),  allocatable :: diode_data, corrected_data
-    integer(i4b), dimension(:),    allocatable :: flag
+    real(sp), dimension(:,:),    allocatable :: diode_data, corrected_data
+    integer(i4b), dimension(:),  allocatable :: flag
 
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count, nsmooth
     logical(lgt) :: pol_beam
@@ -256,9 +259,9 @@ contains
     constructor%nbin_adc = 500
 
     ! Determine v_min and v_max for each diode
-    do i = 1, constructor%ndet
+    do i = 1, 1!constructor%ndet
 
-      do j=1, constructor%ndiode ! init the adc correction structures
+      do j=1, 1!constructor%ndiode ! init the adc correction structures
         horn=1
         if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
 
@@ -269,7 +272,7 @@ contains
         allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
         allocate(flag(constructor%scans(k)%ntod))
         call constructor%decompress_diodes(k, i, diode_data, flag=flag)
-        do j = 1, constructor%ndiode
+        do j = 1, 1!constructor%ndiode
           horn=1
           if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
           call constructor%adc_corrections(i,j,horn)%p%find_horn_min_max(diode_data(:,j), flag,constructor%flag0)
@@ -279,7 +282,7 @@ contains
 
       end do ! end loop over scans
 
-      do j = 1, constructor%ndiode ! allreduce vmin and vmax
+      do j = 1, 1!constructor%ndiode ! allreduce vmin and vmax
 
         horn=1
         if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
@@ -294,8 +297,8 @@ contains
 
 
     ! Now bin rms for all scans and compute the correction table
-    do i = 1, constructor%ndet
-       do j = 1, constructor%ndiode
+    do i = 1, 1!constructor%ndet
+       do j = 1, 1!constructor%ndiode
           name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
           horn=1
           if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
@@ -308,9 +311,11 @@ contains
           end do
           ! Build the actual adc correction tables (adc_in, adc_out)
           if (constructor%myid == 0) write(*,*) 'Build adc correction table for '//trim(name)
-          call constructor%adc_corrections(i,j,horn)%p%build_table(name)
+          call constructor%adc_corrections(i,j,horn)%p%build_table(handle,name)
        end do
     end do
+
+    stop
 
     ! Compute reference load filter spline
     nsmooth = constructor%get_nsmooth()
