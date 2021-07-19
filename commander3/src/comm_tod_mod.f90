@@ -97,6 +97,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
+     integer(i4b) :: ntime                                        ! Number of time values
 
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -751,7 +752,13 @@ contains
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
-    call read_hdf(file, slabel // "/common/time",  self%t0)
+    if (tod%ntime == 1) then
+      call read_hdf(file, slabel // "/common/time",  self%t0(1))
+      self%t0(2) = 0d0
+      self%t0(3) = 0d0
+    else
+      call read_hdf(file, slabel // "/common/time",  self%t0)
+    end if
     ! HKE: LFI files should be regenerated with (x,y,z) info
     !call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
 

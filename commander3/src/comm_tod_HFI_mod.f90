@@ -123,6 +123,7 @@ contains
     constructor%chisq_threshold = 20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    constructor%ntime           = 1
 
     nside_beam                  = 512
     nmaps_beam                  = 3
