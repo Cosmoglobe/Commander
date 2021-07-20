@@ -85,7 +85,7 @@ contains
     self%ntod   = tod%scans(scan)%ntod
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
-    self%ndelta = 0; if (present(init_s_sky_prop)) self%ndelta = size(map_sky,4)
+    self%ndelta = 0; if (init_s_sky_prop_ .or. init_s_bp_prop_) self%ndelta = size(map_sky,4)
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
@@ -243,7 +243,7 @@ contains
     self%ntod   = tod%scans(scan)%ntod
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
-    self%ndelta = 0; if (present(init_s_sky_prop)) self%ndelta = size(map_sky,4)
+    self%ndelta = 0; if (init_s_sky_prop_ .or. init_s_bp_prop_) self%ndelta = size(map_sky,4)
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
