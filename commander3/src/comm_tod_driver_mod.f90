@@ -140,13 +140,13 @@ contains
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
-       do j = 2, size(map_sky,4)
+       do j = 2, self%ndelta
           !if (.true. .or. tod%myid == 78) write(*,*) 'c61', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, size(map_sky,4)
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2, s_bp=self%s_bp_prop(:,:,j))
        end do
     else if (init_s_sky_prop_) then
-       do j = 2, size(map_sky,4)
+       do j = 2, self%ndelta
           !if (.true. .or. tod%myid == 78) write(*,*) 'c62', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
@@ -314,7 +314,7 @@ contains
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
-       do k = 2, size(map_sky,4)
+       do k = 2, self%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
                & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, self%ndet
@@ -324,7 +324,7 @@ contains
           end do
        end do
     else if (init_s_sky_prop_) then
-       do k = 2, size(map_sky,4)
+       do k = 2, self%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
                & procmask, scan, s_bufA, s_bufB, self%mask)
           do j = 1, self%ndet
