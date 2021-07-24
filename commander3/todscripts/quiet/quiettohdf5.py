@@ -18,6 +18,35 @@ sys.path.append(str(commander_tools_path))
 from tod_tools import commander_tod as comm_tod
 #---------------------------------------------
 
+"""
+The file structure suitable for Commander3 (after deciphering `devel` branch)
+file/
+    scan/
+        det/
+                scalars = np.array([gain[0], sigma0, fknees, alpha])
+                pix = hp.ang2pix() <= the compressed pixels
+                psi <= huffman compressed array of values
+                flag <= compressed accepted/rejected data point, all zeros for len(tod)
+                tod <= just tods
+        common/
+                vsun <= velocity of the Earth wrt Sun in Galactic Coordinates, x,y,z, put 0,0,0 for now
+                time <= take np.array([time[0], 0, 0]) 
+                huffsym <= for flags, pix and the psi generated huffman symbols (for decoding)
+                hufftree <= for flags, pix and psi generated huffman tree (encoded values)
+    common/
+        det      <= list of detectors, e.g. '27M, 27S, 28M, 28S'
+        datatype <= write 'QUIET'
+        nside    <= single number
+        npsi <= the number of bins you descretize the polarization angle to, e.g. 2048 
+                (the psi angle should be descretized somehow, lfi.psiDigitize variable is a clue):
+                Inside file the lfi.py: 
+                https://github.com/Cosmoglobe/Commander/blob/devel/commander3/python/commander_tools/tod_tools/lfi.py
+                npsi = 4096
+                psiDigitize = ['digitize', {'min': 0, 'max': 2*np.pi, 'nbins': npsi}]
+        fsamp <= sampling frequency, one value
+        polang <= planck only thing? np.array([0, 0, 0, 0])
+        nbang <= planck only thing? np.array([0, 0, 0, 0])
+"""
 
 '''
 The `commander_tod(self, outPath, name, version=None, dicts=None, overwrite=False)` needs to be instantiated.
@@ -40,13 +69,17 @@ def make_od():
     # Getting file names inside specified directory and removing the path component
     level3_data_files = sorted(level3_dir.rglob('*.hdf')) 
     level3_data_files = [data_file.name for data_file in level3_data_files]
+    #print(level3_data_files[0])
     # Retrieving CES values from the file names 
     compiled_pattern = re.compile('[\d]')
     level3_ces = [int("".join(compiled_pattern.findall(data_file))) for data_file in level3_data_files] 
+    #print(level3_ces[0])
 
     # TODO: 
     # [x] Retrieve polarization angle from `pointings` 
-    # [ ] Store these together with `pixels_idx` in Huffmann compression form 
+    # [ ] Store these (together with `pixels_idx`?) in Huffmann compression form. 
+    #     Look into lfy.py and/or others, because it is not just string, but a list 
+    #     containing a dictionary
     # [x] Change the `commander_tod.py` so it will now write not only numeric 
     #     frequencies in the name of the file
     # [ ] Scale this to the entire `patch_gc`, i.e. include looping in parallel
@@ -99,29 +132,33 @@ def make_od():
     # Writing data into new file(s)
     # Initialising tod object
     ctod = comm_tod.commander_tod(output_dir, 'QUIET', version, dicts=None, overwrite=False)
+    # Huffmann compression
+    huffman = ['huffman', {'dictNum':1}]
     # Creating new file
     #for ces in level3_ces:
     #    comm_tod.init_file(1, ces, mode='w')
-    ctod.init_file('Q', 1, mode='w')
+    ctod.init_file('Q', level3_ces[0], mode='w')
     # TODO: figure out whether this is the correct interpretation/nomenclature
     diode_labels = ['Qp', 'Up', 'Um', 'Qm']
     # Adding new fields to a file
     for det in tqdm(range(0, 19, 1)):
-        prefix = str(det+1).zfill(2)
-        ctod.add_field(prefix + '/common/psi',    psi[det])
-        ctod.add_field(prefix + '/common/pixels', pixels[det])
+        prefix = f'{level3_ces[0]}'.zfill(6) + '/' + str(det+1).zfill(2)
+        #print(prefix)
+        ctod.add_field(prefix + '/psi', psi[det])
+        ctod.add_field(prefix + '/pix', pixels[det])#, huffman)
         # In level3 files the `pixels_idx` were called `pixels`
-        ctod.add_field(prefix + '/common/pixels_idx', pixels_idx[det])
+        ctod.add_field(prefix + '/pixels_idx', pixels_idx[det])
         for diode in range(0, 4, 1):
-            ctod.add_field(prefix + f'/{diode_labels[diode]}/alpha',       alpha[det+diode])
-            ctod.add_field(prefix + f'/{diode_labels[diode]}/fknee',       fknee[det+diode])
-            ctod.add_field(prefix + f'/{diode_labels[diode]}/gain',        gain[det+diode])
-            ctod.add_field(prefix + f'/{diode_labels[diode]}/sigma0',      sigma0[det+diode])
-            ctod.add_field(prefix + f'/{diode_labels[diode]}/tod',         tods[det+diode])
-            ctod.add_field(prefix + f'/{diode_labels[diode]}/tp',          tp[det+diode])
-            ctod.add_field(prefix + f'/{diode_labels[diode]}/diode_stats', diode_stats[det+diode])
-            ctod.add_field(prefix + f'/{diode_labels[diode]}/filter_par',  filter_par[det+diode])
-    #
+            ctod.add_field(prefix + f'{diode_labels[diode]}/alpha',       alpha[det+diode])
+            ctod.add_field(prefix + f'{diode_labels[diode]}/fknee',       fknee[det+diode])
+            ctod.add_field(prefix + f'{diode_labels[diode]}/gain',        gain[det+diode])
+            ctod.add_field(prefix + f'{diode_labels[diode]}/sigma0',      sigma0[det+diode])
+            ctod.add_field(prefix + f'{diode_labels[diode]}/tod',         tods[det+diode])
+            ctod.add_field(prefix + f'{diode_labels[diode]}/tp',          tp[det+diode])
+            ctod.add_field(prefix + f'{diode_labels[diode]}/diode_stats', diode_stats[det+diode])
+            ctod.add_field(prefix + f'{diode_labels[diode]}/filter_par',  filter_par[det+diode])
+    # Things common for each scan
+    # Things common for each scan
     prefix = 'common'
     ctod.add_field(prefix + '/apex/time',  apex_time)
     ctod.add_field(prefix + '/apex/value', apex_value)
@@ -145,6 +182,7 @@ def make_od():
     ctod.add_field(prefix + '/time',       time1)
     ctod.add_field(prefix + '/time_gain',  time_gain)
 
+    # [[None, {'Dict': 1}] ...]
 
     #writeout_file = h5py.File(output_dir.joinpath("QUIET_001_000001.h5")  , 'r')
     #print(np.array(writeout_file.get('common/time')))
