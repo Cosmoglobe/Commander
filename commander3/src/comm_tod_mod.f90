@@ -35,6 +35,9 @@ module comm_tod_mod
   private
   public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
+  type :: byte_pointer
+   byte, dimension(:), allocatable :: p 
+  end type byte_pointer
 
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label

@@ -369,6 +369,7 @@ contains
              middle_mean = middle_mean + self%rms_bins(j)
           end if
        end do
+       write(*,*) i
        middle_mean = middle_mean/i
        
        i = 0
@@ -377,6 +378,7 @@ contains
           i = i + 1
           middle_std = middle_std + (middle_mean-self%rms_bins(j))**2
        end do
+       write(*,*) i
        middle_std = sqrt(middle_std/i)
 
        ! Mask out large deviations
@@ -458,7 +460,7 @@ contains
        self%adc_in  = self%v_bins
        self%adc_out = self%v_bins
        do i = 1, self%nbins
-          self%adc_out(i) = self%adc_out(i) + rirf(i) - slope*self%v_bins(i) - offset
+          self%adc_out(i) = self%adc_out(i) + flatrirf(i) - slope*self%v_bins(i) - offset
        end do
        
        ! Write to file binned rms, voltages, and response function to files
@@ -843,9 +845,6 @@ contains
        sigma        = 0.0
        mean         = 0.0
        amp          = 0.0
-       sigma_est    = 0.0
-       mean_est     = 0.0
-       amp_est      = 0.0
 
        ! Define first and last for indices - range to fit Gaussian to dip
        first = dip1+(j-1)*v_off
@@ -883,8 +882,6 @@ contains
        y_tmp(:) = newy(first:last)
 
        ! Define estimates to the Gaussian parameters
-       amp_est    = maxval(y_tmp)
-
        do i = dip1+(j-1)*v_off, dip1+(j-1)*v_off+fit_range
           if (mask(i) == 0) cycle
           if (newy(i) < newy(dip1+(j-1)*v_off)/2.0) then
@@ -893,14 +890,15 @@ contains
           end if
        end do
 
-       sigma_est = max(2.0*(fwhm/2.355), 0.0001)
-       mean_est  = x(dip1+(j-1)*v_off)
+       sigma   = max(2.0*(fwhm/2.355), 0.0001)
+       mean    = x(dip1+(j-1)*v_off)
+       amp     = maxval(y_tmp)
 
-       par_est(1) = mean_est
-       par_est(2) = sigma_est
-       par_est(3) = amp_est
+       pars(1) = mean
+       pars(2) = sigma
+       pars(3) = amp
 
-       pars     = par_est
+       ! pars     = par_est
 
        ! write(*,*) 'initial estimates:'
        ! write(*,*) 'mean  = ', pars(1) 
@@ -946,8 +944,9 @@ contains
        ! write(*,*) 'amp   = ', pars(3) 
 
        ! ! We will assume the mean is given by the dip minimum location
-       ! mean = x(dip1+(j-1)*v_off)
-       ! sigma = max(2.0*(fwhm/2.355), 0.001d0)
+       mean  = x(dip1+(j-1)*v_off)
+       sigma = max(2.0*(fwhm/2.355), 0.001d0)
+       amp   = maxval(y_tmp)
        ! ! model = return_gaussian(x,mean,sigma,amp)
 
        deallocate(x_tmp,y_tmp)

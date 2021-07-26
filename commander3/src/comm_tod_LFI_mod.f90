@@ -61,6 +61,7 @@ module comm_tod_LFI_mod
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
      real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
+     character(len=10)                                  :: adc_mode        ! gauss, dpc, none
    contains
      procedure     :: process_tod             => process_LFI_tod
      procedure     :: diode2tod_inst          => diode2tod_LFI
@@ -252,6 +253,11 @@ contains
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
     constructor%spike_amplitude = 0.d0
 
+
+    constructor%adc_mode = 'gauss'
+
+    
+
     ! Compute ADC correction tables for each diode
 
     if (constructor%myid == 0) write(*,*) 'Building ADC correction tables'
@@ -259,9 +265,9 @@ contains
     constructor%nbin_adc = 500
 
     ! Determine v_min and v_max for each diode
-    do i = 1, 1!constructor%ndet
+    do i = 1, constructor%ndet
 
-      do j=1, 1!constructor%ndiode ! init the adc correction structures
+      do j=1, constructor%ndiode ! init the adc correction structures
         horn=1
         if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
 
@@ -282,7 +288,7 @@ contains
 
       end do ! end loop over scans
 
-      do j = 1, 1!constructor%ndiode ! allreduce vmin and vmax
+      do j = 1, constructor%ndiode ! allreduce vmin and vmax
 
         horn=1
         if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
@@ -297,8 +303,8 @@ contains
 
 
     ! Now bin rms for all scans and compute the correction table
-    do i = 1, 1!constructor%ndet
-       do j = 1, 1!constructor%ndiode
+    do i = 1, constructor%ndet
+       do j = 1, constructor%ndiode
           name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
           horn=1
           if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
