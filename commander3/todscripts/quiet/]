@@ -37,10 +37,10 @@ file/
         det      <= list of detectors, e.g. '27M, 27S, 28M, 28S'
         datatype <= write 'QUIET'
         nside    <= single number
-        npsi     <= the number of bins you descretize the polarization angle to, e.g. 2048 
-                 (the psi angle should be descretized somehow, lfi.psiDigitize variable is a clue):
-                 Inside file the lfi.py: 
-                 https://github.com/Cosmoglobe/Commander/blob/devel/commander3/python/commander_tools/tod_tools/lfi.py
+        npsi <= the number of bins you descretize the polarization angle to, e.g. 2048 
+                (the psi angle should be descretized somehow, lfi.psiDigitize variable is a clue):
+                Inside file the lfi.py: 
+                https://github.com/Cosmoglobe/Commander/blob/devel/commander3/python/commander_tools/tod_tools/lfi.py
                 npsi = 4096
                 psiDigitize = ['digitize', {'min': 0, 'max': 2*np.pi, 'nbins': npsi}]
         fsamp <= sampling frequency, one value
@@ -153,8 +153,7 @@ def make_od():
         # In level3 files the `pixels_idx` were called `pixels`
         #ctod.add_field(prefix + '/pixels_idx', pixels_idx[det])
         for diode in range(0, 4, 1):
-            label  = str(det+1).zfill(2) + f'{diode_labels[diode]}'
-            prefix = f'{level3_ces[0]}'.zfill(6) + '/' + label 
+            prefix = f'{level3_ces[0]}'.zfill(6) + '/' + str(det+1).zfill(2) + f'{diode_labels[diode]}'
             ctod.add_field(prefix + '/psi',         psi[det])
             ctod.add_field(prefix + '/pix',         pixels[det])#, huffman)
             ctod.add_field(prefix + '/pixels_idx',  pixels_idx[det])
@@ -166,10 +165,10 @@ def make_od():
             ctod.add_field(prefix + '/tp',          tp[det+diode])
             ctod.add_field(prefix + '/diode_stats', diode_stats[det+diode])
             ctod.add_field(prefix + '/filter_par',  filter_par[det+diode])
-            if (det == 18 and diode == 3):
-                detector_labels += label 
+            if (det == 18 & diode == 3):
+                detector_labels += prefix
             else:
-                detector_labels += label + ", "
+                detector_labels += prefix + ", "
 
     # Things common for each scan
     prefix = 'common'

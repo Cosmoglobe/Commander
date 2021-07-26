@@ -116,6 +116,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 			DEPENDS						zlib 
 												mbedtls
 												libssh2_src
+												libssh2_static
 			PREFIX						"${LIBS_BUILD_DIR}"
 			SOURCE_DIR				"${LIBSSH2_SOURCE_DIR}"
 			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"

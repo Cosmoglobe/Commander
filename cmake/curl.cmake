@@ -28,10 +28,10 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 	# looking for cURL in the system. 
 	#if(NOT (CURL_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 	if(USE_SYSTEM_CURL AND USE_SYSTEM_LIBS)
-		# CMake configure scripts foesn't work properly,
+		# CMake configure scripts doesn't work properly,
 		# so we look for cURL in a standard manner.
 		set(CURL_NO_CURL_CMAKE ON)
-		find_package(CURL)
+		find_package(CURL 7.54)
 	endif()
 
 	# TODO: to properly link zlib to curl (cmake build) need to export it in .bashrc (or in $ENV{ZLIB_ROOT})
@@ -103,7 +103,7 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 				-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 				-DCMAKE_INSTALL_LIBDIR:PATH=lib
 				-DCMAKE_INSTALL_INCLUDEDIR:PATH=include
-				-DBUILD_CURL_EXE:BOOL=OFF
+				-DBUILD_CURL_EXE:BOOL=ON
 				-DBUILD_SHARED_LIBS:BOOL=OFF
 				# Specifying compilers
 				-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
@@ -137,6 +137,7 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 												mbedtls
 												libssh2 
 												curl_src
+												#curl_static
 			PREFIX						"${LIBS_BUILD_DIR}"
 			SOURCE_DIR				"${CURL_SOURCE_DIR}"
 			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
@@ -185,6 +186,8 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		# Using static linking otherwise we need to put things into LD_LIBRARY_PATH
 		# libcurl.a(mime.c.o): relocation R_X86_64_32S against `base64' can not be 
 		# used when making a shared object; recompile with -fPIC
+		# Note: Use shared linking otherwise will get a lot of linking problems when 
+		# compiling commander
 		set(CURL_LIBRARIES
 			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}curl${CMAKE_SHARED_LIBRARY_SUFFIX}" 
 			#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}curl${CMAKE_STATIC_LIBRARY_SUFFIX}" 
@@ -211,14 +214,6 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		message(STATUS "cURL LIBRARIES are ${CURL_LIBRARIES}")
 		message(STATUS "cURL INCLUDE DIR is ${CURL_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
-		# Healpix complains about curl library - it needs to be in the same location as cfitsio
-		# This is fixed in 3.70, so no need for copying, but I will leave it here just in case.
-		#add_custom_command(
-		#	TARGET ${project} PRE_BUILD
-		#			COMMAND ${CMAKE_COMMAND} -E copy
-		#							${CURL_LIBRARIES} 
-		#			${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}curl${CMAKE_SHARED_LIBRARY_SUFFIX}
-		#			)
 	endif()
 else()
 	# making an empty target so the project will compile regardless of cURL 

@@ -28,7 +28,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 	message(STATUS "---------------------------------------------------------------")
 	#if(NOT (MBEDTLS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 	if(USE_SYSTEM_MBEDTLS AND USE_SYSTEM_LIBS)
-		find_package(MbedTLS)
+		find_package(MBEDTLS)
 	endif()
 
 	if(NOT MBEDTLS_FOUND) 
@@ -39,7 +39,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		if(NOT EXISTS "${MBEDTLS_SOURCE_DIR}/CMakeLists.txt")
 			message(STATUS "No MBEDTLS sources were found; thus, will download it from source:\n${mbedtls_git_url}")
 			ExternalProject_Add(
-				mbedtls
+				mbedtls_src
 				GIT_REPOSITORY		"${mbedtls_git_url}"
 				GIT_TAG						"${mbedtls_git_tag}"
 				PREFIX						"${LIBS_BUILD_DIR}"

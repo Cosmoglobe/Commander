@@ -33,41 +33,6 @@ endif()
 
 if(NOT CFITSIO_FOUND)
 	#------------------------------------------------------------------------------
-	# Creating configure command for CFITSIO
-	#------------------------------------------------------------------------------
-	list(APPEND cfitsio_configure_command
-		"${CMAKE_COMMAND}" "-E" "env" 
-		)
-	# If user wanted to enable cURL in CFITSIO
-	# Adding cURL and other installed libraries to PATH variable
-	# because cfitsio is looking for curl-config during configuration.
-	if(CFITSIO_USE_CURL)
-		set(ENV{PATH} 
-			${CMAKE_RUNTIME_OUTPUT_DIRECTORY}:$ENV{PATH}
-			)
-		list(APPEND cfitsio_configure_command
-			"PATH=$ENV{PATH}"
-			)	
-	endif()
-	# Adding the rest of commands to the compilation
-	list(APPEND cfitsio_configure_command 
-		#"FC=${COMMANDER3_Fortran_COMPILER}" 
-		"CXX=${MPI_CXX_COMPILER}" 
-		"CPP=${COMMANDER3_CPP_COMPILER}" 
-		"CC=${MPI_C_COMPILER}" 
-		"${CFITSIO_SOURCE_DIR}/configure" 
-		"--prefix=<INSTALL_DIR>" 
-		)
-	if(CFITSIO_USE_CURL)
-		list(APPEND cfitsio_configure_command 
-			"--enable-curl"
-			)
-	else()
-		list(APPEND cfitsio_configure_command 
-			"--disable-curl"
-			)
-	endif()
-	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
@@ -79,7 +44,7 @@ if(NOT CFITSIO_FOUND)
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${CFITSIO_SOURCE_DIR}"
-			BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
+			#BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
 			LOG_DIR						"${CMAKE_LOG_DIR}"
 			LOG_DOWNLOAD			ON
 			# commands how to build the project
@@ -94,39 +59,72 @@ if(NOT CFITSIO_FOUND)
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	# Compiling and installing CFitsIO
+	# Compiling and installing Static and Shared CFitsIO
 	#------------------------------------------------------------------------------
-	# Note: For now CFitsIO is compiled with configure, which should be used inside
-	# source(!) directory; thus, we use `BINARY_DIR` variable to point to it.
-	ExternalProject_Add(
-		cfitsio
-		# Specifying that cfitsio depends on the curl project and should be built after it
-		DEPENDS						required_libraries
-											curl
-											cfitsio_src
-		PREFIX						"${LIBS_BUILD_DIR}"
-		SOURCE_DIR				"${CFITSIO_SOURCE_DIR}"
-		BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
-		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE			ON
-		LOG_BUILD					ON
-		LOG_INSTALL				ON
-		# commands how to build the project
-		DOWNLOAD_COMMAND	""
-		CONFIGURE_COMMAND "${cfitsio_configure_command}"
+	# TODO: Figure out how to exclude build with cURL support
+	list(APPEND _CFITSIO_LIB_TYPES_ static shared)
+	list(APPEND _CFITSIO_LIB_BOOL_VALS_ -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_SHARED_LIBS:BOOL=ON)
+	foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _CFITSIO_LIB_TYPES_ _CFITSIO_LIB_BOOL_VALS_)
+		ExternalProject_Add(
+			cfitsio_${_lib_type_}
+			# Specifying that cfitsio depends on the curl project and should be built after it
+			DEPENDS						required_libraries
+												curl
+												cfitsio_src
+			PREFIX						"${LIBS_BUILD_DIR}"
+			SOURCE_DIR				"${CFITSIO_SOURCE_DIR}"
+			#BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
+			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_CONFIGURE			OFF
+			LOG_BUILD					ON
+			LOG_INSTALL				ON
+			# commands how to build the project
+			DOWNLOAD_COMMAND	""
+			#CONFIGURE_COMMAND "${cfitsio_configure_command}"
+			CMAKE_ARGS
+				-DCMAKE_BUILD_TYPE=Release
+				# Building both static and shared libraries
+				${_bool_val_}
+				#-DBUILD_SHARED_LIBS:BOOL=OFF
+				# Specifying installations paths for binaries and libraries
+				-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+				# Specifying compilers
+				-DCMAKE_CXX_COMPILER=${MPI_CXX_COMPILER}
+				-DCMAKE_C_COMPILER=${MPI_C_COMPILER}
+				# Specyfying location of cURL library
+				-DCURL_INCLUDE_DIR:PATH=${CURL_INCLUDE_DIR}
+				#-DCURL_LIBRARY:FILEPATH=${CURL_LIBRARIES}
+				# Specifying the location of ZLIB library (required from version 4.0.0)
+				-DZLIB_INCLUDE_DIR:PATH=${ZLIB_INCLUDE_DIRS}
+				-DZLIB_LIBRARY:FILEPATH=${ZLIB_LIBRARIES}
+			)
+	endforeach()
+	#------------------------------------------------------------------------------
+	# Creating Unified Target
+	#------------------------------------------------------------------------------
+	add_custom_target(cfitsio
+		ALL ""
+		DEPENDS cfitsio_static
+						cfitsio_shared
 		)
 	#------------------------------------------------------------------------------
 	# setting cfitsio library and include variables
 	# Note: for some reason, only set() works but not list(APPEND)
+	# Note2: After switching to 4.0.0 version it turns out you need
+	# to add Zlib as well, because it is now one of the CFitsIO dependencies
 	if(CFITSIO_USE_CURL)
 		set(CFITSIO_LIBRARIES 
 			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}cfitsio${CMAKE_STATIC_LIBRARY_SUFFIX}"
+			#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}cfitsio${CMAKE_SHARED_LIBRARY_SUFFIX}"
 			"${CURL_LIBRARIES}"
+			"${ZLIB_LIBRARIES}"
 			)
 	else()
 		set(CFITSIO_LIBRARIES 
 			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}cfitsio${CMAKE_STATIC_LIBRARY_SUFFIX}"
+			#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}cfitsio${CMAKE_SHARED_LIBRARY_SUFFIX}"
+			"${ZLIB_LIBRARIES}"
 			)
 	endif()
 	set(CFITSIO_INCLUDE_DIRS
@@ -145,10 +143,12 @@ else()
 		set(CFITSIO_LIBRARIES
 			"${CFITSIO_LIBRARY}"
 			"${CURL_LIBRARIES}"
+			"${ZLIB_LIBRARIES}"
 			)
 	else()
 		set(CFITSIO_LIBRARIES
 			"${CFITSIO_LIBRARY}"
+			"${ZLIB_LIBRARIES}"
 			)
 	endif()
 	#------------------------------------------------------------------------------

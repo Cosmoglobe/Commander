@@ -99,21 +99,22 @@ list(APPEND _HEALPIX_LIB_NAMES_
 list(APPEND _HEALPIX_SHARP_HEADERS_
 	sharp.h	
 	)
+# Note: using only one file because it doesn't work otherwise
 list(APPEND _HEALPIX_Fortran_HEADERS_
 	healpix_modules.mod 
-	healpix_types.mod 
-	healpix_fft.mod
-	healpix_sharp_f90.mod	
+	#healpix_types.mod 
+	#healpix_fft.mod
+	#healpix_sharp_f90.mod	
 	)
 list(APPEND _HEALPIX_C_HEADERS_
 	chealpix.h	
 	)	
 list(APPEND _HEALPIX_CXX_HEADERS_
-	healpix_tables.h
+	#healpix_tables.h
 	healpix_base.h
-	healpix_data_io.h
-	healpix_map.h
-	healpix_map_fitsio.h
+	#healpix_data_io.h
+	#healpix_map.h
+	#healpix_map_fitsio.h
 	)
 # HEALPix source contains the data folder as well, which is used
 # by various projects and contains pixel window functions etc.
@@ -181,6 +182,7 @@ foreach(component lib_name IN ZIP_LISTS _HEALPIX_VALID_COMPONENTS_ _HEALPIX_LIB_
 		PATHS ${HEALPIX_ROOT} ${HEALPIX_INSTALL_PREFIX} #"${_HEALPIX_LIB_PATHS_}"
 		PATH_SUFFIXES include include/healpix_cxx include/libsharp
 		)
+	#message(STATUS "HEALPix inc ${HEALPIX_${component}_INCLUDE_DIR}")
 	# Libraries
 	# In version 3.70 (and probably earlier), libs for sharp, f90, c, cxx
 	# are stored in "lib" folder
@@ -238,6 +240,7 @@ else()
 			# checking whether the headers were found
 			if(HEALPIX_${component}_INCLUDE_DIR)
 				list(APPEND HEALPIX_INCLUDE_DIRS "${HEALPIX_${component}_INCLUDE_DIR}")
+				#message(STATUS "${HEALPIX_INCLUDE_DIRS}")
 			endif()
 		else()
 			message(FATAL_ERROR "${component} is not a valid HEALPIX component! Valid are: ${_HEALPIX_VALID_COMPONENTS_}")
