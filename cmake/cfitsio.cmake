@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script determines the location of CFitsio on the host system.
 # If it fails to do so, it will download, compile and install CFitsio from source.
 # Together with cURL, CFitsio is required to successfully compile HEALPix.
@@ -26,7 +28,6 @@
 # TODO: change cfitsio version to 3.49 and figure out how to link cURL correctly.
 # Also, try again to switch to cmake build and try to install healpix on top of it.
 message(STATUS "---------------------------------------------------------------")
-#if(NOT (CFITSIO_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 if(USE_SYSTEM_CFITSIO AND USE_SYSTEM_LIBS)
 	find_package(CFITSIO 3.470)
 endif()
@@ -59,9 +60,36 @@ if(NOT CFITSIO_FOUND)
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	# Compiling and installing Static and Shared CFitsIO
+	# Creating CMake configure command for CFitsIO
 	#------------------------------------------------------------------------------
-	# TODO: Figure out how to exclude build with cURL support
+	# List of arguments to apply to CFitsIO build
+	list(APPEND _CFITSIO_ARGS_ 
+			# Build type
+			-DCMAKE_BUILD_TYPE=Release
+			# Specifying installations paths for binaries and libraries
+			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+			# Specifying compilers
+			-DCMAKE_CXX_COMPILER=${MPI_CXX_COMPILER}
+			-DCMAKE_C_COMPILER=${MPI_C_COMPILER}
+			# Specifying the location of ZLIB library (required from version 4.0.0)
+			-DZLIB_INCLUDE_DIR:PATH=${ZLIB_INCLUDE_DIRS}
+			-DZLIB_LIBRARY:FILEPATH=${ZLIB_LIBRARIES}
+		)
+	if(CFITSIO_USE_CURL)
+		list(APPEND _CFITSIO_ARGS_ 
+			-DUSE_CURL:BOOL=ON	
+			# Specyfying location of cURL library
+			-DCURL_INCLUDE_DIR:PATH=${CURL_INCLUDE_DIR}
+			-DCURL_LIBRARY:FILEPATH=${CURL_LIBRARIES}
+			)
+	else()
+		list(APPEND _CFITSIO_ARGS_ 
+			-DUSE_CURL:BOOL=OFF	
+			)
+	endif()
+	#------------------------------------------------------------------------------
+	# Compiling and Installing Static and Shared CFitsIO
+	#------------------------------------------------------------------------------
 	list(APPEND _CFITSIO_LIB_TYPES_ static shared)
 	list(APPEND _CFITSIO_LIB_BOOL_VALS_ -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_SHARED_LIBS:BOOL=ON)
 	foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _CFITSIO_LIB_TYPES_ _CFITSIO_LIB_BOOL_VALS_)
@@ -73,31 +101,17 @@ if(NOT CFITSIO_FOUND)
 												cfitsio_src
 			PREFIX						"${LIBS_BUILD_DIR}"
 			SOURCE_DIR				"${CFITSIO_SOURCE_DIR}"
-			#BINARY_DIR				"${CFITSIO_SOURCE_DIR}"
 			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
 			LOG_DIR						"${CMAKE_LOG_DIR}"
-			LOG_CONFIGURE			OFF
+			LOG_CONFIGURE			ON
 			LOG_BUILD					ON
 			LOG_INSTALL				ON
 			# commands how to build the project
 			DOWNLOAD_COMMAND	""
-			#CONFIGURE_COMMAND "${cfitsio_configure_command}"
 			CMAKE_ARGS
-				-DCMAKE_BUILD_TYPE=Release
+				${_CFITSIO_ARGS_}
 				# Building both static and shared libraries
 				${_bool_val_}
-				#-DBUILD_SHARED_LIBS:BOOL=OFF
-				# Specifying installations paths for binaries and libraries
-				-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-				# Specifying compilers
-				-DCMAKE_CXX_COMPILER=${MPI_CXX_COMPILER}
-				-DCMAKE_C_COMPILER=${MPI_C_COMPILER}
-				# Specyfying location of cURL library
-				-DCURL_INCLUDE_DIR:PATH=${CURL_INCLUDE_DIR}
-				#-DCURL_LIBRARY:FILEPATH=${CURL_LIBRARIES}
-				# Specifying the location of ZLIB library (required from version 4.0.0)
-				-DZLIB_INCLUDE_DIR:PATH=${ZLIB_INCLUDE_DIRS}
-				-DZLIB_LIBRARY:FILEPATH=${ZLIB_LIBRARIES}
 			)
 	endforeach()
 	#------------------------------------------------------------------------------

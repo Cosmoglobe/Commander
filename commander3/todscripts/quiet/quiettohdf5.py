@@ -16,6 +16,7 @@ commander_tools_path = Path(__file__).absolute().parents[2].joinpath('python','c
 sys.path.append(str(commander_tools_path))
 # Importing necessary modules from Mathew's library 
 from tod_tools import commander_tod as comm_tod
+from tod_tools import huffman
 #---------------------------------------------
 
 """

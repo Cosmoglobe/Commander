@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script contains general instructions on how to fetch and build 
 # Commander3 and all its dependencies. It is split into three parts, each containing 
 # its set of instaructions/variables. It is done for easier maintenance. 
@@ -28,7 +30,11 @@
 # [ ] Change URL_MD5 to URL_HASH of every project;
 # [x] Change compiler variables from list to string (but leave APPEND); <= doesn't work this way
 # [ ] Remove include_directory() and use target_include_directory() instead (for commander3 target);
-# [ ] Add one variable which will force all libraries to be recompiled;
+# [x] Add one variable which will force all libraries to be recompiled;
+# [x] Change CFitsIO to CMake installation
+# [ ] Write your own CFitsIO or modify an existing one, because it doesn't seem to work with version 4.0.0
+# [ ] Change FFTW to CMake installation
+# [ ] Finish Custom CMake module for CAMB as it is now works only with Intel compilers
 
 #------------------------------------------------------------------------------
 # including compiler definitions
@@ -57,6 +63,7 @@ list(APPEND projects
 	hdf5
 	doxygen
 	healpix
+	#camb <= crushes with current FindCFITSIO I think
 	commander3
 	)
 #==============================================================================
