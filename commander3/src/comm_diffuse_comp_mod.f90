@@ -73,6 +73,9 @@ module comm_diffuse_comp_mod
      integer(i4b),       allocatable, dimension(:,:,:) :: npix_pixreg     ! number of pixels per pixel region
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_nprop   ! sample the corr. length in first iteration
      logical(lgt),       allocatable, dimension(:,:)   :: pol_sample_proplen ! sample the prop. length in first iteration
+     logical(lgt),       allocatable, dimension(:)     :: spec_corr_convergence ! local sampling pixel regions until a minimum running correlation is achieved
+     real(dp),           allocatable, dimension(:)     :: spec_corr_limit ! local sampling running correlation limit
+
      logical(lgt),       allocatable, dimension(:,:)   :: first_ind_sample
      logical(lgt),       allocatable, dimension(:,:,:) :: fix_pixreg
      real(dp),           allocatable, dimension(:,:,:) :: theta_prior ! prior if pixel region (local sampler) == prior
@@ -83,6 +86,7 @@ module comm_diffuse_comp_mod
      class(map_ptr),     allocatable, dimension(:)     :: spec_mono_mask
      logical(lgt),       allocatable, dimension(:)     :: spec_mono_combined
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_pp_fr
+     class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_smooth_amp, B_smooth_specpar
 
      character(len=512) :: mono_prior_type
      class(comm_map),               pointer     :: mono_prior_map => null()
@@ -533,6 +537,12 @@ contains
     allocate(self%pol_lnLtype(3,self%npar))        ! {chisq, ridge, marginal}: evaluation type for lnL
     allocate(self%pol_sample_nprop(3,self%npar))   ! {.true., .false.}: sample nprop on first iteration
     allocate(self%pol_sample_proplen(3,self%npar)) ! {.true., .false.}: sample proplen on first iteration
+
+    !allocating and setting up default correlation limits for sampled spectral parameters, local sampling
+    allocate(self%spec_corr_convergence(self%npar),self%spec_corr_limit(self%npar))
+    self%spec_corr_convergence(:)=.false. !do not push back (add extra samples) during local sampling by default
+    self%spec_corr_limit(i)=0.1d0 !assign a default correlation limit if non is defined 
+
     allocate(self%pol_pixreg_type(3,self%npar))    ! {1=fullsky, 2=single_pix, 3=pixel_regions}
     allocate(self%nprop_uni(2,self%npar))          ! {integer}: upper and lower limits on nprop
     allocate(self%npixreg(3,self%npar))            ! {integer}: number of pixel regions per poltye per spec ind
@@ -607,11 +617,16 @@ contains
           enddo
           if (all(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) >= 0)) cycle
           self%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
+          self%spec_corr_convergence(i)=cpar%cs_spec_corr_convergence(i,id_abs)
+          if (self%spec_corr_convergence(i)) self%spec_corr_limit(i)=abs(cpar%cs_spec_corr_limit(i,id_abs))
        end do
+
        allocate(self%nprop_pixreg(k,3,self%npar))
        allocate(self%npix_pixreg(k,3,self%npar))
        allocate(self%proplen_pixreg(k,3,self%npar))
        allocate(self%B_pp_fr(self%npar))
+       allocate(self%B_smooth_amp(self%npar))
+       allocate(self%B_smooth_specpar(self%npar))
        allocate(self%theta_pixreg(0:k,3,self%npar))
        allocate(self%prior_pixreg(k,3,self%npar))
        self%theta_pixreg = 1.d0 !just some default values, is set later in the code
@@ -844,11 +859,25 @@ contains
 
           smooth_scale = self%smooth_scale(i)
           if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
-             if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
-                !create beam for smoothing
-                self%B_pp_fr(i)%p => comm_B_bl(cpar, info2, 1, 1, fwhm=cpar%fwhm_smooth(smooth_scale), &
+             !create beam for pre-sampling smoothing
+             info3  => comm_mapinfo(self%theta(i)%p%info%comm, self%nside, &
+                  & self%lmax_amp, self%nmaps, self%pol) 
+
+             self%B_smooth_amp(i)%p => comm_B_bl(cpar, info3, 1, 1, &
+                     & fwhm=cpar%fwhm_smooth(smooth_scale), &
+                     & nside=self%nside, &
                      & init_realspace=.false.)
-             end if
+
+             self%B_smooth_specpar(i)%p => comm_B_bl(cpar, info2, 1, 1, &
+                     & fwhm=cpar%fwhm_smooth(smooth_scale), &
+                     & nside=self%nside, &
+                     & init_realspace=.false.)
+             
+             !create beam for post processing smoothing
+             self%B_pp_fr(i)%p => comm_B_bl(cpar, info2, 1, 1, &
+                  & fwhm=cpar%fwhm_postproc_smooth(smooth_scale), &
+                  & nside=self%nside, &
+                  & init_realspace=.false.)
           end if
 
           call update_status(status, "initPixreg_specind_pixreg_map")

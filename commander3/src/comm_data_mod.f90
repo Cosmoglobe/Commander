@@ -250,19 +250,26 @@ contains
        allocate(data(n)%N_smooth(cpar%num_smooth_scales))
        do j = 1, cpar%num_smooth_scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
-             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, cpar%lmax_smooth(j), &
+             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
+                  !& cpar%lmax_smooth(j), &
+                  & data(n)%info%lmax, &
                   & data(n)%info%nmaps, data(n)%info%pol)
              data(n)%B_smooth(j)%p => &
-               & comm_B_bl(cpar, info_smooth, n, i, fwhm=cpar%fwhm_smooth(j), pixwin=cpar%pixwin_smooth(j), &
+               & comm_B_bl(cpar, info_smooth, n, i, fwhm=cpar%fwhm_smooth(j), &
+               !& pixwin=cpar%pixwin_smooth(j), &
+               & nside=data(n)%info%nside, &
                & init_realspace=.false.)
           else
              nullify(data(n)%B_smooth(j)%p)
           end if
           if (cpar%fwhm_postproc_smooth(j) > 0.d0) then
-             info_postproc => comm_mapinfo(data(n)%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+             info_postproc => comm_mapinfo(data(n)%info%comm, &
+                  !& cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+                  & data(n)%info%nside, data(n)%info%lmax, &
                   & data(n)%info%nmaps, data(n)%info%pol)
              data(n)%B_postproc(j)%p => &
                   & comm_B_bl(cpar, info_postproc, n, i, fwhm=cpar%fwhm_postproc_smooth(j),&
+                  & nside=data(n)%info%nside, &
                   & init_realspace=.false.)
           else
              nullify(data(n)%B_postproc(j)%p)
