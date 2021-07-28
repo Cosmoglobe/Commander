@@ -24,29 +24,32 @@ The file structure suitable for Commander3 (after deciphering `devel` branch)
 file/
     scan/
         det/
-                scalars = np.array([gain[0], sigma0, fknees, alpha])
-                pix = hp.ang2pix() <= the compressed pixels
-                psi <= huffman compressed array of values
-                flag <= compressed accepted/rejected data point, all zeros for len(tod)
-                tod <= just tods
+                [x] scalars = np.array([gain[0], sigma0, fknees, alpha])
+                [x] pix = hp.ang2pix() <= the compressed pixels
+                [ ] psi <= huffman compressed array of values (psiDigitize, look down) 
+                    comm_tod.add_field(prefix + '/psi', psiArray, compArray)
+                    compArray = [lfi.psiDigitize, lfi.huffman]
+                [x] flag <= compressed accepted/rejected data point, all zeros for len(tod)
+                [x] tod <= just tods
         common/
-                vsun <= velocity of the Earth wrt Sun in Galactic Coordinates, x,y,z, put 0,0,0 for now
-                time <= take np.array([time[0], 0, 0]) 
-                huffsym <= for flags, pix and the psi generated huffman symbols (for decoding)
-                hufftree <= for flags, pix and psi generated huffman tree (encoded values)
+                [x] vsun <= velocity of the Earth wrt Sun in Galactic Coordinates, x,y,z, put np.array([0,0,0]) for now
+                [x] time <= take np.array([time[0], 0, 0]) 
+                [x] huffsym <= for flags, pix and the psi generated huffman symbols (for decoding)
+                [x] hufftree <= for flags, pix and psi generated huffman tree (encoded values)
     common/
-        det      <= list of detectors, e.g. '27M, 27S, 28M, 28S'
-        datatype <= write 'QUIET'
-        nside    <= single number
-        npsi     <= the number of bins you descretize the polarization angle to, e.g. 2048 
-                 (the psi angle should be descretized somehow, lfi.psiDigitize variable is a clue):
-                 Inside file the lfi.py: 
-                 https://github.com/Cosmoglobe/Commander/blob/devel/commander3/python/commander_tools/tod_tools/lfi.py
+        [x] det      <= list of detectors, e.g. '27M, 27S, 28M, 28S'
+        [x] datatype <= write 'QUIET'
+        [x] nside    <= single number
+        [x] npsi     <= the number of bins you descretize the polarization angle to, e.g. 2048 or 4096 
+                (the psi angle should be descretized somehow, lfi.psiDigitize variable is a clue):
+                Inside file the lfi.py: 
+                https://github.com/Cosmoglobe/Commander/blob/devel/commander3/python/commander_tools/tod_tools/lfi.py
                 npsi = 4096
                 psiDigitize = ['digitize', {'min': 0, 'max': 2*np.pi, 'nbins': npsi}]
-        fsamp <= sampling frequency, one value
-        polang <= planck only thing? np.array([0, 0, 0, 0])
-        nbang <= planck only thing? np.array([0, 0, 0, 0])
+        [x] fsamp <= sampling frequency, one value <= I have `samprate` instead, assume it is the same thing
+        [x] polang <= planck only thing? np.array([0, 0, 0, 0])
+        [x] nbang <= planck only thing? np.array([0, 0, 0, 0])
+        
 """
 
 '''
@@ -66,23 +69,25 @@ def make_od():
     output_dir = Path('/mn/stornext/d16/cmbco/bp/maksym/quiet/data/Q/ces/patch_gc/output')
     if not Path.is_dir(output_dir):
         Path.mkdir(output_dir)
-    version = '0.0.1'
+    version = np.string_('0.0.1')
     # Getting file names inside specified directory and removing the path component
     level3_data_files = sorted(level3_dir.rglob('*.hdf')) 
     level3_data_files = [data_file.name for data_file in level3_data_files]
     #print(level3_data_files[0])
     # Retrieving CES values from the file names 
     compiled_pattern = re.compile('[\d]')
-    level3_ces = [int("".join(compiled_pattern.findall(data_file))) for data_file in level3_data_files] 
+    level3_ces_nums = [int("".join(compiled_pattern.findall(data_file))) for data_file in level3_data_files] 
     #print(level3_ces[0])
 
     # TODO: 
     # [x] Retrieve polarization angle from `pointings` 
-    # [ ] Store these (together with `pixels_idx`?) in Huffmann compression form. 
+    # [x] Store these (together with `pixels_idx`?) in Huffmann compression form. 
     #     Look into lfy.py and/or others, because it is not just string, but a list 
     #     containing a dictionary
+    #     Note: Needed to change a couple of lines inside commander_tod.py to make it work
     # [x] Change the `commander_tod.py` so it will now write not only numeric 
     #     frequencies in the name of the file
+    # [ ] Create only fields as described above (and/or below) ignoring others for now
     # [ ] Scale this to the entire `patch_gc`, i.e. include looping in parallel
     # [ ] Scale this even further to include all patches for the same frequency 
     #     (just dump all CES into one dir? Each CES seems to be unique anyway)
@@ -142,10 +147,11 @@ def make_od():
     # Creating new file
     #for ces in level3_ces:
     #    comm_tod.init_file(1, ces, mode='w')
-    ctod.init_file('Q', level3_ces[0], mode='w')
+    ctod.init_file('Q', level3_ces_nums[0], mode='w')
     # TODO: figure out whether this is the correct interpretation/nomenclature
     diode_labels = ['Qp', 'Up', 'Um', 'Qm']
-    detector_labels = ''
+    #detector_labels = ''
+    det_list = []
     # Adding new fields to a file
     for det in tqdm(range(0, 19, 1)):
         #prefix = f'{level3_ces[0]}'.zfill(6) + '/' + str(det+1).zfill(2)
@@ -155,28 +161,79 @@ def make_od():
         #ctod.add_field(prefix + '/pixels_idx', pixels_idx[det])
         for diode in range(0, 4, 1):
             label  = str(det+1).zfill(2) + f'{diode_labels[diode]}'
-            prefix = f'{level3_ces[0]}'.zfill(6) + '/' + label 
+            prefix = f'{level3_ces_nums[0]}'.zfill(6) + '/' + label 
+            '''
+            [x] scalars = np.array([gain[0], sigma0, fknees, alpha])
+            [x] pix = hp.ang2pix() <= the compressed pixels
+            [ ] psi <= huffman compressed array of values (psiDigitize). relevant pieces of code: 
+                    -- From `.../commander3/python/commander_tools/tod_tools/lfi.py`:
+                    psiDigitize = ['digitize', {'min':0, 'max':2*np.pi,'nbins':npsi}]
+                    -- From `.../commander3/todscripts/lfi/lfitohdf5.py`:
+                    psiArray = fileName[str(horn) + hornType + '/PSI'][pid_start:pid_end] + r.angle_ref(fileName[str(horn) + hornType + '/THETA'][pid_start:pid_end], fileName[str(horn) + hornType + '/PHI'][pid_start:pid_end]) + math.radians(rimo[1].data.field('psi_pol')[rimo_i])
+                    if(len(psiArray) > 0):
+                        psiArray = np.where(psiArray < 0, 2*np.pi + psiArray, psiArray)
+                        psiArray = np.where(psiArray >= 2*np.pi, psiArray - 2*np.pi, psiArray)
+                        compArray = None
+                        if not args.no_compress:
+                            compArray = [lfi.psiDigitize, lfi.huffman]
+                        comm_tod.add_field(prefix + '/psi', psiArray, compArray)
+            [x] flag <= compressed accepted/rejected data point, all zeros for len(tod)
+            [x] tod <= just tods
+            '''
+            scalars = np.array([gain[det+diode][0], sigma0[det+diode], fknee[det+diode], alpha[det+diode]])
+            ctod.add_field(prefix + '/scalars', scalars)
+            ctod.add_field(prefix + '/pix',     pixels[det], huffman)
+            #ctod.add_field(prefix + '/psi',     psi[det])
+            flag = np.zeros_like(tods[det+diode])
+            ctod.add_field(prefix + '/flag',    flag, huffman)
+            ctod.add_field(prefix + '/tod',     tods[det+diode])
+            #
+            '''
             ctod.add_field(prefix + '/psi',         psi[det])
-            ctod.add_field(prefix + '/pix',         pixels[det])#, huffman)
             ctod.add_field(prefix + '/pixels_idx',  pixels_idx[det])
             ctod.add_field(prefix + '/alpha',       alpha[det+diode])
             ctod.add_field(prefix + '/fknee',       fknee[det+diode])
             ctod.add_field(prefix + '/gain',        gain[det+diode])
             ctod.add_field(prefix + '/sigma0',      sigma0[det+diode])
-            ctod.add_field(prefix + '/tod',         tods[det+diode])
             ctod.add_field(prefix + '/tp',          tp[det+diode])
             ctod.add_field(prefix + '/diode_stats', diode_stats[det+diode])
             ctod.add_field(prefix + '/filter_par',  filter_par[det+diode])
-            if (det == 18 and diode == 3):
-                detector_labels += label 
-            else:
-                detector_labels += label + ", "
+            '''
+            det_list.append(label)
+            #if (det == 18 and diode == 3):
+            #    detector_labels += label 
+            #else:
+            #    detector_labels += label + ", "
 
     # Things common for each scan
+    # There are `common` and `scan/common`
+    # For common:
     prefix = 'common'
-    print(detector_labels)
-    ctod.add_field(prefix + '/det',  detector_labels)
-    #
+    #print(detector_labels)
+    #print(det_list)
+    #print(np.string_(det_list))
+    # Converting string to the byte string?
+    ctod.add_field(prefix + '/det',      np.string_(det_list))
+    ctod.add_field(prefix + '/datatype', np.string_(datatype))
+    ctod.add_field(prefix + '/npsi',     npsi)
+    ctod.add_field(prefix + '/nside',    nside)
+    polang = np.array([0, 0, 0, 0])
+    nbang  = np.array([0, 0, 0, 0])
+    ctod.add_field(prefix + '/polang',   polang)
+    ctod.add_field(prefix + '/nbang',    nbang)
+    ctod.add_field(prefix + '/fsamp',    samprate)
+    # For `scan/common`
+    '''
+    [x] vsun <= velocity of the Earth wrt Sun in Galactic Coordinates, x,y,z, put np.array([0,0,0]) for now
+    [x] time <= take np.array([time[0], 0, 0]) 
+    [x] huffsym <= for flags, pix and the psi generated huffman symbols (for decoding)
+    [x] hufftree <= for flags, pix and psi generated huffman tree (encoded values)
+    '''
+    prefix = f'{level3_ces_nums[0]}'.zfill(6) + '/common'
+    vsun = np.array([0, 0, 0])
+    ctod.add_field(prefix + '/vsun', vsun)
+    ctod.add_field(prefix + '/time', np.array([time1[0], 0, 0]))
+    '''
     ctod.add_field(prefix + '/apex/time',  apex_time)
     ctod.add_field(prefix + '/apex/value', apex_value)
     ctod.add_field(prefix + '/bias/time',  bias_time)
@@ -189,20 +246,22 @@ def make_od():
     ctod.add_field(prefix + '/decimation', decimation)
     ctod.add_field(prefix + '/encl/time',  encl_time)
     ctod.add_field(prefix + '/encl/value', encl_value)
-    ctod.add_field(prefix + '/nside',       nside)
     ctod.add_field(prefix + '/orig_point', orig_point)
     ctod.add_field(prefix + '/peri/time',  peri_time)
     ctod.add_field(prefix + '/peri/value', peri_value)
     ctod.add_field(prefix + '/samprate',   samprate)
     ctod.add_field(prefix + '/scanfreq',   scanfreq)
     ctod.add_field(prefix + '/stats',      stats)
-    ctod.add_field(prefix + '/time',       time1)
     ctod.add_field(prefix + '/time_gain',  time_gain)
-
+    '''
     # [[None, {'Dict': 1}] ...]
 
     #writeout_file = h5py.File(output_dir.joinpath("QUIET_001_000001.h5")  , 'r')
     #print(np.array(writeout_file.get('common/time')))
+    print("Running finalize_chunk")
+    ctod.finalize_chunk(f'{level3_ces_nums[0]}'.zfill(6))
+    print("finalize_chunk has finished")
+    ctod.finalize_file()
 
 if __name__ == '__main__':
     start_time = time.time()

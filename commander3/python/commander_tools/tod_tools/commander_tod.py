@@ -209,7 +209,21 @@ class commander_tod:
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
             self.add_field('/common/version', self.version)
-            self.add_field('/common/pids', list(self.pids.keys()))
+            print(f"Maksym's debug statement -- self.pids.keys(): {list(self.pids.keys())}")
+            #self.add_field('/common/pids', list(self.pids.keys()))
+            # [Maksym]: was getting the error:
+            # ...
+            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finalize_file
+            # self.add_field('/common/pids', list(self.pids.keys()))
+            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 179, in add_field
+            # self.outFile.create_dataset(fieldName, data=data)
+            # ...
+            # File "h5py/h5t.pyx", line 1629, in h5py.h5t.py_create
+            # File "h5py/h5t.pyx", line 1653, in h5py.h5t.py_create
+            # File "h5py/h5t.pyx", line 1719, in h5py.h5t.py_create
+            # TypeError: No conversion path for dtype: dtype('<U6')
+            # So needed to add `np.string_()`
+            self.add_field('/common/pids', np.string_(list(self.pids.keys())))
 
         if self.filelists is not None:
             for pid in self.pids.keys():
@@ -227,7 +241,7 @@ class commander_tod:
             numStr = str(key)
             if(key == 1):
                 numStr = ''
-
+            print("Maksym's debug statement -- finalize chunk is working")
             self.add_field('/' + str(pid).zfill(6) + '/common/hufftree' + numStr, huffArray)
             self.add_field('/' + str(pid).zfill(6) + '/common/huffsymb' + numStr, h.symbols)
             #with np.printoptions(threshold=np.inf):
