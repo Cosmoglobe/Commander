@@ -250,7 +250,7 @@ contains
 
     real(dp),          allocatable, dimension(:,:,:)  :: alms, regs, buffer3
     real(dp),          allocatable, dimension(:,:)    :: m
-    real(dp),          allocatable, dimension(:)      :: buffer, rgs, chisq, theta_pixreg_prop, theta_delta_prop
+    real(dp),          allocatable, dimension(:)      :: buffer, buffer2, rgs, chisq, theta_pixreg_prop, theta_delta_prop
     integer(c_int),    allocatable, dimension(:)      :: maxit
     real(dp)     :: theta_max, theta_min
     logical      :: outside_limit
@@ -350,11 +350,12 @@ contains
        ! Gather alms from threads to alms array with correct indices
        do pl = 1, c%theta(j)%p%info%nmaps
           call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, 0, pl, pl)
-          allocate(buffer(c%nalm_tot))
-          call mpi_allreduce(alms(0,:,pl), buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          allocate(buffer(c%nalm_tot), buffer2(c%nalm_tot))
+          buffer2 = alms(0,:,pl)
+          call mpi_allreduce(buffer2, buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
           alms(0,:,pl) = buffer
           if (cpar%almsamp_pixreg) regs(0,:,pl) = c%theta_pixreg(:,pl,j)
-          deallocate(buffer)
+          deallocate(buffer, buffer2)
        end do
 
        ! uniform fix
@@ -384,7 +385,12 @@ contains
              ! Formatter for region output
              write(regfmt,'(I0)') size(c%theta_pixreg(1:,pl,j))
              regfmt = '(a,'//adjustl(trim(regfmt))//'(f7.3))'
-             if (cpar%myid_chain == 0) write(*,regfmt) ' using region priors', c%pixreg_priors(:c%npixreg(pl,j),pl,j)
+             if (cpar%myid_chain == 0) then
+               allocate(buffer(c%npixreg(pl,j)))
+               buffer = c%pixreg_priors(:c%npixreg(pl,j),pl,j)
+               write(*,regfmt) ' using region priors', buffer
+               deallocate(buffer)
+             end if
           else 
              allocate(rgs(0:c%nalm_tot-1)) ! Allocate random vector
           end if
@@ -468,10 +474,11 @@ contains
              call gather_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
 
              ! Send all alms to 0 (Dont allreduce because only root will do calculation)
-             allocate(buffer(c%nalm_tot))
-             call mpi_reduce(alms(i,:,pl), buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, 0, info%comm, ierr)
+             allocate(buffer(c%nalm_tot), buffer2(c%nalm_tot))
+             buffer2 = alms(i,:,pl)
+             call mpi_reduce(buffer2, buffer, c%nalm_tot, MPI_DOUBLE_PRECISION, MPI_SUM, 0, info%comm, ierr)
              alms(i,:,pl) = buffer
-             deallocate(buffer)
+             deallocate(buffer, buffer2)
 
              if (.not. cpar%almsamp_pixreg) then
                 ! Propose new alms
@@ -704,7 +711,10 @@ contains
 
              if (info%myid == 0) then 
                 ! Output log to file
-                write(69, *) iter, tag, i, chisq(i), alms(i,:,pl)
+                allocate(buffer2(c%nalm_tot))
+                buffer2 = alms(i,:,pl)
+                write(69, *) iter, tag, i, chisq(i), buffer2
+                deallocate(buffer2)
                 write(66, *) iter, tag, i, chisq(i), c%theta_pixreg(:, pl, j)
 
                 ! Write to screen every out_every'th
@@ -990,7 +1000,7 @@ contains
     integer(i4b),       intent(in)    :: par_id      !parameter index, 1 -> npar (per component)
 
     integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, p_ind, p_min, p_max
-    integer(i4b) :: nsamp, out_every, num_accepted, smooth_scale, id_native, ierr, ind
+    integer(i4b) :: nsamp, out_every, num_accepted, smooth_scale, id_native, ierr, ind, ind_pol
     real(dp)     :: t1, t2, ts, dalm, fwhm_prior, temp_theta
     real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
@@ -1068,6 +1078,9 @@ contains
        status_fit   = 0
        smooth_scale = c%smooth_scale(par_id)
        do i = 1, numband
+          ! Chooses an index that is polarized so that smoothing can be done
+          ! correctly later on.
+          if (data(i)%info%nmaps == 3) ind_pol = i
           if (cpar%num_smooth_scales == 0) then
              status_fit(i)   = 1    ! Native
           else
@@ -2839,11 +2852,10 @@ contains
        return
     end if
 
-
     if (band_count==0) then
        buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set theta to prior, as no bands are valid, no data
        deallocate(band_i,pol_j)
-       if (myid_pix == 0)  write(*,*) 'no data bands available for sampling of spec ind'
+       if (myid_pix == 0 .and. cpar%verbosity>1)  write(*,*) 'no data bands available for sampling of spec ind'
        return
     else
        if (myid_pix==0 .and. cpar%verbosity>2) write(*,*) '### Using '//trim(c_lnL%pol_lnLtype(p,id))//' lnL evaluation ###'
@@ -2853,7 +2865,7 @@ contains
              write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
           end do
        end if
-       if (trim(c_lnL%pol_lnLtype(p,id))=='chisq' .and. .true.) then !debug chisq (RMS scaling) for smoothing scale
+       if (trim(c_lnL%pol_lnLtype(p,id))=='chisq' .and. .false.) then !debug chisq (RMS scaling) for smoothing scale
           allocate(lr_chisq(band_count))
           do k = 1,band_count
              lr_chisq(k)%p => comm_map(info_lr_single)
@@ -2941,22 +2953,12 @@ contains
     end if
 
     do pr = 1,npixreg
-       !debug
-       !write(*,*) 'proc ',myid_pix,' sampling pixreg',pr,' start'
 
        if (c_lnL%pol_pixreg_type(p,id) == 3) then
           if (c_lnL%fix_pixreg(pr,p,id)) cycle
        end if
 
        call wall_time(t0)
-       !debug
-       !if (myid_pix==0) then
-       !   write(*,*) myid_pix,info_lr%myid,'init',init_thetas
-       !   write(*,*) myid_pix,info_lr%myid,'old',old_thetas
-       !end if
-       !if (myid_pix==1) then
-       !   write(*,*) myid_pix,info_lr%myid,'old',old_thetas
-       !end if
 
        nsamp=-1
        n_spec_prop = 0
@@ -3036,7 +3038,6 @@ contains
              call temp_map%udgrade(theta_single_lr)
              call temp_map%dealloc(); deallocate(temp_map)
              nullify(temp_map)
-
           else !no postproc smoothing, ud_grade to correct resolution
              theta_single_lr => comm_map(info_lr_single)
              theta_lr_hole => comm_map(info_lr_single)
@@ -3461,10 +3462,6 @@ contains
              theta_corr_arr(arr_ind) = old_theta
              running_correlation=calc_corr_coeff(theta_corr_arr,n_spec_prop,n_prop_limit)
 
-             !debug write
-             !if (mod(j,1000)==0) write(*,*) 'running correlation last',n_prop_limit,' samples',running_correlation,' proposal_root',j, 'last theta', old_theta
-
-
              if (j-1 > burn_in) burned_in = .true.
              ! evaluate proposal_length, then correlation length. 
              !This should only be done the first gibbs iteration, if prompted to do so from parameter file.
@@ -3653,11 +3650,7 @@ contains
        theta_single_lr => null()
        theta_lr_hole => null()
 
-       !write(*,*) 'proc ',myid_pix,' sampling pixreg',pr,' done'
-
     end do !pr = 1,max_pr
-
-    !write(*,*) 'proc ',myid_pix,' sampling allpixregs done'
 
     !bcast proposal length
     call mpi_bcast(c_lnL%proplen_pixreg(1:npixreg,p,id), npixreg, MPI_DOUBLE_PRECISION, 0, &
@@ -3666,9 +3659,6 @@ contains
        c_lnL%pol_proplen(id)%p%map(pix,p) = c_lnL%proplen_pixreg(c_lnL%ind_pixreg_arr(pix,p,id),p,id)
     end do
 
-    !debug
-    !write(*,*) 'proc ',myid_pix,' proplen bcast done'
-    
     !bcast number of proposals
     call mpi_bcast(c_lnL%nprop_pixreg(1:npixreg,p,id), npixreg, MPI_INTEGER, 0, &
          & info_fr%comm, ierr)
@@ -3676,14 +3666,8 @@ contains
        c_lnL%pol_nprop(id)%p%map(pix,p) = 1.d0*c_lnL%nprop_pixreg(c_lnL%ind_pixreg_arr(pix,p,id),p,id)
     end do
 
-    !debug
-    !write(*,*) 'proc ',myid_pix,' nprop bcast done'
-
     !bcast last valid theta to all procs to update theta map
     call mpi_bcast(old_thetas(0:npixreg), npixreg+1, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
-
-    !debug
-    !write(*,*) 'proc ',myid_pix,' sampled theta bcast done'
 
     !assign thetas to pixel regions, thetas will be smoothed to same FWHM as in lnL eval when exiting sampler 
     do pix=0,np_fr-1
@@ -3774,8 +3758,6 @@ contains
     if (c_lnL%spec_mono_combined(par_id)) then
        call mpi_bcast(old_mono, numband, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
 
-       !debug
-       !write(*,*) 'proc ',myid_pix,' monopole bcast done'
 
        if (cpar%verbosity>2 .and. myid_pix==0) then
           !print info on the change in monopoles from initial monopoles 
@@ -3818,7 +3800,7 @@ contains
     !##########################################################################################
 
     ! debug output
-    if (cpar%cs_output_localsamp_maps .and. .true.) then
+    if (cpar%cs_output_localsamp_maps .and. .false.) then
        do i = 1,band_count
           filename=trim(cpar%outdir)//'/'//'reduced_data_band_'//trim(data(band_i(i))%label)//'_'// &
                & trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//'_'//trim(postfix)//'.fits'
@@ -3900,7 +3882,6 @@ contains
     end if
 
 
-
     !deallocate
     deallocate(mixing_new_arr,data_arr,invN_arr,all_thetas)
     deallocate(band_i,pol_j)
@@ -3933,8 +3914,6 @@ contains
     if (allocated(old_mono)) deallocate(old_mono)
     if (allocated(new_mono)) deallocate(new_mono)
 
-    !debug
-    !write(*,*) 'proc ',myid_pix,' done'
 
   end subroutine sampleDiffuseSpecIndPixReg_nonlin
 

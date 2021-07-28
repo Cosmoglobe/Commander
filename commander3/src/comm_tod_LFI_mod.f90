@@ -409,7 +409,7 @@ contains
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
-    call syncronize_binmap(binmap, self)
+    call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
     else

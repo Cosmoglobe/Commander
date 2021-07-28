@@ -846,13 +846,6 @@ contains
                       call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                            & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                    end if
-                   if (j == 1) then !only monopoles in Temperature (i.e. poltype 1)
-                      call get_parameter_hashtable(htbl, 'COMP_BETA_COMBINED_MONOPOLE_SAMPLING'//itext, &
-                           & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
-                      if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
-                           & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
-                           & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
-                   end if
                 end if
                 if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
                    call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
@@ -896,6 +889,11 @@ contains
                 if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
                      & 'COMP_BETA_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_BETA_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -997,6 +995,11 @@ contains
                 if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
                      & 'COMP_UNIM_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_UMIN_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_UMIN_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_UMIN_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1060,13 +1063,6 @@ contains
                       call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                            & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                    end if
-                   if (j == 1) then !only monopoles in Temperature (i.e. poltype 1)
-                      call get_parameter_hashtable(htbl, 'COMP_NU_P_COMBINED_MONOPOLE_SAMPLING'//itext, &
-                           & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
-                      if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
-                           & 'COMP_NU_P_COMBINED_MONOPOLE_MASK'//itext, &
-                           & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
-                   end if
                 end if
                 if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
                    call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
@@ -1110,6 +1106,11 @@ contains
                 if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
                      & 'COMP_NU_P_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_NU_P_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1167,13 +1168,6 @@ contains
                       call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                            & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                    end if
-                   if (j == 1) then !only monopoles in Temperature (i.e. poltype 1)
-                      call get_parameter_hashtable(htbl, 'COMP_NU_P_COMBINED_MONOPOLE_SAMPLING'//itext, &
-                           & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
-                      if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
-                           & 'COMP_NU_P_COMBINED_MONOPOLE_MASK'//itext, &
-                           & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
-                   end if
                 end if
                 if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
                    call get_parameter_hashtable(htbl, 'COMP_NU_P_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
@@ -1217,6 +1211,11 @@ contains
                 if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
                      & 'COMP_NU_P_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_NU_P_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1255,13 +1254,6 @@ contains
                            & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,2,i))
                       call get_parameter_hashtable(htbl, 'COMP_ALPHA_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                            & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
-                   end if
-                   if (j == 1) then !only monopoles in Temperature (i.e. poltype 1)
-                      call get_parameter_hashtable(htbl, 'COMP_ALPHA_COMBINED_MONOPOLE_SAMPLING'//itext, &
-                           & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,2))
-                      if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
-                           & 'COMP_ALPHA_COMBINED_MONOPOLE_MASK'//itext, &
-                           & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
                    end if
                 end if
                 if (trim(cpar%cs_spec_pixreg(j,2,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
@@ -1306,6 +1298,11 @@ contains
                 if (cpar%cs_spec_corr_convergence(2,i))  call get_parameter_hashtable(htbl, &
                      & 'COMP_ALPHA_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(2,i))
+                call get_parameter_hashtable(htbl, 'COMP_ALPHA_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_ALPHA_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_ALPHA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
@@ -1367,13 +1364,6 @@ contains
                       call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                            & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                    end if
-                   if (j == 1) then !only monopoles in Temperature (i.e. poltype 1)
-                      call get_parameter_hashtable(htbl, 'COMP_BETA_COMBINED_MONOPOLE_SAMPLING'//itext, &
-                           & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
-                      if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
-                           & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
-                           & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
-                   end if
                 end if
                 if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
                    call get_parameter_hashtable(htbl, 'COMP_BETA_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
@@ -1417,6 +1407,11 @@ contains
                 if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
                      & 'COMP_BETA_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_BETA_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1455,13 +1450,6 @@ contains
                            & len_itext=len_itext, par_int=cpar%cs_spec_nprop_init(j,2,i))
                       call get_parameter_hashtable(htbl, 'COMP_T_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                            & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,2,i))
-                   end if
-                   if (j == 1) then !only monopoles in Temperature (i.e. poltype 1)
-                      call get_parameter_hashtable(htbl, 'COMP_T_COMBINED_MONOPOLE_SAMPLING'//itext, &
-                           & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,2))
-                      if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
-                           & 'COMP_T_COMBINED_MONOPOLE_MASK'//itext, &
-                           & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
                    end if
                 end if
                 if (trim(cpar%cs_spec_pixreg(j,2,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
@@ -1506,6 +1494,11 @@ contains
                 if (cpar%cs_spec_corr_convergence(2,i))  call get_parameter_hashtable(htbl, &
                      & 'COMP_T_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(2,i))
+                call get_parameter_hashtable(htbl, 'COMP_T_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_T_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
@@ -1578,13 +1571,6 @@ contains
                       call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_PROPLEN_INIT'//itext, &
                            & len_itext=len_itext, par_dp=cpar%cs_spec_proplen_init(j,1,i))
                    end if
-                   if (j == 1) then !only monopoles in Temperature (i.e. poltype 1)
-                      call get_parameter_hashtable(htbl, 'COMP_T_E_COMBINED_MONOPOLE_SAMPLING'//itext, &
-                           & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
-                      if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
-                           & 'COMP_T_E_COMBINED_MONOPOLE_MASK'//itext, &
-                           & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
-                   end if
                 end if
                 if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
                    call get_parameter_hashtable(htbl, 'COMP_T_E_'//trim(pol_labels(j))//'_NUM_PIXREG'//itext, &
@@ -1628,6 +1614,11 @@ contains
                 if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
                      & 'COMP_T_E_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_T_E_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_E_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_T_E_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
