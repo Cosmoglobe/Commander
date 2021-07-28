@@ -24,7 +24,7 @@ COMP_NU_P_INT_FIX_PIXREG&&    = none
 COMP_NU_P_POL_FIX_PIXREG&&    = none
 COMP_NU_P_PIXREG_MAP&&        = fullsky     # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_NU_P_PIXREG_INITVALUE_MAP&& = none
-COMP_NU_P_COMBINED_MONOPOLE_SAMPLING&& = .true.
+COMP_NU_P_COMBINED_MONOPOLE_SAMPLING&& = .false.
 COMP_NU_P_COMBINED_MONOPOLE_MASK&& = mask_monopoles_BP10_chisq_dx12_n1024_specpar_sampling.fits
 COMP_NU_P_CORRELATION_CONVERGENCE_SAMPLING&& = .true.
 COMP_NU_P_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0

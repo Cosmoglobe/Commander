@@ -374,7 +374,7 @@ COMP_PRIOR_AMP_MAP&&          = ame_prior_mean_857_scaled2.40.fits
 COMP_NU_P_MASK&&              = mask_monopoles_BP10_chisq_dx12_n1024_specpar_sampling.fits mask_AME_nu_p_BP8_10deg_new_chisqmask.fits   # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_ALPHA_MASK&&              = mask_monopoles_BP10_chisq_dx12_n1024_specpar_sampling.fits mask_AME_nu_p_BP8_10deg.fits
 mask_AME_n1024_v3.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
-COMP_NU_P_COMBINED_MONOPOLE_SAMPLING&& = .true.
+COMP_NU_P_COMBINED_MONOPOLE_SAMPLING&& = .false.
 COMP_NU_P_COMBINED_MONOPOLE_MASK&& = mask_monopoles_BP10_chisq_dx12_n1024_specpar_sampling.fits
 COMP_NU_P_CORRELATION_CONVERGENCE_SAMPLING&& = .true.
 COMP_NU_P_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
