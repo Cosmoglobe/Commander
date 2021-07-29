@@ -302,7 +302,8 @@ class commander_tod:
         return
 
     def make_filelists(self):
-        for freq in self.filelists.keys():
+        for freq in np.string_(self.filelists.keys()):
+            print("Maksym's debug message -- making filelists")
             outfile = open(os.path.join(self.outPath, 'filelist_' + str(freq) + '.txt'), 'w')
             outfile.write(str(len(self.filelists[freq])) + '\n')
             for buf in self.filelists[freq].values():

@@ -18,6 +18,7 @@ sys.path.append(str(commander_tools_path))
 from tod_tools import commander_tod as comm_tod
 from tod_tools import huffman
 #---------------------------------------------
+import matplotlib.pyplot as plt
 
 """
 The file structure suitable for Commander3 (after deciphering `devel` branch)
@@ -26,7 +27,7 @@ file/
         det/
                 [x] scalars = np.array([gain[0], sigma0, fknees, alpha])
                 [x] pix = hp.ang2pix() <= the compressed pixels
-                [ ] psi <= huffman compressed array of values (psiDigitize, look down) 
+                [x] psi <= huffman compressed array of values (psiDigitize, look down) 
                     comm_tod.add_field(prefix + '/psi', psiArray, compArray)
                     compArray = [lfi.psiDigitize, lfi.huffman]
                 [x] flag <= compressed accepted/rejected data point, all zeros for len(tod)
@@ -62,6 +63,7 @@ def main():
     parser = argparse.ArgumentParser(description='Adjust Level3 QUIET data for Commander3')
     # 
     make_od()
+
 
 def make_od():
     # 
@@ -138,6 +140,7 @@ def make_od():
     # 
     npsi = 4096
     psiDigitize = ['digitize', {'min': 0, 'max': 2*np.pi, 'nbins': npsi}]
+    psiBins = np.linspace(0, 2*np.pi, npsi)
     datatype = 'QUIET'
     # Writing data into new file(s)
     # Initialising tod object
@@ -152,6 +155,12 @@ def make_od():
     diode_labels = ['Qp', 'Up', 'Um', 'Qm']
     #detector_labels = ''
     det_list = []
+    #print(psi)
+    #print(np.shape(psi))
+    #print(np.shape(tods))
+    #plt.hist(psi.flatten(), 100)
+    #plt.show()
+    #plt.savefig("test.png")
     # Adding new fields to a file
     for det in tqdm(range(0, 19, 1)):
         #prefix = f'{level3_ces[0]}'.zfill(6) + '/' + str(det+1).zfill(2)
@@ -159,13 +168,18 @@ def make_od():
         #ctod.add_field(prefix + '/pix', pixels[det])#, huffman)
         # In level3 files the `pixels_idx` were called `pixels`
         #ctod.add_field(prefix + '/pixels_idx', pixels_idx[det])
+        if(len(psi[det]) > 0):
+            psiArray = np.where(psi[det] < 0, 2*np.pi + psi[det], psi[det])
+            psiArray = np.where(psi[det] >= 2*np.pi, psi[det] - 2*np.pi, psi[det])
+            psiIndexes = np.digitize(psiArray, psiBins)
+        #
         for diode in range(0, 4, 1):
             label  = str(det+1).zfill(2) + f'{diode_labels[diode]}'
             prefix = f'{level3_ces_nums[0]}'.zfill(6) + '/' + label 
             '''
             [x] scalars = np.array([gain[0], sigma0, fknees, alpha])
             [x] pix = hp.ang2pix() <= the compressed pixels
-            [ ] psi <= huffman compressed array of values (psiDigitize). relevant pieces of code: 
+            [x] psi <= huffman compressed array of values (psiDigitize). relevant pieces of code: 
                     -- From `.../commander3/python/commander_tools/tod_tools/lfi.py`:
                     psiDigitize = ['digitize', {'min':0, 'max':2*np.pi,'nbins':npsi}]
                     -- From `.../commander3/todscripts/lfi/lfitohdf5.py`:
@@ -180,10 +194,12 @@ def make_od():
             [x] flag <= compressed accepted/rejected data point, all zeros for len(tod)
             [x] tod <= just tods
             '''
+            #ctod.add_field(prefix + '/psi',     psiArray, huffman)#, [psiDigitize, huffman])
+            ctod.add_field(prefix + '/psi',     psiIndexes, huffman)#, [psiDigitize, huffman])
+            #
             scalars = np.array([gain[det+diode][0], sigma0[det+diode], fknee[det+diode], alpha[det+diode]])
             ctod.add_field(prefix + '/scalars', scalars)
             ctod.add_field(prefix + '/pix',     pixels[det], huffman)
-            #ctod.add_field(prefix + '/psi',     psi[det])
             flag = np.zeros_like(tods[det+diode])
             ctod.add_field(prefix + '/flag',    flag, huffman)
             ctod.add_field(prefix + '/tod',     tods[det+diode])
@@ -262,6 +278,8 @@ def make_od():
     ctod.finalize_chunk(f'{level3_ces_nums[0]}'.zfill(6))
     print("finalize_chunk has finished")
     ctod.finalize_file()
+    # making filelist
+    ctod.make_filelists()
 
 if __name__ == '__main__':
     start_time = time.time()
