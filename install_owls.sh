@@ -94,8 +94,16 @@ then
 		echo "Building the project from scratch."
 		rm -rf $abs_path_to_build/*
 		# Executing CMake commands for the first time
-		cmake3 -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir
+
+		#using release build type
+		cmake3 -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir 
+
+		#using release build type with som debugging flags
+		#cmake3 -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir 
+
+		#using debug build type
 		#cmake3 -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir
+
 		# Build and install command
 		cmake3 --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount 
 

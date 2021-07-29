@@ -206,7 +206,7 @@ contains
     constructor%Cl%sqrtS_mat(1,1,0:1)    = rms        / constructor%RJ2unit_(1)
     if (rms(1) > 0.d0) constructor%Cl%sqrtInvS_mat(1,1,0) = 1.d0/rms(1) * constructor%RJ2unit_(1)
     if (rms(2) > 0.d0) constructor%Cl%sqrtInvS_mat(1,1,1) = 1.d0/rms(2) * constructor%RJ2unit_(1)
-
+    
     ! Initialize md_mod specific parameters
     constructor%npar = 0
 
