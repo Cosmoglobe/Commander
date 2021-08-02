@@ -316,11 +316,8 @@ contains
 
       ! Parameters used for testing
       real(dp) :: polang
-      real(dp), parameter :: pi = 4d0*atan(1d0)
-
       !polang = mod(2*PI*iter/12, 2*PI)
       polang = 0d0
-      write(*,*) pi
 
 
       call int2string(iter, ctext)
@@ -538,7 +535,7 @@ contains
       end if
 
       ! Doing this now because it's still burning in...
-      !if (mod(iter-1,10*self%output_aux_maps) == 0) then
+      if (mod(iter-1,10*self%output_aux_maps) == 0) then
         ! Solve for maps
         call update_status(status, "Starting bicg-stab")
         do l=1, self%output_n_maps
@@ -550,7 +547,7 @@ contains
                           & prefix, postfix)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
-      !end if
+      end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
