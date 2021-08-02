@@ -242,7 +242,103 @@ def create_rimo(fname, rot=0):
           f.create_dataset(DA + '14/elip', data=[0])
           f.create_dataset(DA + '23/elip', data=[0])
           f.create_dataset(DA + '24/elip', data=[0])
+
+
+
+      # Sidelobes  
+      slmAs = []
+      slmBs = []
+      nside  = 2**7     # 128
+      sllmax = 2*nside  # 256
+      slmmax = 100
+      labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+      fnames = glob('data/wmap_sidelobe*.fits')
+      for i in range(len(labels)):
+        lab = labels[i]
+        for fname in fnames:
+          if lab in fname:
+            data = hp.read_map(fname)
+            break
+        
+        print(lab, fname)
+        # Beam is normalized such that sum(slAB) = Npix, or
+        #                              \int B(\Omega)\,d\Omega = 4\pi
+        # Commander expects \int B\,d\Omega = 1.
+        # Not sure if this factor is needed...
+        beamtot = hp.reorder(data, n2r=True)
+        
+        beam_A = hp.reorder(data, n2r=True)/(4*np.pi)
+        #beam_A = hp.reorder(data, n2r=True)
+        beam_A[beam_A < 0] = 0
+        beam_B = hp.reorder(data, n2r=True)/(4*np.pi)
+        #beam_B = hp.reorder(data, n2r=True)
+        beam_B[beam_B > 0] = 0
+        beam_B = -beam_B
   
+        dir_A = dir_A_los[i]
+        theta = np.arccos(dir_A[2])
+        phi = np.arctan2(dir_A[1], dir_A[0])
+
+       
+        #hp.mollview(beam_A, min=0, max=0.3)
+  
+        r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
+            deg=False, eulertype='ZYX')
+        beam_A_temp = r.rotate_map_pixel(beam_A)
+
+        #hp.mollview(beam_A_temp, min=0, max=0.3)
+  
+        r = hp.rotator.Rotator(rot=(rot*np.pi/180, 0, 0), \
+            deg=False, eulertype='ZYX')
+        beam_A = r.rotate_map_pixel(beam_A_temp)
+  
+        #hp.mollview(beam_A, min=0, max=0.3)
+  
+        alm_A = hp.map2alm(beam_A, lmax=sllmax, mmax=slmmax)
+        s_lm_A = complex2realAlms(alm_A, sllmax, slmmax)
+  
+        dir_B = dir_B_los[i]
+        theta = np.arccos(dir_B[2])
+        phi = np.arctan2(dir_B[1], dir_B[0])
+        
+        r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
+            deg=False, eulertype='ZYX')
+        beam_B_temp = r.rotate_map_pixel(beam_B)
+  
+        r = hp.rotator.Rotator(rot=(-rot*np.pi/180, 0, 0), \
+            deg=False, eulertype='ZYX')
+        beam_B = r.rotate_map_pixel(beam_B_temp)
+  
+  
+        alm_B = hp.map2alm(beam_B, lmax=sllmax, mmax=slmmax)
+        s_lm_B = complex2realAlms(alm_B, sllmax, slmmax)
+
+        slmAs.append(s_lm_A)
+        slmBs.append(s_lm_B)
+  
+        DA = labels[i]
+      
+        with h5py.File(fname_out, 'a') as f:
+            f.create_dataset(DA + '13/sl/T', data=s_lm_A)
+            f.create_dataset(DA + '14/sl/T', data=s_lm_A)
+            f.create_dataset(DA + '23/sl/T', data=s_lm_B)
+            f.create_dataset(DA + '24/sl/T', data=s_lm_B)
+            f.create_dataset(DA + '13/sl/E', data=s_lm_A*0)
+            f.create_dataset(DA + '14/sl/E', data=s_lm_A*0)
+            f.create_dataset(DA + '23/sl/E', data=s_lm_B*0)
+            f.create_dataset(DA + '24/sl/E', data=s_lm_B*0)
+            f.create_dataset(DA + '13/sl/B', data=s_lm_A*0)
+            f.create_dataset(DA + '14/sl/B', data=s_lm_A*0)
+            f.create_dataset(DA + '23/sl/B', data=s_lm_B*0)
+            f.create_dataset(DA + '24/sl/B', data=s_lm_B*0)
+            f.create_dataset(DA + '13/sllmax', data=[sllmax])
+            f.create_dataset(DA + '14/sllmax', data=[sllmax])
+            f.create_dataset(DA + '23/sllmax', data=[sllmax])
+            f.create_dataset(DA + '24/sllmax', data=[sllmax])
+            f.create_dataset(DA + '13/slmmax', data=[slmmax])
+            f.create_dataset(DA + '14/slmmax', data=[slmmax])
+            f.create_dataset(DA + '23/slmmax', data=[slmmax])
+            f.create_dataset(DA + '24/slmmax', data=[slmmax])
   
   
   
@@ -346,6 +442,7 @@ def create_rimo(fname, rot=0):
 
           mB = np.zeros(12*nside**2)
           N = np.zeros(12*nside**2)
+<<<<<<< HEAD
 
           xx2, yy2 = np.meshgrid(X2 - popt[1],Y2 + popt[2])
           theta = 2*np.arcsin(np.sqrt(xx2**2+yy2**2)/2)
@@ -367,17 +464,43 @@ def create_rimo(fname, rot=0):
 
 
           
-          alm_A = hp.map2alm(mA, lmax=lmax, mmax=mmax)
-          b_lm_A = complex2realAlms(alm_A, lmax, mmax)
+=======
+          pix = hp.ang2pix(nside, theta, phi)
+          mA[pix] += beamA_2
+          mB[pix] += beamB_2
+          N[pix] += 1
+          #hp.gnomview(m/N, rot=(-130,86.38,0), reso=1)
+          mA = mA/N
+          mB = mB/N
+          mA[~np.isfinite(mA)] = 0
+          mB[~np.isfinite(mB)] = 0
 
-          alm_B = hp.map2alm(mB, lmax=lmax, mmax=mmax)
-          b_lm_B = complex2realAlms(alm_B, lmax, mmax)
+          #hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
+          #hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
 
-          b_lA = (4*np.pi*hp.alm2cl(alm_A, lmax=lmax, mmax=mmax))**0.5
-          b_lB = (4*np.pi*hp.alm2cl(alm_B, lmax=lmax, mmax=mmax))**0.5
-          b_lm_A /= max(b_lA)
-          b_lm_B /= max(b_lB)
 
+          ind = np.argmax(mA)
+
+
+          th, ph = hp.pix2ang(nside, ind)
+          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
+              deg=False, eulertype='ZYX')
+          mA = r.rotate_map_pixel(mA)
+
+          ind = np.argmax(mB)
+          th, ph = hp.pix2ang(nside, ind)
+          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
+              deg=False, eulertype='ZYX')
+          mB = r.rotate_map_pixel(mB)
+
+
+
+          # Normalizing, assuming that s_lms are correct
+          s_lm_A = slmAs[beam_ind]
+          s_lm_B = slmBs[beam_ind]
+
+          b_lm_A = b_lm_A*(1/(4*np.pi)**0.5 - s_lm_A[0])/b_lm_A[0]
+          b_lm_B = b_lm_B*(1/(4*np.pi)**0.5 - s_lm_B[0])/b_lm_B[0]
           DA = fname.split('_')[4]
            
           with h5py.File(fname_out, 'a') as f:
@@ -412,6 +535,7 @@ def create_rimo(fname, rot=0):
               f.create_dataset(DA + '24/psi_ell', data=[0])
       
      
+<<<<<<< HEAD
       nside  = 2**7     # 128
       sllmax = 2*nside  # 256
       slmmax = 100

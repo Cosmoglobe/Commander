@@ -211,7 +211,7 @@ contains
 
 
   subroutine init_scan_data_differential(self, tod, scan, map_sky, procmask, procmask2, &
-       & init_s_bp, init_s_bp_prop, init_s_sky_prop)
+       & init_s_bp, init_s_bp_prop, init_s_sky_prop, polang)
     implicit none
     class(comm_scandata),                      intent(inout)          :: self    
     class(comm_tod),                           intent(inout)          :: tod
@@ -222,6 +222,7 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
+    real(dp),                                  intent(in),   optional :: polang
 
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
@@ -374,15 +375,14 @@ contains
     if (tod%correct_sl) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          ! Perhaps experiment with different rotations.
           !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
           !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
-          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 0d0)
-          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), 0d0)
-          self%s_sl(:,j)  = 2.*((1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j))
+          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  polang)
+          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -polang)
+          self%s_sl(:,j)  = (1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j) = self%s_tot(:,j) + self%s_sl(:,j)
-          self%s_totA(:,j) = self%s_totA(:,j) + 2.*s_bufA(:,j)
-          self%s_totB(:,j) = self%s_totB(:,j) + 2.*s_bufB(:,j)
+          self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
+          self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
        end do
     else
        self%s_sl = 0.
