@@ -39,7 +39,7 @@ COMP_ALPHA_POL_PIXREG_PRIORS&& = none
 
 COMP_NU_P_POLTYPE&&           = 1        # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_INPUT_NU_P_MAP&&         = init_ame_nu_p_BP8.1_v1.fits
-COMP_NU_P_SMOOTHING_SCALE&&   = 2
+COMP_NU_P_SMOOTHING_SCALE&&   = 3
 COMP_DEFAULT_NU_P&&           = 28 21  18   22.2
 COMP_PRIOR_UNI_NU_P_LOW&&     = 10.
 COMP_PRIOR_UNI_NU_P_HIGH&&    = 70.
