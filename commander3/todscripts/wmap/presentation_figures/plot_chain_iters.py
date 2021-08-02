@@ -6,6 +6,7 @@ import h5py
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/chain_c0001.h5', 'r')
 
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
+burn = 100
 
 
 gain = {}
@@ -59,11 +60,9 @@ gain['W414'] = 0.2918
 gain['W423'] = 0.3796
 gain['W424'] = 0.3591
 
-bands=['023-WMAP_K', 
-       '060-WMAP_V2']
+bands=['023-WMAP_K']
 label_list = [
-         ['K113', 'K114', 'K123', 'K124'],
-         ['V213', 'V214', 'V223', 'V224']]
+         ['K113', 'K114', 'K123', 'K124']]
 
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_opt/chain_c0001.h5', 'r')
 #bands=['023-WMAP_K', 
@@ -101,7 +100,7 @@ for band, labels in zip(bands, label_list):
         maxs[0] = max([g[0], g[-1]])
         #for i in range(len(data.keys())-2, len(data.keys())-10, -1):
         #for i in range(len(data.keys())-20, len(data.keys())-1):
-        for i in range(1, len(data.keys())-1):
+        for i in range(burn, len(data.keys())-1):
             inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1) & \
             (abs(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j]) < 100) & \
             (data[str(i).zfill(6)+f'/tod/{band}/gain'][j] > 0)
@@ -132,7 +131,7 @@ for band, labels in zip(bands, label_list):
             if max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) > maxs[4]:
               maxs[4] = max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
 
-        for i in range(1,len(data.keys())-1):
+        for i in range(burn,len(data.keys())-1):
             fig, axes = plt.subplots(figsize=(8, 10), sharex=True, nrows=5)
             c = 'k'
             inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1) & \
@@ -142,7 +141,7 @@ for band, labels in zip(bands, label_list):
             t = np.arange(len(inds))
 
             g = data[str(1).zfill(6)+f'/tod/{band}/gain'][j][inds]
-            axes[0].plot(t[inds], g, '.', color='r', ms=1)
+            #axes[0].plot(t[inds], g, '.', color='r', ms=1)
             #axes[0].axhline(gain[labels[j]], color='r')
 
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
@@ -155,9 +154,9 @@ for band, labels in zip(bands, label_list):
     
             axes[4].axhline(0, color='r', linestyle=':', lw=0.5)
     
-            #print(np.mean(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]))
+            print(np.mean(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]))
             #print(np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds]))
-            print(np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds]))
+            #print(np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds]))
 
             for num in range(5):
               axes[num].set_ylim(mins[num], maxs[num])
