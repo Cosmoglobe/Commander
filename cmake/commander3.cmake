@@ -37,24 +37,10 @@ add_library(comm_system_backend
 	)
 target_compile_options(comm_system_backend
 	PRIVATE
-	# setting flags depending on configuration
-	#"$<$<CONFIG:Release>:${COMMANDER3_CXX_COMPILER_FLAGS_RELEASE}>"
-	#"$<$<CONFIG:Debug>:${COMMANDER3_CXX_COMPILER_FLAGS_DEBUG}>"
-	#"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_CXX_COMPILER_FLAGS_RELWITHDEBINFO}>"
-	#"$<$<CONFIG:MinSizeRel>:${COMMANDER3_CXX_COMPILER_FLAGS_MINSIZEREL}>"
-	# setting other compiler dependent flags
 	${COMMANDER3_CXX_COMPILER_FLAGS}
 	)
-# installing comm_system_backend as a library
+# Installing `comm_system_backend` as a library
 install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-#target_link_options(${comm_system_backend}
-#	PUBLIC
-#	"$<$<CONFIG:Release>:${COMMANDER3_CXX_LINKER_FLAGS_RELEASE}>"
-#	"$<$<CONFIG:Debug>:${COMMANDER3_CXX_LINKER_FLAGS_DEBUG}>"
-#	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_CXX_LINKER_FLAGS_RELWITHDEBINFO}>"
-#	"$<$<CONFIG:MinSizeRel>:${COMMANDER3_CXX_LINKER_FLAGS_MINSIZEREL}>"
-#	# setting other compiler dependent flags
-#	${COMMANDER3_CXX_LINKER_FLAGS}
 #	)
 
 # TODO: add all sources manually instead of this command, as 
@@ -151,23 +137,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/spline_2D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90
-	#progressbar_mod.f90
 	)
 
-# manually setting Fortran compiler flags for different compilers
-#if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
-	# To prevent error with length and turn type mismatch into a warnings
-	# -fallow-argument-mismatch <= is for 10x compilers
-	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -W -ffree-line-length-none -fallow-argument-mismatch -std=legacy")
-	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wl -ffree-line-length-none -fallow-argument-mismatch")
-	#set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -fallow-argument-mismatch")
-	# -Wno-argument-mismatch <= is th flag for 9x and older compilers
-	#	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none -Wno-argument-mismatch")
-	#	message(STATUS "CMAKE_Fortran_FLAGS are: ${CMAKE_Fortran_FLAGS}")
-	#elseif("${CMAKE_Fortran_COMPILER}" MATCHES "Intel")
-	#	set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -qopt-matmul")
-	#endif()
-# setting executable name
+# Setting executable name
 set(commander3 commander3)
 add_executable(${commander3} "")
 # make sure that commander executable will be built last
@@ -178,6 +150,17 @@ target_sources(${commander3}
 	)
 set_property(TARGET ${commander3} PROPERTY ENABLE_EXPORTS TRUE)
 set_property(TARGET ${commander3} PROPERTY LINKER_LANGUAGE Fortran)
+# Resolving Preprocessor statements for a given Compiler Toolchain
+set_source_files_properties(
+	${sources}	
+	PROPERTIES Fortran_PREPROCESS ON
+)
+if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
+	target_compile_definitions(${commander3}
+		PUBLIC
+		USE_INTEL
+		)
+endif()
 # adding compiler flags to commander3 target
 target_compile_options(${commander3}
 	PUBLIC
@@ -192,6 +175,7 @@ target_compile_options(${commander3}
 # adding linker flags to commander3 target
 target_link_options(${commander3}
 	PUBLIC
+	# setting flags depending on configuration
 	"$<$<CONFIG:Release>:${COMMANDER3_Fortran_LINKER_FLAGS_RELEASE}>"
 	"$<$<CONFIG:Debug>:${COMMANDER3_Fortran_LINKER_FLAGS_DEBUG}>"
 	"$<$<CONFIG:RelWithDebInfo>:${COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO}>"
@@ -200,7 +184,6 @@ target_link_options(${commander3}
 	${COMMANDER3_Fortran_LINKER_FLAGS}
 	)
 
-#message("cmake dl libs are ${CMAKE_DL_LIBS}")
 # LINKING ORDER IN LIBRARIES IS IMPORTANT!
 # Order is:
 # MPI => OpenMP => Blas => LAPACK => HEALPix => 
@@ -222,17 +205,17 @@ target_link_libraries(${commander3}
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
 	#"${out_lib_dir}/libsharp2.a"
 	#${SHARP2_LIBRARIES}
-	# including healpix
+	# Including HEALPix
 	${HEALPIX_LIBRARIES}
-	# including cfitsio
+	# Including CFitsIO
 	${CFITSIO_LIBRARIES}
 	# to avoid error error dlclose@@GLIBC_2.2.5', so 
-	# we need to link math library
+	# we need to link Unix Math Library
 	#-lm
 	${LIBM_LIBRARY}
 	# and -ldl (dl library)
 	${CMAKE_DL_LIBS}
-	# including hdf5 - first fortran and then general
+	# Including HDF5 - first fortran and then general
 	${HDF5_Fortran_LIBRARIES}
 	# hdf5 requires zlib (?), otherwise will get some stupid error
 	#"-lz"
@@ -252,6 +235,6 @@ target_link_libraries(${commander3}
 	comm_system_backend
 	)
 
-# installing commander into appropriate folder
+# Installing Commander3 into appropriate folder
 #install(TARGETS ${commander3} RUNTIME DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${commander3} DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
