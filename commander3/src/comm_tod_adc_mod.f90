@@ -180,8 +180,8 @@ contains
     character(len=*),                intent(in)    :: mode
     integer(i4b)                                   :: i, leng
 
-    real(dp), dimension(:), allocatable            :: dbl_in, dbl_out
-    real(dp), dimension(:), allocatable            :: in_buff, out_buff
+    !real(dp), dimension(:), allocatable            :: dbl_in, dbl_out
+    !real(dp), dimension(:), allocatable            :: in_buff, out_buff
     
     leng = size(tod_in)
 
@@ -208,7 +208,7 @@ contains
        out_buff(i) = splint(self%sadc,in_buff(i))
     end do
 
-    tod_out = real(out_buff)
+    !tod_out = real(out_buff)
 
     ! If adc_correct_type == 'dpc' then
     ! tod_out = tod_in
@@ -415,18 +415,21 @@ contains
        end do
 
        !! This is some seg-faulty territory
-       if (i /= 0) then
+       if (i == 0) then
+          middle_mean = 0.d0
+       else
           middle_mean = middle_mean/i
        end if
-
+       
        i = 0
        do j = 150, 350
           if (binmask(j) == 0) cycle
           i = i + 1
           middle_std = middle_std + (middle_mean-self%rms_bins(j))**2
        end do
-       !! This is some seg-faulty territory
-       if (i /= 0) then
+       if (i == 0) then
+          middle_std = 0.d0
+       else
           middle_std = sqrt(middle_std/i)
        end if
 
@@ -467,6 +470,7 @@ contains
        allocate(linrms(self%nbins))
        allocate(flatrms(self%nbins))
        allocate(idrf(self%nbins),rirf(self%nbins),model(self%nbins))
+       !allocate(rirf(self%nbins),model(self%nbins))
        allocate(flatrirf(self%nbins))
 
        rirf(:)     = 0.0
@@ -623,7 +627,6 @@ contains
     ! mpi_bcast the tables to all other cores
     call mpi_bcast(self%adc_in,  self%nbins, MPI_REAL, 0, self%comm, ierr) 
     call mpi_bcast(self%adc_out, self%nbins, MPI_REAL, 0, self%comm, ierr) 
-
     
   end subroutine build_table
     
@@ -669,15 +672,17 @@ contains
     y_var  = 0.0
     y_std  = 0.0
 
-    slope  = 0.0
-    offset = 0.0
-
     count = 0
     do i = 1, leng
        if (mask(i) == 0) cycle
        count = count + 1
        y_mean = y_mean + y(i)
     end do
+    if (count == 0) then
+       slope = 0.d0
+       offset = 0.d0
+       return
+    end if
     y_mean = y_mean/count
     
     do i = 1, leng
@@ -786,6 +791,12 @@ contains
        count  = count + 1
        y_mean = y_mean + y(i)
     end do
+    if (count == 0) then
+       dip1 = 0.d0
+       v_off = 0.d0
+       deallocate(truths, dips)
+       return
+    end if
     y_mean = y_mean/count
     
     count = 0
@@ -1090,6 +1101,8 @@ contains
 
        model = return_gaussian(x,pars)
        idrf  = idrf + model
+       
+       deallocate(model)
     end do    
 
   contains

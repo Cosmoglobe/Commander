@@ -46,6 +46,12 @@ program commander
   character(len=32)           :: arg
   integer                     :: arg_indx
 
+!!$  type(byte_pointer), allocatable, dimension(:) :: arr
+!!$  integer(i4b) :: n, q
+
+
+
+
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
     call get_command_argument(arg_indx, arg)
@@ -87,6 +93,28 @@ program commander
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   status%active = cpar%myid_chain == 0 !.false.
+
+!!$  n = 100000
+!!$  q = 100000
+!!$  allocate(arr(n))
+!!$  do i = 1, n
+!!$     allocate(arr(i)%p(q))
+!!$     arr(i)%p = i
+!!$     if (mod(i,1000) == 0) then
+!!$        write(*,*) 'up', arr(i)%p(6)
+!!$        call update_status(status, "debug")
+!!$     end if
+!!$  end do
+!!$
+!!$  do i = 1, n
+!!$     deallocate(arr(i)%p)
+!!$     if (mod(i,1000) == 0) then
+!!$        write(*,*) 'down', i
+!!$        call update_status(status, "debug2")
+!!$     end if
+!!$  end do
+!!$  deallocate(arr)
+!!$  stop
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'

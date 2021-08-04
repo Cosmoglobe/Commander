@@ -51,6 +51,7 @@ export MPCC := mpiicc
 #main
 #
 export F90FLAGS := -fpe0 -march=native -g -O2 -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl -xHost 
+#export F90FLAGS := -fpe0 -march=native -g -O2 -traceback -assume byterecl -qopenmp -parallel -lmkl -xHost 
 
 #debug
 #
